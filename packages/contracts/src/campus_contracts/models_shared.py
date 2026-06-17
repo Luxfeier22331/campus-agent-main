@@ -30,6 +30,7 @@ CapabilityToolName = Literal[
     "academic_calendar_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
 ]
 RequestedCapability = Literal[
     "knowledge",
@@ -221,6 +222,7 @@ ALLOWED_CAPABILITY_TOOL_NAMES = (
     "academic_calendar_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
 )
 ALLOWED_REQUESTED_CAPABILITIES = (
     "knowledge",

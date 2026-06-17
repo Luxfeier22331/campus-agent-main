@@ -104,7 +104,8 @@ class InternalNoticeConsumptionNoLegacyManualStateTest(unittest.TestCase):
             root / "configs/ingestion/campus_notices/internal_notice/historical-batches/"
             "run14-attachment-routing-probe.v1.json",
             root / "docs/architecture/domains/authenticated-notice/architecture.md",
-            root / "docs/reference/internal-notice-offline-preparation-strategy.md",
+            root / "docs/reference/archive/python-ingestion-worker/"
+            "internal-notice-offline-preparation-strategy.md",
         )
 
         for path in checked_paths:

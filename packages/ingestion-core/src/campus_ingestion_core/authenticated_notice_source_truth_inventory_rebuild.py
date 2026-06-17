@@ -35,7 +35,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory_shared im
 )
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import is_source_object_key
-from campus_ingestion_core.raw_ingestion import S3ObjectStoreClient
+from campus_ingestion_core.raw_ingestion_source_truth_support import S3ObjectStoreClient
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,

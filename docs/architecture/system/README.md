@@ -28,6 +28,8 @@ capability-local readiness.
   - `agent-framework-boundary-architecture.md`
 - Temporal, durable run/event/step projection, cancel, timeout and resume:
   - `durable-agent-runtime-architecture.md`
+- Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
+  - `kubernetes-execution-runtime-architecture.md`
 - Prompt, system instruction and provider-facing prompt ownership:
   - `prompt-and-instruction-architecture.md`
   - `prompt-and-instruction/current-runtime-baseline.md`
@@ -54,8 +56,8 @@ capability-local readiness.
   - `identity-platform-architecture.md`
   - `identity-browser-experience-architecture.md`
   - `federation-and-mucwiki-login-architecture.md`
-- Campus Ops browser surface and operator workspace boundary:
-  - `campus-ops-web-architecture.md`
+- Operator Console operations domain and current implementation boundary:
+  - `operator-console-operations-architecture.md`
 - Retired or offline Python capability boundary:
   - `python-capability-boundaries.md`
 

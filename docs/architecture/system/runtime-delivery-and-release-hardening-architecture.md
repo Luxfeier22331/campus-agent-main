@@ -10,8 +10,8 @@ updated: 2026-04-25
 
 ## 文档边界
 
-本文冻结 campus-web、public chat、protected panel、shared `app-api` 这组 Worker surface 的长期
-delivery / release hardening supporting architecture。
+本文冻结 campus-web、public chat、Operator Console implementation surfaces、shared `app-api`
+这组 Worker surface 的长期 delivery / release hardening supporting architecture。
 
 它回答的是：
 
@@ -27,7 +27,7 @@ delivery / release hardening supporting architecture。
 
 执行级 runbook 统一看：
 
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
@@ -41,28 +41,33 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 固定约束：
 
-- `apps/campus-web`、`apps/public-chat-web`、`apps/protected-panel-web`、
+- `apps/campus-web`、`apps/public-chat-web`、Operator Console implementation surfaces、
   `apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
 - staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link`、
-  `chat-staging.mucwiki-edge.link`、`panel-staging.mucwiki-edge.link`；docs 作为
-  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过 Worker
-  `APP_API` Service Binding 调用 `app-api-staging`
-- `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
-  service
+  `chat-staging.mucwiki-edge.link` 与
+  `operator-console-staging.mucwiki-edge.link`；docs 作为
+  `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
+  Worker `APP_API` Service Binding 调用 `app-api-staging`
+- `apps/execution-control` 的当前 accepted deploy substrate 是 Docker-first internal
+  execution service；production target deploy substrate 已由 ADR-0056 收口为
+  Kubernetes + KEDA
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
 - 当前 repo-owned staging execution runtime 已 hardcut 到
   `execution-control + Temporal + workflow-worker + activity-worker-context +
-  activity-worker-agent + agent-runtime + activity-worker-knowledge +
+  activity-worker-agent + agent-runtime + activity-worker-knowledge-plan +
+  activity-worker-knowledge-retrieval + activity-worker-knowledge-synthesis +
   capability workers + activity-worker-finalization + worker-autoscaler`；
   legacy dev-backed execution host 与 Python bridge serving path 不再是 active
   runback path
+- production target runtime 将 `worker-autoscaler` 替换为 KEDA Temporal scaler +
+  Kubernetes HPA；Docker Compose autoscaler 只保留 local / transitional staging proof
 - `execution-control` readiness 代表 execution runtime 是否适合接收新请求；
   瞬时并发满载不单独定义为 runtime broken，queue full / draining / Temporal /
   projection / RAG runtime unhealthy 才进入 degraded posture
-- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与 post-deploy evidence
-  共同决定
+- 发布是否完成，不由 `/readyz` 单点决定，而由 config truth、runtime smoke 与
+  post-deploy evidence 共同决定
 
 ## Staging Baseline
 
@@ -73,7 +78,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
 - `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
 长期规则：
@@ -81,8 +86,8 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `mucwiki-edge.link` 下项目隔离一级子域是当前 repo-owned staging truth
 - `ayafeed.com` 与 `*.rag.ayafeed.com` 不再作为 campus-agent staging forward truth
 - future production hostname 应新增独立 env truth，而不是覆写 staging baseline
-- `APP_API_BASE_URL` 与 `PANEL_RUNTIME_API_BASE_URL` 在 Worker web surfaces 中固定为
-  `https://app-api.internal`，只用于 Service Binding request construction
+- `APP_API_BASE_URL` 与 `OPERATOR_CONSOLE_APP_API_BASE_URL` 在 Worker web
+  surfaces 中固定为 `https://app-api.internal`，只用于 Service Binding request construction
 - `api-staging.mucwiki-edge.link` 不得作为 browser surface upstream invariant；若保留，
   必须按 machine ingress 处理
 
@@ -119,7 +124,7 @@ release identity 的长期规则固定为：
 - internal shared secret、operator allowlist、public chat allowlist 必须按跨 app
   invariant 收口
 - `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
-  `PANEL_RUNTIME_API_BASE_URL=https://app-api.internal` 不能漂移
+  `OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal` 不能漂移
 
 ### Data Freshness / DB Gate
 
@@ -131,7 +136,9 @@ release identity 的长期规则固定为：
 ### Upstream Execution Gate
 
 - `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_CONTROL_BASE_URL`
-- forward deploy truth 应指向 Docker-first Go execution ingress
+- 当前 staging forward deploy truth 可继续指向 Docker-first Go execution ingress；
+  production target deploy truth 应指向 Kubernetes internal execution-control Service
+  或受保护 machine ingress
 - 如果 Docker execution-control ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
   `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth
@@ -140,7 +147,7 @@ release identity 的长期规则固定为：
 
 ### Execution Runtime Gate
 
-Docker-side execution runtime 的 release gate 长期至少覆盖：
+Execution runtime 的 release gate 长期至少覆盖：
 
 - `execution-control /healthz`、`/readyz` 与 `/metrics` 可达
 - Python private bridge readiness 已被 `execution-control /readyz` 聚合
@@ -153,6 +160,18 @@ Docker-side execution runtime 的 release gate 长期至少覆盖：
   `/readyz` / `/metrics`
 - `POST /internal/execution/runs` 只作为 app-api 内部 execution command seam 验证，不作为
   token streaming 或 browser 直连验收标准
+
+Kubernetes production target 还必须覆盖：
+
+- execution-control Service 只允许 trusted app-api / operator runtime caller 访问
+- workflow-worker 与每个 activity-worker Deployment 均有 readiness、liveness、
+  resource request / limit 与 rollout strategy
+- 每个 Temporal task queue 只有一个 owner Deployment 与一个 KEDA ScaledObject
+- KEDA operator / metrics server healthy，HPA 不存在 metric fetch failure
+- ScaledObject 明确 min/max replicas、target queue size、polling interval、cooldown
+  与 HPA scale-down behavior
+- app-api operator runtime projection 能看到 fresh task queue metrics、KEDA/HPA
+  scaler posture 与 scale event evidence
 
 这些 gate 只判断 execution runtime 是否适合接收新请求；它们不替代 `app-api`
 产品层 request projection、operator read model 或 browser smoke。
@@ -188,7 +207,8 @@ Docker-side execution runtime 的 release gate 长期至少覆盖：
 post-deploy verification 的长期 closure 固定为：
 
 - `public-chat-web -> app-api` 至少一条真实 trace
-- `protected-panel-web -> app-api` 至少一条真实 trace
+- `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
+  surface 是 `operator-console-web`
 - `app-api` 至少一条 runtime event / scheduled drain evidence
 - 当次 release 的 evidence artifact 落盘
 
@@ -219,11 +239,12 @@ post-deploy verification 的长期 closure 固定为：
 ## 相关稳定文档
 
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
+- `docs/architecture/system/kubernetes-execution-runtime-architecture.md`
 - `docs/environment/README.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`

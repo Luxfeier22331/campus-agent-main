@@ -38,8 +38,7 @@
 							"operator_projection_snapshot"
 						]
 					},
-					"executor_kind": { "enum": ["python_adapter", "rust_kernel", "ts_control"] },
-					"adapter_id": { "type": "string", "minLength": 1 },
+					"executor_kind": { "enum": ["rust_kernel", "ts_control"] },
 					"kernel_id": { "type": "string", "minLength": 1 },
 					"input_contract": { "type": "string", "minLength": 1 },
 					"output_contract": { "type": "string", "minLength": 1 },

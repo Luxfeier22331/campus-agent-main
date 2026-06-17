@@ -1,13 +1,12 @@
 [project]
 name = "campus-ingestion-worker"
 version = "0.1.0"
-description = "Ingestion runtime shell for campus-agent v2."
+description = "Python extraction adapter island for campus-agent ingestion."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "campus-shared",
   "campus-ingestion-core",
-  "campus-ingestion-contracts",
 ]
 
 [tool.uv]
@@ -16,7 +15,6 @@ package = true
 [tool.uv.sources]
 campus-shared = { workspace = true }
 campus-ingestion-core = { workspace = true }
-campus-ingestion-contracts = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/campus_ingestion_worker"]

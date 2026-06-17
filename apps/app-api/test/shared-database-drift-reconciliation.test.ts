@@ -40,6 +40,20 @@ const DINING_TABLES = [
 	"dining.windows",
 ];
 
+interface DropTableOperationProjection {
+	kind: "drop_table";
+	qualifiedName: string;
+	statement: string;
+}
+
+function isDropTableOperation<T extends { kind: string }>(
+	operation: T,
+): operation is T & DropTableOperationProjection {
+	return (
+		operation.kind === "drop_table" && "qualifiedName" in operation && "statement" in operation
+	);
+}
+
 function buildTableFromSnapshot(
 	specs: ReturnType<typeof buildExpectedTableSpecs>,
 	qualifiedName: string,
@@ -211,6 +225,102 @@ describe("shared database drift reconciliation", () => {
 		expect(plan.operations.map((operation) => operation.kind)).toEqual([
 			"drop_column",
 			"drop_column",
+		]);
+	});
+
+	it("plans cleanup for retired execution runtime tables with non-empty approval surfaced", () => {
+		const inventory = makeInventory({
+			journalRows: [],
+			schemas: ["runtime"],
+			tables: [
+				...buildAllExpectedTables().filter((table) => table.schema === "runtime"),
+				{
+					columns: [
+						{
+							name: "lane",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "lane_budgets",
+				},
+				{
+					columns: [
+						{
+							name: "event_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_run_events",
+				},
+				{
+					columns: [
+						{
+							name: "run_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_runs",
+				},
+			],
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map([
+				["runtime.agent_run_events", 0],
+				["runtime.agent_runs", 0],
+				["runtime.lane_budgets", 1],
+			]),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraTables).toEqual([
+			{ qualifiedName: "runtime.agent_run_events", rowCount: 0 },
+			{ qualifiedName: "runtime.agent_runs", rowCount: 0 },
+			{ qualifiedName: "runtime.lane_budgets", rowCount: 1 },
+		]);
+		expect(plan.nonEmptyDriftTables).toEqual([
+			{ qualifiedName: "runtime.lane_budgets", rowCount: 1 },
+		]);
+		expect(plan.operations.map((operation) => operation.kind)).toEqual([
+			"drop_table",
+			"drop_table",
+			"drop_table",
+		]);
+		expect(
+			plan.operations.filter(isDropTableOperation).map((operation) => ({
+				qualifiedName: operation.qualifiedName,
+				statement: operation.statement,
+			})),
+		).toEqual([
+			{
+				qualifiedName: "runtime.agent_run_events",
+				statement: 'drop table if exists "runtime"."agent_run_events" cascade',
+			},
+			{
+				qualifiedName: "runtime.agent_runs",
+				statement: 'drop table if exists "runtime"."agent_runs" cascade',
+			},
+			{
+				qualifiedName: "runtime.lane_budgets",
+				statement: 'drop table if exists "runtime"."lane_budgets" cascade',
+			},
 		]);
 	});
 

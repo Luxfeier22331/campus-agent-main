@@ -12,6 +12,8 @@ from campus_contracts import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
+    CampusNoticePeriodSummaryPayload,
+    CampusNoticePeriodSummaryResult,
 )
 
 
@@ -34,6 +36,12 @@ class NoticeGetQuery:
 
 
 @dataclass(frozen=True, slots=True)
+class NoticePeriodSummaryQuery:
+    payload: CampusNoticePeriodSummaryPayload
+    access_context: NoticeAccessContext = field(default_factory=NoticeAccessContext)
+
+
+@dataclass(frozen=True, slots=True)
 class NoticeChangeSetLookupQuery:
     payload: CampusNoticeChangeSetLookupPayload
     access_context: NoticeAccessContext = field(default_factory=NoticeAccessContext)
@@ -43,6 +51,11 @@ class NoticeQueryService(Protocol):
     def discover_notice(self, query: NoticeDiscoverQuery) -> CampusNoticeDiscoverResult: ...
 
     def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult: ...
+
+    def summarize_notice_period(
+        self,
+        query: NoticePeriodSummaryQuery,
+    ) -> CampusNoticePeriodSummaryResult: ...
 
     def lookup_notice_change_set(
         self,

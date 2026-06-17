@@ -171,10 +171,8 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
     repo-owned budget policy 承接；判断 lane、worker、provider、Qdrant、
     Postgres 等 execution budget
 
-当前 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`、
-`EXECUTION_CONTROL_QUEUE_CAPACITY` 与 `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS` 只属于
-current process-local execution protection。
-它们不得替代 durable run admission 或 lease coordination。
+当前 runtime profile 中的 admission budget 只属于 current process-local
+execution protection。它不得替代 durable run admission 或 lease coordination。
 
 ### 3. First Execution Agent Decision
 
@@ -271,7 +269,7 @@ service 入场；只有需要 semantic specialist 时才新增 family label，�
 - routing clarification 仍发生在 workflow planning 之前；agent clarification 只能发生在已选定
   family / step 内部
 - Temporal workflow history 不替代 product projection；workflow/activity progress
-  必须写入 repo-owned sanitized projection 后才能进入 panel / eval / badcase truth
+  必须写入 repo-owned sanitized projection 后才能进入 Operator Console / eval / badcase truth
 
 ### 6. Typed Tool / Agent-As-Tool Execution
 

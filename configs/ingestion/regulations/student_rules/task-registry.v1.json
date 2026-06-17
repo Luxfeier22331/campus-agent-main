@@ -6,16 +6,14 @@
 	"tasks": [
 		{
 			"task_kind": "source_truth_materialize",
-			"executor_kind": "python_adapter",
-			"adapter_id": "student_rules.source_truth_materialize.v1",
+			"executor_kind": "ts_control",
 			"input_contract": "student_rules_raw_asset.v1",
 			"output_contract": "student_rules_source_truth.v1",
 			"can_publish_alias": false
 		},
 		{
 			"task_kind": "canonical_document_materialize",
-			"executor_kind": "python_adapter",
-			"adapter_id": "student_rules.canonical_document_materialize.v1",
+			"executor_kind": "ts_control",
 			"input_contract": "student_rules_source_truth.v1",
 			"output_contract": "canonical_document_artifacts.v1",
 			"can_publish_alias": false
@@ -38,16 +36,14 @@
 		},
 		{
 			"task_kind": "structured_projection_publish",
-			"executor_kind": "python_adapter",
-			"adapter_id": "student_rules.source_projection_publish.v1",
+			"executor_kind": "ts_control",
 			"input_contract": "student_rules_source_projections.v1",
 			"output_contract": "structured_projection_publish_closeout.v1",
 			"can_publish_alias": false
 		},
 		{
 			"task_kind": "alias_publish",
-			"executor_kind": "python_adapter",
-			"adapter_id": "qdrant_alias_publish_adapter.v1",
+			"executor_kind": "ts_control",
 			"input_contract": "ingestion_release_manifest.v1",
 			"output_contract": "ingestion_alias_publish_closeout.v1",
 			"can_publish_alias": true

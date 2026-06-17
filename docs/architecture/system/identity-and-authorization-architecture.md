@@ -151,7 +151,7 @@ account / session truth。
 - `/wiki` 不是 hub internal slug
 - 不迁移 MediaWiki 用户、页面内容或上传媒体
 - 不把 MediaWiki cookie、session、user table 或 password hash 导入 `apps/app-api`
-- 不让 Execution Agent Layer、agent、retrieval 或 operator panel 读取 MediaWiki
+- 不让 Execution Agent Layer、agent、retrieval 或 Operator Console 读取 MediaWiki
   account/session state
 - 不设置 `.muc.wiki` 共享 auth cookie；new app-set auth cookie scope 保持在 hub/app
   browser shell 的 origin 语义内，并由 app-api / Better Auth 负责 server-side truth
@@ -166,7 +166,7 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 - 不把 MediaWiki cookie / session / password hash 提升为 app identity truth
 - 不把 captcha token / challenge state / risk score 提升成 account、operator access 或
   capability-opening truth
-- 不让 operator panel 旁路 `app-api` 直接做授权解释
+- 不让 Operator Console 旁路 `app-api` 直接做授权解释
 - 不把 personal memory 当作 source truth、capability opening truth 或 fail-close override
 
 ## 相关稳定文档
@@ -175,4 +175,4 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`

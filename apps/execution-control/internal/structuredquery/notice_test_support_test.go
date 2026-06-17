@@ -12,6 +12,8 @@ type fakeNoticeReadModelStore struct {
 	searchQueryText        string
 	searchMaxResults       int
 	searchTargetSurfaces   []string
+	searchTemporalQuery    temporalQuery
+	searchDateRange        noticeDateRange
 	searchAuthorization    noticeReadModelAuthorizationFilter
 	idLookupNoticeIDs      []string
 	idLookupTargetSurfaces []string
@@ -27,6 +29,8 @@ func (s *fakeNoticeReadModelStore) SearchNotices(
 	s.searchCount++
 	s.searchQueryText = criteria.QueryText
 	s.searchTargetSurfaces = append([]string(nil), criteria.TargetSurfaces...)
+	s.searchTemporalQuery = criteria.TemporalQuery
+	s.searchDateRange = criteria.DateRange
 	s.searchMaxResults = criteria.MaxResults
 	s.searchAuthorization = criteria.Authorization
 	return append([]noticeReadModelRecord(nil), s.searchRows...), nil

@@ -234,6 +234,60 @@ class EvalDiagnosticBadcasesSuite(unittest.TestCase):
             },
         )
 
+    def test_release_mode_fails_closed_when_trajectory_attribution_is_missing(self) -> None:
+        with self.assertRaisesRegex(ValueError, "trajectory attribution is required"):
+            build_eval_diagnostic_badcases_projection(
+                _combined_report(
+                    cases=[
+                        {
+                            "surface_key": "regulations/student_rules",
+                            "case_id": "missing-trajectory",
+                            "query": "奖学金要满足什么条件",
+                            "expected_doc_ids": ["doc:scholarship"],
+                            "retrieved_context_ids": ["chunk:wrong"],
+                            "failure_attribution": {
+                                "primary_stage": "grounding",
+                                "metric_failures": {"faithfulness": "grounding"},
+                            },
+                            "scores": {"faithfulness": 0.31},
+                        }
+                    ]
+                ),
+                generated_at="2026-05-21T09:00:00+00:00",
+                require_trajectory_attribution=True,
+                source_git_head="git-main",
+            )
+
+    def test_release_mode_fails_closed_when_no_step_matches_failure_stage(self) -> None:
+        trajectory = _operator_step_trajectory()
+        for step in trajectory["steps"]:  # type: ignore[index]
+            step["stepKind"] = "routing"
+            step["stepId"] = "plan.route"
+
+        with self.assertRaisesRegex(ValueError, "trajectory attribution is required"):
+            build_eval_diagnostic_badcases_projection(
+                _combined_report(
+                    cases=[
+                        {
+                            "surface_key": "regulations/student_rules",
+                            "case_id": "missing-attribution",
+                            "query": "奖学金要满足什么条件",
+                            "expected_doc_ids": ["doc:scholarship"],
+                            "retrieved_context_ids": ["chunk:wrong"],
+                            "failure_attribution": {
+                                "primary_stage": "grounding",
+                                "metric_failures": {"faithfulness": "grounding"},
+                            },
+                            "operator_step_trajectory": trajectory,
+                            "scores": {"faithfulness": 0.31},
+                        }
+                    ]
+                ),
+                generated_at="2026-05-21T09:00:00+00:00",
+                require_trajectory_attribution=True,
+                source_git_head="git-main",
+            )
+
 
 def _combined_report(*, cases: list[dict[str, object]]) -> dict[str, object]:
     return {

@@ -28,16 +28,16 @@ status, and makeup class facts.
 
 ## Publish
 
-Preview/write release artifacts:
+Release publication is owned by the ingestion-control task registry:
 
-```bash
-uv run --all-packages python scripts/publish_academic_calendar_projection.py \
-  --output-dir var/academic-calendar-release \
-  --generated-at 2026-05-05T10:00:00+08:00
-```
+- `structured_projection_publish` consumes `academic_calendar_source_truth.v1`
+  and writes the structured projection closeout.
+- `operator_projection_snapshot` consumes `academic_calendar_projection.v1` and
+  writes the operator projection.
 
-Publish to the structured Postgres read model by additionally passing
-`--database-url "$CAMPUS_SHARED_POSTGRES_URL" --promote-current`.
+There is no active Python publish CLI for this collection. If the TS handlers
+are not registered, the executor fails closed; it must not call a Python
+fallback or infer a partial projection from raw HTML, OCR assets or generic RAG.
 
 ## Current Release Evidence
 

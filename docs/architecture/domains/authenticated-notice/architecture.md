@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-06-12
+updated: 2026-06-15
 ---
 # Authenticated Notice Source Architecture
 
@@ -36,22 +36,22 @@ architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补�
 
 当前接受的 notice-oriented source-channel topology 固定为：
 
-`collector -> source bucket + run ledger -> ingestion-worker -> source-truth /
+`collector -> source bucket + run ledger -> ingestion-control -> source-truth /
 document holding -> explicit downstream admission`
 
 对 `authenticated_notice_portal`，当前 merged truth 已额外具备一条 app-owned operator-safe
 projection path：
 
 `collector / ingestion outputs -> app-api authenticated_notice_processing
-projection ingest -> protected-panel-web list/detail query`
+projection ingest -> Operator Console list/detail query`
 
 这表示当前架构存在四层清晰分工：
 
 - `source channel`
   - collector runtime、capture boundary、source artifact、run ledger
 - `data plane`
-  - ingestion-worker、ingestion-core、source-truth、document holding、projection /
-    release / downstream admission
+  - ingestion-control、ingestion-core、source-truth、document holding、projection /
+    release / downstream admission；Python worker 仅作为 extraction adapter island
 - `operator projection`
   - `app-api` 拥有的 authenticated notice processing operator-safe ingest 与
     list/detail query
@@ -88,7 +88,7 @@ projection ingest -> protected-panel-web list/detail query`
 ## Authenticated Notice Portal Boundary
 
 `authenticated_notice_portal` 是一级 `source_channel`，不是 `official_web`
-的特殊站点，也不是 panel runtime 或 notice tool runtime 的别名。
+的特殊站点，也不是 Operator Console runtime 或 notice tool runtime 的别名。
 
 它当前承接两个 source surface：
 
@@ -99,9 +99,10 @@ projection ingest -> protected-panel-web list/detail query`
 
 - collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传、
   run ledger 写入与 typed handoff artifact 输出
-- `apps/ingestion-worker` 负责按 `run_id` 或 explicit object refs 读取
-  source bucket artifact，重建 source-truth / holding，并在显式 downstream
-  admission 后进入后续 projection 或 release
+- `apps/ingestion-control` 负责按 admitted task 读取 explicit source bucket object refs
+  对应的 source artifact，重建 source-truth / holding，并在显式 downstream admission
+  后进入后续 projection 或 release；`run_id` 只能作为可审计 metadata / ledger lookup key，
+  不能替代 object-store input contract
 - `packages/ingestion-core` 负责 source-truth contract、projection、registry 与
   release semantics
 - `apps/app-api` 不拥有 source-truth、对象存储、queue mutation、lease/retry/
@@ -160,20 +161,32 @@ query-serving surface。
 
 ## Object-Native Handoff
 
-collector 与 ingestion-worker 之间的主链路 handoff 固定通过：
+collector 与 ingestion-control 之间的主链路 handoff 固定通过：
 
 - S3-compatible source bucket
 - relational run ledger
+- ingestion-control task envelope 中的 object-store artifact refs
 
 不是：
 
 - 本地导出目录
 - 共享 volume 假设
-- 只靠 panel projection 恢复 source-truth
+- 只靠 Operator Console projection 恢复 source-truth
+- 只传 `collector-run://...` 后由 executor 隐式猜测 bundle / manifest
 
-`run_id` import 与 explicit object-ref import 都必须以
-bucket/object metadata + hash/size verification 为准。local bundle /
-manifest path 只允许作为显式 fixture/dev 输入，不是 Docker mainline 的成功形态。
+clean target 中，`source_truth_materialize` 的 mainline input 必须指向 source bucket
+中的 bundle / manifest / source-truth artifact，使用 `input_ref.kind=object_store` 与
+`s3://...` URI。`run_id`、site id 与 source surface 只用于 idempotency、audit、
+operator projection 与 ledger correlation。
+
+当前代码中如果仍存在 `inline` collector-run task envelope，它只能被解释为
+staged migration residue：它可以证明 collector run 已 verified，但不能证明
+ingestion-control 已具备 authenticated notice source-truth materialization handler。
+迁移完成的判据是 verified collector run 通过 object-store refs 被
+`apps/ingestion-control` admit / claim / execute / complete，并产出
+`authenticated_notice_source_truth.v1` artifact closeout。
+
+local bundle / manifest path 只允许作为显式 fixture/dev 输入，不是 Docker mainline 的成功形态。
 
 ## App-API Operator Projection Boundary
 
@@ -183,7 +196,7 @@ projection domain。
 它当前负责：
 
 - processing projection ingest
-- protected-panel-facing list/detail query
+- Operator Console-facing list/detail query
 - operator-safe status/read model exposure
 - caller class / admission rule 固定的 HTTP route exposure
 
@@ -196,7 +209,7 @@ projection domain。
 - queue mutation API
 - ingestion executor callback / retry / lease / dead-letter truth
 
-因此，panel/query/operator projection 只能被描述成 app-owned
+因此，Operator Console query/operator projection 只能被描述成 app-owned
 read/control-plane seam，不能被描述成 source-truth owner、对象存储
 owner 或 ingestion runtime owner。
 

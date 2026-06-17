@@ -4,11 +4,13 @@ import re
 import unittest
 from itertools import pairwise
 
-from campus_ingestion_core.collected_notice_regulation_first_batch_documents import (
-    build_document_import_input,
-)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+from campus_ingestion_core.regulation_document_units import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+    SCOPED_TARGET_COLLECTION,
+    serialize_regulation_document_units,
+)
 
 
 class RegulationChunkPrecisionTest(unittest.TestCase):
@@ -107,41 +109,45 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
             subject_chunks[0].metadata["display_text"],
             "招生专业：新闻传播学",
         )
-        self.assertGreaterEqual(int(subject_chunks[0].metadata["final_token_count"]), 40)
+        self.assertEqual(int(subject_chunks[0].metadata["final_token_count"]), 10)
 
 
 def _build_scoped_rule_chunks(*, canonical_markdown: str):
-    import_input = build_document_import_input(
-        {
-            "target_collection": "scoped_rules",
-            "target_document_id": "institutional_regulation:muc:test-scoped-rule",
-            "title": canonical_markdown.splitlines()[0].removeprefix("# ").strip(),
-            "canonical_markdown": canonical_markdown,
+    document_id = "institutional_regulation:muc:test-scoped-rule"
+    version_id = f"{document_id}@2025-12-16"
+    title = canonical_markdown.splitlines()[0].removeprefix("# ").strip()
+    document_units_bytes = serialize_regulation_document_units(
+        target_collection=SCOPED_TARGET_COLLECTION,
+        target_document_id=document_id,
+        version_id=version_id,
+        title=title,
+        canonical_markdown=canonical_markdown,
+        source_url="campusrag://authenticated-notice/353963",
+        visibility_level="restricted",
+        visibility_scope="campus",
+        entitlement_groups=["campus_members"],
+        common_metadata={
             "source_notice_ids": ["353963"],
             "source_document_ids": ["notice:muc_internal_portal:353963"],
-            "source_scope": {
-                "source_channel": "authenticated_notice_portal",
-                "source_surface": "notice_body",
-            },
+            "source_channel": "authenticated_notice_portal",
+            "source_surface": "notice_body",
             "source_notice_release_time": "2025-12-16 11:15",
             "document_nature": "time_bound_operational_rule",
             "cycle_year": "2025",
             "school_unit_name": "新闻与传播学院",
-            "normalization_quality": {
-                "quality_verdict": "passed",
-                "normalizer_version": "collected_notice_regulation_canonical_cleaning_v9",
-                "reason_codes": [],
-            },
-        }
+            "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
+            "normalization_quality": "passed",
+        },
+        semantic_content_hash="test-scoped-rule-hash",
     )
     record = DocumentRegistryRecord(
-        document_id=str(import_input.metadata["document_id"]),
-        revision_track=import_input.revision_track,
-        version_id=str(import_input.metadata["version_id"]),
-        source_uri="campusrag://collected-notice/353963",
-        content_hash=str(import_input.metadata["semantic_content_hash"]),
-        corpus=import_input.corpus,
-        collection=import_input.collection,
+        document_id=document_id,
+        revision_track="source-faithful",
+        version_id=version_id,
+        source_uri="campusrag://authenticated-notice/353963",
+        content_hash="test-scoped-rule-hash",
+        corpus="regulations",
+        collection=SCOPED_TARGET_COLLECTION,
         cleaning_policy_version="scoped_rules_cleaning_v1",
         entitlement_groups=("campus_members",),
         visibility_scope="campus",
@@ -156,7 +162,7 @@ def _build_scoped_rule_chunks(*, canonical_markdown: str):
     )
     return build_indexable_chunks_from_jsonl(
         record=record,
-        structured_jsonl_bytes=import_input.document_units_bytes,
+        structured_jsonl_bytes=document_units_bytes,
     )
 
 

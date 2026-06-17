@@ -38,7 +38,7 @@ from campus_ingestion_core.internal_notice_regulation_promotion_shared import (
     InternalNoticeRegulationPromotionManifestReport,
     InternalNoticeRegulationPromotionRequest,
 )
-from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 

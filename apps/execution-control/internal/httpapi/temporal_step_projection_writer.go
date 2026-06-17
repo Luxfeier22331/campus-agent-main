@@ -161,7 +161,7 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 }
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {
-	return strings.HasPrefix(strings.TrimSpace(stepID), "memory.update.")
+	return strings.TrimSpace(stepID) == "memory.append"
 }
 
 func (s *Server) ensureTemporalStepCompletionAllowed(

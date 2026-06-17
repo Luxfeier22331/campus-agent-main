@@ -10,10 +10,11 @@ import (
 
 var errInvalidCapabilityResponse = errors.New("invalid agent response")
 var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
-	execution.ProjectionKindNoticeContext:    {},
-	execution.ProjectionKindNoticeChangeSet:  {},
-	execution.ProjectionKindScheduleBaseline: {},
-	execution.ProjectionKindEvidenceBundle:   {},
+	execution.ProjectionKindNoticeContext:       {},
+	execution.ProjectionKindNoticeChangeSet:     {},
+	execution.ProjectionKindNoticePeriodSummary: {},
+	execution.ProjectionKindScheduleBaseline:    {},
+	execution.ProjectionKindEvidenceBundle:      {},
 }
 
 type executionFinalizerContext struct {

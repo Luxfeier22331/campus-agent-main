@@ -87,6 +87,7 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 		params = append(params, normalizedTargetSurfaces)
 		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
 	}
+	filters = append(filters, noticeTemporalSQLFilters(&params, criteria.TemporalQuery, criteria.DateRange)...)
 	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	if normalizedQuery != "" {
 		params = append(
@@ -107,9 +108,10 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 	}
 	params = append(params, maxResults)
 	query := fmt.Sprintf(
-		"select record from %s where %s order by published_at desc nulls last, source_notice_id desc, unit_id asc limit $%d",
+		"select record from %s where %s order by %s limit $%d",
 		s.tableSQL,
 		strings.Join(filters, " and "),
+		noticeReadModelOrderSQL(true),
 		len(params),
 	)
 	return s.fetchRecords(ctx, query, params...)
@@ -135,9 +137,10 @@ func (s *PostgresNoticeReadModelStore) GetNoticesByIDs(
 	}
 	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	query := fmt.Sprintf(
-		"select record from %s where %s order by published_at desc nulls last, source_notice_id desc, unit_id asc",
+		"select record from %s where %s order by %s",
 		s.tableSQL,
 		strings.Join(filters, " and "),
+		noticeReadModelOrderSQL(true),
 	)
 	return s.fetchRecords(ctx, query, params...)
 }
@@ -162,9 +165,10 @@ func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 	}
 	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
 	query := fmt.Sprintf(
-		"select record from %s where %s order by published_at desc nulls last, unit_id asc limit 1",
+		"select record from %s where %s order by %s limit 1",
 		s.tableSQL,
 		strings.Join(filters, " and "),
+		noticeReadModelOrderSQL(false),
 	)
 	rows, err := s.fetchRecords(ctx, query, params...)
 	if err != nil {
@@ -174,6 +178,56 @@ func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 		return noticeReadModelRecord{}, false, nil
 	}
 	return rows[0], true, nil
+}
+
+func noticeReadModelOrderSQL(includeSourceNoticeID bool) string {
+	if includeSourceNoticeID {
+		return "published_at_ts desc nulls last, source_notice_id desc, unit_id asc"
+	}
+	return "published_at_ts desc nulls last, unit_id asc"
+}
+
+func noticeTemporalSQLFilters(
+	params *[]any,
+	temporalQuery temporalQuery,
+	dateRange noticeDateRange,
+) []string {
+	filters := []string{}
+	if strings.TrimSpace(dateRange.StartDate) != "" || strings.TrimSpace(dateRange.EndDate) != "" {
+		if strings.TrimSpace(dateRange.StartDate) == "" || strings.TrimSpace(dateRange.EndDate) == "" {
+			return append(filters, "false")
+		}
+		*params = append(*params, strings.TrimSpace(dateRange.StartDate))
+		startParam := len(*params)
+		*params = append(*params, strings.TrimSpace(dateRange.EndDate))
+		endParam := len(*params)
+		filters = append(
+			filters,
+			fmt.Sprintf(
+				"published_at_ts::date >= $%d::date and published_at_ts::date <= $%d::date",
+				startParam,
+				endParam,
+			),
+		)
+	}
+	if strings.TrimSpace(temporalQuery.YearHint) != "" {
+		*params = append(*params, strings.TrimSpace(temporalQuery.YearHint))
+		yearParam := len(*params)
+		filters = append(filters, fmt.Sprintf("extract(year from published_at_ts)::text = $%d", yearParam))
+	}
+	if strings.TrimSpace(temporalQuery.AsOf) != "" {
+		*params = append(*params, strings.TrimSpace(temporalQuery.AsOf))
+		asOfParam := len(*params)
+		filters = append(
+			filters,
+			fmt.Sprintf(
+				"(effective_at_ts is null or effective_at_ts <= $%d::timestamptz) and (expires_at_ts is null or expires_at_ts > $%d::timestamptz)",
+				asOfParam,
+				asOfParam,
+			),
+		)
+	}
+	return filters
 }
 
 func noticeAuthorizationSQLFilter(

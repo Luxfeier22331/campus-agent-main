@@ -27,7 +27,7 @@ updated: 2026-05-02
 - 物理拆库
 - 具体托管商
 - 对象存储 bucket 细节
-- ingestion worker 内部 job schema
+- ingestion-control 内部 task schema
 - `fresh_news` / `news_archive` 的 rollout/opening posture
 
 ## Schema 与实现范围说明
@@ -60,9 +60,9 @@ updated: 2026-05-02
 - DB 只保存 run ledger、heartbeat、artifact refs、handoff truth 与 operator projections
 - retained HTML、provider payload、source-truth rows 保存在对象存储，不保存在这些表里
 - site config 仍然是 repo-tracked source config，不迁移进数据库当作真相源
-- ingestion execution 仍然由 `apps/ingestion-worker` 拥有，不在这里复制其内部 job schema
+- ingestion execution 由 `apps/ingestion-control` 拥有，不在这里复制其内部 task schema
 - release task truth、claim、lease、retry、dead-letter 与 publish 状态机属于
-  `packages/ingestion-core` / `apps/ingestion-worker`；app-api 只接收 redacted operator
+  `apps/ingestion-control`；app-api 只接收 redacted operator
   projection snapshot
 
 ## Schema Code Ownership
@@ -137,8 +137,8 @@ updated: 2026-05-02
 
 - 这是 crawl-run lifecycle 的 canonical owner
 - `summary_json` 只保存 projection-friendly summary，不保存整份 artifact 内容
-- `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion worker 的内部
-  job truth
+- `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion-control 的内部
+  task truth
 - ingestion execution 回调当前允许 `pending -> running -> staged -> promoted/failed`
 - `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被
   promote 改写
@@ -203,7 +203,7 @@ updated: 2026-05-02
 规则：
 
 - 这里记录的是 artifact refs，不是 artifact 内容
-- `object_key` 必须可被 ingestion worker 稳定解析与读取
+- `object_key` 必须可被 ingestion-control 稳定解析与读取
 
 ## `official_web.run_outbox`
 
@@ -322,7 +322,7 @@ updated: 2026-05-02
   `deleted` / `not_modified` / `fetch_failed`
 - `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion handoff page
   change
-- 这是 control-plane durable truth，不退回对象存储扫描或 ingestion worker 内部状态
+- 这是 control-plane durable truth，不退回对象存储扫描或 ingestion-control 内部状态
 
 ## `official_web.page_freshness`
 
@@ -400,8 +400,8 @@ updated: 2026-05-02
 - app-api 不保存 selected-write admission/task truth；contact/service selected-write
   release task 属于 ingestion data plane
 - 单 target release import、registry scope chunk preparation、claim/lease、
-  retry/dead-letter 与 publish 进度均由 `packages/ingestion-core` /
-  `apps/ingestion-worker` 的 release task state machine 承担
+  retry/dead-letter 与 publish 进度均由 `apps/ingestion-control` 的 release task
+  state machine 承担
 - 若物理 schema 中仍存在历史 `execution_json` / `error_json` 列，它们不再是 forward
   executor contract 的一部分
 
@@ -565,6 +565,6 @@ updated: 2026-05-02
 以下形态不接受：
 
 - 在 DB 中保存 retained HTML、provider payload 或 chunk 文本
-- 把 `official_web.crawl_runs` 当成 ingestion worker 内部 job store
+- 把 `official_web.crawl_runs` 当成 ingestion-control 内部 task store
 - 让 panel 直接查询 `official_web.run_artifacts` 并把它暴露成对象存储浏览器
 - 为 `official_web` 再单独长出另一条 migration pipeline

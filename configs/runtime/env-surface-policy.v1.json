@@ -1,0 +1,327 @@
+{
+	"schema_version": "campus_env_surface_policy.v1",
+	"allowed_templates": [
+		".env.example",
+		".env.staging.local.example",
+		"apps/app-api/.dev.vars.example",
+		"apps/app-api/.env.example",
+		"apps/authenticated-notice-collector/.env.example",
+		"apps/campus-web/.dev.vars.example",
+		"apps/official-web-collector/.env.example",
+		"apps/operator-console-web/.dev.vars.example",
+		"apps/public-chat-web/.dev.vars.example",
+		"apps/wechat-official-account-collector/.env.example",
+		"env/commands/execution-control-runtime.env.example",
+		"env/commands/legacy-office-conversion-service.env.example",
+		"infra/otel/collector.env.example"
+	],
+	"template_key_limits": {
+		".env.example": 106,
+		"apps/authenticated-notice-collector/.env.example": 44,
+		"env/commands/execution-control-runtime.env.example": 39
+	},
+	"keys": {
+		"AGENT_PROMPT_MODEL": {
+			"owner": "retired",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"SPECIALIST_PROMPT_MODEL": {
+			"owner": "retired",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"SUPERVISOR_PROMPT_MODEL": {
+			"owner": "retired",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_INTENT_POLICY_PATH": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUEUE_CAPACITY": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUEUE_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_REQUEST_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OPEN_CAPABILITIES": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_ENABLED": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_METRICS_ENABLED": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_SERVICE_NAME": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_SAMPLE_RATIO": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_PROVIDER_PRICING_PATH": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_TOP_K_MAX": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_SELECTED_EVIDENCE_MAX": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_RETRIEVAL_MAX_CONCURRENT": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_SYNTHESIS_MAX_CONCURRENT": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_EMBEDDING_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_QDRANT_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"EXECUTION_CONTROL_RAG_PROVIDER_TIMEOUT_MS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_COLLECTION": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_TOP_K": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_MAX_CHARS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_SCORE_THRESHOLD": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RUNTIME": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_TIMEOUT_SECONDS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RECALL_LIMIT": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_RECALL_MAX_CHARS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		}
+	},
+	"allowed_prefixes": {
+		"ACCESS_": ["operator-console-web"],
+		"AGENT_RUNTIME_": ["root", "command"],
+		"API_": ["root", "command"],
+		"APP_API_": ["root", "app-api", "campus-web", "public-chat-web", "staging-local"],
+		"AUTH_": ["app-api", "campus-web", "public-chat-web"],
+		"AUTHENTICATED_NOTICE_": ["authenticated-notice-collector"],
+		"AXIOM_": ["app-api"],
+		"BETTER_AUTH_": ["app-api"],
+		"CAMPUS_AGENT_": ["root"],
+		"CAMPUS_SHARED_": ["root", "command"],
+		"CAMPUS_WEB_": ["campus-web"],
+		"CHATKIT_": ["app-api"],
+		"CLOUDFLARE_": ["app-api"],
+		"DEPLOYMENT_": ["infra"],
+		"DOCUMENT_REGISTRY_": ["root"],
+		"EMBEDDING_": ["root"],
+		"EVAL_": ["root"],
+		"EXECUTION_CONTROL_": ["root", "app-api", "command", "staging-local"],
+		"EXECUTION_PROMPT_": ["root", "command"],
+		"FEEDWE_": ["wechat-official-account-collector"],
+		"INGESTION_QDRANT_": ["root"],
+		"INTERNAL_NOTICE_": ["root", "command"],
+		"LEGACY_OFFICE_CONVERSION_": ["command"],
+		"LIBREOFFICE_": ["command"],
+		"LLM_": ["root"],
+		"OBJECT_STORE_": [
+			"root",
+			"app-api",
+			"authenticated-notice-collector",
+			"campus-web",
+			"official-web-collector",
+			"wechat-official-account-collector"
+		],
+		"OCR_": ["root"],
+		"OFFICIAL_WEB_": ["official-web-collector"],
+		"OPERATOR_CONSOLE_": ["operator-console-web"],
+		"OTEL_": ["infra"],
+		"PROMPT_": ["root", "command"],
+		"PUBLIC_CHAT_": ["app-api", "public-chat-web"],
+		"QDRANT_": ["root"],
+		"RAGAS_": ["root"],
+		"RAW_ASSET_": ["root"],
+		"RESEND_": ["app-api"],
+		"SENTRY_": ["app-api", "campus-web", "operator-console-web", "public-chat-web"],
+		"SMOKE_": ["root"],
+		"SPARSE_": ["root"],
+		"STAGING_": ["staging-local"],
+		"TEMPORAL_": ["staging-local"],
+		"WECHAT_OFFICIAL_ACCOUNT_": ["wechat-official-account-collector"]
+	},
+	"retired_scan_paths": [
+		".env.example",
+		"apps/**/*.env.example",
+		"apps/**/*.dev.vars.example",
+		"docs/environment/**/*.md",
+		"env/commands/**/*.env.example",
+		"infra/**/*.env.example",
+		"infra/**/*.sh",
+		"infra/**/*.yml",
+		"infra/**/*.yaml"
+	]
+}

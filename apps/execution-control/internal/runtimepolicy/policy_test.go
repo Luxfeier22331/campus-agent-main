@@ -198,7 +198,7 @@ func TestResolveCapabilityPreservesExplicitCampusServicesWithRequestedScope(t *t
 	}
 }
 
-func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
+func TestIntentPolicyArtifactLoadsExplicitPath(t *testing.T) {
 	defaultPath := resolveIntentPolicyPath("")
 	raw, err := os.ReadFile(defaultPath)
 	if err != nil {
@@ -214,11 +214,9 @@ func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	if err := os.WriteFile(policyPath, []byte(envPolicy), 0o600); err != nil {
 		t.Fatalf("write env intent policy: %v", err)
 	}
-	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", policyPath)
-
-	policy, err := LoadIntentPolicy("")
+	policy, err := LoadIntentPolicy(policyPath)
 	if err != nil {
-		t.Fatalf("load env intent policy: %v", err)
+		t.Fatalf("load explicit intent policy: %v", err)
 	}
 	if policy.CaseSetVersion != "env-intent-case-set-v2" {
 		t.Fatalf("case_set_version = %q, want env-intent-case-set-v2", policy.CaseSetVersion)

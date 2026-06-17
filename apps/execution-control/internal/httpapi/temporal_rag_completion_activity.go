@@ -41,7 +41,7 @@ func (s *Server) SynthesizeRAGAnswerActivity(
 			ResultKind:    "activity_failure",
 			StepID:        "synthesis",
 			StepKind:      "synthesis",
-			TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 			Payload: map[string]any{
 				"failure_kind": "rag_synthesis_packet_missing",
 				"message":      err.Error(),
@@ -65,7 +65,7 @@ func (s *Server) completeRAGSynthesisActivity(
 			ResultKind:    "activity_failure",
 			StepID:        "synthesis",
 			StepKind:      "synthesis",
-			TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 			Payload: map[string]any{
 				"failure_kind": "rag_synthesis_provider_not_configured",
 				"message":      s.ragSynthesisErr.Error(),
@@ -82,7 +82,7 @@ func (s *Server) completeRAGSynthesisActivity(
 			ResultKind:    "activity_failure",
 			StepID:        "synthesis",
 			StepKind:      "synthesis",
-			TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+			TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 			Payload: map[string]any{
 				"failure_kind": "rag_synthesis_provider_not_configured",
 				"message":      cause.Error(),
@@ -98,7 +98,7 @@ func (s *Server) completeRAGSynthesisActivity(
 		Status:        "started",
 		StepID:        "synthesis",
 		StepKind:      "synthesis",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     synthesisStartedAt,
 		UpdatedAt:     synthesisStartedAt,
@@ -125,7 +125,7 @@ func (s *Server) completeRAGSynthesisActivity(
 			ResultKind:      "provider_execution_summary",
 			StepID:          "synthesis",
 			StepKind:        "synthesis",
-			TaskQueue:       temporalruntime.ActivityTaskQueueKnowledge,
+			TaskQueue:       temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 			TimeoutOutcome:  execution.TimeoutOutcome(synthesisResult.ProviderSummary.TimeoutOutcome),
 			Payload: map[string]any{
 				"failure_kind": "rag_synthesis_provider_failed",
@@ -142,7 +142,7 @@ func (s *Server) completeRAGSynthesisActivity(
 		Status:          "completed",
 		StepID:          "synthesis",
 		StepKind:        "synthesis",
-		TaskQueue:       temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:       temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 		WorkerID:        s.config.TemporalWorkerIdentity,
 		StartedAt:       synthesisStartedAt,
 		CompletedAt:     synthesisCompletedAt,
@@ -213,7 +213,7 @@ func (s *Server) VerifyGroundingActivity(
 		Status:        "completed",
 		StepID:        "grounding.verify",
 		StepKind:      "grounding",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.VerifyGroundingActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   startedAt,
@@ -273,6 +273,9 @@ func (s *Server) WriteFinalizationActivity(
 	finalizedResponse, err := temporalFinalizedResponseFromRun(run, input.SynthesisRef)
 	if err != nil {
 		return s.failFinalizationActivity(ctx, run, "knowledge", "finalization_packet_missing", err)
+	}
+	if err := requireSupportedGroundingForFinalization(run, input.GroundingRef, input.SynthesisRef); err != nil {
+		return s.failFinalizationActivity(ctx, run, "knowledge", "grounding_verification_failed", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
@@ -368,4 +371,33 @@ func (s *Server) WriteFinalizationActivity(
 		RunID:         completedRun.RunID,
 		Status:        string(completedRun.Status),
 	}, nil
+}
+
+func requireSupportedGroundingForFinalization(
+	run execution.DurableRun,
+	groundingRef string,
+	synthesisRef string,
+) error {
+	raw, ok := run.Metadata["temporal_rag"].(map[string]any)
+	if !ok {
+		return fmt.Errorf("run metadata.temporal_rag is required")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["synthesis_ref"])) != strings.TrimSpace(synthesisRef) {
+		return fmt.Errorf("rag synthesis ref drift")
+	}
+	if strings.TrimSpace(fmt.Sprint(raw["grounding_ref"])) != strings.TrimSpace(groundingRef) {
+		return fmt.Errorf("rag grounding ref drift")
+	}
+	verification, err := decodeRAGProjection[map[string]any](raw["grounding_verification"])
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(stringValue(verification["verdict"])) != "supported" {
+		return fmt.Errorf("rag grounding verification verdict must be supported")
+	}
+	sourceRefs, ok := verification["source_refs"].([]any)
+	if !ok || len(sourceRefs) == 0 {
+		return fmt.Errorf("rag grounding verification requires source_refs")
+	}
+	return nil
 }

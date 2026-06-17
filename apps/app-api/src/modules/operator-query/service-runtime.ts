@@ -17,6 +17,9 @@ import {
 	normalizeQualityBadcaseListFilters,
 	normalizeRequestListFilters,
 	normalizeSafetyAnomalyListFilters,
+	normalizeTemporalTaskQueueListFilters,
+	normalizeWorkerAutoscalerActuationListFilters,
+	normalizeWorkerAutoscalerDecisionListFilters,
 } from "./service-normalization";
 import type {
 	NormalizedOperatorOverviewFilters,
@@ -558,6 +561,19 @@ export function buildOperatorQueryService(
 			return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));
 		},
 
+		async getRuntimeHealth(input) {
+			ensureOperatorPrincipal(input.principal);
+			if (!dependencies.runtimeHealthProbe) {
+				throw new AppApiRouteError({
+					code: "execution_runtime_health_not_configured",
+					message: "Execution runtime health probe is required for operator runtime health.",
+					retryable: true,
+					status: 503,
+				});
+			}
+			return dependencies.runtimeHealthProbe();
+		},
+
 		async getQualitySummary(input) {
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.getQualitySummary(normalizeOverviewFilters(input.filters));
@@ -667,6 +683,27 @@ export function buildOperatorQueryService(
 				feedbackCandidates,
 				ragasDiagnosticCandidates,
 				filters.limit,
+			);
+		},
+
+		async listTemporalTaskQueues(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listTemporalTaskQueues(
+				normalizeTemporalTaskQueueListFilters(input.filters),
+			);
+		},
+
+		async listAutoscalerDecisions(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listAutoscalerDecisions(
+				normalizeWorkerAutoscalerDecisionListFilters(input.filters),
+			);
+		},
+
+		async listAutoscalerActuations(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listAutoscalerActuations(
+				normalizeWorkerAutoscalerActuationListFilters(input.filters),
 			);
 		},
 	};

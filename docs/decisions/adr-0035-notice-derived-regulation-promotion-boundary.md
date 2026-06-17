@@ -171,7 +171,7 @@ release/index。
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `git history authenticated-notice regulation consumption workstream`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`

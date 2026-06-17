@@ -12,6 +12,7 @@ import (
 func TestPlanRAGActivityPreservesExplicitHistoricalVersionQuery(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -74,6 +75,7 @@ func TestPlanRAGActivityPreservesExplicitHistoricalVersionQuery(t *testing.T) {
 func TestPlanRAGActivityRejectsCurrentVersionQueryWithVersionFields(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(

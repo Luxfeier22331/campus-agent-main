@@ -40,16 +40,9 @@ class EvalGateTest(unittest.TestCase):
         self.assertEqual(status["env_doctor"]["surface"], "evals")
         self.assertEqual(status["worker_secret_presence"]["env"], "staging")
 
-    def test_run_eval_acceptance_builds_official_web_profile_args(self) -> None:
-        seen_argv: list[str] = []
-
-        def fake_runner(argv: list[str]) -> int:
-            nonlocal seen_argv
-            seen_argv = list(argv)
-            return 0
-
-        with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
-            summary = run_eval_acceptance(
+    def test_run_eval_acceptance_rejects_removed_official_web_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            run_eval_acceptance(
                 profile="official-web-stable-reference",
                 output_dir=Path("/tmp/eval-artifacts"),
                 reruns=1,
@@ -61,6 +54,26 @@ class EvalGateTest(unittest.TestCase):
                 publish_grader_version="grader@2026-04-23",
                 publish_request_correlations=Path("/tmp/request-correlations.json"),
                 publish_metric_domain_overrides=("judge.answer_correctness_rubric=grounding",),
+            )
+
+    def test_run_eval_acceptance_builds_profile_publish_args(self) -> None:
+        seen_argv: list[str] = []
+
+        def fake_runner(argv: list[str]) -> int:
+            nonlocal seen_argv
+            seen_argv = list(argv)
+            return 0
+
+        with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
+            summary = run_eval_acceptance(
+                profile="public-chat-product-path",
+                output_dir=Path("/tmp/eval-artifacts"),
+                reruns=1,
+                verbose=True,
+                log_jsonl=Path("/tmp/runtime-events.jsonl"),
+                cases_path=Path("/tmp/cases.json"),
+                observations_path=Path("/tmp/observations.json"),
+                collect_runtime=True,
             )
 
         self.assertEqual(summary["exit_code"], 0)
@@ -76,20 +89,11 @@ class EvalGateTest(unittest.TestCase):
                 "--verbose",
                 "--log-jsonl",
                 "/tmp/runtime-events.jsonl",
-                "--publish-operator-observability",
-                "--publish-operator-observability-dry-run",
-                "--publish-grade-source",
-                "eval_release_gate",
-                "--publish-grader-version",
-                "grader@2026-04-23",
-                "--publish-request-correlations",
-                "/tmp/request-correlations.json",
-                "--publish-metric-domain-override",
-                "judge.answer_correctness_rubric=grounding",
-                "--official-web-scope",
-                "stable_reference",
-                "--qdrant-collection-name",
-                "official_web_stable_reference__r20260404_204033",
+                "--cases-path",
+                "/tmp/cases.json",
+                "--observations-path",
+                "/tmp/observations.json",
+                "--collect-runtime",
             ],
         )
 
@@ -176,6 +180,7 @@ class EvalGateTest(unittest.TestCase):
             "agentic-retrieval-plan",
             "public-chat-entry-e2e",
             "answer-quality-contract",
+            "zep-memory-product-path",
             "eval-operations-governance",
             "quality-calibration",
         )
@@ -193,6 +198,13 @@ class EvalGateTest(unittest.TestCase):
             run_eval_acceptance(
                 profile="multi-agent-product-path",
                 output_dir=Path("/tmp/multi-agent-product-path"),
+            )
+
+    def test_personal_memory_extraction_profile_is_retired(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            run_eval_acceptance(
+                profile="personal-memory-extraction",
+                output_dir=Path("/tmp/personal-memory-extraction"),
             )
 
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:

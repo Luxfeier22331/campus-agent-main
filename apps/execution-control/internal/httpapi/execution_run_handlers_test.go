@@ -54,7 +54,19 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
+				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,

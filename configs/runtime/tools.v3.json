@@ -129,6 +129,24 @@
 			"description": "Discover governed campus notices by topic, family, and target surface."
 		},
 		{
+			"name": "campus_notice_period_summary",
+			"owner_capability": "notice",
+			"capability": "notice",
+			"payload_kind": "campus_notice_period_summary",
+			"payload_schema_ref": "campus_contracts.models_tools.CampusNoticePeriodSummaryPayload",
+			"result_schema_ref": "campus_contracts.models_tools.CampusNoticePeriodSummaryResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "typed_activity_admitted",
+			"description": "Summarize governed campus notices over a bounded date range from the notice read model."
+		},
+		{
 			"name": "campus_notice_get",
 			"owner_capability": "notice",
 			"capability": "notice",
@@ -153,7 +171,7 @@
 			"payload_kind": "rag_request",
 			"payload_schema_ref": "campus_contracts.models_retrieval.RagRequestPayload",
 			"result_schema_ref": "campus_contracts.models_runtime.RagResultPayload",
-			"backend": "retrieval_core",
+			"backend": "execution_control_rag_runtime",
 			"surface": "capability_internal",
 			"read_only": true,
 			"active": true,
@@ -169,9 +187,9 @@
 			"owner_capability": "knowledge",
 			"capability": "knowledge",
 			"payload_kind": "rag_sdk_evidence_projection",
-			"payload_schema_ref": "campus_knowledge_capability.rag_sdk_models.RagSdkRetrieveEvidenceArguments",
-			"result_schema_ref": "campus_knowledge_capability.rag_sdk_models.RagSdkEvidenceProjection",
-			"backend": "retrieval_core",
+			"payload_schema_ref": "campus_contracts.models_retrieval.RagRequestPayload",
+			"result_schema_ref": "campus_contracts.models_runtime.RagResultPayload",
+			"backend": "execution_control_rag_runtime",
 			"surface": "capability_internal",
 			"read_only": true,
 			"active": true,

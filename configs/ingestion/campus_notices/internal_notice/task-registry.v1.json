@@ -1,0 +1,37 @@
+{
+	"schema_version": "ingestion_task_registry.v1",
+	"source_family": "authenticated_notice",
+	"corpus": "campus_notices",
+	"collection": "internal_notice",
+	"tasks": [
+		{
+			"task_kind": "source_truth_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "authenticated_notice_collector_run.v1",
+			"output_contract": "authenticated_notice_source_truth.v1",
+			"can_publish_alias": false
+		},
+		{
+			"task_kind": "operator_projection_snapshot",
+			"executor_kind": "ts_control",
+			"input_contract": "authenticated_notice_source_truth.v1",
+			"output_contract": "authenticated_notice_operator_projection.v1",
+			"can_publish_alias": false
+		},
+		{
+			"task_kind": "canonical_document_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "authenticated_notice_source_truth.v1",
+			"output_contract": "canonical_document_artifacts.v1",
+			"can_publish_alias": false
+		},
+		{
+			"task_kind": "document_units_validate",
+			"executor_kind": "rust_kernel",
+			"kernel_id": "validate-document-units",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "document_units_validation_report.v1",
+			"can_publish_alias": false
+		}
+	]
+}

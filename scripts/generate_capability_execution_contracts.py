@@ -527,7 +527,7 @@ type CapabilityExecutionResponseWire struct {
 \tTraceID string `json:"trace_id"`
 }
 """
-        + go_decode_helpers(workflow_modes)
+        + go_decode_helpers(workflow_modes, projection_kinds)
     )
 
 

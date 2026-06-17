@@ -17,7 +17,7 @@ from campus_ingestion_core.curriculum_budget_evaluation_shared import (
 from campus_ingestion_core.curriculum_chunk_units import _looks_like_curriculum_structure_heading
 from campus_ingestion_core.file_asset_routing import MINERU_ADAPTED_PARSER_VERSION
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
-from campus_ingestion_core.raw_ingestion import (
+from campus_ingestion_core.raw_ingestion_split_manifest import (
     _build_split_manifest_document_input,
     _load_layout_elements_rows,
 )

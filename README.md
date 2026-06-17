@@ -18,7 +18,9 @@ campus-web same-origin allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
 -> Temporal -> workflow-worker / activity-worker-context /
-activity-worker-agent / activity-worker-knowledge / capability workers /
+activity-worker-agent / activity-worker-knowledge-plan /
+activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
+capability workers /
 activity-worker-finalization
 -> memory recall / OpenAI Agents SDK primary agent loop / typed capability
 branch / Go RAG DTO/runtime
@@ -26,8 +28,8 @@ branch / Go RAG DTO/runtime
 
 browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
-browser -> protected-panel-web -> app-api
--> request projection / operator read model
+browser -> operator console surface -> app-api
+-> request projection / operator read/write model
 ```
 
 当前正式 docs surface 为 `campus-web /docs/*`；`/api/docs/*` 通过
@@ -51,6 +53,8 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
   仍是 auth/session/identity/federation truth owner
+- Operator Console 是长期受控运维后台概念；当前 implementation surface 是
+  `operator-console-web`，承载 read-only operator domains 与 dining operations workspace
 
 ## Status
 
@@ -73,10 +77,11 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 - [`apps/`](./apps/)
   - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、
-    `protected-panel-web`、`app-api`、`execution-control`、`ingestion-worker`
+    `operator-console-web`、`app-api`、`execution-control`、
+    `ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `knowledge-capability`、`retrieval-core`、`ingestion-core`、`contracts`
+    `ingestion-core`、`contracts`、`prompt-runtime`、`campus-services-capability`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -93,9 +98,8 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
-- [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
-- [`packages/retrieval-core`](./packages/retrieval-core/)
+- [`packages/ingestion-core`](./packages/ingestion-core/)
 
 ## Documentation
 
@@ -172,8 +176,8 @@ canonical artifacts / reader assets in object storage
 - sync manifest 指向的对象存储 reader assets
 - 对应环境的 app-api operator database 与对象存储读取配置
 
-完整发布、导入、构建和验收步骤见
-[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md)。
+旧 document-reader 发布、导入、构建和验收流程已归档，见 historical
+[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md)。
 不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 

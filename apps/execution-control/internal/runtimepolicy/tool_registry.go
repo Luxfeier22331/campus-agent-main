@@ -14,7 +14,7 @@ const (
 )
 
 var supportedCapabilityWorkerRoles = map[string]string{
-	"knowledge":       "activity-worker-knowledge",
+	"knowledge":       "activity-worker-knowledge-plan",
 	"navigation":      "activity-worker-navigation",
 	"campus_services": "activity-worker-campus-services",
 	"notice":          "activity-worker-notice",
@@ -22,6 +22,7 @@ var supportedCapabilityWorkerRoles = map[string]string{
 
 var supportedToolBackends = map[string]struct{}{
 	"internal_structured_query_service": {},
+	"execution_control_rag_runtime":     {},
 	"retrieval_core":                    {},
 }
 

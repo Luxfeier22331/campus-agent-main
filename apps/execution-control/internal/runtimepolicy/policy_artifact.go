@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 const defaultIntentPolicyPath = "configs/runtime/intent-policy.v1.json"
@@ -144,9 +143,6 @@ func (p IntentPolicyArtifact) Validate() error {
 func resolveIntentPolicyPath(policyPath string) string {
 	if policyPath != "" {
 		return policyPath
-	}
-	if envPolicyPath := strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_INTENT_POLICY_PATH")); envPolicyPath != "" {
-		return envPolicyPath
 	}
 	workingDir, err := os.Getwd()
 	if err != nil {

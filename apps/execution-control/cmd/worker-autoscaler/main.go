@@ -1,87 +1,34 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/autoscaler"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-type autoscalerInput struct {
-	Environment       string                      `json:"environment"`
-	GeneratedAt       string                      `json:"generated_at"`
-	Queues            []queueObservation          `json:"queues"`
-	DownstreamBudgets map[string]downstreamBudget `json:"downstream_budgets"`
-}
-
-type queueObservation struct {
-	Name                    string `json:"name"`
-	Role                    string `json:"role"`
-	Pollers                 int    `json:"pollers"`
-	Backlog                 int    `json:"backlog"`
-	ScheduleToStartMS       int    `json:"schedule_to_start_ms"`
-	CurrentReplicas         int    `json:"current_replicas"`
-	MinReplicas             int    `json:"min_replicas"`
-	MaxReplicas             int    `json:"max_replicas"`
-	TargetScheduleToStartMS int    `json:"target_schedule_to_start_ms"`
-}
-
-type downstreamBudget struct {
-	Available   bool `json:"available"`
-	MaxReplicas int  `json:"max_replicas"`
-}
-
-type autoscalerEvidence struct {
-	Mode                 string                    `json:"mode"`
-	Environment          string                    `json:"environment"`
-	GeneratedAt          string                    `json:"generated_at"`
-	ObservedAt           string                    `json:"observed_at"`
-	WritesExecutionState bool                      `json:"writes_execution_state"`
-	DecisionInputs       autoscalerDecisionInputs  `json:"decision_inputs"`
-	Decisions            []autoscalerQueueDecision `json:"decisions"`
-}
-
-type autoscalerActuationEvidence struct {
-	EvidenceContract     string                         `json:"evidence_contract"`
-	Mode                 string                         `json:"mode"`
-	Environment          string                         `json:"environment"`
-	GeneratedAt          string                         `json:"generated_at"`
-	ObservedAt           string                         `json:"observed_at"`
-	WritesExecutionState bool                           `json:"writes_execution_state"`
-	Operations           []autoscalerActuationOperation `json:"operations"`
-}
-
-type autoscalerActuationOperation struct {
-	TaskQueue       string `json:"task_queue"`
-	Role            string `json:"role"`
-	CurrentReplicas int    `json:"current_replicas"`
-	DesiredReplicas int    `json:"desired_replicas"`
-	Action          string `json:"action"`
-	Reason          string `json:"reason"`
-}
-
-type autoscalerDecisionInputs struct {
-	QueueCount int `json:"queue_count"`
-}
-
-type autoscalerQueueDecision struct {
-	TaskQueue        string `json:"task_queue"`
-	Role             string `json:"role"`
-	CurrentReplicas  int    `json:"current_replicas"`
-	DesiredReplicas  int    `json:"desired_replicas"`
-	MinReplicas      int    `json:"min_replicas"`
-	MaxReplicas      int    `json:"max_replicas"`
-	Pollers          int    `json:"pollers"`
-	Backlog          int    `json:"backlog"`
-	ScheduleToStart  int    `json:"schedule_to_start_ms"`
-	DownstreamMax    int    `json:"downstream_max_replicas,omitempty"`
-	Reason           string `json:"reason"`
-	EvidenceContract string `json:"evidence_contract"`
+type commandOptions struct {
+	appAPIBaseURL           string
+	composeProjectDirectory string
+	composeProjectName      string
+	cooldownSeconds         int
+	mode                    string
+	scaleDownWindows        int
+	scaleUpBacklogThreshold int
+	scaleUpOldestAgeMS      int
+	scaleUpWindows          int
+	sharedSecret            string
+	snapshotLimit           int
+	timeout                 time.Duration
+	workflowTaskQueue       string
 }
 
 func main() {
@@ -96,68 +43,117 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	input, err := readInput(options.inputPath)
-	if err != nil {
-		return err
+	ctx := context.Background()
+	appAPI := autoscaler.AppAPIClient{
+		BaseURL:      options.appAPIBaseURL,
+		SharedSecret: options.sharedSecret,
+		Timeout:      options.timeout,
 	}
-	evidence, err := buildEvidence(input, time.Now().UTC(), options.mode)
-	if err != nil {
-		return err
+	compose := autoscaler.DockerComposeActuator{
+		ProjectDirectory: options.composeProjectDirectory,
+		ProjectName:      options.composeProjectName,
 	}
-	if err := writeEvidence(options.evidencePath, evidence); err != nil {
-		return err
-	}
-	if options.mode == "apply" {
-		return writeEvidence(
-			options.actuatorEvidencePath,
-			buildActuationEvidence(input, evidence),
-		)
-	}
-	return nil
-}
-
-type commandOptions struct {
-	actuatorEvidencePath string
-	evidencePath         string
-	inputPath            string
-	mode                 string
+	_, err = autoscaler.Controller{
+		Actuator:         compose,
+		ActuationSource:  appAPI,
+		Mode:             options.mode,
+		ReplicaSource:    compose,
+		RuntimePublisher: appAPI,
+		ServicePolicies:  defaultServicePolicies(options.workflowTaskQueue, options),
+		SnapshotLimit:    options.snapshotLimit,
+		SnapshotSource:   appAPI,
+	}.Run(ctx)
+	return err
 }
 
 func parseOptions(args []string) (commandOptions, error) {
-	options := commandOptions{mode: "dry-run"}
+	options := commandOptions{
+		appAPIBaseURL:           strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_APP_API_BASE_URL")),
+		composeProjectDirectory: strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY")),
+		composeProjectName:      strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_COMPOSE_PROJECT_NAME")),
+		cooldownSeconds:         180,
+		mode:                    strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE")),
+		scaleDownWindows:        6,
+		scaleUpBacklogThreshold: 8,
+		scaleUpOldestAgeMS:      30_000,
+		scaleUpWindows:          2,
+		sharedSecret:            strings.TrimSpace(os.Getenv("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET")),
+		snapshotLimit:           32,
+		timeout:                 5 * time.Second,
+		workflowTaskQueue: strings.TrimSpace(
+			os.Getenv("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE"),
+		),
+	}
+	if options.workflowTaskQueue == "" {
+		options.workflowTaskQueue = temporalruntime.WorkflowTaskQueue
+	}
+	if err := loadPolicyEnvInts(&options); err != nil {
+		return commandOptions{}, err
+	}
+	if options.mode == "" {
+		options.mode = autoscaler.ModeDryRun
+	}
+
 	flags := flag.NewFlagSet("worker-autoscaler", flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
+	timeoutMS := int(options.timeout / time.Millisecond)
+	flags.StringVar(&options.appAPIBaseURL, "app-api-base-url", options.appAPIBaseURL, "app-api base URL")
+	flags.StringVar(&options.composeProjectDirectory, "compose-project-directory", options.composeProjectDirectory, "docker compose project directory")
+	flags.StringVar(&options.composeProjectName, "compose-project-name", options.composeProjectName, "docker compose project name")
+	flags.IntVar(&options.cooldownSeconds, "cooldown-seconds", options.cooldownSeconds, "seconds to hold scale changes after a recent actuation")
 	flags.StringVar(&options.mode, "mode", options.mode, "autoscaler mode: dry-run or apply")
-	flags.StringVar(&options.inputPath, "input-path", "", "path to autoscaler observation input JSON")
-	flags.StringVar(&options.evidencePath, "evidence-path", "", "path to autoscaler decision evidence JSON")
-	flags.StringVar(
-		&options.actuatorEvidencePath,
-		"actuator-evidence-path",
-		"",
-		"path to apply-mode ops-plane actuation evidence JSON",
-	)
+	flags.IntVar(&options.scaleDownWindows, "scale-down-windows", options.scaleDownWindows, "consecutive idle windows before scale down")
+	flags.IntVar(&options.scaleUpBacklogThreshold, "scale-up-backlog-threshold", options.scaleUpBacklogThreshold, "observed backlog count threshold before scale up")
+	flags.IntVar(&options.scaleUpOldestAgeMS, "scale-up-oldest-age-ms", options.scaleUpOldestAgeMS, "observed oldest task age threshold before scale up")
+	flags.IntVar(&options.scaleUpWindows, "scale-up-windows", options.scaleUpWindows, "consecutive hot windows before scale up")
+	flags.StringVar(&options.sharedSecret, "shared-secret", options.sharedSecret, "app-api internal shared secret")
+	flags.IntVar(&options.snapshotLimit, "snapshot-limit", options.snapshotLimit, "number of latest task queue snapshots to read")
+	flags.IntVar(&timeoutMS, "timeout-ms", timeoutMS, "app-api request timeout in milliseconds")
+	flags.StringVar(&options.workflowTaskQueue, "workflow-task-queue", options.workflowTaskQueue, "Temporal workflow task queue")
 	if err := flags.Parse(args); err != nil {
 		return commandOptions{}, err
 	}
 	options.mode = strings.TrimSpace(options.mode)
-	if options.mode == "" {
-		options.mode = "dry-run"
-	}
 	if options.mode == "dry_run" {
 		options.mode = "dry-run"
 	}
-	if options.mode != "dry-run" && options.mode != "apply" {
+	if options.mode != autoscaler.ModeDryRun && options.mode != autoscaler.ModeApply {
 		return commandOptions{}, fmt.Errorf("mode must be dry-run or apply")
 	}
+	options.timeout = time.Duration(timeoutMS) * time.Millisecond
+	if options.timeout <= 0 {
+		return commandOptions{}, errors.New("timeout-ms must be positive")
+	}
+	if options.cooldownSeconds < 0 {
+		return commandOptions{}, errors.New("cooldown-seconds must be non-negative")
+	}
+	if options.scaleDownWindows <= 0 {
+		return commandOptions{}, errors.New("scale-down-windows must be positive")
+	}
+	if options.scaleUpBacklogThreshold <= 0 {
+		return commandOptions{}, errors.New("scale-up-backlog-threshold must be positive")
+	}
+	if options.scaleUpOldestAgeMS <= 0 {
+		return commandOptions{}, errors.New("scale-up-oldest-age-ms must be positive")
+	}
+	if options.scaleUpWindows <= 0 {
+		return commandOptions{}, errors.New("scale-up-windows must be positive")
+	}
+	if options.snapshotLimit < len(defaultServicePolicies(options.workflowTaskQueue)) {
+		return commandOptions{}, fmt.Errorf("snapshot-limit must cover all autoscaled services")
+	}
 	missing := []string{}
-	if strings.TrimSpace(options.inputPath) == "" {
-		missing = append(missing, "input-path")
+	if strings.TrimSpace(options.appAPIBaseURL) == "" {
+		missing = append(missing, "app-api-base-url")
 	}
-	if strings.TrimSpace(options.evidencePath) == "" {
-		missing = append(missing, "evidence-path")
+	if strings.TrimSpace(options.sharedSecret) == "" {
+		missing = append(missing, "shared-secret")
 	}
-	if options.mode == "apply" && strings.TrimSpace(options.actuatorEvidencePath) == "" {
-		missing = append(missing, "actuator-evidence-path")
+	if strings.TrimSpace(options.composeProjectName) == "" {
+		missing = append(missing, "compose-project-name")
+	}
+	if strings.TrimSpace(options.composeProjectDirectory) == "" {
+		missing = append(missing, "compose-project-directory")
 	}
 	if len(missing) > 0 {
 		return commandOptions{}, fmt.Errorf("%s required", strings.Join(missing, ", "))
@@ -165,185 +161,78 @@ func parseOptions(args []string) (commandOptions, error) {
 	return options, nil
 }
 
-func readInput(path string) (autoscalerInput, error) {
-	raw, err := os.ReadFile(path)
-	if err != nil {
-		return autoscalerInput{}, err
+func loadPolicyEnvInts(options *commandOptions) error {
+	values := []struct {
+		name   string
+		target *int
+	}{
+		{"EXECUTION_CONTROL_WORKER_AUTOSCALER_COOLDOWN_SECONDS", &options.cooldownSeconds},
+		{"EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_DOWN_WINDOWS", &options.scaleDownWindows},
+		{"EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_BACKLOG_THRESHOLD", &options.scaleUpBacklogThreshold},
+		{"EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS", &options.scaleUpOldestAgeMS},
+		{"EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS", &options.scaleUpWindows},
 	}
-	var input autoscalerInput
-	if err := json.Unmarshal(raw, &input); err != nil {
-		return autoscalerInput{}, err
-	}
-	return input, validateInput(input)
-}
-
-func validateInput(input autoscalerInput) error {
-	if strings.TrimSpace(input.Environment) == "" {
-		return errors.New("environment is required")
-	}
-	if len(input.Queues) == 0 {
-		return errors.New("at least one task queue observation is required")
-	}
-	for index, queue := range input.Queues {
-		if strings.TrimSpace(queue.Name) == "" {
-			return fmt.Errorf("queues[%d].name is required", index)
+	for _, value := range values {
+		parsed, err := envInt(value.name)
+		if err != nil {
+			return err
 		}
-		if strings.TrimSpace(queue.Role) == "" {
-			return fmt.Errorf("queues[%d].role is required", index)
-		}
-		if queue.CurrentReplicas < 0 || queue.MinReplicas < 0 || queue.MaxReplicas < 0 {
-			return fmt.Errorf("queues[%d] replicas must be non-negative", index)
-		}
-		if queue.MaxReplicas > 0 && queue.MinReplicas > queue.MaxReplicas {
-			return fmt.Errorf("queues[%d].min_replicas exceeds max_replicas", index)
-		}
-		budget, ok := input.DownstreamBudgets[queue.Role]
-		if ok && !budget.Available {
-			return fmt.Errorf("downstream budget for role %s is unavailable", queue.Role)
+		if parsed != nil {
+			*value.target = *parsed
 		}
 	}
 	return nil
 }
 
-func buildEvidence(input autoscalerInput, now time.Time, mode string) (autoscalerEvidence, error) {
-	decisions := make([]autoscalerQueueDecision, 0, len(input.Queues))
-	for _, queue := range input.Queues {
-		decision, err := decideQueue(input.DownstreamBudgets, queue, mode)
-		if err != nil {
-			return autoscalerEvidence{}, err
-		}
-		decisions = append(decisions, decision)
+func envInt(name string) (*int, error) {
+	value := strings.TrimSpace(os.Getenv(name))
+	if value == "" {
+		return nil, nil
 	}
-	return autoscalerEvidence{
-		Mode:                 evidenceModeForMode(mode),
-		Environment:          input.Environment,
-		GeneratedAt:          input.GeneratedAt,
-		ObservedAt:           now.Format(time.RFC3339Nano),
-		WritesExecutionState: false,
-		DecisionInputs: autoscalerDecisionInputs{
-			QueueCount: len(input.Queues),
-		},
-		Decisions: decisions,
-	}, nil
-}
-
-func decideQueue(
-	budgets map[string]downstreamBudget,
-	queue queueObservation,
-	mode string,
-) (autoscalerQueueDecision, error) {
-	desired := queue.CurrentReplicas
-	reason := "within_target"
-	if queue.Pollers <= 0 {
-		desired = maxInt(queue.CurrentReplicas+1, queue.MinReplicas)
-		reason = "pollers_missing"
-	} else if queue.Backlog > 0 || exceedsLatencyTarget(queue) {
-		desired = maxInt(queue.CurrentReplicas+1, queue.MinReplicas)
-		reason = "backlog_or_latency"
-	}
-	if queue.MaxReplicas > 0 {
-		desired = minInt(desired, queue.MaxReplicas)
-	}
-	downstreamMax := 0
-	if budget, ok := budgets[queue.Role]; ok {
-		if !budget.Available {
-			return autoscalerQueueDecision{}, fmt.Errorf(
-				"downstream budget for role %s is unavailable",
-				queue.Role,
-			)
-		}
-		downstreamMax = budget.MaxReplicas
-		if budget.MaxReplicas > 0 {
-			desired = minInt(desired, budget.MaxReplicas)
-		}
-	}
-	desired = maxInt(desired, queue.MinReplicas)
-	return autoscalerQueueDecision{
-		TaskQueue:        queue.Name,
-		Role:             queue.Role,
-		CurrentReplicas:  queue.CurrentReplicas,
-		DesiredReplicas:  desired,
-		MinReplicas:      queue.MinReplicas,
-		MaxReplicas:      queue.MaxReplicas,
-		Pollers:          queue.Pollers,
-		Backlog:          queue.Backlog,
-		ScheduleToStart:  queue.ScheduleToStartMS,
-		DownstreamMax:    downstreamMax,
-		Reason:           reason,
-		EvidenceContract: evidenceContractForMode(mode),
-	}, nil
-}
-
-func buildActuationEvidence(
-	input autoscalerInput,
-	decision autoscalerEvidence,
-) autoscalerActuationEvidence {
-	operations := make([]autoscalerActuationOperation, 0, len(decision.Decisions))
-	for _, item := range decision.Decisions {
-		action := "none"
-		if item.CurrentReplicas != item.DesiredReplicas {
-			action = "scale"
-		}
-		operations = append(operations, autoscalerActuationOperation{
-			TaskQueue:       item.TaskQueue,
-			Role:            item.Role,
-			CurrentReplicas: item.CurrentReplicas,
-			DesiredReplicas: item.DesiredReplicas,
-			Action:          action,
-			Reason:          item.Reason,
-		})
-	}
-	return autoscalerActuationEvidence{
-		EvidenceContract:     "worker-autoscaler-actuation-evidence-v1",
-		Mode:                 "apply",
-		Environment:          input.Environment,
-		GeneratedAt:          input.GeneratedAt,
-		ObservedAt:           decision.ObservedAt,
-		WritesExecutionState: false,
-		Operations:           operations,
-	}
-}
-
-func evidenceContractForMode(mode string) string {
-	if mode == "apply" {
-		return "worker-autoscaler-actuation-decision-v1"
-	}
-	return "worker-autoscaler-dry-run-v1"
-}
-
-func evidenceModeForMode(mode string) string {
-	if mode == "apply" {
-		return "apply"
-	}
-	return "dry_run"
-}
-
-func exceedsLatencyTarget(queue queueObservation) bool {
-	return queue.TargetScheduleToStartMS > 0 &&
-		queue.ScheduleToStartMS > queue.TargetScheduleToStartMS
-}
-
-func writeEvidence(path string, evidence any) error {
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	body, err := json.MarshalIndent(evidence, "", "  ")
+	parsed, err := strconv.Atoi(value)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("%s must be an integer", name)
 	}
-	return os.WriteFile(path, append(body, '\n'), 0o600)
+	return &parsed, nil
 }
 
-func minInt(left int, right int) int {
-	if left < right {
-		return left
+func defaultServicePolicies(workflowTaskQueue string, input ...commandOptions) map[string]autoscaler.ServicePolicy {
+	workflowQueue := strings.TrimSpace(workflowTaskQueue)
+	if workflowQueue == "" {
+		workflowQueue = temporalruntime.WorkflowTaskQueue
 	}
-	return right
-}
-
-func maxInt(left int, right int) int {
-	if left > right {
-		return left
+	policyInput := commandOptions{
+		cooldownSeconds:         180,
+		scaleDownWindows:        6,
+		scaleUpBacklogThreshold: 8,
+		scaleUpOldestAgeMS:      30_000,
+		scaleUpWindows:          2,
 	}
-	return right
+	if len(input) > 0 {
+		policyInput = input[0]
+	}
+	common := func(maxReplicas int, taskQueue string) autoscaler.ServicePolicy {
+		return autoscaler.ServicePolicy{
+			CooldownSeconds:             policyInput.cooldownSeconds,
+			MaxReplicas:                 maxReplicas,
+			MinReplicas:                 1,
+			ScaleDownConsecutiveWindows: policyInput.scaleDownWindows,
+			ScaleUpBacklogThreshold:     policyInput.scaleUpBacklogThreshold,
+			ScaleUpConsecutiveWindows:   policyInput.scaleUpWindows,
+			ScaleUpOldestAgeThresholdMS: policyInput.scaleUpOldestAgeMS,
+			TaskQueue:                   taskQueue,
+		}
+	}
+	return map[string]autoscaler.ServicePolicy{
+		"workflow-worker":                     common(3, workflowQueue),
+		"activity-worker-context":             common(3, temporalruntime.ActivityTaskQueueContext),
+		"activity-worker-agent":               common(3, temporalruntime.ActivityTaskQueueAgent),
+		"activity-worker-knowledge-plan":      common(3, temporalruntime.ActivityTaskQueueKnowledgePlan),
+		"activity-worker-knowledge-retrieval": common(5, temporalruntime.ActivityTaskQueueKnowledgeRetrieval),
+		"activity-worker-knowledge-synthesis": common(5, temporalruntime.ActivityTaskQueueKnowledgeSynthesis),
+		"activity-worker-campus-services":     common(3, temporalruntime.ActivityTaskQueueCampusService),
+		"activity-worker-notice":              common(3, temporalruntime.ActivityTaskQueueNotice),
+		"activity-worker-navigation":          common(3, temporalruntime.ActivityTaskQueueNavigation),
+		"activity-worker-finalization":        common(3, temporalruntime.ActivityTaskQueueFinalization),
+	}
 }

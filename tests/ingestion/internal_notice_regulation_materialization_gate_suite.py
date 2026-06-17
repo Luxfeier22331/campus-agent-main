@@ -1,9 +1,5 @@
 from __future__ import annotations
 
-from campus_ingestion_core.regulation_rag_release_lane import (
-    InMemoryRegulationRagReleaseCandidateStore,
-)
-
 from .internal_notice_regulation_materialization_test_support import *
 
 
@@ -276,8 +272,6 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
             notice_id="300101",
             source_document_id=parent.document_id,
         )
-        candidate_store = InMemoryRegulationRagReleaseCandidateStore()
-
         with (
             unittest.mock.patch(
                 "campus_ingestion_core.internal_notice_regulation_materialization.build_internal_notice_regulation_promotion_manifest",
@@ -308,17 +302,11 @@ class InternalNoticeRegulationMaterializationGateTest(unittest.TestCase):
                 consumption_projection_store=InMemoryNoticeConsumptionProjectionStore(
                     (ready_projection,)
                 ),
-                rag_release_candidate_store=candidate_store,
             )
 
         self.assertEqual(report.promotion_candidate_count, 1)
         self.assertEqual(report.materialized_document_count, 1)
-        self.assertEqual(report.rag_release_candidate_created_count, 1)
-        candidates = candidate_store.list_candidates()
-        self.assertEqual(len(candidates), 1)
-        self.assertEqual(candidates[0].collection, "institutional_rules")
-        self.assertEqual(candidates[0].status, "pending")
-        self.assertTrue(candidates[0].query_enabled_by_default)
+        self.assertEqual(report.rag_release_candidate_created_count, 0)
 
     def test_materialized_target_record_is_current_even_when_source_snapshot_is_not_current(
         self,

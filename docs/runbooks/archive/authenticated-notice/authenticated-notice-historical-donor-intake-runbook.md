@@ -22,7 +22,7 @@ updated: 2026-04-20
 
 - `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/archive/authenticated-notice/authenticated-notice-historical-donor-intake-evidence.md`
 
 如需完整旧正文，请通过 git history 追溯。

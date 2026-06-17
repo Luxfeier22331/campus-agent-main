@@ -35,6 +35,7 @@ export const WORKFLOW_MODES = ["terminal", "single_step", "multi_step"] as const
 export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"notice_context",
 	"notice_change_set",
+	"notice_period_summary",
 	"schedule_baseline",
 	"service_guide_facts",
 	"place_context",

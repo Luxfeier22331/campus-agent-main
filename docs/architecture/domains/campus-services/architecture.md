@@ -192,7 +192,7 @@ workflow。
 - 周期性班次在 builder 侧展开 90 天服务日；Go runtime 不解析 recurrence
 - versioned/current projection artifact 落在
   `campus_services/releases/transport_schedule/{release_id}/...`
-- ingestion worker 发布 release 时同时写入 PostgreSQL release catalog、
+- ingestion-control 发布 release 时同时写入 PostgreSQL release catalog、
   `structured_projection_current` current pointer 与 transport typed read model
 - Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection
   path 已下线
@@ -246,7 +246,7 @@ runtime lane 已开放。
 
 - opening gate 由 shared eval profile `campus-services-product-path` 驱动；artifact
   是产品路径 opening verdict 的唯一 machine-readable 入口
-- rollout flag 仍由 Go runtime 持有：`EXECUTION_CONTROL_OPEN_CAPABILITIES`
+- rollout flag 仍由 Go runtime profile `open_capabilities` 持有
 - gate 未打开时，产品主路径必须保持 deterministic fail-close，不得回退 generic retrieval
 - 不得通过 stub、link-only response 或 “先用 RAG 顶上” 伪装成能力已上线
 

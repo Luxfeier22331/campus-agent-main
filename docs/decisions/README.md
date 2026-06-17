@@ -36,14 +36,20 @@ updated: 2026-06-12
 ## 核心架构与 runtime
 
 - `adr-0006-agent-orchestration-and-safety.md`
-- `adr-0011-protected-panel-worker-runtime.md`
+- `adr-0011-operator-console-worker-runtime.md`
+  - Worker runtime / Access / UI shell 决策继续生效；长期产品概念由
+    `adr-0055-unified-operator-console-surface.md` 统一为 Operator Console。
 - `adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
 - `adr-0043-execution-control-docker-first-runtime.md`
+  - superseded by `adr-0056-kubernetes-keda-execution-runtime.md` for production
+    execution-control deployment substrate; still useful as current Docker Compose
+    / local / transitional staging history
 - `adr-0047-run-centric-durable-agent-runtime.md`
   - superseded by `adr-0048-temporal-execution-plane.md` for target execution substrate
 - `adr-0048-temporal-execution-plane.md`
+- `adr-0056-kubernetes-keda-execution-runtime.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 
@@ -60,8 +66,9 @@ updated: 2026-06-12
   - memory ownership / online recall 部分由
     `adr-0053-qdrant-native-personal-memory-index.md` supersede；account / session、
     raw state 与 memory boundary 继续生效。
-- `adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `adr-0023-operator-observability-control-plane-and-sink-participation.md`
+- `adr-0055-unified-operator-console-surface.md`
 
 Historical / superseded：
 
@@ -70,6 +77,9 @@ Historical / superseded：
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
   - superseded；受限文档 authorization projection 不是当前主问答 retrieval 目标。
 - `adr-0049-campus-ops-control-plane.md`
+  - partially superseded by `adr-0055-unified-operator-console-surface.md` for the
+    separate long-term `operator-console-web` product surface; dining release lifecycle
+    and domain boundary clauses continue to apply.
 
 ## Retrieval、data plane 与基础设施
 

@@ -197,7 +197,7 @@ generic execution skeleton:
 
 - maturity of individual tools or capability content
 - notice, campus-services, navigation or RAG answer quality
-- operator panel, eval, badcase or release evidence consumption
+- Operator Console, eval, badcase or release evidence consumption
 - staging closeout, production smoke or release proof
 - future multi-step workflow coverage
 - replay or repair features beyond existing event-stream resume

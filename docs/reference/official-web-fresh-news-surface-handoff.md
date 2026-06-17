@@ -28,7 +28,7 @@ updated: 2026-05-13
 - fixture：`packages/evals/fixtures/official_web_muc_public_pages_current_truth_i
   nventory.json`
 - helpers：`packages/evals/src/campus_evals/official_web_inventory.py`
-- tests：`tests/evals/test_official_web_live_benchmark.py`
+- tests：`tests/evals/retrieval_benchmark_qrels_official_web_suite.py`
 
 ## Accepted Handoff Baseline
 

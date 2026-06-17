@@ -154,7 +154,8 @@ promoter 的职责固定为：
 
 - `packages/ingestion-core` 新增 authenticated notice closeout planner / store /
   service / verifier
-- `apps/ingestion-worker` 新增 run / show / promote 三条 CLI
+- 历史实现曾在 `apps/ingestion-worker` 暴露 run / show / promote CLI；该 executable
+  surface 已被 ingestion-control clean target 取代，不再是 active operation path
 - historical cumulative closeout runner 降级为 legacy workflow，保留给已启动或需要对照的旧执行
 - operations prefix 与 closeout staging schema 成为 authenticated notice historical
   closeout 的 canonical progress truth
@@ -164,4 +165,4 @@ promoter 的职责固定为：
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/architecture/system/data-plane-architecture.md`
-- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-async-staged-closeout-runbook.md`

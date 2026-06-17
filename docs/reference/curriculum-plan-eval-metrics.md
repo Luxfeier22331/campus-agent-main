@@ -33,16 +33,16 @@ updated: 2026-04-12
   - live hybrid query fixture drift guard
   - workflow/status golden cases
   - deterministic error gate cases
-- fresh live release gate
-  - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow / release-gate
-    样本
+- fresh release acceptance gate
+  - 在真实 `curriculum_plan` serving collection 上重跑 query / workflow /
+    release-gate 样本
   - 产出 schema、points count、query results、workflow summary 与 deterministic 汇总
     artifact
 
 长期实现约束：
 
-- `campus_evals.curriculum_live_benchmark` 通过 shared
-  `campus_evals.live_benchmark.BenchmarkProfile` core 运行
+- corpus-specific Python live runner 已删除；fresh release acceptance artifact
+  由当前 TS/Go runtime owner 产出，再输入 eval coverage / qrels tooling
 - live gate policy fixture 固定为
   `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
 - 该 policy 只消费：

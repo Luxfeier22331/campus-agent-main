@@ -13,6 +13,7 @@ import (
 func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil
@@ -150,6 +151,7 @@ func TestSynthesisProviderCancellationProjectsAbortOutcome(t *testing.T) {
 func TestSynthesisProviderTimeoutProjectsTimeoutOutcome(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil

@@ -40,7 +40,7 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_DSN": "SENTRY_DSN",
         },
     },
-    "apps/protected-panel-web/.dev.vars": {
+    "apps/operator-console-web/.dev.vars": {
         "required_keys": (
             "SENTRY_DSN",
             "SENTRY_ENVIRONMENT",

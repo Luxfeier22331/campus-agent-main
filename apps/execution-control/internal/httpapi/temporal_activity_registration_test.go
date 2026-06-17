@@ -6,6 +6,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
@@ -33,14 +34,16 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 
 	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
-		"ExtractMemoryCandidatesActivity",
+		"AppendConversationMemoryActivity",
 		"MemoryRecallActivity",
 		"PlanRouteActivity",
-		"UpsertInferredMemoryActivity",
 	} {
 		if _, ok := contextType.MethodByName(method); !ok {
 			t.Fatalf("context activities missing %s", method)
 		}
+	}
+	if _, ok := contextType.MethodByName("UpdateInferredMemoryActivity"); ok {
+		t.Fatal("context activities still expose retired UpdateInferredMemoryActivity")
 	}
 	if _, ok := contextType.MethodByName("PlanRAGActivity"); ok {
 		t.Fatal("context activities expose knowledge method")
@@ -126,10 +129,29 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 		worker.Stop()
 	})
 	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewKnowledgeActivityWorker(
+		worker := temporalruntime.NewKnowledgePlanActivityWorker(
 			temporalClient,
-			"test-knowledge",
+			"test-knowledge-plan",
 			server.TemporalKnowledgeActivities(),
+			workerOptionsForRegistrationTest(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewKnowledgeRetrievalActivityWorker(
+			temporalClient,
+			"test-knowledge-retrieval",
+			server.TemporalKnowledgeActivities(),
+			workerOptionsForRegistrationTest(),
+		)
+		worker.Stop()
+	})
+	assertDoesNotPanic(t, func() {
+		worker := temporalruntime.NewKnowledgeSynthesisActivityWorker(
+			temporalClient,
+			"test-knowledge-synthesis",
+			server.TemporalKnowledgeActivities(),
+			workerOptionsForRegistrationTest(),
 		)
 		worker.Stop()
 	})
@@ -159,4 +181,8 @@ func assertDoesNotPanic(t *testing.T, fn func()) {
 		}
 	}()
 	fn()
+}
+
+func workerOptionsForRegistrationTest() worker.Options {
+	return worker.Options{}
 }

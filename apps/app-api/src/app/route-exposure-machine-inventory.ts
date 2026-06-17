@@ -26,6 +26,19 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth",
 	},
 	{
+		method: "GET",
+		path: "/api/internal/provider-config/active",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth; returns active provider runtime snapshot",
+	},
+	{
+		method: "ALL",
+		path: "/api/internal/provider-config/openai-compatible/:role/v1/*",
+		callerClass: "machine-internal",
+		admission:
+			"Authorization bearer APP_API_INTERNAL_SHARED_SECRET; proxies active provider profile",
+	},
+	{
 		method: "POST",
 		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
 		callerClass: "machine-internal",
@@ -52,6 +65,24 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/operator/evals/diagnostic-badcases",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/runtime/temporal-task-queue-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "GET",
+		path: "/api/internal/operator/runtime/temporal-task-queues",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "GET",
+		path: "/api/internal/operator/runtime/autoscaler/actuations",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

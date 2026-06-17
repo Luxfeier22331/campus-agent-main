@@ -8,8 +8,20 @@ export interface PrimaryAgentRunInput {
 	traceId: string;
 	input: string;
 	visibleCapabilities: string[];
+	providerConfig: PromptProviderRuntimeConfig;
 	memoryProjectionRefs?: string[];
 	signal?: AbortSignal;
+}
+
+export interface PromptProviderRuntimeConfig {
+	profileId?: string;
+	revision?: number;
+	provider: string;
+	transport: string;
+	baseUrl?: string;
+	model: string;
+	apiKey: string;
+	timeoutMs?: number;
 }
 
 export interface UsageSummary {
@@ -57,6 +69,7 @@ export interface AgentRunnerInput {
 	tools: SdkToolRuntime[];
 	runId: string;
 	traceId: string;
+	providerConfig: PromptProviderRuntimeConfig;
 	signal?: AbortSignal;
 }
 
@@ -140,6 +153,7 @@ export function createPrimaryAgentRuntime(
 				tools: visibleTools,
 				runId: input.runId,
 				traceId: input.traceId,
+				providerConfig: input.providerConfig,
 				signal: input.signal,
 			});
 			const toolResults = result.toolCalls

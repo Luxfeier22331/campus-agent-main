@@ -8,11 +8,8 @@ from unittest.mock import patch
 
 import httpx
 
-from tests.ingestion._curriculum_course_map_probe_test_support import (
-    load_curriculum_course_map_probe_module,
-)
+from campus_ingestion_core import curriculum_course_map_multimodal_probe as _probe_module
 
-_probe_module = load_curriculum_course_map_probe_module()
 _runtime_support_module = __import__(
     "campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_support",
     fromlist=["_resolve_base_url"],

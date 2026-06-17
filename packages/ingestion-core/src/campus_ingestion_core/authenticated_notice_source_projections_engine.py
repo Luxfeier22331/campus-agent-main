@@ -43,10 +43,8 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     collect_import_document_stats,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.raw_ingestion import (
-    OnlineOcrClient,
-    S3ObjectStoreClient,
-)
+from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrClient
+from campus_ingestion_core.raw_ingestion_source_truth_support import S3ObjectStoreClient
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,

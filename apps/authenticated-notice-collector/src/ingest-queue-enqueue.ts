@@ -1,51 +1,87 @@
-import { spawn } from "node:child_process";
-
 import type { CollectorRunLedgerRecord } from "./collector-run-ledger.js";
 
 export interface VerifiedRunEnqueueInput {
 	ledgerRecord: CollectorRunLedgerRecord;
-	outputDir: string | null;
 	siteId: string;
 }
 
-export interface VerifiedRunEnqueueCommandInput {
-	outputDir: string | null;
+export interface IngestionTaskEnvelope {
+	schema_version: "ingestion_task_envelope.v1";
+	task_id: string;
+	run_id: string;
+	source_family: string;
+	source_channel: string;
+	corpus: string;
+	collection: string;
+	task_kind: string;
+	input_ref: {
+		kind: "inline";
+		uri: string;
+	};
+	output_contract: string;
+	idempotency_key: string;
+	lease_policy: {
+		lease_seconds: number;
+		heartbeat_seconds: number;
+	};
+	retry_policy: {
+		max_attempts: number;
+	};
+	created_by: string;
+	created_at: string;
+}
+
+export interface VerifiedRunTaskInput {
+	collectedAt: string;
 	runId: string;
 	siteId: string;
 	sourceSurface: string;
 }
 
-export function buildVerifiedRunEnqueueCommand(input: VerifiedRunEnqueueCommandInput): string[] {
-	const command = [
-		"uv",
-		"run",
-		"--all-packages",
-		"python",
-		"-m",
-		"campus_ingestion_worker.enqueue_authenticated_notice_collector_run",
-		"--run-id",
-		input.runId,
-		"--site-id",
+export function buildVerifiedRunTaskEnvelope(input: VerifiedRunTaskInput): IngestionTaskEnvelope {
+	const idempotencyKey = [
+		"authenticated_notice_portal",
 		input.siteId,
-		"--source-surface",
 		input.sourceSurface,
-	];
-	if (input.outputDir !== null) {
-		command.push("--output-dir", input.outputDir);
-	}
-	command.push("--enqueue-source", "live_discovery", "--execute");
-	return command;
+		input.runId,
+	].join("/");
+	return {
+		schema_version: "ingestion_task_envelope.v1",
+		task_id: `authenticated_notice_collector_run:${input.runId}`,
+		run_id: input.runId,
+		source_family: "authenticated_notice",
+		source_channel: input.siteId,
+		corpus: "campus_notices",
+		collection: "internal_notice",
+		task_kind: "source_truth_materialize",
+		input_ref: {
+			kind: "inline",
+			uri: `collector-run://${input.siteId}/${input.sourceSurface}/${input.runId}`,
+		},
+		output_contract: "authenticated_notice_source_truth.v1",
+		idempotency_key: idempotencyKey,
+		lease_policy: {
+			lease_seconds: 300,
+			heartbeat_seconds: 30,
+		},
+		retry_policy: {
+			max_attempts: 3,
+		},
+		created_by: "authenticated-notice-collector",
+		created_at: input.collectedAt,
+	};
 }
 
-export async function enqueueVerifiedCollectorRun(input: VerifiedRunEnqueueInput): Promise<void> {
+export function buildVerifiedCollectorRunTask(
+	input: VerifiedRunEnqueueInput,
+): IngestionTaskEnvelope {
 	assertVerifiedLedgerRecord(input.ledgerRecord);
-	const command = buildVerifiedRunEnqueueCommand({
-		outputDir: input.outputDir,
+	return buildVerifiedRunTaskEnvelope({
+		collectedAt: input.ledgerRecord.finishedAt ?? input.ledgerRecord.startedAt,
 		runId: input.ledgerRecord.runId,
 		siteId: input.siteId,
 		sourceSurface: input.ledgerRecord.sourceSurface,
 	});
-	await runCommand(command);
 }
 
 function assertVerifiedLedgerRecord(record: CollectorRunLedgerRecord): void {
@@ -54,20 +90,4 @@ function assertVerifiedLedgerRecord(record: CollectorRunLedgerRecord): void {
 			`collector run is not verified for enqueue: ${record.runId} ${record.status}/${record.verificationStatus}`,
 		);
 	}
-}
-
-async function runCommand(command: string[]): Promise<void> {
-	await new Promise<void>((resolve, reject) => {
-		const child = spawn(command[0], command.slice(1), {
-			stdio: "inherit",
-		});
-		child.once("error", reject);
-		child.once("exit", (code) => {
-			if (code === 0) {
-				resolve();
-				return;
-			}
-			reject(new Error(`verified run enqueue command failed with exit code ${code}`));
-		});
-	});
 }

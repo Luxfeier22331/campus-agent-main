@@ -23,6 +23,7 @@ const routeFiles = [
 	"official-web.ts",
 	"operator.ts",
 	"profile-memory.ts",
+	"provider-config.ts",
 	"runtime.ts",
 	"wechat-official-account.ts",
 ] as const;

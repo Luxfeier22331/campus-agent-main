@@ -31,6 +31,8 @@ class owns a fact.
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
   - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
+- Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
+  - [architecture/system/kubernetes-execution-runtime-architecture.md](./architecture/system/kubernetes-execution-runtime-architecture.md)
 - Tool or capability readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)
@@ -58,10 +60,11 @@ class owns a fact.
   - [architecture/system/document-site-architecture.md](./architecture/system/document-site-architecture.md)
   - [contracts/app-api-document-reader-http.md](./contracts/app-api-document-reader-http.md)
   - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
-- Campus Ops and dining map/menu/release operations:
-  - [architecture/system/campus-ops-web-architecture.md](./architecture/system/campus-ops-web-architecture.md)
+- Operator Console and dining map/menu/release operations:
+  - [decisions/adr-0055-unified-operator-console-surface.md](./decisions/adr-0055-unified-operator-console-surface.md)
+  - [architecture/system/operator-console-operations-architecture.md](./architecture/system/operator-console-operations-architecture.md)
   - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
-  - [contracts/app-api-campus-ops-http.md](./contracts/app-api-campus-ops-http.md)
+  - [contracts/app-api-operator-ops-http.md](./contracts/app-api-operator-ops-http.md)
   - [contracts/app-api-dining-http.md](./contracts/app-api-dining-http.md)
   - [contracts/app-api-dining-ops-http.md](./contracts/app-api-dining-ops-http.md)
   - [data/dining-operations-schema.md](./data/dining-operations-schema.md)

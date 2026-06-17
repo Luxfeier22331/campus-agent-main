@@ -4,98 +4,22 @@
 	"updated_at": "2026-04-29",
 	"profiles": [
 		{
-			"profile_id": "handbook",
-			"budget": { "max_cases_per_run": 120, "max_provider_calls_per_run": 120 },
-			"runtime_timeout_seconds": 900,
-			"max_retries": 1,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 3, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires corpus owner review and one clean release-gate run"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
-			"profile_id": "curriculum",
-			"budget": { "max_cases_per_run": 120, "max_provider_calls_per_run": 120 },
-			"runtime_timeout_seconds": 900,
-			"max_retries": 1,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 3, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires curriculum owner review and one clean release-gate run"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
-			"profile_id": "official_web_stable_reference",
-			"budget": { "max_cases_per_run": 80, "max_provider_calls_per_run": 80 },
-			"runtime_timeout_seconds": 600,
-			"max_retries": 1,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 3, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires official-web owner review and one clean release-gate run"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
-			"profile_id": "service_guide_lookup",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 0 },
-			"runtime_timeout_seconds": 300,
-			"max_retries": 0,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires service-guide owner review and clean release gate"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
-			"profile_id": "contact_directory_lookup",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 0 },
-			"runtime_timeout_seconds": 300,
-			"max_retries": 0,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires contact-directory owner review and clean release gate"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
 			"profile_id": "campus_services_product_path",
-			"budget": { "max_cases_per_run": 80, "max_provider_calls_per_run": 0 },
+			"budget": {
+				"max_cases_per_run": 80,
+				"max_provider_calls_per_run": 0
+			},
 			"runtime_timeout_seconds": 900,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -106,13 +30,22 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "multi_capability_runtime_contract",
-			"budget": { "max_cases_per_run": 100, "max_provider_calls_per_run": 0 },
+			"profile_id": "multi_agent_runtime_contract",
+			"budget": {
+				"max_cases_per_run": 100,
+				"max_provider_calls_per_run": 0
+			},
 			"runtime_timeout_seconds": 900,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -124,12 +57,21 @@
 		},
 		{
 			"profile_id": "public_chat_product_path",
-			"budget": { "max_cases_per_run": 20, "max_provider_calls_per_run": 20 },
+			"budget": {
+				"max_cases_per_run": 20,
+				"max_provider_calls_per_run": 20
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -141,12 +83,21 @@
 		},
 		{
 			"profile_id": "public_chat_entry_e2e",
-			"budget": { "max_cases_per_run": 20, "max_provider_calls_per_run": 20 },
+			"budget": {
+				"max_cases_per_run": 20,
+				"max_provider_calls_per_run": 20
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -158,12 +109,21 @@
 		},
 		{
 			"profile_id": "tool_family_denominator",
-			"budget": { "max_cases_per_run": 60, "max_provider_calls_per_run": 60 },
+			"budget": {
+				"max_cases_per_run": 60,
+				"max_provider_calls_per_run": 60
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -175,12 +135,21 @@
 		},
 		{
 			"profile_id": "tool_routing_product_path",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 40 },
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 40
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -192,12 +161,21 @@
 		},
 		{
 			"profile_id": "agentic_retrieval_plan",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 40 },
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 40
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -209,12 +187,21 @@
 		},
 		{
 			"profile_id": "document_quality",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 40 },
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 40
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -226,12 +213,21 @@
 		},
 		{
 			"profile_id": "authz_privacy",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 40 },
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 40
+			},
 			"runtime_timeout_seconds": 300,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
 			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
 			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
 			"quarantine": {
@@ -243,8 +239,34 @@
 		},
 		{
 			"profile_id": "answer_quality_contract",
-			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 40 },
+			"budget": {
+				"max_cases_per_run": 40,
+				"max_provider_calls_per_run": 40
+			},
 			"runtime_timeout_seconds": 300,
+			"max_retries": 0,
+			"pacing_seconds": 0.0,
+			"breaker": {
+				"failure_threshold": 1,
+				"cooldown_seconds": 60
+			},
+			"retention": {
+				"artifact_days": 30,
+				"promoted_artifact_days": 180
+			},
+			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
+			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
+			"quarantine": {
+				"allowed": true,
+				"max_days": 14,
+				"readmission_rule": "requires answer-quality owner review and clean contract eval"
+			},
+			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
+		},
+		{
+			"profile_id": "zep_memory_product_path",
+			"budget": { "max_cases_per_run": 20, "max_provider_calls_per_run": 0 },
+			"runtime_timeout_seconds": 600,
 			"max_retries": 0,
 			"pacing_seconds": 0.0,
 			"breaker": { "failure_threshold": 1, "cooldown_seconds": 60 },
@@ -254,7 +276,7 @@
 			"quarantine": {
 				"allowed": true,
 				"max_days": 14,
-				"readmission_rule": "requires answer-quality owner review and clean contract eval"
+				"readmission_rule": "requires memory owner review and clean Zep product-path gate"
 			},
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		}

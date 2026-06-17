@@ -13,9 +13,12 @@ updated: 2026-04-20
 ## Historical Workflows
 
 - `authenticated-notice/README.md`
+- `python-ingestion-worker/`
+  - historical Python ingestion worker runbooks removed from active operation
+    surface.
 - `qdrant-cloud-backup-and-restore-runbook.md`
   - superseded Qdrant Cloud / object-store snapshot runbook; current Qdrant
-    backup operations use `../self-hosted-qdrant-native-backup-runbook.md`.
+    backup operations are no longer owned by ingestion-worker Python CLIs.
 
 ## Path Redirects
 

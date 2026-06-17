@@ -30,18 +30,19 @@ export interface ProfileMemoryIndexer {
 		userId: string;
 	}): Promise<{ status: string; userId: string }>;
 	disableExplicitMemory(input: {
+		episodeUUID: string;
 		memoryId: string;
-		tenantId?: string;
 		updatedAt: string;
 		userId: string;
-	}): Promise<{ memoryId: string; status: string }>;
+	}): Promise<{ episodeUUID: string; memoryId: string; status: string }>;
 	upsertExplicitMemory(input: {
+		canonicalSubject: string;
 		compactText: string;
 		memoryId: string;
 		tenantId?: string;
 		updatedAt: string;
 		userId: string;
-	}): Promise<{ memoryId: string; status: string }>;
+	}): Promise<{ episodeUUID: string; memoryId: string; status: string }>;
 }
 
 export interface ProfileMemoryServiceDependencies {
@@ -106,7 +107,17 @@ export function buildProfileMemoryService(
 				});
 			}
 
+			const runtimeRef = await dependencies.store.getItemRuntimeRef({ itemId, ownerUserId });
+			if (!runtimeRef) {
+				throw createProfileMemoryError({
+					code: "profile_memory_item_not_found",
+					message: "Profile memory item not found.",
+					status: 404,
+				});
+			}
+
 			await dependencies.memoryIndexer.disableExplicitMemory({
+				episodeUUID: runtimeRef.runtimeEpisodeUUID,
 				memoryId: itemId,
 				updatedAt: now().toISOString(),
 				userId: ownerUserId,
@@ -162,7 +173,8 @@ export function buildProfileMemoryService(
 				ownerUserId,
 			});
 			const itemId = existingItemId ?? generateId("mem");
-			await dependencies.memoryIndexer.upsertExplicitMemory({
+			const indexed = await dependencies.memoryIndexer.upsertExplicitMemory({
+				canonicalSubject: key,
 				compactText: `${key}: ${value}`,
 				memoryId: itemId,
 				updatedAt,
@@ -172,6 +184,7 @@ export function buildProfileMemoryService(
 				itemId,
 				key,
 				ownerUserId,
+				runtimeEpisodeUUID: indexed.episodeUUID,
 				updatedAt,
 				value,
 			});

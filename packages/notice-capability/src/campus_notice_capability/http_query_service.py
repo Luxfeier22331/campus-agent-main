@@ -10,14 +10,18 @@ from campus_contracts import (
     CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverResult,
     CampusNoticeGetResult,
+    CampusNoticePeriodSummaryResult,
     NoticeCard,
+    NoticeDateRange,
     NoticeDisplayPolicy,
+    NoticePeriodSummaryGroup,
 )
 
 from campus_notice_capability.query_service import (
     NoticeChangeSetLookupQuery,
     NoticeDiscoverQuery,
     NoticeGetQuery,
+    NoticePeriodSummaryQuery,
 )
 
 
@@ -76,6 +80,19 @@ class NoticeHTTPQueryService:
         return _change_set_result_from_dict(
             body,
         )
+
+    def summarize_notice_period(
+        self,
+        query: NoticePeriodSummaryQuery,
+    ) -> CampusNoticePeriodSummaryResult:
+        body = self._post(
+            "/internal/query/notices/period-summary",
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
+        )
+        return _period_summary_result_from_dict(body)
 
     def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult:
         body = self._post(
@@ -185,6 +202,40 @@ def _get_result_from_dict(
         attachment_refs=_string_tuple(body.get("attachment_refs")),
         provenance_refs=_string_tuple(body.get("provenance_refs")),
         historical_downgrade_reason=_string(body.get("historical_downgrade_reason")),
+        fail_close_reason=_string(body.get("fail_close_reason")),
+    )
+
+
+def _period_summary_result_from_dict(
+    body: dict[str, object],
+) -> CampusNoticePeriodSummaryResult:
+    date_range_dict = _dict(body.get("date_range")) or {}
+    groups = tuple(
+        NoticePeriodSummaryGroup(
+            group_key=_string(item.get("group_key")),
+            title=_string(item.get("title")),
+            notice_count=_int(item.get("notice_count")),
+            summary=_string(item.get("summary")),
+            notice_ids=_string_tuple(item.get("notice_ids")),
+        )
+        for raw_item in _list(body.get("groups"))
+        if (item := _dict(raw_item)) is not None
+    )
+    return CampusNoticePeriodSummaryResult(
+        query_text=_required_string(body, "query_text"),
+        outcome=_string(body.get("outcome")),
+        date_range=NoticeDateRange(
+            start_date=_required_string(date_range_dict, "start_date"),
+            end_date=_required_string(date_range_dict, "end_date"),
+            timezone=_string(date_range_dict.get("timezone")) or "Asia/Shanghai",
+        ),
+        groups=groups,
+        notice_cards=tuple(
+            card for item in _list(body.get("notice_cards")) if (card := _notice_card(item))
+        ),
+        bounded_summary=_string(body.get("bounded_summary")),
+        source_ref_count=_int(body.get("source_ref_count")),
+        display_policy=_notice_display_policy(body.get("display_policy")),
         fail_close_reason=_string(body.get("fail_close_reason")),
     )
 
@@ -355,3 +406,11 @@ def _string_tuple(value: object) -> tuple[str, ...]:
 
 def _bool(value: object, *, default: bool) -> bool:
     return value if isinstance(value, bool) else default
+
+
+def _int(value: object) -> int:
+    if isinstance(value, bool):
+        return 0
+    if isinstance(value, int):
+        return value
+    return 0

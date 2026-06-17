@@ -31,7 +31,9 @@ updated: 2026-06-09
   - `workflow-worker`
   - `activity-worker-context`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
+  - `activity-worker-knowledge-plan`
+  - `activity-worker-knowledge-retrieval`
+  - `activity-worker-knowledge-synthesis`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
@@ -57,10 +59,25 @@ updated: 2026-06-09
   - `QDRANT_URL`
   - `QDRANT_QUERY_API_KEY`
   - `QDRANT_TLS_CA_CERT_PATH`
-  - `EMBEDDING_*`
-  - `PROMPT_RUNTIME_*`
-  - `EXECUTION_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
+  - `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
+  - `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
 - conditional:
+  - online prompt / embedding provider model/API key truth must already exist as
+    active app-api provider-config profiles; do not hardcode them in
+    execution-control env. Required prompt roles are `primary_agent`,
+    `rag_synthesis` and `memory_graph_llm`; required online embedding role is
+    `rag_query_embedding`.
+  - personal memory runtime requires `PERSONAL_MEMORY_BASE_URL`,
+    `PERSONAL_MEMORY_API_SECRET` and `PERSONAL_MEMORY_OWNER_SALT` for
+    `execution-control` and `activity-context`.
+  - local Zep CE bundle-only secrets are generated into
+    `infra/local/.generated/zep-ce.env` by
+    `infra/local/start-execution-control-runtime.sh`; server/staging deploys
+    must use an ops-owned secret source instead of copying that file.
+  - Graphiti must point at app-api internal OpenAI-compatible proxy
+    `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1` and use
+    `APP_API_INTERNAL_SHARED_SECRET` as its bearer token. Real provider key/model
+    truth stays in the `memory_graph_llm` active provider-config profile.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
@@ -84,6 +101,15 @@ Deployment/start 脚本必须投影同机 internal bridge runtime env：
   `http://execution-control:8000`。
 - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`：默认等于
   `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`，否则 typed tool executor fail closed。
+- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`：execution-control 调用 app-api
+  internal provider-config active snapshot 的地址；compose / staging baseline 使用
+  app-api internal service URL。
+- `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`：必须等于 app-api
+  `APP_API_INTERNAL_SHARED_SECRET`，否则 provider snapshot 读取 fail closed。
+- embedding profile activation 时 app-api 会反向调用 execution-control
+  `/internal/provider-config/embedding:check-compatibility` 做 release/vector
+  compatibility check。这个请求只携带 provider/model/dimensions 等候选元数据，不携带
+  raw API key；raw provider key 只存在于 app-api encrypted provider-config profile。
 
 这些是部署投影责任，不是用户在尚未部署前需要手工配置的外部输入。非 compose / 非 canonical
 topology 才应在 server-local env file 或等价 deployment secret source 覆写地址。
@@ -130,10 +156,9 @@ infra/local/smoke-execution-control-runtime.sh closed_gate
   - `no-new-privileges`
   - JSON log rotation (`10m * 3`)
 - process-level:
-  - `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`
-  - `EXECUTION_CONTROL_QUEUE_CAPACITY`
-  - `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS`
-  - lane budgets (`EXECUTION_CONTROL_LANE_*`)
+  - `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH`
+  - runtime profile admission budget
+  - runtime profile lane budgets
 - ingress-level:
   - metrics token (`EXECUTION_CONTROL_METRICS_BEARER_TOKEN`) when metrics endpoint
     is externally reachable

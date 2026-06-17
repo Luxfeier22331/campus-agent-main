@@ -31,8 +31,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
   - Account center and identity product projection endpoints
 - `app-api-federation-http.md`
   - Federation provider surface
-- `app-api-campus-ops-http.md`
-  - Campus ops cross-cutting operator contract
+- `app-api-operator-ops-http.md`
+  - Operator ops cross-cutting contract
 - `app-api-dining-http.md`
   - Student dining public projection endpoints
 - `app-api-dining-ops-http.md`
@@ -47,7 +47,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 ## 文档边界
 
 这份文档冻结 shared `apps/app-api` 对 `campus-web`、legacy `public-chat-web` 与
-`protected-panel-web` 暴露的 browser-facing HTTP contract。
+Operator Console implementation surfaces 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
@@ -66,7 +66,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 - 数据模型：`docs/data/app-api-schema.md`
 - identity platform product projection：`docs/contracts/app-api-identity-platform-http.md`
 - future federation provider surface：`docs/contracts/app-api-federation-http.md`
-- campus ops cross-cutting contract：`docs/contracts/app-api-campus-ops-http.md`
+- operator ops cross-cutting contract：`docs/contracts/app-api-operator-ops-http.md`
 - student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 - chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
@@ -79,7 +79,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 - Better Auth 的 provider 细节
 - Identity Platform forward product projection shape
 - future OIDC/OAuth provider endpoint shape
-- panel UI layout
+- Operator Console UI layout
 - token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
 
@@ -91,7 +91,7 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 
 - `browser -> campus-web same-origin /api/* -> app-api`
 - `browser -> public-chat-web same-site /api/* -> app-api`
-- `browser -> protected-panel-web same-site /api/* -> app-api`
+- `browser -> operator console surface same-site /api/* -> app-api`
 
 因此：
 
@@ -111,7 +111,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
-- `operator-via-panel`：由 protected panel internal bridge 调用
+- `operator-via-panel`：由 Operator Console internal bridge 调用；当前代码名保留
+  `panel`，不表示长期只存在 `operator-console-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
 - `collector-machine`：由 official-web collector command caller 调用
@@ -207,7 +208,7 @@ Student-facing dining routes read the latest published dining release snapshot.
 Dining draft, release candidate, published release and audit routes are frozen
 separately in `docs/contracts/app-api-dining-ops-http.md`.
 
-### Campus Ops
+### Operator Console Operations
 
 Dining ops routes below describe the accepted target contract. Current
 implementation gaps, including legacy direct-draft publish routes, are tracked
@@ -235,8 +236,9 @@ in `docs/contracts/app-api-dining-ops-http.md`.
 - `POST /api/ops/dining/releases/:releaseId/rollback`
 - `GET /api/ops/dining/audit-events`
 
-These routes are `operator-via-panel` caller class routes consumed by
-`campus-ops-web`, not `campus-web`. Source observation apply/reject routes are
+These routes are `operator-via-panel` caller class routes consumed by the
+Operator Console dining workspace. The current implementation surface is
+`operator-console-web`, not `campus-web`. Source observation apply/reject routes are
 not implemented in the current inventory.
 
 ### Operator
@@ -351,9 +353,9 @@ assistant message 可以包含 `feedback`：
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
 - profile memory API 是 product/manual management surface；online chat hot path 不再由
   `app-api` 读取 PG memory rows 并全量注入 `ContextProjection.profile_memory.items`
-- 开启 profile memory 后，manual write path 必须同步到 execution-control / Qdrant
-  `personal_memory_v1` index，后续 online recall 由 `context.memory_recall` activity
-  按 top-k / char budget 选择 bounded memory context
+- 开启 profile memory 后，manual write path 必须同步到 execution-control internal Zep
+  memory command，后续 online recall 由 `context.memory_recall` activity 通过 Zep user
+  graph 选择 bounded memory context
 - 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
   memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
   execution side 忽略
@@ -397,12 +399,12 @@ assistant message 可以包含 `feedback`：
 - `selectedCapability` 始终表示 request finalized 后的 capability id。
 - 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
   localized wording。
-- 如果 browser 或 panel 需要展示友好名称，必须由 app-owned mapping / presentation layer
-  派生，而不是重载这个字段。
+- 如果 browser 或 Operator Console 需要展示友好名称，必须由 app-owned mapping /
+  presentation layer 派生，而不是重载这个字段。
 
 ## Explicit Non-Goals
 
 - 不把已退役 standalone chat app 的旧 `/api/answer` 继续提升为 forward contract
-- 不为 panel 暴露 database/admin-console 风格 API
+- 不为 Operator Console 暴露 database/admin-console 风格 API
 - 不让 operator endpoints 旁路读取 `runtime.request_execution`
 - 不把 `packages/contracts` 直接当 browser product API

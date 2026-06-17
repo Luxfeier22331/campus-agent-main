@@ -1,14 +1,24 @@
 from __future__ import annotations
 
 import json
-import os
 from dataclasses import dataclass
 from pathlib import Path
 
-import httpx
 from campus_shared import load_repo_env
 
 from campus_evals.operator_observability_cli import build_publish_parser
+from campus_evals.operator_observability_client import (
+    OperatorObservabilityClient as OperatorObservabilityClient,
+)
+from campus_evals.operator_observability_client import (
+    OperatorObservabilityClientError as OperatorObservabilityClientError,
+)
+from campus_evals.operator_observability_client import (
+    OperatorObservabilityClientSettings as OperatorObservabilityClientSettings,
+)
+from campus_evals.operator_observability_trajectory import (
+    inject_operator_step_trajectories as inject_operator_step_trajectories,
+)
 
 _DEFAULT_METRIC_DOMAIN_MAP = {
     "ragas.faithfulness": "grounding",
@@ -60,37 +70,6 @@ _PUBLISHABLE_VERDICT_SEVERITY = {
     "needs_review": 1,
     "fail": 2,
 }
-
-
-@dataclass(frozen=True, slots=True)
-class OperatorObservabilityClientSettings:
-    app_api_base_url: str
-    internal_shared_secret: str
-    timeout_seconds: float = 10.0
-
-    def __post_init__(self) -> None:
-        if not self.app_api_base_url.strip():
-            raise ValueError("app_api_base_url is required")
-        if not self.internal_shared_secret.strip():
-            raise ValueError("internal_shared_secret is required")
-        if self.timeout_seconds <= 0:
-            raise ValueError("timeout_seconds must be greater than zero")
-
-    @classmethod
-    def from_env(
-        cls,
-        env: dict[str, str] | None = None,
-    ) -> OperatorObservabilityClientSettings:
-        source = env if env is not None else os.environ
-        app_api_base_url = str(source.get("APP_API_BASE_URL") or "").strip()
-        internal_shared_secret = str(source.get("APP_API_INTERNAL_SHARED_SECRET") or "").strip()
-        timeout_raw = str(source.get("OPERATOR_OBSERVABILITY_HTTP_TIMEOUT_SECONDS") or "").strip()
-        timeout_seconds = float(timeout_raw) if timeout_raw else 10.0
-        return cls(
-            app_api_base_url=app_api_base_url,
-            internal_shared_secret=internal_shared_secret,
-            timeout_seconds=timeout_seconds,
-        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,102 +127,6 @@ class _DomainGradeCandidate:
     score: float | None
     rationale_summary: str | None
     priority: int
-
-
-class OperatorObservabilityClientError(RuntimeError):
-    def __init__(
-        self,
-        *,
-        status_code: int,
-        code: str,
-        message: str,
-        details: object = None,
-    ) -> None:
-        super().__init__(f"{code}: {message}")
-        self.status_code = status_code
-        self.code = code
-        self.details = details
-
-
-class OperatorObservabilityClient:
-    def __init__(
-        self,
-        *,
-        settings: OperatorObservabilityClientSettings,
-        client: httpx.Client | None = None,
-    ) -> None:
-        self.settings = settings
-        self._client = client
-
-    def ingest_quality_grades(self, grades: tuple[OperatorQualityGrade, ...]) -> int:
-        response = self._request(
-            "/api/internal/operator/quality/grades",
-            {
-                "grades": [
-                    {
-                        "requestId": item.request_id,
-                        "traceId": item.trace_id,
-                        "gradeSource": item.grade_source,
-                        "gradeDomain": item.grade_domain,
-                        "verdict": item.verdict,
-                        "score": item.score,
-                        "graderVersion": item.grader_version,
-                        "sampledAt": item.sampled_at,
-                        "rationaleSummary": item.rationale_summary,
-                    }
-                    for item in grades
-                ]
-            },
-        )
-        payload = _decode_json(response)
-        return int(payload.get("accepted") or 0)
-
-    def ingest_trace_backlinks(self, backlinks: tuple[OperatorTraceBacklink, ...]) -> int:
-        response = self._request(
-            "/api/internal/operator/trace-backlinks",
-            {
-                "backlinks": [
-                    {
-                        "requestId": item.request_id,
-                        "traceId": item.trace_id,
-                        "traceLink": item.trace_link,
-                        "issueLink": item.issue_link,
-                        "issueFingerprint": item.issue_fingerprint,
-                    }
-                    for item in backlinks
-                ]
-            },
-        )
-        payload = _decode_json(response)
-        return int(payload.get("accepted") or 0)
-
-    def _request(self, path: str, body: dict[str, object]) -> httpx.Response:
-        if self._client is not None:
-            response = self._client.post(
-                path,
-                json=body,
-                headers={"x-app-internal-auth": self.settings.internal_shared_secret},
-            )
-        else:
-            with httpx.Client(
-                base_url=self.settings.app_api_base_url.rstrip("/"),
-                timeout=self.settings.timeout_seconds,
-            ) as client:
-                response = client.post(
-                    path,
-                    json=body,
-                    headers={"x-app-internal-auth": self.settings.internal_shared_secret},
-                )
-        if response.status_code < 400:
-            return response
-        payload = _decode_json(response)
-        error_payload = dict(payload.get("error") or {})
-        raise OperatorObservabilityClientError(
-            status_code=response.status_code,
-            code=str(error_payload.get("code") or "operator_observability_request_failed"),
-            message=str(error_payload.get("message") or response.text or "request failed"),
-            details=error_payload.get("details"),
-        )
 
 
 def load_request_correlation_manifest(
@@ -761,14 +644,6 @@ def _optional_float(value: object) -> float | None:
     if value is None or value == "":
         return None
     return float(value)
-
-
-def _decode_json(response: httpx.Response) -> dict[str, object]:
-    try:
-        payload = response.json()
-    except ValueError:
-        return {}
-    return dict(payload or {})
 
 
 def _parse_metric_domain_overrides(items: list[str]) -> dict[str, str]:

@@ -92,13 +92,13 @@ _TOOL_OPENING_PROFILES = (
     ToolOpeningProfile(
         tool_name="service_guide_lookup",
         product_path_status="open_candidate",
-        required_checks=("service_guide_lookup_release_gate", *_SHARED_OPENING_CHECKS),
+        required_checks=_SHARED_OPENING_CHECKS,
         reason="opened_by_campus_services_product_path",
     ),
     ToolOpeningProfile(
         tool_name="contact_directory_lookup",
         product_path_status="open_candidate",
-        required_checks=("contact_directory_lookup_release_gate", *_SHARED_OPENING_CHECKS),
+        required_checks=_SHARED_OPENING_CHECKS,
         reason="opened_by_campus_services_product_path",
     ),
     ToolOpeningProfile(
@@ -135,38 +135,6 @@ def validate_tool_opening_profiles(
 
 
 TOOL_OPENING_PROFILES = validate_tool_opening_profiles(_TOOL_OPENING_PROFILES)
-
-
-def _service_guide_release_gate_command(output_dir: Path) -> tuple[str, ...]:
-    return (
-        "uv",
-        "run",
-        "--all-packages",
-        "python",
-        "-m",
-        "scripts.eval_gate",
-        "accept",
-        "--profile",
-        "service-guide-lookup",
-        "--output-dir",
-        str(output_dir),
-    )
-
-
-def _contact_directory_release_gate_command(output_dir: Path) -> tuple[str, ...]:
-    return (
-        "uv",
-        "run",
-        "--all-packages",
-        "python",
-        "-m",
-        "scripts.eval_gate",
-        "accept",
-        "--profile",
-        "contact-directory-lookup",
-        "--output-dir",
-        str(output_dir),
-    )
 
 
 def _supervisor_go_structured_runtime_command() -> tuple[str, ...]:
@@ -249,25 +217,7 @@ def run_campus_services_product_path_opening_gate(
     command = command_runner or _run_command
     resolve_git_head = git_head_resolver or _resolve_git_head
 
-    service_guide_output_dir = output_dir / "service-guide-lookup-release-gate"
-    contact_directory_output_dir = output_dir / "contact-directory-lookup-release-gate"
-
     checks = (
-        _run_command_check(
-            check_id="service_guide_lookup_release_gate",
-            command=_service_guide_release_gate_command(service_guide_output_dir),
-            command_runner=command,
-            cwd=REPO_ROOT,
-            artifact_path=service_guide_output_dir / "service-guide-lookup-release-gate.json",
-        ),
-        _run_command_check(
-            check_id="contact_directory_lookup_release_gate",
-            command=_contact_directory_release_gate_command(contact_directory_output_dir),
-            command_runner=command,
-            cwd=REPO_ROOT,
-            artifact_path=contact_directory_output_dir
-            / "contact-directory-lookup-release-gate.json",
-        ),
         _run_command_check(
             check_id="supervisor_go_structured_runtime_tests",
             command=_supervisor_go_structured_runtime_command(),

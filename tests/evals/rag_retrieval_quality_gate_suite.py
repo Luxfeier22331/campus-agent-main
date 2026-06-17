@@ -73,6 +73,18 @@ class RagRetrievalQualityGateSuite(unittest.TestCase):
         self.assertIn("regulations/student_rules:doc_hit_at_1_below_threshold", report.gaps)
         self.assertIn("regulations/student_rules:doc_recall_at_5_below_threshold", report.gaps)
 
+    def test_gate_fails_closed_when_evidence_artifacts_are_missing(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            evidence_root = Path(temp_dir) / "missing-retrieval-quality"
+            report = build_rag_retrieval_quality_gate_report(evidence_root=evidence_root)
+
+        self.assertFalse(report.passed)
+        self.assertEqual(report.surfaces, ())
+        self.assertIn(
+            "missing_evidence_artifact:runtime-readiness.current.json",
+            report.gaps,
+        )
+
     def test_cli_writes_report_json(self) -> None:
         with TemporaryDirectory() as temp_dir:
             evidence_root = _write_passing_evidence(Path(temp_dir))

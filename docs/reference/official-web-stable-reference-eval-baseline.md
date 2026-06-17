@@ -31,11 +31,11 @@ repo-tracked 基线入口固定为：
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
 - retrieval qrels:
   `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json`
-- deterministic live gate: `packages/evals/src/campus_evals/scenarios.py` ->
+- deterministic release gate: `packages/evals/src/campus_evals/scenarios.py` ->
   `official_web_stable_reference_release_gate_cases()`
-- live benchmark entry: `uv run --all-packages python -m
-  campus_evals.official_web_live_benchmark ... --official-web-scope
-  stable_reference`
+- release acceptance artifact: current official-web source-channel / release
+  owner produces sanitized release evidence; eval consumes it through qrels /
+  coverage tooling, not a corpus-specific Python live runner
 
 基线分母：
 
@@ -56,7 +56,7 @@ accepted baseline 目前固定采用 `2026-05-14` 这一轮 repo-tracked denomin
   - `total_cases = 4`
   - `positive_cases = 3`
   - accepted metric snapshot：待下一次 rebuild / live benchmark 后更新
-- deterministic live gate：
+- deterministic release gate：
   - `benchmark_type = official_web_stable_reference_live_gate`
   - `total_cases = 5`
   - `completed = 3`
@@ -89,11 +89,10 @@ accepted baseline 目前固定采用 `2026-05-14` 这一轮 repo-tracked denomin
 ## 验证命令
 
 - retrieval benchmark：
-  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark
+  - `uv run --all-packages python -m campus_evals.retrieval_benchmark
     --qrels
     packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json
-    --qdrant-collection-name <collection> --format json --output <results.json>`
-- deterministic live gate：
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    run --official-web-scope stable_reference --qdrant-collection-name
-    <collection> --output-dir <output_dir>`
+    --results <run-results.json> --format json`
+- deterministic release gate：
+  - consume the sanitized official-web release acceptance artifact through
+    `campus_evals.eval_coverage_gate_artifacts`

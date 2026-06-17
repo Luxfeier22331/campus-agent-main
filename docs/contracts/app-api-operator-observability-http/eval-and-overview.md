@@ -208,3 +208,73 @@ owns this section group; the original path remains the stable index.
 - `citationMissRate` 只对 `citationExpected=true` 的请求计数
 - `sinkHealth.projectionFailureCount`、`outboxPendingCount`、`outboxRetryCount` 与
   `outboxStaleCount` 来自 app-owned projection outbox health，不来自 sink query
+
+## Runtime Health Endpoint
+
+### `GET /api/operator/runtime/health`
+
+返回 operator-safe execution runtime health projection。该 endpoint 用于 Operator
+Console Overview 的 `Execution Runtime Health` 卡片，回答执行平面是否具备接收主问答链路请求的
+基础条件。
+
+响应：
+
+```json
+{
+  "asOf": "2026-06-16T08:00:00.000Z",
+  "status": "ready",
+  "executionRuntime": {
+    "status": "ready",
+    "checks": {
+      "runProjectionStore": "ready",
+      "temporalRuntime": "ready"
+    },
+    "blockers": {}
+  },
+  "runProjectionStore": {
+    "configured": true,
+    "healthy": true,
+    "lastError": null
+  },
+  "temporalRuntime": {
+    "configured": true,
+    "healthy": true,
+    "lastError": null,
+    "namespace": "campus-agent-staging",
+    "workflowTaskQueue": "campus-agent.workflow",
+    "workerId": "staging:workflow:01",
+    "requiredTaskQueues": [
+      "campus-agent.workflow",
+      "campus-agent.activity.context",
+      "campus-agent.activity.knowledge",
+      "campus-agent.activity.finalization"
+    ],
+    "taskQueueGate": "pollers_required",
+    "taskQueuePollers": [
+      {
+        "name": "campus-agent.workflow",
+        "type": "workflow",
+        "pollers": 1,
+        "healthy": true
+      }
+    ]
+  }
+}
+```
+
+规则：
+
+- 该 endpoint 是 `app-api` operator API，不是 Temporal UI、raw Temporal history、
+  Prometheus 或 metrics explorer。
+- Operator Console 只能从该 endpoint 消费 sanitized projection，不得直接查询
+  `apps/execution-control`、Temporal、PG、Sentry 或 Axiom。
+- `status=degraded` 表示 `execution-control /readyz` 返回了结构化 degraded payload；
+  endpoint 仍返回该 payload 的 operator-safe projection，便于 operator 看到缺失的 task queue
+  poller 或 projection store blocker。
+- 网络错误、缺少 execution-control 配置、鉴权失败或非 readyz projection 响应仍按统一错误 envelope
+  fail closed；不得把不可诊断的运行时错误包装成 `degraded`。
+- `executionRuntime.checks.*` 只允许 `ready`、`not_ready`、`not_reported`。
+- `executionRuntime.blockers` 只返回 reason-code friendly summary，不返回 raw Temporal
+  history、provider payload、prompt、answer、transcript、cookie、token 或 auth material。
+- `temporalRuntime.taskQueuePollers` 只表达 task queue 名称、类型、poller 数与健康状态；它不是完整
+  Temporal visibility API，也不承诺展示 workflow history。

@@ -20,20 +20,32 @@ owns this section group; the original path remains the stable index.
 
 - 一个可达的 `base_url`
 - 一把 API key
-- 至少两个可用模型名：
-  - `EXECUTION_PROMPT_MODEL`
-  - `AGENT_PROMPT_MODEL`
+- 各 online prompt role 对应的可用模型名：
+  - `primary_agent`
+  - `rag_synthesis`
+  - `memory_graph_llm`
 
-默认放置位置：
+online serving owner：
 
-- root `.env`
+- `apps/app-api` provider-config profile
+- Operator Console `/operations/provider-config`
+- `execution-control` 通过
+  `/api/internal/provider-config/active?role=primary_agent` 和
+  `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot
+- Zep CE / Graphiti model consumption 使用 `memory_graph_llm` active profile；Graphiti
+  指向 app-api internal OpenAI-compatible proxy，proxy 再读取 active profile 并转发到真实
+  provider
+
+默认 env 放置位置：
+
+- root `.env` 只用于 local seed / eval / command-scoped override，不再是 online
+  serving truth
 
 相关键：
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `EXECUTION_PROMPT_MODEL`
-- `AGENT_PROMPT_MODEL`
+- `EXECUTION_PROMPT_MODEL`（仅显式 deterministic execution prompt lane 使用）
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
 
@@ -41,7 +53,9 @@ owns this section group; the original path remains the stable index.
 
 1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
 1. 在所选供应商控制台创建项目级或环境级 API key。
-1. 记录 API base URL 和允许使用的模型名。
+1. 通过 Operator Console 创建 prompt profile，选择 role、base URL、model 与 API key。
+1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
+   execution-control 消费。
 1. staging / prod 必须分环境单独发 key，不要复用本地开发 key。
 
 如果直接使用 OpenAI，可参考：
@@ -58,6 +72,8 @@ owns this section group; the original path remains the stable index.
 - 上述 “OpenAI 项目级 key” 是官方推荐路径；如果改用其他 OpenAI-compatible vendor，则点击路径以供应商控制台当前 UI
   为准
 - eval override 不是默认必需项。只有预算、限流或模型隔离需要时才单独配置
+- active profile list 只返回 masked secret metadata；raw key 只通过 app-api internal
+  runtime snapshot 给 execution-control，不返回浏览器
 
 ## 2. Embedding provider
 
@@ -74,9 +90,17 @@ owns this section group; the original path remains the stable index.
 - [../../policies/student-handbook-chunking-and-validation-policy.md](../../policies/s
   tudent-handbook-chunking-and-validation-policy.md)
 
-默认放置位置：
+online serving owner：
 
-- root `.env`
+- `apps/app-api` provider-config profile
+- Operator Console `/operations/provider-config`
+- `execution-control` 通过
+  `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot
+
+默认 env 放置位置：
+
+- ingestion / local seed / eval / command-scoped override 仍可用 root `.env`
+- online retrieval 不再以 root `.env` 为 truth
 
 相关键：
 
@@ -92,8 +116,11 @@ owns this section group; the original path remains the stable index.
 
 1. 如果保持当前 baseline，不要擅自更换模型维度或 vendor。
 1. 在当前 embedding vendor 控制台开通 embeddings 服务，记录 `base_url`、API token 与模型名。
-1. 把 shared runtime 值放到 root `.env`。
-1. 只有 eval 需要独立 provider 时，才额外填写 `EVAL_EMBEDDING_*`。
+1. 通过 Operator Console 创建 embedding profile，选择 role、base URL、model、API key 与
+   dimensions。
+1. validate profile；activate 前 app-api 必须检查 active retrieval vector dimensions 兼容性。
+1. 只有 ingestion、eval 或 local command 需要独立 provider 时，才额外填写 env
+   `EMBEDDING_*` 或 `EVAL_EMBEDDING_*`。
 
 外部参考：
 
@@ -103,6 +130,7 @@ owns this section group; the original path remains the stable index.
 
 - 上面这条链接只证明当前 vendor 存在官方 API 服务入口；具体 token 生成页面以供应商控制台当前 UI 为准
 - 如果要更换 retrieval baseline，不是只改 env；还要同步 ADR / policy / eval 基线
+- `index_embedding` 面向 offline indexing；online query path 消费 `rag_query_embedding`
 
 ## 3. Qdrant
 
@@ -120,8 +148,8 @@ owns this section group; the original path remains the stable index.
 
 获取方式：
 
-1. 在目标服务器按
-   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/self-hosted-qdrant-native-backup-runbook.md)
+1. 在目标服务器按 historical
+   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md)
    部署 single-node Qdrant。
 1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
    env 或 deploy secret store。
@@ -129,8 +157,6 @@ owns this section group; the original path remains the stable index.
    例如 `https://127.0.0.1:6333`。
 1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
    admin `QDRANT_API_KEY` 查询。
-1. execution-control personal memory write path 使用 `QDRANT_WRITE_API_KEY`；staging
-   可暂时由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应拆为单独 write-capable key。
 1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
    `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
 1. 不把 `6333` / `6334` 直接暴露到公网。
@@ -147,7 +173,75 @@ owns this section group; the original path remains the stable index.
 - 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
   ADR-0045 supersede
 
-## 4. Shared Postgres
+## 4. Zep CE
+
+Zep CE 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
+extraction、dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
+`campus-agent` 只消费 Zep CE `/api/v2`；Graphiti、Neo4j、Postgres / pgvector 是 Zep CE
+runtime bundle 内部组件。
+
+当前 deployment env handles：
+
+- `PERSONAL_MEMORY_BASE_URL`
+- `PERSONAL_MEMORY_API_SECRET`
+- `PERSONAL_MEMORY_OWNER_SALT`
+
+Zep runtime、timeout 与 recall limits 由 execution-control runtime profile
+`personal_memory` 段管理。
+
+local generated Zep CE runtime bundle keys：
+
+- `infra/local/.generated/zep-ce.env`
+- `ZEP_CE_POSTGRES_PASSWORD`
+- `ZEP_CE_NEO4J_PASSWORD`
+
+这些键只服务 local compose 内部 bundle。它们不是 repo top-level `.env` contract；staging /
+production 应由部署 secret store 注入等价值。
+
+Graphiti OpenAI-compatible projection：
+
+- `ZEP_CE_OPENAI_BASE_URL`：派生为 app-api internal proxy
+  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`
+- `ZEP_CE_OPENAI_API_KEY`：派生自 `APP_API_INTERNAL_SHARED_SECRET`
+
+这两个键是 compose projection，不是 provider secret truth。真实 provider base URL、model
+与 API key 必须来自 `memory_graph_llm` provider-config active profile，不能恢复 repo-owned
+`personal_memory_extraction` prompt。
+
+退休键，存在时必须 fail closed：
+
+- `ZEP_BASE_URL`
+- `ZEP_API_KEY`
+- `ZEP_PROJECT_SALT`
+- `ZEP_TIMEOUT_SECONDS`
+- `ZEP_RECALL_MAX_CHARS`
+- `ZEP_ASSISTANT_NAME`
+- `ZEP_USER_NAME`
+
+放置位置：
+
+- root `.env` / command env 仅用于 local dev 与 staging process injection
+- staging / production secret store 必须注入 `execution-control` 与 `activity-context`
+
+获取方式：
+
+1. 部署 self-hosted Zep CE API 及其 runtime bundle。
+1. local dev 运行 `infra/local/start-execution-control-runtime.sh`，脚本会生成
+   `infra/local/.generated/zep-ce.env` 并注入 Zep CE 内部 bundle secret。
+1. staging / production 为 Zep CE 配置稳定 `PERSONAL_MEMORY_API_SECRET`。
+1. staging / production 配置 HTTPS `PERSONAL_MEMORY_BASE_URL`；local dev 可以使用
+   compose 内网 `http://zep-ce-api:8000`。
+1. 为每个环境配置稳定 `PERSONAL_MEMORY_OWNER_SALT`，用于派生 scoped user id。
+1. 不把 Zep CE API secret 写入 repo-tracked env、fixture、eval artifact 或 docs。
+
+说明：
+
+- `activity-knowledge` 不需要 Zep secret；它只消费 `context.memory_recall` 输出的 bounded
+  memory context。
+- `zep-memory-product-path` eval profile 验证 append、recall、explicit profile memory
+  upsert / disable、owner disable 与 user isolation。
+
+## 5. Shared Postgres
 
 当前 repo 同时存在两个姿态：
 
@@ -182,8 +276,7 @@ owns this section group; the original path remains the stable index.
 
 如果使用本地 Docker Postgres：
 
-- 使用 [../../runbooks/local-postgres-dev-recovery-runbook.md](../../runbooks/local-post
-  gres-dev-recovery-runbook.md)
+- 使用 historical [../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md](../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md)
 - 或直接执行 `uv run --all-packages python -m scripts.restore_local_postgres_dev
   - -execute`
 

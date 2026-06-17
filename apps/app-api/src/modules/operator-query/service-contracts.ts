@@ -1,11 +1,17 @@
 import type { ResolvedAppPrincipal } from "../auth";
-import type { ExecutionControlRuntimeClient } from "../integration";
+import type {
+	ExecutionControlOperatorRuntimeHealth,
+	ExecutionControlRuntimeClient,
+} from "../integration";
 import type {
 	NormalizedOperatorAuditListFilters,
 	NormalizedOperatorOverviewFilters,
 	NormalizedOperatorQualityBadcaseListFilters,
 	NormalizedOperatorRequestListFilters,
 	NormalizedOperatorSafetyAnomalyListFilters,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerDecisionListFilters,
 	OperatorAuditEventDetail,
 	OperatorAuditListFilters,
 	OperatorAuditListResult,
@@ -28,6 +34,12 @@ import type {
 	OperatorSafetyAnomalyListResult,
 	OperatorSafetySummaryResult,
 	RequestProjectionRecord,
+	TemporalTaskQueueListFilters,
+	TemporalTaskQueueListResult,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationListResult,
+	WorkerAutoscalerDecisionListFilters,
+	WorkerAutoscalerDecisionListResult,
 } from "./service-types";
 
 export interface OperatorQueryStore {
@@ -67,6 +79,15 @@ export interface OperatorQueryStore {
 	listEvalDiagnosticCandidates(
 		filters: NormalizedOperatorQualityBadcaseListFilters,
 	): Promise<OperatorQualityEvalCandidateListResult>;
+	listTemporalTaskQueues(
+		filters: NormalizedTemporalTaskQueueListFilters,
+	): Promise<TemporalTaskQueueListResult>;
+	listAutoscalerDecisions(
+		filters: NormalizedWorkerAutoscalerDecisionListFilters,
+	): Promise<WorkerAutoscalerDecisionListResult>;
+	listAutoscalerActuations(
+		filters: NormalizedWorkerAutoscalerActuationListFilters,
+	): Promise<WorkerAutoscalerActuationListResult>;
 	listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
 	list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }
@@ -89,6 +110,9 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;
 	}): Promise<OperatorOverviewResult>;
+	getRuntimeHealth(input: {
+		principal: ResolvedAppPrincipal;
+	}): Promise<ExecutionControlOperatorRuntimeHealth>;
 	getQualitySummary(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;
@@ -137,9 +161,22 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorQualityBadcaseListFilters;
 	}): Promise<OperatorQualityEvalCandidateListResult>;
+	listTemporalTaskQueues(input: {
+		principal: ResolvedAppPrincipal;
+		filters: TemporalTaskQueueListFilters;
+	}): Promise<TemporalTaskQueueListResult>;
+	listAutoscalerDecisions(input: {
+		principal: ResolvedAppPrincipal;
+		filters: WorkerAutoscalerDecisionListFilters;
+	}): Promise<WorkerAutoscalerDecisionListResult>;
+	listAutoscalerActuations(input: {
+		principal: ResolvedAppPrincipal;
+		filters: WorkerAutoscalerActuationListFilters;
+	}): Promise<WorkerAutoscalerActuationListResult>;
 }
 
 export interface OperatorQueryServiceDependencies {
 	executionRuntime?: ExecutionControlRuntimeClient | null;
 	store: OperatorQueryStore;
+	runtimeHealthProbe?: (() => Promise<ExecutionControlOperatorRuntimeHealth>) | null;
 }

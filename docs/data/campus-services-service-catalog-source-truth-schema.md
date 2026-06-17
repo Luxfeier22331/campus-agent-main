@@ -174,10 +174,10 @@ handbook / official-web / portal source truth
 如果 contact directory 未生成，service catalog 仍可由 service guide 初始化，但
 `contact_record_refs` 必须为空。不得靠 category、服务名称或用户问题推断联系人。
 
-如果 normalized current projection 已存在，可用
-`python -m campus_ingestion_worker.build_service_catalog_projection` 定向重建
-`service_catalog` release。该 worker 仍只消费 `service_guide` 与可选
-`contact_directory` projection 文件，不改变 source-truth 边界。
+如果 normalized current projection 已存在，可通过 ingestion-control
+`ts_control` projection task 定向重建 `service_catalog` release。该任务只消费
+`service_guide` 与可选 `contact_directory` projection 文件，不改变
+source-truth 边界。
 
 ## Validation
 

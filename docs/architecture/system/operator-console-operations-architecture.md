@@ -1,0 +1,222 @@
+---
+doc_type: architecture
+truth_scope: product
+owner_boundary: apps/operator-console-web
+status: active
+created: 2026-06-08
+updated: 2026-06-15
+---
+# Operator Console Operations Architecture
+
+## 文档边界
+
+本文冻结 Operator Console operations domain 的 supporting architecture，并记录当前
+`apps/operator-console-web` implementation surface。
+
+它回答：
+
+- 为什么 dining operations 属于统一 Operator Console，而不是第二个长期后台产品
+- Worker shell 与 `app-api` proxy allowlist 如何分层
+- dining workspace 第一批承载哪些能力
+- provider/model/API key 在线配置如何进入同一个 operator data surface
+- 非 dining 后台域在当前阶段为什么只是 reserved route shell
+
+它不负责：
+
+- dining object schema，见 `docs/data/dining-operations-schema.md`
+- dining HTTP contract，见 `docs/contracts/app-api-dining-ops-http.md`
+- Operator Console observability query，见 `operator-observability-architecture.md`
+- account / OAuth browser experience，见 identity browser architecture 文档
+
+## Core Conclusion
+
+Operator Console 是唯一长期受控 operator product concept。Dining operations 是其中一个
+operations domain；当前实现由 `apps/operator-console-web` 承载。
+
+它不是：
+
+- account browser shell 的隐藏扩展
+- `operator-console-web` 之外的第二个长期后台产品
+- `campus-web` 的隐藏编辑模式
+- generic internal-tools builder
+
+长期 topology：
+
+```text
+operator browser
+-> operator console dining workspace (current: operator-console-web Worker)
+-> explicit /api/ops/* proxy allowlist
+-> app-api
+-> domain-owned draft/release candidate/release/audit stores
+```
+
+## Runtime Boundary
+
+当前 `operator-console-web` implementation surface 使用 Worker shell：
+
+- serve static assets
+- expose `GET /healthz`
+- proxy explicit `/api/ops/dining/*` operations routes
+- proxy explicit `/api/operator/provider-config/*` operations routes
+- reject unknown `/api/*`
+- reject `/api/federation/*`
+- does not proxy `/api/auth/*`
+
+Auth/session truth stays in `app-api` / identity platform. The operations surface
+only consumes operator admission results through proxied ops routes. It does not
+own a second operator backend.
+
+Provider configuration is an operations domain in the same Operator Console
+product concept. Browser UI writes only through `app-api` operator routes:
+
+```text
+operator browser
+-> operator-console-web /operations/provider-config
+-> explicit /api/operator/provider-config/* proxy allowlist
+-> app-api encrypted provider-config profiles
+-> execution-control internal active snapshot
+-> agent-runtime / RAG synthesis / embedding calls
+```
+
+Raw provider API keys are accepted only in create/update command payloads and
+must not be returned to the browser. List responses expose only masked metadata
+such as `secretLast4` and fingerprint.
+
+## Information Architecture
+
+Accepted target routes:
+
+- `/`
+- `/dining`
+- `/dining/:hallId/:floorId`
+- `/dining/assets`
+- `/dining/candidates`
+- `/dining/candidates/:candidateId`
+- `/dining/releases`
+- `/dining/releases/:releaseId`
+- `/dining/audit`
+- `/operations/provider-config`
+- `/map`
+- `/feedback`
+- `/knowledge`
+- `/notices`
+- `/services`
+
+Dining and provider configuration are the current implemented operations
+workspace targets. Map, feedback, knowledge, notices and services routes are
+placeholder shells to reserve information architecture, not implemented editors
+or API commitments.
+
+Current `operator-console-web` implementation exposes the reserved route shell,
+the primary dining workspace route set and `/operations/provider-config`.
+`/dining/svg-demo` is not part of the information architecture and must not be
+reintroduced.
+
+## Dining Workspace
+
+Accepted dining workspace contains:
+
+- left hall/floor tree
+- central read-only sanitized inline SVG floorplan preview from the repo
+  floorplan manifest
+- SVG anchor selection and binding
+- right detail editor for stall assignment and menu price
+- floorplan manifest metadata, anchor inventory and anchor binding validation
+- release candidate creation, validation report, approval and scheduling
+- published release list, release detail and rollback surface
+- audit list
+
+Current implemented dining workspace support includes hall/floor browsing,
+sanitized inline SVG preview, draft window/assignment/menu/offering edits,
+release candidate creation/validation/approval/scheduling/publish, release
+list/detail/rollback and audit list routes. Future UI refinement may improve
+density or navigation, but it must stay on these route and data boundaries.
+
+Dining floorplans are repo-owned versioned static SVG assets. The workspace
+does not upload/replace SVG, does not use Konva/react-konva as the primary
+floorplan technology and does not include freeform floorplan shape editing.
+MapLibre is reserved for outdoor map operations if map ops is later accepted.
+If a floor SVG changes, the change ships through an application release and the
+generated floorplan manifest, not through an operator upload control.
+
+Current dining UI library choices are:
+
+- `react-zoom-pan-pinch` for inline SVG pan/zoom controls
+- `@tanstack/react-table` for the SVG anchor inventory
+- `react-hook-form`, `@hookform/resolvers` and `zod` for the dining detail
+  editor form
+
+Dining publish UI is candidate-first:
+
+```text
+edit draft -> create candidate -> validate -> approve -> publish now / schedule
+```
+
+The workspace must not expose a control that publishes the mutable current draft
+without a candidate. It may hide scheduling or rollback controls until the
+underlying app-api routes are implemented, but the information architecture and
+copy must not teach operators a direct-draft-publish model.
+
+## Provider Configuration Workspace
+
+Provider configuration manages prompt and embedding runtime profiles for the
+online answer path. It is not a generic secrets vault.
+
+Accepted profile roles:
+
+- prompt: `primary_agent`, `rag_synthesis`
+- embedding: `rag_query_embedding`, `index_embedding`
+
+Accepted commands:
+
+- create draft profile with provider, transport, base URL, model, timeout,
+  role and API key
+- update inactive profile
+- validate profile against provider endpoint
+- activate validated profile
+
+Embedding activation must fail closed when the configured model/dimensions are
+not compatible with active retrieval vector dimensions. App-api performs that
+check by calling execution-control internal
+`/internal/provider-config/embedding:check-compatibility` with candidate metadata
+only; raw API keys stay in app-api encrypted persistence and are not sent to the
+compatibility endpoint. The UI may show validation and activation errors, but it
+must not invent fallback provider values or expose raw API keys.
+
+## Forbidden Shapes
+
+- Do not embed operations workspace inside the account browser shell.
+- Do not let `campus-web` call `/api/ops/*`.
+- Do not expose generic `/api/*` proxy.
+- Do not surface federation or auth management inside Operator Console operations.
+- Do not treat `operator-console-web` as a second long-term operator product backend.
+- Do not return raw provider API keys to Operator Console browser code.
+- Do not let execution-control or agent-runtime bypass app-api active provider
+  profiles for online serving provider/model/API key truth.
+- Do not let source observations mutate published projections without explicit
+  review and release.
+- Do not expose "publish current draft" as the target dining publish workflow.
+- Do not let a scheduled job publish mutable draft state; scheduled publish must
+  target an approved release candidate.
+
+## Staging Surface
+
+Staging route target is `https://operator-console-staging.mucwiki-edge.link`.
+
+Staging acceptance for dining requires:
+
+- unauthorized user cannot access ops API
+- operator can edit draft
+- operator can create a release candidate from draft
+- operator can inspect validation blockers and approve a valid candidate
+- operator can publish an approved candidate and see the published release
+- `campus-web` reads updated published `/api/dining/*`
+- audit list shows editor/publisher action
+
+Staging acceptance for provider configuration requires:
+
+- unauthorized user cannot access provider configuration API
+- operator can list profiles without seeing raw provider API keys
+- operator can create or update a prompt/model provider profile
+- operator can validate a profile through `app-api`
+- operator can activate a validated profile

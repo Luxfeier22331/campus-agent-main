@@ -34,7 +34,10 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 }
 
 func newServerForTest() *Server {
-	return NewServer(config.Config{})
+	return NewServer(config.Config{
+		RAGSelectedEvidenceMax: 8,
+		RAGTopKMax:             8,
+	})
 }
 
 func newWorkerAuthServerForTest() *Server {
@@ -46,6 +49,8 @@ func newWorkerAuthServerForTest() *Server {
 func newStructuredQueryAuthServerForTest() *Server {
 	return NewServer(config.Config{
 		InternalQuerySharedSecret:         "query-secret",
+		RAGSelectedEvidenceMax:            8,
+		RAGTopKMax:                        8,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})
 }
@@ -68,10 +73,6 @@ func (readyPersonalMemoryExecutor) HealthCheck(context.Context) error {
 	return nil
 }
 
-func (readyPersonalMemoryExecutor) EnsureSchema(context.Context) error {
-	return nil
-}
-
 func (readyPersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,
@@ -83,36 +84,58 @@ func (readyPersonalMemoryExecutor) Recall(
 	})
 }
 
-func (readyPersonalMemoryExecutor) Upsert(
+func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
-	request memoryruntime.UpsertRequest,
-) (memoryruntime.UpsertResult, error) {
-	return memoryruntime.NormalizeUpsertResult(request), nil
+	request memoryruntime.AppendConversationTurnRequest,
+) (memoryruntime.AppendConversationTurnResult, error) {
+	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
+		AppendedMessageCount: 2,
+		RunID:                request.RunID,
+		SchemaVersion:        "memory_conversation_append_result_v1",
+		Status:               "completed",
+		ThreadID:             request.ThreadID,
+		UserID:               request.UserID,
+	})
 }
 
-func (readyPersonalMemoryExecutor) Disable(
+func (readyPersonalMemoryExecutor) UpsertProfileMemoryItem(
 	_ context.Context,
-	request memoryruntime.DisableRequest,
-) (memoryruntime.UpsertResult, error) {
-	return memoryruntime.UpsertResult{
+	request memoryruntime.UpsertProfileMemoryItemRequest,
+) (memoryruntime.ProfileMemoryItemResult, error) {
+	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
+		EpisodeUUID:   "episode-" + request.MemoryID,
 		MemoryID:      request.MemoryID,
-		PointID:       memoryruntime.PointID(request.UserID, request.MemoryID),
-		SchemaVersion: "personal_memory_upsert_result_v1",
-		Status:        "disabled",
+		SchemaVersion: "memory_profile_item_result_v1",
+		Status:        "active",
 		UpdatedAt:     request.UpdatedAt,
-	}, nil
+		UserID:        request.UserID,
+	})
 }
 
-func (readyPersonalMemoryExecutor) DisableOwner(
+func (readyPersonalMemoryExecutor) DeleteProfileMemoryItem(
 	_ context.Context,
-	request memoryruntime.DisableOwnerRequest,
-) (memoryruntime.DisableOwnerResult, error) {
-	return memoryruntime.DisableOwnerResult{
-		SchemaVersion: "personal_memory_owner_disable_result_v1",
+	request memoryruntime.DisableProfileMemoryItemRequest,
+) (memoryruntime.ProfileMemoryItemResult, error) {
+	return memoryruntime.FinalizeProfileMemoryItemResult(memoryruntime.ProfileMemoryItemResult{
+		EpisodeUUID:   request.EpisodeUUID,
+		MemoryID:      request.MemoryID,
+		SchemaVersion: "memory_profile_item_result_v1",
 		Status:        "disabled",
 		UpdatedAt:     request.UpdatedAt,
 		UserID:        request.UserID,
-	}, nil
+	})
+}
+
+func (readyPersonalMemoryExecutor) DeleteProfileMemoryOwner(
+	_ context.Context,
+	request memoryruntime.DisableProfileMemoryOwnerRequest,
+) (memoryruntime.ProfileMemoryOwnerDisableResult, error) {
+	return memoryruntime.FinalizeProfileMemoryOwnerDisableResult(memoryruntime.ProfileMemoryOwnerDisableResult{
+		SchemaVersion: "memory_profile_owner_disable_result_v1",
+		Status:        "disabled",
+		UpdatedAt:     request.UpdatedAt,
+		UserID:        request.UserID,
+	})
 }
 
 func (readyRAGLookupExecutor) HealthCheck(context.Context) error {
@@ -173,7 +196,19 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
+				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -200,6 +235,11 @@ func markRAGRuntimeReadyForTest(server *Server) {
 	server.ragLookupErr = nil
 	server.ragSynthesisExecutor = readyRAGSynthesisExecutor{}
 	server.ragSynthesisErr = nil
+	server.ragVersionResolver = fakeRAGVersionResolver{}
+}
+
+func attachReadyRAGVersionResolverForTest(server *Server) {
+	server.ragVersionResolver = fakeRAGVersionResolver{}
 }
 
 func providerPricingCatalogForTest(t *testing.T) string {
@@ -228,12 +268,13 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 		AppName:                       "campus-agent",
 		MaxConcurrentAnswers:          8,
 		PromptRuntimeProvider:         "openai",
-		AgentPromptModel:              "gpt-5-mini",
 		PromptRuntimeAPIKey:           "test-key",
 		PromptRuntimeTransport:        "responses",
 		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
 		ProviderPricingPath:           providerPricingCatalogForTest(t),
 		PromptStrictStructuredOutputs: true,
+		RAGSelectedEvidenceMax:        8,
+		RAGTopKMax:                    8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

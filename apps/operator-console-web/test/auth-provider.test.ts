@@ -1,0 +1,183 @@
+// @vitest-environment node
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { operatorConsoleAuthProvider } from "../src/panel/auth-provider";
+
+function createAccessLoginHtmlResponse(): Response {
+	return {
+		headers: new Headers({
+			"cf-access-domain": "operator-console-staging.mucwiki-edge.link",
+			"content-type": "text/html; charset=utf-8",
+		}),
+		ok: true,
+		redirected: true,
+		status: 200,
+		statusText: "OK",
+		text: vi.fn().mockResolvedValue("<!DOCTYPE html><title>Sign in ・ Cloudflare Access</title>"),
+		url: "https://mucwiki-edge.cloudflareaccess.com/cdn-cgi/access/login/operator-console-staging.mucwiki-edge.link",
+	} as unknown as Response;
+}
+
+function createPanelError(status: number, code?: string) {
+	return {
+		body: code
+			? {
+					error: {
+						code,
+					},
+				}
+			: undefined,
+		status,
+	};
+}
+
+function createOverviewResponse(operatorContext: {
+	display_name: string | null;
+	email: string | null;
+	operator_id: string;
+	subject: string;
+}): Response {
+	return new Response(
+		JSON.stringify({
+			app_name: "campus-agent-v2-operator-console",
+			operator_context: {
+				groups: [],
+				principal_class: "human",
+				...operatorContext,
+			},
+			panel_domains: {
+				audit: "ready",
+				jobs: "blocked",
+				official_web: "ready",
+				operations: "deferred",
+				overview: "ready",
+				requests: "ready",
+			},
+			protected_hostname: "operator-console-staging.mucwiki-edge.link",
+			protection_envelope: "cloudflare-access",
+			runtime: "cloudflare-worker",
+			runtime_api_base_url: "https://app-api.internal",
+			status: "ok",
+			surface: "operator-console-web",
+		}),
+		{
+			headers: {
+				"content-type": "application/json; charset=utf-8",
+			},
+			status: 200,
+		},
+	);
+}
+
+describe("Operator Console auth provider", () => {
+	const originalWindow = globalThis.window;
+
+	beforeEach(() => {
+		vi.restoreAllMocks();
+	});
+
+	afterEach(() => {
+		void operatorConsoleAuthProvider.logout?.({});
+		if (originalWindow) {
+			globalThis.window = originalWindow;
+		} else {
+			delete (globalThis as Record<string, unknown>).window;
+		}
+		vi.restoreAllMocks();
+		vi.unstubAllGlobals();
+	});
+
+	it("fails closed when /api/overview resolves to the Cloudflare Access login page", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(createAccessLoginHtmlResponse());
+
+		await expect(operatorConsoleAuthProvider.checkAuth?.({})).rejects.toMatchObject({
+			redirectTo: "/login",
+			status: 401,
+		});
+	});
+
+	it("keeps operator admission and runtime failures in place instead of logging out", async () => {
+		await expect(
+			operatorConsoleAuthProvider.checkError(
+				createPanelError(403, "operator_identity_not_admitted"),
+			),
+		).resolves.toBeUndefined();
+
+		await expect(
+			operatorConsoleAuthProvider.checkError(createPanelError(403, "forbidden")),
+		).resolves.toBeUndefined();
+
+		await expect(
+			operatorConsoleAuthProvider.checkError(createPanelError(401, "internal_auth_required")),
+		).resolves.toBeUndefined();
+
+		await expect(
+			operatorConsoleAuthProvider.checkError(createPanelError(503, "dependency_not_ready")),
+		).resolves.toBeUndefined();
+	});
+
+	it("still escalates session and access failures so react-admin can logout", async () => {
+		const sessionRequired = createPanelError(401, "session_required");
+		await expect(operatorConsoleAuthProvider.checkError(sessionRequired)).rejects.toBe(
+			sessionRequired,
+		);
+
+		const accessJwtFailure = createPanelError(401);
+		await expect(operatorConsoleAuthProvider.checkError(accessJwtFailure)).rejects.toBe(
+			accessJwtFailure,
+		);
+	});
+
+	it("keeps auth-check logout on the local login route instead of forcing upstream access logout", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("window", {
+			location: {
+				assign,
+				origin: "https://operator-console-staging.mucwiki-edge.link",
+			},
+		});
+
+		await expect(operatorConsoleAuthProvider.logout?.({})).resolves.toBe("/login");
+		expect(assign).not.toHaveBeenCalled();
+	});
+
+	it("routes explicit user logout through the Cloudflare Access logout endpoint", async () => {
+		const assign = vi.fn();
+		vi.stubGlobal("window", {
+			location: {
+				assign,
+				origin: "https://operator-console-staging.mucwiki-edge.link",
+			},
+		});
+
+		await expect(operatorConsoleAuthProvider.logout?.(null)).resolves.toBe(
+			"https://operator-console-staging.mucwiki-edge.link/cdn-cgi/access/logout",
+		);
+		expect(assign).not.toHaveBeenCalled();
+	});
+
+	it("does not poison the overview identity cache after a transient failed identity lookup", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValueOnce(new Error("temporary network failure"))
+			.mockResolvedValueOnce(
+				createOverviewResponse({
+					display_name: "值班老师",
+					email: "ops@example.com",
+					operator_id: "ops@example.com",
+					subject: "operator-001",
+				}),
+			);
+
+		await expect(operatorConsoleAuthProvider.getIdentity?.()).rejects.toThrow(
+			"temporary network failure",
+		);
+
+		await expect(operatorConsoleAuthProvider.getIdentity?.()).resolves.toEqual({
+			fullName: "值班老师",
+			id: "ops@example.com",
+		});
+		expect(fetchSpy).toHaveBeenCalledTimes(2);
+	});
+});

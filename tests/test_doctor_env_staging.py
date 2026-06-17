@@ -22,7 +22,7 @@ class DoctorEnvStagingTest(unittest.TestCase):
                     "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID": "execution-control-access-client-id",
                     "STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET": "execution-control-access-client-secret",
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
+                    "STAGING_ACCESS_POLICY_AUD": "operator-console-staging-audience",
                 },
                 clear=True,
             ):
@@ -107,7 +107,9 @@ class DoctorEnvStagingTest(unittest.TestCase):
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
-    def test_collect_env_doctor_status_reports_panel_worker_staging_requirements(self) -> None:
+    def test_collect_env_doctor_status_reports_operator_console_worker_staging_requirements(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             repo_root.mkdir(parents=True)
@@ -116,12 +118,12 @@ class DoctorEnvStagingTest(unittest.TestCase):
                 os.environ,
                 {
                     "STAGING_ACCESS_TEAM_DOMAIN": "https://mucwiki-edge.cloudflareaccess.com",
-                    "STAGING_ACCESS_POLICY_AUD": "panel-staging-audience",
+                    "STAGING_ACCESS_POLICY_AUD": "operator-console-staging-audience",
                 },
                 clear=True,
             ):
                 status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-protected-panel-web"
+                    repo_root=repo_root, surface="worker-staging-operator-console-web"
                 )
 
             self.assertTrue(status["overall_ready"])

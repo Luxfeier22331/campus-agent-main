@@ -254,7 +254,7 @@ func primaryAgentSelectedCapability(selectedTools []string) string {
 			"contact_directory_lookup",
 			"academic_calendar_lookup":
 			return "campus_services"
-		case "campus_notice_change_set_lookup", "campus_notice_discover":
+		case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
 			return "notice"
 		case "knowledge_query":
 			return "knowledge"

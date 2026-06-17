@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0034
 status: superseded
 created: 2026-03-29
-updated: 2026-06-12
+updated: 2026-06-15
 ---
 # ADR-0034 授权模型与检索过滤投影
 
@@ -33,6 +33,10 @@ filter 与 approval / ownership truth；这些能力不是当前公开校园问�
 - index metadata / retrieval filters 不能成为 canonical product policy truth。
 - applicability / memory / user context 不能伪装成 source truth 或 capability
   opening truth。
+
+本文早期提到的 Python `apps/supervisor-agent-worker`、`packages/knowledge-capability`
+与 `packages/retrieval-core` 已从 active workspace 删除；当前 retrieval filter /
+authorization projection 边界不得通过恢复这些旧 package 实现。
 
 ## 历史背景
 

@@ -96,6 +96,8 @@ func (s *Server) executeStructuredRuntime(
 		return s.structuredQuery.LookupAcademicCalendar(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeDiscover:
 		return s.structuredQuery.LookupCampusNoticeDiscover(ctx, rawPayload)
+	case structuredquery.ToolCampusNoticePeriodSummary:
+		return s.structuredQuery.LookupCampusNoticePeriodSummary(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeChangeSet:
 		return s.structuredQuery.LookupCampusNoticeChangeSet(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeGet:

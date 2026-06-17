@@ -23,6 +23,7 @@ describe("operator observability command service", () => {
 			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
 		const telemetry = {
@@ -121,6 +122,7 @@ describe("operator observability command service", () => {
 			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
 		const telemetry = {
@@ -192,6 +194,7 @@ describe("operator observability command service", () => {
 			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
 		const service = buildOperatorObservabilityCommandService({
@@ -267,6 +270,7 @@ describe("operator observability command service", () => {
 			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
 		const service = buildOperatorObservabilityCommandService({
@@ -313,6 +317,7 @@ describe("operator observability command service", () => {
 			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
 		const service = buildOperatorObservabilityCommandService({
@@ -337,5 +342,216 @@ describe("operator observability command service", () => {
 			status: 422,
 		});
 		expect(store.upsertTraceBacklinks).not.toHaveBeenCalled();
+	});
+
+	it("persists Temporal task queue snapshots and autoscaler projections with observed load and failed actuation evidence", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn(),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-06-15T10:00:02.000Z"),
+			store,
+		});
+
+		await expect(
+			service.ingestTemporalTaskQueueSnapshots({
+				payload: {
+					actuations: [
+						{
+							actedAt: "2026-06-15T10:00:06.000Z",
+							actuationId: "actuation_01",
+							action: "scale",
+							actuatorKind: "docker_compose",
+							decisionId: "decision_01",
+							errorCode: "docker_compose_scale_failed",
+							fromReplicas: 1,
+							status: "failed",
+							targetService: "activity-worker-knowledge-retrieval",
+							toReplicas: 2,
+						},
+					],
+					decisions: [
+						{
+							budgetState: "within_budget",
+							currentReplicas: 1,
+							decidedAt: "2026-06-15T10:00:05.000Z",
+							decision: "scale_up",
+							decisionId: "decision_01",
+							desiredReplicas: 2,
+							evidence: {
+								backlog: { count: 12, state: "observed" },
+								oldestTaskAge: { ms: 4500, state: "observed" },
+								pollerCount: 1,
+							},
+							reason: "backlog_threshold_exceeded",
+							sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
+							targetService: "activity-worker-knowledge-retrieval",
+							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueueKind: "activity",
+						},
+					],
+					schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
+					snapshots: [
+						{
+							backlog: { count: 12, state: "observed" },
+							namespace: "default",
+							oldestTaskAge: { ms: 4500, state: "observed" },
+							pollerCount: 1,
+							pollerIdentities: ["knowledge-worker-1"],
+							sampledAt: "2026-06-15T10:00:00.000Z",
+							scheduleToStartLatency: { state: "unsupported_by_source" },
+							snapshotId: "temporal-snapshot-20260615T100000Z",
+							source: "execution-control.temporal-task-queue-sampler",
+							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueueKind: "activity",
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({
+			acceptedActuations: 1,
+			acceptedDecisions: 1,
+			acceptedSnapshots: 1,
+		});
+
+		expect(store.upsertTemporalTaskQueueRuntime).toHaveBeenCalledWith({
+			actuations: [
+				{
+					actedAt: "2026-06-15T10:00:06.000Z",
+					action: "scale",
+					actuationId: "actuation_01",
+					actuatorKind: "docker_compose",
+					decisionId: "decision_01",
+					errorCode: "docker_compose_scale_failed",
+					fromReplicas: 1,
+					projectedAt: "2026-06-15T10:00:02.000Z",
+					status: "failed",
+					targetService: "activity-worker-knowledge-retrieval",
+					toReplicas: 2,
+				},
+			],
+			decisions: [
+				{
+					budgetState: "within_budget",
+					currentReplicas: 1,
+					decidedAt: "2026-06-15T10:00:05.000Z",
+					decision: "scale_up",
+					decisionId: "decision_01",
+					desiredReplicas: 2,
+					evidence: {
+						backlog: { count: 12, state: "observed" },
+						oldestTaskAge: { ms: 4500, state: "observed" },
+						pollerCount: 1,
+					},
+					projectedAt: "2026-06-15T10:00:02.000Z",
+					reason: "backlog_threshold_exceeded",
+					sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
+					targetService: "activity-worker-knowledge-retrieval",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueueKind: "activity",
+				},
+			],
+			snapshots: [
+				{
+					backlog: { count: 12, state: "observed" },
+					namespace: "default",
+					oldestTaskAge: { ms: 4500, state: "observed" },
+					pollerCount: 1,
+					pollerIdentities: ["knowledge-worker-1"],
+					projectedAt: "2026-06-15T10:00:02.000Z",
+					sampledAt: "2026-06-15T10:00:00.000Z",
+					scheduleToStartLatency: { ms: null, state: "unsupported_by_source" },
+					snapshotId: "temporal-snapshot-20260615T100000Z",
+					source: "execution-control.temporal-task-queue-sampler",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueueKind: "activity",
+				},
+			],
+		});
+	});
+
+	it("rejects autoscaler actuations with unknown statuses", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn(),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestTemporalTaskQueueSnapshots({
+				payload: {
+					actuations: [
+						{
+							actedAt: "2026-06-15T10:00:06.000Z",
+							actuationId: "actuation_01",
+							action: "scale",
+							actuatorKind: "docker_compose",
+							decisionId: "decision_01",
+							fromReplicas: 1,
+							status: "unknown",
+							targetService: "activity-worker-knowledge-retrieval",
+							toReplicas: 2,
+						},
+					],
+					schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertTemporalTaskQueueRuntime).not.toHaveBeenCalled();
+	});
+
+	it("rejects Temporal task queue snapshots that include raw Temporal responses", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn(),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestTemporalTaskQueueSnapshots({
+				payload: {
+					schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
+					snapshots: [
+						{
+							backlog: { state: "unsupported_by_source" },
+							namespace: "default",
+							oldestTaskAge: { state: "unsupported_by_source" },
+							pollerCount: 0,
+							pollerIdentities: [],
+							rawTemporalResponse: { pollers: [] },
+							sampledAt: "2026-06-15T10:00:00.000Z",
+							scheduleToStartLatency: { state: "unsupported_by_source" },
+							snapshotId: "temporal-snapshot-20260615T100000Z",
+							source: "execution-control.temporal-task-queue-sampler",
+							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueueKind: "activity",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertTemporalTaskQueueRuntime).not.toHaveBeenCalled();
 	});
 });

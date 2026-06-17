@@ -1,10 +1,6 @@
 import { type ModelProvider, OpenAIProvider } from "@openai/agents";
-import type { AgentRunner } from "./primary-agent.ts";
+import type { AgentRunner, PromptProviderRuntimeConfig } from "./primary-agent.ts";
 import { createOpenAIAgentsRunner, type OpenAIAgentsRunnerOptions } from "./sdk-runner.ts";
-
-interface EnvReader {
-	[key: string]: string | undefined;
-}
 
 interface OpenAIProviderConfig {
 	apiKey: string;
@@ -17,54 +13,49 @@ interface ProviderConfigDependencies {
 	createRunner?: (options: OpenAIAgentsRunnerOptions) => AgentRunner;
 }
 
-export function createOpenAIAgentsRunnerFromEnv(
-	env: EnvReader = process.env,
+export function createRequestScopedOpenAIAgentsRunner(
 	dependencies: ProviderConfigDependencies = {},
 ): AgentRunner {
 	const createRunner = dependencies.createRunner ?? createOpenAIAgentsRunner;
-	return createRunner(openAIAgentsRunnerOptionsFromEnv(env, dependencies));
+	return createRunner({
+		resolveRuntimeOptions: (providerConfig) =>
+			openAIAgentsRunnerOptionsFromProviderConfig(providerConfig, dependencies),
+	});
 }
 
-export function openAIAgentsRunnerOptionsFromEnv(
-	env: EnvReader = process.env,
+export function openAIAgentsRunnerOptionsFromProviderConfig(
+	config: PromptProviderRuntimeConfig,
 	dependencies: Pick<ProviderConfigDependencies, "createProvider"> = {},
 ): OpenAIAgentsRunnerOptions {
 	const createProvider =
 		dependencies.createProvider ??
-		((config: OpenAIProviderConfig): ModelProvider => new OpenAIProvider(config));
-	const apiKey = readRequiredEnv(env, "PROMPT_RUNTIME_API_KEY");
-	const baseURL = readOptionalEnv(env, "PROMPT_RUNTIME_BASE_URL");
-	const model =
-		readOptionalEnv(env, "AGENT_PROMPT_MODEL") ??
-		readOptionalEnv(env, "PROMPT_RUNTIME_MODEL") ??
-		failMissingModel();
-	const transport = readOptionalEnv(env, "PROMPT_RUNTIME_TRANSPORT") ?? "responses";
-	if (transport !== "responses") {
-		throw new Error("PROMPT_RUNTIME_TRANSPORT must be responses for agent-runtime");
+		((providerConfig: OpenAIProviderConfig): ModelProvider => new OpenAIProvider(providerConfig));
+	const apiKey = trimmed(config.apiKey);
+	if (apiKey === undefined) {
+		throw new Error("provider api key is required for agent-runtime");
+	}
+	const model = trimmed(config.model);
+	if (model === undefined) {
+		throw new Error("provider model is required for agent-runtime");
+	}
+	if (trimmed(config.transport) !== "responses") {
+		throw new Error("provider transport must be responses for agent-runtime");
+	}
+	const provider = trimmed(config.provider);
+	if (provider !== undefined && provider !== "openai") {
+		throw new Error("provider must be openai for agent-runtime");
 	}
 	return {
 		model,
 		modelProvider: createProvider({
 			apiKey,
-			baseURL,
+			baseURL: trimmed(config.baseUrl),
 			useResponses: true,
 		}),
 	};
 }
 
-function readRequiredEnv(env: EnvReader, key: string): string {
-	const value = readOptionalEnv(env, key);
-	if (value === undefined) {
-		throw new Error(`${key} is required for agent-runtime`);
-	}
-	return value;
-}
-
-function readOptionalEnv(env: EnvReader, key: string): string | undefined {
-	const value = env[key]?.trim();
-	return value === "" || value === undefined ? undefined : value;
-}
-
-function failMissingModel(): never {
-	throw new Error("AGENT_PROMPT_MODEL or PROMPT_RUNTIME_MODEL is required for agent-runtime");
+function trimmed(value: string | undefined): string | undefined {
+	const result = value?.trim();
+	return result === "" || result === undefined ? undefined : result;
 }

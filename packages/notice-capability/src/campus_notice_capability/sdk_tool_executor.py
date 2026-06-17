@@ -8,12 +8,14 @@ from typing import get_args, get_origin, get_type_hints
 from campus_contracts import (
     CampusNoticeChangeSetLookupPayload,
     CampusNoticeDiscoverPayload,
+    CampusNoticePeriodSummaryPayload,
 )
 
 from campus_notice_capability.query_service import (
     NoticeAccessContext,
     NoticeChangeSetLookupQuery,
     NoticeDiscoverQuery,
+    NoticePeriodSummaryQuery,
     NoticeQueryService,
 )
 
@@ -44,6 +46,62 @@ def execute_notice_sdk_tool(
             "source_urls": [card.source_url for card in cards],
             "source_ref_count": len({card.source_url for card in cards if card.source_url.strip()}),
         }
+    if execution.name == "campus_notice_period_summary":
+        payload = CampusNoticePeriodSummaryPayload(
+            **_normalize_dataclass_arguments(
+                CampusNoticePeriodSummaryPayload,
+                execution.arguments,
+            )
+        )
+        result = query_service.summarize_notice_period(
+            NoticePeriodSummaryQuery(
+                payload=payload,
+                access_context=_access_context_from_request(agent_request),
+            )
+        )
+        groups = tuple(result.groups)
+        cards = tuple(result.notice_cards)
+        projection: dict[str, object] = {
+            "status": "completed",
+            "outcome": result.outcome,
+            "query_text": result.query_text,
+            "date_range": {
+                "start_date": result.date_range.start_date,
+                "end_date": result.date_range.end_date,
+                "timezone": result.date_range.timezone,
+            },
+            "bounded_summary": result.bounded_summary,
+            "source_ref_count": result.source_ref_count,
+            "groups": [
+                {
+                    "group_key": group.group_key,
+                    "title": group.title,
+                    "notice_count": group.notice_count,
+                    "summary": group.summary,
+                    "notice_ids": list(group.notice_ids),
+                }
+                for group in groups[:8]
+            ],
+            "notice_cards": [
+                {
+                    "notice_id": card.notice_id,
+                    "title": card.title,
+                    "source_family": card.source_family,
+                    "source_url": card.source_url,
+                    "target_surface": card.target_surface,
+                    "published_at": card.published_at,
+                    "summary": card.summary,
+                }
+                for card in cards[:10]
+            ],
+        }
+        _attach_output_projection_ref(
+            projection,
+            agent_request=agent_request,
+            projection_kind="notice_period_summary",
+            payload=_notice_period_summary_projection_payload(projection),
+        )
+        return projection
     if execution.name == "campus_notice_change_set_lookup":
         payload = CampusNoticeChangeSetLookupPayload(
             **_normalize_dataclass_arguments(
@@ -240,6 +298,43 @@ def _notice_change_set_projection_payload(projection: Mapping[str, object]) -> d
     return payload
 
 
+def _notice_period_summary_projection_payload(
+    projection: Mapping[str, object],
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "start_date": "",
+        "end_date": "",
+        "summary": str(projection.get("bounded_summary") or "").strip()[:1600],
+        "group_summaries": [],
+        "source_refs": [],
+    }
+    date_range = projection.get("date_range")
+    if isinstance(date_range, Mapping):
+        payload["start_date"] = str(date_range.get("start_date") or "").strip()
+        payload["end_date"] = str(date_range.get("end_date") or "").strip()
+    groups = projection.get("groups")
+    if isinstance(groups, list):
+        group_summaries = []
+        for item in groups:
+            if not isinstance(item, Mapping):
+                continue
+            summary = str(item.get("summary") or "").strip()
+            if summary:
+                group_summaries.append(summary)
+        payload["group_summaries"] = group_summaries
+    notice_cards = projection.get("notice_cards")
+    if isinstance(notice_cards, list):
+        source_refs = []
+        for item in notice_cards:
+            if not isinstance(item, Mapping):
+                continue
+            source_url = str(item.get("source_url") or "").strip()
+            if source_url:
+                source_refs.append(source_url)
+        payload["source_refs"] = source_refs
+    return payload
+
+
 def _safe_projection_ref(
     source_step_id: str,
     projection_kind: str,
@@ -280,6 +375,9 @@ def _normalize_dataclass_arguments(
     resolved_types = get_type_hints(payload_class, include_extras=True)
     for field_name, annotation in resolved_types.items():
         value = normalized.get(field_name)
+        if isinstance(value, list) and get_origin(annotation) is tuple:
+            normalized[field_name] = tuple(value)
+            continue
         if not isinstance(value, dict):
             continue
         nested_type = _dataclass_type_for_annotation(annotation)

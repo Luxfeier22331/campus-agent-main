@@ -374,7 +374,6 @@ execution_control_staging_compose() {
     OBJECT_STORE_ENDPOINT="${OBJECT_STORE_DOCKER_ENDPOINT:?OBJECT_STORE_DOCKER_ENDPOINT is required}" \
     QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
     QDRANT_QUERY_API_KEY="${QDRANT_QUERY_API_KEY:?QDRANT_QUERY_API_KEY is required}" \
-    QDRANT_WRITE_API_KEY="${QDRANT_WRITE_API_KEY:?QDRANT_WRITE_API_KEY is required}" \
     QDRANT_TLS_CA_CERT_PATH="${QDRANT_TLS_CA_CERT_PATH:?QDRANT_TLS_CA_CERT_PATH is required}" \
     QDRANT_TLS_DIR="${QDRANT_TLS_DIR:-$(dirname "${QDRANT_TLS_CA_CERT_PATH:?QDRANT_TLS_CA_CERT_PATH is required}")}" \
     EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL="${EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL:?EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL is required}" \
@@ -389,10 +388,12 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_TEMPORAL_NAMESPACE="${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?EXECUTION_CONTROL_TEMPORAL_NAMESPACE is required}" \
     EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE="${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}" \
     EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY is required}" \
-    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY is required}" \
-    EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY is required}" \
-    EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY is required}" \
-    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY is required}" \
+	    EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY is required}" \
     EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY is required}" \
@@ -413,11 +414,13 @@ execution_control_staging_compose_project_running() {
   services="$(execution_control_staging_compose_running_services 2>/dev/null || true)"
   [[ "${services}" == *"otel-collector"* ]] &&
     [[ "${services}" == *"execution-control"* ]] &&
-    [[ "${services}" == *"workflow-worker"* ]] &&
-    [[ "${services}" == *"activity-worker-context"* ]] &&
-    [[ "${services}" == *"agent-runtime"* ]] &&
-    [[ "${services}" == *"activity-worker-agent"* ]] &&
-    [[ "${services}" == *"activity-worker-knowledge"* ]] &&
+	    [[ "${services}" == *"workflow-worker"* ]] &&
+	    [[ "${services}" == *"activity-worker-context"* ]] &&
+	    [[ "${services}" == *"agent-runtime"* ]] &&
+	    [[ "${services}" == *"activity-worker-agent"* ]] &&
+	    [[ "${services}" == *"activity-worker-knowledge-plan"* ]] &&
+	    [[ "${services}" == *"activity-worker-knowledge-retrieval"* ]] &&
+	    [[ "${services}" == *"activity-worker-knowledge-synthesis"* ]] &&
     [[ "${services}" == *"activity-worker-campus-services"* ]] &&
     [[ "${services}" == *"activity-worker-notice"* ]] &&
     [[ "${services}" == *"activity-worker-navigation"* ]] &&
@@ -468,14 +471,11 @@ execution_control_staging_ensure_run_projection_store_schema() {
     "${evidence_dir}/run-projection-schema-check.json"
 }
 
-execution_control_staging_personal_memory_schema_command() {
+execution_control_staging_personal_memory_runtime_command() {
   local mode="$1"
   local evidence_path="$2"
   local docker_bin
   local container_evidence_path
-  local qdrant_tls_dir
-  local container_qdrant_tls_dir="/qdrant-tls"
-  local qdrant_ca_filename
 
   docker_bin="$(execution_control_staging_require_command docker)"
   case "${evidence_path}" in
@@ -483,60 +483,45 @@ execution_control_staging_personal_memory_schema_command() {
       container_evidence_path="/workspace/${evidence_path#"${execution_control_staging_repo_root}/"}"
       ;;
     *)
-      echo "Personal memory schema evidence path must stay under repo root: ${evidence_path}" >&2
+      echo "Personal memory runtime evidence path must stay under repo root: ${evidence_path}" >&2
       return 1
       ;;
   esac
-  qdrant_tls_dir="${QDRANT_TLS_DIR:-}"
-  if [[ -z "${qdrant_tls_dir}" && -n "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
-    qdrant_tls_dir="$(dirname "${QDRANT_TLS_CA_CERT_PATH}")"
-  fi
-  qdrant_ca_filename="$(basename "${QDRANT_TLS_CA_CERT_PATH:?QDRANT_TLS_CA_CERT_PATH is required}")"
   (
     cd "${execution_control_staging_repo_root}" || exit
     "${docker_bin}" run --rm \
       --network "${execution_control_staging_data_plane_network}" \
       -v "${execution_control_staging_repo_root}:/workspace" \
-      -v "${qdrant_tls_dir:?QDRANT_TLS_DIR or QDRANT_TLS_CA_CERT_PATH is required}:${container_qdrant_tls_dir}:ro" \
       -w /workspace/apps/execution-control \
       -e GOCACHE=/workspace/.tmp/go-cache \
       -e GOMODCACHE=/workspace/.tmp/go-mod-cache \
       -e EXECUTION_CONTROL_RUNTIME_PROFILE=staging \
+      -e EXECUTION_CONTROL_RUNTIME_CONFIG_PATH="/workspace/configs/runtime/execution-control/runtime-profile.staging.json" \
       -e EXECUTION_CONTROL_METRICS_BEARER_TOKEN="${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:?EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required}" \
       -e EXECUTION_CONTROL_TEMPORAL_ADDRESS="${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?EXECUTION_CONTROL_TEMPORAL_ADDRESS is required}" \
       -e EXECUTION_CONTROL_TEMPORAL_NAMESPACE="${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?EXECUTION_CONTROL_TEMPORAL_NAMESPACE is required}" \
       -e EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY="${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY is required}" \
       -e EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
-      -e QDRANT_URL="${QDRANT_DOCKER_URL:?QDRANT_DOCKER_URL is required}" \
-      -e QDRANT_QUERY_API_KEY="${QDRANT_QUERY_API_KEY:?QDRANT_QUERY_API_KEY is required}" \
-      -e QDRANT_WRITE_API_KEY="${QDRANT_WRITE_API_KEY:?QDRANT_WRITE_API_KEY is required}" \
-      -e QDRANT_TLS_CA_CERT_PATH="${container_qdrant_tls_dir}/${qdrant_ca_filename}" \
-      -e QDRANT_TIMEOUT_SECONDS="${QDRANT_TIMEOUT_SECONDS:-10}" \
-      -e PERSONAL_MEMORY_COLLECTION="${PERSONAL_MEMORY_COLLECTION:-personal_memory_v1}" \
-      -e PERSONAL_MEMORY_TOP_K="${PERSONAL_MEMORY_TOP_K:-5}" \
-      -e PERSONAL_MEMORY_MAX_CHARS="${PERSONAL_MEMORY_MAX_CHARS:-1200}" \
-      -e PERSONAL_MEMORY_SCORE_THRESHOLD="${PERSONAL_MEMORY_SCORE_THRESHOLD:-0}" \
-      -e EMBEDDING_BASE_URL="${EMBEDDING_BASE_URL:?EMBEDDING_BASE_URL is required}" \
-      -e EMBEDDING_API_KEY="${EMBEDDING_API_KEY:?EMBEDDING_API_KEY is required}" \
-      -e EMBEDDING_MODEL="${EMBEDDING_MODEL:?EMBEDDING_MODEL is required}" \
-      -e EMBEDDING_DIMENSIONS="${EMBEDDING_DIMENSIONS:?EMBEDDING_DIMENSIONS is required}" \
+      -e PERSONAL_MEMORY_BASE_URL="${PERSONAL_MEMORY_BASE_URL:?PERSONAL_MEMORY_BASE_URL is required}" \
+      -e PERSONAL_MEMORY_API_SECRET="${PERSONAL_MEMORY_API_SECRET:?PERSONAL_MEMORY_API_SECRET is required}" \
+      -e PERSONAL_MEMORY_OWNER_SALT="${PERSONAL_MEMORY_OWNER_SALT:?PERSONAL_MEMORY_OWNER_SALT is required}" \
       golang:1.26.2-bookworm \
-      go run ./cmd/personal-memory-schema \
+      go run ./cmd/personal-memory-runtime \
         --mode "${mode}" \
         --evidence-path "${container_evidence_path}"
   )
 }
 
-execution_control_staging_ensure_personal_memory_schema() {
+execution_control_staging_ensure_personal_memory_runtime() {
   local evidence_dir="${execution_control_staging_runtime_dir}/evidence"
   mkdir -p "${evidence_dir}"
 
-  execution_control_staging_personal_memory_schema_command \
+  execution_control_staging_personal_memory_runtime_command \
     install \
-    "${evidence_dir}/personal-memory-schema-install.json"
-  execution_control_staging_personal_memory_schema_command \
+    "${evidence_dir}/personal-memory-runtime-install.json"
+  execution_control_staging_personal_memory_runtime_command \
     check \
-    "${evidence_dir}/personal-memory-schema-check.json"
+    "${evidence_dir}/personal-memory-runtime-check.json"
 }
 
 execution_control_staging_temporal_namespace_setup() {

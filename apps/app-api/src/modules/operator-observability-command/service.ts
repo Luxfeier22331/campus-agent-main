@@ -8,6 +8,10 @@ import {
 	type EvalDiagnosticBadcaseProjectionWrite,
 	normalizeEvalDiagnosticBadcasesProjection,
 } from "../operator-eval-diagnostic-badcases";
+import {
+	normalizeTemporalTaskQueueRuntimePayload,
+	type TemporalTaskQueueRuntimePayload,
+} from "../operator-runtime-observability";
 import type {
 	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
@@ -105,6 +109,11 @@ export interface OperatorObservabilityCommandService {
 	ingestTraceBacklinks(input: {
 		payload: OperatorTraceBacklinksPayload;
 	}): Promise<{ accepted: number }>;
+	ingestTemporalTaskQueueSnapshots(input: { payload: TemporalTaskQueueRuntimePayload }): Promise<{
+		acceptedActuations: number;
+		acceptedDecisions: number;
+		acceptedSnapshots: number;
+	}>;
 }
 
 export interface OperatorObservabilityCommandServiceDependencies {
@@ -674,6 +683,18 @@ export function buildOperatorObservabilityCommandService(
 
 			await dependencies.store.upsertTraceBacklinks({ backlinks: writes });
 			return { accepted: writes.length };
+		},
+
+		async ingestTemporalTaskQueueSnapshots(input) {
+			const projections = normalizeTemporalTaskQueueRuntimePayload(input.payload, {
+				projectedAt: now().toISOString(),
+			});
+			await dependencies.store.upsertTemporalTaskQueueRuntime(projections);
+			return {
+				acceptedActuations: projections.actuations.length,
+				acceptedDecisions: projections.decisions.length,
+				acceptedSnapshots: projections.snapshots.length,
+			};
 		},
 	};
 }

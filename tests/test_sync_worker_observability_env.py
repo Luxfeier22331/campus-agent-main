@@ -14,7 +14,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
     def test_resolve_source_env_path_uses_root_worktree_dotenv_for_feature_worktree(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root_worktree = Path(temp_dir) / "campus-agent"
-            feature_worktree = root_worktree / ".worktrees" / "protected-panel-web"
+            feature_worktree = root_worktree / ".worktrees" / "operator-console-web"
             feature_worktree.mkdir(parents=True)
             source_env = root_worktree / ".env"
             source_env.write_text("SENTRY_DSN=https://shared.example\n", encoding="utf-8")
@@ -26,7 +26,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
     def test_sync_worker_observability_env_creates_app_local_dev_vars_from_root_env(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root_worktree = Path(temp_dir) / "campus-agent"
-            feature_worktree = root_worktree / ".worktrees" / "protected-panel-web"
+            feature_worktree = root_worktree / ".worktrees" / "operator-console-web"
             feature_worktree.mkdir(parents=True)
 
             (root_worktree / ".env").write_text(
@@ -44,11 +44,11 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
 
             app_api_dir = feature_worktree / "apps" / "app-api"
             public_chat_dir = feature_worktree / "apps" / "public-chat-web"
-            protected_panel_dir = feature_worktree / "apps" / "protected-panel-web"
+            operator_console_dir = feature_worktree / "apps" / "operator-console-web"
             campus_web_dir = feature_worktree / "apps" / "campus-web"
             app_api_dir.mkdir(parents=True)
             public_chat_dir.mkdir(parents=True)
-            protected_panel_dir.mkdir(parents=True)
+            operator_console_dir.mkdir(parents=True)
             campus_web_dir.mkdir(parents=True)
 
             (app_api_dir / ".dev.vars.example").write_text(
@@ -76,10 +76,10 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
-            (protected_panel_dir / ".dev.vars.example").write_text(
+            (operator_console_dir / ".dev.vars.example").write_text(
                 "\n".join(
                     [
-                        "PANEL_APP_NAME=campus-agent-v2-protected-panel",
+                        "OPERATOR_CONSOLE_APP_NAME=campus-agent-v2-operator-console",
                         "SENTRY_DSN=",
                         "SENTRY_ENVIRONMENT=development",
                     ]
@@ -115,7 +115,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             )
             self.assertIn(
                 "SENTRY_DSN=https://shared.example\n",
-                (protected_panel_dir / ".dev.vars").read_text(encoding="utf-8"),
+                (operator_console_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             self.assertIn(
                 "SENTRY_DSN=https://shared.example\n",
@@ -127,14 +127,14 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
     ) -> None:
         with TemporaryDirectory() as temp_dir:
             root_worktree = Path(temp_dir) / "campus-agent"
-            feature_worktree = root_worktree / ".worktrees" / "protected-panel-web"
+            feature_worktree = root_worktree / ".worktrees" / "operator-console-web"
             app_api_dir = feature_worktree / "apps" / "app-api"
             public_chat_dir = feature_worktree / "apps" / "public-chat-web"
-            protected_panel_dir = feature_worktree / "apps" / "protected-panel-web"
+            operator_console_dir = feature_worktree / "apps" / "operator-console-web"
             campus_web_dir = feature_worktree / "apps" / "campus-web"
             app_api_dir.mkdir(parents=True)
             public_chat_dir.mkdir(parents=True)
-            protected_panel_dir.mkdir(parents=True)
+            operator_console_dir.mkdir(parents=True)
             campus_web_dir.mkdir(parents=True)
 
             (root_worktree / ".env").write_text(
@@ -162,8 +162,8 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "SENTRY_DSN=https://chat.old.example\nSENTRY_RELEASE=chat@old\n",
                 encoding="utf-8",
             )
-            (protected_panel_dir / ".dev.vars").write_text(
-                "SENTRY_DSN=https://panel.old.example\nSENTRY_RELEASE=panel@old\n",
+            (operator_console_dir / ".dev.vars").write_text(
+                "SENTRY_DSN=https://operator-console.old.example\nSENTRY_RELEASE=operator-console@old\n",
                 encoding="utf-8",
             )
             (campus_web_dir / ".dev.vars").write_text(
@@ -186,8 +186,8 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 (public_chat_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             self.assertIn(
-                "SENTRY_RELEASE=panel@old\n",
-                (protected_panel_dir / ".dev.vars").read_text(encoding="utf-8"),
+                "SENTRY_RELEASE=operator-console@old\n",
+                (operator_console_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             self.assertIn(
                 "SENTRY_DSN=https://shared.new.example\n",

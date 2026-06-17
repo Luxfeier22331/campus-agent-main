@@ -19,7 +19,6 @@ type promptConfigGate struct {
 	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
 	ExecutionModel          string `json:"execution_model"`
-	AgentModel              string `json:"agent_model"`
 	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
 }
 
@@ -165,15 +164,17 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 
 func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"collection":          defaultString(strings.TrimSpace(s.config.PersonalMemoryCollection), "personal_memory_v1"),
-		"configured":          s.personalMemoryExecutor != nil,
-		"data_plane":          "qdrant_native",
-		"healthy":             false,
-		"last_error":          "",
-		"online_recall_owner": "execution-control",
-		"query_key_role":      "read_only",
-		"top_k":               s.config.PersonalMemoryTopK,
-		"total_char_budget":   s.config.PersonalMemoryMaxChars,
+		"configured":                 s.personalMemoryExecutor != nil,
+		"context_char_budget":        s.config.PersonalMemoryRecallMaxChars,
+		"data_plane":                 "zep_ce_self_host",
+		"healthy":                    false,
+		"last_error":                 "",
+		"online_recall_owner":        "execution-control",
+		"owner_salt_configured":      personalMemoryOwnerSaltConfigured(s.config),
+		"thread_owner":               "execution-control",
+		"raw_transcript_gate":        "sanitized_turn_append_only",
+		"zep_ce_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
+		"zep_ce_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
 	}
 	if s.personalMemoryErr != nil {
 		status["last_error"] = "personal memory executor could not be initialized"
@@ -202,7 +203,9 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	required := []string{
 		temporalruntime.ActivityTaskQueueContext,
-		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueKnowledgePlan,
+		temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+		temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 		temporalruntime.ActivityTaskQueueFinalization,
 	}
 	capabilityQueues := map[string]string{
@@ -251,15 +254,12 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
 	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
-	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
 	pricingVersion := ""
 	switch {
 	case providerName == "":
 		reason = "prompt_provider_not_configured"
-	case agentModel == "":
-		reason = "prompt_models_not_configured"
 	case !cfg.PromptStrictStructuredOutputs:
 		reason = "strict_structured_outputs_disabled"
 	case apiKey == "":
@@ -274,8 +274,6 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		switch {
 		case err != nil:
 			reason = "provider_pricing_not_configured"
-		case !promptModelHasPricing(catalog, providerName, agentModel):
-			reason = "agent_model_pricing_missing"
 		case executionModel != "" && !promptModelHasPricing(catalog, providerName, executionModel):
 			reason = "execution_model_pricing_missing"
 		default:
@@ -289,7 +287,6 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		PricingVersion:          pricingVersion,
 		Transport:               transport,
 		ExecutionModel:          executionModel,
-		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
 }

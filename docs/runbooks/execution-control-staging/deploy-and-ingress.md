@@ -154,16 +154,22 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
   同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填，并投影为 online runtime
   `QDRANT_QUERY_API_KEY`
-- `STAGING_INGESTION_QDRANT_API_KEY` 同时投影为 execution-control
-  `QDRANT_WRITE_API_KEY`，只用于 personal memory upsert / disable；不得作为 online recall
-  query key
 - `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
   Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
-- `PERSONAL_MEMORY_COLLECTION` 默认是 `personal_memory_v1`。`start-execution-control-staging.sh`
-  会在启动 execution-control 前用 write key 确保该 collection 存在，并写出
-  `personal-memory-schema-install.json` / `personal-memory-schema-check.json`
+- personal memory 使用 self-hosted Zep CE。`start-execution-control-staging.sh` 会在启动
+  execution-control 前执行 Zep runtime check，并写出
+  `personal-memory-runtime-install.json` / `personal-memory-runtime-check.json`
   evidence；`status-execution-control-staging.sh --check` 会要求
-  `/readyz.personal_memory_runtime.healthy=true`。
+  `/readyz.personal_memory_runtime.healthy=true`。必须配置
+  `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
+  `PERSONAL_MEMORY_OWNER_SALT`。Zep runtime、timeout 与 recall limits 来自
+  `/etc/campus-agent/runtime-profile.staging.json`，不是 staging env knobs。
+- staging 不消费 `infra/local/.generated/zep-ce.env`。Zep CE bundle 内部的 Postgres /
+  Neo4j / Graphiti secret 必须来自 staging secret store；Graphiti 模型面必须与
+  app-api provider-config `memory_graph_llm` active profile 对齐。Graphiti
+  `OPENAI_BASE_URL` 应指向 app-api internal OpenAI-compatible proxy
+  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`，
+  `OPENAI_API_KEY` 使用 `APP_API_INTERNAL_SHARED_SECRET`。
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配。当前 staging baseline 固定为：
   - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`
@@ -176,7 +182,7 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `STAGING_INGESTION_SPARSE_TOKENIZER=multilingual`
   - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
-- `STAGING_ACCESS_POLICY_AUD=<panel-staging Access aud>`
+- `STAGING_ACCESS_POLICY_AUD=<operator-console-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
 - `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
@@ -212,7 +218,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=staging:activity-knowledge-plan:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=staging:activity-knowledge-retrieval:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=staging:activity-knowledge-synthesis:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:<instance>`

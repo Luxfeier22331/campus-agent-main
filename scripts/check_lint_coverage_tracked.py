@@ -84,7 +84,14 @@ _TEXT_LIKE_SUFFIXES = {
     ".yaml",
     ".yml",
 }
-_WEB_LINT_PREFIXES = ("apps/", "configs/", "packages/", "scripts/", "tests/")
+_WEB_LINT_PREFIXES = (
+    "apps/",
+    "configs/",
+    "infra/local/scripts/",
+    "packages/",
+    "scripts/",
+    "tests/",
+)
 
 
 def repo_root() -> Path:

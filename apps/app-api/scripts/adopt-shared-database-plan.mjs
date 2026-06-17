@@ -8,6 +8,7 @@ import {
 	ALTER_INDEX_RENAME_RE,
 	ALTER_TABLE_ADD_COLUMN_RE,
 	ALTER_TABLE_CONSTRAINT_RE,
+	ALTER_TABLE_DROP_COLUMN_DEFAULT_RE,
 	ALTER_TABLE_DROP_COLUMN_RE,
 	ALTER_TABLE_RENAME_COLUMN_RE,
 	CREATE_INDEX_RE,
@@ -58,6 +59,17 @@ export function parseMigrationStatement(statement) {
 			column: match[3],
 			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}`,
 			kind: "drop_column",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_DROP_COLUMN_DEFAULT_RE);
+	if (match) {
+		return {
+			column: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}:default_dropped`,
+			kind: "drop_column_default",
 			schema: match[1],
 			statement: trimmed,
 			table: match[2],
@@ -209,6 +221,10 @@ function targetExists(inventory, target) {
 	if (target.kind === "column") {
 		return table.columns.has(target.column);
 	}
+	if (target.kind === "drop_column_default") {
+		const column = table.columns.get(target.column);
+		return Boolean(column && column.defaultValue !== null && column.defaultValue !== undefined);
+	}
 	if (target.kind === "drop_column") {
 		return !table.columns.has(target.column);
 	}
@@ -289,6 +305,9 @@ function shouldApplyStatement(
 	}
 	if (target.kind === "column" && !latestSnapshotKeepsColumn(expectedLatestTables, target)) {
 		return false;
+	}
+	if (target.kind === "drop_column_default") {
+		return targetExists(inventory, target);
 	}
 	return !targetExists(inventory, target);
 }
@@ -381,6 +400,15 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 
 	if (target.kind === "drop_column") {
 		table.columns.delete(target.column);
+		return;
+	}
+
+	if (target.kind === "drop_column_default") {
+		if (!table.columns.has(target.column)) {
+			throw new Error(
+				`Missing default-drop column ${qualifiedName}.${target.column} during adoption planning`,
+			);
+		}
 		return;
 	}
 

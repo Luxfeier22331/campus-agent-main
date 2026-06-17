@@ -33,8 +33,9 @@ repo-tracked 基线入口固定为：
 - workflow / release gate： `packages/evals/src/campus_evals/scenarios.py`
 - supplemental policy：
   `packages/evals/fixtures/student_handbook_judge_gate_policy.json`
-- live benchmark entry： `uv run --all-packages python -m
-  campus_evals.handbook_live_benchmark ...`
+- release acceptance artifact：由当前 TS/Go runtime owner 产出 sanitized
+  `student_rules_release_acceptance.v1.result.json`，再交给 coverage / qrels
+  tooling 消费；已不再提供 corpus-specific Python live runner entrypoint
 
 ## Accepted Release Baseline Snapshot
 
@@ -68,8 +69,8 @@ repo-tracked 基线入口固定为：
 
 `student_rules` gate 固定拆成两条轨道：
 
-- live release gate
-  - 验证真实 handbook collection 上的稳定主链路
+- release acceptance gate
+  - 验证真实 `student_rules` collection 上的稳定主链路
   - 覆盖 `completed`、`needs_clarification`、`no_answer`
 - deterministic error gate
   - 通过受控故障注入验证 `error` 终态、fail-close 和 trace error path
@@ -169,10 +170,10 @@ deterministic error gate 固定为：
 
 实现落点：
 
-- [backend_qdrant.py](/home/reptilian/code/campus-agent/packages/retrieval-core/
-  src/campus_retrieval_core/backend_qdrant.py)
-- [test_backend_qdrant.py](/home/reptilian/code/campus-agent/tests/retrieval/tes
-  t_backend_qdrant.py)
+- 旧 Python `packages/retrieval-core` / `tests/retrieval` 实现已从 active workspace
+  删除；该 marker 现在只保留为 regression behavior 说明
+- 后续等价检查应落在 Go-owned retrieval runtime seam 与 repo-owned qrels /
+  release-acceptance evidence 上
 
 ## Maintenance Rules
 

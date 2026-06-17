@@ -45,9 +45,9 @@ updated: 2026-04-28
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
-- rollout flag 仍由 Go runtime 持有：
-  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`。
-- 未设置该 flag 时，产品路径仍必须 fail-close。
+- rollout flag 仍由 Go runtime profile 持有：
+  `open_capabilities=["campus_services"]`。
+- 未在 profile 打开该 capability 时，产品路径仍必须 fail-close。
 
 ## Core Conclusion
 

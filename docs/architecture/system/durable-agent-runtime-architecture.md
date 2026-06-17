@@ -39,7 +39,7 @@ supporting architecture；实现状态必须单独写在 current architecture �
 and run projection -> execution-control -> Temporal workflow -> task queues ->
 workflow / activity worker pools -> typed step results -> sanitized run event +
 step / attempt / result projection -> app-api stream / projection / operator read
-model -> browser surface / panel / eval / badcase`
+model -> browser surface / Operator Console / eval / badcase`
 
 核心规则：
 
@@ -48,7 +48,7 @@ model -> browser surface / panel / eval / badcase`
 - `conversation_id` 是上下文、account / session、memory binding 与同会话并发策略的边界。
 - `run_events` 是 streaming、trace、audit、operator projection 与 eval backlink
   的共同事实源。
-- `RunStep -> StepAttempt -> StepResult` 是 panel、eval、badcase 与 release
+- `RunStep -> StepAttempt -> StepResult` 是 Operator Console、eval、badcase 与 release
   evidence 的共同诊断主线；`workflow_trace_summary` 只能作为兼容摘要，不替代
   step-level projection truth。
 - production admission truth 不得只存在于某个 `execution-control` /
@@ -61,6 +61,9 @@ model -> browser surface / panel / eval / badcase`
   product run projection、event projection 或 terminal state truth。
 - K8s 只调度 pod / resource，不拥有 workflow history、task queue、product projection 或
   terminal truth。
+- production worker replica autoscaling 的目标 controller 是 KEDA Temporal scaler +
+  Kubernetes HPA；repo-owned `worker-autoscaler` 只保留为 Docker Compose local /
+  transitional staging proof。
 - capability 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
   outcome 都能写入 sanitized step / attempt / result projection，并能被
   app-api operator read model 消费时，才算 production-open。
@@ -94,12 +97,12 @@ Repo owns：
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
-- panel / eval / badcase read model
+- Operator Console / eval / badcase read model
 - observability redaction policy
 
-Temporal history is not the product query source for panel/eval. It is execution
-history. Panel, eval and badcase consume repo-owned sanitized projection derived
-from workflow/activity progress.
+Temporal history is not the product query source for Operator Console/eval. It
+is execution history. Operator Console, eval and badcase consume repo-owned
+sanitized projection derived from workflow/activity progress.
 
 ## Canonical Objects
 
@@ -295,8 +298,8 @@ context.memory_recall when needed
 - direct/no-tool terminal branch 覆盖产品身份说明、普通寒暄、澄清、拒绝、
   out-of-scope 与 fail-close outcome；不得把这些拆成
   `assistant_intro`、`product_meta` 或 synthetic capability。
-- `context.memory_recall` 使用 Qdrant `personal_memory_v1` recall bounded personal
-  memory context，输出 selected count、char budget 与 compact memory items；目标态下它应由
+- `context.memory_recall` 使用 Zep CE runtime recall bounded personal memory
+  context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
 - `plan.route` 只能作为 retained deterministic support path / historical
   planning artifact，不读取 PG profile memory full dump，也不把普通 chat
@@ -329,8 +332,8 @@ Knowledge-family durable execution must remain a typed step graph:
 
 固定规则：
 
-- `memory.recall` 使用 Qdrant `personal_memory_v1` recall bounded personal memory
-  context，输出 selected count、char budget 与 compact memory items。
+- `memory.recall` 使用 Zep CE runtime recall bounded personal memory context，
+  输出 selected count、char budget 与 compact memory items。
 - `planning` 承接 execution admission / workflow plan projection，不读取 PG
   profile memory full dump。
 - `rag.plan` 输出 admitted query mode、scope、budget、required evidence
@@ -464,11 +467,14 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
   - executes typed tool / agent-as-tool activities
   - writes sanitized projection
 - `projection-worker`
-  - materializes workflow/activity progress into app-api / panel / eval read models
+  - materializes workflow/activity progress into app-api / Operator Console /
+    eval read models
   - used when direct activity writeback is not the selected implementation
 - `worker-autoscaler`
-  - reads Temporal task queue metrics, worker poller health, downstream budget projection
-    and SLO policy; adjusts worker replica count only.
+  - local / Docker Compose transitional role that reads Temporal task queue metrics,
+    worker poller health, downstream budget projection and SLO policy; adjusts worker
+    replica count only.
+  - production target role is replaced by KEDA Temporal scaler + Kubernetes HPA.
 
 ### Retired Python Semantic Bridge
 
@@ -547,10 +553,8 @@ Owner：Temporal workflow policy + task queue worker matching。
 - worker 是否符合该 activity 的 capability / version / readiness 条件
 - activity retry、timeout、heartbeat policy 是否满足
 
-当前 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`、
-`EXECUTION_CONTROL_QUEUE_CAPACITY` 与 `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS` 只表达
-current process-local execution protection。
-它们不得被解释为完整 production admission model。
+当前 runtime profile 中的 admission budget 只表达 current process-local
+execution protection。它不得被解释为完整 production admission model。
 
 ## Conversation Concurrency Policy
 
@@ -653,6 +657,8 @@ K8s 边界固定为：
   projection 或 terminal state。
 - K8s Job / CronJob / HPA / KEDA 只能基于 Temporal metrics 与 repo-owned
   budget projection 调整 worker presence；不能成为 canonical execution scheduler。
+- production target 使用 KEDA Temporal scaler 读取 Temporal task queue backlog，并由
+  Kubernetes HPA 对 workflow / activity worker Deployment 调整 replica count。
 
 worker autoscaler 边界固定为：
 
@@ -661,6 +667,21 @@ worker autoscaler 边界固定为：
 - 输出：workflow / activity worker desired replica count。
 - 禁止：写 workflow state、product run projection、step projection、event projection、直接标记
   terminal state、基于 raw prompt 或 raw provider trace 做扩缩容。
+- production 目标态中，desired replica 由 KEDA/HPA 计算和执行；repo-owned
+  autoscaler 不再承担生产控制器职责。
+- 当前 self-hosted sampler 使用 Temporal `DescribeTaskQueue(report_stats=true)`，
+  可靠采样 poller identity / poller count、approximate backlog count 与
+  approximate backlog age；schedule-to-start latency 仍必须显式标记为
+  `unsupported_by_source`，直到接入专门 latency metrics source。
+- 负载扩缩容只可由连续 observed backlog / oldest-task-age 窗口驱动；unsupported
+  load metrics 不能被解释为 0 或健康状态，只能形成 hold 证据。poller 缺失可独立驱动
+  worker presence repair。
+- cooldown 由 app-api operator runtime actuation projection 驱动；worker-autoscaler
+  通过 internal query seam 读取最近 actuation，而不是直连 app-api database。
+- autoscaler 的 operator-facing 证据归属 app-api runtime projection，contract 见
+  `docs/contracts/operator-runtime-observability-contract.md`。
+- K8s/KEDA target deployment substrate 的完整设计见
+  `kubernetes-execution-runtime-architecture.md`。
 
 ## Current-State Ownership
 
@@ -700,6 +721,8 @@ Stable artifacts for this architecture:
 - `docs/architecture/system/tool-and-capability-runtime-architecture.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/kubernetes-execution-runtime-architecture.md`
 - `docs/contracts/durable-agent-runtime-contract.md`
 - `docs/data/durable-agent-runtime-schema.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`

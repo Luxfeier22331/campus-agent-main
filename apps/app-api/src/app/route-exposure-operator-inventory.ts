@@ -207,6 +207,12 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/provider-config/profiles",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/ingestion/tasks",
 		callerClass: "operator-via-panel",
 		admission:
@@ -322,6 +328,12 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/runtime/health",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/quality/badcases",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -359,6 +371,24 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "GET",
 		path: "/api/operator/requests/:requestId/observability",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/runtime/autoscaler/decisions",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/runtime/autoscaler/actuations",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/runtime/temporal-task-queues",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},
@@ -413,6 +443,30 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "PATCH",
 		path: "/api/operator/campus-services/transport-overrides/:overrideId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/provider-config/profiles",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "PATCH",
+		path: "/api/operator/provider-config/profiles/:profileId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/provider-config/profiles/:profileId/activate",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/provider-config/profiles/:profileId/validate",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},

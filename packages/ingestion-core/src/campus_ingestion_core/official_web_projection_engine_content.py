@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import re
 
-from campus_ingestion_core.official_web_academic_calendar_projection import (
-    block_has_academic_calendar_image_ref,
-)
 from campus_ingestion_core.official_web_projection_engine_common import (
     _CAMPUS_ADDRESS_RE,
     _EMAIL_RE,
@@ -34,14 +31,6 @@ def _candidate_content_blocks(
     blocks: list[dict[str, object]],
     consumer_family: str,
 ) -> list[dict[str, object]]:
-    if consumer_family == "academic_calendar_candidate":
-        return [
-            block
-            for block in blocks
-            if bool(block.get("isMainContent"))
-            or block.get("blockRole") == "title"
-            or block_has_academic_calendar_image_ref(block)
-        ]
     if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         return _regulation_candidate_content_blocks(blocks)
     if consumer_family != "contact_directory_candidate":

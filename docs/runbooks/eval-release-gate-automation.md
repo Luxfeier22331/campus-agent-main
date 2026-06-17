@@ -24,12 +24,18 @@ updated: 2026-04-27
 
 ## Supported Profiles
 
-- `handbook`
-- `curriculum`
-- `official-web-stable-reference`
-- `service-guide-lookup`
-- `contact-directory-lookup`
 - `campus-services-product-path`
+- `multi-agent-runtime-contract`
+- `public-chat-product-path`
+- `public-chat-entry-e2e`
+- `tool-family-denominator`
+- `tool-routing-product-path`
+- `document-quality`
+- `authz-privacy`
+- `agentic-retrieval-plan`
+- `answer-quality-contract`
+- `eval-operations-governance`
+- `quality-calibration`
 
 ## Doctor
 
@@ -50,64 +56,22 @@ uv run --all-packages python -m scripts.eval_gate doctor \
 
 ## Acceptance
 
-handbook：
+通用 profile gate：
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate accept \
-  --profile handbook \
-  --verbose \
+  --profile tool-family-denominator \
+  --observations-path <observations.json> \
   --json
 ```
 
-curriculum：
+需要 runtime collection 的 profile 必须显式传入 observation / artifact；automation
+不会启动旧 Python live runner，也不会从 Qdrant / app-api 隐式采样。
 
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile curriculum \
-  --verbose \
-  --json
-```
-
-official web：
-
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile official-web-stable-reference \
-  --qdrant-collection-name <physical-collection> \
-  --json
-```
-
-`official-web-fresh-news` is not a release-gate dispatch profile. Its current
-repo truth is offline seed validation only; use the retrieval qrels fixture for
-local seed checks until a separate news/runtime opening workstream admits it.
-
-service guide lookup：
-
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile service-guide-lookup \
-  --json
-```
-
-`service-guide-lookup` 是确定性 release gate，不调用 live app-api，不生成
-formal benchmark case-results，也不支持 operator observability publish dry-run。它固定检查：
-
-- `service_guide` source-truth projection 的默认 eval cases
-- `service_guide_lookup` intent 子集，包括办理指南 lookup 与事务性代办 guardrail
-- execution-control Go 侧 service guide planning / runtime policy /
-  structured query / answer text
-- Python `campus_services` tool adapter 与 HTTP query service contract
-
-contact directory lookup：
-
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile contact-directory-lookup \
-  --json
-```
-
-`contact-directory-lookup` 也是确定性 release gate，不调用 live app-api，不生成
-formal benchmark case-results，也不支持 operator observability publish dry-run。
+旧 corpus-specific 与 service-specific Python release profile 已从 active registry
+移除。对应的 student rules、curriculum、official-web、service/contact 与
+institutional rules 证据应由当前 TS/Go runtime owner 产出 sanitized release
+acceptance / retrieval artifact，再交给 coverage snapshot 或 active profile 消费。
 
 campus services product path opening gate：
 
@@ -119,10 +83,8 @@ uv run --all-packages python -m scripts.eval_gate accept \
 
 `campus-services-product-path` 聚合：
 
-- `service-guide-lookup` deterministic gate
-- `contact-directory-lookup` deterministic gate
+- tool-family denominator 中的 service-guide / contact-directory cases
 - Go structured runtime matrix tests
-- Python `tests.agent.test_campus_services_capability`
 - `app-api` runtime tests + typecheck
 - `public-chat-web` worker E2E + typecheck
 
@@ -137,7 +99,7 @@ artifact 默认写入：
 这是 `campus-services-product-path` gate 对应的固定运营契约：
 
 - rollout flag（Go-owned）：
-  - `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`
+  - runtime profile `open_capabilities=["campus_services"]`
 - opening 前必须同时满足：
   - gate artifact `summary.failed_checks=0`
   - `execution-control /readyz` 中 `capability_gates.campus_services.open=true`
@@ -148,7 +110,7 @@ artifact 默认写入：
   - `/readyz preflight` 出现 `status=blocked` 或关键 check `not_ready`
   - public/chat 回答出现 source trace 泄漏（如 release id/projection internals/raw ref id）
 - rollback 操作：
-  - 从 `EXECUTION_CONTROL_OPEN_CAPABILITIES` 移除 `campus_services` 后重新部署
+  - 从 runtime profile `open_capabilities` 移除 `campus_services` 后重新部署
   - 复核 `/readyz` 已回到 capability gate closed
 
 source trace 观察点（browser-safe）：

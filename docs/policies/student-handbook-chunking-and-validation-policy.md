@@ -369,7 +369,9 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 当前 validation 入口：
 
-- `python -m campus_ingestion_worker.validate_student_handbook_chunking`
+- `regulations/student_rules` task registry 的 `document_units_validate` /
+  `chunk_prepare` 阶段；确定性文件检查由 Rust kernel 承接，task lifecycle
+  由 ingestion-control `ts_control` closeout 承接。
 
 当前核心指标：
 

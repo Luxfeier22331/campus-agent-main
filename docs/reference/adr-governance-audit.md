@@ -74,14 +74,14 @@ updated: 2026-06-04
 - `apps/execution-control = Docker-first internal execution service`，见
   `ADR-0043` 与 `docs/architecture/current-architecture.md`。
 - product surface 收口到 `campus-web` / legacy `public-chat-web` /
-  `protected-panel-web` + shared `app-api`；docs 已进入 `campus-web /docs/*`，见
+  `operator-console-web` + shared `app-api`；docs 已进入 `campus-web /docs/*`，见
   `ADR-0012`、`ADR-0013`、
   `ADR-0043` 与 current architecture。
 - Qdrant backup 默认主路径已从 Cloud / object-store bundle 切到 self-hosted
   native snapshot，见 `ADR-0052`；`ADR-0020` 已 superseded。
 - authorization truth 由 `app-api` 拥有，retrieval 只消费 filter projection，
   见 `ADR-0022`、`ADR-0034` 与 identity architecture。
-- `Sentry` / `Axiom` 是 observability sinks，不是 panel canonical read model，
+- `Sentry` / `Axiom` 是 observability sinks，不是 Operator Console canonical read model，
   见 `ADR-0010`、`ADR-0023` 与 operator observability architecture。
 
 ### D1: Historical naming remains but is explicitly bounded

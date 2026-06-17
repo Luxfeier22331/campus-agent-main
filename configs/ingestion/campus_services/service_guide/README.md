@@ -26,13 +26,12 @@ Current structured projection:
   public medical guides, student daily-affairs guides, financial-aid guides and
   official campus-card service pages
 - canonical build path: `regulations/student_rules` handbook raw ingestion and
-  provider-response replay load `source-truth.v1.json` after successful
+  source-truth projection tasks load `source-truth.v1.json` after successful
   document persistence, then publish the `service_guide` structured projection
-  release in the same run
-- debug/recovery shell:
-  command `python -m campus_ingestion_worker.build_service_guide_projection`
-  with `--source-truth-manifest` pointing at this directory's
-  `source-truth.v1.json`
+  release in the same admitted run
+- debug/recovery path: admit an ingestion-control `ts_control` projection task
+  with `source-truth.v1.json` as the explicit input manifest; no Python
+  collection worker command is retained
 - data contract:
   `docs/data/campus-services-service-guide-source-truth-schema.md`
 

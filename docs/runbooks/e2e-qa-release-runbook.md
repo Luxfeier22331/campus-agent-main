@@ -16,7 +16,7 @@ runbook，不重复维护每个子流程的全部细节。
 本文只用于真实 staging release closeout。它不替代：
 
 - repo unit / typecheck / build gate
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/execution-control-staging-smoke-runbook.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
@@ -196,22 +196,39 @@ curl --noproxy '*' -sS -i \
 - reader route 返回可渲染 HTML
 - reader asset URL 不包含 `localhost`、`127.0.0.1` 或本地 MinIO endpoint
 
-## 6. Protected Panel And Access
+## 6. Operator Console And Access
 
 运行 Access service-token smoke：
 
 ```bash
-pnpm --dir apps/protected-panel-web access:smoke:staging \
-  | tee "$E2E_QA_EVIDENCE_DIR/panel-access-service-token.json"
+pnpm --dir apps/operator-console-web access:smoke:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-console-access-service-token.json"
 ```
 
 通过标准：
 
 - 未认证 `/readyz` 返回 Cloudflare Access redirect
 - service token 访问 `/healthz` 与 `/readyz` 返回 `200`
-- service token 访问 `/api/overview` 返回 `401 Invalid Access JWT.`
+- service token 访问 Worker-local `/api/overview` 返回 `401 Invalid Access JWT.`
 
-该 smoke 只证明 Access envelope 可由 automation 到达，不代表 human operator identity。
+该 smoke 只证明 Access envelope 可由 automation 到达，不代表 human operator
+identity，也不证明当前 Operator Console domains 可用。
+
+使用 admitted human operator 登录后，至少检查当前 domain matrix：
+
+- Shell：panel shell loads after Cloudflare Access login
+- Overview：`/observability/overview` loads and calls `/api/operator/overview`
+- Runtime Health：overview runtime card calls `/api/operator/runtime/health`
+- Requests：`/requests` loads and calls `/api/requests`
+- Provider Config：`/operations/provider-config` loads and calls
+  `/api/operator/provider-config/profiles`
+- Official Web：`/officialWebSites` loads and calls `/api/official-web/sites`
+- Authenticated Notices：`/authenticatedNoticeProcessing` loads and calls
+  `/api/authenticated-notices/processing`
+- Dining Operations：`/operations/dining` loads and calls `/api/ops/dining/halls`
+
+以上证据可以是 browser automation report、network capture 摘要或截图加对应
+HTTP status 记录；不能用 service-token smoke 代替。
 
 ## 7. Browser QA
 
@@ -228,10 +245,11 @@ pnpm --dir apps/protected-panel-web access:smoke:staging \
 - `https://campus-staging.mucwiki-edge.link/docs/`
   - 首页、分类、reader 页面可打开
   - gated 文档未授权不可读，授权后可读
-- `https://panel-staging.mucwiki-edge.link`
+- `https://operator-console-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
-  - Overview、Requests、Eval Coverage 页面可打开
+  - Overview、Runtime Health、Requests、Provider Config、Official Web、
+    Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字证据。console / network 明显错误必须记录。
 
@@ -270,7 +288,65 @@ projection drain 时间段，并保存：
 - matched request id 或 trace id
 - redaction note
 
-## 9. Data Plane Sanity
+## 9. Operator Runtime And Eval Closeout
+
+上线前必须验证 operator-safe runtime projection，而不是回读 Temporal history、
+Docker state 或本地证据文件。
+
+检查 Temporal task queue snapshot：
+
+```bash
+task_queue_url="$APP_API_BASE_URL/api/internal/operator/runtime/temporal-task-queues"
+curl --noproxy '*' -sS \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  "$task_queue_url?limit=8" \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-task-queues.json"
+```
+
+检查 autoscaler decisions：
+
+```bash
+curl --noproxy '*' -sS \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
+  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/decisions?limit=8" \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-autoscaler-decisions.json"
+```
+
+检查 autoscaler actuations：
+
+```bash
+curl --noproxy '*' -sS \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
+  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/actuations?limit=8" \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-autoscaler-actuations.json"
+```
+
+通过标准：
+
+- task queue snapshot 覆盖 workflow worker 与 opened activity workers
+- `pollerCount`、`pollerIdentities`、`backlog` 与 `oldestTaskAge` 来自 Temporal
+  `DescribeTaskQueue(report_stats=true)`
+- 当前 sampler 下 `scheduleToStartLatency` 必须显式为 `unsupported_by_source`
+- autoscaler decision 包含 `sourceSnapshotId`、`currentReplicas`、`desiredReplicas`
+  与 `budgetState`
+- apply mode 下 autoscaler actuation 只允许 `applied`、`skipped` 或 `failed`
+
+Eval diagnostic release closeout 必须从 app-api operator observability detail 注入
+`runtimeRun.operatorStepTrajectory`，再生成 badcase projection。release mode 必须设置
+`require_trajectory_attribution=True`。
+
+阻断条件：
+
+- request correlation 缺失
+- app-api observability detail 缺 `runtimeRun.operatorStepTrajectory`
+- low-score badcase 的 trajectory attribution 为 `trajectory_missing` 或
+  `attribution_missing`
+- eval artifact 包含 Temporal history、raw trace、prompt、transcript、auth header 或本地
+  object-store path
+
+## 10. Data Plane Sanity
 
 只读检查 `nc-arm-6c` 容器与数据面：
 
@@ -302,6 +378,8 @@ E2E QA 通过必须同时满足：
 - browser QA 没有阻断性 console / network / auth 问题
 - Sentry 有真实 staging span 或等价 trace evidence
 - Axiom 有真实 runtime event evidence
+- operator runtime task queue / autoscaler projection evidence 完整
+- eval diagnostic badcase projection 使用 operator step trajectory 且无 missing attribution
 - evidence 完整落盘到本轮目录
 
 禁止通过标准：

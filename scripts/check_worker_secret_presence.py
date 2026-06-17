@@ -16,7 +16,7 @@ DEFAULT_APP_PATHS = (
     "apps/app-api",
     "apps/campus-web",
     "apps/public-chat-web",
-    "apps/protected-panel-web",
+    "apps/operator-console-web",
 )
 
 _ANSI_ESCAPE_RE = re.compile(r"\x1b\[[0-9;]*[A-Za-z]")

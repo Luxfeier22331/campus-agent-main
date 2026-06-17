@@ -48,13 +48,20 @@ Online model-facing execution follows this order:
 1. `execution-control` admits the durable run and trims visible capabilities /
    tools.
 1. Temporal starts an admitted activity for primary agent or capability worker.
-1. The SDK loop receives only the workflow-trimmed tool subset.
+1. `execution-control` resolves the active provider profile snapshot from
+   `app-api` internal provider-config APIs.
+1. The SDK loop receives only the request-scoped provider config and
+   workflow-trimmed tool subset.
 1. Tool calls go through repo-owned internal query services or workflow signals.
 1. SDK output is normalized into sanitized result refs and usage summary.
 1. Go finalization writes the terminal projection.
 
 The SDK must not receive the global tool list. It only receives tools admitted
 for the current run / step.
+
+`apps/agent-runtime` must not own online provider/model/API key selection. For
+online serving it receives `provider_config` in `/internal/agent-runs`; missing
+or malformed provider config fails closed before model execution.
 
 ## Tool And Trace Semantics
 

@@ -101,26 +101,19 @@ updated: 2026-04-23
 1. 记录点数、payload 样本和 registry back-link 样本。
 1. 使用 fixtures 抽样查询做 Gate 3 / Gate 4 验收。
 
-## Formal Benchmark 验收入口
+## Release Acceptance 验收入口
 
-推荐直接走 shared live benchmark acceptance flow：
+推荐直接产出 current runtime owner 的 release acceptance artifact：
 
-- 先启动 repo-local `execution-control` 与 `app-api` dev runtime
-- root `.env` 需要补齐本地 eval ingress 参数，而不是远端部署变量：
-  - `APP_API_BASE_URL`
-  - `APP_API_INTERNAL_SHARED_SECRET`
-  - `APP_API_EVAL_USER_EMAIL`
-- 其中 `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
-- `set -a && source .env && set +a`
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m
-  campus_evals.handbook_live_benchmark accept --reruns 3 --verbose --log-jsonl
-  .tmp/evals/student-handbook-runtime-events.jsonl`
+- rebuild / release / alias publish 由 TS ingestion-control task registry 和
+  executor 负责
+- RAG runtime evidence 由 Go-owned execution-control 产出 sanitized observation
+- qrels 指标使用 `campus_evals.retrieval_benchmark` 消费显式
+  `<run-results.json>`，不从 Python live runner 直接采样
+- release acceptance 结果保存为 `student_rules_release_acceptance.v1.result.json`
+  并进入 `eval_coverage_gate_artifacts`
 
-accept flow 语义：
-
-- 先跑 fresh live benchmark
-- 若存在 transient supplemental infra failure，再自动进入 repair rerun
-- 在 acceptance 根目录输出最终 verdict，而不改写原 run artifact
+旧 corpus-specific Python live runner entrypoint 已删除；不得作为 rebuild 验收入口恢复。
 
 ## Runtime Observability Artifact
 

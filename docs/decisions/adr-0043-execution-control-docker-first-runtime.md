@@ -3,15 +3,27 @@ doc_type: decision
 truth_scope: repository
 owner_boundary: docs/decisions
 decision_id: ADR-0043
-status: accepted
+status: superseded
 created: 2026-04-23
-updated: 2026-04-24
+updated: 2026-06-16
+superseded_by:
+  - adr-0056-kubernetes-keda-execution-runtime.md
 ---
 # ADR-0043 Execution Control Docker-First Runtime
 
 ## 状态
 
-Accepted on 2026-04-23.
+Accepted on 2026-04-23. Superseded on 2026-06-16 by
+`adr-0056-kubernetes-keda-execution-runtime.md` for long-term production
+deployment substrate.
+
+Docker-first execution-control substrate 仍作为 current Docker Compose / local /
+transitional staging baseline 的历史依据保留，但不再代表 production target
+deployment substrate。本文早期把 Python `apps/supervisor-agent-worker` 作为 private
+semantic worker 的运行时描述已由 ADR-0048、current architecture 与
+`python-capability-boundaries` 局部 supersede：Python supervisor worker 已从 active
+workspace 删除，当前 online answer path 由 Go `apps/execution-control`、Temporal、
+`agent-runtime` 与 typed activity workers 承接。
 
 ## 背景
 
@@ -40,11 +52,10 @@ Accepted on 2026-04-23.
 1. `app-api` 继续通过显式 `EXECUTION_CONTROL_BASE_URL` 调用一个真实可达的 execution origin；
    这项 ADR 不单独冻结 repo-level staging hostname。
 1. Go `execution-control` packaging / automation 落地后，repo-local Python public
-   execution entry 已移除；Python 侧只保留 `supervisor-agent-worker` private
-   bridge worker。
+   execution entry 已移除；后续也不得恢复 Python supervisor bridge worker。
 1. Docker-first execution service 的 runtime control plane 由 Go `apps/execution-control`
-   承担；Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration 与
-   agent reasoning 边界。
+   承担；semantic routing / planning / finalization 通过 Temporal-visible typed steps、
+   `agent-runtime` 与 typed activity workers 表达。
 
 ## 边界约束
 
@@ -67,7 +78,8 @@ Accepted on 2026-04-23.
   execution service` 作为 accepted truth
 - runbook 必须把当前 execution runtime truth 写成：
   `execution-control + Temporal + workflow-worker + activity-worker-context +
-  agent-runtime + activity-worker-agent + activity-worker-knowledge +
+  agent-runtime + activity-worker-agent + activity-worker-knowledge-plan +
+  activity-worker-knowledge-retrieval + activity-worker-knowledge-synthesis +
   activity-worker-campus-services +
   activity-worker-notice + activity-worker-navigation +
   activity-worker-finalization + worker-autoscaler`

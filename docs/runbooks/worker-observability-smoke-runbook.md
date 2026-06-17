@@ -15,7 +15,7 @@ updated: 2026-06-09
 - `apps/app-api`
 - `apps/campus-web`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 它回答的是：
 
@@ -61,7 +61,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
   `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
 - `apps/campus-web/.dev.vars`、`apps/public-chat-web/.dev.vars` 与
-  `apps/protected-panel-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、
+  `apps/operator-console-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、
   `SENTRY_RELEASE`
 - root `.env` 使用共享 `SENTRY_DSN`，不是 per-surface `SENTRY_DSN_*`
 
@@ -83,8 +83,8 @@ pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
   "smokes a chat request through public-chat-web into app-api"
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
-  "smokes request queries through protected-panel-web into app-api with \
+pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
+  "smokes request queries through operator-console-web into app-api with \
   internal caller admission"
 ```
 
@@ -113,7 +113,7 @@ pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
 只有在真实部署环境已存在时，才进入下一节。执行 `Post-Deploy Verification` 前，至少应具备：
 
 - 目标环境名，例如 `staging` 或 `prod`
-- 真实 `public-chat-web`、`protected-panel-web`、`app-api` hostname
+- 真实 `public-chat-web`、`operator-console-web`、`app-api` hostname
 - 当次 Worker release 标识
 - deploy secret store 中的 `SENTRY_*` / `AXIOM_*` 已下发确认
 - repo-local `SENTRY_API_TOKEN` 或等价 Sentry UI access，以及可访问 `Axiom` dataset 的操作权限
@@ -179,7 +179,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `public-chat-web` 事件标签至少包含 `surface=public-chat-web`
 - 四个 Worker 默认共享同一个 Sentry project；通过 `environment` 与 `surface` 过滤事件
 
-### 2. `protected-panel-web -> app-api`
+### 2. `operator-console-web -> app-api`
 
 执行一条最小 operator 读请求，例如：
 
@@ -189,8 +189,8 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 预期：
 
-- `protected-panel-web` 与 `app-api` 的 trace 继续贯通
-- `protected-panel-web` 事件标签至少包含 `surface=protected-panel-web`
+- `operator-console-web` 与 `app-api` 的 trace 继续贯通
+- `operator-console-web` 事件标签至少包含 `surface=operator-console-web`
 - `app-api` 不把 panel 请求降级成 telemetry truth source
 
 ### 3. `app-api` 受控错误路径（可选）
@@ -238,7 +238,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - Worker release 标识
 - 使用的 dataset 名称
 - `public-chat-web -> app-api` trace 说明
-- `protected-panel-web -> app-api` trace 说明
+- `operator-console-web -> app-api` trace 说明
 - `app-api` runtime event 说明
 - 失败时的 `x-trace-id`
 
@@ -264,7 +264,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `Post-Deploy Verification` 触发条件： 已存在至少一个真实部署环境，并具备本 runbook 的 deployment
   handoff inputs
 - `Post-Deploy Verification` 关闭条件：
-  `public-chat-web`、`protected-panel-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
+  `public-chat-web`、`operator-console-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
   `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或
   controlled-error event evidence
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”

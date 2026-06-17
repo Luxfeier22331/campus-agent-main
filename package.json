@@ -58,7 +58,7 @@
 		"java:lint": "uv run --all-packages python -m scripts.check_java_tracked",
 		"editorconfig:lint": "uv run --all-packages python -m scripts.check_editorconfig_tracked",
 		"docker:lint": "uv run --all-packages python -m scripts.check_dockerfile_tracked",
-		"env:lint": "uv run --all-packages python -m scripts.check_env_example_tracked",
+		"env:lint": "uv run --all-packages python -m scripts.check_env_example_tracked && uv run --all-packages python -m scripts.check_env_surface_policy",
 		"html:lint": "uv run --all-packages python -m scripts.check_html_tracked",
 		"jsonl:lint": "uv run --all-packages python -m scripts.check_jsonl_tracked",
 		"lock:lint": "pnpm pnpm-lock:lint && pnpm uv-lock:lint",

@@ -33,9 +33,43 @@ export interface ExecutionControlRuntimePreflight {
 	blockers: Record<string, string>;
 }
 
+export interface ExecutionControlRunProjectionStoreHealth {
+	configured: boolean;
+	healthy: boolean;
+	lastError: string | null;
+}
+
+export interface ExecutionControlTemporalTaskQueuePollerHealth {
+	healthy: boolean;
+	name: string;
+	pollers: number;
+	type: string;
+}
+
+export interface ExecutionControlTemporalRuntimeHealth {
+	configured: boolean;
+	healthy: boolean;
+	lastError: string | null;
+	namespace: string;
+	requiredTaskQueues: string[];
+	taskQueueGate: "pollers_required";
+	taskQueuePollers: ExecutionControlTemporalTaskQueuePollerHealth[];
+	workerId: string;
+	workflowTaskQueue: string;
+}
+
+export interface ExecutionControlOperatorRuntimeHealth {
+	asOf: string;
+	executionRuntime: ExecutionControlRuntimePreflight;
+	runProjectionStore: ExecutionControlRunProjectionStoreHealth | null;
+	status: "ready" | "degraded";
+	temporalRuntime: ExecutionControlTemporalRuntimeHealth | null;
+}
+
 export interface ExecutionControlReadinessProbeResult {
 	campusServicesProductPath: ExecutionControlCampusServicesProductPathPreflight;
 	executionRuntime: ExecutionControlRuntimePreflight;
+	runtimeHealth: ExecutionControlOperatorRuntimeHealth;
 }
 
 export async function probeExecutionControlReady(
@@ -51,6 +85,65 @@ export async function probeExecutionControlReady(
 		fetchImplementation?: typeof fetch;
 	} = {},
 ): Promise<ExecutionControlReadinessProbeResult> {
+	const response = await fetchExecutionControlReadyz(env, input);
+	if (response.status !== 200) {
+		throw new ExecutionControlTransportError({
+			code: mapStatusCodeToErrorCode(response.status),
+			message: `Execution control readiness probe returned ${response.status}.`,
+			retryable: response.status >= 500,
+			status: response.status,
+		});
+	}
+
+	const payload = await parseExecutionControlReadyzPayload(response);
+	const executionRuntime = buildExecutionRuntimePreflight(payload);
+	return {
+		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
+		executionRuntime,
+		runtimeHealth: buildOperatorRuntimeHealth(payload, executionRuntime),
+	};
+}
+
+export async function probeExecutionControlOperatorRuntimeHealth(
+	env: Pick<
+		Env,
+		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
+		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "EXECUTION_CONTROL_TIMEOUT_MS"
+	>,
+	input: {
+		fetchImplementation?: typeof fetch;
+	} = {},
+): Promise<ExecutionControlOperatorRuntimeHealth> {
+	const response = await fetchExecutionControlReadyz(env, input);
+	if (response.status !== 200 && response.status !== 503) {
+		throw new ExecutionControlTransportError({
+			code: mapStatusCodeToErrorCode(response.status),
+			message: `Execution control runtime health probe returned ${response.status}.`,
+			retryable: response.status >= 500,
+			status: response.status,
+		});
+	}
+
+	const payload = await parseExecutionControlReadyzPayload(response);
+	return buildOperatorRuntimeHealth(payload, buildExecutionRuntimePreflight(payload));
+}
+
+async function fetchExecutionControlReadyz(
+	env: Pick<
+		Env,
+		| "EXECUTION_CONTROL_ACCESS_CLIENT_ID"
+		| "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET"
+		| "EXECUTION_CONTROL_BASE_URL"
+		| "EXECUTION_CONTROL_SHARED_SECRET"
+		| "EXECUTION_CONTROL_TIMEOUT_MS"
+	>,
+	input: {
+		fetchImplementation?: typeof fetch;
+	} = {},
+): Promise<Response> {
 	const baseUrl = env.EXECUTION_CONTROL_BASE_URL?.trim();
 	if (!baseUrl) {
 		throw new ExecutionControlTransportError({
@@ -121,20 +214,7 @@ export async function probeExecutionControlReady(
 		});
 	}
 
-	if (response.status !== 200) {
-		throw new ExecutionControlTransportError({
-			code: mapStatusCodeToErrorCode(response.status),
-			message: `Execution control readiness probe returned ${response.status}.`,
-			retryable: response.status >= 500,
-			status: response.status,
-		});
-	}
-
-	const payload = await parseExecutionControlReadyzPayload(response);
-	return {
-		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
-		executionRuntime: buildExecutionRuntimePreflight(payload),
-	};
+	return response;
 }
 
 async function parseExecutionControlReadyzPayload(
@@ -281,6 +361,68 @@ function collectExecutionRuntimeBlockers(
 	return blockers;
 }
 
+function buildOperatorRuntimeHealth(
+	payload: ExecutionControlReadyzRecord,
+	executionRuntime: ExecutionControlRuntimePreflight,
+): ExecutionControlOperatorRuntimeHealth {
+	return {
+		asOf: new Date().toISOString(),
+		executionRuntime,
+		runProjectionStore: buildRunProjectionStoreHealth(payload),
+		status: executionRuntime.status === "ready" ? "ready" : "degraded",
+		temporalRuntime: buildTemporalRuntimeHealth(payload),
+	};
+}
+
+function buildRunProjectionStoreHealth(
+	payload: ExecutionControlReadyzRecord,
+): ExecutionControlRunProjectionStoreHealth | null {
+	const runProjectionStore = readRecord(payload.run_projection_store);
+	if (!runProjectionStore) {
+		return null;
+	}
+	return {
+		configured: runProjectionStore.configured === true,
+		healthy: runProjectionStore.healthy === true,
+		lastError: readNullableString(runProjectionStore.last_error),
+	};
+}
+
+function buildTemporalRuntimeHealth(
+	payload: ExecutionControlReadyzRecord,
+): ExecutionControlTemporalRuntimeHealth | null {
+	const temporalRuntime = readRecord(payload.temporal_runtime);
+	if (!temporalRuntime) {
+		return null;
+	}
+	return {
+		configured: temporalRuntime.configured === true,
+		healthy: temporalRuntime.healthy === true,
+		lastError: readNullableString(temporalRuntime.last_error),
+		namespace: readString(temporalRuntime.namespace),
+		requiredTaskQueues: readStringArray(temporalRuntime.task_queues),
+		taskQueueGate: "pollers_required",
+		taskQueuePollers: readTaskQueuePollers(temporalRuntime.task_queue_pollers),
+		workerId: readString(temporalRuntime.worker_id),
+		workflowTaskQueue: readString(temporalRuntime.task_queue),
+	};
+}
+
+function readTaskQueuePollers(value: unknown): ExecutionControlTemporalTaskQueuePollerHealth[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.map((item) => {
+		const record = readRecord(item);
+		return {
+			healthy: record?.healthy === true,
+			name: readString(record?.name),
+			pollers: readNonNegativeNumber(record?.pollers),
+			type: readString(record?.type),
+		};
+	});
+}
+
 function resolveCampusServicesCapabilityGate(
 	payload: ExecutionControlReadyzRecord | null,
 ): ExecutionControlCampusServicesProductPathPreflight["capabilityGate"] {
@@ -324,6 +466,22 @@ function readRecord(value: unknown): ExecutionControlReadyzRecord | null {
 
 function readString(value: unknown): string {
 	return typeof value === "string" ? value : "";
+}
+
+function readNullableString(value: unknown): string | null {
+	const text = readString(value).trim();
+	return text.length > 0 ? text : null;
+}
+
+function readStringArray(value: unknown): string[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+	return value.filter((item): item is string => typeof item === "string");
+}
+
+function readNonNegativeNumber(value: unknown): number {
+	return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : 0;
 }
 
 export class ExecutionControlTransportError extends Error {

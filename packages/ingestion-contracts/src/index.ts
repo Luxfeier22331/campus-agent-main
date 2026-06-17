@@ -16,7 +16,7 @@ const taskKinds = new Set([
 	"operator_projection_snapshot",
 ]);
 
-const executorKinds = new Set(["python_adapter", "rust_kernel", "ts_control"]);
+const executorKinds = new Set(["rust_kernel", "ts_control"]);
 
 export function validateIngestionTaskEnvelope(value: unknown): ValidationResult {
 	const errors: string[] = [];
@@ -85,9 +85,6 @@ export function validateIngestionTaskRegistry(value: unknown): ValidationResult 
 		}
 		if (typeof task.can_publish_alias !== "boolean") {
 			errors.push(`tasks[${index}].can_publish_alias is required`);
-		}
-		if (task.executor_kind === "python_adapter") {
-			requireString(task, `tasks[${index}].adapter_id`, errors, "adapter_id");
 		}
 		if (task.executor_kind === "rust_kernel") {
 			requireString(task, `tasks[${index}].kernel_id`, errors, "kernel_id");

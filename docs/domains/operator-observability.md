@@ -21,7 +21,7 @@ updated: 2026-04-21
 - `../architecture/system/operator-observability-architecture.md`
 - `../decisions/adr-0023-operator-observability-control-plane-and-sink-participa
   tion.md`
-- `../decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md
+- `../decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md
   `
 
 ## Contract 与 Data
@@ -40,7 +40,7 @@ updated: 2026-04-21
 
 ## Historical Follow-up Material
 
-- Operator-observability foundation 与 protected-panel requests triage redesign
+- Operator-observability foundation 与 operator-console requests triage redesign
   的历史 plan 通过 git history 恢复；不要把旧 archive 当作当前 execution truth。
 
 ## Runbooks / smoke
@@ -57,7 +57,7 @@ updated: 2026-04-21
 
 ## 使用说明
 
-- panel 只能读 `app-api` owned projections / rollups
-- `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 panel query backend
+- Operator Console 只能读 `app-api` owned projections / rollups
+- `Sentry`、`Axiom`、grader 结果只作为 sink 或输入来源，不是 Operator Console query backend
 - 如需判断当前 pending work，优先看 `README.md` 定义的通用执行态入口与 GSD SDK / Codex
   native session，不要把历史 follow-up 文档误读成当前 active lane

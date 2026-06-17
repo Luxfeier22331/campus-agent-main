@@ -16,7 +16,7 @@ updated: 2026-06-10
 - `apps/app-api`
 - `apps/campus-web`
 - legacy `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 它回答的是：
 
@@ -29,13 +29,13 @@ updated: 2026-06-10
 
 - 长期拓扑边界：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` 内部边界：`docs/architecture/system/product-runtime-architecture.md`
-- protected panel operator access：
+- Operator Console operator access：
   `docs/architecture/system/product-runtime-architecture.md`
 - 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md`
 
 ## 当前 smoke 形态
 
-当前 repo 还没有把 `campus-web`、legacy `public-chat-web`、`protected-panel-web` 与 shared
+当前 repo 还没有把 `campus-web`、legacy `public-chat-web`、`operator-console-web` 与 shared
 `app-api` 收敛成一个统一的 repo-level `pnpm smoke` 脚本。
 
 因此，当前 canonical gate 仍然是基于 Worker runtime 的 targeted vitest 与 app-specific
@@ -91,18 +91,18 @@ pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
   "fails closed when app-api binding is not configured for the public shell"
 ```
 
-最后验证 protected panel 请求查询链路 smoke：
+最后验证 Operator Console 请求查询链路 smoke：
 
 ```bash
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
-  "smokes request queries through protected-panel-web into app-api with \
+pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
+  "smokes request queries through operator-console-web into app-api with \
   internal caller admission"
 ```
 
-并验证 protected panel 在 admission 或 trusted bridge 缺失时保持 fail closed：
+并验证 Operator Console 在 admission 或 trusted bridge 缺失时保持 fail closed：
 
 ```bash
-pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
+pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
   "fails closed when protected overview admission is not configured|fails \
   closed when protected overview bridge is not configured"
 ```
@@ -175,13 +175,13 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 - `public-chat-web -> app-api` 的 same-site chat request 链路可用
 - `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
 - public chat shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
-- `protected-panel-web -> app-api` 的 operator request query 链路可用
-- protected panel 到 `app-api` 的 trusted internal bridge admission 正常
-- protected panel 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
+- `operator-console-web -> app-api` 的 operator request query 链路可用
+- Operator Console 到 `app-api` 的 trusted internal bridge admission 正常
+- Operator Console 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
 
 ## 这组 smoke 不证明什么
 
-- 不证明 protected panel 的浏览器 UI 已完成端到端验收
+- 不证明 Operator Console 的浏览器 UI 已完成端到端验收
 - 不证明 repo-level 一键多 Worker dev server 拓扑已经全部固化
 - 不证明真实数据库、真实 Better Auth session 或真实 supervisor live execution 已接通
 - 不证明 retrieval、grounding 或答案质量达标
@@ -194,4 +194,4 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 - `public-chat-web` 的本地 browser/live smoke 仍固定走 `dev:live-smoke` 单命令 auxiliary
   Worker 拓扑
 - 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `campus-web`、legacy
-  `public-chat-web`、`protected-panel-web` 和 shared `app-api` 收敛
+  `public-chat-web`、`operator-console-web` 和 shared `app-api` 收敛

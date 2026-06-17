@@ -18,7 +18,7 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             root = Path(temp_dir)
             _write_gate(root / "student.json")
             _write_gate(root / "institutional.json")
-            _write_gate(root / "curriculum.json")
+            _write_gate(root / "curriculum-curriculum-plan.json")
             _write_gate(root / "official.json")
             artifact_file = root / "artifacts.json"
             artifact_file.write_text(
@@ -27,25 +27,25 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
                         "artifacts": [
                             _artifact(
                                 surface_key="regulations/student_rules",
-                                profile_id="handbook",
+                                profile_id="regulations-student-rules",
                                 artifact_id="student-rules-release-gate",
                                 path=root / "student.json",
                             ),
                             _artifact(
                                 surface_key="regulations/institutional_rules",
-                                profile_id="institutional-rules-release-baseline",
+                                profile_id="regulations-institutional-rules",
                                 artifact_id="institutional-release-gate",
                                 path=root / "institutional.json",
                             ),
                             _artifact(
                                 surface_key="curriculum/curriculum_plan",
-                                profile_id="curriculum",
-                                artifact_id="curriculum-release-gate",
-                                path=root / "curriculum.json",
+                                profile_id="curriculum-curriculum-plan",
+                                artifact_id="curriculum-curriculum-plan-release-gate",
+                                path=root / "curriculum-curriculum-plan.json",
                             ),
                             _artifact(
                                 surface_key="official_web/stable_reference",
-                                profile_id="official-web-stable-reference",
+                                profile_id="official-web-stable-reference-release",
                                 artifact_id="official-stable-release-gate",
                                 path=root / "official.json",
                             ),
@@ -78,30 +78,30 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             root = Path(temp_dir)
             _write_gate(root / "student.json")
             _write_gate(root / "institutional.json")
-            _write_gate(root / "curriculum.json")
+            _write_gate(root / "curriculum-curriculum-plan.json")
             _write_gate(root / "official.json")
             artifacts = [
                 _artifact(
                     surface_key="regulations/student_rules",
-                    profile_id="handbook",
+                    profile_id="regulations-student-rules",
                     artifact_id="student-rules-release-gate",
                     path=root / "student.json",
                 ),
                 _artifact(
                     surface_key="regulations/institutional_rules",
-                    profile_id="institutional-rules-release-baseline",
+                    profile_id="regulations-institutional-rules",
                     artifact_id="institutional-release-gate",
                     path=root / "institutional.json",
                 ),
                 _artifact(
                     surface_key="curriculum/curriculum_plan",
-                    profile_id="curriculum",
-                    artifact_id="curriculum-release-gate",
-                    path=root / "curriculum.json",
+                    profile_id="curriculum-curriculum-plan",
+                    artifact_id="curriculum-curriculum-plan-release-gate",
+                    path=root / "curriculum-curriculum-plan.json",
                 ),
                 _artifact(
                     surface_key="official_web/stable_reference",
-                    profile_id="official-web-stable-reference",
+                    profile_id="official-web-stable-reference-release",
                     artifact_id="official-stable-release-gate",
                     path=root / "official.json",
                 ),
@@ -128,7 +128,7 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             artifacts = [
                 _artifact(
                     surface_key="regulations/student_rules",
-                    profile_id="handbook",
+                    profile_id="regulations-student-rules",
                     artifact_id="student-rules-release-gate",
                     path=root / "student.json",
                 )
@@ -145,13 +145,13 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             artifacts = [
                 _artifact(
                     surface_key="regulations/student_rules",
-                    profile_id="handbook",
+                    profile_id="regulations-student-rules",
                     artifact_id="student-rules-release-gate",
                     path=root / "student-a.json",
                 ),
                 _artifact(
                     surface_key="regulations/student_rules",
-                    profile_id="handbook",
+                    profile_id="regulations-student-rules",
                     artifact_id="student-rules-release-gate-copy",
                     path=root / "student-b.json",
                 ),
@@ -165,7 +165,7 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             root = Path(temp_dir)
             _write_gate(root / "student.json")
             _write_gate(root / "institutional.json")
-            _write_gate(root / "curriculum.json")
+            _write_gate(root / "curriculum-curriculum-plan.json")
             _write_gate(root / "official.json")
             output = root / "eval-coverage-gate-artifacts.json"
 
@@ -174,28 +174,28 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
                     "--artifact",
                     _artifact_json(
                         "regulations/student_rules",
-                        "handbook",
+                        "regulations-student-rules",
                         "student-rules-release-gate",
                         root / "student.json",
                     ),
                     "--artifact",
                     _artifact_json(
                         "regulations/institutional_rules",
-                        "institutional-rules-release-baseline",
+                        "regulations-institutional-rules",
                         "institutional-release-gate",
                         root / "institutional.json",
                     ),
                     "--artifact",
                     _artifact_json(
                         "curriculum/curriculum_plan",
-                        "curriculum",
-                        "curriculum-release-gate",
-                        root / "curriculum.json",
+                        "curriculum-curriculum-plan",
+                        "curriculum-curriculum-plan-release-gate",
+                        root / "curriculum-curriculum-plan.json",
                     ),
                     "--artifact",
                     _artifact_json(
                         "official_web/stable_reference",
-                        "official-web-stable-reference",
+                        "official-web-stable-reference-release",
                         "official-stable-release-gate",
                         root / "official.json",
                     ),
@@ -215,7 +215,7 @@ class EvalCoverageGateArtifactsSuite(unittest.TestCase):
             artifacts = [
                 _artifact(
                     surface_key="regulations/student_rules",
-                    profile_id="handbook",
+                    profile_id="regulations-student-rules",
                     artifact_id="student-rules-release-gate",
                     path=root / "missing.json",
                 )

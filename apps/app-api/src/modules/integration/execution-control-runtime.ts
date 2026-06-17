@@ -16,7 +16,7 @@ type ExecutionControlRuntimeEnv = Pick<
 	| "EXECUTION_CONTROL_TIMEOUT_MS"
 >;
 
-type JsonRecord = Record<string, unknown>;
+export type JsonRecord = Record<string, unknown>;
 
 export interface ExecutionControlRunCreateInput {
 	conversationId: string;
@@ -56,6 +56,7 @@ export interface ExecutionControlRunCancelInput {
 }
 
 export interface ExecutionControlPersonalMemoryUpsertInput {
+	canonicalSubject: string;
 	compactText: string;
 	memoryId: string;
 	tenantId?: string | null;
@@ -66,8 +67,8 @@ export interface ExecutionControlPersonalMemoryUpsertInput {
 }
 
 export interface ExecutionControlPersonalMemoryDisableInput {
+	episodeUUID: string;
 	memoryId: string;
-	tenantId?: string | null;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	updatedAt: string;
@@ -83,8 +84,8 @@ export interface ExecutionControlPersonalMemoryDisableOwnerInput {
 }
 
 export interface ExecutionControlPersonalMemoryResult {
+	episodeUUID: string;
 	memoryId: string;
-	pointId: string;
 	schemaVersion: string;
 	status: string;
 	updatedAt: string;
@@ -335,8 +336,8 @@ export function createExecutionControlPersonalMemoryClient(
 		): Promise<ExecutionControlPersonalMemoryResult> {
 			const parsed = await requestExecutionControl("/internal/memory/personal/items:disable", {
 				body: {
+					episode_uuid: memoryInput.episodeUUID,
 					memory_id: memoryInput.memoryId,
-					tenant_id: memoryInput.tenantId ?? "",
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},
@@ -352,12 +353,9 @@ export function createExecutionControlPersonalMemoryClient(
 		): Promise<ExecutionControlPersonalMemoryResult> {
 			const parsed = await requestExecutionControl("/internal/memory/personal/items:upsert", {
 				body: {
-					capability: "any",
+					canonical_subject: memoryInput.canonicalSubject.trim(),
 					compact_text: memoryInput.compactText,
 					memory_id: memoryInput.memoryId,
-					memory_type: "profile",
-					source: "explicit",
-					status: "active",
 					tenant_id: memoryInput.tenantId ?? "",
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
@@ -384,7 +382,7 @@ function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
 	};
 }
 
-function createExecutionControlRequester(
+export function createExecutionControlRequester(
 	env: ExecutionControlRuntimeEnv,
 	input: {
 		fetchImplementation: typeof fetch;
@@ -618,8 +616,8 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 
 function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersonalMemoryResult {
 	return {
+		episodeUUID: readRequiredString(payload, "episode_uuid"),
 		memoryId: readRequiredString(payload, "memory_id"),
-		pointId: readRequiredString(payload, "point_id"),
 		schemaVersion: readRequiredString(payload, "schema_version"),
 		status: readRequiredString(payload, "status"),
 		updatedAt: readRequiredString(payload, "updated_at"),

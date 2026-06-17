@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"errors"
 	"io"
 	"log/slog"
 	"net/http"
@@ -41,6 +40,9 @@ type Server struct {
 	ragLookupErr           error
 	ragSynthesisExecutor   ragSynthesisExecutor
 	ragSynthesisErr        error
+	ragVersionResolver     ragVersionResolver
+	providerConfigResolver providerConfigResolver
+	providerConfigErr      error
 	temporalStarter        temporalruntime.ChatWorkflowStarter
 	temporalStarterErr     error
 	temporalWorkersStarted bool
@@ -67,18 +69,11 @@ func (a TemporalContextActivities) MemoryRecallActivity(
 	return a.server.MemoryRecallActivity(ctx, input)
 }
 
-func (a TemporalContextActivities) ExtractMemoryCandidatesActivity(
+func (a TemporalContextActivities) AppendConversationMemoryActivity(
 	ctx context.Context,
-	input temporalruntime.ExtractMemoryCandidatesActivityInput,
-) (temporalruntime.ExtractMemoryCandidatesActivityOutput, error) {
-	return a.server.ExtractMemoryCandidatesActivity(ctx, input)
-}
-
-func (a TemporalContextActivities) UpsertInferredMemoryActivity(
-	ctx context.Context,
-	input temporalruntime.UpsertInferredMemoryActivityInput,
-) (temporalruntime.UpsertInferredMemoryActivityOutput, error) {
-	return a.server.UpsertInferredMemoryActivity(ctx, input)
+	input temporalruntime.AppendConversationMemoryActivityInput,
+) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	return a.server.AppendConversationMemoryActivity(ctx, input)
 }
 
 func (a TemporalContextActivities) PlanRouteActivity(
@@ -261,9 +256,10 @@ func NewServerWithDependencies(
 	})
 	workflowRuns, workflowRunsErr := newWorkflowRunStore(cfg)
 	runProjectionStore, runProjectionStoreErr := newRunProjectionStore(cfg)
-	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg)
-	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg)
-	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg)
+	providerConfigResolver, providerConfigErr := newProviderConfigResolver(cfg)
+	personalMemoryExecutor, personalMemoryErr := newPersonalMemoryExecutor(cfg, providerConfigResolver)
+	ragLookupExecutor, ragLookupErr := newRAGLookupExecutor(cfg, providerConfigResolver)
+	ragSynthesisExecutor, ragSynthesisErr := newRAGSynthesisExecutor(cfg, providerConfigResolver)
 	temporalStarter, temporalStarterErr := newTemporalStarter(cfg)
 
 	server := &Server{
@@ -285,6 +281,9 @@ func NewServerWithDependencies(
 		ragLookupErr:           ragLookupErr,
 		ragSynthesisExecutor:   ragSynthesisExecutor,
 		ragSynthesisErr:        ragSynthesisErr,
+		ragVersionResolver:     newQdrantMetadataVersionResolver(cfg),
+		providerConfigResolver: providerConfigResolver,
+		providerConfigErr:      providerConfigErr,
 		temporalStarter:        temporalStarter,
 		temporalStarterErr:     temporalStarterErr,
 		intentPolicy:           intentPolicy,
@@ -293,32 +292,30 @@ func NewServerWithDependencies(
 	return server
 }
 
-func newRAGSynthesisExecutor(cfg config.Config) (ragSynthesisExecutor, error) {
-	gate := evaluatePromptConfigGate(cfg)
-	if !gate.Admitted {
-		return nil, errors.New(gate.Reason)
-	}
+func newRAGSynthesisExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (ragSynthesisExecutor, error) {
 	catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
 	if err != nil {
 		return nil, err
 	}
+	providerTimeout := time.Duration(cfg.RAGProviderTimeoutMS) * time.Millisecond
+	if providerTimeout <= 0 {
+		providerTimeout = 60 * time.Second
+	}
 	return providerBackedRAGSynthesisExecutor{
-		client: provider.NewResponsesClient(provider.ResponsesClientConfig{
-			APIKey:        cfg.PromptRuntimeAPIKey,
-			BaseURL:       cfg.PromptRuntimeBaseURL,
-			ModelName:     cfg.AgentPromptModel,
-			ModelProvider: cfg.PromptRuntimeProvider,
-			Pricing:       catalog,
-		}),
+		configResolver:  configResolver,
+		pricing:         catalog,
+		providerTimeout: providerTimeout,
 	}, nil
 }
 
-func newRAGLookupExecutor(cfg config.Config) (ragLookupExecutor, error) {
-	return newQdrantRAGLookupExecutor(cfg)
-}
-
-func newPersonalMemoryExecutor(cfg config.Config) (personalMemoryExecutor, error) {
-	return newQdrantPersonalMemoryExecutor(cfg)
+func newRAGLookupExecutor(
+	cfg config.Config,
+	configResolver providerConfigResolver,
+) (ragLookupExecutor, error) {
+	return newQdrantRAGLookupExecutor(cfg, configResolver)
 }
 
 func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter, error) {
@@ -464,12 +461,18 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 			setOutcome(writer, "not_found")
 			writeError(writer, http.StatusNotFound, "not_found", "Route not found.", false)
 		}
+	case request.Method == http.MethodPost && path == "/internal/provider-config/embedding:check-compatibility":
+		s.handleProviderConfigCompatibility(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:upsert":
-		s.handlePersonalMemoryUpsert(writer, request)
+		s.handleProfileMemoryUpsert(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/turns:append":
+		s.handleProfileMemoryAppend(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
+		s.handleProfileMemoryRecall(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
-		s.handlePersonalMemoryDisable(writer, request)
+		s.handleProfileMemoryItemDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
-		s.handlePersonalMemoryOwnerDisable(writer, request)
+		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-status":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolServiceStatusLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/service-guide":
@@ -482,6 +485,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleStructuredQuery(writer, request, structuredquery.ToolAcademicCalendarLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
+	case request.Method == http.MethodPost && path == "/internal/query/notices/period-summary":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticePeriodSummary)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/change-set":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeChangeSet)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":

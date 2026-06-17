@@ -1,7 +1,7 @@
 ---
 doc_type: data
 truth_scope: data
-owner_boundary: packages/retrieval-core
+owner_boundary: retrieval-runtime-seam
 status: active
 created: 2026-04-21
 updated: 2026-06-05

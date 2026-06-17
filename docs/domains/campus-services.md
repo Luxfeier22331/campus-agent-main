@@ -33,7 +33,7 @@ updated: 2026-04-27
 - `../data/campus-services-service-catalog-source-truth-schema.md`
 - `../reference/student-handbook-normalization-strategy.md`
 - `../reference/runtime-serving-and-index-terms.md`
-- `../runbooks/index-release-runbook.md`
+- `../runbooks/ingestion-control-clean-target-runbook.md`
 
 ## 执行路由
 

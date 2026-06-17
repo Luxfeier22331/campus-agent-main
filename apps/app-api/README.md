@@ -5,7 +5,7 @@ Shared Worker-native application backend for campus-agent v2.
 This directory currently contains two aligned artifacts:
 
 - the Worker app that serves auth/chat/operator APIs for `public-chat-web` and
-  `protected-panel-web`
+  `operator-console-web`
 - the companion Python package `campus_app_api`, used for typed context
   projection helpers on the Python-side execution path
 
@@ -13,7 +13,7 @@ This app is the shared product backend behind:
 
 - `apps/campus-web`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 It owns:
 
@@ -85,7 +85,7 @@ Runtime hardening baseline:
   `Cache-Control: no-store`
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate
   limiting
-- the protected panel operator bridge is accepted only when allowlisted operator
+- the Operator Console operator bridge is accepted only when allowlisted operator
   headers arrive with a matching internal shared secret
 - `app-api -> execution-control` uses a bounded timeout budget and typed
   invalid-response handling
@@ -104,7 +104,7 @@ Runtime hardening baseline:
   `projection.drain`
 - trace propagation keeps canonical `x-trace-id` and also forwards
   `sentry-trace` / `baggage` across `public-chat-web -> app-api ->
-  execution-control` and `protected-panel-web -> app-api`
+  execution-control` and `operator-console-web -> app-api`
 - observability sinks are never the panel request truth source;
   `operator.request_projection` remains canonical
 
@@ -128,9 +128,9 @@ Observability data policy:
   fields such as `deployment.environment`, `service.name`, and `event_type`
 - when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must
   be an Axiom API token rather than a PAT
-- panel trace / issue links are app-owned projections, not route-time sink
-  queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
-  `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when the operator panel should show
+- Operator Console trace / issue links are app-owned projections, not route-time
+  sink queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
+  `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when Operator Console should show
   Sentry / Axiom deep links for request diagnostics. Supported placeholders are
   `{requestId}`, `{traceId}`, `{errorCode}`, `{selectedCapability}`, `{surface}`,
   and `{status}`; values are URL-encoded before rendering.
@@ -140,7 +140,7 @@ Canonical references:
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/domains/official-web/architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-platform-architecture.md`
 - `docs/architecture/system/identity-browser-experience-architecture.md`
@@ -257,7 +257,7 @@ Local development:
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
   `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
 - if current staging only targets `app-api + public-chat-web +
-  protected-panel-web`, and does not yet enable official-web live control-plane,
+  operator-console-web`, and does not yet enable official-web live control-plane,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
 - dining floorplan upload and `dining:seed-initial-release` use the configured
   S3-compatible derived bucket. Local dev normally points `OBJECT_STORE_*` at
@@ -289,7 +289,7 @@ Deployment minimum gate:
   email suffixes for end-user auth; `APP_API_END_USER_EMAIL_ALLOWLIST` is
   optional for explicit exceptions
 - `APP_API_INTERNAL_SHARED_SECRET` must exactly match
-  `PANEL_APP_API_SHARED_SECRET` in `apps/protected-panel-web`
+  `OPERATOR_CONSOLE_APP_API_SHARED_SECRET` in `apps/operator-console-web`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` is required only for staging authenticated
   smoke automation; it gates
   `POST /api/internal/staging-smoke/auth/session`, must be distinct from the
@@ -302,7 +302,7 @@ Deployment minimum gate:
   is command-scoped secret material; it is not a Worker runtime variable and
   must not be committed.
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
-  expected to use the protected panel bridge
+  expected to use the Operator Console bridge
 - `EXECUTION_CONTROL_BASE_URL` and `EXECUTION_CONTROL_SHARED_SECRET` must be present
   together; partial configuration does not produce a ready runtime
 - `EXECUTION_CONTROL_ACCESS_CLIENT_ID` and

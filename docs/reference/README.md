@@ -39,11 +39,8 @@ updated: 2026-06-13
 ## Authenticated Notice / Internal Notice 策略与口径
 
 - `authenticated-notice-file-release-export-contract.md`
-- `authenticated-notice-file-release-owner-recovery-readiness-contract.md`
 - `internal-notice-manual-review-collection-strategy.md`
 - `internal-notice-manual-review-future-query-contract.md`
-- `internal-notice-offline-preparation-strategy.md`
-- `internal-notice-offline-preparation-quality-acceptance.md`
 - `internal-notice-pdf-chunk-tuning-sample-set-contract.md`
 - `institutional-regulations-offline-inventory.md`
 
@@ -77,6 +74,13 @@ updated: 2026-06-13
 ## Historical Evidence / Archive
 
 - `archive/README.md`
+- `archive/authenticated-notice/restricted-document-center-artifact-contract.md`
+  - historical；只保留 document-center artifact 分层旧口径，不再是 active target
+    contract。
+- `archive/python-ingestion-worker/`
+  - historical Python ingestion worker reference materials, including old
+    file-release owner recovery readiness and internal-notice offline
+    preparation notes.
 
 补充规则：
 

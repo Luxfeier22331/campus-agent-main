@@ -4,9 +4,6 @@ import hashlib
 import json
 import re
 
-from campus_ingestion_core.official_web_academic_calendar_projection import (
-    build_academic_calendar_typed_candidate,
-)
 from campus_ingestion_core.official_web_projection_engine_common import (
     _EMAIL_RE,
     _OFFICE_HOURS_RE,
@@ -247,35 +244,6 @@ def _build_typed_candidate(
                 has_identity=bool(title.strip()),
                 has_required_evidence=bool(process_steps),
                 has_source=bool(normalized_canonical_url.strip()),
-            ),
-            evidence_spans,
-        )
-
-    if consumer_family == "academic_calendar_candidate":
-        typed_candidate = build_academic_calendar_typed_candidate(
-            lines=lines,
-            candidate_blocks=candidate_blocks,
-            normalized_canonical_url=normalized_canonical_url,
-            title=title,
-        )
-        calendar_arrangement = str(typed_candidate.get("calendar_arrangement") or "").strip()
-        calendar_records = typed_candidate.get("records")
-        calendar_image_refs = typed_candidate.get("calendar_image_refs")
-        has_required_evidence = bool(calendar_arrangement and calendar_records)
-        missing_reason = (
-            "missing_structured_calendar_records"
-            if calendar_arrangement and calendar_image_refs and not calendar_records
-            else "missing_required_evidence"
-        )
-        return (
-            "official_web_academic_calendar_candidate.v1",
-            typed_candidate,
-            _quality_gate(
-                suppressed=suppressed,
-                has_identity=bool(title.strip()),
-                has_required_evidence=has_required_evidence,
-                has_source=bool(normalized_canonical_url.strip()),
-                missing_required_evidence_reason=missing_reason,
             ),
             evidence_spans,
         )

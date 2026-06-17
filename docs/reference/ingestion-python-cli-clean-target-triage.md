@@ -12,20 +12,22 @@ updated: 2026-06-12
 
 ## Scope
 
-This document reviews the public Python CLI surface exposed by
-`apps/ingestion-worker` and classifies each entrypoint against the clean-target
-ingestion architecture.
+This document reviews the historical public Python CLI surface that used to be
+exposed by `apps/ingestion-worker` and classifies each entrypoint against the
+clean-target ingestion architecture.
 
 Reviewed surface:
 
-- `apps/ingestion-worker/pyproject.toml` `[project.scripts]`
-- 110 public `campus-ingestion-*` entrypoints
+- historical `apps/ingestion-worker/pyproject.toml` `[project.scripts]`
+- 110 formerly public `campus-ingestion-*` entrypoints
 - current target boundary from ADR-0054 and the data-plane architecture
 - current on-demand runner, wrapper scripts, systemd examples, runbooks and
   operator command references
 
 Out of scope:
 
+- current module-level Python worker audit; see
+  `docs/reference/ingestion-python-clean-target-full-audit.md`
 - deleting modules in this pass
 - proving every private helper module is dead code
 - preserving historical CLI compatibility
@@ -57,36 +59,42 @@ instead of preserving the old CLI:
 
 ## High-Level Findings
 
-- The public Python surface is too large for the target architecture: 110 public
-  CLI entrypoints and 238 top-level Python modules under
-  `apps/ingestion-worker/src/campus_ingestion_worker`.
-- The on-demand batch runner is a transitional Python orchestrator. It still
-  owns child-process sequencing, reports and batch kinds for official web,
-  authenticated notice, internal notice and WeChat lanes. The clean target is
-  ingestion-control-owned task lifecycle, not a larger Python batch runner.
-- Only two collections currently have task registries:
-  `regulations/student_rules` and `curriculum/curriculum_plan`. Those registries
-  still use Python adapters for several lifecycle steps and Rust kernels only
-  for deterministic document-unit/chunk checks. Treat this as a migration
-  sketch, not proof that Python should remain the default implementation lane.
-- `official_web/stable_reference` and authenticated notice still have active
-  runbook/script/systemd references into old Python CLIs. Those are real
-  migration blockers, but not reasons to preserve the old shape.
-- Qdrant backup/GC and serving seed commands are operational capabilities
-  misplaced inside `apps/ingestion-worker`; they should be rehomed or rebuilt,
-  not treated as ingestion collection logic.
+- The Python console-script surface has been removed from
+  `apps/ingestion-worker/pyproject.toml`; `apps/ingestion-worker` no longer
+  publishes public `campus-ingestion-*` entrypoints in the current worktree.
+- The old Python module surface has been cut to an adapter island in
+  `apps/ingestion-worker`: env bootstrap plus legacy Office normalization.
+- The on-demand batch runner and wrapper scripts have been deleted. The clean
+  target is ingestion-control-owned task lifecycle, not a larger Python batch
+  runner.
+- Default task registries now reject Python adapter executors and declare
+  TS/Rust topology for the current target collections. Treat these registries
+  as topology declarations, not proof that collection-specific handlers are
+  implemented.
+- `official_web/stable_reference`, authenticated notice, internal notice,
+  WeChat, academic calendar and campus-service projections no longer have
+  active runbook/script references into old Python CLIs in this worktree.
+- Root Python ingestion runtime smoke/report helpers with no current owner were
+  deleted; service-guide selected-write runtime verification was moved under
+  `packages/evals` because it is consumed by the eval release gate.
+- `campus_ingestion_core.prefetch_tokenizer` was deleted; tokenizer cache
+  misses now fail closed and require pre-provisioned runtime artifacts instead
+  of suggesting a Python CLI command.
+- Qdrant backup/GC and serving seed commands are no longer treated as
+  ingestion-worker collection runtime.
 
 ## Capability-Level Decisions
 
 | Capability area | Current Python surface | Clean-target decision |
 | --- | --- | --- |
-| Student rules | registry exists, old release/materialization CLIs still nearby | rebuild as TS task family plus Rust deterministic kernels; Python only for extraction adapter |
-| Curriculum plan | registry exists, program-semester materialization CLI remains | rebuild source/projection lifecycle in TS; move deterministic validation/chunking to Rust; Python only if MinerU/OCR is required |
-| Official web stable reference | handoff, release gate and release task CLIs are still active in runbooks | rebuild into ingestion-control tasks; remove Python handoff/release task lifecycle |
-| Authenticated notice | queue, closeout, multimodal, import and cleanup CLIs remain broad | split: TS lifecycle and projection, Python adapter for OCR/multimodal/legacy Office, archive historical replay/backfill |
-| WeChat public notices | projection, multimodal drain, smoke, purge/reset CLIs | rebuild admitted source projection in TS; Python only for multimodal adapter; delete smoke/purge/reset |
-| Campus services structured projections | service guide/status/transport CLIs | rebuild as TS projection tasks sourced from declared source truth |
-| Qdrant/seed/backup | backup, GC, seed export/restore CLIs | rehome to ops lane; prefer TS/shell/Rust checks, not ingestion-worker Python |
+| Student rules | registry exists, old release/materialization CLIs deleted from active surfaces | rebuild as TS task family plus Rust deterministic kernels; Python only for extraction adapter |
+| Curriculum plan | registry exists, old program-semester materialization CLI deleted from active surfaces | rebuild source/projection lifecycle in TS; move deterministic validation/chunking to Rust; Python only if MinerU/OCR is required |
+| Academic calendar | registry exists, old root publish/runtime smoke CLIs deleted from active surfaces | rebuild projection publish lifecycle in TS; runtime verification belongs in evals if needed |
+| Official web stable reference | handoff, release gate and release task CLIs deleted or archived from active surfaces | rebuild into ingestion-control tasks; remove Python handoff/release task lifecycle |
+| Authenticated notice | queue, closeout, multimodal, import and cleanup CLIs deleted or archived from active surfaces | split: TS lifecycle and projection, Python adapter for OCR/multimodal/legacy Office, archive historical replay/backfill |
+| WeChat public notices | projection, multimodal drain, smoke, purge/reset CLIs deleted from active surfaces | rebuild admitted source projection in TS; Python only for multimodal adapter; delete smoke/purge/reset |
+| Campus services structured projections | service guide/status/transport CLIs deleted from active ingestion surfaces | rebuild as TS projection tasks sourced from declared source truth; eval-owned runtime checks may stay under `packages/evals` |
+| Qdrant/seed/backup | backup, GC, seed export/restore CLIs deleted or archived from ingestion-worker surfaces | rehome to ops lane; prefer TS/shell/Rust checks, not ingestion-worker Python |
 | Historical regulation recovery | historical audit/backfill/chunk replay CLIs | archive evidence, delete executable surface |
 
 ## Entrypoint Triage
@@ -221,20 +229,9 @@ archived:
 
 ## Migration Blockers
 
-The following are blockers to simply deleting the Python command surface:
-
-- `scripts/run-ingestion-worker-batch.sh` and wrapper scripts still invoke the
-  old on-demand batch runner.
-- local systemd examples still run Python wrapper scripts for official web,
-  internal notice, authenticated notice and WeChat.
-- active runbooks still reference official-web handoff/release, authenticated
-  notice closeout, Qdrant backup/GC and source bucket cleanup CLIs.
-- `apps/ingestion-worker/README.md` still documents many old commands as normal
-  operation surface.
-
-These blockers should be resolved by replacing the capability with TS/Rust
-target runtime or moving historical instructions into archive, not by wrapping
-the old CLIs in the new executor seam.
+These blockers have been removed from the active worktree by deletion or
+archive. Do not reintroduce compatibility wrappers; rebuild needed capability
+behind TS ingestion-control tasks and Rust kernels.
 
 ## Clean-Target Execution Order
 

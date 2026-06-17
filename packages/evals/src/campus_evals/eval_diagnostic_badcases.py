@@ -37,6 +37,7 @@ def build_eval_diagnostic_badcases_projection(
     combined_report: Mapping[str, object],
     *,
     generated_at: str,
+    require_trajectory_attribution: bool = False,
     source_git_head: str,
 ) -> dict[str, object]:
     _assert_operator_safe_source(combined_report)
@@ -63,6 +64,17 @@ def build_eval_diagnostic_badcases_projection(
                 metric_name=str(metric_name),
                 field_prefix=f"cases[{case_index}]",
             )
+            trajectory_attribution = trajectory_attribution_for_stage(
+                _optional_mapping_field(case.get("operator_step_trajectory")),
+                failure_stage=failure_stage,
+            )
+            if (
+                require_trajectory_attribution
+                and trajectory_attribution.get("status") != "attributed"
+            ):
+                raise ValueError(
+                    "trajectory attribution is required for release diagnostic badcases"
+                )
             case_id = _required_string(case.get("case_id"), f"cases[{case_index}].case_id")
             surface_key = _required_string(
                 case.get("surface_key"), f"cases[{case_index}].surface_key"
@@ -106,10 +118,7 @@ def build_eval_diagnostic_badcases_projection(
                     ),
                     "answerShape": _optional_string(case.get("answer_shape")),
                     "presentationKind": _optional_string(case.get("presentation_kind")),
-                    "trajectoryAttribution": trajectory_attribution_for_stage(
-                        _optional_mapping_field(case.get("operator_step_trajectory")),
-                        failure_stage=failure_stage,
-                    ),
+                    "trajectoryAttribution": trajectory_attribution,
                 }
             )
 

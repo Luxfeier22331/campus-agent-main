@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import datetime
 from typing import Protocol
+from zoneinfo import ZoneInfo
 
 from campus_ingestion_core.internal_notice_read_model_shared import (
     DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS,
@@ -54,6 +56,8 @@ def build_internal_notice_read_model_entries(
             else ""
         )
         body_excerpt = _build_body_excerpt(_build_read_model_body_text(entry, body))
+        published_at = entry.source_notice_release_time or record.published_date or ""
+        published_at_ts = _normalize_required_notice_timestamp(published_at)
         rows.append(
             InternalNoticeReadModelEntry(
                 source_family=entry.source_family,
@@ -69,7 +73,8 @@ def build_internal_notice_read_model_entries(
                 visibility_level=record.visibility_level,
                 entitlement_groups=record.entitlement_groups,
                 policy_projection_version=record.policy_projection_version,
-                published_at=entry.source_notice_release_time or record.published_date or "",
+                published_at=published_at,
+                published_at_ts=published_at_ts,
                 source_url=record.source_uri,
                 canonical_url=record.source_uri,
                 canonical_document_id=record.document_id,
@@ -177,6 +182,25 @@ def _build_provenance_refs(
     return tuple(dict.fromkeys(str(item).strip() for item in values if str(item).strip()))
 
 
+def _normalize_required_notice_timestamp(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        raise ValueError("notice read model published_at is required")
+    normalized = text.replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError as exc:
+        try:
+            parsed = datetime.fromisoformat(f"{normalized}T00:00:00+08:00")
+        except ValueError:
+            raise ValueError(
+                f"notice read model published_at must be ISO timestamp/date: {text}"
+            ) from exc
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=ASIA_SHANGHAI)
+    return parsed.isoformat()
+
+
 def _index_current_scope_records(
     records: Sequence[DocumentRegistryRecord],
 ) -> dict[str, DocumentRegistryRecord]:
@@ -192,3 +216,4 @@ __all__ = (
     "InternalNoticeReadModelObjectStore",
     "build_internal_notice_read_model_entries",
 )
+ASIA_SHANGHAI = ZoneInfo("Asia/Shanghai")

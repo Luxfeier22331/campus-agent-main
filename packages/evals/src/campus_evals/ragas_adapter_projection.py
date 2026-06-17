@@ -2,12 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from campus_contracts import (
-    CapabilityResponse,
-    EvidenceBundle,
-    ExecutionResponse,
-    RagResultPayload,
-)
+from campus_contracts import CapabilityResponse, EvidenceBundle, ExecutionResponse, RagResultPayload
 
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 
@@ -30,13 +25,10 @@ def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> Raga
     evidence = response.result.evidence if isinstance(response.result, RagResultPayload) else None
     observed_trace = execution.observed_trace
     contexts, context_ids, context_source = _resolve_projection_contexts(
-        case=case,
         observed_trace=observed_trace,
         evidence=evidence,
     )
     reference = "\n".join(case.reference_facts or case.required_facts).strip()
-    reference_source_type = _reference_source_type(case)
-    metric_applicability = _build_metric_applicability(case)
     return RagasProjection(
         case_id=case.case_id,
         user_input=case.user_goal,
@@ -52,44 +44,66 @@ def build_ragas_projection(case: GoldenCase, execution: ExecutionResult) -> Raga
             "collection": case.scope.collection,
             "response_status": response.status,
             "projection_context_source": context_source,
-            "reference_source_type": reference_source_type,
+            "reference_source_type": _reference_source_type(case),
             "reference_fact_count": len(case.reference_facts or case.required_facts),
-            "metric_applicability": metric_applicability,
+            "metric_applicability": _build_metric_applicability(case),
             "retrieved_source_count": len(observed_trace.retrieved_sources)
             if observed_trace is not None
             else 0,
             "supporting_source_count": len(observed_trace.supporting_sources)
             if observed_trace is not None
             else len(contexts),
+            "retrieved_doc_ids": _source_doc_ids(
+                observed_trace.retrieved_sources if observed_trace is not None else ()
+            ),
+            "retrieved_chunk_ids": _source_chunk_ids(
+                observed_trace.retrieved_sources if observed_trace is not None else ()
+            ),
+            "supporting_doc_ids": _source_doc_ids(
+                observed_trace.supporting_sources if observed_trace is not None else ()
+            ),
+            "supporting_chunk_ids": _source_chunk_ids(
+                observed_trace.supporting_sources if observed_trace is not None else ()
+            ),
         },
+    )
+
+
+def build_ragas_dataset(projection: RagasProjection):
+    from ragas import EvaluationDataset, SingleTurnSample
+
+    return EvaluationDataset(
+        samples=[
+            SingleTurnSample(
+                user_input=projection.user_input,
+                retrieved_contexts=list(projection.retrieved_contexts),
+                reference_contexts=list(projection.reference_contexts),
+                retrieved_context_ids=list(projection.retrieved_context_ids),
+                reference_context_ids=list(projection.reference_context_ids),
+                response=projection.response,
+                reference=projection.reference,
+            )
+        ],
+        name=projection.case_id,
     )
 
 
 def _resolve_projection_contexts(
     *,
-    case: GoldenCase,
     observed_trace: ObservedTrace | None,
     evidence: EvidenceBundle | None,
 ) -> tuple[tuple[str, ...], tuple[str, ...], str]:
-    supporting_evidence, supporting_source = _resolve_projection_evidence(
-        case=case,
-        observed_trace=observed_trace,
-        evidence=evidence,
-    )
-    if supporting_evidence is not None and supporting_evidence.sources:
-        statement_contexts, statement_context_ids = _build_statement_level_contexts(
-            supporting_evidence
-        )
-        if statement_contexts:
-            return (
-                statement_contexts,
-                statement_context_ids,
-                f"{supporting_source}:statement_contexts",
-            )
+    if observed_trace is not None and observed_trace.supporting_sources:
         return (
-            tuple(source.snippet for source in supporting_evidence.sources),
-            tuple(_source_projection_id(source) for source in supporting_evidence.sources),
-            supporting_source,
+            tuple(source.snippet for source in observed_trace.supporting_sources),
+            tuple(_source_projection_id(source) for source in observed_trace.supporting_sources),
+            "observed_trace.supporting_sources",
+        )
+    if evidence is not None and evidence.sources:
+        return (
+            tuple(source.snippet for source in evidence.sources),
+            tuple(_source_projection_id(source) for source in evidence.sources),
+            "response.evidence.sources",
         )
     if observed_trace is not None and observed_trace.retrieved_sources:
         return (
@@ -100,44 +114,22 @@ def _resolve_projection_contexts(
     return (), (), "none"
 
 
-def _resolve_projection_evidence(
-    *,
-    case: GoldenCase,
-    observed_trace: ObservedTrace | None,
-    evidence: EvidenceBundle | None,
-) -> tuple[EvidenceBundle | None, str]:
-    if observed_trace is not None and observed_trace.supporting_sources:
-        return (
-            EvidenceBundle(
-                query_text=case.user_goal,
-                corpus=case.scope.corpus,
-                collection=case.scope.collection,
-                sources=observed_trace.supporting_sources,
-            ),
-            "observed_trace.supporting_sources",
-        )
-    if evidence is not None and evidence.sources:
-        return evidence, "response.evidence.sources"
-    return None, "none"
-
-
-def _build_statement_level_contexts(
-    evidence: EvidenceBundle,
-) -> tuple[tuple[str, ...], tuple[str, ...]]:
-    try:
-        from campus_knowledge_capability import KnowledgeCapability
-
-        draft = KnowledgeCapability().build_answer(evidence)
-        return (
-            draft.supporting_contexts,
-            tuple(_source_projection_id(source) for source in draft.supporting_sources),
-        )
-    except Exception:
-        return (), ()
-
-
 def _source_projection_id(source) -> str:
     return str(source.canonical_source_id or source.doc_id or source.chunk_id or "").strip()
+
+
+def _source_doc_ids(sources) -> tuple[str, ...]:
+    return tuple(
+        str(source.doc_id or "").strip() for source in sources if str(source.doc_id or "").strip()
+    )
+
+
+def _source_chunk_ids(sources) -> tuple[str, ...]:
+    return tuple(
+        str(source.chunk_id or "").strip()
+        for source in sources
+        if str(source.chunk_id or "").strip()
+    )
 
 
 def _reference_source_type(case: GoldenCase) -> str:
@@ -184,22 +176,3 @@ def build_default_ragas_metric_names() -> tuple[str, ...]:
     from campus_evals.ragas_adapter_metrics import build_default_ragas_metric_names as _delegate
 
     return _delegate()
-
-
-def build_ragas_dataset(projection: RagasProjection):
-    from ragas import EvaluationDataset, SingleTurnSample
-
-    return EvaluationDataset(
-        samples=[
-            SingleTurnSample(
-                user_input=projection.user_input,
-                retrieved_contexts=list(projection.retrieved_contexts),
-                reference_contexts=list(projection.reference_contexts),
-                retrieved_context_ids=list(projection.retrieved_context_ids),
-                reference_context_ids=list(projection.reference_context_ids),
-                response=projection.response,
-                reference=projection.reference,
-            )
-        ],
-        name=projection.case_id,
-    )

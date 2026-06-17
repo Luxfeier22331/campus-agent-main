@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from botocore.exceptions import ClientError
-from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 
 
 class _Body:

@@ -3,37 +3,24 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from tests.ingestion._curriculum_course_map_probe_test_support import (
-    load_curriculum_course_map_docs_surface_module,
-    load_curriculum_course_map_probe_module,
+from campus_ingestion_core import curriculum_course_map_docs_surface as _docs_surface_module
+from campus_ingestion_core import curriculum_course_map_multimodal_probe as _probe_module
+from campus_ingestion_core.curriculum_course_map_docs_surface import (
+    _purge_course_map_docs_surface_assets,
+    build_curriculum_course_map_docs_image_object_key,
+    build_curriculum_course_map_docs_surface_artifact,
+    build_curriculum_course_map_docs_surface_object_key,
+    load_curriculum_course_map_docs_surface,
+    serialize_curriculum_course_map_docs_surface,
 )
-
-_docs_surface_module = load_curriculum_course_map_docs_surface_module()
-_probe_module = load_curriculum_course_map_probe_module()
-
-CourseMapFinding = _probe_module.CourseMapFinding
-CourseMapEdge = _probe_module.CourseMapEdge
-CourseMapNode = _probe_module.CourseMapNode
-CurriculumCourseMapPageProbe = _probe_module.CurriculumCourseMapPageProbe
-CurriculumCourseMapRenderedSample = _probe_module.CurriculumCourseMapRenderedSample
-DetectedCourseMapRegion = _probe_module.DetectedCourseMapRegion
-
-build_curriculum_course_map_docs_image_object_key = (
-    _docs_surface_module.build_curriculum_course_map_docs_image_object_key
+from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
+    CourseMapEdge,
+    CourseMapFinding,
+    CourseMapNode,
+    CurriculumCourseMapPageProbe,
+    CurriculumCourseMapRenderedSample,
+    DetectedCourseMapRegion,
 )
-build_curriculum_course_map_docs_surface_artifact = (
-    _docs_surface_module.build_curriculum_course_map_docs_surface_artifact
-)
-build_curriculum_course_map_docs_surface_object_key = (
-    _docs_surface_module.build_curriculum_course_map_docs_surface_object_key
-)
-load_curriculum_course_map_docs_surface = (
-    _docs_surface_module.load_curriculum_course_map_docs_surface
-)
-serialize_curriculum_course_map_docs_surface = (
-    _docs_surface_module.serialize_curriculum_course_map_docs_surface
-)
-_purge_course_map_docs_surface_assets = _docs_surface_module._purge_course_map_docs_surface_assets
 
 
 class _RecordingObjectStore:

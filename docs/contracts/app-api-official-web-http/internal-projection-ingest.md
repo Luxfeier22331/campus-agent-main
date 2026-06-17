@@ -23,8 +23,8 @@ execution ownership.
 - app-api 不提供 release executor read/callback routes
 - app-api 不提供 contact/service selected-write admission、task read 或 intervention
   routes
-- `POST /api/internal/operator/official-web/release-task-snapshots` 只接收 ingestion
-  worker 产出的 redacted operator-safe projection snapshot；它不是 release task executor
+- `POST /api/internal/operator/official-web/release-task-snapshots` 只接收
+  ingestion-control 产出的 redacted operator-safe projection snapshot；它不是 release task executor
   callback，也不改变 task truth
 - stable-reference `release-gates` 只记录 operator approve/reject command ledger；
   executor claim、lease、running/materialized/indexed/published/failed 状态由
@@ -38,7 +38,7 @@ execution ownership.
 
 用途：
 
-- 由 `apps/ingestion-worker` 上报 release task 的 operator-safe projection snapshot
+- 由 `apps/ingestion-control` 上报 release task 的 operator-safe projection snapshot
 - 在 `app-api` 中 upsert `operator.official_web_release_task_projection` 与
   `operator.official_web_release_task_event_projection`
 
@@ -87,7 +87,7 @@ execution ownership.
       "createdAt": "2026-05-02T07:59:00.000Z",
       "updatedAt": "2026-05-02T08:00:00.000Z",
       "projectedAt": "2026-05-02T08:00:01.000Z",
-      "producerVersion": "campus_ingestion_core.official_web_release_task_projection.v1",
+      "producerVersion": "official_web_release_task_projection.v1",
       "redactionVersion": "official_web_release_task_redaction.v1"
     }
   ]

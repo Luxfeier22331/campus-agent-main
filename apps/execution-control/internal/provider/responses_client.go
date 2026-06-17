@@ -39,6 +39,7 @@ type ResponsesRequest struct {
 type ResponsesClientResult struct {
 	Body    []byte
 	Err     error
+	Status  int
 	Summary ExecutionSummary
 }
 
@@ -99,8 +100,9 @@ func (c *ResponsesClient) Execute(ctx context.Context, request ResponsesRequest)
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
 		return ResponsesClientResult{
-			Body: responseBody,
-			Err:  fmt.Errorf("provider responses status %d", response.StatusCode),
+			Body:   responseBody,
+			Err:    fmt.Errorf("provider responses status %d", response.StatusCode),
+			Status: response.StatusCode,
 		}
 	}
 	completedAt := time.Now().UTC()
@@ -115,7 +117,7 @@ func (c *ResponsesClient) Execute(ctx context.Context, request ResponsesRequest)
 	if summaryErr != nil {
 		return ResponsesClientResult{Body: responseBody, Err: summaryErr}
 	}
-	return ResponsesClientResult{Body: responseBody, Summary: summary}
+	return ResponsesClientResult{Body: responseBody, Status: response.StatusCode, Summary: summary}
 }
 
 func (c *ResponsesClient) contextAbortSummary(

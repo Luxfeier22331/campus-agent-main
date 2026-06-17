@@ -9,7 +9,7 @@ APP_LOCAL_ENV_PATHS = (
     "apps/app-api/.env",
     "apps/official-web-collector/.env",
     "apps/public-chat-web/.dev.vars",
-    "apps/protected-panel-web/.dev.vars",
+    "apps/operator-console-web/.dev.vars",
     "apps/public-entry-worker/.dev.vars",
     "apps/public-consumer-chat/.env",
 )

@@ -1,7 +1,7 @@
 ---
 doc_type: contract
 truth_scope: capability
-owner_boundary: packages/knowledge-capability
+owner_boundary: apps/execution-control
 status: active
 created: 2026-04-21
 updated: 2026-06-05
@@ -10,8 +10,8 @@ updated: 2026-06-05
 
 ## 文档边界
 
-本文冻结 `packages/knowledge-capability` 与 `packages/retrieval-core` 之间的
-typed retrieval plan seam。
+本文冻结 knowledge planner 与 repo-owned retrieval runtime 之间的 typed retrieval plan
+seam。
 
 它回答的是：
 
@@ -44,7 +44,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 固定结论：
 
 - `knowledge` 负责生成 `RetrievalPlan`
-- `retrieval-core` 负责执行 `RetrievalStep`
+- repo-owned retrieval runtime 负责执行 `RetrievalStep`
 - `RetrievalRequest` 是 executor kernel input，不等于 `RetrievalStep`
 - 每个 `RetrievalStep` 必须映射到 durable `RunStep`
 - `StepResult` 固定拆成四层：
@@ -59,7 +59,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 
 这组类型的首轮稳定 placement 固定为：
 
-`knowledge planner -> retrieval plan contract -> retrieval-core executor`
+`knowledge planner -> retrieval plan contract -> retrieval runtime executor`
 
 固定规则：
 
@@ -114,7 +114,7 @@ RetrievalPlan
 - `source_trust_policy` 只表达 answer-bearing evidence 的最低可信门槛，不等于 remote tool
   router
 - `budget.max_steps` 计入 replan 后插入的新增 steps；预算耗尽固定 fail-close
-- `run_id` 是 run projection correlation，不由 retrieval-core 生成
+- `run_id` 是 run projection correlation，不由 retrieval runtime 生成
 
 ## RetrievalStep
 
@@ -219,6 +219,15 @@ RetrievalStep
   plan-level query mode，不是 step type
 - `historical / as_of` 通过 `version_query` 与 `historical_version_lookup` step 收口
 - `compare` 通过 `compare_pair_lookup` 与后续 merge / evidence selection 收口
+- `version_query` 是用户请求形态；执行前必须产生 internal
+  `resolved_version_query` projection。`retrieval-core` executor 不得从 raw
+  `version_query` 猜测 `as_of` 或 compare target。
+- `resolved_version_query` 当前只作为 execution-control internal projection 保存到
+  sanitized run metadata，不进入 `packages/contracts`。它至少表达：
+  `mode`、`version_id`、`compare_to_version_id`、`as_of` 与
+  `target_version_ids[]`。
+- `current` 的 `resolved_version_query` 不绑定单个 collection-level version id；
+  current-only 语义由 runtime profile 与 `is_current=true` filter 强制执行。
 - `freshness_sensitive` 先走 `freshness_gate`，不能跳过 freshness admission
 - `live_assisted` 只表示“允许在 admitted 条件下进入 bounded live branch”，不表示 `knowledge`
   可以自动挑选 live target
@@ -266,7 +275,7 @@ StepResult
 - supporting evidence selection policy
 - evidence coverage decision 和 synthesis / grounding policy
 
-### `retrieval-core` executor 固定负责
+### Retrieval Runtime Executor 固定负责
 
 - step 到 executor kernel request 的映射
 - authz / visibility / version / runtime-profile enforcement

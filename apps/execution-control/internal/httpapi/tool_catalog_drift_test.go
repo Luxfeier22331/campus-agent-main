@@ -155,6 +155,7 @@ func structuredQueryEndpointsByPath() map[string]string {
 		"/internal/query/campus-services/contact-directory":  structuredquery.ToolContactDirectoryLookup,
 		"/internal/query/calendar/academic-calendar":         structuredquery.ToolAcademicCalendarLookup,
 		"/internal/query/notices/discover":                   structuredquery.ToolCampusNoticeDiscover,
+		"/internal/query/notices/period-summary":             structuredquery.ToolCampusNoticePeriodSummary,
 		"/internal/query/notices/change-set":                 structuredquery.ToolCampusNoticeChangeSet,
 		"/internal/query/notices/get":                        structuredquery.ToolCampusNoticeGet,
 	}

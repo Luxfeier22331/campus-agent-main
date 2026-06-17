@@ -38,12 +38,15 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-context`
   - `agent-runtime`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
+  - `activity-worker-knowledge-plan`
+  - `activity-worker-knowledge-retrieval`
+  - `activity-worker-knowledge-synthesis`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
   - `activity-worker-finalization`
-  - `worker-autoscaler`
+- `worker-autoscaler`
+  - current Docker Compose transitional autoscaler evidence producer
   - Temporal
 - `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
   与 chat 只进入 browser surface 或 `app-api`
@@ -59,8 +62,8 @@ owns the current truth summary and links to executable procedure groups.
 
 ## 当前真相
 
-- `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
-  service
+- `apps/execution-control` 当前 staging deploy substrate 是 Docker-first internal execution
+  service；production target deploy substrate 已由 ADR-0056 收口为 Kubernetes + KEDA
 - `app-api` 是唯一 product/API gateway；`execution-control` 不进入用户可见 endpoint
   list，也不作为 QA public endpoint
 - 当前 repo-owned staging execution runtime：
@@ -95,10 +98,15 @@ owns the current truth summary and links to executable procedure groups.
     - Go-owned primary agent activity poller for `campus-agent.activity.agent`
     - calls `agent-runtime` and projects SDK selected tools, typed tool
       success/fail-close results, usage and trace refs
-  - `activity-worker-knowledge`
-    - Go-owned knowledge activity poller for `campus-agent.activity.knowledge`
-    - owns RAG plan, Qdrant lookup, rescue, evidence selection, synthesis and
-      grounding activities
+  - `activity-worker-knowledge-plan`
+    - Go-owned RAG planning / evidence selection / grounding poller for
+      `campus-agent.activity.knowledge.plan`
+  - `activity-worker-knowledge-retrieval`
+    - Go-owned Qdrant / embedding lookup poller for
+      `campus-agent.activity.knowledge.retrieval`
+  - `activity-worker-knowledge-synthesis`
+    - Go-owned provider synthesis poller for
+      `campus-agent.activity.knowledge.synthesis`
   - `activity-worker-campus-services`
     - Go-owned campus services typed-tool poller for
       `campus-agent.activity.campus_services`
@@ -109,8 +117,9 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-finalization`
     - Go-owned finalization activity poller for `campus-agent.activity.finalization`
   - `worker-autoscaler`
-    - dry-run desired replica evidence only; does not write workflow/run/step/event
-      or terminal state
+    - current Docker Compose dry-run / apply evidence producer; does not write
+      workflow/run/step/event or terminal state. It is not the production target
+      autoscaling controller once KEDA/HPA manages worker Deployments.
   - `temporal`
     - self-hosted Temporal frontend/history/matching/worker service
     - dedicated Temporal Postgres persistence / visibility store
@@ -148,5 +157,8 @@ owns the current truth summary and links to executable procedure groups.
 - staging 的 Docker Compose、origin reverse proxy、Cloudflare DNS 与 Cloudflare Access
   只负责部署与连接；不拥有 workflow history、task queue、run projection、event 或
   terminal truth。
+- K8s/KEDA target runtime 的 deployment 和 autoscaling 设计见
+  `../architecture/system/kubernetes-execution-runtime-architecture.md`；本 runbook 在
+  切换前继续描述当前 Docker Compose staging baseline。
 - Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
   execution workflow / run projection / step projection / event truth。

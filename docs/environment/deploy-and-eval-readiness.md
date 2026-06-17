@@ -27,7 +27,7 @@ updated: 2026-04-23
 
 - `README.md`
 - `provider-and-secret-inventory.md`
-- `../runbooks/staging-worker-deploy-runbook.md`
+- `../runbooks/execution-control-staging-operations.md`
 - `../runbooks/provider-secret-governance.md`
 
 ## Readiness Gates
@@ -47,7 +47,7 @@ uv run --all-packages python -m scripts.doctor_env <surface> --json
 - `worker-staging`
 - `worker-staging-app-api`
 - `worker-staging-public-chat-web`
-- `worker-staging-protected-panel-web`
+- `worker-staging-operator-console-web`
 
 ### Execution Control runtime gate
 
@@ -63,10 +63,10 @@ from Worker staging:
 
 Conditional readiness:
 
-- if `EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true`, doctor requires
+- if runtime profile `execution_audit.enabled=true`, doctor requires
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-- if `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
+- if runtime profile `open_capabilities` opens `campus_services` or `notice`,
   doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
   read-model/object-store runtime dependencies
@@ -106,7 +106,7 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>，承载 student
   Q&A、account、docs、map、dining 与 feedback
 - `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
-- `apps/protected-panel-web` -> `<https://panel-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
 - `apps/public-docs` 已删除；docs staging browser surface 由 `apps/campus-web`
   `/docs/*` 承担
 
@@ -114,8 +114,9 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - 不再把 `ayafeed.com` 或 `*.rag.ayafeed.com` 视为 campus-agent staging deploy truth
 - `mucwiki-edge.link` 是当前 repo-owned staging zone
-- `apps/execution-control` 的 deploy substrate 已冻结为 Docker-first internal execution
-  service
+- `apps/execution-control` 的当前 staging deploy substrate 是 Docker-first internal
+  execution service；production target deploy substrate 已由 ADR-0056 收口为
+  Kubernetes + KEDA
 - `apps/execution-control` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
   `STAGING_EXECUTION_CONTROL_BASE_URL`
 - campus / public chat / panel 的 app-api upstream invariant 是 `APP_API` Service
@@ -131,10 +132,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 ## Staging Deploy Rules
 
 - 三个 Worker 的 canonical `pnpm deploy:staging` 都先执行 `deploy:preflight:staging`
-- `apps/public-chat-web` 与 `apps/protected-panel-web` 通过 `CLOUDFLARE_ENV=staging
+- `apps/public-chat-web` 与 `apps/operator-console-web` 通过 `CLOUDFLARE_ENV=staging
   vite build` 选择 deploy env
 - deploy-side `SENTRY_RELEASE` 属于 deploy-time concern，不写回 static vars
-- `apps/protected-panel-web` staging deploy 必须显式注入：
+- `apps/operator-console-web` staging deploy 必须显式注入：
   - `STAGING_ACCESS_TEAM_DOMAIN`
   - `STAGING_ACCESS_POLICY_AUD`
 
@@ -142,12 +143,16 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 默认规则：
 
-- eval 优先复用 shared provider：
+- eval / local command 优先复用 env-defined shared provider：
   - `LLM_*`
   - `EMBEDDING_*`
 - 只有在 eval 需要独立 provider、预算或限流时，才使用：
   - `EVAL_LLM_*`
   - `EVAL_EMBEDDING_*`
+
+online answer serving 不再以 `LLM_*` / `EMBEDDING_*` env 为 provider/model/API
+key truth；它消费 app-api provider-config active profiles。eval env contract 只描述
+eval / local automation。
 
 长期保留的 eval 链路键包括：
 
@@ -175,6 +180,6 @@ uv run --all-packages python -m scripts.eval_gate doctor --json
 
 ## Related Runbooks
 
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/provider-secret-governance.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

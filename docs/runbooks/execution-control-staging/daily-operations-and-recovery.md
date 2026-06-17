@@ -32,7 +32,8 @@ infra/local/staging/status-execution-control-staging.sh --check
 
 - `otel-collector`、`execution-control`、`workflow-worker`、
   `activity-worker-context`、`agent-runtime`、`activity-worker-agent`、
-  `activity-worker-knowledge`、
+  `activity-worker-knowledge-plan`、`activity-worker-knowledge-retrieval`、
+  `activity-worker-knowledge-synthesis`、
   `activity-worker-campus-services`、`activity-worker-notice`、
   `activity-worker-navigation`、`activity-worker-finalization`、
   `worker-autoscaler` 与 `temporal` 都在当前 compose project 中运行
@@ -63,9 +64,8 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 
 补充约束：
 
-- `execution-control` 默认 admission 参数为 `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8`、
-  `EXECUTION_CONTROL_QUEUE_CAPACITY=24`、`EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000`、
-  `EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000`
+- `execution-control` 默认 admission、request timeout、lane budget 与 worker
+  profile 来自 `/etc/campus-agent/runtime-profile.staging.json`
 - retired Python worker env 与 retired bridge env 不得出现在 active staging
   runtime env；出现时 deploy/start preflight fail closed
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
@@ -74,8 +74,7 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - durable lane budget 的目标语义是 PG-backed `max_active_leases`、queued run / queued step
   budget 与 lease timeout。上述 process-local 三元组只保留为当前 staging process protection，
   不得作为 worker autoscaling 或 production queue truth。
-- staging 默认启用 `EXECUTION_CONTROL_OTEL_ENABLED=true`、
-  `EXECUTION_CONTROL_OTEL_METRICS_ENABLED=true`
+- staging 默认通过 runtime profile 启用 OTel traces / metrics
 - `execution-control` traces / metrics 都应发往本地 `otel-collector`
 - OTel attribute allowlist、forbidden fields 与 sink ownership 以
   `docs/reference/runtime-otel-telemetry-taxonomy.md` 为准；staging 不应把 raw prompt、
@@ -131,40 +130,27 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   启动后通过 execution-control `/readyz` 的 `rag_runtime.lookup_healthy`
   证明 Go knowledge worker 能访问 authenticated Qdrant data-plane。该检查失败时
   直接 fail closed。
-- staging runtime 启动前会执行 ingestion registry collection rename audit：
-  `campus_ingestion_worker.collection_rename_registry_backfill audit`。如果
+- staging runtime 启动前必须证明 ingestion-control data-plane readiness。
+  registry rename、release readiness 与 alias publish 不再通过 Python collection
+  worker probe 执行；这些检查必须表现为 ingestion-control task closeout、operator
+  projection 或 execution-control `/readyz` 的 explicit failure。
+  如果
   `regulations/student_handbook` 或 `regulations/institutional_regulations` 仍残留在
   `document_registry` / `raw_asset_registry` 的 `collection` 列或 `record.collection`，
-  `start-execution-control-staging.sh` 会 fail closed。先执行 apply：
+  不要在 retrieval/read path 增加兼容 alias；通过显式 migration 或 admitted
+  cleanup task 修正数据，再启动 staging runtime。
 
-```bash
-cd /srv/apps/campus-agent
-source infra/local/staging/execution-control-staging-common.sh
-execution_control_staging_load_env >/dev/null
-execution_control_staging_uv_run --all-packages python -m \
-  campus_ingestion_worker.collection_rename_registry_backfill audit
-execution_control_staging_uv_run --all-packages python -m \
-  campus_ingestion_worker.collection_rename_registry_backfill apply
-execution_control_staging_uv_run --all-packages python -m \
-  campus_ingestion_worker.collection_rename_registry_backfill audit
-```
-
-最后一轮 audit 必须显示所有 target 的 `legacy_row_count=0`，再启动 supervisor
-runtime。不要在 retrieval/read path 增加 `student_handbook` alias。
-
-- staging runtime 启动前还会执行 RAG runtime readiness probe：
-  `campus_ingestion_worker.probe_regulation_rag_release_runtime`，并显式检查
+- RAG runtime readiness 由 execution-control `/readyz` 与 ingestion-control
+  release/operator projection 共同证明，并显式检查
   `regulations/student_rules`、`regulations/institutional_rules` 与
   `curriculum/curriculum_plan`。
-  该 gate 会检查 Qdrant REST endpoint、serving alias、latest published release、alias
-  freshness 与 release metadata guard；任一 core query-serving surface 不 ready 时
-  `start-execution-control-staging.sh` 会 fail closed。典型 blocker：
-  - `qdrant_endpoint_not_ready`：`QDRANT_URL` 不是可用 REST endpoint，先从 Qdrant
-    Cloud cluster detail 复制正确 URL，再重跑 probe
-  - `alias_not_published`：对应 serving alias 未发布，先执行 release/publish 流程
-  - `stale_alias`：alias 指向旧 physical collection，先切换到 latest published release
+  任一 core query-serving surface 不 ready 时 staging 启动必须 fail closed。典型 blocker：
+  - `qdrant_endpoint_not_ready`：Qdrant REST endpoint 不可达，先修 runtime env 与
+    data-plane network。
+  - `alias_not_published`：对应 serving alias 未发布，先执行 release/publish task。
+  - `stale_alias`：alias 指向旧 physical collection，先切换到 latest accepted release。
   - `release_metadata_guard_failed`：query runtime 的 embedding/sparse/profile 设置与
-    index release metadata 不一致，先修 env 或重新发布 index release
+    index release metadata 不一致，先修 env 或重新发布 index release。
 - 当 compose project 尚未运行、启动脚本需要 `docker compose up -d --build` 时，
   `start-execution-control-staging.sh` 会先执行
   `infra/local/staging/preflight-execution-control-staging.sh`
@@ -215,7 +201,9 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/activity-worker-context.log`
 - `.tmp/execution-control-staging/logs/agent-runtime.log`
 - `.tmp/execution-control-staging/logs/activity-worker-agent.log`
-- `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
+- `.tmp/execution-control-staging/logs/activity-worker-knowledge-plan.log`
+- `.tmp/execution-control-staging/logs/activity-worker-knowledge-retrieval.log`
+- `.tmp/execution-control-staging/logs/activity-worker-knowledge-synthesis.log`
 - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
 - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
 - `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
@@ -241,7 +229,9 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
   - `.tmp/execution-control-staging/logs/activity-worker-context.log`
   - `.tmp/execution-control-staging/logs/agent-runtime.log`
   - `.tmp/execution-control-staging/logs/activity-worker-agent.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-plan.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-retrieval.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-synthesis.log`
   - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
   - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
   - `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
@@ -295,9 +285,11 @@ execution audit 不出现在 panel 审计时间线
 curl -sS http://127.0.0.1:27051/metrics | grep execution_audit
 ```
 
-- staging lifecycle 会优先读取显式 `EXECUTION_CONTROL_EXECUTION_AUDIT_*`
-  变量；未显式配置时，会从 `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL` 与
-  `APP_API_INTERNAL_SHARED_SECRET` 派生 internal ingest URL 和 shared secret
+- staging lifecycle 会优先读取显式 `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` 与
+  `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`；未显式配置时，会从
+  `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL` 与 `APP_API_INTERNAL_SHARED_SECRET`
+  派生 internal ingest URL 和 shared secret。execution audit 是否启用与 timeout
+  由 runtime profile 管理。
 - 如果 emitted 增加但 panel 未出现，检查 `app-api` scheduled projector drain；
   internal ingest 成功时也会触发 request-scoped drain，cron 只承担周期性一致性检查
 
@@ -349,31 +341,11 @@ Use this path only when all of the following are true:
 1. runtime readiness is blocked because the derived object store lacks the
    matching `index-release.json`.
 
-Run the dry-run reconstruction first:
+Reconstruction is no longer an ingestion-worker Python command. Admit an
+explicit recovery task through ingestion-control with the backup-root and
+target manifest keys as task input, then verify readiness:
 
 ```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.reconstruct_rag_release_manifests \
-  --backup-root /srv/backups/campus-agent/qdrant-snapshots \
-  --report-path var/staging-evidence/rag-release-manifest-reconstruction.json
-```
-
-If the report shows the expected four current surfaces and exact manifest keys,
-write the manifests:
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.reconstruct_rag_release_manifests \
-  --backup-root /srv/backups/campus-agent/qdrant-snapshots \
-  --report-path var/staging-evidence/rag-release-reconstruction-write.json \
-  --write
-```
-
-Then verify readiness:
-
-```bash
-uv run --all-packages python -m \
-  campus_ingestion_worker.probe_regulation_rag_release_runtime
 infra/local/staging/status-execution-control-staging.sh --check
 ```
 

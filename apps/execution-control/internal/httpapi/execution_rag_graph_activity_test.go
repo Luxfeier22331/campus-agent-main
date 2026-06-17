@@ -3,79 +3,13 @@ package httpapi
 import (
 	"context"
 	"errors"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
-
-type fakeRAGLookupExecutor struct {
-	err      error
-	result   ragruntime.RetrievalLookupResult
-	seenPlan ragruntime.PlanProjection
-}
-
-func (f *fakeRAGLookupExecutor) HealthCheck(context.Context) error {
-	return f.err
-}
-
-func (f *fakeRAGLookupExecutor) Lookup(
-	_ context.Context,
-	plan ragruntime.PlanProjection,
-) (ragruntime.RetrievalLookupResult, error) {
-	f.seenPlan = plan
-	if f.err != nil {
-		return ragruntime.RetrievalLookupResult{}, f.err
-	}
-	result := f.result
-	if result.SchemaVersion == "" {
-		result = validLookupResultForTest(plan)
-	}
-	return result, nil
-}
-
-type fakeRAGSynthesisExecutor struct {
-	answerText string
-	calls      int
-	err        error
-	grounding  string
-	onExecute  func(context.Context)
-	seenPacket ragSynthesisPacket
-	summary    provider.ExecutionSummary
-}
-
-func (f *fakeRAGSynthesisExecutor) HealthCheck(context.Context) error {
-	return f.err
-}
-
-func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
-	ctx context.Context,
-	packet ragSynthesisPacket,
-) (ragSynthesisResult, error) {
-	f.calls++
-	f.seenPacket = packet
-	if f.onExecute != nil {
-		f.onExecute(ctx)
-	}
-	if f.err != nil {
-		return ragSynthesisResult{ProviderSummary: f.summary}, f.err
-	}
-	answerText := f.answerText
-	if answerText == "" {
-		answerText = "学生应按学校规定办理请假手续。"
-	}
-	return ragSynthesisResult{
-		AnswerText:       answerText,
-		Confidence:       "high",
-		GroundingVerdict: strings.TrimSpace(f.grounding),
-		ProviderSummary:  f.summary,
-		SemanticOutcome:  "answer_from_selected_evidence",
-	}, nil
-}
 
 func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
@@ -84,6 +18,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	lookup := &fakeRAGLookupExecutor{}
 	server.ragLookupExecutor = lookup
 	server.ragLookupErr = nil
+	server.ragVersionResolver = fakeRAGVersionResolver{}
 	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
 	server.personalMemoryErr = nil
 	synthesis := &fakeRAGSynthesisExecutor{
@@ -387,6 +322,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{}
 	server.ragLookupErr = nil
@@ -548,6 +484,7 @@ func TestSynthesisLateSuccessAfterCancelDoesNotOverwriteTerminalProjection(t *te
 func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.ragLookupExecutor = &fakeRAGLookupExecutor{err: errors.New("qdrant unavailable")}
 	server.ragLookupErr = nil
@@ -612,6 +549,7 @@ func TestRetrieveIndexedLookupActivityFailsClosedWhenLookupUnavailable(t *testin
 func TestPlanRAGActivitySelectsStudentRuleScopeWithoutExplicitRequestedScope(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -715,76 +653,5 @@ func TestPlanRAGActivityFailsClosedWhenScopeCannotBeSelected(t *testing.T) {
 	}
 	if run.Status != execution.DurableRunStatusFailed {
 		t.Fatalf("run status = %q, want failed", run.Status)
-	}
-}
-
-func validLookupResultForTest(plan ragruntime.PlanProjection) ragruntime.RetrievalLookupResult {
-	result := ragruntime.RetrievalLookupResult{
-		CandidateCount: 1,
-		Candidates: []ragruntime.EvidenceRef{{
-			ChunkID:   "student_rules:chunk-1",
-			Excerpt:   "学生应当按照学校规定办理请假手续。",
-			Score:     0.91,
-			SourceID:  "student_rules",
-			SourceRef: "source://regulations/student_rules/student_rules",
-			SpanRef:   "span://student_rules/chunk-1#0-24",
-			Title:     "学生手册",
-		}},
-		LookupRef:      temporalProjectionRef(plan.RunID, "retrieval/indexed-lookup"),
-		QueryLatencyMS: 12,
-		Request: ragruntime.RetrievalLookupRequest{
-			CollectionAlias: plan.CollectionAlias,
-			QueryMode:       plan.QueryMode,
-			QueryText:       plan.QueryText,
-			RunID:           plan.RunID,
-			TopK:            plan.TopK,
-		},
-		SchemaVersion: "retrieval_lookup_result_v1",
-	}
-	hash, err := ragruntime.HashProjection(result)
-	if err != nil {
-		panic(err)
-	}
-	result.PayloadSHA256 = hash
-	return result
-}
-
-func addRequestedScopeForRunTest(
-	t *testing.T,
-	store *execution.InMemoryRunProjectionStore,
-	runID string,
-	corpus string,
-	collection string,
-) {
-	t.Helper()
-	run, err := store.GetRun(context.Background(), runID)
-	if err != nil {
-		t.Fatalf("get run for scope update: %v", err)
-	}
-	metadata := cloneTemporalMetadata(run.Metadata)
-	payload, _ := metadata["execution_payload"].(map[string]any)
-	if payload == nil {
-		payload = map[string]any{}
-	}
-	payload["requested_scope"] = map[string]any{"corpus": corpus, "collection": collection}
-	metadata["execution_payload"] = payload
-	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
-		t.Fatalf("replace run metadata: %v", err)
-	}
-}
-
-func assertStepIDs(t *testing.T, steps []execution.RunStepProjection, expected []string) {
-	t.Helper()
-	if len(steps) != len(expected) {
-		t.Fatalf("step count = %d, want %d: %#v", len(steps), len(expected), steps)
-	}
-	seen := map[string]bool{}
-	for _, step := range steps {
-		seen[step.StepID] = true
-	}
-	for _, stepID := range expected {
-		if !seen[stepID] {
-			t.Fatalf("step %q missing from %#v", stepID, steps)
-		}
 	}
 }

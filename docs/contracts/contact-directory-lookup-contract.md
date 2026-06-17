@@ -43,8 +43,8 @@ updated: 2026-04-28
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
-- rollout flag 仍由 Go runtime 持有：
-  `EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services`；未设置时产品路径仍应 fail-close。
+- rollout flag 仍由 Go runtime profile 持有：
+  `open_capabilities=["campus_services"]`；未在 profile 打开时产品路径仍应 fail-close。
 - 2026-04-28 readiness closeout 已补齐：field-aware matching 覆盖
   `contact_points` / `office_hours`，agent 与 app-api answer shaping 组合
   phone / email / location / office hours，`帮我打电话` / `帮我发邮件` 等执行动作

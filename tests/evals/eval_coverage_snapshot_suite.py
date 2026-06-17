@@ -37,25 +37,25 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                     "artifacts": [
                         _gate_artifact(
                             "regulations/student_rules",
-                            "handbook",
+                            "regulations-student-rules",
                             "student-gate",
                             student_gate,
                         ),
                         _gate_artifact(
                             "regulations/institutional_rules",
-                            "institutional-rules-release-baseline",
+                            "regulations-institutional-rules",
                             "institutional-gate",
                             student_gate,
                         ),
                         _gate_artifact(
                             "curriculum/curriculum_plan",
-                            "curriculum",
-                            "curriculum-gate",
+                            "curriculum-curriculum-plan",
+                            "curriculum-curriculum-plan-gate",
                             student_gate,
                         ),
                         _gate_artifact(
                             "official_web/stable_reference",
-                            "official-web-stable-reference",
+                            "official-web-stable-reference-release",
                             "official-gate",
                             student_gate,
                         ),
@@ -83,7 +83,7 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                         },
                         {
                             "surface_key": "curriculum/curriculum_plan",
-                            "case_id": "curriculum-case",
+                            "case_id": "curriculum-curriculum-plan-case",
                             "status": "completed",
                             "scores": {"answer_relevancy": 0.9},
                         },
@@ -164,7 +164,7 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                     "artifacts": [
                         _gate_artifact(
                             "regulations/student_rules",
-                            "handbook",
+                            "regulations-student-rules",
                             "student-gate",
                             gate,
                         )
@@ -203,13 +203,16 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                     "artifacts": [
                         _gate_artifact(surface, profile, f"{profile}-gate", gate)
                         for surface, profile in (
-                            ("regulations/student_rules", "handbook"),
+                            ("regulations/student_rules", "regulations-student-rules"),
                             (
                                 "regulations/institutional_rules",
-                                "institutional-rules-release-baseline",
+                                "regulations-institutional-rules",
                             ),
-                            ("curriculum/curriculum_plan", "curriculum"),
-                            ("official_web/stable_reference", "official-web-stable-reference"),
+                            ("curriculum/curriculum_plan", "curriculum-curriculum-plan"),
+                            (
+                                "official_web/stable_reference",
+                                "official-web-stable-reference-release",
+                            ),
                         )
                     ],
                 },
@@ -257,13 +260,16 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                     "artifacts": [
                         _gate_artifact(surface, profile, f"{profile}-gate", gate)
                         for surface, profile in (
-                            ("regulations/student_rules", "handbook"),
+                            ("regulations/student_rules", "regulations-student-rules"),
                             (
                                 "regulations/institutional_rules",
-                                "institutional-rules-release-baseline",
+                                "regulations-institutional-rules",
                             ),
-                            ("curriculum/curriculum_plan", "curriculum"),
-                            ("official_web/stable_reference", "official-web-stable-reference"),
+                            ("curriculum/curriculum_plan", "curriculum-curriculum-plan"),
+                            (
+                                "official_web/stable_reference",
+                                "official-web-stable-reference-release",
+                            ),
                         )
                     ],
                 },
@@ -328,24 +334,24 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                             "artifact_id": "student-release-acceptance",
                             "artifact_kind": "release_acceptance_result",
                             "path": str(release_result),
-                            "profile_id": "handbook",
+                            "profile_id": "regulations-student-rules",
                             "surface_key": "regulations/student_rules",
                         },
                         _gate_artifact(
                             "regulations/institutional_rules",
-                            "institutional-rules-release-baseline",
+                            "regulations-institutional-rules",
                             "institutional-gate",
                             gate,
                         ),
                         _gate_artifact(
                             "curriculum/curriculum_plan",
-                            "curriculum",
-                            "curriculum-gate",
+                            "curriculum-curriculum-plan",
+                            "curriculum-curriculum-plan-gate",
                             gate,
                         ),
                         _gate_artifact(
                             "official_web/stable_reference",
-                            "official-web-stable-reference",
+                            "official-web-stable-reference-release",
                             "official-gate",
                             gate,
                         ),
@@ -397,24 +403,24 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                             "artifact_id": "student-release-acceptance",
                             "artifact_kind": "release_acceptance_result",
                             "path": str(release_result),
-                            "profile_id": "handbook",
+                            "profile_id": "regulations-student-rules",
                             "surface_key": "regulations/student_rules",
                         },
                         _gate_artifact(
                             "regulations/institutional_rules",
-                            "institutional-rules-release-baseline",
+                            "regulations-institutional-rules",
                             "institutional-gate",
                             gate,
                         ),
                         _gate_artifact(
                             "curriculum/curriculum_plan",
-                            "curriculum",
-                            "curriculum-gate",
+                            "curriculum-curriculum-plan",
+                            "curriculum-curriculum-plan-gate",
                             gate,
                         ),
                         _gate_artifact(
                             "official_web/stable_reference",
-                            "official-web-stable-reference",
+                            "official-web-stable-reference-release",
                             "official-gate",
                             gate,
                         ),

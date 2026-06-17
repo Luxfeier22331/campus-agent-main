@@ -37,10 +37,10 @@ This taxonomy follows the OpenTelemetry direction that:
 | Runtime / Layer | OTel SDK Allowed | Responsibility |
 | ----------------- | ------------------ | ---------------- |
 | `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
-| `apps/ingestion-worker` | yes, or runtime event bridge | Emit offline run telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
+| `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
 | `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events; not retrieval or ingestion telemetry truth |
-| `packages/retrieval-core` | no | Vendor-neutral `RetrievalObservationSink` only |
-| `packages/knowledge-capability | no | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency |
+| Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
+| Knowledge / RAG runtime | runtime adapter only | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency in contracts |
 | `packages/ingestion-core` | no by default | Business/data-plane logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
 | OTel Collector / equivalent adapter | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
@@ -65,12 +65,12 @@ explicitly allowed below.
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
-| `ingestion.run.started` | `apps/ingestion-worker` | Offline ingestion/index run start with run id, source family, surface and collection |
-| `ingestion.run.completed` | `apps/ingestion-worker` | Run count summary, duration, cost estimate, release id and audit result |
-| `ingestion.run.failed` | `apps/ingestion-worker` | Run failure kind, stage and retryability |
-| `index.release.audit` | `apps/ingestion-worker` | Payload index, manifest, point payload and release guard audit result |
-| `index.release.publish` | `apps/ingestion-worker` | Alias/current pointer publish attempt and result |
+| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge-retrieval` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `ingestion.run.started` | `apps/ingestion-control` | Offline ingestion/index run start with run id, source family, surface and collection |
+| `ingestion.run.completed` | `apps/ingestion-control` | Run count summary, duration, cost estimate, release id and audit result |
+| `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
+| `index.release.audit` | `apps/ingestion-control` | Payload index, manifest, point payload and release guard audit result |
+| `index.release.publish` | `apps/ingestion-control` | Alias/current pointer publish attempt and result |
 | `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; configured product answer paths fail closed |
 | `telemetry.export.dropped` | runtime / adapter | Explicitly sampled telemetry count |
 

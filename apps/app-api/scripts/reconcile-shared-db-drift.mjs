@@ -19,6 +19,28 @@ const appRoot = dirname(scriptsDir);
 const RECONCILABLE_EXTRA_TABLES = new Set([
 	"official_web.page_freshness",
 	"official_web.page_observations",
+	"runtime.agent_run_events",
+	"runtime.agent_runs",
+	"runtime.conversation_run_locks",
+	"runtime.execution_leases",
+	"runtime.lane_budgets",
+	"runtime.worker_heartbeats",
+]);
+const EXTRA_TABLE_DROP_ORDER = new Map([
+	["runtime.agent_run_events", 10],
+	["runtime.conversation_run_locks", 20],
+	["runtime.execution_leases", 30],
+	["runtime.agent_runs", 40],
+	["runtime.lane_budgets", 50],
+	["runtime.worker_heartbeats", 60],
+]);
+const CASCADE_DROP_EXTRA_TABLES = new Set([
+	"runtime.agent_run_events",
+	"runtime.agent_runs",
+	"runtime.conversation_run_locks",
+	"runtime.execution_leases",
+	"runtime.lane_budgets",
+	"runtime.worker_heartbeats",
 ]);
 const RECONCILABLE_EXTRA_COLUMNS = new Map([
 	["official_web.crawl_runs", new Set(["run_intent"])],
@@ -162,11 +184,12 @@ function collectPendingMigrations(inventory, migrationContext) {
 
 function buildDropTableOperation(qualifiedName, rowCount) {
 	const [schema, table] = qualifiedName.split(".", 2);
+	const cascade = CASCADE_DROP_EXTRA_TABLES.has(qualifiedName) ? " cascade" : "";
 	return {
 		kind: "drop_table",
 		qualifiedName,
 		rowCount,
-		statement: `drop table if exists ${quoteIdentifier(schema)}.${quoteIdentifier(table)}`,
+		statement: `drop table if exists ${quoteIdentifier(schema)}.${quoteIdentifier(table)}${cascade}`,
 	};
 }
 
@@ -218,7 +241,12 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	const blockedReasons = [];
 	const operations = [];
 
-	for (const qualifiedName of extraTables) {
+	const orderedExtraTables = [...extraTables].sort(
+		(left, right) =>
+			(EXTRA_TABLE_DROP_ORDER.get(left) ?? 1000) - (EXTRA_TABLE_DROP_ORDER.get(right) ?? 1000) ||
+			left.localeCompare(right),
+	);
+	for (const qualifiedName of orderedExtraTables) {
 		if (!RECONCILABLE_EXTRA_TABLES.has(qualifiedName)) {
 			blockedReasons.push(`Unknown extra table outside current repo truth: ${qualifiedName}`);
 			continue;

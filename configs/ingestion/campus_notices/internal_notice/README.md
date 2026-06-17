@@ -83,30 +83,21 @@ Current interpretation is:
 - downstream regulation materialization consumes promoted candidates and does
   not rewrite this collection
 
-## Worker / materialization consumers
+## Task / materialization owners
 
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.build_internal_notice_regulation_promotion_manifest
-  ...`
-  - read-only promotion manifest builder for `candidate / hold /
-    requires_multimodal_processing`
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.sample_authenticated_notice_routing_candidates ...`
-  - read-only stratified routing sampler for notice-family taxonomy review; it
-    can replay a historical bundle or sample current source-truth inventory, and
-    does not create consumption admission
-  - inventory mode reads source-truth `content-blocks.jsonl` when object-store
-    env is available so residual routing can use body text; pass
-    `--skip-content-blocks` for fast title/type-only sampling
-  - pass `--audit-output-path <path>` to write a full read-only taxonomy audit
-    artifact with terminal default-family residual notices and deterministic
-    clusters; this artifact is operator evidence, not an admission manifest
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.evaluate_authenticated_notice_routing_taxonomy
-  --fail-on-error`
-  - deterministic routing taxonomy gate for repo-tracked JSONL fixtures; it
-    validates notice family, suggested route, and machine-processing policy
-    before taxonomy rule changes are promoted
+`internal_notice` no longer exposes Python collection worker commands. Active
+runtime work must enter through ingestion-control task admission with
+`ts_control` lifecycle ownership. Python may be called only as a private
+OCR/multimodal extraction adapter behind an explicit task handler.
+
+Current target owners:
+
+- promotion manifest and downstream regulation admission: ingestion-control
+  `ts_control` tasks with explicit source-truth inputs
+- routing taxonomy and fixture evaluation: repo tests or eval lanes, not
+  collection worker commands
+- multimodal/OCR work: TS-controlled tasks invoking private Python adapters
+  only when the task genuinely requires MinerU/OCR/multimodal processing
 
 Current routing taxonomy groups include:
 
@@ -141,37 +132,19 @@ Current routing taxonomy groups include:
   `metadata_only`, meaning source-truth may retain attachment facts but
   operator补采不应下载、OCR、materialize, or send them to multimodal processing
 - current source-truth inventory replay can be audited without bundle input;
-  historical bundle replay remains supported for wider taxonomy regression
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.materialize_internal_notice_regulation_candidates ...`
-  - target-collection materializer for `regulations/institutional_rules`
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.dry_run_internal_notice_regulation_document_site ...`
-  - selected dry-run path for `regulation_candidate` notices
-  - writes local `regulations/institutional_rules` and `regulations/scoped_rules`
-    registry/object-store artifacts plus canonical document reader assets from
-    snapshot inputs
-  - uses `target_surface=regulations/*` for admission, then lets consumption
-    projection resolve each notice into its concrete regulation target scope
-  - reads the input object-store snapshot but writes generated objects into the
-    dry-run output overlay
-  - stops before release, retrieval/index preparation, and query-serving
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.materialize_internal_notice_scoped_rules ...`
-  - target-collection materializer for `regulations/scoped_rules`
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.evaluate_internal_notice_multimodal_decisions`
-  - deterministic action gate for repo-tracked multimodal decision fixtures
-- `uv run --package campus-ingestion-worker python -m
-  campus_ingestion_worker.evaluate_internal_notice_multimodal_visual`
-  - deterministic visual fixture gate for grounded retain/no-adoption decisions;
-    it uses synthetic/desensitized fixture outputs and is not a hosted eval upload
+  historical bundle replay remains supporting evidence for wider taxonomy
+  regression, not an active Python runtime path
+- target-collection materialization for `regulations/institutional_rules` and
+  `regulations/scoped_rules` must be rebuilt as admitted ingestion-control
+  tasks
+- deterministic multimodal decision and visual fixture gates belong in repo
+  tests/evals; hosted runtime work remains TS-controlled with Python adapter
+  execution only for extraction
 
-These entrypoints support repo-local snapshot mode via:
-
-- `--documents-json`
-- `--source-truth-inventory-json`
-- `--object-store-root`
+Historical snapshot-mode flags such as `--documents-json`,
+`--source-truth-inventory-json`, and `--object-store-root` are not current
+operation surfaces. Reintroduce them only through explicit task input
+contracts.
 
 ## Non-default supporting inputs
 

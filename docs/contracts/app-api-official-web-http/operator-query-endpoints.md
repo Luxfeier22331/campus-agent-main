@@ -110,7 +110,7 @@ summary and non-goals. Internal ingestion projection ingest details live in
 
 - 对 `official_web/stable_reference` previewed target inventory row 记录 approve/reject
   release gate
-- 审批成功后返回 ingestion-worker 可消费的 deterministic `releaseId`
+- 审批成功后返回 ingestion-control release task 可消费的 deterministic `releaseId`
 
 请求体最小形态：
 

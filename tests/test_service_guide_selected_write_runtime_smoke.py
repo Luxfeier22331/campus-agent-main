@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-import scripts.service_guide_selected_write_runtime_smoke as smoke
+import campus_evals.service_guide_selected_write_runtime_smoke as smoke
 
 
 class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):

@@ -30,7 +30,7 @@ updated: 2026-06-12
 - `../architecture/system/identity-browser-experience-architecture.md`
 - `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `../decisions/adr-0053-qdrant-native-personal-memory-index.md`
+- `../decisions/adr-0057-zep-native-personal-memory-plane.md`
 - `../decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 
 ## Contract 与 Data
@@ -72,8 +72,8 @@ memory boundaries are owned by the architecture documents listed above.
 后续 memory / personalization productization 的落地顺序固定为：
 
 1. `execution-control` / Temporal 拥有 online `memory.recall` step。
-2. Qdrant `personal_memory_v1` 承接 personal memory retrieval；PG profile memory 只保留为
-   manual product projection / migration source。
+2. Zep CE runtime 承接 personal memory retrieval / extraction / graph storage；PG profile
+   memory 只保留为 manual product projection / migration source。
 3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
    `context.profile_memory`。
 4. planning / RAG / deterministic tools 只消费 bounded compact memory context；
@@ -87,4 +87,4 @@ memory boundaries are owned by the architecture documents listed above.
 ## 相关领域
 
 - `operator-observability.md`
-  - operator panel 只消费 app-owned operator access、audit 与 quality projections
+  - Operator Console 只消费 app-owned operator access、audit 与 quality projections

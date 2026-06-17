@@ -14,10 +14,12 @@ import {
 } from "../../http";
 import {
 	buildEndUserEmailAdmissionPolicy,
+	buildExecutionAuthorizationContext,
 	hashAppPassword,
 	hasMatchingInternalSecret,
 	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
+	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
@@ -38,6 +40,28 @@ function hasMatchingStagingSmokeAuthSecret(
 ): boolean {
 	const expected = normalizeHeaderValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET);
 	const provided = normalizeHeaderValue(request.headers.get("x-app-staging-smoke-auth"));
+	if (!(expected && provided)) {
+		return false;
+	}
+
+	const expectedBytes = Buffer.from(expected);
+	const providedBytes = Buffer.from(provided);
+	if (expectedBytes.length !== providedBytes.length) {
+		return false;
+	}
+
+	return timingSafeEqual(expectedBytes, providedBytes);
+}
+
+function hasMatchingInternalBearerSecret(
+	request: Request,
+	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET">,
+): boolean {
+	const expected = normalizeHeaderValue(env.APP_API_INTERNAL_SHARED_SECRET);
+	const authorization = normalizeHeaderValue(request.headers.get("authorization"));
+	const provided = authorization?.toLowerCase().startsWith("bearer ")
+		? authorization.slice("bearer ".length).trim()
+		: null;
 	if (!(expected && provided)) {
 		return false;
 	}
@@ -131,6 +155,87 @@ function collectExecutionAuditRequestIds(payload: Record<string, unknown>): stri
 	return [...requestIds];
 }
 
+function buildInternalRuntimeOperatorPrincipal(): ResolvedAppPrincipal {
+	const principalId = "execution-control-runtime";
+	const actor = {
+		departments: [],
+		principalId,
+		principalType: "operator" as const,
+		roles: ["operator", "execution_control_runtime"],
+		userId: principalId,
+	};
+	return {
+		actor,
+		authorization: buildExecutionAuthorizationContext(actor),
+		permissions: {
+			chat: false,
+			operator: true,
+		},
+		principal: {
+			displayName: "Execution Control Runtime",
+			email: null,
+			principalId,
+			type: "operator",
+		},
+		session: null,
+	};
+}
+
+function providerConfigProxyError(input: {
+	code: string;
+	message: string;
+	status: number;
+}): Response {
+	return routeErrorResponse(
+		new AppApiRouteError({
+			code: input.code,
+			message: input.message,
+			retryable: false,
+			status: input.status,
+		}),
+	);
+}
+
+async function readProviderProxyJsonBody(request: Request): Promise<Record<string, unknown>> {
+	const payload = await readJsonRequestBody(request);
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new AppApiRouteError({
+			code: "invalid_provider_proxy_request",
+			message: "Provider proxy request body must be a JSON object.",
+			retryable: false,
+			status: 400,
+		});
+	}
+	return payload as Record<string, unknown>;
+}
+
+function openAiCompatibleTargetUrl(input: {
+	baseUrl: string;
+	requestUrl: string;
+	role: string;
+}): string | null {
+	const requestUrl = new URL(input.requestUrl);
+	const prefix = `/api/internal/provider-config/openai-compatible/${input.role}/v1/`;
+	if (!requestUrl.pathname.startsWith(prefix)) {
+		return null;
+	}
+	const upstreamPath = requestUrl.pathname.slice(prefix.length);
+	if (!upstreamPath) {
+		return null;
+	}
+	const baseUrl = input.baseUrl.replace(/\/+$/, "");
+	return `${baseUrl}/${upstreamPath}${requestUrl.search}`;
+}
+
+function responseHeadersFromProvider(providerResponse: Response): Headers {
+	const headers = new Headers();
+	const contentType = providerResponse.headers.get("content-type");
+	if (contentType) {
+		headers.set("content-type", contentType);
+	}
+	return headers;
+}
+
 export function registerInternalRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
@@ -141,6 +246,80 @@ export function registerInternalRoutes(input: {
 		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 	}) => void;
 }) {
+	input.app.all("/api/internal/provider-config/openai-compatible/:role/v1/*", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalBearerSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		try {
+			const role = c.req.param("role");
+			const { profile } = await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+				role,
+			});
+			if (profile.transport === "embeddings") {
+				return providerConfigProxyError({
+					code: "provider_proxy_role_not_prompt",
+					message: "Provider proxy role must be a prompt provider role.",
+					status: 422,
+				});
+			}
+			const targetUrl = openAiCompatibleTargetUrl({
+				baseUrl: profile.base_url,
+				requestUrl: c.req.url,
+				role,
+			});
+			if (!targetUrl) {
+				return providerConfigProxyError({
+					code: "invalid_provider_proxy_path",
+					message: "Provider proxy path is invalid.",
+					status: 404,
+				});
+			}
+			const payload = await readProviderProxyJsonBody(c.req.raw);
+			const providerResponse = await fetch(targetUrl, {
+				body: JSON.stringify({
+					...payload,
+					model: profile.model,
+				}),
+				headers: {
+					authorization: `Bearer ${profile.api_key}`,
+					"content-type": "application/json",
+				},
+				method: c.req.method,
+			});
+			return new Response(providerResponse.body, {
+				headers: responseHeadersFromProvider(providerResponse),
+				status: providerResponse.status,
+			});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
+	input.app.get("/api/internal/provider-config/active", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		try {
+			return jsonResponse(
+				await scope.resolveProviderConfigService().getActiveRuntimeSnapshot({
+					role: c.req.query("role") ?? "",
+				}),
+			);
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
 	input.app.post("/api/internal/operator/quality/grades", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
@@ -224,6 +403,58 @@ export function registerInternalRoutes(input: {
 		return jsonResponse(
 			await scope.resolveOperatorObservabilityCommandService().ingestEvalDiagnosticBadcases({
 				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
+
+	input.app.post("/api/internal/operator/runtime/temporal-task-queue-snapshots", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorObservabilityCommandService().ingestTemporalTaskQueueSnapshots({
+				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/temporal-task-queues", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listTemporalTaskQueues({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					taskQueue: c.req.query("taskQueue") ?? null,
+					taskQueueKind: c.req.query("taskQueueKind") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/autoscaler/actuations", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerActuations({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					decisionId: c.req.query("decisionId") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					status: c.req.query("status") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
 			}),
 		);
 	});

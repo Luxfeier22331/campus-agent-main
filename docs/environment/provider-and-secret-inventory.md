@@ -55,21 +55,30 @@ combinations live in split environment references.
 ### Repo-root shared provider
 
 - Provider / system: OpenAI-compatible LLM provider
-  作用: execution-control / agentic execution 在线回答，eval 默认 judge/ragas LLM
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
-  `AGENT_PROMPT_MODEL`
-  放置位置: root `.env`
-  何时必需: 真实 query path、live eval
-  获取方式: 在所选供应商控制台创建项目级 API key；如果直接用 OpenAI，按 Projects / API keys 流程创建
+  作用: primary agent / RAG synthesis 在线回答 provider profile、eval 默认 judge/ragas LLM
+  主要 online owner: `apps/app-api` provider-config profile；Operator Console
+  `/operations/provider-config` 创建、验证、激活
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY`；`EXECUTION_PROMPT_MODEL`
+  仅用于显式 deterministic execution prompt lane
+  放置位置: online serving 不再以 root `.env` 为真相；root `.env` 只用于 local seed /
+  eval / command-scoped override
+  何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
+  必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
+  获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
+  写回 docs 或 repo-tracked env
 
 - Provider / system: Embedding provider
   作用: ingestion 向量化、retrieval dense lane、eval 默认 embeddings
+  主要 online owner: `apps/app-api` provider-config profile；Operator Console
+  `/operations/provider-config` 创建、验证、激活
   主要 env keys: `EMBEDDING_PROVIDER` `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
   `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS`
-  放置位置: root `.env`
-  何时必需: indexing、retrieval、eval embeddings
+  放置位置: online retrieval 不再以 root `.env` 为真相；root `.env` 只用于 ingestion
+  / local seed / eval / command-scoped override
+  何时必需: indexing、retrieval、eval embeddings；online query path 必须存在 active
+  `rag_query_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
-  服务并拿到 token / endpoint
+  服务并拿到 token / endpoint；online profile 激活前必须通过维度兼容检查
 
 - Provider / system: Qdrant
   作用: 向量索引与 hybrid retrieval backend
@@ -78,7 +87,8 @@ combinations live in split environment references.
   放置位置: root `.env`
   何时必需: retrieval / indexing
   获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
-  `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 部署 container，并由 deploy
+  historical `docs/runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md`
+  部署 container，并由 deploy
   secret / env 提供 HTTPS URL、admin key、read-only query key 与 CA certificate path
 
 - Provider / system: Shared Postgres
@@ -104,24 +114,29 @@ combinations live in split environment references.
   mode；source-only collector 与 derived-only online runtime 使用更窄的 bucket-scoped key。
 
 - Provider / system: OCR service
-  作用: canonical raw ingestion / replay，lane-level compare
+  作用: extraction adapter / source-truth materialization lane、lane-level compare
   主要 env keys: `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL`
   `OCR_MINERU_*`
   放置位置: root `.env` 或 command-scoped env
   何时必需: 只有 ingestion / replay / compare 需要
   获取方式: canonical lane 由 routing owner 决定；`OCR_*` 表示当前 active
-  provider，`OCR_MINERU_*` 只作为 `process_raw_ingestion_job` source-truth-only 的附加
-  MinerU lane；其中 `curriculum/curriculum_plan` 的 canonical source OCR truth
-  已冻结为 `mineru_api / vlm`，以 collection runtime profile 为准，不再跟随 root
+  provider，`OCR_MINERU_*` 只作为 task-registry-declared source-truth
+  materialization / typed-PDF extraction 的附加 MinerU lane；其中
+  `curriculum/curriculum_plan` 的 canonical source OCR truth 已冻结为
+  `mineru_api / vlm`，以 collection runtime profile 为准，不再跟随 root
   `OCR_*` 默认值漂移
 
 - Provider / system: Eval-only provider override
   作用: eval 独立预算 / 独立限流
   主要 env keys: `EVAL_LLM_*` `EVAL_EMBEDDING_*` `EVAL_LLM_TRANSPORT`
-  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
+  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`；personal memory extraction live compare
+  额外通过 provider profiles manifest 的 `credential_ref=llm_provider` 指向 shared /
+  eval LLM provider credential
   放置位置: root `.env`
   何时必需: 只有 eval 不想复用 shared provider 时
-  获取方式: 在对应供应商控制台单独申请；默认不需要
+  获取方式: 在对应供应商控制台单独申请；默认不需要。manifest 只记录 credential role、
+  model、base URL 与 `required` gate 标记，不记录 raw API key，也不改变 online
+  serving active provider profile
 
 - Provider / system: FeedWe public WeChat article acquisition
   作用: `wechat_official_account` source channel 的公开公众号文章 acquisition
@@ -187,8 +202,8 @@ combinations live in split environment references.
   query URL 模板，panel 不直接查询 Axiom API
 
 - Provider / system: Cloudflare Workers / Wrangler
-  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`protected-panel-web` 与
-  `campus-ops-web` deploy 与 secret store
+  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`operator-console-web` 与
+  `operator-console-web` deploy 与 secret store
   主要 env keys: shell env / secret store，不固定 repo key 名
   放置位置: local shell、CI secret store、Cloudflare dashboard
   何时必需: 只有 Worker dev/deploy 需要
@@ -196,9 +211,9 @@ combinations live in split environment references.
   `wrangler secret put`，deploy 前再用 `scripts.check_worker_secret_presence` 审计
 
 - Provider / system: Cloudflare Access
-  作用: `protected-panel-web` outer protection envelope
+  作用: `operator-console-web` outer protection envelope
   主要 env keys: `ACCESS_TEAM_DOMAIN` `ACCESS_POLICY_AUD`
-  放置位置: `apps/protected-panel-web/.dev.vars` 或 staging deploy 注入
+  放置位置: `apps/operator-console-web/.dev.vars` 或 staging deploy 注入
   何时必需: panel staging / prod 必需
   获取方式: 在 Zero Trust 创建 self-hosted Access application，复制 team domain 与
   Application Audience (AUD) Tag
@@ -212,9 +227,10 @@ combinations live in split environment references.
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL`
   `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`
   `EXECUTION_CONTROL_TEMPORAL_*`
+  `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
+  `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
   `QDRANT_API_KEY`
-  `EMBEDDING_*`
-  `PROMPT_RUNTIME_*`
+  provider/model/API key active profiles from app-api provider-config
   放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
   secret source
   何时必需: 当前 canonical staging execution runtime 需要

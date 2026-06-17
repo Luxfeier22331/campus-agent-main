@@ -64,7 +64,7 @@ Execution Agent Layer does not own:
 - source truth, ingestion, index build, raw object storage or collection release
 - provider raw trace, SDK-native graph state or SDK session memory
 - capability-local source-channel readiness
-- operator panel query ownership
+- Operator Console query ownership
 
 ## Boundary With Runtime Components
 

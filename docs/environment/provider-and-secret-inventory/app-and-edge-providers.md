@@ -106,8 +106,9 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
   - 需要团队已部署好的 endpoint 与 service token
 - additional MinerU lane：
   - `OCR_MINERU_PROVIDER_MODE=mineru_api`
-  - 当前用于 `process_raw_ingestion_job` 的 `source_truth_only` 条件式 typed-PDF
-    路由、`generic_image` 双跑判型，以及内部 OCR 对比诊断模块
+  - 当前用于 task-registry-declared source-truth materialization 的
+    `source_truth_only` 条件式 typed-PDF 路由、`generic_image` 双跑判型，
+    以及内部 OCR 对比诊断模块
   - 它是 lane-specific 补充配置，不再代表 repo 级 “second provider canonical truth”
 
 相关内部文档：
@@ -126,11 +127,13 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 说明：
 
 - active `OCR_*` lane 当前是 team-owned endpoint contract，不是 repo 内置的公共 SaaS 开户流程
-- `OCR_PROVIDER_MODE=mineru_api` 已可作为 `process_raw_ingestion_job` 的 active
-  provider；canonical lane 仍由 typed route 决定，不由 env 的“谁是 primary”反向定义
-- `OCR_MINERU_*` 现在只是受控补充入口：当前 repo 把它接入 `source_truth_only` 的 typed-PDF 条件路由与
-  `generic_image` 双跑判型，并在 MinerU 胜出时额外保留 `provider-response-raw.zip` provenance
-  sidecar；`ocr-routing-decision.json` 会记录双跑后的 refined asset type 与 canonical
+- `OCR_PROVIDER_MODE=mineru_api` 已可作为 task-registry-declared extraction lane
+  的 active provider；canonical lane 仍由 typed route 决定，不由 env 的“谁是
+  primary”反向定义
+- `OCR_MINERU_*` 现在只是受控补充入口：当前 repo 把它接入
+  `source_truth_only` 的 typed-PDF 条件路由与 `generic_image` 双跑判型，并在
+  MinerU 胜出时额外保留 `provider-response-raw.zip` provenance sidecar；
+  `ocr-routing-decision.json` 会记录双跑后的 refined asset type 与 canonical
   provider 选择
 - MinerU 官方文档虽然支持 Office 类型，但当前 repo 的 canonical raw-ingestion 归一化和
   split-manifest 仍是 PDF/image-first，因此 Office 接入继续归入 follow-up，不在当前默认 canonical
@@ -291,7 +294,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 - `apps/app-api`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 默认放置位置：
 
@@ -326,7 +329,7 @@ root convenience keys：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
 - 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
-- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`protected-panel-web`、`hub-web`
+- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`operator-console-web`、`hub-web`
 - 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
@@ -377,7 +380,7 @@ root convenience keys：
 
 - `apps/app-api`
 - `apps/public-chat-web`
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 
 获取方式：
 
@@ -414,11 +417,11 @@ root convenience keys：
 
 ## 11. Cloudflare Access
 
-这只属于 `protected-panel-web`。
+这只属于 `operator-console-web`。
 
 默认放置位置：
 
-- `apps/protected-panel-web/.dev.vars`
+- `apps/operator-console-web/.dev.vars`
 - staging deploy shell env：
   - `STAGING_ACCESS_TEAM_DOMAIN`
   - `STAGING_ACCESS_POLICY_AUD`

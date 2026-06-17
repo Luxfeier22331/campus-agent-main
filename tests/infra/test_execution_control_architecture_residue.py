@@ -255,15 +255,6 @@ DETERMINISTIC_AGENT_FIELD_ALLOWED_PATH_PARTS = (
     "/tests/infra/test_execution_control_architecture_residue.py",
 )
 
-KNOWLEDGE_CAPABILITY_SOURCE_PREFIX = (
-    "/packages/knowledge-capability/src/campus_knowledge_capability/",
-)
-
-KNOWLEDGE_CAPABILITY_FORBIDDEN_FILENAME_PREFIXES = (
-    "agent.py",
-    "agent_",
-)
-
 
 def tracked_files() -> list[Path]:
     result = subprocess.run(
@@ -496,23 +487,6 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
             for pattern in DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS:
                 if pattern in text:
                     offenders.append(f"{path.relative_to(ROOT)} contains {pattern}")
-
-        self.assertEqual(offenders, [])
-
-    def test_knowledge_capability_source_uses_capability_runtime_names(self) -> None:
-        offenders: list[str] = []
-
-        for path in tracked_files():
-            relative = normalized_relative(path)
-            if not any(
-                relative.startswith(prefix) for prefix in KNOWLEDGE_CAPABILITY_SOURCE_PREFIX
-            ):
-                continue
-            if any(
-                path.name == prefix or path.name.startswith(prefix)
-                for prefix in KNOWLEDGE_CAPABILITY_FORBIDDEN_FILENAME_PREFIXES
-            ):
-                offenders.append(f"{path.relative_to(ROOT)} uses retired agent module name")
 
         self.assertEqual(offenders, [])
 

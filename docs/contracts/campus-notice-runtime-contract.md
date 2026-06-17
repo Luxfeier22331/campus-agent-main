@@ -4,7 +4,7 @@ truth_scope: capability
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
-updated: 2026-05-01
+updated: 2026-06-15
 ---
 # Campus Notice Runtime Contract
 
@@ -28,15 +28,16 @@ retention or downstream materialization ownership.
 
 Notice user-facing output is card-first and source-link-first.
 
-- `campus_notice_discover` remains the capability-facing notice tool.
-- `campus_notice_get` is not an capability-facing/provider/SDK tool.
+- `campus_notice_discover` and `campus_notice_period_summary` are the
+  capability-facing notice tools.
+- `campus_notice_get` is not a capability-facing/provider/SDK tool.
 - `campus_notice_get` remains only as an internal selected notice
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
 - Agents SDK and provider-loop notice-get pilots are closed.
 - Agents SDK may only expose repo-owned ToolSpec-admitted read-only tools.
   `campus_notice_get` remains closed; current notice-family SDK exposure is
-  limited to `notice + campus_notice_discover`.
+  limited to `campus_notice_discover` and `campus_notice_period_summary`.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.
@@ -47,7 +48,7 @@ default public answer material.
 
 ## Tool And Function Boundary
 
-Agent-facing tool:
+Agent-facing tools:
 
 ```text
 CampusNoticeDiscoverPayload
@@ -61,6 +62,34 @@ CampusNoticeDiscoverResult
 - outcome
 - notice_cards[]
 - queried_time_anchor
+- historical_downgrade_reason
+- fail_close_reason
+
+CampusNoticePeriodSummaryPayload
+- query_text
+- date_range
+  - start_date
+  - end_date
+  - timezone
+- source_families[]
+- target_surfaces[]
+- group_by
+- max_items
+
+CampusNoticePeriodSummaryResult
+- outcome
+- date_range
+- notice_cards[]
+- groups[]
+  - group_key
+  - title
+  - notice_count
+  - summary
+  - notice_ids[]
+- bounded_summary
+- source_ref_count
+- queried_time_anchor
+- display_policy
 - historical_downgrade_reason
 - fail_close_reason
 ```
@@ -124,6 +153,7 @@ Go `apps/execution-control` owns:
 - ToolSpec posture and `allowed_tools`
 - selected notice planning
 - internal notice query endpoints
+- structured read-model-backed notice discover and period summaries
 - structured direct answer rendering
 - finalizer/workflow projection leak guards
 - runtime observability labels
@@ -132,7 +162,7 @@ Python `notice` owns:
 
 - DTO-level defensive parsing
 - calling Go internal query service
-- card/source URL answer text
+- card/source URL and bounded summary answer text
 - bounded result observability
 
 Python must not infer or admit `campus_notice_get` as a provider/SDK tool.
@@ -142,6 +172,7 @@ Python must not infer or admit `campus_notice_get` as a provider/SDK tool.
 Python calls Go through private internal routes:
 
 - `POST /internal/query/notices/discover`
+- `POST /internal/query/notices/period-summary`
 - `POST /internal/query/notices/get`
 
 Required header:
@@ -176,8 +207,7 @@ Query-time notice runtime must not rescan raw notice/source bundles.
 
 ## Workflow Context Projection
 
-Multi-step workflows may pass selected notice context only as a bounded
-projection:
+Workflow/runtime steps may pass notice context only as bounded projections:
 
 ```text
 NoticeContextProjection / StepOutputProjection
@@ -191,6 +221,19 @@ NoticeContextProjection / StepOutputProjection
   - body_excerpt
   - bounded_summary / extracted facts when available
   - source_url
+
+NoticePeriodSummaryProjection / StepOutputProjection
+- projection_id
+- source_step_id
+- projection_kind=notice_period_summary
+- content_hash
+- safety summary
+- payload only inside private runtime context
+  - start_date
+  - end_date
+  - summary
+  - group_summaries[]
+  - source_refs[]
 ```
 
 Operator/eval-visible workflow trace summaries expose projection id, source
@@ -204,7 +247,8 @@ body.
 
 Notice observability may include:
 
-- selected tool for `campus_notice_discover`
+- selected tool for `campus_notice_discover` and
+  `campus_notice_period_summary`
 - empty selected tool for internal selected notice resolve
 - business outcome
 - fail-close reason

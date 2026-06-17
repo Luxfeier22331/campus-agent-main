@@ -34,8 +34,8 @@ def resolve_prefetched_hf_tokenizer_path(
     except Exception as exc:
         raise RuntimeError(
             "Tokenizer cache miss for "
-            f"{repo_id}. Run `uv run --all-packages python -m campus_ingestion_core.prefetch_tokenizer "
-            f"--repo-id {repo_id}` first, then rerun with `HF_HUB_OFFLINE=1`."
+            f"{repo_id}. Pre-provision the tokenizer snapshot in the runtime image or "
+            "Hugging Face cache, then rerun with `HF_HUB_OFFLINE=1`."
         ) from exc
 
 

@@ -1,3 +1,8 @@
+export type {
+	AutoscalerActuationStatus as WorkerAutoscalerActuationStatus,
+	AutoscalerDecisionKind as WorkerAutoscalerDecisionKind,
+	TemporalTaskQueueKind,
+} from "../operator-runtime-observability";
 export { buildOperatorQueryService } from "./service-runtime";
 export type {
 	MetricRatio,
@@ -6,6 +11,9 @@ export type {
 	NormalizedOperatorQualityBadcaseListFilters,
 	NormalizedOperatorRequestListFilters,
 	NormalizedOperatorSafetyAnomalyListFilters,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerDecisionListFilters,
 	OperatorAuditEventDetail,
 	OperatorAuditEventListItem,
 	OperatorAuditListFilters,
@@ -33,10 +41,20 @@ export type {
 	OperatorRequestListFilters,
 	OperatorRequestObservabilityRecord,
 	OperatorResultWindow,
+	OperatorRuntimeHealthResult,
 	OperatorRuntimeRunEventSummary,
 	OperatorRuntimeRunSummary,
 	OperatorSafetyAnomalyListFilters,
 	OperatorSafetyAnomalyListResult,
 	OperatorSafetySummaryResult,
 	RequestProjectionRecord,
+	TemporalTaskQueueListFilters,
+	TemporalTaskQueueListResult,
+	TemporalTaskQueueSnapshotRecord,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationListResult,
+	WorkerAutoscalerActuationRecord,
+	WorkerAutoscalerDecisionListFilters,
+	WorkerAutoscalerDecisionListResult,
+	WorkerAutoscalerDecisionRecord,
 } from "./service-types";

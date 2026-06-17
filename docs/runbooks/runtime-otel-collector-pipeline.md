@@ -50,11 +50,15 @@ Start a local Collector with the debug profile:
 otelcol-contrib --config=infra/otel/collector-local-debug.yaml
 ```
 
-Enable `execution-control` OTLP export to the local Collector:
+Enable `execution-control` OTLP export in the runtime profile:
 
-```bash
-EXECUTION_CONTROL_OTEL_ENABLED=true
-EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318/v1/traces
+```json
+{
+  "otel": {
+    "enabled": true,
+    "endpoint": "http://127.0.0.1:4318/v1/traces"
+  }
+}
 ```
 
 Expected local evidence:
@@ -124,7 +128,7 @@ Boundary guard:
 
 ```bash
 rg -n "opentelemetry|go\\.opentelemetry|@opentelemetry|OTel|Sentry|Axiom" \
-  packages/ingestion-core packages/retrieval-core packages/navigation-capability packages/contracts \
+  packages/ingestion-core packages/navigation-capability packages/contracts \
   -g '!**/__pycache__/**' \
   -g '!**/*.md'
 ```
@@ -160,13 +164,6 @@ Retrieval runtime event smoke:
 ```bash
 uv run --all-packages python -m unittest \
   tests.supervisor.retrieval_observation_bridge_suite -q
-```
-
-Ingestion runtime event smoke:
-
-```bash
-uv run --all-packages python -m unittest \
-  tests.ingestion.ingestion_worker_run_telemetry_suite -q
 ```
 
 Collector config structural smoke:

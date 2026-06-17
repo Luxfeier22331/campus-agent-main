@@ -119,6 +119,7 @@ class InternalNoticeReadModelTest(unittest.TestCase):
             notice_row.policy_projection_version,
             "phase1-authorization-projection-v1",
         )
+        self.assertEqual(notice_row.published_at_ts, "2026-04-10T00:00:00+08:00")
 
     def test_build_entries_keeps_full_body_out_of_read_model_storage(self) -> None:
         registry, object_store, projection_entries = _runtime()
@@ -380,6 +381,59 @@ class InternalNoticeReadModelTest(unittest.TestCase):
                 source_collection="internal_notice",
             )
 
+    def test_in_memory_read_model_orders_by_publication_timestamp(self) -> None:
+        older = _read_model_seed("999999", "notice_unit:999999:older")
+        newer = _read_model_seed("111111", "notice_unit:111111:newer")
+        older = older.__class__(
+            **{
+                **asdict(older),
+                "published_at": "2026-04-10",
+                "published_at_ts": "2026-04-10T08:00:00+08:00",
+                "search_text": "测试通知 排序",
+            }
+        )
+        newer = newer.__class__(
+            **{
+                **asdict(newer),
+                "published_at": "2026-04-10",
+                "published_at_ts": "2026-04-10T09:00:00+08:00",
+                "search_text": "测试通知 排序",
+            }
+        )
+        store = InMemoryInternalNoticeReadModelStore((older, newer))
+
+        rows = store.search(
+            source_families=("internal_notice_restricted",),
+            query_text="排序",
+            max_results=2,
+        )
+
+        self.assertEqual([row.source_notice_id for row in rows], ["111111", "999999"])
+
+    def test_in_memory_read_model_get_by_notice_id_uses_publication_timestamp(self) -> None:
+        older = _read_model_seed("355222", "notice_unit:355222:z-older")
+        newer = _read_model_seed("355222", "notice_unit:355222:a-newer")
+        older = older.__class__(
+            **{
+                **asdict(older),
+                "published_at": "2026-04-10",
+                "published_at_ts": "2026-04-10T08:00:00+08:00",
+            }
+        )
+        newer = newer.__class__(
+            **{
+                **asdict(newer),
+                "published_at": "2026-04-10",
+                "published_at_ts": "2026-04-10T09:00:00+08:00",
+            }
+        )
+        store = InMemoryInternalNoticeReadModelStore((older, newer))
+
+        row = store.get_by_notice_id(notice_id="355222")
+
+        self.assertIsNotNone(row)
+        self.assertEqual(row.unit_id, "notice_unit:355222:a-newer")
+
     def test_postgres_store_ensures_search_indexes_and_rehydrates_records(self) -> None:
         store = object.__new__(PostgresInternalNoticeReadModelStore)
         store.database_url = "postgresql://example.test/db"
@@ -571,6 +625,7 @@ def _read_model_seed(notice_id: str, unit_id: str):
         queryable=True,
         title=f"测试通知 {notice_id}",
         published_at="2026-04-10",
+        published_at_ts="2026-04-10T00:00:00+08:00",
         source_url=f"https://portal.example.edu/notices/{notice_id}",
         canonical_document_id=f"notice:muc_internal_portal:{notice_id}",
         canonical_markdown_object_key=(

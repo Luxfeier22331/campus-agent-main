@@ -135,7 +135,7 @@ pnpm ci:web-graph:full
 - 当前它包含：
   - `apps/app-api` 的 `test:node`
   - `apps/public-chat-web` 的 `test:worker`
-  - `apps/protected-panel-web` 的 `test:worker`
+  - `apps/operator-console-web` 的 `test:worker`
 
 ### JS/TS Worker Lane
 
@@ -152,7 +152,7 @@ pnpm web:test:worker
 - 当前它覆盖：
   - `apps/app-api` 的 `test:worker`
   - `apps/public-chat-web` 的 `test:worker`
-  - `apps/protected-panel-web` 的 `test:worker`
+  - `apps/operator-console-web` 的 `test:worker`
 
 ### JS/TS Integration Lane
 
@@ -190,7 +190,7 @@ docs/runbooks/e2e-qa-release-runbook.md
 - 当前默认目标环境是 `mucwiki-edge.link` staging；`campus.muc.wiki` production custom-hostname
   path 不属于当前 gate
 - 它串联 repo preflight、execution runtime readiness、public surface health、chat E2E、
-  docs gated smoke、protected panel Access smoke、browser QA、Sentry/Axiom sink verification
+  docs gated smoke、Operator Console Access smoke、browser QA、Sentry/Axiom sink verification
   与 data-plane sanity
 - 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`
 - 它不能使用 fallback、兜底、best-effort、silent recovery、`--expect-result-kind any` 或跳过
@@ -235,12 +235,12 @@ docs/runbooks/e2e-qa-release-runbook.md
 
 ## 单一 Worker app 语义
 
-`apps/public-chat-web` 与 `apps/protected-panel-web` 当前都只有单一 Worker test lane，因此：
+`apps/public-chat-web` 与 `apps/operator-console-web` 当前都只有单一 Worker test lane，因此：
 
 - `pnpm --dir apps/public-chat-web test` 等价于 `pnpm --dir apps/public-chat-web
   test:worker`
-- `pnpm --dir apps/protected-panel-web test` 等价于 `pnpm --dir
-  apps/protected-panel-web test:worker`
+- `pnpm --dir apps/operator-console-web test` 等价于 `pnpm --dir
+  apps/operator-console-web test:worker`
 
 ## 当前约束
 

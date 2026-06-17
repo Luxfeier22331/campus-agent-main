@@ -11,6 +11,7 @@ describe("operator trace backlink recorder", () => {
 			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
+			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
 		};
 		const recorder = buildOperatorTraceBacklinkRecorder({
@@ -51,6 +52,7 @@ describe("operator trace backlink recorder", () => {
 			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
+			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
 		};
 		const recorder = buildOperatorTraceBacklinkRecorder({
@@ -88,6 +90,7 @@ describe("operator trace backlink recorder", () => {
 			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
+			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockRejectedValue(new Error("database unavailable")),
 		};
 		const recorder = buildOperatorTraceBacklinkRecorder({

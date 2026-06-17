@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: ingestion-core
 status: active
 created: 2026-04-02
-updated: 2026-06-13
+updated: 2026-06-15
 ---
 # Data Plane Architecture
 
@@ -39,6 +39,22 @@ canonical document artifacts -> document-units -> chunks -> index`
 - `official_web` source channel
 - 其他后续 source-shared collection / corpus
 
+source-channel collector 到 canonical data-plane 的 clean runtime chain 固定为：
+
+```text
+source-channel collector
+-> S3-compatible source bucket artifact pack + run ledger
+-> app-api product/operator admission when a product control plane is required
+-> ingestion-control task envelope with object-store input refs
+-> registry-aware source_truth_materialize / projection / document / release tasks
+-> app-api or operator-safe projection consumers
+```
+
+collector 只能把外部 source 转换成可审计 artifact pack、run ledger 与 typed handoff
+metadata；它不拥有 source-truth mutation、document registry、chunk/index release 或
+Qdrant alias publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此
+成为 ingestion executor。
+
 ## Qdrant Private Data-Plane Posture
 
 Qdrant 是 data-plane index substrate，不是 product/API surface。当前 staging /
@@ -48,8 +64,8 @@ production posture 固定为 `self-hosted authenticated private data-plane over 
   secrets；本地部署不等于无认证部署
 - online execution runtime 只接收 read-only `QDRANT_QUERY_API_KEY`，ingestion /
   backup / restore 才使用 admin `QDRANT_API_KEY`
-- execution-control 的 personal memory write path 使用 `QDRANT_WRITE_API_KEY`；
-  staging 可由 `STAGING_INGESTION_QDRANT_API_KEY` 投影，长期应支持单独 write-capable key
+- execution-control personal memory 不再接入 Qdrant write path；个人记忆写入由 Zep
+  runtime 承担
 - `QDRANT_URL` 指向 Docker data-plane / private network endpoint，不作为 browser、
   panel、docs、chat 或 public smoke endpoint
 - staging / production `QDRANT_URL` 必须使用 HTTPS，runtime 必须配置
@@ -59,30 +75,27 @@ production posture 固定为 `self-hosted authenticated private data-plane over 
   只消费已发布 alias / runtime profile，不直接把 Qdrant physical collection 名提升为
   product truth
 
-## Personal Memory Index
+## Personal Memory Data Plane
 
-Personal memory 使用同一个 self-hosted Qdrant private data-plane substrate，但它不是
-institutional RAG index 的一个 corpus，也不进入 ingestion source-truth chain。
-
-默认 collection：
-
-```text
-personal_memory_v1
-```
+Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Zep CE
+self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
 
 固定边界：
 
-- personal memory collection 与 institutional RAG collection 隔离
-- online recall 使用 `QDRANT_QUERY_API_KEY`
-- memory upsert / disable / rebuild 使用 `QDRANT_WRITE_API_KEY` 或 write-capable key；
-  backup / restore 使用 ops-scoped admin key
-- staging / production 同样要求 HTTPS Qdrant URL 与 `QDRANT_TLS_CA_CERT_PATH`
-- payload contract 由 `docs/architecture/system/memory-plane-architecture.md` 与
-  `ADR-0049` 维护，不由 institutional RAG release manifest 维护
+- personal memory graph 与 institutional RAG collection 隔离
+- online recall 使用 `PERSONAL_MEMORY_BASE_URL` / `PERSONAL_MEMORY_API_SECRET`
+- explicit profile memory upsert / disable / owner delete 通过 execution-control internal
+  Zep CE command 完成
+- staging / production 必须使用 HTTPS Zep CE endpoint；local dev 可使用 compose 内网
+  `http://zep-ce-api:8000`
+- Graphiti、Neo4j、Postgres / pgvector 是 Zep CE runtime bundle 内部组件，不是
+  `campus-agent` data-plane contract
+- payload contract 由 `docs/architecture/system/memory-plane-architecture.md` 维护，不由
+  institutional RAG release manifest 维护
 
-personal memory payload 只允许保存 compact memory text 和 routing metadata；不得保存
-raw transcript、raw profile DB row、raw provider response、auth material 或
-unrestricted private notes。
+personal memory projection 只允许保存 compact text、routing metadata 和 internal
+`episode_uuid` ref；不得保存 raw transcript、raw profile DB row、raw provider response、
+auth material 或 unrestricted private notes。
 
 ## Relation To Agentic Retrieval Target
 
@@ -149,14 +162,23 @@ admit
   与 release gate command；不拥有 ingestion task admission、executor state mutation、
   executor callback、source truth write、document/index materialization 或 Qdrant alias
   publish。
-- ingestion control plane 拥有 task registry、claim / lease / retry / dead-letter、
-  run shard batch state、telemetry closeout 与 redacted operator projection snapshot。
-- `apps/ingestion-worker` 是 durable executor shell；它消费已 admission 的 task，
-  按 source family 调用 ingestion contracts、deterministic kernels 与 provider/domain
-  adapters，并把 terminal outcome 暴露为可诊断 closeout。
-- `packages/ingestion-core` 继续拥有 canonical source-truth、materialization、release
-  task、shared file asset loader、collection strategy 与 operator-safe projection
-  snapshot builder。
+- ingestion control plane 拥有 task admission、task registry、claim / lease /
+  retry / dead-letter、registry-aware executor dispatch、run shard batch state、
+  telemetry closeout 与 redacted operator projection snapshot。
+- `apps/ingestion-control` 的 registry-aware executor 是 durable dispatch shell；它消费
+  已 admission 的 task，按 registry 中的 `ts_control` / `rust_kernel` executor kind
+  调用 TS handlers 或 deterministic kernels，并把 terminal outcome 暴露为可诊断
+  closeout。缺失 handler / kernel 必须 fail closed。
+- `ts_control` handler 是默认 materialization owner；source-specific artifact resolver、
+  source-truth materialization、canonical document materialization、structured projection
+  publish、operator projection snapshot 与 alias publish 均先在 TS control plane
+  表达。registry declaration 不是 handler implementation；默认 closeout skeleton 也不代表
+  collection migration complete。
+- `apps/ingestion-worker` 只保留 Python adapter island；它不拥有 collection lifecycle、
+  release / alias publish、Qdrant ops 或 source-channel queue consumer。
+- `packages/ingestion-core` 继续拥有 canonical source-truth、materialization strategy、
+  shared file asset loader 与 collection strategy；task lifecycle 不再由 Python collection
+  CLI 或 worker facade 定义。
 - Rust 只承接 profiling 已证明值得下沉的 deterministic batch kernels，例如 JSONL
   streaming、document-units validation、chunk packing、hash / dedup / diff、release
   manifest validation 与 embedding batch input preparation；Rust kernel 不拥有
@@ -169,6 +191,35 @@ admit
 diagnostic input。长期 rebuild / replay 的主路径必须从 canonical source truth、
 canonical document artifacts 或 `document-units` 继续，不得把 provider response
 或 raw asset replay 提升为 canonical rebuild owner。
+
+## Staged Clean Path
+
+repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapper path。
+
+阶段顺序固定为：
+
+1. **Freeze contracts**：先冻结 source unit、source bucket layout、task registry、
+   input/output contracts、operator projection boundary 与 forbidden shapes。
+2. **Build real TS handlers**：每个迁移 collection 至少落地一个真实
+   `ts_control` handler，读取 object-store input，产出 contract artifact，并由
+   ingestion-control 完成 claim / lease / closeout。
+3. **Prove Rust kernels**：只把 output equivalence 与 profiling 都证明成立的
+   deterministic file-level work 下沉到 Rust。
+4. **Shrink Python to adapters**：Python 仅作为 MinerU / OCR / ML / legacy Office /
+   domain extraction adapter；adapter 输出必须回到 source-truth、document artifact 或
+   projection contract。
+5. **Delete old lifecycle**：TS/Rust handler 覆盖当前生产能力后，删除旧 Python import /
+   closeout / replay / repair / smoke CLI 与 runbook executable path。
+
+阶段门槛：
+
+- collection task registry 只能证明 topology 被声明，不能证明执行链路已完成。
+- 旧 Python CLI 不迁入 registry/executor seam；仍需要的 capability 必须按 TS/Rust target
+  runtime 或 Python adapter 重新建模。
+- `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth
+  materialization 的主输入；mainline handoff 必须是 source bucket `object_store` refs。
+- 双路径只允许在有明确外部迁移约束时短期存在；默认不新增 fallback、兼容 shim 或
+  silent replay path。
 
 ## Shared File-Asset Loader Boundary
 
@@ -248,14 +299,14 @@ release task state machine 固定属于 ingestion data plane。
 
 固定规则：
 
-- `packages/ingestion-core` 定义 release task contract、claim / lease / retry /
-  dead-letter / publish 状态语义，以及 operator-safe projection snapshot builder
-- `apps/ingestion-worker` 执行 release task，读取对象存储 source-truth bundle，产出 canonical
-  projection 或 document/index release，并在状态变化后上报 redacted projection snapshot
+- `apps/ingestion-control` 定义并执行 release task lifecycle：claim / lease /
+  retry / dead-letter / publish 状态语义，以及 operator-safe projection snapshot closeout
+- registry-aware executor 读取对象存储 source-truth bundle，产出 canonical projection 或
+  document/index release，并在状态变化后上报 redacted projection snapshot
 - `apps/app-api` 不拥有 release task admission、executor read、executor callback
   或 selected-write task 状态；它只暴露已经入库的 operator projections、
   collector command ingress，以及 stable-reference operator approve/reject command
-  ledger；它可以接收 ingestion worker 的 operator-safe release task projection
+  ledger；它可以接收 ingestion-control 的 operator-safe release task projection
   snapshot，用于 panel 只读展示
 - Panel 只能消费 app-api/operator projection 或未来 ingestion 投影，不直接调用
   release task mutation route
@@ -447,7 +498,7 @@ registry / control-plane database 与对象存储长期分层。
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 
 为准。
 
@@ -518,4 +569,4 @@ closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`

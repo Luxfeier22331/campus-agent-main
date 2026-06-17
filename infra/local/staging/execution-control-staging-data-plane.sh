@@ -96,7 +96,7 @@ execution_control_staging_ensure_local_minio_volume() {
 execution_control_staging_ensure_local_minio_bucket() {
   execution_control_staging_wait_for_http_ok "http://127.0.0.1:9000/minio/health/ready" 45 2
   execution_control_staging_uv_run --all-packages python - <<'PY'
-from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+	from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 settings = ObjectStoreSettings.from_env()
@@ -147,143 +147,10 @@ execution_control_staging_require_container_qdrant_ready() {
 }
 
 execution_control_staging_require_data_plane_ready() {
-  execution_control_staging_require_registry_collection_rename_closed
   execution_control_staging_require_rag_runtime_ready
 }
 
-execution_control_staging_require_registry_collection_rename_closed() {
-  local node_bin
-  local audit_json
-  local legacy_summary
-
-  node_bin="$(execution_control_staging_require_command node)"
-  if ! audit_json="$(
-    execution_control_staging_uv_run --all-packages python -m \
-      campus_ingestion_worker.collection_rename_registry_backfill audit
-  )"; then
-    echo "execution-control staging registry collection rename audit failed." >&2
-    return 1
-  fi
-
-  if ! legacy_summary="$(
-    REGISTRY_COLLECTION_RENAME_AUDIT_JSON="${audit_json}" "${node_bin}" <<'NODE'
-const payload = JSON.parse(process.env.REGISTRY_COLLECTION_RENAME_AUDIT_JSON || "{}");
-const targets = Array.isArray(payload.targets) ? payload.targets : [];
-const legacyLines = [];
-
-for (const target of targets) {
-  const count = Number(target.legacy_row_count || 0);
-  if (count <= 0) {
-    continue;
-  }
-  const targetNames = Array.isArray(target.target_names) ? target.target_names.join(",") : "";
-  const samples = Array.isArray(target.sample_rows)
-    ? target.sample_rows
-        .map((sample) => {
-          const identity = String(sample.identity || "");
-          const column = String(sample.column_collection || "");
-          const record = sample.record_collection == null ? "" : String(sample.record_collection);
-          return `${identity} column=${column} record=${record}`;
-        })
-        .filter(Boolean)
-        .join("; ")
-    : "";
-  legacyLines.push(
-    `${target.kind || "unknown"} ${target.table_name || "unknown"} (${targetNames}): ${count} legacy rows remain${samples ? `; samples: ${samples}` : ""}`,
-  );
-}
-
-if (legacyLines.length > 0) {
-  console.log(legacyLines.join("\n"));
-}
-NODE
-  )"; then
-    echo "execution-control staging registry collection rename audit returned invalid JSON." >&2
-    return 1
-  fi
-
-  if [[ -n "${legacy_summary}" ]]; then
-    echo "execution-control staging registry collection rename is incomplete:" >&2
-    echo "  - legacy collection names remain in ingestion registry; run collection_rename_registry_backfill apply before starting staging runtime." >&2
-    echo "  - required renames: student_handbook -> student_rules; institutional_regulations -> institutional_rules" >&2
-    while IFS= read -r legacy_line; do
-      if [[ -n "${legacy_line}" ]]; then
-        echo "  - ${legacy_line}" >&2
-      fi
-    done <<<"${legacy_summary}"
-    return 1
-  fi
-}
-
 execution_control_staging_require_rag_runtime_ready() {
-  local node_bin
-  local readiness_json
-  local readiness_summary
-
-  node_bin="$(execution_control_staging_require_command node)"
-  if ! readiness_json="$(
-    execution_control_staging_uv_run --all-packages python -m \
-      campus_ingestion_worker.probe_regulation_rag_release_runtime \
-      --scope regulations/student_rules \
-      --scope regulations/institutional_rules \
-      --scope curriculum/curriculum_plan
-  )"; then
-    echo "execution-control staging RAG runtime readiness probe failed." >&2
-    return 1
-  fi
-
-  if ! readiness_summary="$(
-    RAG_RUNTIME_READINESS_JSON="${readiness_json}" "${node_bin}" <<'NODE'
-const payload = JSON.parse(process.env.RAG_RUNTIME_READINESS_JSON || "{}");
-const failures = [];
-if (payload.qdrant_ready !== "ready") {
-  const checks = payload.qdrant_checks && typeof payload.qdrant_checks === "object"
-    ? Object.entries(payload.qdrant_checks).map(([path, check]) => {
-        const status = check && typeof check === "object" ? check.status : "";
-        const body = check && typeof check === "object" ? String(check.body_prefix || "") : "";
-        return `${path} status=${status}${body ? ` body=${body.slice(0, 80)}` : ""}`;
-      }).join("; ")
-    : "";
-  failures.push(`qdrant_ready=${payload.qdrant_ready || "<missing>"}${checks ? `; ${checks}` : ""}`);
-}
-const surfaces = Array.isArray(payload.surfaces) ? payload.surfaces : [];
-for (const surface of surfaces) {
-  if (!surface || typeof surface !== "object") {
-    continue;
-  }
-  if (surface.readiness_status === "ready") {
-    continue;
-  }
-  const scope = String(surface.scope || "<unknown-scope>");
-  const blocker = String(surface.readiness_blocker || "<missing-blocker>");
-  const alias = String(surface.alias_name || "");
-  const aliasTarget = String(surface.alias_target || "");
-  const releaseStatus = String(surface.release_freshness_status || "");
-  const latestRelease = String(surface.release_family_latest_physical_collection_name || "");
-  const guardStatus = String(surface.release_metadata_guard_status || "");
-  const guardMessage = String(surface.release_metadata_guard_message || "");
-  const aliasGuardStatus = String(surface.alias_target_guard_status || "");
-  const aliasGuardMessage = String(surface.alias_target_guard_message || "");
-  failures.push(
-    `${scope}: ${blocker}; alias=${alias}${aliasTarget ? `->${aliasTarget}` : ""}; latest=${latestRelease}; release=${releaseStatus}; guard=${guardStatus}${guardMessage ? ` ${guardMessage}` : ""}; alias_guard=${aliasGuardStatus}${aliasGuardMessage ? ` ${aliasGuardMessage}` : ""}`,
-  );
-}
-if (failures.length > 0) {
-  console.log(failures.join("\n"));
-}
-NODE
-  )"; then
-    echo "execution-control staging RAG runtime readiness probe returned invalid JSON." >&2
-    return 1
-  fi
-
-  if [[ -n "${readiness_summary}" ]]; then
-    echo "execution-control staging RAG runtime is not ready:" >&2
-    while IFS= read -r readiness_line; do
-      if [[ -n "${readiness_line}" ]]; then
-        echo "  - ${readiness_line}" >&2
-      fi
-    done <<<"${readiness_summary}"
-    return 1
-  fi
+  echo "execution-control staging RAG runtime readiness is asserted by /readyz." >&2
+  echo "Legacy Python ingestion probes were removed; release readiness must come from ingestion-control task closeout and operator projections." >&2
 }

@@ -38,7 +38,9 @@ execution origin 为准。
   - `activity-worker-context`
   - `agent-runtime`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
+  - `activity-worker-knowledge-plan`
+  - `activity-worker-knowledge-retrieval`
+  - `activity-worker-knowledge-synthesis`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
@@ -117,8 +119,8 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/readyz
-curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/healthz
-curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
+curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/readyz
 ```
 
 通过标准：

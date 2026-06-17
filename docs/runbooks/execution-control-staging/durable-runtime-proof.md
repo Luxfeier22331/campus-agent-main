@@ -85,94 +85,61 @@ projection store 或 Temporal runtime 未 ready 的 execution-control readyz，�
 readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须通过，且
 `request.accepted` 必须包含 durable `runId` 与 `runPhase`。
 
-### Worker Autoscaler Dry-Run / Evidence-Only Apply
+### Worker Autoscaler Projection / Apply Proof
 
-本轮 staging 不要求 autoscaler 真实扩缩容容器或 Pod。当前 repo-local proof 只证明它读取
-Temporal task queue / downstream budget observation，并只写 desired replica /
-ops-plane actuation evidence；真实基础设施扩缩容 closeout 等链路成熟后再接入。
+autoscaler proof 使用真实 app-api operator runtime projection，不再使用本地
+`autoscaler-input.json`。执行顺序固定为：
 
-准备 observation JSON，例如：
+1. `temporal-task-queue-sampler` 从 Temporal
+   `DescribeTaskQueue(report_stats=true)` 采样并发布 task queue snapshot 到
+   app-api。
+2. `worker-autoscaler` 从 app-api internal runtime query 读取最新 snapshot。
+3. `worker-autoscaler` 从 Docker Compose 读取 allowlisted worker replica state。
+4. dry-run 发布 decision projection；apply mode 通过 Docker Compose actuator 调整
+   allowlisted service replica，并发布 actuation projection。
 
-```json
-{
-  "environment": "staging",
-  "generated_at": "2026-06-06T00:00:00Z",
-  "queues": [
-    {
-      "name": "campus-agent.workflow",
-      "role": "workflow",
-      "pollers": 1,
-      "backlog": 0,
-      "schedule_to_start_ms": 0,
-      "current_replicas": 1,
-      "min_replicas": 1,
-      "max_replicas": 3,
-      "target_schedule_to_start_ms": 500
-    },
-    {
-      "name": "campus-agent.activity.context",
-      "role": "context",
-      "pollers": 1,
-      "backlog": 0,
-      "schedule_to_start_ms": 0,
-      "current_replicas": 1,
-      "min_replicas": 1,
-      "max_replicas": 3,
-      "target_schedule_to_start_ms": 500
-    },
-    {
-      "name": "campus-agent.activity.knowledge",
-      "role": "knowledge",
-      "pollers": 1,
-      "backlog": 0,
-      "schedule_to_start_ms": 0,
-      "current_replicas": 1,
-      "min_replicas": 1,
-      "max_replicas": 4,
-      "target_schedule_to_start_ms": 500
-    },
-    {
-      "name": "campus-agent.activity.finalization",
-      "role": "finalization",
-      "pollers": 1,
-      "backlog": 0,
-      "schedule_to_start_ms": 0,
-      "current_replicas": 1,
-      "min_replicas": 1,
-      "max_replicas": 2,
-      "target_schedule_to_start_ms": 500
-    }
-  ],
-  "downstream_budgets": {
-    "workflow": {"available": true, "max_replicas": 3},
-    "rag": {"available": true, "max_replicas": 4},
-    "finalization": {"available": true, "max_replicas": 2}
-  }
-}
+运行 sampler：
+
+```bash
+cd apps/execution-control
+go run ./cmd/temporal-task-queue-sampler \
+  --temporal-address "$EXECUTION_CONTROL_TEMPORAL_ADDRESS" \
+  --temporal-namespace "$EXECUTION_CONTROL_TEMPORAL_NAMESPACE" \
+  --workflow-task-queue "${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}" \
+  --app-api-base-url "$EXECUTION_CONTROL_APP_API_BASE_URL" \
+  --shared-secret "$EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"
 ```
 
 运行 dry-run：
 
 ```bash
 go run ./cmd/worker-autoscaler \
-  --input-path "$evidence_dir/worker-autoscaler-input.json" \
-  --evidence-path "$evidence_dir/worker-autoscaler-evidence.json"
+  --mode dry-run \
+  --app-api-base-url "$EXECUTION_CONTROL_APP_API_BASE_URL" \
+  --shared-secret "$EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET" \
+  --compose-project-name "$EXECUTION_CONTROL_COMPOSE_PROJECT_NAME" \
+  --compose-project-directory "$EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"
 ```
 
-可选本地 apply-mode evidence-only proof：
+可选 apply mode：
 
 ```bash
 go run ./cmd/worker-autoscaler \
   --mode apply \
-  --input-path "$evidence_dir/worker-autoscaler-input.json" \
-  --evidence-path "$evidence_dir/worker-autoscaler-decision.json" \
-  --actuator-evidence-path "$evidence_dir/worker-autoscaler-actuation.json"
+  --app-api-base-url "$EXECUTION_CONTROL_APP_API_BASE_URL" \
+  --shared-secret "$EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET" \
+  --compose-project-name "$EXECUTION_CONTROL_COMPOSE_PROJECT_NAME" \
+  --compose-project-directory "$EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"
 ```
 
 通过标准：
 
-- dry-run evidence `mode="dry_run"`；apply decision evidence `mode="apply"`
-- `writes_execution_state=false`
-- 每个 observed queue 都有 desired replica decision
-- evidence 不包含 workflow/run/step/event/terminal state write 表述
+- app-api `GET /api/operator/runtime/temporal-task-queues` 可见 sampler snapshot
+- app-api `GET /api/operator/runtime/autoscaler/decisions` 可见每个 service 的 desired
+  replica decision
+- app-api `GET /api/operator/runtime/autoscaler/actuations` 可见 apply-mode actuation
+  evidence
+- backlog 与 oldest task age 在当前 sampler 下必须是 observed Temporal stats；
+  schedule-to-start latency 必须显式为 `unsupported_by_source`
+- apply mode 只允许 contract 中列出的 Docker Compose worker service
 - 该命令不得写 PG projection、Temporal workflow history 或 downstream budget

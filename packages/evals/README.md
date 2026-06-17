@@ -191,29 +191,31 @@ Evaluation helpers for campus-agent v2.
   report 可以在 `sanitized_results[].request_correlation` 保存 request / trace / sampled_at
   / safe backlink，用于后续 `publish-profile` 回流；仍然不得保存 raw prompt、provider raw
   response、auth material、restricted payload 或带 token/cookie 的 URL 值。
+- `zep-memory-product-path` 是 Zep-native personal memory 的产品链路 profile gate，
+  case fixture 固定在
+  `packages/evals/fixtures/zep_memory_product_path_cases.v1.json`。它验证 completed
+  turn append、跨 thread recall、explicit profile memory upsert / disable、owner
+  delete / RTBF 与 user isolation；不再评估 repo-owned LLM extraction prompt/schema，
+  因为 personal memory extraction 已由 Zep 承担。离线 gate 消费已采集的 sanitized observations：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  zep-memory-product-path --observations-path <observations.json> --json`。
+  runtime gate 使用 `--collect-runtime` 调用 execution-control internal Zep memory command：
+  `uv run --all-packages python -m scripts.eval_gate accept --profile
+  zep-memory-product-path --collect-runtime --json`。runtime collector 需要
+  `EXECUTION_CONTROL_BASE_URL` 与 `API_WORKER_SHARED_SECRET`，只记录 schema、status、
+  hash 与字段级 token，不保存 raw transcript、provider raw response、Zep raw graph
+  payload 或 API key。`--collect-runtime` 必须真实调用 execution-control internal
+  append、recall、explicit profile upsert / disable 与 owner disable endpoint；任何 case
+  缺 observation 都是 gate failure。
 - `quality-calibration` 是 report-only profile，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile quality-calibration
   --observations-path <observations.json>`；它只汇总 public chat usefulness、OCR semantic
   quality 与 agentic plan quality 的 calibration 观察和 pending review candidates，不参与
   deterministic pass/fail canonical truth。
-- `service_guide_lookup` release gate 是确定性组合 gate，入口为：
-  `uv run --all-packages python -m scripts.eval_gate accept --profile
-  service-guide-lookup`；
-  它验证 service guide projection eval、service-guide intent 子集、
-  execution-control Go planning/runtime/query tests 与 Python campus_services
-  contract tests，不打开 campus_services serving surface，也不产生 operator
-  observability live case-results publish。需要对真实 official-web selected-write candidate
-  做 answer-facing 审计时，可额外传入 `--selected-write-preview-report <path>`；这条附加检查只验证
-  preview 产物是否具备 tool-ready 最低字段，不替代 runtime smoke 或 structured query tests。
-- `contact_directory_lookup` release gate 也是确定性组合 gate，入口为：
-  `uv run --all-packages python -m scripts.eval_gate accept --profile
-  contact-directory-lookup`；
-  它验证 contact directory projection eval、contact intent 子集、
-  execution-control Go planning/runtime/query tests 与 Python campus_services
-  contract tests，同样不产生 operator observability live case-results publish。需要对真实
-  official-web selected-write candidate 做 answer-facing 审计时，同样可额外传入
-  `--selected-write-preview-report <path>`；这条附加检查只审计 preview/tool-readiness，
-  不改变默认 deterministic gate 边界。
+- service-guide 与 contact-directory 不再作为独立 `scripts.eval_gate`
+  profile 暴露。它们的 denominator 固定在 `tool-family-denominator` 与
+  `campus-services-product-path` 中；projection / selected-write runtime 证据由对应
+  TS/Go owner 产出，Python eval 只消费 sanitized observation 或 fixture artifact。
 - `campus-services-product-path` opening gate 是 product-path admission gate，
   入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path`；v2 artifact 用 `open_candidate` /
@@ -230,26 +232,15 @@ Evaluation helpers for campus-agent v2.
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
   `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
-- `multi-agent-live-smoke` 是本地 direct-process live gate，入口为：
-  `uv run --all-packages python -m scripts.eval_gate accept --profile
-  multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`execution-control`
-  以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
-  Wrangler。默认 profile 组只覆盖 governed workflow lane：closed structured gate、
-  terminal fail-close、RAG delegate、selected notice context follow-through multi-step，
-  以及 transport + notice + RAG multi-step pilot。single-surface SDK opened profiles
-  继续保留为可选补充 profile 组，不再作为 `governed-multi-agent-workflow-runtime`
-  的默认收口条件。该 gate 会把真实 supervisor response 中的
-  `workflow_trace_summary` 回放到 blocking workflow trace replay；process smoke 或 trace
-  replay 任一失败都会使 gate 失败。
-- `institutional-rules-release-baseline` 是 42 条校级 `regulations/institutional_rules`
-  的 release 前组合 baseline，入口为：`uv run --all-packages python -m
-  scripts.eval_gate accept --profile institutional-rules-release-baseline
-  --observations-path <institutional-answer-observations.json>`；它顺序验证 release
-  retrieval qrels、golden retrieval qrels、institutional answer-quality contract、
-  Qdrant no-hit policy suite 与 `rag_delegate_institutional_rules` execution
-  product-path smoke。该 gate 需要当前 Qdrant alias / embedding env / local
-  execution-control runtime 可用，不进入通用 GitHub workflow dispatch；它不打开
-  `scoped_rules`、年度/届次规则或院级规则。
+- `multi-agent-live-smoke` 是历史 direct-process live gate alias。Python
+  supervisor worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
+  当前 runtime smoke 应以 `execution-control` / `agent-runtime` / typed activity
+  workers / `app-api` 的目标 runbook 和 affected test lane 为准。历史 workflow trace
+  replay fixture 可继续作为 eval 输入，但不得要求恢复 Python supervisor process。
+- institutional rules 不再作为独立 Python release profile 暴露。42 条校级制度的
+  release acceptance、golden retrieval qrels 与 answer-quality contract 仍保留为
+  repo-owned fixture / artifact truth；`eval_coverage_gate_artifacts` 通过
+  `release_acceptance_result` 消费这些结果，而不是调度旧 Python live runner。
 - `multi-agent-runtime-contract` 额外固定 cross-language capability execution fixture
   matrix：`tests/fixtures/capability_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
@@ -345,28 +336,28 @@ uv run --all-packages python -m campus_evals.ragas_diagnostic_runner \
       "artifact_id": "student-rules-release-acceptance-current",
       "artifact_kind": "release_acceptance_result",
       "path": ".tmp/rag-release-acceptance-current/student_rules_release_acceptance.v1.result.json",
-      "profile_id": "handbook",
+      "profile_id": "regulations-student-rules",
       "surface_key": "regulations/student_rules"
     },
     {
       "artifact_id": "institutional-rules-release-acceptance-current",
       "artifact_kind": "release_acceptance_result",
       "path": ".tmp/rag-release-acceptance-current/institutional_rules_release_acceptance.v1.result.json",
-      "profile_id": "institutional-rules-release-baseline",
+      "profile_id": "regulations-institutional-rules",
       "surface_key": "regulations/institutional_rules"
     },
     {
       "artifact_id": "curriculum-plan-release-acceptance-current",
       "artifact_kind": "release_acceptance_result",
       "path": ".tmp/rag-release-acceptance-current/curriculum_plan_release_acceptance.v1.result.json",
-      "profile_id": "curriculum",
+      "profile_id": "curriculum-curriculum-plan",
       "surface_key": "curriculum/curriculum_plan"
     },
     {
       "artifact_id": "official-web-stable-reference-release-acceptance-current",
       "artifact_kind": "release_acceptance_result",
       "path": ".tmp/rag-release-acceptance-current/official_web_stable_reference_release_acceptance.v1.result.json",
-      "profile_id": "official-web-stable-reference",
+      "profile_id": "official-web-stable-reference-release",
       "surface_key": "official_web/stable_reference"
     }
   ]
@@ -506,15 +497,12 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m scripts.intent_gate`
 - `uv run --all-packages python -m scripts.intent_gate --suite synthetic_exploratory
   --report-only --output .tmp/evals/intent-synthetic-exploratory.json`
-- `uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup
-  --json`
-- `uv run --all-packages python -m scripts.eval_gate accept --profile
-  contact-directory-lookup --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   multi-agent-runtime-contract --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  institutional-rules-release-baseline --observations-path
-  <institutional-answer-observations.json> --json`
+  tool-family-denominator --observations-path <observations.json> --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  campus-services-product-path --json`
 - `uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix
   --check docs/reference/golden-dataset-case-matrix.md`
 - `uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix
@@ -562,9 +550,9 @@ retrieval benchmark CLI：
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
   packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
   <run-results.json>`
-- `uv run --all-packages python -m campus_evals.retrieval_live_benchmark --qrels
-  packages/evals/fixtures/institutional_rules_retrieval_qrels.json --output
-  <institutional-live-run.json> --format json --top-k 3`
+- `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
+  packages/evals/fixtures/institutional_rules_retrieval_qrels.json --results
+  <run-results.json> --format json`
 - `run-results.json` 输入形状为 `{"schema_version": 1, "cases": [{"case_id": "...",
   "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id":
   "...", "score": 0.9}]}]}`
@@ -634,18 +622,15 @@ supplemental adapter seam：
 - `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate
   分离
 
-live benchmark profile/core：
+formal benchmark core：
 
-- `campus_evals.live_benchmark.BenchmarkProfile` 负责冻结 live benchmark 的 case
-  set、executor、supplemental adapters、policy path 与 artifact prefix
+- `campus_evals.live_benchmark.BenchmarkProfile` 保留为 offline formal benchmark
+  配置模型，描述 case set、executor、supplemental adapters、policy path 与 artifact prefix。
 - `BenchmarkProfile.http_settings` 是 benchmark runtime tuning 的 repo-tracked
-  ownership，承载 timeout / retry / pacing / keep-alive / connection-pool 默认值
-- `campus_evals.live_benchmark.run_live_benchmark_profile(...)` /
-  `repair_live_benchmark_profile(...)` 在 shared formal benchmark core 之上提供
-  profile-based run/repair wrapper
-- `campus_evals.handbook_live_benchmark` 与
-  `campus_evals.curriculum_live_benchmark` 现在都只是 profile entrypoint；新增 corpus
-  时优先加 profile，不再复制一整套 runner
+  ownership，承载 timeout / retry / pacing / keep-alive / connection-pool 默认值。
+- corpus-specific Python live runner entrypoint 已删除；新增 corpus 不再复制这类入口。
+  运行面证据应由 app-api / execution-control / ingestion-control 的 current owner
+  产出，再以 sanitized artifact 输入 eval。
 
 ragas runtime：
 
@@ -778,60 +763,13 @@ student handbook formal benchmark：
   - target 会记为 `rerun_failed`
   - 只有真正恢复出分数或 `not_applicable` 的 metric 才会进入 `repaired_metric_keys`
   - 同一 target 若只恢复部分 metric，则会记为 `partially_repaired`
-- handbook live runner 现已固定为 `campus_evals.handbook_live_benchmark`：
-  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark run
-    --reruns 3`
-  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark repair
-    --benchmark-dir <formal-benchmark-dir>`
-  - `uv run --all-packages python -m campus_evals.handbook_live_benchmark accept
-    --reruns 3 --verbose --log-jsonl .tmp/evals/handbook-runtime-events.jsonl`
-  - 默认入口现在优先通过 `app-api` internal eval ingress 进入真实产品 command path，生成 canonical
-    `request_id` / `trace_id`
-  - 本地运行前，需要先启动 repo-local `execution-control` 与 `app-api` dev runtime，并在 root
-    `.env` 提供 `APP_API_BASE_URL`、`APP_API_INTERNAL_SHARED_SECRET`、`APP_API_EVAL_
-    USER_EMAIL`
-  - 这些 `APP_API_*` 只描述当前 worktree 的本地 eval ingress，不是远端部署环境真相；其中
-    `APP_API_INTERNAL_SHARED_SECRET` 必须与本地 `apps/app-api/.dev.vars` 保持同值
-  - 如需让 acceptance artifact 直接产出 panel-safe backlink，可选配置： -
-    `APP_API_EVAL_TRACE_LINK_TEMPLATE` - `APP_API_EVAL_ISSUE_LINK_TEMPLATE` -
-    `APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE`
-- 当前模板变量固定为 `case_id`、`request_id`、`trace_id`、`conversation_id`、`status`、`select
-  ed_target`、`corpus`、`collection`
-  - 其中 `selected_capability` 继续只表示 raw capability correlation
-    field；report/display 需要 family wording 时应显式派生独立标签
-  - 如需保留 trace-rich agent/retrieval 单元行为，测试或局部调试应显式使用
-    `build_inprocess_handbook_live_executor(...)`
-- curriculum live runner 现已固定为 `campus_evals.curriculum_live_benchmark`：
-  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark run
-    --reruns 3`
-  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark
-    repair --benchmark-dir <formal-benchmark-dir>`
-  - `uv run --all-packages python -m campus_evals.curriculum_live_benchmark
-    accept --reruns 3 --verbose --log-jsonl
-    .tmp/evals/curriculum-runtime-events.jsonl`
-  - 该入口通过 shared `BenchmarkProfile` core 显式绑定
-    `curriculum_plan_live_gate_policy.json`，不再默认回退到 handbook policy
-  - 默认入口同样优先走 `app-api` internal eval ingress；包含 deterministic `failure_mode` 的
-    case 仍显式回退 in-process executor，保证错误注入可控
-  - 本地运行前提与 handbook live runner 相同；root `.env` 里的 `APP_API_*` 仍只表示本地 eval
-    ingress 参数
-  - backlink 模板配置同 handbook live runner
-- official-web live runner 现已固定为 `campus_evals.official_web_live_benchmark`：
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    run --reruns 1 --qdrant-collection-name <physical-collection>`
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    repair --benchmark-dir <artifact-dir> --qdrant-collection-name
-    <physical-collection>`
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    accept --reruns 1 --qdrant-collection-name <physical-collection>`
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    run --reruns 1 --official-web-scope stable_reference
-    --qdrant-collection-name <physical-collection>`
-  - 该入口只服务 `official_web/stable_reference` 本地 deterministic 验证：通过
-    monkeypatch 临时打开该 scope 的 retrieval，并把 alias 指向指定 unpublished physical
-    collection；repo-tracked runtime truth 不会被命令行改写
-  - `official_web/fresh_news` 当前只保留 retrieval qrels seed validation，不是 live answer
-    gate scope，也不进入 eval-release dispatch
+- 旧 corpus-specific Python live runner 已退出 active eval surface。
+- `student_rules`、`curriculum_plan` 与 `official_web/stable_reference` 的运行面验收应保存
+  current owner 产出的 sanitized release acceptance / retrieval run artifact，再由
+  `campus_evals.retrieval_benchmark`、`eval_coverage_gate_artifacts` 或 active
+  `scripts.eval_gate` profile 消费。
+- `official_web/fresh_news` 当前只保留 retrieval qrels seed validation，不是 live answer
+  gate scope，也不进入 eval-release dispatch。
 
 runtime observability artifact：
 

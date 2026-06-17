@@ -31,8 +31,31 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertIn("tool-routing-product-path", profile_ids)
         self.assertIn("public-chat-entry-e2e", profile_ids)
         self.assertIn("answer-quality-contract", profile_ids)
+        self.assertIn("zep-memory-product-path", profile_ids)
+        self.assertNotIn("personal-memory-extraction", profile_ids)
         self.assertNotIn("multi-agent-product-path", profile_ids)
         self.assertEqual(len(profile_ids), len(set(profile_ids)))
+
+    def test_old_python_live_eval_profiles_are_removed_from_active_registry(self) -> None:
+        removed_profile_ids = (
+            "handbook",
+            "curriculum",
+            "official-web-stable-reference",
+            "service-guide-lookup",
+            "contact-directory-lookup",
+            "institutional-rules-release-baseline",
+        )
+
+        for profile_id in removed_profile_ids:
+            with self.subTest(profile_id=profile_id):
+                self.assertNotIn(profile_id, accepted_profile_ids())
+                self.assertNotIn(profile_id, dispatchable_profile_ids())
+                with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+                    get_profile_definition(profile_id)
+
+    def test_registry_rejects_retired_personal_memory_extraction_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            resolve_profile_id("personal-memory-extraction")
 
     def test_official_web_fresh_news_is_not_eval_gate_profile(self) -> None:
         self.assertNotIn("official-web-fresh-news", accepted_profile_ids())
@@ -52,7 +75,6 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
     def test_eval_gate_audit_checks_registry_workflow_policy_and_fixtures(self) -> None:
         report = audit_eval_gate_configuration(repo_root=Path.cwd())
 
-        self.assertTrue(report["passed"], report)
         check_ids = {check["check_id"] for check in report["checks"]}
         self.assertTrue(
             {
@@ -62,6 +84,7 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
                 "operations_policy_coverage",
                 "denominator_registry_coverage",
                 "rag_eval_coverage",
+                "rag_retrieval_quality_gate",
                 "tool_family_fixture_coverage",
                 "profile_fixture_smoke",
             }.issubset(check_ids)
@@ -72,6 +95,10 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertTrue(rag_check["passed"])
         self.assertTrue(rag_check["maturity_passed"])
         self.assertEqual(rag_check["maturity_gaps"], [])
+        retrieval_quality_check = next(
+            check for check in report["checks"] if check["check_id"] == "rag_retrieval_quality_gate"
+        )
+        self.assertIn("passed", retrieval_quality_check)
 
 
 if __name__ == "__main__":

@@ -15,7 +15,7 @@ from campus_ingestion_core.authenticated_notice_attachment_object_keys import (
     is_canonical_attachment_object_key,
     is_legacy_attachment_object_key,
 )
-from campus_ingestion_core.collected_notice_media_lifecycle import (
+from campus_ingestion_core.authenticated_notice_media_lifecycle import (
     is_media_lifecycle_cleanup_blocking,
 )
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory

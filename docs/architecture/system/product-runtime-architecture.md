@@ -10,7 +10,7 @@ updated: 2026-06-13
 
 ## 文档边界
 
-本文冻结 `campus-web`、legacy public chat、protected panel、shared `app-api` 与
+本文冻结 `campus-web`、legacy public chat、Operator Console、shared `app-api` 与
 delivery/runtime seam 的 supporting architecture。
 
 它回答的是：
@@ -18,7 +18,7 @@ delivery/runtime seam 的 supporting architecture。
 - public/protected surface 如何接入 shared backend
 - `apps/app-api` 的长期职责是什么
 - request projection 与 operator read surface 属于谁
-- protected panel 的 trust model 与 runtime shell 应怎样理解
+- Operator Console 的 trust model 与当前 runtime shells 应怎样理解
 
 ## 核心结论
 
@@ -30,18 +30,20 @@ delivery/runtime seam 的 supporting architecture。
 
 `browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
+workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
+activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
 capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-agent /
-activity-worker-knowledge / capability workers / activity-worker-finalization ->
-sanitized projection`
+activity-worker-knowledge-plan / activity-worker-knowledge-retrieval /
+activity-worker-knowledge-synthesis / capability workers /
+activity-worker-finalization -> sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
-`browser -> protected-panel-web -> app-api -> request projection / operator read
-model`
+`browser -> operator-console-web explicit allowlist proxy -> app-api -> request
+projection / operator read model / operator-safe operations domains`
 
 这意味着：
 
@@ -49,8 +51,8 @@ model`
   surface；docs 已收口为 `campus-web /docs/*` 内部支撑面
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
-  `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的
-  origin
+  `APP_API_BASE_URL` / `OPERATOR_CONSOLE_APP_API_BASE_URL` 只是构造内部
+  `Request` URL 的 origin
 - `apps/campus-web` 是学生侧 product entry surface、account browser shell 与 docs
   browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
   `/docs/*` reader delivery、Q&A ChatKit browser surface 与 same-origin proxy seam，但不拥有
@@ -66,11 +68,13 @@ model`
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
-- `apps/execution-control` 是 Docker-first internal execution engine
+- `apps/execution-control` 当前是 Docker-first internal execution engine；production
+  target deployment substrate 已接受 Kubernetes + KEDA，但不改变 product/runtime owner
+  boundary
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
-- panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+- Operator Console 不读数据库、不读 telemetry sink、不绕过 `app-api`
 - ingestion/release task state machine 不属于 product runtime；它属于 offline data
   plane
 
@@ -112,17 +116,27 @@ model`
     run, feedback, cancel, and stream contracts
   - does not generate answers, own conversation truth, write DB rows, or call
     `apps/execution-control` directly
-- `protected-panel-web`
-  - 当前只承接 app-owned operator domains；`Requests`、`Official Web` 与
-    `Authenticated Notice Processing` 已是 accepted shape
-  - `Jobs`、`Operations`、更完整 `Audit` 仍属于后续 rollout，不应被写成当前 merged truth
+- `Operator Console`
+  - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
+    operations domains
+  - 当前唯一 implementation surface 是 `operator-console-web`
+  - 当前已承接 read-only observability、runtime health、`Requests`、`Official Web`、
+    `Authenticated Notice Processing`、dining operations workspace 与 provider
+    configuration
+  - 当前只通过 explicitly allowlisted `/api/operator/*`、`/api/requests*`、
+    `/api/official-web/*`、`/api/authenticated-notices/*` 与 `/api/ops/dining/*`
+    routes 消费 `apps/app-api`
+  - `apps/app-api` 已有 `campus-services` operator routes，但当前
+    `operator-console-web` 不承载 campus-services operations UI 或 proxy allowlist
+  - `Jobs` 与其他未接入 operations domains 仍属于后续 rollout，不应被写成当前
+    merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
   - `official_web` control plane 不包括 release task claim / lease / retry /
     dead-letter / publish 状态机；这些状态属于 ingestion data plane
   - `authenticated_notice_processing` operator projection 已是 accepted app-owned
-    read-only panel domain；它只展示处理状态，不成为 collector scheduler、queue
+    Operator Console read-only domain；它只展示处理状态，不成为 collector scheduler、queue
     mutation API 或对象存储浏览器
 
 前向约束：
@@ -174,12 +188,15 @@ model`
 - does not own account/session, conversation truth, execution truth, database writes,
   provider calls, or direct execution-control transport
 
-### `apps/protected-panel-web`
+### Operator Console implementation surfaces
 
-- protected operator UI shell
-- 只消费 runtime APIs
+- `apps/operator-console-web` 是当前唯一 Operator Console Worker shell
+- read-only observability / projection domains 与 dining operations workspace 都在该
+  shell 内通过明确 route 和导航分区承载
+- 该 shell 只消费 `apps/app-api` runtime-owned APIs
 - fail-closed by default
-- 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode
+- 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode，
+  也不定义第二套 operator backend
 
 ### `apps/app-api`
 
@@ -231,7 +248,9 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - internal execution admission
 - typed execution transport
-- forward deploy substrate 已冻结为 Docker-first internal execution service
+- 当前 forward deploy substrate 是 Docker-first internal execution service；production
+  target deploy substrate 是 Kubernetes internal execution-control Service + KEDA/HPA
+  worker autoscaling
 - Docker-side Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
@@ -244,8 +263,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 产品 runtime 与 offline data plane 的分界固定为：
 
-`app-api operator/collector control plane -> ingestion-worker release task
-runtime`
+`app-api operator/collector control plane -> ingestion-control release task runtime`
 
 固定规则：
 
@@ -254,11 +272,11 @@ runtime`
   ledger
 - `apps/app-api` 不提供 official-web release executor read/callback routes
 - `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
-- `packages/ingestion-core` 定义 release task contract 与状态推进
-- `apps/ingestion-worker` 执行 release task，负责 claim、lease、retry、
-  dead-letter、materialize、publish 与失败状态
-- `apps/protected-panel-web` 不调用 release task mutation；它只展示 app-api/operator
-  projection 或未来 ingestion 投影后的 read model
+- `apps/ingestion-control` 定义并执行 release task lifecycle，负责 claim、lease、
+  retry、dead-letter、materialize、publish 与失败状态
+- `packages/ingestion-core` 保留 canonical data-plane contract 与 collection strategy
+- Operator Console 不调用 release task mutation；它只展示 app-api/operator projection 或未来
+  ingestion 投影后的 read model
 
 ### Docker Execution Runtime Boundary
 
@@ -268,7 +286,7 @@ runtime`
   - 当前 execution ingress
   - 当前 active chat execution path 已硬切到 Temporal-backed
     `CapabilityExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
-    panel / eval 消费的 sanitized projection store
+    Operator Console / eval 消费的 sanitized projection store
   - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
     bridge
   - 进程内 lifecycle、active count 与 bounded queue 只保留为本进程 runtime protection；
@@ -302,40 +320,46 @@ request projection 的 canonical durable truth 固定为：
 - `runtime.request_execution`
 - `runtime.projection_outbox`
 
-panel `Requests` 的 canonical read path 固定为：
+Operator Console `Requests` 的 canonical read path 固定为：
 
-`apps/protected-panel-web -> apps/app-api -> operator.request_projection`
+`operator console surface -> apps/app-api -> operator.request_projection`
 
 明确禁止：
 
 - 直接读取 consumer chat tables 作为 request list/detail truth
 - 直接读取 audit logs 或 telemetry sink 作为 request truth
-- 让 panel 通过 `apps/execution-control` 旁路获取 operator list/detail
+- 让 Operator Console 通过 `apps/execution-control` 旁路获取 operator list/detail
 
 future operator-facing observability 域也遵循同一 ownership rule：
 
 - audit / quality / safety / cost surface 仍由 `apps/app-api` 物化与提供
 - authenticated notice processing 这类 ingestion/downstream visibility surface
   也必须经
-  `apps/app-api` 的 operator-safe projection 暴露，不能让 panel 回读 queue、object-store、
+  `apps/app-api` 的 operator-safe projection 暴露，不能让 Operator Console 回读 queue、object-store、
   operations 目录或 raw logs
-- panel 只能读取 runtime-owned projection / aggregate APIs
+- Operator Console 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
-  canonical panel read model
+  canonical Operator Console read model
+- Temporal task queue snapshot、worker autoscaler decision / actuation 也属于
+  operator runtime projection。当前 Docker Compose autoscaler 只能通过 app-api
+  internal HTTP 发布 sanitized payload；production target 下 KEDA/HPA scale event 也必须
+  先物化为 app-api operator-safe projection。Operator Console 和 eval 不直接读取
+  Temporal history、Docker state、Kubernetes API、HPA/KEDA API 或 execution-control
+  本地证据文件
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
 `docs/architecture/system/operator-observability-architecture.md`。
 
-## Protected Surface And Operator Access
+## Operator Console Access
 
-protected panel 的长期 access model 固定为：
+Operator Console 的长期 access model 固定为：
 
 `approved operator principal -> upstream protected access -> origin admission ->
 minimal operator context -> runtime APIs`
 
 关键约束：
 
-- protected panel 不需要自建 end-user 账户系统
+- Operator Console 不需要自建 end-user 账户系统
 - upstream access 不能替代 origin admission
 - dynamic shell/API responses 默认 `no-store`
 - 失去保护条件时直接 fail-closed
@@ -383,16 +407,18 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/execution-control` 当前部署 substrate 是 Docker-first internal execution service；
+  production target substrate 是 Kubernetes + KEDA，详见
+  `kubernetes-execution-runtime-architecture.md`
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
   semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
   online answer hot path
 
 ## Forbidden Shapes
 
-- 不把 `apps/app-api` 重新拆回 consumer backend + panel backend
+- 不把 `apps/app-api` 重新拆回 consumer backend + operator backend
 - 不把 `apps/execution-control` 重新长成 product backend
-- 不把 panel 做成直接连 `packages/*` 或数据库的内部控制台
+- 不把 Operator Console 做成直接连 `packages/*` 或数据库的内部控制台
 - 不把 request projection 退化成 chat transcript 或 telemetry replay 的别名
 
 ## 相关稳定文档
@@ -403,17 +429,17 @@ contract 或 auth family route/endpoint truth。
 - `docs/contracts/capability-execution.md`
 - `docs/architecture/system/capability-routing-and-admission-architecture.md`
 - `docs/data/app-api-schema.md`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/architecture/system/identity-platform-architecture.md`
 - `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
 - `docs/architecture/system/operator-observability-architecture.md`

@@ -130,6 +130,22 @@
 			"result_projection_policy": "bounded_json"
 		},
 		{
+			"name": "campus_notice_period_summary",
+			"capability": "notice",
+			"description": "Summarize governed campus notices over a bounded date range from the notice read model.",
+			"exposure": "model_visible",
+			"read_only": true,
+			"requires_approval": false,
+			"payload_schema_ref": "campus_contracts.models_tools.CampusNoticePeriodSummaryPayload",
+			"result_schema_ref": "campus_contracts.models_tools.CampusNoticePeriodSummaryResult",
+			"handler": {
+				"type": "execution_control_internal_query",
+				"endpoint": "/internal/query/notices/period-summary"
+			},
+			"timeout_ms": 1000,
+			"result_projection_policy": "bounded_json"
+		},
+		{
 			"name": "campus_notice_get",
 			"capability": "notice",
 			"description": "Internal selected notice resolution function; not exposed as a model-facing tool.",

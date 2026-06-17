@@ -13,15 +13,7 @@ func CapabilityExecutionWorkflow(
 	ctx workflow.Context,
 	input CapabilityExecutionWorkflowInput,
 ) (CapabilityExecutionWorkflowResult, error) {
-	activityOptions := workflow.ActivityOptions{
-		StartToCloseTimeout: 60 * time.Second,
-		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second,
-			BackoffCoefficient: 2,
-			MaximumInterval:    10 * time.Second,
-			MaximumAttempts:    3,
-		},
-	}
+	activityOptions := defaultActivityOptions()
 	contextOptions := activityOptions
 	contextOptions.TaskQueue = ActivityTaskQueueContext
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
@@ -59,7 +51,7 @@ func CapabilityExecutionWorkflow(
 		if err != nil {
 			return CapabilityExecutionWorkflowResult{}, err
 		}
-		executeMemoryUpdate(ctx, activityOptions, input, requestedCapability)
+		executeMemoryAppend(ctx, activityOptions, input, requestedCapability)
 		return workflowResultFromFinalization(finalization), nil
 	}
 	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
@@ -70,11 +62,23 @@ func CapabilityExecutionWorkflow(
 	if err != nil {
 		return CapabilityExecutionWorkflowResult{}, err
 	}
-	executeMemoryUpdate(ctx, activityOptions, input, requestedCapability)
+	executeMemoryAppend(ctx, activityOptions, input, requestedCapability)
 	return workflowResultFromFinalization(finalization), nil
 }
 
-func executeMemoryUpdate(
+func defaultActivityOptions() workflow.ActivityOptions {
+	return workflow.ActivityOptions{
+		StartToCloseTimeout: 60 * time.Second,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second,
+			BackoffCoefficient: 2,
+			MaximumInterval:    10 * time.Second,
+			MaximumAttempts:    3,
+		},
+	}
+}
+
+func executeMemoryAppend(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
 	input CapabilityExecutionWorkflowInput,
@@ -83,35 +87,18 @@ func executeMemoryUpdate(
 	contextOptions := activityOptions
 	contextOptions.TaskQueue = ActivityTaskQueueContext
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
-	extractInput := ExtractMemoryCandidatesActivityInput{
+	appendInput := AppendConversationMemoryActivityInput{
 		RequestID:           input.RequestID,
 		RequestedCapability: requestedCapability,
 		RunID:               input.RunID,
 		TraceID:             input.TraceID,
 	}
-	var extract ExtractMemoryCandidatesActivityOutput
-	if err := workflow.ExecuteActivity(
-		contextCtx,
-		ExtractMemoryCandidatesActivityName,
-		extractInput,
-	).Get(ctx, &extract); err != nil {
-		return
-	}
-	if len(extract.Candidates) == 0 {
-		return
-	}
-	var upsert UpsertInferredMemoryActivityOutput
+	var appendResult AppendConversationMemoryActivityOutput
 	_ = workflow.ExecuteActivity(
 		contextCtx,
-		UpsertInferredMemoryActivityName,
-		UpsertInferredMemoryActivityInput{
-			Candidates:          extract.Candidates,
-			RequestID:           input.RequestID,
-			RequestedCapability: requestedCapability,
-			RunID:               input.RunID,
-			TraceID:             input.TraceID,
-		},
-	).Get(ctx, &upsert)
+		AppendConversationMemoryActivityName,
+		appendInput,
+	).Get(ctx, &appendResult)
 }
 
 func executePrimaryAgentWithBoundedReplan(
@@ -450,64 +437,98 @@ func executeKnowledgeBranch(
 	workflowPlanRef string,
 	dependencyResultRefs []string,
 ) (SynthesizeRAGAnswerActivityOutput, VerifyGroundingActivityOutput, error) {
-	knowledgeOptions := activityOptions
-	knowledgeOptions.TaskQueue = ActivityTaskQueueKnowledge
-	knowledgeCtx := workflow.WithActivityOptions(ctx, knowledgeOptions)
 	var ragPlan PlanRAGActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, PlanRAGActivityName, PlanRAGActivityInput{
-		DependencyResultRefs: append([]string{}, dependencyResultRefs...),
-		RunID:                input.RunID,
-		TraceID:              input.TraceID,
-		WorkflowPlanRef:      workflowPlanRef,
-	}).Get(ctx, &ragPlan); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, PlanRAGActivityName)),
+		PlanRAGActivityName,
+		PlanRAGActivityInput{
+			DependencyResultRefs: append([]string{}, dependencyResultRefs...),
+			RunID:                input.RunID,
+			TraceID:              input.TraceID,
+			WorkflowPlanRef:      workflowPlanRef,
+		}).Get(ctx, &ragPlan); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var lookup RetrieveIndexedLookupActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, RetrieveIndexedLookupActivityName, RetrieveIndexedLookupActivityInput{
-		RAGPlanRef: ragPlan.PlanRef,
-		RunID:      input.RunID,
-		TraceID:    input.TraceID,
-	}).Get(ctx, &lookup); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, RetrieveIndexedLookupActivityName)),
+		RetrieveIndexedLookupActivityName,
+		RetrieveIndexedLookupActivityInput{
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      input.RunID,
+			TraceID:    input.TraceID,
+		}).Get(ctx, &lookup); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var rescue ExpandOrRescueRetrievalActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, ExpandOrRescueRetrievalActivityName, ExpandOrRescueRetrievalActivityInput{
-		LookupRef:  lookup.LookupRef,
-		RAGPlanRef: ragPlan.PlanRef,
-		RunID:      input.RunID,
-		TraceID:    input.TraceID,
-	}).Get(ctx, &rescue); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, ExpandOrRescueRetrievalActivityName)),
+		ExpandOrRescueRetrievalActivityName,
+		ExpandOrRescueRetrievalActivityInput{
+			LookupRef:  lookup.LookupRef,
+			RAGPlanRef: ragPlan.PlanRef,
+			RunID:      input.RunID,
+			TraceID:    input.TraceID,
+		}).Get(ctx, &rescue); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var evidence SelectEvidenceActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, SelectEvidenceActivityName, SelectEvidenceActivityInput{
-		LookupRef:  lookup.LookupRef,
-		RAGPlanRef: ragPlan.PlanRef,
-		RescueRef:  rescue.RescueRef,
-		RunID:      input.RunID,
-		TraceID:    input.TraceID,
-	}).Get(ctx, &evidence); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, SelectEvidenceActivityName)),
+		SelectEvidenceActivityName,
+		SelectEvidenceActivityInput{
+			LookupRef:  lookup.LookupRef,
+			RAGPlanRef: ragPlan.PlanRef,
+			RescueRef:  rescue.RescueRef,
+			RunID:      input.RunID,
+			TraceID:    input.TraceID,
+		}).Get(ctx, &evidence); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var synthesis SynthesizeRAGAnswerActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, SynthesizeRAGAnswerActivityName, SynthesizeRAGAnswerActivityInput{
-		EvidenceRef: evidence.EvidenceRef,
-		RAGPlanRef:  ragPlan.PlanRef,
-		RunID:       input.RunID,
-		TraceID:     input.TraceID,
-	}).Get(ctx, &synthesis); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, SynthesizeRAGAnswerActivityName)),
+		SynthesizeRAGAnswerActivityName,
+		SynthesizeRAGAnswerActivityInput{
+			EvidenceRef: evidence.EvidenceRef,
+			RAGPlanRef:  ragPlan.PlanRef,
+			RunID:       input.RunID,
+			TraceID:     input.TraceID,
+		}).Get(ctx, &synthesis); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	var grounding VerifyGroundingActivityOutput
-	if err := workflow.ExecuteActivity(knowledgeCtx, VerifyGroundingActivityName, VerifyGroundingActivityInput{
-		EvidenceRef:  evidence.EvidenceRef,
-		RunID:        input.RunID,
-		SynthesisRef: synthesis.SynthesisRef,
-		TraceID:      input.TraceID,
-	}).Get(ctx, &grounding); err != nil {
+	if err := workflow.ExecuteActivity(
+		workflow.WithActivityOptions(ctx, knowledgeActivityOptions(activityOptions, VerifyGroundingActivityName)),
+		VerifyGroundingActivityName,
+		VerifyGroundingActivityInput{
+			EvidenceRef:  evidence.EvidenceRef,
+			RunID:        input.RunID,
+			SynthesisRef: synthesis.SynthesisRef,
+			TraceID:      input.TraceID,
+		}).Get(ctx, &grounding); err != nil {
 		return SynthesizeRAGAnswerActivityOutput{}, VerifyGroundingActivityOutput{}, err
 	}
 	return synthesis, grounding, nil
+}
+
+func knowledgeActivityOptions(base workflow.ActivityOptions, activityName string) workflow.ActivityOptions {
+	options := base
+	options.TaskQueue = KnowledgeActivityTaskQueueForActivity(activityName)
+	return options
+}
+
+func KnowledgeActivityTaskQueueForActivity(activityName string) string {
+	switch activityName {
+	case PlanRAGActivityName, SelectEvidenceActivityName, VerifyGroundingActivityName:
+		return ActivityTaskQueueKnowledgePlan
+	case RetrieveIndexedLookupActivityName, ExpandOrRescueRetrievalActivityName:
+		return ActivityTaskQueueKnowledgeRetrieval
+	case SynthesizeRAGAnswerActivityName:
+		return ActivityTaskQueueKnowledgeSynthesis
+	default:
+		return ActivityTaskQueueStructured
+	}
 }
 
 func executeFinalization(
@@ -537,7 +558,7 @@ func ActivityTaskQueueForCapability(capability string) string {
 	case "navigation", "place_lookup":
 		return ActivityTaskQueueNavigation
 	case "knowledge", "":
-		return ActivityTaskQueueKnowledge
+		return ActivityTaskQueueKnowledgePlan
 	default:
 		return ActivityTaskQueueStructured
 	}

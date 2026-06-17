@@ -5,12 +5,21 @@ import type {
 	NormalizedOperatorQualityBadcaseListFilters,
 	NormalizedOperatorRequestListFilters,
 	NormalizedOperatorSafetyAnomalyListFilters,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerDecisionListFilters,
 	OperatorAuditListFilters,
 	OperatorOverviewFilters,
 	OperatorOverviewWindow,
 	OperatorQualityBadcaseListFilters,
 	OperatorResultWindow,
 	OperatorSafetyAnomalyListFilters,
+	TemporalTaskQueueKind,
+	TemporalTaskQueueListFilters,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationStatus,
+	WorkerAutoscalerDecisionKind,
+	WorkerAutoscalerDecisionListFilters,
 } from "./service-types";
 
 const DEFAULT_LIMIT = 20;
@@ -23,6 +32,9 @@ const OPERATOR_GRANULARITIES = new Set<OperatorResultWindow["granularity"]>([
 	"1h",
 	"1d",
 ]);
+const TEMPORAL_TASK_QUEUE_KINDS = new Set(["workflow", "activity"]);
+const WORKER_AUTOSCALER_DECISIONS = new Set(["scale_up", "scale_down", "hold"]);
+const WORKER_AUTOSCALER_ACTUATION_STATUSES = new Set(["applied", "skipped", "failed"]);
 
 function validationFailed(message: string): AppApiRouteError {
 	return new AppApiRouteError({
@@ -164,5 +176,51 @@ export function normalizeRequestListFilters(input: {
 		requestId: normalizeOptionalString(input.requestId),
 		status: normalizeOptionalString(input.status),
 		surface: normalizeOptionalString(input.surface),
+	};
+}
+
+export function normalizeTemporalTaskQueueListFilters(
+	input: TemporalTaskQueueListFilters,
+): NormalizedTemporalTaskQueueListFilters {
+	const taskQueueKind = normalizeOptionalString(input.taskQueueKind);
+	if (taskQueueKind && !TEMPORAL_TASK_QUEUE_KINDS.has(taskQueueKind)) {
+		throw validationFailed("taskQueueKind is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		limit: normalizeLimit(input.limit),
+		taskQueue: normalizeOptionalString(input.taskQueue),
+		taskQueueKind: taskQueueKind ? (taskQueueKind as TemporalTaskQueueKind) : null,
+	};
+}
+
+export function normalizeWorkerAutoscalerDecisionListFilters(
+	input: WorkerAutoscalerDecisionListFilters,
+): NormalizedWorkerAutoscalerDecisionListFilters {
+	const decision = normalizeOptionalString(input.decision);
+	if (decision && !WORKER_AUTOSCALER_DECISIONS.has(decision)) {
+		throw validationFailed("decision is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		decision: decision ? (decision as WorkerAutoscalerDecisionKind) : null,
+		limit: normalizeLimit(input.limit),
+		targetService: normalizeOptionalString(input.targetService),
+	};
+}
+
+export function normalizeWorkerAutoscalerActuationListFilters(
+	input: WorkerAutoscalerActuationListFilters,
+): NormalizedWorkerAutoscalerActuationListFilters {
+	const status = normalizeOptionalString(input.status);
+	if (status && !WORKER_AUTOSCALER_ACTUATION_STATUSES.has(status)) {
+		throw validationFailed("status is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		decisionId: normalizeOptionalString(input.decisionId),
+		limit: normalizeLimit(input.limit),
+		status: status ? (status as WorkerAutoscalerActuationStatus) : null,
+		targetService: normalizeOptionalString(input.targetService),
 	};
 }

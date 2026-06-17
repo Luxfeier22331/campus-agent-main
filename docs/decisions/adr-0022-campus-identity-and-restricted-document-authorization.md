@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0022
 status: superseded
 created: 2026-04-02
-updated: 2026-06-12
+updated: 2026-06-15
 ---
 # ADR-0022 Campus Identity And Restricted Document Authorization
 
@@ -34,6 +34,11 @@ context，不作为 source truth、capability opening、authorization 或 fail-c
 - prompt、retrieval 与 memory 不应自行拥有 product policy truth。
 - raw token、raw session、raw memory 与 raw source payload 不应进入 execution /
   retrieval contract。
+
+本文早期提到的 Python `apps/supervisor-agent-worker`、`packages/knowledge-capability`
+与 `packages/retrieval-core` 已从 active workspace 删除；不得据此恢复旧 online
+serving packages。
+
 - index metadata 只能是执行投影，不能伪装成 canonical product truth。
 - 如果未来重新提出受限文档或身份差异化能力，必须另起产品决策与 ADR，不能复用本文作为已接受目标态。
 

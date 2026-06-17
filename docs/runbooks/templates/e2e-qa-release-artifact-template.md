@@ -27,7 +27,7 @@ updated: 2026-06-09
   - `api-staging.mucwiki-edge.link`
   - `campus-staging.mucwiki-edge.link`
   - `chat-staging.mucwiki-edge.link`
-  - `panel-staging.mucwiki-edge.link`
+  - `operator-console-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `campus.muc.wiki` production custom-hostname path
   - `execution-control-staging.mucwiki-edge.link` as a public surface; it is only
@@ -123,7 +123,7 @@ updated: 2026-06-09
 - Gated authorized behavior:
 - Reader asset locality check:
 
-## Protected Panel QA
+## Operator Console QA
 
 - `access:smoke:staging`:
 - Access redirect without service token:
@@ -150,7 +150,7 @@ updated: 2026-06-09
   - Console / network issues:
   - Verdict:
 - Panel
-  - URL: `https://panel-staging.mucwiki-edge.link`
+  - URL: `https://operator-console-staging.mucwiki-edge.link`
   - Screenshot / evidence:
   - Console / network issues:
   - Verdict:

@@ -54,7 +54,7 @@ updated: 2026-03-29
 
 适用范围：
 
-- `apps/protected-panel-web`
+- `apps/operator-console-web`
 - `apps/public-chat-web`
 - `apps/app-api` 上为 web surface 配套的 shared seam 变更
 - 其他不应直接打断主链路开发节奏的独立功能

@@ -79,15 +79,18 @@ def load_tool_family_denominator(path: str | Path | None = None) -> ToolFamilyDe
 
 def tool_spec_tool_names(path: str | Path | None = None) -> tuple[str, ...]:
     payload = _load_json(Path(path) if path is not None else TOOL_SPEC_REGISTRY_PATH)
-    if payload.get("schema_version") != "tool-spec-registry-v2":
-        raise ValueError("tool spec schema_version must be tool-spec-registry-v2")
+    if payload.get("schema_version") not in {"tool-spec-registry-v2", "tool-spec-registry-v3"}:
+        raise ValueError("tool spec schema_version must be tool-spec-registry-v2 or v3")
     raw_tools = payload.get("tools")
     if not isinstance(raw_tools, list) or not raw_tools:
         raise ValueError("tool spec tools must be a non-empty list")
     names: list[str] = []
     for raw_tool in raw_tools:
         tool = _mapping(raw_tool, "tool")
-        if tool.get("active") is True and tool.get("runtime_posture") != "sdk_internal_admitted":
+        if tool.get("active") is True and tool.get("runtime_posture") not in {
+            "sdk_internal_admitted",
+            "capability_internal_admitted",
+        }:
             names.append(_required_string(tool.get("name"), "tool.name"))
     if len(set(names)) != len(names):
         raise ValueError("tool spec active tool names must not contain duplicates")
@@ -96,8 +99,8 @@ def tool_spec_tool_names(path: str | Path | None = None) -> tuple[str, ...]:
 
 def tool_spec_sdk_internal_function_names(path: str | Path | None = None) -> tuple[str, ...]:
     payload = _load_json(Path(path) if path is not None else TOOL_SPEC_REGISTRY_PATH)
-    if payload.get("schema_version") != "tool-spec-registry-v2":
-        raise ValueError("tool spec schema_version must be tool-spec-registry-v2")
+    if payload.get("schema_version") not in {"tool-spec-registry-v2", "tool-spec-registry-v3"}:
+        raise ValueError("tool spec schema_version must be tool-spec-registry-v2 or v3")
     raw_tools = payload.get("tools")
     if not isinstance(raw_tools, list) or not raw_tools:
         raise ValueError("tool spec tools must be a non-empty list")
@@ -107,7 +110,8 @@ def tool_spec_sdk_internal_function_names(path: str | Path | None = None) -> tup
         if (
             tool.get("active") is True
             and tool.get("surface") == "capability_internal"
-            and tool.get("runtime_posture") == "sdk_internal_admitted"
+            and tool.get("runtime_posture")
+            in {"sdk_internal_admitted", "capability_internal_admitted"}
         ):
             names.append(_required_string(tool.get("name"), "tool.name"))
     if len(set(names)) != len(names):

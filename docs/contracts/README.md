@@ -26,11 +26,12 @@ updated: 2026-06-13
 - `capability-execution.md`
 - `app-api-identity-platform-http.md`
 - `app-api-federation-http.md`
-- `app-api-campus-ops-http.md`
+- `app-api-operator-ops-http.md`
 - `app-api-dining-http.md`
 - `app-api-dining-ops-http.md`
 - `structured-query-internal-runtime.md`
 - `durable-agent-runtime-contract.md`
+- `operator-runtime-observability-contract.md`
 
 ## Operator / Official Web contract
 

@@ -28,6 +28,7 @@ import type { OfficialWebTargetReleaseGateService } from "../modules/official-we
 import type { OperatorObservabilityCommandService } from "../modules/operator-observability-command";
 import type { OperatorQueryService } from "../modules/operator-query";
 import type { ProfileMemoryService } from "../modules/profile-memory";
+import type { ProviderConfigService } from "../modules/provider-config";
 import type { ChatCommandService } from "../modules/runtime-command";
 import type { RuntimeRunService } from "../modules/runtime-run";
 import type { AppTelemetry } from "../modules/telemetry";
@@ -72,6 +73,7 @@ export interface AppDependencies {
 	operatorObservabilityCommandService?: OperatorObservabilityCommandService;
 	operatorQueryService?: OperatorQueryService;
 	profileMemoryService?: ProfileMemoryService;
+	providerConfigService?: ProviderConfigService;
 	wechatOfficialAccountCommandService?: WeChatOfficialAccountCommandService;
 	scheduleRequestProjectionDrain?: (input: {
 		requestId: string;
@@ -137,6 +139,7 @@ export interface AppRequestScope {
 	resolveOperatorObservabilityCommandService(): OperatorObservabilityCommandService;
 	resolveOperatorQueryService(): OperatorQueryService;
 	resolveProfileMemoryService(): ProfileMemoryService;
+	resolveProviderConfigService(): ProviderConfigService;
 	resolveRuntimeRunService(): RuntimeRunService;
 	resolveWeChatOfficialAccountCommandService(): WeChatOfficialAccountCommandService;
 	telemetry: AppTelemetry;

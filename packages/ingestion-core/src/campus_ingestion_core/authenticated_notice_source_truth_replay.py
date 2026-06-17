@@ -36,7 +36,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     document_record_from_authenticated_notice_source_truth_parent_snapshot,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.raw_ingestion import OnlineOcrClient
+from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrClient
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings

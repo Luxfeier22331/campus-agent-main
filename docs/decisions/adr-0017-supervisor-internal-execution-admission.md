@@ -23,7 +23,7 @@ Execution Agent Layer 与 internal execution admission。
 
 `ADR-0012`、`ADR-0013`、`ADR-0015`、`ADR-0016` 与 `ADR-0034` 已经冻结了以下方向：
 
-- `public-chat-web` 与 `protected-panel-web` 是两个 Worker web surface
+- `public-chat-web` 与 `operator-console-web` 是两个 Worker web surface
 - `apps/app-api` 是 shared application/control-plane backend
 - `apps/app-api` 拥有 canonical identity / memory projection
 - `apps/execution-control` 是 execution engine
@@ -109,5 +109,5 @@ repo-local dev 和历史 runtime 兼容。
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`

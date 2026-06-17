@@ -54,7 +54,7 @@ export function resolveRequestSurface(request: Request): string {
 	const pathname = new URL(request.url).pathname;
 
 	if (pathname.startsWith("/api/operator/")) {
-		return "protected_panel_web";
+		return "operator_console_web";
 	}
 	if (pathname.startsWith("/api/internal/official-web/")) {
 		return "official_web";

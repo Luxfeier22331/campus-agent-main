@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0047
 status: superseded
 created: 2026-06-04
-updated: 2026-06-08
+updated: 2026-06-15
 replacement: adr-0048-temporal-execution-plane.md
 ---
 # ADR-0047 Run And Step-Centric Durable Agent Runtime
@@ -20,6 +20,10 @@ Superseded on 2026-06-06 by `adr-0048-temporal-execution-plane.md`.
 语义的历史依据；长期 execution substrate 已改为 Temporal execution plane。branch tip 不再保留
 PG lease runtime code、proof command 或 gap matrix。
 
+本文背景中的 Python `apps/supervisor-agent-worker` semantic worker 表述只保留为历史
+baseline；当前 active workspace 已删除该 app，online execution 以 ADR-0048、
+`current-architecture` 与 `python-capability-boundaries` 为准。
+
 ## 背景
 
 `campus-agent` 当前已经冻结了以下方向：
@@ -27,9 +31,9 @@ PG lease runtime code、proof command 或 gap matrix。
 - `apps/app-api` 是 product-layer auth、session、principal、conversation 与 surface
   capability policy owner
 - `apps/execution-control` 是 Docker-first internal execution engine
-- `apps/supervisor-agent-worker` 是 private semantic worker
-- supervisor 拥有 deterministic governance、workflow planning、admission、budget 与
-  finalization
+- semantic execution worker 当时作为 private worker baseline 参与设计
+- supervisor role 拥有 deterministic governance、workflow planning、admission、
+  budget 与 finalization；当前不再对应 Python app
 - deterministic data access 以 typed tool 参与执行；semantic specialist 以 agent-as-tool
   参与执行
 

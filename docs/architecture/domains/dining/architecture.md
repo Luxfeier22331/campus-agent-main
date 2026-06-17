@@ -16,7 +16,7 @@ updated: 2026-06-14
 
 - dining floor/window/stall/menu truth 属于哪个领域
 - draft、release candidate、release、published projection 如何分层
-- `campus-web` 与 `campus-ops-web` 分别消费什么
+- `campus-web` 与 Operator Console dining workspace 分别消费什么
 - dining 与 navigation spatial truth 如何区分
 
 它不负责：
@@ -24,8 +24,8 @@ updated: 2026-06-14
 - student public HTTP 字段，见 `docs/contracts/app-api-dining-http.md`
 - ops HTTP 字段，见 `docs/contracts/app-api-dining-ops-http.md`
 - logical schema 字段，见 `docs/data/dining-operations-schema.md`
-- `campus-ops-web` Worker shell，见
-  `docs/architecture/system/campus-ops-web-architecture.md`
+- Operator Console operations surface，当前实现见
+  `docs/architecture/system/operator-console-operations-architecture.md`
 
 ## Core Conclusion
 
@@ -35,7 +35,8 @@ student dining experience.
 Primary read/write split:
 
 ```text
-campus-ops-web -> app-api /api/ops/dining/* -> dining draft
+Operator Console dining workspace (current: operator-console-web)
+  -> app-api /api/ops/dining/* -> dining draft
   -> release candidate -> published release snapshot
 campus-web -> app-api /api/dining/* -> latest published release snapshot
 ```
@@ -78,10 +79,11 @@ The intended technology shape is:
 ```text
 repo SVG asset -> build-time SVG validation/sanitization
   -> generated floorplan manifest with sha256 and anchor inventory
-  -> app-api/campus-web/campus-ops-web consume the same manifest package
+  -> app-api / campus-web / operator console dining workspace
+     consume the same manifest package
   -> release candidate frozen floorplan manifest reference
   -> release snapshot
-campus-web / campus-ops-web -> sanitized inline SVG renderer
+campus-web / operator console dining workspace -> sanitized inline SVG renderer
 ```
 
 Library choices:
@@ -140,12 +142,13 @@ anchor inventory and `windowId <-> svgAnchorId` bindings used by the candidate.
 Publish writes the immutable dining snapshot and latest pointer; it does not
 copy SVG objects or synthesize seed SVG bytes.
 
-`campus-web` and `campus-ops-web` render the sanitized SVG inline so they can
-select, highlight and center a specific anchor. Rendering SVG through `<img>` is
-insufficient for anchor-level interaction because the page cannot access the SVG
-DOM.
+`campus-web` and Operator Console dining workspace render the sanitized SVG
+inline so they can select, highlight and center a specific anchor. Rendering SVG
+through `<img>` is insufficient for anchor-level interaction because the page
+cannot access the SVG DOM.
 
-`campus-ops-web` is a floorplan-backed dining data workspace:
+Operator Console dining workspace is a floorplan-backed dining data workspace.
+The current implementation surface is `apps/operator-console-web`:
 
 - render the repo-versioned floor SVG as read-only structure
 - list manifest anchors
@@ -244,8 +247,9 @@ Ops routes expose draft objects to authorized operator principals only:
 /api/ops/dining/*
 ```
 
-Ops routes are command/query surfaces for `campus-ops-web`, not general browser
-APIs. They must remain out of `campus-web` and retired launcher surfaces.
+Ops routes are command/query surfaces for Operator Console dining workspace,
+not general browser APIs. They must remain out of `campus-web` and retired
+launcher surfaces. The current implementation surface is `apps/operator-console-web`.
 
 ## Source Observation Boundary
 

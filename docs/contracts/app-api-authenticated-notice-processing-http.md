@@ -14,8 +14,8 @@ updated: 2026-05-01
 
 它回答：
 
-- ingestion worker 如何把安全 processing snapshot 写入 app-api
-- protected panel 如何查询通知处理状态
+- ingestion-control 如何把安全 processing snapshot 写入 app-api
+- Operator Console 如何查询通知处理状态
 - 哪些字段不得通过 operator API 暴露
 
 它不冻结：
@@ -28,16 +28,16 @@ updated: 2026-05-01
 
 ## Ownership
 
-canonical panel read path 固定为：
+canonical Operator Console read path 固定为：
 
-`apps/protected-panel-web -> apps/app-api -> operator.authenticated_notice_processing_projection`
+`operator console surface -> apps/app-api -> operator.authenticated_notice_processing_projection`
 
-Run-level panel read path 固定为：
+Run-level Operator Console read path 固定为：
 
-`apps/protected-panel-web -> apps/app-api -> operator.authenticated_notice_run_processing_projection`
+`operator console surface -> apps/app-api -> operator.authenticated_notice_run_processing_projection`
 
 ingestion evidence truth 仍在 queue/source-handoff/object-store/downstream release
-体系内。app-api 只持有 operator-safe projection，panel 不直接读取 queue、object-store、
+体系内。app-api 只持有 operator-safe projection，Operator Console 不直接读取 queue、object-store、
 operations 目录或 raw logs。
 
 ## Authentication
@@ -59,7 +59,7 @@ operations 目录或 raw logs。
 - `GET /api/operator/authenticated-notices/run-processing`
 - `GET /api/operator/authenticated-notices/run-processing/:id`
 
-这些 endpoint 只接受已解析的 operator principal。protected panel 通过同站
+这些 endpoint 只接受已解析的 operator principal。Operator Console 通过同站
 `/api/authenticated-notices/processing*` 与
 `/api/authenticated-notices/run-processing*` 代理访问，不直接暴露 app-api internal route。
 
@@ -135,7 +135,7 @@ operations 目录或 raw logs。
       "lastObservedAt": "2026-05-01T08:00:01.000Z",
       "sourceUpdatedAt": "2026-05-01T08:00:00.000Z",
       "projectedAt": "2026-05-01T08:00:01.000Z",
-      "producerVersion": "campus_ingestion_core.authenticated_notice_processing_projection.v1",
+      "producerVersion": "ingestion_control.authenticated_notice_operator_projection.v1",
       "redactionVersion": "authenticated_notice_processing_redaction.v1"
     }
   ]
@@ -289,7 +289,7 @@ query filters：
       "firstObservedAt": "2026-05-01T00:09:11.528648Z",
       "lastObservedAt": "2026-05-01T00:09:11.528648Z",
       "projectedAt": "2026-05-01T00:10:00.000Z",
-      "producerVersion": "campus_ingestion_core.authenticated_notice_run_processing_projection.v1",
+      "producerVersion": "ingestion_control.authenticated_notice_run_operator_projection.v1",
       "redactionVersion": "authenticated_notice_processing_redaction.v1"
     }
   ]
@@ -365,7 +365,7 @@ query filters：
 
 ## Freshness
 
-Freshness is computed by app-api at query time. Protected panel must display the
+Freshness is computed by app-api at query time. Operator Console must display the
 returned fields and must not infer staleness from local browser time.
 
 - terminal records (`tool_ready`, `materialized`, `manual_review`,

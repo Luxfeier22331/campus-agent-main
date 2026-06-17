@@ -25,6 +25,8 @@ func workflowHandoffPayloadSummary(handoff *execution.RuntimeHandoff) map[string
 		return workflowContactDirectoryPayloadSummary(payload)
 	case "campus_notice_discover":
 		return workflowNoticeDiscoverPayloadSummary(payload)
+	case "campus_notice_period_summary":
+		return workflowNoticePeriodSummaryPayloadSummary(payload)
 	case "campus_notice_get":
 		return workflowNoticeGetPayloadSummary(payload)
 	default:
@@ -126,6 +128,17 @@ func workflowNoticeGetPayloadSummary(payload map[string]any) map[string]any {
 	summary := map[string]any{}
 	copyStringField(summary, payload, "notice_id")
 	copyStringField(summary, payload, "source_family")
+	return summary
+}
+
+func workflowNoticePeriodSummaryPayloadSummary(payload map[string]any) map[string]any {
+	summary := map[string]any{}
+	if dateRange, ok := payload["date_range"].(map[string]any); ok {
+		copyPrefixedStringField(summary, dateRange, "start_date", "date_range_start_date")
+		copyPrefixedStringField(summary, dateRange, "end_date", "date_range_end_date")
+		copyPrefixedStringField(summary, dateRange, "timezone", "date_range_timezone")
+	}
+	copyStringField(summary, payload, "group_by")
 	return summary
 }
 

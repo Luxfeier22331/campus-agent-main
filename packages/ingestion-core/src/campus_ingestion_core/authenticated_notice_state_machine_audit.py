@@ -5,6 +5,11 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_media_lifecycle import (
+    MEDIA_LIFECYCLE_NONTERMINAL_STATUSES,
+    MEDIA_LIFECYCLE_STATUSES,
+    MEDIA_LIFECYCLE_TERMINAL_STATUSES,
+)
 from campus_ingestion_core.authenticated_notice_state_machine_audit_support import (
     candidate_has_source_object_ref as _candidate_has_source_object_ref,
 )
@@ -61,11 +66,6 @@ from campus_ingestion_core.authenticated_notice_state_machine_audit_support impo
 )
 from campus_ingestion_core.authenticated_notice_state_machine_audit_support import (
     sum_nested_counts as _sum_nested_counts,
-)
-from campus_ingestion_core.collected_notice_media_lifecycle import (
-    MEDIA_LIFECYCLE_NONTERMINAL_STATUSES,
-    MEDIA_LIFECYCLE_STATUSES,
-    MEDIA_LIFECYCLE_TERMINAL_STATUSES,
 )
 
 AUDIT_SCHEMA_VERSION = "authenticated_notice_state_machine_audit.v1"

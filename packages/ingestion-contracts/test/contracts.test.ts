@@ -33,4 +33,14 @@ describe("ingestion task contracts", () => {
 			expect(result.errors).toContain("tasks[0] alias_publish cannot be executed by rust_kernel");
 		}
 	});
+
+	it("rejects python adapters in repo-owned task registries", () => {
+		const result = validateIngestionTaskRegistry(
+			loadFixture("task-registry.invalid-python-adapter.json"),
+		);
+		expect(result.ok).toBe(false);
+		if (!result.ok) {
+			expect(result.errors).toContain("tasks[0].executor_kind is not supported: python_adapter");
+		}
+	});
 });

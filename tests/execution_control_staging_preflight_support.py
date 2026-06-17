@@ -53,11 +53,9 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
     "EXECUTION_CONTROL_STAGING_HOST",
     "EXECUTION_CONTROL_STAGING_PORT",
-    "EXECUTION_CONTROL_OTEL_ENABLED",
-    "EXECUTION_CONTROL_OTEL_METRICS_ENABLED",
+    "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
     "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL",
-    "EXECUTION_CONTROL_PROVIDER_PRICING_PATH",
     "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",
     "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",
     "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
@@ -149,8 +147,6 @@ def run_common_script_with_env(
     *,
     repo_env: str,
     staging_env: str,
-    registry_audit_payload: str = "clean",
-    rag_runtime_payload: str = "ready",
     app_api_dev_vars: str | None = None,
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
@@ -198,11 +194,7 @@ def run_common_script_with_env(
         return subprocess.run(
             ["bash", "-lc", textwrap.dedent(command)],
             cwd=temp_root,
-            env={
-                **os.environ,
-                "EXECUTION_CONTROL_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD": registry_audit_payload,
-                "EXECUTION_CONTROL_STAGING_TEST_RAG_RUNTIME_PAYLOAD": rag_runtime_payload,
-            },
+            env=os.environ.copy(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -277,29 +269,7 @@ def _fake_uv_script() -> str:
         #!/usr/bin/env bash
         set -euo pipefail
         joined_args="$*"
-        if [[ "${joined_args}" == *"collection_rename_registry_backfill"* ]]; then
-          if [[ "${EXECUTION_CONTROL_STAGING_TEST_REGISTRY_AUDIT_PAYLOAD:-clean}" == "legacy" ]]; then
-          cat <<'JSON'
-        {"command":"audit","targets":[{"kind":"document_registry","legacy_row_count":2,"sample_rows":[{"identity":"doc-001|track|v1","column_collection":"student_handbook","record_collection":"student_handbook"}],"table_name":"ingestion_registry.document_registry_records","target_names":["runtime_document_registry"],"updated_row_count":null}]}
-        JSON
-          else
-          cat <<'JSON'
-        {"command":"audit","targets":[{"kind":"document_registry","legacy_row_count":0,"sample_rows":[],"table_name":"ingestion_registry.document_registry_records","target_names":["runtime_document_registry"],"updated_row_count":null},{"kind":"raw_asset_registry","legacy_row_count":0,"sample_rows":[],"table_name":"ingestion_registry.raw_asset_registry_records","target_names":["runtime_raw_asset_registry"],"updated_row_count":null}]}
-        JSON
-          fi
-        elif [[ "${joined_args}" == *"probe_regulation_rag_release_runtime"* ]]; then
-          if [[ "${EXECUTION_CONTROL_STAGING_TEST_RAG_RUNTIME_PAYLOAD:-ready}" == "blocked" ]]; then
-            cat <<'JSON'
-        {"schema_version":"rag_retrieval_runtime_readiness.v1","qdrant_ready":"not_ready","qdrant_checks":{"/readyz":{"status":404,"body_prefix":"404 page not found\\n"},"/livez":{"status":404,"body_prefix":"404 page not found\\n"},"/collections":{"status":404,"body_prefix":"404 page not found\\n"}},"surfaces":[{"scope":"regulations/student_rules","readiness_status":"blocked","readiness_blocker":"qdrant_endpoint_not_ready","alias_name":"student_rules","alias_target":null,"release_freshness_status":"unavailable","release_metadata_guard_status":"not_checked","alias_target_guard_status":"not_checked"}]}
-        JSON
-          else
-            cat <<'JSON'
-        {"schema_version":"rag_retrieval_runtime_readiness.v1","qdrant_ready":"ready","qdrant_checks":{"/readyz":{"status":200},"/livez":{"status":200},"/collections":{"status":200}},"surfaces":[{"scope":"regulations/student_rules","readiness_status":"ready","readiness_blocker":"","alias_name":"student_rules","alias_target":"student_rules__r1","release_freshness_status":"current","release_metadata_guard_status":"passed","alias_target_guard_status":"passed"},{"scope":"regulations/institutional_rules","readiness_status":"ready","readiness_blocker":"","alias_name":"institutional_rules","alias_target":"institutional_rules__r1","release_freshness_status":"current","release_metadata_guard_status":"passed","alias_target_guard_status":"passed"},{"scope":"curriculum/curriculum_plan","readiness_status":"ready","readiness_blocker":"","alias_name":"curriculum_plan","alias_target":"curriculum_plan__r1","release_freshness_status":"current","release_metadata_guard_status":"passed","alias_target_guard_status":"passed"}]}
-        JSON
-          fi
-        else
-          echo "unexpected fake uv invocation: ${joined_args}" >&2
-          exit 2
-        fi
+        echo "unexpected fake uv invocation: ${joined_args}" >&2
+        exit 2
         """
     )

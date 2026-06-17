@@ -19,14 +19,16 @@ import (
 type Role string
 
 const (
-	RoleWorkflow       Role = "workflow"
-	RoleContext        Role = "activity-context"
-	RoleAgent          Role = "activity-agent"
-	RoleKnowledge      Role = "activity-knowledge"
-	RoleCampusServices Role = "activity-campus-services"
-	RoleNotice         Role = "activity-notice"
-	RoleNavigation     Role = "activity-navigation"
-	RoleFinalization   Role = "activity-finalization"
+	RoleWorkflow           Role = "workflow"
+	RoleContext            Role = "activity-context"
+	RoleAgent              Role = "activity-agent"
+	RoleKnowledgePlan      Role = "activity-knowledge-plan"
+	RoleKnowledgeRetrieval Role = "activity-knowledge-retrieval"
+	RoleKnowledgeSynthesis Role = "activity-knowledge-synthesis"
+	RoleCampusServices     Role = "activity-campus-services"
+	RoleNotice             Role = "activity-notice"
+	RoleNavigation         Role = "activity-navigation"
+	RoleFinalization       Role = "activity-finalization"
 )
 
 func Run(role Role) {
@@ -85,12 +87,41 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 			temporalruntime.ActivityTaskQueueAgent,
 			server.TemporalAgentActivities(),
 		), nil
-	case RoleKnowledge:
+	case RoleKnowledgePlan:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewKnowledgeActivityWorker(
+		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgePlan)))
+		if err != nil {
+			return nil, err
+		}
+		return temporalruntime.NewKnowledgePlanActivityWorker(
 			temporalClient,
-			temporalruntime.ActivityTaskQueueKnowledge,
+			temporalruntime.ActivityTaskQueueKnowledgePlan,
 			server.TemporalKnowledgeActivities(),
+			options,
+		), nil
+	case RoleKnowledgeRetrieval:
+		server := newActivityServer(cfg)
+		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgeRetrieval)))
+		if err != nil {
+			return nil, err
+		}
+		return temporalruntime.NewKnowledgeRetrievalActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+			server.TemporalKnowledgeActivities(),
+			options,
+		), nil
+	case RoleKnowledgeSynthesis:
+		server := newActivityServer(cfg)
+		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgeSynthesis)))
+		if err != nil {
+			return nil, err
+		}
+		return temporalruntime.NewKnowledgeSynthesisActivityWorker(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
+			server.TemporalKnowledgeActivities(),
+			options,
 		), nil
 	case RoleCampusServices:
 		server := newActivityServer(cfg)
@@ -122,6 +153,18 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 		), nil
 	default:
 		return nil, fmt.Errorf("unsupported worker role %q", role)
+	}
+}
+
+func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {
+	profile := cfg.WorkerProfiles[role]
+	return temporalruntime.WorkerProfile{
+		ActivitySlots:                profile.ActivitySlots,
+		ActivityTaskPollers:          profile.ActivityTaskPollers,
+		TaskQueueActivitiesPerSecond: profile.TaskQueueActivitiesPerSecond,
+		WorkerActivitiesPerSecond:    profile.WorkerActivitiesPerSecond,
+		WorkflowTaskSlots:            profile.WorkflowTaskSlots,
+		WorkflowTaskPollers:          profile.WorkflowTaskPollers,
 	}
 }
 

@@ -26,7 +26,6 @@ members = [
     "campus-ingestion-core",
     "campus-ingestion-kernels-rs",
     "campus-ingestion-worker",
-    "campus-knowledge-capability",
     "campus-legacy-office-conversion-service",
     "campus-navigation-capability",
     "campus-notice-capability",
@@ -35,7 +34,6 @@ members = [
     "campus-prompt-runtime",
     "campus-public-chat-web",
     "campus-regulation-semantics",
-    "campus-retrieval-core",
     "campus-services-capability",
     "campus-shared",
     "campus-wechat-official-account-core",
@@ -416,38 +414,13 @@ name = "campus-ingestion-worker"
 version = "0.1.0"
 source = { editable = "apps/ingestion-worker" }
 dependencies = [
-    { name = "campus-ingestion-contracts" },
     { name = "campus-ingestion-core" },
     { name = "campus-shared" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "campus-ingestion-contracts", editable = "packages/ingestion-contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-shared", editable = "packages/shared" },
-]
-
-[[package]]
-name = "campus-knowledge-capability"
-version = "0.1.0"
-source = { editable = "packages/knowledge-capability" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "campus-ingestion-core" },
-    { name = "campus-prompt-runtime" },
-    { name = "campus-regulation-semantics" },
-    { name = "campus-retrieval-core" },
-    { name = "campus-shared" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
-    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
-    { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]
 
@@ -520,33 +493,6 @@ source = { virtual = "apps/public-chat-web" }
 name = "campus-regulation-semantics"
 version = "0.1.0"
 source = { editable = "packages/regulation-semantics" }
-
-[[package]]
-name = "campus-retrieval-core"
-version = "0.1.0"
-source = { editable = "packages/retrieval-core" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "campus-ingestion-core" },
-    { name = "campus-regulation-semantics" },
-    { name = "campus-shared" },
-    { name = "httpx", extra = ["socks"] },
-    { name = "llama-index-core" },
-    { name = "llama-index-vector-stores-qdrant" },
-    { name = "qdrant-client" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
-    { name = "campus-shared", editable = "packages/shared" },
-    { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
-    { name = "llama-index-core", specifier = ">=0.14.18" },
-    { name = "llama-index-vector-stores-qdrant", specifier = ">=0.10.0" },
-    { name = "qdrant-client", specifier = ">=1.17.1" },
-]
 
 [[package]]
 name = "campus-services-capability"

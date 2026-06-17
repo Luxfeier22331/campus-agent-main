@@ -17,7 +17,7 @@ updated: 2026-04-14
 
 - `official_web` 应如何同时支持广覆盖基线采集与新闻公告类高频采集
 - 页面新鲜度、变化判定与下游重处理应由谁持有
-- scheduler、collector、`apps/app-api`、`apps/ingestion-worker` 分别承担什么职责
+- scheduler、collector、`apps/app-api`、`apps/ingestion-control` 分别承担什么职责
 - 哪些信号可以用于增量优先级，哪些信号不能被误当成真相
 
 它不负责：
@@ -59,7 +59,7 @@ updated: 2026-04-14
 - collector 当前通过 `POST /api/official-web/plans:resolve` 从 `app-api` materialize
   lane-aware dynamic workset，而不是只靠静态 seed/host scope 盲跑。
 - 页面是否需要下游重处理，必须以 `new / changed / deleted` 这类 page-level observation 为边界，由
-  `app-api -> ingestion-worker` handoff 驱动。
+  `app-api -> ingestion-control` handoff 驱动。
 - `ETag`、`Last-Modified`、HTTP `304` 是增量抓取的首选协议信号；sitemap `lastmod`、RSS/Atom
   时间戳只用于 discovery 与优先级，不是变化真相。
 - 列表页变化必须驱动 detail 页优先复抓；新闻公告类更新不能只靠全站基线 crawl
@@ -80,7 +80,7 @@ updated: 2026-04-14
 长期拓扑固定为：
 
 `external scheduler -> collector Docker run -> object storage + app-api
-official_web control plane -> ingestion-worker incremental execution -> document
+official_web control plane -> ingestion-control incremental execution -> document
 registry -> chunk/index`
 
 其中：
@@ -89,7 +89,7 @@ registry -> chunk/index`
 - collector 决定本次 run 具体抓哪些 URL，并执行 fetch / normalize / artifact upload
 - `app-api` 持有 run ledger、page/url freshness truth、handoff outbox 与 operator
   query
-- `apps/ingestion-worker` 只消费变化集合，不拥有 crawl freshness 真相
+- `apps/ingestion-control` 只消费变化集合，不拥有 crawl freshness 真相
 
 ## 采集 Lane
 
@@ -149,7 +149,7 @@ registry -> chunk/index`
 
 - collector 本地缓存
 - 对象存储目录扫描
-- ingestion worker 内部 job 状态
+- ingestion-control 内部 task 状态
 
 推荐最小字段组：
 
@@ -331,11 +331,11 @@ collector 仍然不负责：
 
 - 真正执行爬虫的 runtime
 - source-truth 内容主存储
-- ingestion-worker 的内部 job runner
+- ingestion-control 的内部 task runner
 
-## Ingestion Worker Responsibilities
+## Ingestion Control Responsibilities
 
-`apps/ingestion-worker` 只消费变化集合。
+`apps/ingestion-control` 只消费变化集合。
 
 它的长期执行边界应是：
 
@@ -387,7 +387,7 @@ panel 的 `Official Web` freshness/operator 视图已开始落地，但仍然只
 仍然不允许：
 
 - panel 直读对象存储
-- panel 直连 ingestion worker
+- panel 直连 ingestion-control
 - panel 把底层队列或数据库表当成查询面
 
 ## 非目标

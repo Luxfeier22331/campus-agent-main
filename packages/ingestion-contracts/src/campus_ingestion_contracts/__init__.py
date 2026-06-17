@@ -19,7 +19,7 @@ TASK_KINDS = {
     "operator_projection_snapshot",
 }
 
-EXECUTOR_KINDS = {"python_adapter", "rust_kernel", "ts_control"}
+EXECUTOR_KINDS = {"rust_kernel", "ts_control"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,8 +93,6 @@ def validate_ingestion_task_registry(value: object) -> ValidationResult:
             errors.append(f"tasks[{index}].executor_kind is not supported: {task['executor_kind']}")
         if not isinstance(task.get("can_publish_alias"), bool):
             errors.append(f"tasks[{index}].can_publish_alias is required")
-        if task.get("executor_kind") == "python_adapter":
-            _require_string(task, f"tasks[{index}].adapter_id", errors, field="adapter_id")
         if task.get("executor_kind") == "rust_kernel":
             _require_string(task, f"tasks[{index}].kernel_id", errors, field="kernel_id")
         if task.get("task_kind") == "alias_publish" and task.get("executor_kind") == "rust_kernel":

@@ -121,7 +121,7 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.metadata["reference_fact_count"], 2)
         self.assertEqual(
             projection.metadata["projection_context_source"],
-            "response.evidence.sources:statement_contexts",
+            "response.evidence.sources",
         )
 
     def test_build_ragas_projection_uses_supporting_evidence_for_contexts_and_trace_for_counts(
@@ -163,7 +163,7 @@ class RagasProjectionTest(unittest.TestCase):
         self.assertEqual(projection.retrieved_contexts, ("Library hours are 08:00 to 22:00.",))
         self.assertEqual(
             projection.metadata["projection_context_source"],
-            "observed_trace.supporting_sources:statement_contexts",
+            "observed_trace.supporting_sources",
         )
         self.assertEqual(projection.metadata["retrieved_source_count"], 2)
         self.assertEqual(projection.metadata["supporting_source_count"], 1)
@@ -206,7 +206,7 @@ class RagasProjectionTest(unittest.TestCase):
             "observed_trace.retrieved_sources",
         )
 
-    def test_build_ragas_projection_uses_statement_level_supporting_contexts_for_multiline_sources(
+    def test_build_ragas_projection_uses_supporting_source_snippets_for_multiline_sources(
         self,
     ) -> None:
         case = GoldenCase(
@@ -259,10 +259,13 @@ class RagasProjectionTest(unittest.TestCase):
         projection = build_ragas_projection(case, execution)
 
         self.assertEqual(len(projection.retrieved_contexts), 1)
-        self.assertIn("中央民族大学关于学生宿舍照明的管理规定：", projection.retrieved_contexts[0])
+        self.assertIn(
+            "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排",
+            projection.retrieved_contexts[0],
+        )
         self.assertIn("24:00", projection.retrieved_contexts[0])
         self.assertIn("6月1日至9月30日", projection.retrieved_contexts[0])
-        self.assertNotIn("文号：", projection.retrieved_contexts[0])
+        self.assertIn("文号：", projection.retrieved_contexts[0])
 
     def test_build_ragas_projection_accepts_execution_response_shape(self) -> None:
         case = GoldenCase(

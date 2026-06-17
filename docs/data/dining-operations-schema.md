@@ -24,14 +24,14 @@ updated: 2026-06-14
 
 - app-api HTTP shape，见 `docs/contracts/app-api-dining-ops-http.md`
 - student public dining HTTP shape，见 `docs/contracts/app-api-dining-http.md`
-- campus ops web UI，见 `docs/architecture/system/campus-ops-web-architecture.md`
+- Operator Console operations UI，见 `docs/architecture/system/operator-console-operations-architecture.md`
 - navigation spatial truth，见 `docs/architecture/domains/navigation/architecture.md`
 
 ## Ownership
 
 `apps/app-api` owns `dining.*`。
 
-`apps/campus-ops-web` consumes ops routes and does not own storage truth.
+`apps/operator-console-web` consumes ops routes and does not own storage truth.
 `apps/campus-web` consumes published `/api/dining/*` and does not own storage truth.
 
 ## Schema Family

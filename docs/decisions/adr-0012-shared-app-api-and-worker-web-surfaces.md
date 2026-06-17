@@ -21,7 +21,7 @@ Accepted on 2026-03-28.
   auth/session/conversation
 - `apps/operator-query-api` 作为独立 operator query backend
 
-这会把 public chat 与 protected panel 继续分裂成两套产品后端。
+这会把 public chat 与 Operator Console 继续分裂成两套产品后端。
 
 在当前讨论下，团队更希望收敛为：
 
@@ -34,7 +34,7 @@ Accepted on 2026-03-28.
 后续长期形态固定采用：
 
 1. `apps/public-chat-web` 作为 public chat 的 Worker 前端。
-1. `apps/protected-panel-web` 作为 protected panel 的 Worker 前端。
+1. `apps/operator-console-web` 作为 Operator Console 的 Worker 前端。
 1. `apps/app-api` 作为 shared application/control-plane backend。
 1. `apps/app-api` 接管 auth、session、conversation、chat ingress、request ledger /
    projection input、审计入口、指标记录与 operator query。

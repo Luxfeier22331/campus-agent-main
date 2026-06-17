@@ -20,7 +20,7 @@ updated: 2026-04-20
 - `docs/architecture/authenticated-notice-source-truth-contract.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 
 ## Archived Plans

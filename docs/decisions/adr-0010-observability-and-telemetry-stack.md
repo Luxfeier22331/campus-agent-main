@@ -5,11 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0010
 status: accepted
 created: 2026-03-27
-updated: 2026-04-26
+updated: 2026-06-15
 ---
 # ADR-0010 观测与遥测栈决策
 
 适用范围：`campus-agent` v2 的应用错误监控、trace、AI 调用观测、结构化运行事件、告警与数据最小化边界
+
+## 当前边界说明
+
+本文的 OpenTelemetry-first / Axiom / Sentry 分层决策仍有效。背景中涉及旧 Python
+supervisor、knowledge-capability、retrieval-core 在线链路的 runtime 拆分已由
+ADR-0048 与 `python-capability-boundaries` 局部 supersede；当前 online execution /
+retrieval telemetry 由 `apps/execution-control`、Temporal、`agent-runtime` 与 typed
+activity workers 产出。
 
 ## 背景
 
@@ -17,9 +25,9 @@ updated: 2026-04-26
 
 - `apps/execution-control` 入口边界
 - `apps/execution-control` execution runtime、runtime policy、finalization 与审计投影
-- `apps/supervisor-agent-worker` private agent bridge
-- `packages/knowledge-capability` / `packages/retrieval-core` 的在线回答链路
-- `apps/ingestion-worker` / `packages/ingestion-core` 的离线摄入链路
+- `agent-runtime` / typed activity workers 的 semantic execution surfaces
+- `apps/execution-control` 内部 retrieval seam / Go RAG Temporal graph 的在线回答链路
+- `apps/ingestion-control` / `packages/ingestion-core` 的离线摄入链路
 - 后续 Cloudflare public entry、consumer app 与其他 agent 的运行时壳
 
 因此系统需要同时满足两类不同的运行诉求：
@@ -187,7 +195,7 @@ redaction 与字段裁剪。
   topology 的主 observability owner
 - `apps/public-chat-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
-- `apps/protected-panel-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+- `apps/operator-console-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
 - `Axiom` 当前只在 `apps/app-api` 落地最小结构化运行事件；实现形态允许先使用 Worker-local REST ingest
   adapter，但不改变长期 `OTel -> Collector -> sink` 方向

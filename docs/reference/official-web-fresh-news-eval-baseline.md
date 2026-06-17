@@ -60,8 +60,8 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 - 这组 baseline 只覆盖 handoff seed set 的 exact-title retrieval / answer path，不覆盖“今天
   / 最新 / 最近”这类 freshness-sensitive 问法
 - `fresh_news` 在该基线下仍是 `offline_preparation` 语义，不应被写成默认 query-serving surface
-- `fresh_news` 当前不是 `official_web_live_benchmark` 的 live answer gate scope，也不是
-  eval-release dispatch profile
+- `fresh_news` 当前没有 corpus-specific Python live answer gate，也不是 eval-release
+  dispatch profile
 - cross-host duplicate 跳过说明 routed import 已具备基础去重能力，但不等于 `news_archive`
   或持续增量采集策略已经闭合
 - 原始首次执行中关于 shared Postgres 饱和、临时 registry 路径等运行面细节，属于历史排障背景，不再保留在 active
@@ -81,6 +81,6 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 ## 验证命令
 
 - retrieval benchmark：
-  - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark
+  - `uv run --all-packages python -m campus_evals.retrieval_benchmark
     --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json
-    --qdrant-collection-name <collection> --format json --output <results.json>`
+    --results <run-results.json> --format json`

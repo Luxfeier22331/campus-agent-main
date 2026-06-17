@@ -43,6 +43,8 @@ from campus_contracts.models_tools import (
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
+    CampusNoticePeriodSummaryPayload,
+    CampusNoticePeriodSummaryResult,
     ContactDirectoryLookupPayload,
     ContactDirectoryLookupResult,
     PlaceLookupPayload,
@@ -391,6 +393,7 @@ class CapabilityRequest:
         | ContactDirectoryLookupPayload
         | CampusNoticeChangeSetLookupPayload
         | CampusNoticeDiscoverPayload
+        | CampusNoticePeriodSummaryPayload
         | CampusNoticeGetPayload
     )
     allowed_tools: tuple[CapabilityToolName, ...] = field(default_factory=tuple)
@@ -433,6 +436,7 @@ class CapabilityResponse:
         | ContactDirectoryLookupResult
         | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
+        | CampusNoticePeriodSummaryResult
         | CampusNoticeGetResult
         | None
     ) = None
@@ -465,6 +469,7 @@ class ExecutionResponse:
         | ContactDirectoryLookupResult
         | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
+        | CampusNoticePeriodSummaryResult
         | CampusNoticeGetResult
         | None
     ) = None

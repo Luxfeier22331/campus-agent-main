@@ -50,8 +50,9 @@ updated: 2026-04-20
 
 ### Command-scoped override template
 
-默认 operator override 放在 `env/commands/*.env.example`。 历史 closeout / narrow
-recovery 模板继续放在 `env/commands/historical/*.env.example`。
+默认 operator override 放在 `env/commands/*.env.example`。旧 Python ingestion
+closeout / rebuild / release command env 不再作为 tracked fallback surface；需要重建时按
+`apps/ingestion-control` task registry / executor seam 重新建模。
 
 ## Ownership Matrix
 
@@ -86,42 +87,19 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
 - [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/a
   pps/public-chat-web/.dev.vars.example)
   - `public-chat-web` Worker string env
-- [`apps/protected-panel-web/.dev.vars.example`](/home/reptilian/code/campus-age
-  nt/apps/protected-panel-web/.dev.vars.example)
-  - `protected-panel-web` Worker string env
+- [`apps/operator-console-web/.dev.vars.example`](/home/reptilian/code/campus-age
+  nt/apps/operator-console-web/.dev.vars.example)
+  - `operator-console-web` Worker string env
 - [`infra/otel/collector.env.example`](/home/reptilian/code/campus-agent/infra/
   otel/collector.env.example)
   - local/staging OTel collector process env
 
 ### Command-scoped override
 
-- [`env/commands/process-raw-ingestion-job.env.example`](/home/reptilian/code/ca
-  mpus-agent/env/commands/process-raw-ingestion-job.env.example)
-- [`env/commands/compare-online-ocr.env.example`](/home/reptilian/code/campus-ag
-  ent/env/commands/compare-online-ocr.env.example)
-- [`env/commands/rebuild-local-data.env.example`](/home/reptilian/code/campus-ag
-  ent/env/commands/rebuild-local-data.env.example)
-- [`env/commands/official-web-handoff-receiver.env.example`](/home/reptilian/cod
-  e/campus-agent/env/commands/official-web-handoff-receiver.env.example)
-- [`env/commands/official-web-handoff-consumer.env.example`](/home/reptilian/cod
-  e/campus-agent/env/commands/official-web-handoff-consumer.env.example)
-- [`env/commands/official-web-release-task.env.example`](/home/reptilian/code/ca
-  mpus-agent/env/commands/official-web-release-task.env.example)
-- [`env/commands/release-registry-scope.env.example`](/home/reptilian/code/campu
-  s-agent/env/commands/release-registry-scope.env.example)
-- [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/
-  code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
 - [`env/commands/execution-control-runtime.env.example`](/home/reptilian/code/campus-ag
   ent/env/commands/execution-control-runtime.env.example)
-
-### Historical / narrow-use override
-
-- [`env/commands/historical/migrate-student-handbook.env.example`](/home/reptili
-  an/code/campus-agent/env/commands/historical/migrate-student-handbook.env.exam
-  ple)
-- [`env/commands/historical/official-web-history-backfill.env.example`](/home/re
-  ptilian/code/campus-agent/env/commands/historical/official-web-history-backfil
-  l.env.example)
+- [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/
+  code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
 
 ## Override Rules
 
@@ -149,16 +127,12 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
   --json`
 - `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
-- `uv run --all-packages python -m scripts.restore_local_postgres_dev --execute`
-- `uv run --all-packages python -m scripts.local_postgres_dev_smoke --execute
-  --json`
-- `uv run --all-packages python -m scripts.restore_shared_postgres_dev --json`
 - `uv run --all-packages python -m scripts.link_worktree_app_local_env
   --repo-root <current-worktree-root>`
 
 对应 runbook：
 
 - `docs/runbooks/provider-secret-governance.md`
-- `docs/runbooks/local-postgres-dev-recovery-runbook.md`
+- `docs/runbooks/execution-control-local-runtime-smoke.md`
 - `docs/runbooks/legacy-office-conversion-runtime.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

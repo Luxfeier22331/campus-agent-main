@@ -19,6 +19,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 				getEvalCoverage: vi.fn(),
 				getObservabilityById: vi.fn(),
 				getOverview: vi.fn(),
+				getRuntimeHealth: vi.fn(),
 				getIntentSummary: vi.fn(),
 				getIntentTimeseries: vi.fn(),
 				getQualitySummary: vi.fn(),
@@ -27,8 +28,11 @@ export function registerOperatorQueryRequestsListSuite(): void {
 				listSafetyAnomalies: vi.fn(),
 				getCostSummary: vi.fn(),
 				getCostTimeseries: vi.fn(),
+				listAutoscalerActuations: vi.fn(),
+				listAutoscalerDecisions: vi.fn(),
 				listQualityBadcases: vi.fn(),
 				listQualityEvalCandidates: vi.fn(),
+				listTemporalTaskQueues: vi.fn(),
 				listAudit: vi.fn(),
 				list: vi.fn().mockResolvedValue({
 					page: {

@@ -8,7 +8,7 @@ from campus_ingestion_core.authenticated_notice_source_projections_shared import
     AuthenticatedNoticeOcrRuntime,
     _normalize_authenticated_notice_ocr_provider_payload,
 )
-from campus_ingestion_core.raw_ingestion import (
+from campus_ingestion_core.raw_ingestion_online_ocr import (
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
     OnlineOcrSettings,

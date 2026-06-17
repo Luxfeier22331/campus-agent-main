@@ -21,11 +21,12 @@ from campus_evals.profile_registry import (
 
 from scripts.check_worker_secret_presence import collect_worker_secret_presence
 from scripts.doctor_env import collect_env_doctor_status
+from scripts.eval_gate_fixture_smoke import profile_fixture_smoke_loaders
 
 DEFAULT_WORKER_APPS = (
     "apps/app-api",
     "apps/public-chat-web",
-    "apps/protected-panel-web",
+    "apps/operator-console-web",
 )
 
 
@@ -415,26 +416,6 @@ def _resolve_profile_spec(profile: str) -> EvalProfileDefinition:
 
 def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
     normalized = resolve_profile_id(profile)
-    if normalized == "handbook":
-        from campus_evals.handbook_live_benchmark import main as runner
-
-        return runner
-    if normalized == "curriculum":
-        from campus_evals.curriculum_live_benchmark import main as runner
-
-        return runner
-    if normalized == "official-web-stable-reference":
-        from campus_evals.official_web_live_benchmark import main as runner
-
-        return runner
-    if normalized == "service-guide-lookup":
-        from campus_evals.service_guide_lookup_release_gate import main as runner
-
-        return runner
-    if normalized == "contact-directory-lookup":
-        from campus_evals.contact_directory_lookup_release_gate import main as runner
-
-        return runner
     if normalized == "campus-services-product-path":
         from campus_evals.campus_services_product_path_opening_gate import main as runner
 
@@ -479,8 +460,8 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.answer_quality_contract import main as runner
 
         return runner
-    if normalized == "institutional-rules-release-baseline":
-        from campus_evals.institutional_rules_release_baseline_gate import main as runner
+    if normalized == "zep-memory-product-path":
+        from campus_evals.zep_memory_product_path import main as runner
 
         return runner
     if normalized == "eval-operations-governance":
@@ -523,7 +504,7 @@ def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
 def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
     text = workflow_path.read_text(encoding="utf-8")
     required_tokens = (
-        "scripts.generate_capability_execution_contracts",
+        "scripts.generate_supervisor_execution_contracts",
         "--check",
         "multi-agent-runtime-contract",
         "actions/upload-artifact",
@@ -588,12 +569,26 @@ def _audit_rag_eval_coverage() -> dict[str, object]:
 def _audit_rag_retrieval_quality_gate() -> dict[str, object]:
     from campus_evals.rag_retrieval_quality_gate import build_rag_retrieval_quality_gate_report
 
-    report = build_rag_retrieval_quality_gate_report()
+    try:
+        report = build_rag_retrieval_quality_gate_report()
+    except FileNotFoundError as exc:
+        return {
+            "check_id": "rag_retrieval_quality_gate",
+            "passed": False,
+            "surfaces": [],
+            "gaps": [f"missing_evidence:{exc.filename or exc}"],
+            "excluded_surfaces": {},
+            "non_blocking_surfaces": {},
+        }
+    required_evidence_missing = tuple(
+        gap for gap in report.gaps if gap.startswith("missing_evidence_artifact:")
+    )
     return {
         "check_id": "rag_retrieval_quality_gate",
         "passed": report.passed,
         "surfaces": [surface.surface_key for surface in report.surfaces],
         "gaps": list(report.gaps),
+        "required_evidence_missing": list(required_evidence_missing),
         "excluded_surfaces": report.excluded_surfaces,
         "non_blocking_surfaces": report.non_blocking_surfaces,
     }
@@ -621,14 +616,8 @@ def _audit_tool_family_fixture_coverage() -> dict[str, object]:
 
 
 def _audit_profile_fixture_smoke() -> dict[str, object]:
-    loaders: tuple[tuple[str, Callable[[], object]], ...] = (
-        ("public-chat-product-path", _load_public_chat_product_path_smoke),
-        ("tool-routing-product-path", _load_tool_routing_smoke),
-        ("public-chat-entry-e2e", _load_public_chat_entry_smoke),
-        ("answer-quality-contract", _load_answer_quality_smoke),
-    )
     missing: list[str] = []
-    for profile_id, loader in loaders:
+    for profile_id, loader in profile_fixture_smoke_loaders():
         try:
             loader()
         except Exception as exc:
@@ -638,30 +627,6 @@ def _audit_profile_fixture_smoke() -> dict[str, object]:
         "passed": not missing,
         "missing": missing,
     }
-
-
-def _load_public_chat_product_path_smoke() -> object:
-    from campus_evals.public_chat_product_path_eval import load_public_chat_product_path_cases
-
-    return load_public_chat_product_path_cases()
-
-
-def _load_tool_routing_smoke() -> object:
-    from campus_evals.tool_routing_product_path import load_tool_routing_cases
-
-    return load_tool_routing_cases()
-
-
-def _load_public_chat_entry_smoke() -> object:
-    from campus_evals.public_chat_entry_e2e import load_public_chat_entry_cases
-
-    return load_public_chat_entry_cases()
-
-
-def _load_answer_quality_smoke() -> object:
-    from campus_evals.answer_quality_contract import load_answer_quality_cases
-
-    return load_answer_quality_cases()
 
 
 def _extract_workflow_profile_choices(workflow_path: Path) -> tuple[str, ...]:

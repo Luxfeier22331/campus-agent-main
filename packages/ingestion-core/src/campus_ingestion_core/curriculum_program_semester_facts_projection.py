@@ -561,7 +561,7 @@ def _normalize_text(text: str) -> str:
 def _build_materialization_object_store(
     settings: ObjectStoreSettings,
 ) -> ProgramSemesterFactsMaterializationObjectStore:
-    from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+    from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 
     return S3ObjectStoreAdmin(settings)
 

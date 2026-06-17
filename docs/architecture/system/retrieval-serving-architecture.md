@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: capability
-owner_boundary: packages/retrieval-core
+owner_boundary: retrieval-runtime-seam
 status: active
 created: 2026-04-02
 updated: 2026-06-05
@@ -78,6 +78,11 @@ truth。
 - `app-api` knowledge request 现在已经显式开放 `current` / `historical` / `as_of` /
   `compare` 这四种 version query mode；`freshness_sensitive` 与 `live_assisted`
   仍未作为产品 route 默认开放
+- online RAG query embedding provider/model/API key/dimensions come from active
+  app-api provider-config role `rag_query_embedding`; root `EMBEDDING_*` env is
+  local/ingestion/eval seed, not online serving truth
+- embedding model or dimension changes must pass release/vector compatibility
+  before activation; query-time retrieval must fail closed on mismatch
 
 这里的 `agent` 默认指 knowledge-family `knowledge` specialist，而不是顶层 capability router。
 
@@ -111,22 +116,23 @@ execution -> rerank / merge / dedupe -> evidence shaping`
 
 owner 分层固定为：
 
-- agent：query framing、ambiguity handling、surface / entity / version planning
-- retrieval-core：step execution、fusion、merge / dedupe、evidence shaping
+- `apps/execution-control` knowledge / RAG runtime：query framing、ambiguity handling、
+  surface / entity / version planning、step execution、fusion、merge / dedupe 与
+  evidence shaping
 - registry / serving profile：version / visibility / serving scope truth
 
 ## Target Relation To Agentic Retrieval
 
 target pipeline 固定升级为：
 
-`durable RunStep(planning) -> typed retrieval/domain tools -> retrieval-core
+`durable RunStep(planning) -> typed retrieval/domain tools -> retrieval runtime
 execution -> rerank / merge / dedupe -> evidence coverage verify -> supporting
 evidence selection -> synthesis -> grounding`
 
 补充约束：
 
 - planner-first target 不改变 serving truth owner
-- retrieval-core 仍不拥有产品级 capability admission
+- retrieval runtime 仍不拥有产品级 capability admission
 - live branch 只允许进入 admitted source channel
 - synthesis 不得补齐 missing retrieval/tool result；evidence verifier 决定 replan /
   clarification / fail-close
@@ -278,10 +284,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   - `legacy_old_index_compatibility`：仅供 old-index compatibility/历史诊断/受控测试使用；
     可以继续报告 `missing_contract` diagnostics，但这些结果不得计入 target release
     completion、component-eval target pass 或 serving adoption truth
-- production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
-  retrieval-core 只暴露 `RetrievalObservationSink` /
+- production observation 集成边界固定在 runtime adapter，不进入 deleted Python
+  retrieval package；retrieval runtime seam 只暴露 `RetrievalObservationSink` /
   `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
-  `activity-worker-knowledge` / `execution-control` runtime adapter 负责把
+  `activity-worker-knowledge-retrieval` / `execution-control` runtime adapter 负责把
   `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
   backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
@@ -290,7 +296,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   `failure_kind`、`candidate_count`、`reference_count`、`latency_ms`、`query_sha256`；有
   trace context 时附带 trace/span correlation，没有 trace context 时仍以 `request_id`
   做跨组件关联
-- metrics 从 observation 派生，不要求 retrieval-core 直接发 metrics：request count、
+- metrics 从 observation 派生，不要求 retrieval runtime 直接发 metrics：request count、
   latency histogram、no-hit / low-confidence / forbidden-hit count、release metadata
   drift count、reranker failed count、live-assisted count 都应由 runtime adapter 或
   Collector/backend 聚合
@@ -341,10 +347,19 @@ opening truth。
 
 当前已经具备：
 
-- 默认只服务当前有效版本
-- explicit `current` / `historical` / `as_of` / `compare` query mode
+- 默认只服务当前有效版本；`current` 仍通过 query-time `is_current=true` 与 runtime
+  profile filter 执行，不把整条 collection 误收敛为单个 current version id
+- explicit `current` / `historical` / `as_of` / `compare` query mode；Go
+  Temporal RAG 在 `rag.plan` 阶段解析 version query，`retrieval.indexed_lookup`
+  只消费 resolved version projection，缺失或歧义时 fail closed
+- `historical` / `as_of` / `compare` 的 indexed lookup 会在 Qdrant filter 层使用 resolved
+  version id；`compare` 必须同时覆盖两侧版本证据，`as_of` 必须覆盖解析出的版本证据
 - 多来源等价内容归并
 - planner-first agentic retrieval
+- supporting evidence selection 只允许 answer-bearing canonical reference 进入 synthesis；
+  缺 `document_id`、`version_id`、`anchor`、root unit 或 `source_ref` 时 fail closed
+- `grounding.verify` 的 evidence-integrity verdict 是 RAG finalization 硬门禁；
+  `finalization.write` 不接受未投影、ref 漂移或非 `supported` 的 grounding result
 - service-level `freshness_sensitive` / `live_assisted` admission seam；live
   lookup 必须通过 explicit query mode、source-trust policy、runtime profile 与
   live lookup budget
@@ -355,6 +370,7 @@ opening truth。
 
 - product-facing freshness/live tool opening
 - real live source executor 与 production observation storage rollout
+- Go reranker executor；当前 profile 开启 reranker 时仍 fail closed，不允许静默退化成未声明排序
 
 这些属于未来 product opening / downstream consumer 信号，而不是当前 active
 implementation gap 或默认 surface；当前 active/deferred execution 仍以

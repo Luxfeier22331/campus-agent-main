@@ -13,6 +13,8 @@ const (
 	wechatPublicNoticeSourceFamily       = "wechat_public_notice"
 	defaultNoticeDiscoverMaxResults      = 5
 	noticeDiscoverMaxResultsLimit        = 20
+	defaultNoticePeriodSummaryMaxItems   = 10
+	noticePeriodSummaryMaxItemsLimit     = 20
 )
 
 var errNoticeBodyUnavailable = errors.New("notice body unavailable")
@@ -70,6 +72,21 @@ type noticeGetRequest struct {
 	TargetSurfaces []string `json:"target_surfaces"`
 }
 
+type noticeDateRange struct {
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+	Timezone  string `json:"timezone"`
+}
+
+type noticePeriodSummaryRequest struct {
+	QueryText      string          `json:"query_text"`
+	DateRange      noticeDateRange `json:"date_range"`
+	SourceFamilies []string        `json:"source_families"`
+	TargetSurfaces []string        `json:"target_surfaces"`
+	GroupBy        string          `json:"group_by"`
+	MaxItems       int             `json:"max_items"`
+}
+
 type noticeChangeSetLookupRequest struct {
 	QueryText       string   `json:"query_text"`
 	RouteLabels     []string `json:"route_labels"`
@@ -82,6 +99,8 @@ type noticeChangeSetLookupRequest struct {
 type noticeSearchCriteria struct {
 	SourceFamilies []string
 	QueryText      string
+	TemporalQuery  temporalQuery
+	DateRange      noticeDateRange
 	TargetSurfaces []string
 	MaxResults     int
 	Authorization  noticeReadModelAuthorizationFilter
@@ -153,6 +172,26 @@ type noticeDiscoverResult struct {
 	NoticeCards       []noticeCard `json:"notice_cards,omitempty"`
 	QueriedTimeAnchor string       `json:"queried_time_anchor,omitempty"`
 	FailCloseReason   string       `json:"fail_close_reason,omitempty"`
+}
+
+type noticePeriodSummaryGroup struct {
+	GroupKey    string   `json:"group_key"`
+	Title       string   `json:"title"`
+	NoticeCount int      `json:"notice_count"`
+	Summary     string   `json:"summary"`
+	NoticeIDs   []string `json:"notice_ids,omitempty"`
+}
+
+type noticePeriodSummaryResult struct {
+	QueryText       string                     `json:"query_text"`
+	Outcome         string                     `json:"outcome"`
+	DateRange       noticeDateRange            `json:"date_range"`
+	Groups          []noticePeriodSummaryGroup `json:"groups,omitempty"`
+	NoticeCards     []noticeCard               `json:"notice_cards,omitempty"`
+	BoundedSummary  string                     `json:"bounded_summary,omitempty"`
+	SourceRefCount  int                        `json:"source_ref_count,omitempty"`
+	DisplayPolicy   noticeDisplayPolicy        `json:"display_policy"`
+	FailCloseReason string                     `json:"fail_close_reason,omitempty"`
 }
 
 type noticeGetResult struct {
@@ -292,6 +331,7 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 		noticeSearchCriteria{
 			SourceFamilies: sourceFamilies,
 			QueryText:      request.QueryText,
+			TemporalQuery:  request.TemporalQuery,
 			TargetSurfaces: request.TargetSurfaces,
 			MaxResults:     request.MaxResults,
 			Authorization:  authorizationFilter,
@@ -338,6 +378,126 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 		SourceFamilies:    sourceFamilies,
 		NoticeCards:       cards,
 		QueriedTimeAnchor: r.timeAnchor(),
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func (r *Runtime) LookupCampusNoticePeriodSummary(ctx context.Context, rawBody []byte) Response {
+	envelope, err := decodeNoticeEnvelope(rawBody)
+	if err != nil {
+		return invalidRequest("Campus notice period summary request body must be a JSON object.")
+	}
+	var request noticePeriodSummaryRequest
+	if err := json.Unmarshal(envelope.Payload, &request); err != nil {
+		return invalidRequest("Campus notice period summary payload must be a JSON object.")
+	}
+	normalizeNoticePeriodSummaryRequest(&request)
+	if request.QueryText == "" {
+		return invalidRequest("query_text is required.")
+	}
+	if request.DateRange.StartDate == "" {
+		return invalidRequest("date_range.start_date is required.")
+	}
+	if request.DateRange.EndDate == "" {
+		return invalidRequest("date_range.end_date is required.")
+	}
+	if request.DateRange.StartDate > request.DateRange.EndDate {
+		return invalidRequest("date_range.start_date must be <= date_range.end_date.")
+	}
+	if request.GroupBy == "" {
+		request.GroupBy = "topic"
+	}
+	if !isSupportedNoticePeriodSummaryGroupBy(request.GroupBy) {
+		return invalidRequest("group_by is unsupported.")
+	}
+	if request.MaxItems <= 0 {
+		request.MaxItems = defaultNoticePeriodSummaryMaxItems
+	}
+	if request.MaxItems > noticePeriodSummaryMaxItemsLimit {
+		request.MaxItems = noticePeriodSummaryMaxItemsLimit
+	}
+	sourceFamilies, invalidSourceFamily := resolveNoticeSourceFamilies(
+		request.SourceFamilies,
+		admittedNoticeSourceFamilies(envelope.AccessContext),
+	)
+	if invalidSourceFamily || len(sourceFamilies) == 0 {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_family_unavailable",
+		)
+	}
+	if r.noticeReadModelStore == nil {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_truth_unavailable",
+		)
+	}
+	if err := ctx.Err(); err != nil {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_truth_unavailable",
+		)
+	}
+	authorizationFilter := noticeAuthorizationFilterForAccessContext(envelope.AccessContext)
+	rows, err := r.noticeReadModelStore.SearchNotices(
+		ctx,
+		noticeSearchCriteria{
+			SourceFamilies: sourceFamilies,
+			QueryText:      request.QueryText,
+			DateRange:      request.DateRange,
+			TargetSurfaces: request.TargetSurfaces,
+			MaxResults:     request.MaxItems,
+			Authorization:  authorizationFilter,
+		},
+	)
+	if err != nil {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_truth_unavailable",
+		)
+	}
+	if !noticeReadModelRowsAuthorized(rows, authorizationFilter) {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_truth_unavailable",
+		)
+	}
+	if !noticeReadModelRowsHaveMinimumCardFields(rows) {
+		return failClosedNoticePeriodSummary(
+			request.QueryText,
+			request.DateRange,
+			"source_truth_unavailable",
+		)
+	}
+	if len(rows) == 0 {
+		body := noticePeriodSummaryResult{
+			QueryText:      request.QueryText,
+			Outcome:        "not_found",
+			DateRange:      request.DateRange,
+			DisplayPolicy:  noticeBoundedSummaryDisplayPolicy(),
+			SourceRefCount: 0,
+		}
+		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+	}
+	cards := make([]noticeCard, 0, len(rows))
+	for _, row := range rows {
+		cards = append(cards, noticeCardForReadModelRow(row))
+	}
+	groups := groupNoticePeriodSummaryRows(rows, request)
+	body := noticePeriodSummaryResult{
+		QueryText:      request.QueryText,
+		Outcome:        "resolved_current",
+		DateRange:      request.DateRange,
+		Groups:         groups,
+		NoticeCards:    cards,
+		BoundedSummary: boundedNoticePeriodSummary(request, rows, groups),
+		SourceRefCount: countNoticeSourceRefs(rows),
+		DisplayPolicy:  noticeBoundedSummaryDisplayPolicy(),
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }

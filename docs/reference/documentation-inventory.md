@@ -35,18 +35,18 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 290
-- Git tracked docs Markdown files: 268
+- Current-worktree docs Markdown files: 297
+- Git tracked docs Markdown files: 297
 - Untracked docs Markdown files included: 0
-- Generated on: 2026-06-14
+- Generated on: 2026-06-17
 
 ### By Directory Area
 
 - `reference`: 60
 - `runbooks`: 55
-- `decisions`: 52
-- `contracts`: 42
-- `architecture`: 38
+- `decisions`: 53
+- `contracts`: 43
+- `architecture`: 39
 - `data`: 21
 - `domains`: 8
 - `environment`: 7
@@ -58,10 +58,10 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 53
 - `runbook`: 48
-- `decision`: 47
-- `contract`: 34
+- `decision`: 48
+- `contract`: 35
 - `index`: 32
-- `architecture`: 31
+- `architecture`: 32
 - `data`: 18
 - `policy`: 4
 - `documentation_architecture`: 1
@@ -69,22 +69,22 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `truth_scope`
 
-- `ops`: 87
-- `repository`: 68
+- `ops`: 88
+- `repository`: 69
 - `data`: 50
 - `product`: 21
 - `capability`: 15
-- `execution`: 15
+- `execution`: 16
 - `eval`: 13
 
 ### By Owner Class
 
 - `reference`: 57
 - `operational_truth`: 49
-- `decision_record`: 47
-- `contract_truth`: 34
+- `decision_record`: 48
+- `contract_truth`: 35
 - `reference_index`: 32
-- `supporting_architecture`: 22
+- `supporting_architecture`: 23
 - `data_truth`: 18
 - `domain_architecture`: 6
 - `current_truth`: 1
@@ -94,10 +94,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Governance Action
 
-- `keep_executable_truth`: 51
+- `keep_executable_truth`: 52
 - `keep_ops_procedure`: 48
-- `preserve_adr`: 47
-- `keep_owner_truth`: 29
+- `preserve_adr`: 48
+- `keep_owner_truth`: 30
 - `keep_reference_truth`: 28
 - `keep_archive_historical`: 28
 - `keep_thin_index`: 26
@@ -108,8 +108,8 @@ class defined by `docs/documentation-architecture.md`.
 
 - `official-web`: 31
 - `authenticated-notice`: 27
-- `runtime`: 21
-- `operator-observability`: 10
+- `runtime`: 22
+- `operator-observability`: 11
 - `app-api`: 10
 - `campus-services`: 9
 - `retrieval`: 8
@@ -119,7 +119,7 @@ class defined by `docs/documentation-architecture.md`.
 - `public-chat-web`: 7
 - `qdrant`: 6
 - `student-handbook`: 5
-- `memory`: 4
+- `memory`: 5
 - `document-reader`: 4
 - `prompt`: 3
 - `temporal`: 2
@@ -130,14 +130,14 @@ class defined by `docs/documentation-architecture.md`.
 - `docs/architecture/target-architecture.md`: 857 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/operator-observability-architecture.md`: 708 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`: 707 lines, action `keep_large_owner_truth`
-- `docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md`: 705 lines, action `keep_large_owner_truth`
-- `docs/runbooks/staging-worker-deploy-runbook.md`: 683 lines, action `keep_ops_procedure`
+- `docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md`: 705 lines, action `keep_large_owner_truth`
+- `docs/runbooks/archive/python-ingestion-worker/staging-worker-deploy-runbook.md`: 683 lines, action `keep_ops_procedure`
 - `docs/contracts/capability-execution.md`: 676 lines, action `keep_large_owner_truth`
-- `docs/runbooks/index-release-runbook.md`: 668 lines, action `keep_ops_procedure`
+- `docs/runbooks/archive/python-ingestion-worker/index-release-runbook.md`: 668 lines, action `keep_ops_procedure`
 - `docs/data/durable-agent-runtime-schema.md`: 650 lines, action `keep_executable_truth`
 - `docs/data/authenticated-notice-source-truth-schema.md`: 644 lines, action `keep_executable_truth`
 - `docs/contracts/durable-agent-runtime-contract.md`: 630 lines, action `keep_executable_truth`
-- `docs/runbooks/official-web-collector-smoke-and-audit.md`: 623 lines, action `keep_ops_procedure`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-collector-smoke-and-audit.md`: 623 lines, action `keep_ops_procedure`
 - `docs/reference/authenticated-notice-retention-state-machine-verification.md`: 599 lines, action `keep_reference_truth`
 - `docs/reference/runtime-serving-and-index-terms.md`: 581 lines, action `keep_reference_truth`
 - `docs/data/app-api-official-web-schema.md`: 570 lines, action `keep_executable_truth`
@@ -324,6 +324,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/app-api`
   - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=179`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/kubernetes-execution-runtime-architecture.md`
+  - Title: Kubernetes Execution Runtime Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=tracked`, `lines=311`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/memory-plane-architecture.md`
@@ -599,6 +607,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/app-api`
   - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=23`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/operator-runtime-observability-contract.md`
+  - Title: Operator Runtime Observability Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=tracked`, `lines=148`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-request-lifecycle.md`
@@ -927,8 +943,8 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=213`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0011-protected-panel-worker-runtime.md`
-  - Title: ADR-0011 Protected Panel Worker Runtime 决策
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
+  - Title: ADR-0011 Operator Console Worker Runtime 决策
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
@@ -967,7 +983,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=233`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0016-app-api-request-projection-and-panel-query-ownership.md`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
   - Title: ADR-0016 App API Request Projection And Panel Query Ownership
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
@@ -1234,9 +1250,9 @@ class defined by `docs/documentation-architecture.md`.
 - `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
   - Title: ADR-0053 Qdrant-Native Personal Memory Index
   - Owner class: `decision_record`
-  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
   - Owner boundary: `docs/decisions`
-  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=104`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=138`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 - `docs/decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md`
@@ -1245,6 +1261,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=75`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
+  - Title: ADR-0057 Zep-Native Personal Memory Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=untracked`, `lines=79`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 
@@ -1654,7 +1678,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=420`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
+- `docs/reference/archive/python-ingestion-worker/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
   - Title: Authenticated Notice File-Release Owner-Recovery Readiness Contract
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
@@ -1758,7 +1782,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=244`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
   - Title: Internal Notice Offline Preparation Quality Acceptance
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
@@ -1766,7 +1790,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=330`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
   - Title: Internal Notice Offline Preparation Strategy
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
@@ -1961,7 +1985,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=qdrant`, `state=tracked`, `lines=61`
   - Governance action: `keep_archive_historical`
   - Drift signal: `historical_path`
-- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-async-staged-closeout-runbook.md`
   - Title: Authenticated Notice Async Staged Closeout Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -1969,7 +1993,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=327`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-bootstrap-smoke-runbook.md`
   - Title: Authenticated Notice Bootstrap Smoke Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -1985,15 +2009,15 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=295`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/authenticated-notice-processing-operator-panel-runbook.md`
-  - Title: Authenticated Notice Processing Operator Panel Runbook
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-processing-operator-console-runbook.md`
+  - Title: Authenticated Notice Processing Operator Console Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
   - Owner boundary: `docs/runbooks`
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=173`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
   - Title: Authenticated Notice Source Bucket Attachment Cleanup
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2001,7 +2025,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=205`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-truth-replay-runbook.md`
   - Title: Authenticated Notice Source-Truth Replay Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2009,7 +2033,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=211`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/collection-rename-runtime-closeout.md`
+- `docs/runbooks/archive/python-ingestion-worker/collection-rename-runtime-closeout.md`
   - Title: Collection Rename Runtime Closeout
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2033,7 +2057,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=124`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md`
   - Title: Document Reader Publish And Docs Deploy Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2129,7 +2153,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=237`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/index-release-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/index-release-runbook.md`
   - Title: Index Release Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2137,7 +2161,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=668`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/ingestion-worker-on-demand-batch-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/ingestion-worker-on-demand-batch-runbook.md`
   - Title: Ingestion Worker On-Demand Batch Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2145,7 +2169,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=525`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-policy-regulation-promotion-runbook.md`
   - Title: Internal Notice Regulation Promotion Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2153,7 +2177,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=regulation`, `state=tracked`, `lines=440`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-regulation-target-quality-acceptance-runbook.md`
   - Title: Internal Notice Regulation Target Quality Acceptance Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2169,7 +2193,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=135`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/local-postgres-dev-recovery-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md`
   - Title: Local Postgres Dev Recovery Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2193,7 +2217,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=297`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/official-web-collector-smoke-and-audit.md`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-collector-smoke-and-audit.md`
   - Title: Official Web Collector Smoke And Audit
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2209,7 +2233,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=official-web`, `state=tracked`, `lines=115`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/official-web-source-truth-projection-replay.md`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-source-truth-projection-replay.md`
   - Title: Official Web Source-Truth Projection Replay
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2241,7 +2265,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=199`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md`
   - Title: Self-Hosted Qdrant Native Backup Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2249,7 +2273,7 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=qdrant`, `state=tracked`, `lines=342`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/staging-worker-deploy-runbook.md`
   - Title: Staging Worker Deploy Runbook
   - Owner class: `operational_truth`
   - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
@@ -2332,12 +2356,12 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=319`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
-- `docs/architecture/system/campus-ops-web-architecture.md`
-  - Title: Campus Ops Web Architecture
+- `docs/architecture/system/operator-console-operations-architecture.md`
+  - Title: Operator Console Operations Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/campus-ops-web`
-  - Ledger: `area=architecture`, `cluster=campus-ops`, `state=tracked`, `lines=160`
+  - Owner boundary: `apps/operator-console-web`
+  - Ledger: `area=architecture`, `cluster=operator-console`, `state=tracked`, `lines=164`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
@@ -2364,12 +2388,12 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=285`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
-- `docs/contracts/app-api-campus-ops-http.md`
-  - Title: App API Campus Ops HTTP Contract
+- `docs/contracts/app-api-operator-ops-http.md`
+  - Title: App API Operator Operations HTTP Contract
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/app-api`
-  - Ledger: `area=contracts`, `cluster=campus-ops`, `state=tracked`, `lines=174`
+  - Ledger: `area=contracts`, `cluster=operator-console`, `state=tracked`, `lines=178`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-chat-conversation-http.md`
@@ -2452,6 +2476,22 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=campus-ops`, `state=tracked`, `lines=171`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0055-unified-operator-console-surface.md`
+  - Title: ADR-0055 Unified Operator Console Surface
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-console`, `state=tracked`, `lines=112`
+  - Governance action: `preserve_adr`
+  - Drift signal: `ok`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
+  - Title: ADR-0056 Kubernetes + KEDA Execution Runtime
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=190`
+  - Governance action: `preserve_adr`
+  - Drift signal: `ok`
 - `docs/decisions/adr-0050-campus-web-product-entry-and-hub-retirement.md`
   - Title: ADR-0050 Campus Web Product Entry And Hub Retirement
   - Owner class: `decision_record`
@@ -2499,4 +2539,20 @@ class defined by `docs/documentation-architecture.md`.
   - Owner boundary: `apps/campus-web`
   - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=116`
   - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/ingestion-python-clean-target-full-audit.md`
+  - Title: Ingestion Python Clean-Target Full Audit
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=ingestion`, `state=tracked`, `lines=402`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/runbooks/ingestion-control-clean-target-runbook.md`
+  - Title: Ingestion Control Clean-Target Runbook
+  - Owner class: `runbook`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/ingestion-control`
+  - Ledger: `area=runbooks`, `cluster=ingestion`, `state=tracked`, `lines=77`
+  - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`

@@ -221,7 +221,7 @@ func (s *Server) PlanRAGActivity(
 		Status:        "started",
 		StepID:        "rag.plan",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.PlanRAGActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
@@ -241,7 +241,7 @@ func (s *Server) PlanRAGActivity(
 		Payload: map[string]any{
 			"activity":   "rag.plan",
 			"plan_ref":   input.WorkflowPlanRef,
-			"task_queue": temporalruntime.ActivityTaskQueueKnowledge,
+			"task_queue": temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.PlanRAGActivityName),
 		},
 	}); err != nil {
 		return temporalruntime.PlanRAGActivityOutput{}, err
@@ -265,9 +265,13 @@ func (s *Server) PlanRAGActivity(
 			run.Status,
 		)
 	}
-	plan, err := ragPlanProjectionForRun(run, s.config.QueryServingScopesPath)
+	plan, err := ragPlanProjectionForRun(run, s.config.QueryServingScopesPath, s.config.RAGTopKMax)
 	if err != nil {
 		return s.failRAGPlanActivity(ctx, run, "rag_plan_invalid", err)
+	}
+	plan, err = resolvePlanVersionQuery(ctx, s.ragVersionResolver, plan)
+	if err != nil {
+		return s.failRAGPlanActivity(ctx, run, "rag_version_resolution_failed", err)
 	}
 	planRef := temporalProjectionRef(run.RunID, "rag/plan")
 	if err := s.replaceTemporalRAGMetadata(ctx, run, func(metadata map[string]any) {
@@ -285,7 +289,7 @@ func (s *Server) PlanRAGActivity(
 		Status:        "completed",
 		StepID:        "rag.plan",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.PlanRAGActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
@@ -512,7 +516,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 		Status:        "started",
 		StepID:        "retrieval.indexed_lookup",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.RetrieveIndexedLookupActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
@@ -554,7 +558,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 		Status:        "completed",
 		StepID:        "retrieval.indexed_lookup",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.RetrieveIndexedLookupActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
@@ -618,15 +622,24 @@ func (s *Server) ExpandOrRescueRetrievalActivity(
 	if err != nil {
 		return temporalruntime.ExpandOrRescueRetrievalActivityOutput{}, err
 	}
-	if _, err := temporalRAGLookupResultFromRun(run, input.LookupRef); err != nil {
+	plan, err := temporalRAGPlanProjectionFromRun(run, input.RAGPlanRef)
+	if err != nil {
+		return s.failExpandOrRescueRetrievalActivity(ctx, run, "rag_plan_projection_missing", err)
+	}
+	lookup, err := temporalRAGLookupResultFromRun(run, input.LookupRef)
+	if err != nil {
 		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_lookup_projection_missing", err)
 	}
 	startedAt := time.Now().UTC()
 	rescueRef := temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue")
+	rescueApplied, rescueReason, err := retrievalRescueDecision(plan, lookup)
+	if err != nil {
+		return s.failExpandOrRescueRetrievalActivity(ctx, run, "retrieval_rescue_failed", err)
+	}
 	result := ragruntime.RetrievalRescueResult{
 		LookupRef:     input.LookupRef,
-		RescueApplied: false,
-		RescueReason:  "not_admitted_or_not_required",
+		RescueApplied: rescueApplied,
+		RescueReason:  rescueReason,
 		RescueRef:     rescueRef,
 		RunID:         run.RunID,
 		SchemaVersion: "retrieval_rescue_result_v1",
@@ -645,7 +658,7 @@ func (s *Server) ExpandOrRescueRetrievalActivity(
 		Status:        "completed",
 		StepID:        "retrieval.expand_or_rescue",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.ExpandOrRescueRetrievalActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
@@ -685,7 +698,7 @@ func (s *Server) SelectEvidenceActivity(
 		return s.failSelectEvidenceActivity(ctx, run, "retrieval_lookup_projection_missing", err)
 	}
 	startedAt := time.Now().UTC()
-	selection, err := selectRAGEvidence(run, lookup)
+	selection, err := selectRAGEvidence(run, lookup, s.config.RAGSelectedEvidenceMax)
 	if err != nil {
 		return s.failSelectEvidenceActivity(ctx, run, "evidence_selection_failed", err)
 	}
@@ -705,7 +718,7 @@ func (s *Server) SelectEvidenceActivity(
 		Status:        "completed",
 		StepID:        "evidence.selection",
 		StepKind:      "selection",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SelectEvidenceActivityName),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,

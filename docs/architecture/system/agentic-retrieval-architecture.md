@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: capability
-owner_boundary: packages/knowledge-capability
+owner_boundary: apps/execution-control
 status: active
 created: 2026-04-20
 updated: 2026-06-14
@@ -15,7 +15,7 @@ updated: 2026-06-14
 它回答的是：
 
 - durable planner-first typed-tool retrieval 在本仓库里应长成什么样
-- `knowledge`、`retrieval-core`、runtime truth 各自负责什么
+- `knowledge`、retrieval runtime seam、runtime truth 各自负责什么
 - multi-step retrieval、freshness / live branch、query activity、durable step
   trajectory 应如何收口
 
@@ -74,7 +74,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 - `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover`
   与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
-  runtime capability 不属于 retrieval-core 本身
+  runtime capability 不属于 retrieval runtime seam 本身
 - 它们应通过 projection-backed internal query service + typed domain tool 提供；只有需要语义判断时
   才进入 agent-as-tool
 - `knowledge` 可以消费这些 typed domain tool / agent-as-tool 产出的 bounded context projection，但不能代持它们的
@@ -89,7 +89,7 @@ Execution Agent Layer typed step admission
 -> Temporal workflow activity
 -> knowledge planner
 -> typed retrieval/domain activities
--> retrieval-core executor / domain query service
+-> retrieval runtime executor / domain query service
 -> evidence verifier
 -> supporting evidence selection
 -> knowledge synthesis
@@ -101,9 +101,9 @@ Execution Agent Layer typed step admission
 
 - Execution Agent Layer 负责 capability / policy / top-level routing admission
 - `knowledge` 负责 plan 与 answer 语义
-- `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
+- retrieval runtime seam 负责 retrieval execution，不拥有产品级 scope 决策
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
-  repo-owned projection 负责 step attempt、result、event 与 eval/panel truth
+  repo-owned projection 负责 step attempt、result、event 与 eval / Operator Console truth
 - evidence contract 驱动 replan / clarification / fail-close；synthesis 不得补洞
 - 当前实现中的 Temporal-visible RAG 已拆成
   `rag.plan`、`retrieval.indexed_lookup`、`retrieval.expand_or_rescue`、
@@ -124,9 +124,9 @@ input，不得绕过 query-enabled surface、freshness gate 或 source-trust gat
 
 ## Ownership Model
 
-### `packages/knowledge-capability`
+### `apps/execution-control` knowledge / RAG runtime
 
-长期负责：
+当前 runtime owner，长期负责：
 
 - resolved scope / query mode 解析
 - retrieval plan 生成
@@ -141,7 +141,7 @@ input，不得绕过 query-enabled surface、freshness gate 或 source-trust gat
 - runtime profile 的最终 owner 决策
 - retrieval backend vendor freeze
 
-### `packages/retrieval-core`
+### repo-owned retrieval runtime seam
 
 长期负责：
 
@@ -327,7 +327,7 @@ agentic RAG 不是对当前 gate 的替代，而是必须显式经过这些 gate
 
 ## Rerank, Merge, And Dedupe
 
-`retrieval-core` 可以执行：
+Retrieval runtime seam 可以执行：
 
 - rerank
 - thresholding
@@ -362,6 +362,14 @@ query mode 固定显式化：
 
 - query mode 在 retrieval 之前确定
 - historical / compare 不是回答层事后解释
+- 当前 Go Temporal indexed RAG 对 `current` / `historical` / `as_of` / `compare`
+  的成熟口径是：planner projection 先生成 `version_query`，version resolver 产出
+  `resolved_version_query`，lookup executor 只消费 resolved projection；缺 version
+  registry、缺 explicit version id、`as_of` 多义或 `compare` 两侧缺失均 fail closed
+- `current` 不绑定单个 collection-level version id；它由 query-serving alias、
+  runtime profile 与 `is_current=true` filter 承接
+- `historical` / `as_of` supporting evidence 必须覆盖解析出的版本；
+  `compare` supporting evidence 必须覆盖比较两侧版本
 - recent / latest / today 一类问法不得在 freshness gate 缺失时继续假装可答
 
 ## Failure Semantics
@@ -373,6 +381,8 @@ agentic RAG 固定 fail-close 于以下分支：
 - unsupported query mode
 - insufficient freshness
 - insufficient answer-bearing evidence
+- missing canonical reference for supporting evidence
+- version evidence coverage failed
 - evidence coverage verification failed
 - evidence-integrity verification failed
 - semantic grounding validation failed, only when a badcase/eval-driven hardening
@@ -404,7 +414,7 @@ agentic RAG 固定 fail-close 于以下分支：
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
 
-badcase、RAGAS、golden dataset 与 operator panel 的阶段归因固定落到：
+badcase、RAGAS、golden dataset 与 Operator Console 的阶段归因固定落到：
 
 - `routing`
 - `planning`
@@ -444,13 +454,13 @@ LlamaIndex 是 ingestion / retrieval implementation dependency，不是 `campus-
 
 固定规则：
 
-- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、panel / eval canonical
-  truth 或架构 vocabulary。
+- LlamaIndex 不能进入 `packages/contracts`、`apps/execution-control`、
+  Operator Console / eval canonical truth 或架构 vocabulary。
 - ingestion / retrieval adapter 可以在内部使用 LlamaIndex 做 chunking、embedding helper、
   metadata helper 或 Qdrant integration glue，但跨层 contract 必须是 repo-owned DTO。
 - 长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized
   query activity projection；LlamaIndex 只能保留为可替换实现依赖。
-- eval、operator panel 与 badcase 只看 durable step/result projection，不以
+- eval、Operator Console 与 badcase 只看 durable step/result projection，不以
   LlamaIndex run object、node object 或 vendor metadata 作为 source truth。
 
 ## Internal Agents SDK Loop
@@ -483,7 +493,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
   `execution-control -> Temporal context memory -> activity-worker-agent /
   agent-runtime primary agent -> knowledge_query workflow signal ->
   admitted knowledge RAG graph ->
-  activity-worker-knowledge -> activity-worker-finalization -> sanitized
+  activity-worker-knowledge-plan -> activity-worker-knowledge-retrieval ->
+  activity-worker-knowledge-synthesis -> activity-worker-finalization -> sanitized
   projection -> app-api` 返回 canonical product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
