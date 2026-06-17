@@ -4,11 +4,11 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-16
+updated: 2026-06-17
 ---
 # Memory Plane Architecture
 
-本文冻结 `campus-agent` 的 Zep CE self-host Personal Memory Plane。当前个人记忆不再
+本文冻结 `campus-agent` 的 Hindsight self-host Personal Memory Plane。当前个人记忆不再
 使用 Qdrant collection、repo-owned LLM extraction prompt、personal memory embedding
 profile 或 provider-backed memory extraction eval；Qdrant 只承载 institutional RAG。
 
@@ -23,29 +23,30 @@ requirement，也不能授予 operator surface 权限。
 
 - `apps/execution-control` owns online memory recall execution and append command.
 - Temporal orchestrates `context.memory_recall` and `memory.append`.
-- Zep CE owns personal memory extraction, graph storage, dedupe / merge semantics
-  and graph search.
+- Hindsight owns personal memory extraction, graph storage, dedupe / merge
+  semantics and recall.
 - `apps/app-api` owns user-facing manual profile-memory product API and PG projection.
-- PostgreSQL `profile.memory_items` stores product projection and the Zep `episode_uuid`
-  runtime reference; it is not online recall truth.
+- PostgreSQL `profile.memory_items` stores product projection and the Hindsight
+  document id runtime reference; it is not online recall truth.
 
 因此：
 
 - online chat hot path 不再执行 `app-api -> PG profile.memory_items ->
   context.profile_memory` full injection。
-- personal memory 与 institutional RAG 完全分离：personal memory 走 Zep CE runtime，
+- personal memory 与 institutional RAG 完全分离：personal memory 走 Hindsight runtime，
   institutional RAG 走 Qdrant / retrieval-core。
 - execution-control 不维护个人记忆向量 schema、collection alias、embedding compatibility
   check、repo-owned extraction prompt 或 extraction threshold。
 - Temporal 不是 memory database；Temporal 只编排 activity / workflow lifecycle。
 
-## Zep CE Runtime
+## Hindsight Runtime
 
-Zep CE runtime 以独立自托管服务部署，`campus-agent` 只消费 Zep CE `/api/v2`
-HTTP API。Graphiti、Neo4j、Postgres / pgvector 是 Zep CE runtime bundle 内部
-组件，不是 `campus-agent` 业务代码或 contract 的集成边界。
+Hindsight runtime 以独立自托管服务部署，`campus-agent` 只通过官方 Go SDK 消费
+Hindsight HTTP API。Hindsight API、Hindsight worker、PostgreSQL / pgvector 与
+embedding / LLM provider 是 Hindsight deployment 内部组件，不是 `campus-agent`
+业务代码或 `packages/contracts` 的集成边界。
 
-Zep CE runtime 的 execution-control deployment env handles 为：
+Hindsight runtime 的 execution-control internal env projection 为：
 
 ```text
 PERSONAL_MEMORY_BASE_URL
@@ -57,22 +58,29 @@ PERSONAL_MEMORY_OWNER_SALT
 `personal_memory.recall_limit` 与 `personal_memory.recall_max_chars` 由
 execution-control runtime profile 管理，不再通过 env 配置。
 
-Zep CE bundle 内部的 Graphiti LLM 消费不恢复 repo-owned memory extraction prompt。
-它使用 app-api provider-config prompt role `memory_graph_llm` 管理模型、base URL 与
-API key；Graphiti 的 `OPENAI_BASE_URL` 指向 app-api internal OpenAI-compatible proxy
-`/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`，`OPENAI_API_KEY`
-使用 app-api internal shared secret。proxy 从 active profile 读取真实 provider key 并转发。
-Graphiti、Neo4j、pgvector 的内部连接细节不得泄漏进 `packages/contracts` 或产品 API。
+Hindsight API 使用 `HINDSIGHT_API_TENANT_EXTENSION` /
+`HINDSIGHT_API_TENANT_API_KEY` 做 service-to-service auth；`PERSONAL_MEMORY_API_SECRET`
+就是 execution-control 对 Hindsight API 的 bearer token。Hindsight LLM / embedding /
+reranker provider 配置属于 Hindsight deployment secret，不通过 app-api
+provider-config proxy 间接投影。
 
-local dev 的 Zep CE bundle secret 由 `infra/local/scripts/ensure-zep-ce-secrets.mjs`
-生成到 `infra/local/.generated/zep-ce.env`。该文件只属于本地 runtime，不是 staging /
-production 输入。
+`PERSONAL_MEMORY_BASE_URL` 默认由 deployment profile 投影为 internal service DNS，例如
+Docker Compose 内的 `http://hindsight-api:8888`。`PERSONAL_MEMORY_API_SECRET` 与
+`PERSONAL_MEMORY_OWNER_SALT` 由 local / staging lifecycle 首次生成并持久化到
+ops-owned generated env file；开发者不需要手工填写这些内部值。只有部署到外部
+Hindsight endpoint 或轮换 secret / salt 时才应显式覆盖。
 
-`PERSONAL_MEMORY_OWNER_SALT` 用于把 `tenant_id + user_id` 派生为 scoped Zep CE user
-id，并把 scoped user id + 产品侧 `conversation_id` 派生为 internal Zep CE session id。
-local / staging / production 都必须配置稳定 salt。产品侧 user id / conversation id
-不得直接作为 Zep CE runtime id；sanitized projection 只保留产品侧 `thread_id` /
-`conversation_id`，不暴露 internal Zep CE id。
+local dev 的 self-host runtime secret 由
+`infra/local/scripts/ensure-runtime-secrets.mjs` 生成到
+`infra/local/.generated/runtime.env`。staging lifecycle 生成到 runtime dir 下的
+`secrets/runtime.env`。这些文件属于对应环境 runtime，不进入 repo-tracked env。
+
+`PERSONAL_MEMORY_OWNER_SALT` 用于把 `tenant_id + user_id` 派生为 scoped Hindsight
+bank id，并把 scoped bank id + 产品侧 `conversation_id` 派生为 Hindsight
+conversation document id。
+local / staging / production 都必须持有稳定 salt。产品侧 user id / conversation id
+不得直接作为 Hindsight runtime id；sanitized projection 只保留产品侧 `thread_id` /
+`conversation_id`，不暴露 internal Hindsight bank id。
 
 retired env 必须 fail closed：
 
@@ -107,7 +115,7 @@ user request
 -> execution-control starts CapabilityExecutionWorkflow
 -> first Execution Agent decision determines whether memory/tool context is needed
 -> Temporal context.memory_recall activity
--> Zep CE session search scoped to actor user
+-> Hindsight recall scoped to actor bank
 -> bounded memory context
 -> planning / RAG / deterministic tools
 -> sanitized run step projection
@@ -164,9 +172,8 @@ completed run 后置写入走 Temporal `AppendConversationMemoryActivity`：
 finalization.write completed
 -> memory.append
 -> read sanitized execution payload and final answer projection
--> derive scoped Zep CE user/session id from tenant + user + conversation
--> Zep CE append session memory
--> optionally omit assistant message before sending to Zep CE
+-> derive scoped Hindsight bank/document id from tenant + user + conversation
+-> Hindsight retain completed turn document
 -> sanitized memory.append step projection
 ```
 
@@ -185,22 +192,22 @@ skip_reasons
 ```
 
 不得在 projection、Temporal activity result 或 eval artifact 中保存 raw transcript、
-provider raw response、tool raw payload、Zep CE raw payload 或 unrestricted notes。
+provider raw response、tool raw payload、Hindsight raw payload 或 unrestricted notes。
 
 `/internal/memory/personal/turns:append` 与 `/internal/memory/personal/graph:recall`
-只服务 internal worker / runtime smoke。它们用于 Zep CE live gate 直接验证 append、recall
+只服务 internal worker / runtime smoke。它们用于 Hindsight live gate 直接验证 append、recall
 和 user isolation，不是 browser-facing API，也不替代 Temporal production workflow。
 
 ### Explicit Profile Memory
 
-用户显式 profile memory 仍是 app-api 产品面，但 app-api 不知道 Zep CE API、Qdrant 或
+用户显式 profile memory 仍是 app-api 产品面，但 app-api 不知道 Hindsight API、Qdrant 或
 embedding。
 
 ```text
 POST /api/me/profile-memory/items
 -> app-api validates product command
 -> execution-control /internal/memory/personal/items:upsert
--> Zep CE reserved profile session append
+-> Hindsight retain profile document
 -> execution-control returns episode_uuid
 -> app-api stores episode_uuid in PG projection
 ```
@@ -211,7 +218,7 @@ POST /api/me/profile-memory/items
 DELETE /api/me/profile-memory/items/:id
 -> app-api loads runtime_episode_uuid from PG projection
 -> execution-control /internal/memory/personal/items:disable
--> Zep CE reserved profile session memory delete
+-> Hindsight document delete
 -> app-api marks PG projection disabled
 ```
 
@@ -220,18 +227,18 @@ DELETE /api/me/profile-memory/items/:id
 ```text
 profile memory owner delete
 -> execution-control /internal/memory/personal/owner:disable
--> Zep CE user.delete
+-> Hindsight bank delete
 -> app-api projection follows product retention policy
 ```
 
-`episode_uuid` 是 runtime/internal ref。当前 Zep CE profile memory 使用
-`profile:<scoped_user_id>:<memory_id>` reserved session id 作为该 ref。它可以存在 PG
-projection 和 internal command payload；
+`episode_uuid` 是 runtime/internal ref。当前 Hindsight profile memory 使用
+`profile:<memory_id>` document id 作为该 ref。它可以存在 PG projection 和 internal
+command payload；
 不得暴露给 browser-facing profile-memory item response。
 
 ## Eval And Acceptance
 
-repo-owned memory eval profile 是 `zep-memory-product-path`，不是
+repo-owned memory eval profile 是 `hindsight-memory-product-path`，不是
 `personal-memory-extraction`。该 profile 覆盖：
 
 - completed turn append
@@ -242,29 +249,29 @@ repo-owned memory eval profile 是 `zep-memory-product-path`，不是
 - user isolation
 
 runtime collector 只记录 schema、status、hash 与字段级 token，不保存 raw transcript、
-provider raw response、Zep CE raw payload 或 API key。runtime collector 必须实际调用
+provider raw response、Hindsight raw payload 或 API key。runtime collector 必须实际调用
 internal append、recall、explicit profile upsert / disable 与 owner disable endpoint；不得用
 `not_collected` 或离线 fixture 冒充 live smoke。离线 gate 消费 sanitized observations；
 runtime gate 需要 `EXECUTION_CONTROL_BASE_URL` 与 `API_WORKER_SHARED_SECRET`。
 
 ## Data-Plane Boundary
 
-Zep CE posture：
+Hindsight posture：
 
-- personal memory graph storage / extraction / dedupe / merge / search 由 Zep CE
+- personal memory graph storage / extraction / dedupe / merge / recall 由 Hindsight
   承担。
-- execution-control 只消费 Zep CE `/api/v2` HTTP API，不把 Zep 类型泄漏进
+- execution-control 通过官方 Go SDK 消费 Hindsight HTTP API，不把 Hindsight SDK 类型泄漏进
   `packages/contracts`。
-- staging / production 必须使用 HTTPS Zep CE endpoint；local dev 可使用 compose 内网
-  `http://zep-ce-api:8000`。
+- staging / local compose 默认使用内网 `http://hindsight-api:8888`；只有外接
+  Hindsight endpoint 时才需要覆盖 URL，外部 endpoint 必须使用 HTTPS。
 - `PERSONAL_MEMORY_API_SECRET` 只注入需要 personal memory 的 execution-control
-  runtime role：
-  `execution-control` 与 `activity-context`。
+  runtime role：`execution-control` 与 `activity-context`。local / staging lifecycle
+  负责生成并持久化该值。
 - `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
-  `PERSONAL_MEMORY_OWNER_SALT` 是部署 env handles；`runtime`、timeout 与 recall
-  limits 由 execution-control runtime profile 管理。
-- `activity-knowledge-plan` / `activity-knowledge-synthesis` 不要求 Zep 配置；
-  `activity-knowledge-retrieval` 只在需要 query-side recall runtime 时加载 Zep
+  `PERSONAL_MEMORY_OWNER_SALT` 是 deployment projection，不是开发者手工配置项；
+  `runtime`、timeout 与 recall limits 由 execution-control runtime profile 管理。
+- `activity-knowledge-plan` / `activity-knowledge-synthesis` 不要求 Hindsight 配置；
+  `activity-knowledge-retrieval` 只在需要 query-side recall runtime 时加载 Hindsight
   connectivity；knowledge worker 消费的是 bounded memory context，不拥有 memory
   substrate。
 
@@ -289,7 +296,7 @@ Memory Plane 不是：
 ## Guardrails
 
 - Do not reintroduce PG all-memory injection into chat submit.
-- Do not make app-api call Zep CE API or private vector store directly.
+- Do not make app-api call Hindsight API or private vector store directly.
 - Do not reintroduce `personal_memory_extraction` or `personal_memory_embedding`.
 - Do not let RAG / provider adapters write long-term memory inline during answer
   synthesis.

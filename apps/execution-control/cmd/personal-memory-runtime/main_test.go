@@ -46,7 +46,7 @@ func TestWriteRuntimeReport(t *testing.T) {
 		Mode:         "check",
 		Passed:       true,
 		RuntimeReady: true,
-		Store:        "zep",
+		Store:        "hindsight",
 	}
 	if err := writeRuntimeReport(path, report); err != nil {
 		t.Fatalf("write runtime report: %v", err)

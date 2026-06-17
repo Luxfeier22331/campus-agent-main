@@ -81,6 +81,7 @@ func (readyPersonalMemoryExecutor) Recall(
 		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
 		RunID:         request.RunID,
 		SchemaVersion: "memory_recall_result_v1",
+		ThreadID:      request.ThreadID,
 	})
 }
 

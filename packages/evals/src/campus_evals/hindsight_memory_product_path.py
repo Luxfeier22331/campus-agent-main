@@ -21,13 +21,13 @@ from campus_evals.profile_report import (
     write_profile_report,
 )
 
-ZEP_MEMORY_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "zep_memory_product_path_cases.v1.json"
+HINDSIGHT_MEMORY_CASES_PATH = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "hindsight_memory_product_path_cases.v1.json"
 )
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryCase:
+class HindsightMemoryCase:
     case_id: str
     split: str
     assertion_kind: str
@@ -39,14 +39,14 @@ class ZepMemoryCase:
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryCaseSet:
+class HindsightMemoryCaseSet:
     schema_version: int
     case_family: str
-    cases: tuple[ZepMemoryCase, ...]
+    cases: tuple[HindsightMemoryCase, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryObservation:
+class HindsightMemoryObservation:
     case_id: str
     status: str
     selected_memory_count: int = 0
@@ -57,7 +57,7 @@ class ZepMemoryObservation:
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryResult:
+class HindsightMemoryResult:
     case_id: str
     passed: bool
     failure_class: str
@@ -65,26 +65,26 @@ class ZepMemoryResult:
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryReport:
+class HindsightMemoryReport:
     passed: bool
     total: int
     passed_count: int
     failed_count: int
-    results: tuple[ZepMemoryResult, ...]
+    results: tuple[HindsightMemoryResult, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class ZepMemoryRuntimeSettings:
+class HindsightMemoryRuntimeSettings:
     execution_control_base_url: str
     worker_shared_secret: str
     tenant_id: str = "eval"
-    user_id: str = "eval-zep-memory-user"
+    user_id: str = "eval-hindsight-memory-user"
     timeout_seconds: float = 15.0
 
     @classmethod
-    def from_env(cls, source: Mapping[str, str] | None = None) -> ZepMemoryRuntimeSettings:
+    def from_env(cls, source: Mapping[str, str] | None = None) -> HindsightMemoryRuntimeSettings:
         env = source if source is not None else os.environ
-        timeout_raw = str(env.get("ZEP_MEMORY_EVAL_HTTP_TIMEOUT_SECONDS") or "").strip()
+        timeout_raw = str(env.get("HINDSIGHT_MEMORY_EVAL_HTTP_TIMEOUT_SECONDS") or "").strip()
         timeout_seconds = float(timeout_raw) if timeout_raw else 15.0
         return cls(
             execution_control_base_url=str(env.get("EXECUTION_CONTROL_BASE_URL") or "").strip(),
@@ -93,43 +93,49 @@ class ZepMemoryRuntimeSettings:
                 or env.get("EXECUTION_CONTROL_WORKER_SHARED_SECRET")
                 or ""
             ).strip(),
-            tenant_id=str(env.get("ZEP_MEMORY_EVAL_TENANT_ID") or "eval").strip() or "eval",
-            user_id=str(env.get("ZEP_MEMORY_EVAL_USER_ID") or "eval-zep-memory-user").strip()
-            or "eval-zep-memory-user",
+            tenant_id=str(env.get("HINDSIGHT_MEMORY_EVAL_TENANT_ID") or "eval").strip() or "eval",
+            user_id=str(
+                env.get("HINDSIGHT_MEMORY_EVAL_USER_ID") or "eval-hindsight-memory-user"
+            ).strip()
+            or "eval-hindsight-memory-user",
             timeout_seconds=timeout_seconds,
         )
 
     def __post_init__(self) -> None:
         if not self.execution_control_base_url.strip():
-            raise ValueError("EXECUTION_CONTROL_BASE_URL is required for Zep memory runtime eval")
+            raise ValueError(
+                "EXECUTION_CONTROL_BASE_URL is required for Hindsight memory runtime eval"
+            )
         if not self.worker_shared_secret.strip():
-            raise ValueError("API_WORKER_SHARED_SECRET is required for Zep memory runtime eval")
+            raise ValueError(
+                "API_WORKER_SHARED_SECRET is required for Hindsight memory runtime eval"
+            )
         if self.timeout_seconds <= 0:
-            raise ValueError("ZEP_MEMORY_EVAL_HTTP_TIMEOUT_SECONDS must be greater than zero")
+            raise ValueError("HINDSIGHT_MEMORY_EVAL_HTTP_TIMEOUT_SECONDS must be greater than zero")
 
 
-def load_zep_memory_cases(path: str | Path | None = None) -> ZepMemoryCaseSet:
-    payload = load_json_object(Path(path) if path is not None else ZEP_MEMORY_CASES_PATH)
+def load_hindsight_memory_cases(path: str | Path | None = None) -> HindsightMemoryCaseSet:
+    payload = load_json_object(Path(path) if path is not None else HINDSIGHT_MEMORY_CASES_PATH)
     if int(payload.get("schema_version") or 0) != 1:
-        raise ValueError("zep memory case schema_version must be 1")
+        raise ValueError("hindsight memory case schema_version must be 1")
     case_family = required_string(payload.get("case_family"), "case_family")
-    if case_family != "zep_memory_product_path.v1":
-        raise ValueError("unsupported zep memory case_family")
+    if case_family != "hindsight_memory_product_path.v1":
+        raise ValueError("unsupported hindsight memory case_family")
     raw_cases = payload.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
-        raise ValueError("zep memory cases must be a non-empty list")
+        raise ValueError("hindsight memory cases must be a non-empty list")
     cases = tuple(_parse_case(item) for item in raw_cases)
     _reject_duplicate_case_ids(case.case_id for case in cases)
-    return ZepMemoryCaseSet(schema_version=1, case_family=case_family, cases=cases)
+    return HindsightMemoryCaseSet(schema_version=1, case_family=case_family, cases=cases)
 
 
-def evaluate_zep_memory_cases(
-    cases: tuple[ZepMemoryCase, ...],
-    observations: Mapping[str, ZepMemoryObservation],
-) -> ZepMemoryReport:
+def evaluate_hindsight_memory_cases(
+    cases: tuple[HindsightMemoryCase, ...],
+    observations: Mapping[str, HindsightMemoryObservation],
+) -> HindsightMemoryReport:
     results = tuple(_evaluate_case(case, observations.get(case.case_id)) for case in cases)
     passed_count = sum(1 for result in results if result.passed)
-    return ZepMemoryReport(
+    return HindsightMemoryReport(
         passed=passed_count == len(results),
         total=len(results),
         passed_count=passed_count,
@@ -138,7 +144,7 @@ def evaluate_zep_memory_cases(
     )
 
 
-def run_zep_memory_product_path_profile(
+def run_hindsight_memory_product_path_profile(
     *,
     output_dir: Path,
     cases_path: Path | None = None,
@@ -146,24 +152,24 @@ def run_zep_memory_product_path_profile(
     collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileReport:
-    case_set = load_zep_memory_cases(cases_path)
+    case_set = load_hindsight_memory_cases(cases_path)
     runtime_metrics = None
     if collect_runtime:
         started_at = datetime.now(UTC)
         monotonic_started = time.monotonic()
-        observations = collect_zep_memory_runtime_observations(case_set)
+        observations = collect_hindsight_memory_runtime_observations(case_set)
         runtime_metrics = measured_runtime_metrics(
-            profile_id="zep_memory_product_path",
+            profile_id="hindsight_memory_product_path",
             started_at=started_at,
             monotonic_started=monotonic_started,
             provider_calls=0,
         )
     else:
         observations = _load_observations(observations_path)
-    report = evaluate_zep_memory_cases(case_set.cases, observations)
+    report = evaluate_hindsight_memory_cases(case_set.cases, observations)
     return write_profile_report(
         output_dir=output_dir,
-        profile_id="zep_memory_product_path",
+        profile_id="hindsight_memory_product_path",
         case_family=case_set.case_family,
         report_passed=report.passed,
         total=report.total,
@@ -178,19 +184,19 @@ def run_zep_memory_product_path_profile(
     )
 
 
-def collect_zep_memory_runtime_observations(
-    case_set: ZepMemoryCaseSet,
+def collect_hindsight_memory_runtime_observations(
+    case_set: HindsightMemoryCaseSet,
     *,
-    settings: ZepMemoryRuntimeSettings | None = None,
-) -> dict[str, ZepMemoryObservation]:
-    resolved = settings or ZepMemoryRuntimeSettings.from_env()
+    settings: HindsightMemoryRuntimeSettings | None = None,
+) -> dict[str, HindsightMemoryObservation]:
+    resolved = settings or HindsightMemoryRuntimeSettings.from_env()
     headers = {"x-worker-origin-auth": resolved.worker_shared_secret}
     base_url = resolved.execution_control_base_url.rstrip("/")
     now = datetime.now(UTC).isoformat()
-    memory_id = f"eval-zep-memory-{int(time.time())}"
-    run_id = f"eval-zep-memory-run-{int(time.time())}"
-    thread_id = f"eval-zep-memory-thread-{int(time.time())}"
-    observations: dict[str, ZepMemoryObservation] = {}
+    memory_id = f"eval-hindsight-memory-{int(time.time())}"
+    run_id = f"eval-hindsight-memory-run-{int(time.time())}"
+    thread_id = f"eval-hindsight-memory-thread-{int(time.time())}"
+    observations: dict[str, HindsightMemoryObservation] = {}
     with httpx.Client(base_url=base_url, timeout=resolved.timeout_seconds) as client:
         append = _post_json(
             client,
@@ -206,8 +212,8 @@ def collect_zep_memory_runtime_observations(
             },
             headers,
         )
-        observations["zep-memory-append-completed-turn"] = _observation_from_payload(
-            "zep-memory-append-completed-turn",
+        observations["hindsight-memory-append-completed-turn"] = _observation_from_payload(
+            "hindsight-memory-append-completed-turn",
             "append_completed_turn",
             append,
         )
@@ -218,13 +224,14 @@ def collect_zep_memory_runtime_observations(
                 "requested_capability": "knowledge",
                 "run_id": run_id + "-recall",
                 "tenant_id": resolved.tenant_id,
+                "thread_id": thread_id + "-recall",
                 "user_goal": "丰台校区培养方案怎么查？",
                 "user_id": resolved.user_id,
             },
             headers,
         )
-        observations["zep-memory-cross-thread-recall"] = _recall_observation_from_payload(
-            "zep-memory-cross-thread-recall",
+        observations["hindsight-memory-cross-thread-recall"] = _recall_observation_from_payload(
+            "hindsight-memory-cross-thread-recall",
             "cross_thread_recall",
             recall,
         )
@@ -235,13 +242,14 @@ def collect_zep_memory_runtime_observations(
                 "requested_capability": "knowledge",
                 "run_id": run_id + "-isolation",
                 "tenant_id": resolved.tenant_id,
+                "thread_id": thread_id + "-isolation",
                 "user_goal": "丰台校区培养方案怎么查？",
-                "user_id": "other-zep-memory-user",
+                "user_id": "other-hindsight-memory-user",
             },
             headers,
         )
-        observations["zep-memory-user-isolation"] = _recall_observation_from_payload(
-            "zep-memory-user-isolation",
+        observations["hindsight-memory-user-isolation"] = _recall_observation_from_payload(
+            "hindsight-memory-user-isolation",
             "user_isolation",
             isolation,
         )
@@ -257,8 +265,8 @@ def collect_zep_memory_runtime_observations(
             client, "/internal/memory/personal/items:upsert", upsert_payload, headers
         )
         episode_uuid = required_string(upsert.get("episode_uuid"), "episode_uuid")
-        observations["zep-memory-explicit-profile-upsert"] = _observation_from_payload(
-            "zep-memory-explicit-profile-upsert",
+        observations["hindsight-memory-explicit-profile-upsert"] = _observation_from_payload(
+            "hindsight-memory-explicit-profile-upsert",
             "explicit_profile_upsert",
             upsert,
         )
@@ -268,13 +276,14 @@ def collect_zep_memory_runtime_observations(
             {
                 "episode_uuid": episode_uuid,
                 "memory_id": memory_id,
+                "tenant_id": resolved.tenant_id,
                 "updated_at": now,
                 "user_id": resolved.user_id,
             },
             headers,
         )
-        observations["zep-memory-explicit-profile-disable"] = _observation_from_payload(
-            "zep-memory-explicit-profile-disable",
+        observations["hindsight-memory-explicit-profile-disable"] = _observation_from_payload(
+            "hindsight-memory-explicit-profile-disable",
             "explicit_profile_disable",
             disable,
         )
@@ -288,14 +297,14 @@ def collect_zep_memory_runtime_observations(
             },
             headers,
         )
-        observations["zep-memory-owner-disable"] = _observation_from_payload(
-            "zep-memory-owner-disable",
+        observations["hindsight-memory-owner-disable"] = _observation_from_payload(
+            "hindsight-memory-owner-disable",
             "owner_disable",
             owner_disable,
         )
     missing = sorted(case.case_id for case in case_set.cases if case.case_id not in observations)
     if missing:
-        raise RuntimeError(f"Zep memory runtime collector missed cases: {', '.join(missing)}")
+        raise RuntimeError(f"Hindsight memory runtime collector missed cases: {', '.join(missing)}")
     return observations
 
 
@@ -318,8 +327,8 @@ def _observation_from_payload(
     case_id: str,
     runtime_path: str,
     payload: Mapping[str, object],
-) -> ZepMemoryObservation:
-    return ZepMemoryObservation(
+) -> HindsightMemoryObservation:
+    return HindsightMemoryObservation(
         case_id=case_id,
         status=str(payload.get("status") or ""),
         observed_tokens=tuple(sorted(str(key) for key in payload if str(key).strip())),
@@ -332,8 +341,21 @@ def _recall_observation_from_payload(
     case_id: str,
     runtime_path: str,
     payload: Mapping[str, object],
-) -> ZepMemoryObservation:
+) -> HindsightMemoryObservation:
     observed_tokens = set(str(key) for key in payload if str(key).strip())
+    provider = str(payload.get("provider") or "").strip()
+    if provider:
+        observed_tokens.add(provider)
+    retrieval_mode = str(payload.get("retrieval_mode") or "").strip()
+    if retrieval_mode:
+        observed_tokens.add(retrieval_mode)
+    context_block = str(payload.get("context_block") or "")
+    if "丰台校区" in context_block:
+        observed_tokens.add("丰台校区")
+    if "培养方案" in context_block:
+        observed_tokens.add("培养方案")
+    if "other-user-private-memory" in context_block:
+        observed_tokens.add("other-user-private-memory")
     for item in _memory_context_items(payload.get("memory_context_items")):
         compact_text = str(item.get("compact_text") or "")
         if "丰台校区" in compact_text:
@@ -342,7 +364,7 @@ def _recall_observation_from_payload(
             observed_tokens.add("培养方案")
         if "other-user-private-memory" in compact_text:
             observed_tokens.add("other-user-private-memory")
-    return ZepMemoryObservation(
+    return HindsightMemoryObservation(
         case_id=case_id,
         status=str(payload.get("status") or ""),
         selected_memory_count=int(payload.get("selected_memory_count") or 0),
@@ -363,20 +385,22 @@ def _memory_context_items(value: object) -> tuple[Mapping[str, object], ...]:
 
 
 def _evaluate_case(
-    case: ZepMemoryCase,
-    observation: ZepMemoryObservation | None,
-) -> ZepMemoryResult:
+    case: HindsightMemoryCase,
+    observation: HindsightMemoryObservation | None,
+) -> HindsightMemoryResult:
     if observation is None:
-        return ZepMemoryResult(case.case_id, False, "missing_observation", "missing observation")
+        return HindsightMemoryResult(
+            case.case_id, False, "missing_observation", "missing observation"
+        )
     if observation.schema_version != case.required_schema_version:
-        return ZepMemoryResult(
+        return HindsightMemoryResult(
             case.case_id,
             False,
             "schema_version_mismatch",
             f"schema_version={observation.schema_version}",
         )
     if observation.status != case.required_status:
-        return ZepMemoryResult(
+        return HindsightMemoryResult(
             case.case_id,
             False,
             "status_mismatch",
@@ -385,7 +409,7 @@ def _evaluate_case(
     observed_tokens = set(observation.observed_tokens)
     for token in case.required_tokens:
         if token and token not in observed_tokens:
-            return ZepMemoryResult(
+            return HindsightMemoryResult(
                 case.case_id,
                 False,
                 "required_token_missing",
@@ -394,25 +418,25 @@ def _evaluate_case(
     forbidden_tokens = set(case.forbidden_tokens) | set(observation.forbidden_tokens)
     leaked = sorted(token for token in forbidden_tokens if token in observed_tokens)
     if leaked:
-        return ZepMemoryResult(
+        return HindsightMemoryResult(
             case.case_id,
             False,
             "forbidden_token_present",
             f"forbidden_token={leaked[0]}",
         )
     if observation.selected_memory_count < case.min_selected_memory_count:
-        return ZepMemoryResult(
+        return HindsightMemoryResult(
             case.case_id,
             False,
             "selected_memory_count_below_minimum",
             f"selected_memory_count={observation.selected_memory_count}",
         )
-    return ZepMemoryResult(case.case_id, True, "", "ok")
+    return HindsightMemoryResult(case.case_id, True, "", "ok")
 
 
-def _load_observations(path: Path | None) -> dict[str, ZepMemoryObservation]:
+def _load_observations(path: Path | None) -> dict[str, HindsightMemoryObservation]:
     return {
-        case_id: ZepMemoryObservation(
+        case_id: HindsightMemoryObservation(
             case_id=case_id,
             status=str(item.get("status") or ""),
             selected_memory_count=int(item.get("selected_memory_count") or 0),
@@ -425,13 +449,13 @@ def _load_observations(path: Path | None) -> dict[str, ZepMemoryObservation]:
     }
 
 
-def _parse_case(payload: object) -> ZepMemoryCase:
+def _parse_case(payload: object) -> HindsightMemoryCase:
     if not isinstance(payload, dict):
-        raise ValueError("zep memory case must be an object")
+        raise ValueError("hindsight memory case must be an object")
     min_selected = int(payload.get("min_selected_memory_count") or 0)
     if min_selected < 0:
         raise ValueError("min_selected_memory_count must be non-negative")
-    return ZepMemoryCase(
+    return HindsightMemoryCase(
         case_id=required_string(payload.get("case_id"), "case_id"),
         split=required_string(payload.get("split"), "split"),
         assertion_kind=required_string(payload.get("assertion_kind"), "assertion_kind"),
@@ -450,12 +474,12 @@ def _reject_duplicate_case_ids(case_ids: Sequence[str]) -> None:
     seen: set[str] = set()
     for case_id in case_ids:
         if case_id in seen:
-            raise ValueError(f"duplicate zep memory case_id: {case_id}")
+            raise ValueError(f"duplicate hindsight memory case_id: {case_id}")
         seen.add(case_id)
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run Zep memory product-path profile.")
+    parser = argparse.ArgumentParser(description="Run Hindsight memory product-path profile.")
     subparsers = parser.add_subparsers(dest="command", required=True)
     accept = subparsers.add_parser("accept")
     accept.add_argument("--output-dir", required=True)
@@ -471,8 +495,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.command != "accept":
         raise ValueError(f"unsupported command: {args.command}")
     if args.reruns != 1:
-        raise ValueError("zep memory product-path gate is deterministic and requires reruns=1")
-    report = run_zep_memory_product_path_profile(
+        raise ValueError(
+            "hindsight memory product-path gate is deterministic and requires reruns=1"
+        )
+    report = run_hindsight_memory_product_path_profile(
         output_dir=Path(args.output_dir),
         cases_path=Path(args.cases_path) if args.cases_path else None,
         observations_path=Path(args.observations_path) if args.observations_path else None,
@@ -481,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.json:
         print(report.output_path.read_text(encoding="utf-8").strip())
     elif args.verbose:
-        print(f"zep-memory-product-path: {'PASS' if report.passed else 'FAIL'}")
+        print(f"hindsight-memory-product-path: {'PASS' if report.passed else 'FAIL'}")
     return 0 if report.passed else 1
 
 

@@ -75,8 +75,12 @@ func (s *Server) MemoryRecallActivity(
 		return temporalruntime.MemoryRecallActivityOutput{}, err
 	}
 	return temporalruntime.MemoryRecallActivityOutput{
+		ContextBlock:        result.ContextBlock,
 		MemoryRef:           result.MemoryRef,
+		Provider:            result.Provider,
+		RetrievalMode:       result.RetrievalMode,
 		RunID:               run.RunID,
+		SchemaVersion:       result.SchemaVersion,
 		SelectedMemoryChars: result.SelectedMemoryChars,
 		SelectedMemoryCount: result.SelectedMemoryCount,
 		Status:              "completed",

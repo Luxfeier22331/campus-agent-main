@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-03-28
-updated: 2026-06-14
+updated: 2026-06-17
 ---
 
 # App API HTTP Contract
@@ -353,9 +353,9 @@ assistant message 可以包含 `feedback`：
 - `value` 是用户声明的短文本偏好或目标，不能作为 ACL、serving surface 或 approval 权限来源
 - profile memory API 是 product/manual management surface；online chat hot path 不再由
   `app-api` 读取 PG memory rows 并全量注入 `ContextProjection.profile_memory.items`
-- 开启 profile memory 后，manual write path 必须同步到 execution-control internal Zep
-  memory command，后续 online recall 由 `context.memory_recall` activity 通过 Zep user
-  graph 选择 bounded memory context
+- 开启 profile memory 后，manual write path 必须同步到 execution-control internal
+  Hindsight memory command，后续 online recall 由 `context.memory_recall` activity 通过
+  Hindsight recall 选择 bounded memory context
 - 关闭 memory projection 后，后续 `memory.recall` 不得返回该用户的 active personal
   memory item；legacy `ContextProjection.profile_memory.items` 如仍存在于 DTO，只能为空或被
   execution side 忽略

@@ -6,6 +6,8 @@ import type { ProfileMemoryItem, ProfileMemoryList } from "./model";
 import { normalizeProfileMemoryKey, normalizeProfileMemoryValue } from "./model";
 import type { ProfileMemoryStore } from "./store";
 
+const PROFILE_MEMORY_TENANT_ID = "tenant-main";
+
 export interface ProfileMemoryService {
 	deleteItem(input: {
 		itemId: string;
@@ -32,6 +34,7 @@ export interface ProfileMemoryIndexer {
 	disableExplicitMemory(input: {
 		episodeUUID: string;
 		memoryId: string;
+		tenantId?: string;
 		updatedAt: string;
 		userId: string;
 	}): Promise<{ episodeUUID: string; memoryId: string; status: string }>;
@@ -119,6 +122,7 @@ export function buildProfileMemoryService(
 			await dependencies.memoryIndexer.disableExplicitMemory({
 				episodeUUID: runtimeRef.runtimeEpisodeUUID,
 				memoryId: itemId,
+				tenantId: PROFILE_MEMORY_TENANT_ID,
 				updatedAt: now().toISOString(),
 				userId: ownerUserId,
 			});
@@ -143,6 +147,7 @@ export function buildProfileMemoryService(
 			const updatedAt = now().toISOString();
 			if (!input.enabled) {
 				await dependencies.memoryIndexer.disableOwnerMemory({
+					tenantId: PROFILE_MEMORY_TENANT_ID,
 					updatedAt,
 					userId: ownerUserId,
 				});
@@ -177,6 +182,7 @@ export function buildProfileMemoryService(
 				canonicalSubject: key,
 				compactText: `${key}: ${value}`,
 				memoryId: itemId,
+				tenantId: PROFILE_MEMORY_TENANT_ID,
 				updatedAt,
 				userId: ownerUserId,
 			});

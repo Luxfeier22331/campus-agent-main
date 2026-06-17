@@ -48,11 +48,13 @@ describe("agent runtime HTTP handler", () => {
 
 	it("runs a primary agent turn with worker authorization", async () => {
 		let observedProvider: unknown;
+		let observedMemoryContext: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
 					observedProvider = input.providerConfig;
+					observedMemoryContext = input.memoryContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 			},
@@ -64,6 +66,13 @@ describe("agent runtime HTTP handler", () => {
 				headers: { authorization: "Bearer secret" },
 				body: JSON.stringify({
 					...validRunBody(),
+					memory_context: {
+						context_block: "用户记忆:\n- 用户偏好先给结论",
+						memory_ref: "projection://runs/run_01HQ/memory/recall",
+						schema_version: "memory_recall_result_v1",
+						selected_memory_chars: 18,
+						selected_memory_count: 1,
+					},
 					provider_config: validPromptProviderConfig(),
 				}),
 			}),
@@ -74,6 +83,13 @@ describe("agent runtime HTTP handler", () => {
 		expect(body.final_output).toBe("我是校园问答助手。");
 		expect(body.selected_tools).toEqual([]);
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
+		expect(observedMemoryContext).toEqual({
+			contextBlock: "用户记忆:\n- 用户偏好先给结论",
+			memoryRef: "projection://runs/run_01HQ/memory/recall",
+			schemaVersion: "memory_recall_result_v1",
+			selectedMemoryChars: 18,
+			selectedMemoryCount: 1,
+		});
 	});
 
 	it("fails closed when provider config is missing from an agent run request", async () => {

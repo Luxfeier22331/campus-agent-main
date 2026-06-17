@@ -44,7 +44,7 @@
 		"provider_timeout_ms": 60000
 	},
 	"personal_memory": {
-		"runtime": "zep_ce",
+		"runtime": "hindsight",
 		"timeout_seconds": 10,
 		"recall_limit": 8,
 		"recall_max_chars": 2500

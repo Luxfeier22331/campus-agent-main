@@ -180,7 +180,7 @@ class EvalGateTest(unittest.TestCase):
             "agentic-retrieval-plan",
             "public-chat-entry-e2e",
             "answer-quality-contract",
-            "zep-memory-product-path",
+            "hindsight-memory-product-path",
             "eval-operations-governance",
             "quality-calibration",
         )

@@ -290,8 +290,8 @@ func validateRuntimeConfigProfileMemoryCompleteness(value *runtimeConfigProfileM
 	if value.Runtime == nil || strings.TrimSpace(*value.Runtime) == "" {
 		return fmt.Errorf("execution-control runtime profile missing required personal_memory.runtime")
 	}
-	if strings.TrimSpace(*value.Runtime) != "zep_ce" {
-		return fmt.Errorf("execution-control runtime profile personal_memory.runtime must be zep_ce")
+	if strings.TrimSpace(*value.Runtime) != "hindsight" {
+		return fmt.Errorf("execution-control runtime profile personal_memory.runtime must be hindsight")
 	}
 	requiredInts := []struct {
 		name  string

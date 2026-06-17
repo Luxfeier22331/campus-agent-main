@@ -69,6 +69,7 @@ export interface ExecutionControlPersonalMemoryUpsertInput {
 export interface ExecutionControlPersonalMemoryDisableInput {
 	episodeUUID: string;
 	memoryId: string;
+	tenantId?: string | null;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	updatedAt: string;
@@ -338,6 +339,7 @@ export function createExecutionControlPersonalMemoryClient(
 				body: {
 					episode_uuid: memoryInput.episodeUUID,
 					memory_id: memoryInput.memoryId,
+					tenant_id: memoryInput.tenantId ?? "",
 					updated_at: memoryInput.updatedAt,
 					user_id: memoryInput.userId,
 				},

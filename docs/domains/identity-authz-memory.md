@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-04-12
-updated: 2026-06-12
+updated: 2026-06-17
 ---
 # Identity / Authz / Memory Domain
 
@@ -30,7 +30,7 @@ updated: 2026-06-12
 - `../architecture/system/identity-browser-experience-architecture.md`
 - `../architecture/system/federation-and-mucwiki-login-architecture.md`
 - `../decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `../decisions/adr-0057-zep-native-personal-memory-plane.md`
+- `../decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
 - `../decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 
 ## Contract 与 Data
@@ -72,11 +72,13 @@ memory boundaries are owned by the architecture documents listed above.
 后续 memory / personalization productization 的落地顺序固定为：
 
 1. `execution-control` / Temporal 拥有 online `memory.recall` step。
-2. Zep CE runtime 承接 personal memory retrieval / extraction / graph storage；PG profile
-   memory 只保留为 manual product projection / migration source。
+2. Hindsight runtime 承接 personal memory retrieval / extraction / graph
+   storage；PG profile memory 只保留为 manual product projection /
+   migration source。
 3. `app-api` chat hot path 不读取 PG profile memory 并全量注入
    `context.profile_memory`。
-4. planning / RAG / deterministic tools 只消费 bounded compact memory context；
+4. planning / RAG / deterministic tools 只消费 bounded Hindsight personal
+   memory recall packet；
    不得读取 raw memory、raw transcript、raw auth material 或产品层数据库对象。
 5. personalization 可以影响 follow-up、applicability、retrieval planning、ranking /
    disambiguation、clarification 与 answer wording；不得伪造 source truth、capability

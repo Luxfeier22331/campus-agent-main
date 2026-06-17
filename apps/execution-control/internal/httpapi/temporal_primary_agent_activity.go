@@ -58,6 +58,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		ProjectionRef: agentResultRef,
 		ReplanReason:  replanReason,
 		Payload: map[string]any{
+			"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 			"replan_reason":          replanReason,
 			"requested_capability":   input.RequestedCapability,
@@ -427,6 +428,7 @@ func (s *Server) callAgentRuntime(
 		"turn_id":                input.TurnID,
 		"trace_id":               input.TraceID,
 		"input":                  primaryAgentInputText(run),
+		"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
 		"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
@@ -457,6 +459,21 @@ func (s *Server) callAgentRuntime(
 		)
 	}
 	return decoded.toTemporalOutput(), nil
+}
+
+func temporalMemoryContextPayload(context *temporalruntime.MemoryContext) map[string]any {
+	if context == nil || strings.TrimSpace(context.ContextBlock) == "" || strings.TrimSpace(context.MemoryRef) == "" {
+		return nil
+	}
+	return map[string]any{
+		"context_block":         context.ContextBlock,
+		"memory_ref":            context.MemoryRef,
+		"provider":              context.Provider,
+		"retrieval_mode":        context.RetrievalMode,
+		"schema_version":        context.SchemaVersion,
+		"selected_memory_chars": context.SelectedMemoryChars,
+		"selected_memory_count": context.SelectedMemoryCount,
+	}
 }
 
 type agentRuntimeResponse struct {

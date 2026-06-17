@@ -75,6 +75,42 @@ describe("primary agent runtime", () => {
 		expect(result.selectedTools).toEqual([]);
 	});
 
+	it("injects bounded personal memory context into runner instructions", async () => {
+		let observedInstructions = "";
+		const runner: AgentRunner = async ({ instructions }) => {
+			observedInstructions = instructions;
+			return {
+				finalOutput: "我会先给结论。",
+				providerResponseId: "resp_memory",
+				toolCalls: [],
+				traceRef: "trace_memory",
+				usage: { inputTokens: 16, outputTokens: 8 },
+			};
+		};
+		const runtime = createPrimaryAgentRuntime({ catalog, runner });
+
+		await runtime.run({
+			runId: "run-memory",
+			conversationId: "conversation-1",
+			turnId: "turn-memory",
+			traceId: "trace-memory",
+			input: "之后回答能不能先给结论？",
+			providerConfig,
+			visibleCapabilities: ["knowledge"],
+			memoryContext: {
+				contextBlock: "用户记忆:\n- 用户偏好回答先给结论",
+				memoryRef: "projection://runs/run-memory/memory/recall",
+				schemaVersion: "memory_recall_result_v1",
+				selectedMemoryChars: 18,
+				selectedMemoryCount: 1,
+			},
+		});
+
+		expect(observedInstructions).toContain("<personal_memory>");
+		expect(observedInstructions).toContain("用户偏好回答先给结论");
+		expect(observedInstructions).toContain("Personal memory is advisory context");
+	});
+
 	it("passes visible SDK tools to the runner and records selected tool results", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const toolResult = await tools[0]?.execute({

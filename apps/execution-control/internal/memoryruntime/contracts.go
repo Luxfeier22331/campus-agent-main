@@ -18,6 +18,7 @@ type RecallRequest struct {
 	RunID               string            `json:"run_id"`
 	SessionSlots        map[string]string `json:"session_slots,omitempty"`
 	TenantID            string            `json:"tenant_id"`
+	ThreadID            string            `json:"thread_id"`
 	UserGoal            string            `json:"user_goal"`
 	UserID              string            `json:"user_id"`
 }
@@ -31,17 +32,27 @@ type ContextItem struct {
 	UpdatedAt   string  `json:"updated_at"`
 }
 
+type RecentMessage struct {
+	Content   string `json:"content"`
+	CreatedAt string `json:"created_at"`
+	Role      string `json:"role"`
+	RoleType  string `json:"role_type"`
+}
+
 type RecallResult struct {
-	ContextBlock        string        `json:"context_block,omitempty"`
-	Items               []ContextItem `json:"memory_context_items"`
-	MemoryRef           string        `json:"memory_ref"`
-	PayloadSHA256       string        `json:"payload_sha256"`
-	RunID               string        `json:"run_id"`
-	SchemaVersion       string        `json:"schema_version"`
-	SelectedMemoryChars int           `json:"selected_memory_chars"`
-	SelectedMemoryCount int           `json:"selected_memory_count"`
-	ThreadID            string        `json:"thread_id,omitempty"`
-	UserID              string        `json:"user_id,omitempty"`
+	ContextBlock        string          `json:"context_block,omitempty"`
+	Items               []ContextItem   `json:"memory_context_items"`
+	MemoryRef           string          `json:"memory_ref"`
+	PayloadSHA256       string          `json:"payload_sha256"`
+	Provider            string          `json:"provider,omitempty"`
+	RecentMessages      []RecentMessage `json:"recent_messages,omitempty"`
+	RetrievalMode       string          `json:"retrieval_mode,omitempty"`
+	RunID               string          `json:"run_id"`
+	SchemaVersion       string          `json:"schema_version"`
+	SelectedMemoryChars int             `json:"selected_memory_chars"`
+	SelectedMemoryCount int             `json:"selected_memory_count"`
+	ThreadID            string          `json:"thread_id,omitempty"`
+	UserID              string          `json:"user_id,omitempty"`
 }
 
 type AppendConversationTurnRequest struct {
@@ -77,6 +88,7 @@ type UpsertProfileMemoryItemRequest struct {
 type DisableProfileMemoryItemRequest struct {
 	EpisodeUUID string `json:"episode_uuid"`
 	MemoryID    string `json:"memory_id"`
+	TenantID    string `json:"tenant_id,omitempty"`
 	UpdatedAt   string `json:"updated_at"`
 	UserID      string `json:"user_id"`
 }
@@ -111,6 +123,9 @@ func ValidateRecallRequest(request RecallRequest) error {
 	}
 	if strings.TrimSpace(request.UserID) == "" {
 		return fmt.Errorf("%w: user_id is required", ErrInvalidMemoryProjection)
+	}
+	if strings.TrimSpace(request.ThreadID) == "" {
+		return fmt.Errorf("%w: thread_id is required", ErrInvalidMemoryProjection)
 	}
 	if strings.TrimSpace(request.UserGoal) == "" {
 		return fmt.Errorf("%w: user_goal is required", ErrInvalidMemoryProjection)
@@ -195,6 +210,11 @@ func FinalizeRecallResult(result RecallResult) (RecallResult, error) {
 			return RecallResult{}, err
 		}
 		result.SelectedMemoryChars += len([]rune(item.CompactText))
+	}
+	for index, message := range result.RecentMessages {
+		if err := validateRecentMessage(index, message); err != nil {
+			return RecallResult{}, err
+		}
 	}
 	if strings.TrimSpace(result.RunID) == "" {
 		return RecallResult{}, fmt.Errorf("%w: run_id is required", ErrInvalidMemoryProjection)
@@ -312,6 +332,24 @@ func validateContextItem(index int, item ContextItem) error {
 	}
 	if len([]byte(item.CompactText)) > MaxCompactTextBytes {
 		return fmt.Errorf("%w: memory_context_items[%d].compact_text exceeds limit", ErrInvalidMemoryProjection, index)
+	}
+	return nil
+}
+
+func validateRecentMessage(index int, message RecentMessage) error {
+	required := map[string]string{
+		"content":    message.Content,
+		"created_at": message.CreatedAt,
+		"role":       message.Role,
+		"role_type":  message.RoleType,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: recent_messages[%d].%s is required", ErrInvalidMemoryProjection, index, field)
+		}
+	}
+	if len([]byte(message.Content)) > MaxCompactTextBytes {
+		return fmt.Errorf("%w: recent_messages[%d].content exceeds limit", ErrInvalidMemoryProjection, index)
 	}
 	return nil
 }

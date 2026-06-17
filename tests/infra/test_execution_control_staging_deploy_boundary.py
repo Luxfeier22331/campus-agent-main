@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import subprocess
 import textwrap
 import unittest
@@ -162,6 +163,46 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             r"^[0-9a-f]{64}$",
         )
 
+    def test_env_loader_projects_internal_hindsight_memory_defaults_without_manual_secret(
+        self,
+    ) -> None:
+        result = _run_env_loader_twice_for_hindsight_defaults()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(projected["first"]["baseUrl"], "http://hindsight-api:8888")
+        self.assertRegex(projected["first"]["apiSecret"], r"^[A-Za-z0-9_-]{32,}$")
+        self.assertRegex(projected["first"]["ownerSalt"], r"^[A-Za-z0-9_-]{32,}$")
+        self.assertRegex(projected["first"]["postgresPassword"], r"^[A-Za-z0-9_-]{32,}$")
+        self.assertEqual(projected["first"], projected["second"])
+
+    def test_env_loader_projects_self_hosted_runtime_defaults_without_manual_internal_env(
+        self,
+    ) -> None:
+        result = _run_env_loader_twice_for_self_hosted_runtime_defaults()
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        first = projected["first"]
+        self.assertEqual(first["qdrantUrl"], "http://qdrant:6333")
+        self.assertEqual(first["qdrantQueryKey"], first["qdrantReadOnlyKey"])
+        self.assertEqual(first["temporalAddress"], "temporal:7233")
+        self.assertEqual(
+            first["runProjectionUrl"],
+            "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
+        )
+        for key in (
+            "qdrantAdminKey",
+            "qdrantReadOnlyKey",
+            "temporalPostgresPassword",
+            "workflowIDSalt",
+            "internalQuerySecret",
+            "metricsToken",
+        ):
+            with self.subTest(key=key):
+                self.assertRegex(first[key], r"^[A-Za-z0-9_-]{32,}$")
+        self.assertEqual(projected["first"], projected["second"])
+
     def test_compose_running_gate_includes_primary_agent_runtime_services(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
@@ -294,6 +335,157 @@ def _run_env_loader_without_runtime_env() -> subprocess.CompletedProcess[str]:
         return subprocess.run(
             ["bash", "-lc", textwrap.dedent(command)],
             cwd=root,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+
+def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProcess[str]:
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        common_path = _copy_staging_modules(root)
+        runtime_env = root / "ops" / "runtime.env"
+        runtime_env.parent.mkdir()
+        runtime_env.write_text("EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n", encoding="utf-8")
+        command = f"""
+        set -euo pipefail
+        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
+        export EXECUTION_CONTROL_STAGING_RUNTIME_DIR={shlex.quote(str(root / ".tmp" / "execution-control-staging"))}
+        source {shlex.quote(str(common_path))}
+        execution_control_staging_load_env
+        export first_base_url="${{PERSONAL_MEMORY_BASE_URL}}"
+        export first_api_secret="${{PERSONAL_MEMORY_API_SECRET}}"
+        export first_owner_salt="${{PERSONAL_MEMORY_OWNER_SALT}}"
+        export first_postgres_password="${{HINDSIGHT_POSTGRES_PASSWORD}}"
+        execution_control_staging_load_env
+        node - <<'NODE'
+        console.log(JSON.stringify({{
+          first: {{
+            baseUrl: process.env.first_base_url,
+            apiSecret: process.env.first_api_secret,
+            ownerSalt: process.env.first_owner_salt,
+            postgresPassword: process.env.first_postgres_password,
+          }},
+          second: {{
+            baseUrl: process.env.PERSONAL_MEMORY_BASE_URL,
+            apiSecret: process.env.PERSONAL_MEMORY_API_SECRET,
+            ownerSalt: process.env.PERSONAL_MEMORY_OWNER_SALT,
+            postgresPassword: process.env.HINDSIGHT_POSTGRES_PASSWORD,
+          }},
+        }}));
+        NODE
+        """
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+
+def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.CompletedProcess[str]:
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        common_path = _copy_staging_modules(root)
+        runtime_env = root / "ops" / "runtime.env"
+        runtime_env.parent.mkdir()
+        runtime_env.write_text(
+            "\n".join(
+                (
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    "APP_API_INTERNAL_SHARED_SECRET=app-api-secret",
+                    "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+                    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=http://127.0.0.1:9000",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret",
+                    "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
+                    "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+                    "STAGING_INGESTION_QDRANT_URL=http://qdrant:6333",
+                    "STAGING_INGESTION_EMBEDDING_PROVIDER=gitee",
+                    "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
+                    "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                    "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
+                    "STAGING_INGESTION_SPARSE_PROVIDER=qdrant",
+                    "STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25",
+                    "STAGING_INGESTION_SPARSE_TOKENIZER=multilingual",
+                    "STAGING_INGESTION_SPARSE_LANGUAGE=none",
+                    "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                    "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=https://sentry.example.com",
+                    "OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=key",
+                    "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                    "OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom",
+                    "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        command = f"""
+        set -euo pipefail
+        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
+        export EXECUTION_CONTROL_STAGING_RUNTIME_DIR={shlex.quote(str(root / ".tmp" / "execution-control-staging"))}
+        source {shlex.quote(str(common_path))}
+        execution_control_staging_load_env
+        execution_control_staging_require_runtime_env
+        export first_qdrant_url="${{QDRANT_URL}}"
+        export first_qdrant_query_key="${{QDRANT_QUERY_API_KEY}}"
+        export first_qdrant_admin_key="${{QDRANT_API_KEY}}"
+        export first_qdrant_read_only_key="${{QDRANT_READ_ONLY_API_KEY}}"
+        export first_temporal_address="${{EXECUTION_CONTROL_TEMPORAL_ADDRESS}}"
+        export first_temporal_postgres_password="${{TEMPORAL_POSTGRES_PASSWORD}}"
+        export first_workflow_id_salt="${{EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}}"
+        export first_internal_query_secret="${{EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET}}"
+        export first_metrics_token="${{EXECUTION_CONTROL_METRICS_BEARER_TOKEN}}"
+        export first_run_projection_url="${{EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}}"
+        execution_control_staging_load_env
+        execution_control_staging_require_runtime_env
+        node - <<'NODE'
+        function capture(prefix) {{
+          return {{
+            qdrantUrl: process.env[`${{prefix}}_qdrant_url`] || process.env.QDRANT_URL,
+            qdrantQueryKey:
+              process.env[`${{prefix}}_qdrant_query_key`] || process.env.QDRANT_QUERY_API_KEY,
+            qdrantAdminKey:
+              process.env[`${{prefix}}_qdrant_admin_key`] || process.env.QDRANT_API_KEY,
+            qdrantReadOnlyKey:
+              process.env[`${{prefix}}_qdrant_read_only_key`] ||
+              process.env.QDRANT_READ_ONLY_API_KEY,
+            temporalAddress:
+              process.env[`${{prefix}}_temporal_address`] ||
+              process.env.EXECUTION_CONTROL_TEMPORAL_ADDRESS,
+            temporalPostgresPassword:
+              process.env[`${{prefix}}_temporal_postgres_password`] ||
+              process.env.TEMPORAL_POSTGRES_PASSWORD,
+            workflowIDSalt:
+              process.env[`${{prefix}}_workflow_id_salt`] ||
+              process.env.EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT,
+            internalQuerySecret:
+              process.env[`${{prefix}}_internal_query_secret`] ||
+              process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET,
+            metricsToken:
+              process.env[`${{prefix}}_metrics_token`] ||
+              process.env.EXECUTION_CONTROL_METRICS_BEARER_TOKEN,
+            runProjectionUrl:
+              process.env[`${{prefix}}_run_projection_url`] ||
+              process.env.EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL,
+          }};
+        }}
+        console.log(JSON.stringify({{
+          first: capture("first"),
+          second: capture("second"),
+        }}));
+        NODE
+        """
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=root,
+            env=os.environ.copy(),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,

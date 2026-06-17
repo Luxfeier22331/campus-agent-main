@@ -35,8 +35,8 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 297
-- Git tracked docs Markdown files: 297
+- Current-worktree docs Markdown files: 298
+- Git tracked docs Markdown files: 298
 - Untracked docs Markdown files included: 0
 - Generated on: 2026-06-17
 
@@ -44,7 +44,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 60
 - `runbooks`: 55
-- `decisions`: 53
+- `decisions`: 54
 - `contracts`: 43
 - `architecture`: 39
 - `data`: 21
@@ -58,7 +58,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 53
 - `runbook`: 48
-- `decision`: 48
+- `decision`: 49
 - `contract`: 35
 - `index`: 32
 - `architecture`: 32
@@ -70,7 +70,7 @@ class defined by `docs/documentation-architecture.md`.
 ### By `truth_scope`
 
 - `ops`: 88
-- `repository`: 69
+- `repository`: 70
 - `data`: 50
 - `product`: 21
 - `capability`: 15
@@ -81,7 +81,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 57
 - `operational_truth`: 49
-- `decision_record`: 48
+- `decision_record`: 49
 - `contract_truth`: 35
 - `reference_index`: 32
 - `supporting_architecture`: 23
@@ -1264,11 +1264,19 @@ class defined by `docs/documentation-architecture.md`.
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 - `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
-  - Title: ADR-0057 Zep-Native Personal Memory Plane
+  - Title: ADR-0057 Zep CE Self-Hosted Personal Memory Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=51`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
+  - Title: ADR-0058 Hindsight Self-Hosted Personal Memory Plane
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
-  - Ledger: `area=decisions`, `cluster=memory`, `state=untracked`, `lines=79`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=122`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 

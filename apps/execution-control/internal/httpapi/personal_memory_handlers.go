@@ -117,9 +117,13 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 		return
 	}
 	bodyOut := map[string]any{
+		"context_block":         result.ContextBlock,
 		"memory_context_items":  result.Items,
 		"memory_ref":            result.MemoryRef,
 		"payload_sha256":        result.PayloadSHA256,
+		"provider":              result.Provider,
+		"recent_messages":       result.RecentMessages,
+		"retrieval_mode":        result.RetrievalMode,
 		"schema_version":        result.SchemaVersion,
 		"selected_memory_chars": result.SelectedMemoryChars,
 		"selected_memory_count": result.SelectedMemoryCount,

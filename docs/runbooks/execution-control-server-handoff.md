@@ -64,20 +64,22 @@ updated: 2026-06-09
 - conditional:
   - online prompt / embedding provider model/API key truth must already exist as
     active app-api provider-config profiles; do not hardcode them in
-    execution-control env. Required prompt roles are `primary_agent`,
-    `rag_synthesis` and `memory_graph_llm`; required online embedding role is
-    `rag_query_embedding`.
-  - personal memory runtime requires `PERSONAL_MEMORY_BASE_URL`,
-    `PERSONAL_MEMORY_API_SECRET` and `PERSONAL_MEMORY_OWNER_SALT` for
-    `execution-control` and `activity-context`.
-  - local Zep CE bundle-only secrets are generated into
-    `infra/local/.generated/zep-ce.env` by
+    execution-control env. Required prompt roles are `primary_agent` and
+    `rag_synthesis`; required online embedding role is `rag_query_embedding`.
+  - personal memory runtime uses internal Hindsight service discovery by
+    default. Lifecycle scripts project `PERSONAL_MEMORY_BASE_URL` to
+    `http://hindsight-api:8888` and generate persistent
+    `PERSONAL_MEMORY_API_SECRET` / `PERSONAL_MEMORY_OWNER_SALT` values in an
+    ops-owned generated env file.
+  - local self-host runtime bundle secrets are generated into
+    `infra/local/.generated/runtime.env` by
     `infra/local/start-execution-control-runtime.sh`; server/staging deploys
-    must use an ops-owned secret source instead of copying that file.
-  - Graphiti must point at app-api internal OpenAI-compatible proxy
-    `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1` and use
-    `APP_API_INTERNAL_SHARED_SECRET` as its bearer token. Real provider key/model
-    truth stays in the `memory_graph_llm` active provider-config profile.
+    must use their own ops-owned generated env file instead of copying that
+    local file.
+  - Hindsight LLM / embedding / reranker provider secrets are Hindsight
+    deployment inputs. They do not use app-api provider-config and must not
+    reintroduce retired `memory_graph_llm` or `personal_memory_extraction`
+    provider roles.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、

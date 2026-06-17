@@ -6,6 +6,7 @@ execution_control_staging_repo_root="$(cd "${execution_control_staging_script_di
 execution_control_staging_runtime_dir="${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-${execution_control_staging_repo_root}/.tmp/execution-control-staging}"
 execution_control_staging_default_env_file="/srv/docker/campus-agent/staging/env/runtime.env"
 execution_control_staging_env_file="${EXECUTION_CONTROL_STAGING_ENV_FILE:-${execution_control_staging_default_env_file}}"
+execution_control_staging_runtime_secrets_env_file="${EXECUTION_CONTROL_STAGING_RUNTIME_SECRETS_ENV_FILE:-${execution_control_staging_runtime_dir}/secrets/runtime.env}"
 execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
 execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
 execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
@@ -39,6 +40,7 @@ fi
 execution_control_staging_refresh_runtime_topology_from_env() {
   execution_control_staging_runtime_dir="${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-${execution_control_staging_repo_root}/.tmp/execution-control-staging}"
   execution_control_staging_env_file="${EXECUTION_CONTROL_STAGING_ENV_FILE:-${execution_control_staging_default_env_file}}"
+  execution_control_staging_runtime_secrets_env_file="${EXECUTION_CONTROL_STAGING_RUNTIME_SECRETS_ENV_FILE:-${execution_control_staging_runtime_dir}/secrets/runtime.env}"
   execution_control_staging_log_dir="${execution_control_staging_runtime_dir}/logs"
   execution_control_staging_lock_file="${execution_control_staging_runtime_dir}/lifecycle.lock"
   execution_control_staging_execution_control_log_file="${execution_control_staging_log_dir}/execution-control.log"
@@ -56,6 +58,7 @@ execution_control_staging_refresh_runtime_topology_from_env() {
 execution_control_staging_runtime_globals_declared() {
   : "${execution_control_staging_runtime_dir}" \
     "${execution_control_staging_env_file}" \
+    "${execution_control_staging_runtime_secrets_env_file}" \
     "${execution_control_staging_log_dir}" \
     "${execution_control_staging_lock_file}" \
     "${execution_control_staging_execution_control_log_file}" \

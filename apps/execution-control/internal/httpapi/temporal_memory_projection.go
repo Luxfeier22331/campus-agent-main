@@ -40,6 +40,7 @@ func memoryRecallRequestForRun(
 		RunID:               run.RunID,
 		SessionSlots:        memorySessionSlotsFromPayload(payload),
 		TenantID:            firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
+		ThreadID:            run.ConversationID,
 		UserGoal:            userGoal,
 		UserID:              userID,
 	}

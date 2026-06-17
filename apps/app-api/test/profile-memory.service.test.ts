@@ -89,7 +89,7 @@ function createIndexer(): OwnerAwareProfileMemoryIndexer {
 }
 
 describe("profile memory service", () => {
-	it("normalizes and writes user-declared memory to Zep before PG projection upsert", async () => {
+	it("normalizes and writes user-declared memory to Hindsight before PG projection upsert", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -109,6 +109,7 @@ describe("profile memory service", () => {
 			canonicalSubject: "answer_style",
 			compactText: "answer_style: 先给 结论",
 			memoryId: "mem_01HQ",
+			tenantId: "tenant-main",
 			updatedAt: "2026-04-27T08:00:00.000Z",
 			userId: "user_01HQ",
 		});
@@ -129,10 +130,12 @@ describe("profile memory service", () => {
 		});
 	});
 
-	it("does not write PG projection when Zep explicit memory indexing fails", async () => {
+	it("does not write PG projection when Hindsight explicit memory indexing fails", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
-		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(new Error("zep unavailable"));
+		vi.mocked(indexer.upsertExplicitMemory).mockRejectedValueOnce(
+			new Error("hindsight unavailable"),
+		);
 		const service = buildProfileMemoryService({
 			generateId: () => "mem_01HQ",
 			memoryIndexer: indexer,
@@ -145,12 +148,12 @@ describe("profile memory service", () => {
 				principal: createPrincipal(),
 				value: "先给结论",
 			}),
-		).rejects.toThrow("zep unavailable");
+		).rejects.toThrow("hindsight unavailable");
 
 		expect(store.upsertUserDeclared).not.toHaveBeenCalled();
 	});
 
-	it("reuses the existing PG memory id for repeated key upsert before indexing Zep", async () => {
+	it("reuses the existing PG memory id for repeated key upsert before indexing Hindsight", async () => {
 		const store = createStore();
 		vi.mocked(store.findItemIdByKey).mockResolvedValueOnce("mem_existing");
 		const indexer = createIndexer();
@@ -171,6 +174,7 @@ describe("profile memory service", () => {
 			canonicalSubject: "answer_style",
 			compactText: "answer_style: 先给结论",
 			memoryId: "mem_existing",
+			tenantId: "tenant-main",
 			updatedAt: "2026-04-27T08:00:00.000Z",
 			userId: "user_01HQ",
 		});
@@ -180,7 +184,7 @@ describe("profile memory service", () => {
 		expect(result.item.itemId).toBe("mem_existing");
 	});
 
-	it("deletes Zep episode before deleting PG projection", async () => {
+	it("deletes Hindsight document before deleting PG projection", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -197,6 +201,7 @@ describe("profile memory service", () => {
 		expect(indexer.disableExplicitMemory).toHaveBeenCalledWith({
 			episodeUUID: "episode_mem_01HQ",
 			memoryId: "mem_01HQ",
+			tenantId: "tenant-main",
 			updatedAt: "2026-04-27T09:00:00.000Z",
 			userId: "user_01HQ",
 		});
@@ -207,7 +212,7 @@ describe("profile memory service", () => {
 		expect(result).toEqual({ deleted: true });
 	});
 
-	it("does not delete PG projection when Zep memory disable fails", async () => {
+	it("does not delete PG projection when Hindsight memory disable fails", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		vi.mocked(indexer.disableExplicitMemory).mockRejectedValueOnce(new Error("disable failed"));
@@ -223,7 +228,7 @@ describe("profile memory service", () => {
 		expect(store.deleteItem).not.toHaveBeenCalled();
 	});
 
-	it("deletes Zep CE runtime owner before disabling PG memory setting", async () => {
+	it("deletes Hindsight runtime owner before disabling PG memory setting", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({
@@ -238,6 +243,7 @@ describe("profile memory service", () => {
 		});
 
 		expect(indexer.disableOwnerMemory).toHaveBeenCalledWith({
+			tenantId: "tenant-main",
 			updatedAt: "2026-04-27T10:00:00.000Z",
 			userId: "user_01HQ",
 		});
@@ -249,7 +255,7 @@ describe("profile memory service", () => {
 		expect(result).toEqual({ enabled: false });
 	});
 
-	it("does not disable PG memory setting when Qdrant owner memory disable fails", async () => {
+	it("does not disable PG memory setting when Hindsight owner memory disable fails", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		vi.mocked(indexer.disableOwnerMemory).mockRejectedValueOnce(new Error("owner disable failed"));
@@ -265,7 +271,7 @@ describe("profile memory service", () => {
 		expect(store.setEnabled).not.toHaveBeenCalled();
 	});
 
-	it("does not call Zep owner disable when enabling memory setting", async () => {
+	it("does not call Hindsight owner disable when enabling memory setting", async () => {
 		const store = createStore();
 		const indexer = createIndexer();
 		const service = buildProfileMemoryService({ memoryIndexer: indexer, store });

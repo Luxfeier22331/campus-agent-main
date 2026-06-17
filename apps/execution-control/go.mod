@@ -9,6 +9,7 @@ require (
 	github.com/caarlos0/env/v11 v11.4.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/stretchr/testify v1.11.1
+	github.com/vectorize-io/hindsight/hindsight-clients/go v0.0.0-20260617103239-44972d32150c
 	go.opentelemetry.io/otel v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v1.43.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.43.0

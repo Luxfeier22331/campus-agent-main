@@ -24,6 +24,7 @@ func (f *fakePersonalMemoryExecutor) Recall(
 ) (memoryruntime.RecallResult, error) {
 	f.seenRequest = request
 	return memoryruntime.RecallResult{
+		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
 		Items: []memoryruntime.ContextItem{{
 			Capability:  "knowledge",
 			CompactText: "用户关注保研和培养方案。",
@@ -32,11 +33,12 @@ func (f *fakePersonalMemoryExecutor) Recall(
 			Score:       0.91,
 			UpdatedAt:   "2026-06-01T00:00:00Z",
 		}},
-		MemoryRef:           "projection://runs/" + request.RunID + "/memory/recall",
-		RunID:               request.RunID,
-		SchemaVersion:       "memory_recall_result_v1",
-		SelectedMemoryChars: len([]rune("用户关注保研和培养方案。")),
-		SelectedMemoryCount: 1,
+		MemoryRef:     "projection://runs/" + request.RunID + "/memory/recall",
+		Provider:      "hindsight",
+		RetrievalMode: "recall",
+		RunID:         request.RunID,
+		SchemaVersion: "memory_recall_result_v1",
+		ThreadID:      request.ThreadID,
 	}, nil
 }
 

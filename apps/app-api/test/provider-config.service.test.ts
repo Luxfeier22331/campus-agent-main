@@ -9,7 +9,7 @@ import {
 import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
 describe("provider config service", () => {
-	it("serves active runtime snapshots for the memory graph prompt role", async () => {
+	it("rejects retired memory graph prompt role", async () => {
 		const service = buildProviderConfigService({
 			decryptSecret: (value) => value,
 			encryptSecret: (value) => value,
@@ -26,40 +26,21 @@ describe("provider config service", () => {
 				},
 			},
 		});
-		await service.createProfile({
-			payload: {
-				apiKey: "memory-graph-key",
-				baseUrl: "https://llm-gateway.example/v1",
-				kind: "prompt",
-				model: "memory-graph-model",
-				provider: "openai",
-				role: "memory_graph_llm",
-				timeoutMs: 30000,
-				transport: "responses",
-			},
-			principal: createOperatorPrincipal(),
-		});
-		await service.validateProfile({
-			principal: createOperatorPrincipal(),
-			profileId: "provider_profile_memory_graph",
-		});
-		await service.activateProfile({
-			principal: createOperatorPrincipal(),
-			profileId: "provider_profile_memory_graph",
-		});
-
 		await expect(
-			service.getActiveRuntimeSnapshot({ role: "memory_graph_llm" }),
-		).resolves.toMatchObject({
-			profile: {
-				api_key: "memory-graph-key",
-				base_url: "https://llm-gateway.example/v1",
-				model: "memory-graph-model",
-				profile_id: "provider_profile_memory_graph",
-				role: "memory_graph_llm",
-				transport: "responses",
-			},
-		});
+			service.createProfile({
+				payload: {
+					apiKey: "memory-graph-key",
+					baseUrl: "https://llm-gateway.example/v1",
+					kind: "prompt",
+					model: "memory-graph-model",
+					provider: "openai",
+					role: "memory_graph_llm",
+					timeoutMs: 30000,
+					transport: "responses",
+				},
+				principal: createOperatorPrincipal(),
+			}),
+		).rejects.toMatchObject({ code: "validation_failed" });
 	});
 
 	it("fails closed when embedding compatibility checker is not configured", async () => {

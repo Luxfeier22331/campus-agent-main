@@ -2,6 +2,7 @@ package temporalmetrics
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 )
@@ -63,6 +64,20 @@ func TestSamplerMarksUnsupportedMetricsExplicitly(t *testing.T) {
 	activity := snapshot.Snapshots[1]
 	if activity.PollerCount != 0 {
 		t.Fatalf("activity poller count = %d", activity.PollerCount)
+	}
+	encoded, err := json.Marshal(activity)
+	if err != nil {
+		t.Fatalf("marshal activity snapshot: %v", err)
+	}
+	if !json.Valid(encoded) {
+		t.Fatalf("activity snapshot did not marshal as valid JSON: %s", encoded)
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(encoded, &decoded); err != nil {
+		t.Fatalf("unmarshal activity snapshot: %v", err)
+	}
+	if identities, ok := decoded["pollerIdentities"].([]any); !ok || len(identities) != 0 {
+		t.Fatalf("pollerIdentities JSON = %#v, want empty array", decoded["pollerIdentities"])
 	}
 	if activity.SnapshotID == workflow.SnapshotID {
 		t.Fatalf("snapshot IDs must be unique: %q", activity.SnapshotID)

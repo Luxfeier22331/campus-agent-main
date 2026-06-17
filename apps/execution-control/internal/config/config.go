@@ -314,7 +314,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRetiredPersonalMemoryQdrantSettings(); err != nil {
 		return Config{}, err
 	}
-	if err := rejectRetiredZepMemorySettings(); err != nil {
+	if err := rejectRetiredPredecessorMemorySettings(); err != nil {
 		return Config{}, err
 	}
 	if err := validateTemporalSettings(values, runtimeProfile); err != nil {
@@ -407,7 +407,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		RAGQdrantTimeoutMS:                  values.RAGQdrantTimeoutMS,
 		RAGProviderTimeoutMS:                values.RAGProviderTimeoutMS,
 		WorkerProfiles:                      workerProfiles,
-		PersonalMemoryRuntime:               defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "zep_ce"),
+		PersonalMemoryRuntime:               defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "hindsight"),
 		PersonalMemoryBaseURL:               strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
 		PersonalMemoryAPISecret:             strings.TrimSpace(values.PersonalMemoryAPISecret),
 		PersonalMemoryOwnerSalt:             strings.TrimSpace(values.PersonalMemoryOwnerSalt),
@@ -543,8 +543,8 @@ func validatePersonalMemorySettings(
 		return nil
 	}
 	if strings.TrimSpace(values.PersonalMemoryRuntime) != "" &&
-		strings.TrimSpace(values.PersonalMemoryRuntime) != "zep_ce" {
-		return fmt.Errorf("PERSONAL_MEMORY_RUNTIME must be zep_ce")
+		strings.TrimSpace(values.PersonalMemoryRuntime) != "hindsight" {
+		return fmt.Errorf("PERSONAL_MEMORY_RUNTIME must be hindsight")
 	}
 	required := []struct {
 		name  string
@@ -556,7 +556,7 @@ func validatePersonalMemorySettings(
 	}
 	for _, item := range required {
 		if strings.TrimSpace(item.value) == "" {
-			return fmt.Errorf("%s is required for deployed Zep CE memory runtime", item.name)
+			return fmt.Errorf("%s is required for deployed Hindsight memory runtime", item.name)
 		}
 	}
 	return nil

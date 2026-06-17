@@ -77,6 +77,10 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
+    "PERSONAL_MEMORY_BASE_URL",
+    "PERSONAL_MEMORY_API_SECRET",
+    "PERSONAL_MEMORY_OWNER_SALT",
+    "HINDSIGHT_POSTGRES_PASSWORD",
     "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
@@ -96,9 +100,13 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
     "QDRANT_QUERY_API_KEY",
+    "QDRANT_API_KEY",
+    "QDRANT_READ_ONLY_API_KEY",
     "QDRANT_TLS_CA_CERT_PATH",
     "QDRANT_TLS_DIR",
     "TEMPORAL_POSTGRES_PASSWORD",
+    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
+    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
     "EXECUTION_CONTROL_TEMPORAL_NAMESPACE",
     "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY",
@@ -111,6 +119,10 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+    "PERSONAL_MEMORY_BASE_URL",
+    "PERSONAL_MEMORY_API_SECRET",
+    "PERSONAL_MEMORY_OWNER_SALT",
+    "HINDSIGHT_POSTGRES_PASSWORD",
 ]
 
 _VALID_OBSERVABILITY_SINK_ENV = {
@@ -238,13 +250,27 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
             (ROOT / "infra/local/start-execution-control-runtime.sh").read_text(encoding="utf-8"),
             encoding="utf-8",
         )
+        script_path.chmod(0o755)
+        scripts_dir = temp_root / "infra" / "local" / "scripts"
+        scripts_dir.mkdir(parents=True)
+        for source_path in (ROOT / "infra/local/scripts").glob("ensure-*-secrets.mjs"):
+            (scripts_dir / source_path.name).write_text(
+                source_path.read_text(encoding="utf-8"),
+                encoding="utf-8",
+            )
         (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         command = f"""
         set -euo pipefail
-        source {shlex.quote(str(script_path))} __campus_agent_print_projected_env
-        load_runtime_env
-        execution_control_runtime_require_runtime_env
-        node - <<'NODE'
+        {shlex.quote(str(script_path))} __campus_agent_print_projected_env > projected.env0
+        node - projected.env0 <<'NODE'
+        const fs = require("node:fs");
+        const env0 = fs.readFileSync(process.argv[2], "utf8");
+        for (const entry of env0.split("\\0")) {{
+          if (!entry) continue;
+          const separator = entry.indexOf("=");
+          if (separator <= 0) continue;
+          process.env[entry.slice(0, separator)] = entry.slice(separator + 1);
+        }}
         const keys = {json.dumps(_PROJECTED_LOCAL_RUNTIME_KEYS)};
         const projected = {{}};
         for (const key of keys) {{

@@ -63,6 +63,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
 		ConversationID:       "conv-primary-agent-001",
+		MemoryContext:        &temporalruntime.MemoryContext{ContextBlock: "用户记忆:\n- 用户偏好先看结论", MemoryRef: "projection://runs/run-primary-agent-001/memory/recall", SchemaVersion: "memory_recall_result_v1", SelectedMemoryChars: 18, SelectedMemoryCount: 1},
 		MemoryProjectionRefs: []string{"projection://runs/run-primary-agent-001/memory/recall"},
 		RequestID:            "req-primary-agent-001",
 		RunID:                "run-primary-agent-001",
@@ -88,6 +89,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		providerConfig["model"] != "gpt-test" {
 		t.Fatalf("provider_config = %#v", providerConfig)
 	}
+	assertPrimaryAgentMemoryContextForTest(t, seenBody)
 	if output.AgentResultRef != "projection://runs/run-primary-agent-001/agent/primary/result" {
 		t.Fatalf("agent result ref = %q", output.AgentResultRef)
 	}

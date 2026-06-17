@@ -123,13 +123,13 @@ _PROFILE_DEFINITIONS = (
         "profile_report",
     ),
     EvalProfileDefinition(
-        "zep-memory-product-path",
+        "hindsight-memory-product-path",
         "profile_gate",
         1,
-        "zep-memory-product-path-gate-accept",
+        "hindsight-memory-product-path-gate-accept",
         "profile_report",
         supports_collect_runtime=True,
-        operations_profile_id="zep_memory_product_path",
+        operations_profile_id="hindsight_memory_product_path",
     ),
     EvalProfileDefinition(
         "eval-operations-governance",

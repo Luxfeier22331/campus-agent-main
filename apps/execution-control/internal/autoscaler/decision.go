@@ -31,11 +31,14 @@ type SourceMetric struct {
 
 type TemporalTaskQueueSnapshot struct {
 	Backlog                SourceMetric `json:"backlog"`
+	Namespace              string       `json:"namespace"`
 	OldestTaskAge          SourceMetric `json:"oldestTaskAge"`
 	PollerCount            int          `json:"pollerCount"`
+	PollerIdentities       []string     `json:"pollerIdentities"`
 	SampledAt              string       `json:"sampledAt"`
 	ScheduleToStartLatency SourceMetric `json:"scheduleToStartLatency"`
 	SnapshotID             string       `json:"snapshotId"`
+	Source                 string       `json:"source"`
 	TaskQueue              string       `json:"taskQueue"`
 	TaskQueueKind          string       `json:"taskQueueKind"`
 }

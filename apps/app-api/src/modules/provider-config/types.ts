@@ -2,7 +2,7 @@ import type { ResolvedAppPrincipal } from "../auth";
 
 export type ProviderConfigKind = "embedding" | "prompt";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
-export type PromptProviderRole = "memory_graph_llm" | "primary_agent" | "rag_synthesis";
+export type PromptProviderRole = "primary_agent" | "rag_synthesis";
 export type EmbeddingProviderRole = "index_embedding" | "rag_query_embedding";
 export type ProviderConfigRole = EmbeddingProviderRole | PromptProviderRole;
 

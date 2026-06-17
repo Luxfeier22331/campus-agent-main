@@ -112,17 +112,11 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   repo-owned local Postgres 是 single-node dependency，所有本地 Postgres DSN 必须使用同一
   database/user/password/port；repo-owned local MinIO 是 single-node dependency，
   shared 与 derived credential 同时配置时必须是同一组 credential。
-- `STAGING_INGESTION_QDRANT_URL` 在 `nc-arm-6c` 同机自托管部署中也必须填写
-  `https://127.0.0.1:6333`。该值只表示 host-side 运维 / preflight URL。lifecycle
-  脚本会在 Docker compose 环境中投影成
-  `QDRANT_DOCKER_URL=https://qdrant:6333`，并要求 execution runtime 与 Qdrant 同时加入
-  repo-owned `campus-agent-data-plane` Docker network。容器内 retrieval runtime 必须通过
-  Docker service DNS 访问 Qdrant，不得依赖 Docker gateway 或旧开发机 `172.*` 地址。
-- 同机 Docker data-plane 内的 Qdrant 通信也使用 native HTTPS + API key；`6333` 只绑定
-  `127.0.0.1`，不公网裸露。TLS certificate、CA bundle 与 rotated Qdrant keys 属于
-  `/srv/docker/campus-agent/staging/` ops-owned runtime material，不进入 repo checkout。
-- query runtime 使用 `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY` 投影出的 read-only
-  key；ingestion、snapshot backup 和 restore 运维使用 admin key。
+- self-host Qdrant 在 canonical Docker runtime 中默认投影为 `http://qdrant:6333`；
+  `STAGING_INGESTION_QDRANT_URL` 只在外接 / 非 canonical endpoint 时填写。跨
+  substrate 或公网入口必须使用 HTTPS + CA，compose 内部 service DNS 可使用 HTTP。
+- query runtime 使用 generated `QDRANT_READ_ONLY_API_KEY` 投影出的
+  `QDRANT_QUERY_API_KEY`；ingestion、snapshot backup 和 restore 运维使用 admin key。
 - sparse retrieval / indexing 使用 self-hosted Qdrant server-side BM25 inference：
   Python runtime 发送 `qdrant/bm25` `Document`，不部署 Qdrant Cloud，不部署独立 BM25
   服务，也不在生产路径使用本地 FastEmbed。

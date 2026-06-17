@@ -31,7 +31,7 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertIn("tool-routing-product-path", profile_ids)
         self.assertIn("public-chat-entry-e2e", profile_ids)
         self.assertIn("answer-quality-contract", profile_ids)
-        self.assertIn("zep-memory-product-path", profile_ids)
+        self.assertIn("hindsight-memory-product-path", profile_ids)
         self.assertNotIn("personal-memory-extraction", profile_ids)
         self.assertNotIn("multi-agent-product-path", profile_ids)
         self.assertEqual(len(profile_ids), len(set(profile_ids)))

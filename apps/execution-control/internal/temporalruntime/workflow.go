@@ -114,6 +114,7 @@ func executePrimaryAgentWithBoundedReplan(
 	visibleCapabilities := visibleCapabilitiesForPrimaryAgent(requestedCapability)
 	agentInput := ExecutePrimaryAgentActivityInput{
 		ConversationID:       input.ConversationID,
+		MemoryContext:        memoryContext(memory),
 		MemoryProjectionRefs: memoryProjectionRefs(memory),
 		RequestID:            input.RequestID,
 		RequestedCapability:  requestedCapability,
@@ -163,6 +164,21 @@ func memoryProjectionRefs(memory MemoryRecallActivityOutput) []string {
 		return nil
 	}
 	return []string{memory.MemoryRef}
+}
+
+func memoryContext(memory MemoryRecallActivityOutput) *MemoryContext {
+	if strings.TrimSpace(memory.ContextBlock) == "" || strings.TrimSpace(memory.MemoryRef) == "" {
+		return nil
+	}
+	return &MemoryContext{
+		ContextBlock:        memory.ContextBlock,
+		MemoryRef:           memory.MemoryRef,
+		Provider:            memory.Provider,
+		RetrievalMode:       memory.RetrievalMode,
+		SchemaVersion:       memory.SchemaVersion,
+		SelectedMemoryChars: memory.SelectedMemoryChars,
+		SelectedMemoryCount: memory.SelectedMemoryCount,
+	}
 }
 
 func visibleCapabilitiesForPrimaryAgent(requestedCapability string) []string {

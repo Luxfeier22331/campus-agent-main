@@ -2,7 +2,6 @@ export type ProviderConfigKind = "embedding" | "prompt";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type ProviderConfigRole =
 	| "index_embedding"
-	| "memory_graph_llm"
 	| "primary_agent"
 	| "rag_query_embedding"
 	| "rag_synthesis";

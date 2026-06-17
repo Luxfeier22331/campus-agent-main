@@ -31,8 +31,12 @@ type MemoryRecallActivityInput struct {
 }
 
 type MemoryRecallActivityOutput struct {
+	ContextBlock        string `json:"context_block,omitempty"`
 	MemoryRef           string `json:"memory_ref"`
+	Provider            string `json:"provider,omitempty"`
+	RetrievalMode       string `json:"retrieval_mode,omitempty"`
 	RunID               string `json:"run_id"`
+	SchemaVersion       string `json:"schema_version,omitempty"`
 	SelectedMemoryChars int    `json:"selected_memory_chars"`
 	SelectedMemoryCount int    `json:"selected_memory_count"`
 	Status              string `json:"status"`
@@ -57,17 +61,28 @@ type AppendConversationMemoryActivityOutput struct {
 }
 
 type ExecutePrimaryAgentActivityInput struct {
-	Attempt              int      `json:"attempt"`
-	ConversationID       string   `json:"conversation_id"`
-	InputRef             string   `json:"input_ref"`
-	MemoryProjectionRefs []string `json:"memory_projection_refs"`
-	ReplanReason         string   `json:"replan_reason"`
-	RequestID            string   `json:"request_id"`
-	RequestedCapability  string   `json:"requested_capability"`
-	RunID                string   `json:"run_id"`
-	TraceID              string   `json:"trace_id"`
-	TurnID               string   `json:"turn_id"`
-	VisibleCapabilities  []string `json:"visible_capabilities"`
+	Attempt              int            `json:"attempt"`
+	ConversationID       string         `json:"conversation_id"`
+	InputRef             string         `json:"input_ref"`
+	MemoryContext        *MemoryContext `json:"memory_context,omitempty"`
+	MemoryProjectionRefs []string       `json:"memory_projection_refs"`
+	ReplanReason         string         `json:"replan_reason"`
+	RequestID            string         `json:"request_id"`
+	RequestedCapability  string         `json:"requested_capability"`
+	RunID                string         `json:"run_id"`
+	TraceID              string         `json:"trace_id"`
+	TurnID               string         `json:"turn_id"`
+	VisibleCapabilities  []string       `json:"visible_capabilities"`
+}
+
+type MemoryContext struct {
+	ContextBlock        string `json:"context_block"`
+	MemoryRef           string `json:"memory_ref"`
+	Provider            string `json:"provider,omitempty"`
+	RetrievalMode       string `json:"retrieval_mode,omitempty"`
+	SchemaVersion       string `json:"schema_version"`
+	SelectedMemoryChars int    `json:"selected_memory_chars"`
+	SelectedMemoryCount int    `json:"selected_memory_count"`
 }
 
 type AgentToolResult struct {

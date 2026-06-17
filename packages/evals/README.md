@@ -191,19 +191,22 @@ Evaluation helpers for campus-agent v2.
   report 可以在 `sanitized_results[].request_correlation` 保存 request / trace / sampled_at
   / safe backlink，用于后续 `publish-profile` 回流；仍然不得保存 raw prompt、provider raw
   response、auth material、restricted payload 或带 token/cookie 的 URL 值。
-- `zep-memory-product-path` 是 Zep-native personal memory 的产品链路 profile gate，
+- `hindsight-memory-product-path` 是 Hindsight-native personal memory 的产品链路
+  profile gate，
   case fixture 固定在
-  `packages/evals/fixtures/zep_memory_product_path_cases.v1.json`。它验证 completed
+  `packages/evals/fixtures/hindsight_memory_product_path_cases.v1.json`。它验证 completed
   turn append、跨 thread recall、explicit profile memory upsert / disable、owner
   delete / RTBF 与 user isolation；不再评估 repo-owned LLM extraction prompt/schema，
-  因为 personal memory extraction 已由 Zep 承担。离线 gate 消费已采集的 sanitized observations：
+  因为 personal memory extraction 已由 Hindsight 承担。离线 gate 消费已采集的
+  sanitized observations：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
-  zep-memory-product-path --observations-path <observations.json> --json`。
-  runtime gate 使用 `--collect-runtime` 调用 execution-control internal Zep memory command：
+  hindsight-memory-product-path --observations-path <observations.json> --json`。
+  runtime gate 使用 `--collect-runtime` 调用 execution-control internal
+  Hindsight memory command：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
-  zep-memory-product-path --collect-runtime --json`。runtime collector 需要
+  hindsight-memory-product-path --collect-runtime --json`。runtime collector 需要
   `EXECUTION_CONTROL_BASE_URL` 与 `API_WORKER_SHARED_SECRET`，只记录 schema、status、
-  hash 与字段级 token，不保存 raw transcript、provider raw response、Zep raw graph
+  hash 与字段级 token，不保存 raw transcript、provider raw response、Hindsight raw
   payload 或 API key。`--collect-runtime` 必须真实调用 execution-control internal
   append、recall、explicit profile upsert / disable 与 owner disable endpoint；任何 case
   缺 observation 都是 gate failure。

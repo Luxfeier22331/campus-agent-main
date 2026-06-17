@@ -12,6 +12,16 @@ const providerConfigSchema = z.object({
 	timeout_ms: z.number().int().positive().optional(),
 });
 
+const memoryContextSchema = z.object({
+	context_block: z.string().min(1),
+	memory_ref: z.string().min(1),
+	provider: z.string().min(1).optional(),
+	retrieval_mode: z.string().min(1).optional(),
+	schema_version: z.literal("memory_recall_result_v1"),
+	selected_memory_chars: z.number().int().nonnegative(),
+	selected_memory_count: z.number().int().nonnegative(),
+});
+
 const runRequestSchema = z.object({
 	run_id: z.string().min(1),
 	conversation_id: z.string().min(1),
@@ -20,6 +30,7 @@ const runRequestSchema = z.object({
 	input: z.string().min(1),
 	visible_capabilities: z.array(z.string().min(1)).default([]),
 	provider_config: providerConfigSchema,
+	memory_context: memoryContextSchema.optional(),
 	memory_projection_refs: z.array(z.string().min(1)).optional(),
 });
 
@@ -77,6 +88,17 @@ export function createAgentRuntimeHandler(
 						apiKey: parsed.provider_config.api_key,
 						timeoutMs: parsed.provider_config.timeout_ms,
 					},
+					memoryContext: parsed.memory_context
+						? {
+								contextBlock: parsed.memory_context.context_block,
+								memoryRef: parsed.memory_context.memory_ref,
+								provider: parsed.memory_context.provider,
+								retrievalMode: parsed.memory_context.retrieval_mode,
+								schemaVersion: parsed.memory_context.schema_version,
+								selectedMemoryChars: parsed.memory_context.selected_memory_chars,
+								selectedMemoryCount: parsed.memory_context.selected_memory_count,
+							}
+						: undefined,
 					memoryProjectionRefs: parsed.memory_projection_refs,
 					signal: request.signal,
 				});

@@ -1,3 +1,6 @@
+x-host-gateway: &host-gateway
+  - host.docker.internal:host-gateway
+
 services:
   temporal-postgres:
     image: postgres:16-alpine
@@ -102,8 +105,8 @@ services:
     networks:
       - supervisor-runtime
 
-  zep-ce-postgres:
-    image: ankane/pgvector:v0.5.1
+  hindsight-postgres:
+    image: pgvector/pgvector:pg18
     restart: unless-stopped
     shm_size: "128mb"
     security_opt:
@@ -114,19 +117,20 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${ZEP_CE_POSTGRES_PASSWORD}
+      POSTGRES_DB: hindsight
+      POSTGRES_USER: hindsight
+      POSTGRES_PASSWORD: ${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}
     volumes:
-      - zep-ce-postgres-data:/var/lib/postgresql/data
+      - hindsight-postgres-data:/var/lib/postgresql/data
     healthcheck:
       test:
         - CMD
         - pg_isready
         - -q
         - -d
-        - postgres
+        - hindsight
         - -U
-        - postgres
+        - hindsight
       interval: 5s
       timeout: 5s
       retries: 12
@@ -134,9 +138,13 @@ services:
     networks:
       - supervisor-runtime
 
-  zep-ce-neo4j:
-    image: neo4j:5.22.0
+  hindsight-api:
+    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.2}
     restart: unless-stopped
+    extra_hosts: *host-gateway
+    depends_on:
+      hindsight-postgres:
+        condition: service_healthy
     security_opt:
       - no-new-privileges:true
     logging:
@@ -145,79 +153,24 @@ services:
         max-size: "10m"
         max-file: "3"
     environment:
-      NEO4J_AUTH: neo4j/${ZEP_CE_NEO4J_PASSWORD}
-    volumes:
-      - zep-ce-neo4j-data:/data
+      HINDSIGHT_API_DATABASE_URL: postgresql://hindsight:${HINDSIGHT_POSTGRES_PASSWORD:?set HINDSIGHT_POSTGRES_PASSWORD}@hindsight-postgres:5432/hindsight
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:?set HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL:-}
+      HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL: ${HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL:-text-embedding-3-small}
+      HINDSIGHT_API_EMBEDDINGS_PROVIDER: ${HINDSIGHT_API_EMBEDDINGS_PROVIDER:-openai}
+      HINDSIGHT_API_HOST: 0.0.0.0
+      HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:?set HINDSIGHT_API_LLM_API_KEY}
+      HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-}
+      HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-4o-mini}
+      HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
+      HINDSIGHT_API_PORT: 8888
+      HINDSIGHT_API_RERANKER_PROVIDER: ${HINDSIGHT_API_RERANKER_PROVIDER:-rrf}
+      HINDSIGHT_API_TENANT_API_KEY: ${PERSONAL_MEMORY_API_SECRET:?set PERSONAL_MEMORY_API_SECRET}
+      HINDSIGHT_API_TENANT_EXTENSION: hindsight_api.extensions.builtin.tenant:ApiKeyTenantExtension
     healthcheck:
       test:
         - CMD-SHELL
-        - cypher-shell -u neo4j -p "$${NEO4J_AUTH#neo4j/}" "RETURN 1" >/dev/null
-      interval: 5s
-      timeout: 10s
-      retries: 24
-      start_period: 20s
-    networks:
-      - supervisor-runtime
-
-  zep-ce-graphiti:
-    image: zepai/graphiti:0.3
-    restart: unless-stopped
-    depends_on:
-      zep-ce-neo4j:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      OPENAI_API_KEY: ${ZEP_CE_OPENAI_API_KEY}
-      OPENAI_BASE_URL: ${ZEP_CE_OPENAI_BASE_URL}
-      MODEL_NAME: ${ZEP_CE_MODEL_NAME:-gpt-4o-mini}
-      NEO4J_URI: bolt://zep-ce-neo4j:7687
-      NEO4J_USER: neo4j
-      NEO4J_PASSWORD: ${ZEP_CE_NEO4J_PASSWORD}
-      PORT: 8003
-    healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - import urllib.request; urllib.request.urlopen('http://localhost:8003/healthcheck')
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 20s
-    networks:
-      - supervisor-runtime
-
-  zep-ce-api:
-    image: ${ZEP_CE_API_IMAGE:-ghcr.io/getzep/zep:latest}
-    restart: unless-stopped
-    depends_on:
-      zep-ce-postgres:
-        condition: service_healthy
-      zep-ce-graphiti:
-        condition: service_healthy
-    security_opt:
-      - no-new-privileges:true
-    logging:
-      driver: json-file
-      options:
-        max-size: "10m"
-        max-file: "3"
-    environment:
-      ZEP_CONFIG_FILE: /app/zep.yaml
-      ZEP_CE_POSTGRES_PASSWORD: ${ZEP_CE_POSTGRES_PASSWORD}
-      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
-    volumes:
-      - ./zep-ce/zep.yaml:/app/zep.yaml:ro
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - wget -q -O /dev/null http://127.0.0.1:8000/healthz || exit 1
+        - python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8888/health')"
       interval: 10s
       timeout: 5s
       retries: 12
@@ -269,6 +222,7 @@ services:
   execution-control:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -291,7 +245,7 @@ services:
       CAMPUS_AGENT_HTTP_HOST: 0.0.0.0
       CAMPUS_AGENT_HTTP_PORT: 8000
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       API_AUTH_MODE: ${API_AUTH_MODE:-trusted-worker}
       API_BEARER_TOKEN: ${API_BEARER_TOKEN:-}
       API_WORKER_SHARED_SECRET: ${API_WORKER_SHARED_SECRET:-}
@@ -320,6 +274,7 @@ services:
       EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET: ${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET}
       EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: ${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-1000}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
       EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}
       EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: ${EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS:-30000}
@@ -339,8 +294,9 @@ services:
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY:-}
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION:-us-east-1}
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}
-    volumes:
-      - ${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:ro
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
+      PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
+      PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
     ports:
       - "${EXECUTION_CONTROL_HOST_PORT:-27051}:8000"
     labels:
@@ -363,6 +319,28 @@ services:
       - data-plane
       - proxy
 
+  worker-autoscaler-bin:
+    init: true
+    restart: "no"
+    build:
+      context: ../..
+      dockerfile: apps/execution-control/Dockerfile
+      args:
+        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
+        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    user: "0:0"
+    entrypoint:
+      - /bin/sh
+      - -ec
+    command:
+      - |
+        cp /usr/local/bin/worker-autoscaler /runtime-bin/worker-autoscaler
+        chmod 0755 /runtime-bin/worker-autoscaler
+    volumes:
+      - execution-control-runtime-bin:/runtime-bin
+    networks:
+      - supervisor-runtime
+
   agent-runtime:
     init: true
     restart: unless-stopped
@@ -383,8 +361,6 @@ services:
       AGENT_RUNTIME_TOOL_CATALOG_PATH: ${AGENT_RUNTIME_TOOL_CATALOG_PATH:-configs/runtime/tool-catalog.v1.json}
       AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: ${AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL:-http://execution-control:8000}
       AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET: ${AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET:?set AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET}
-    ports:
-      - "${AGENT_RUNTIME_HOST_PORT:-127.0.0.1:27062}:27062"
     healthcheck:
       test:
         - CMD-SHELL
@@ -399,6 +375,7 @@ services:
   workflow-worker:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -410,7 +387,7 @@ services:
     depends_on:
       temporal-namespace-setup:
         condition: service_completed_successfully
-      zep-ce-api:
+      hindsight-api:
         condition: service_healthy
     security_opt:
       - no-new-privileges:true
@@ -421,9 +398,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -436,6 +414,7 @@ services:
   activity-worker-agent:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -458,9 +437,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: ${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-http://agent-runtime:27062}
       EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET: ${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:?set EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET}
       EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: ${EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS:-30000}
@@ -480,6 +460,7 @@ services:
   activity-worker-context:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -500,16 +481,17 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY}
       EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}
       EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}
-      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://zep-ce-api:8000}
+      PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}
       PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
       PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
     networks:
@@ -518,6 +500,7 @@ services:
   activity-worker-knowledge-plan:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -538,9 +521,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -557,6 +541,7 @@ services:
   activity-worker-knowledge-retrieval:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -577,9 +562,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -606,8 +592,6 @@ services:
       CAMPUS_SHARED_POSTGRES_URL: ${CAMPUS_SHARED_POSTGRES_URL:-}
       INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
       INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
-    volumes:
-      - ${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:${QDRANT_TLS_DIR:?set QDRANT_TLS_DIR}:ro
     networks:
       - supervisor-runtime
       - data-plane
@@ -615,6 +599,7 @@ services:
   activity-worker-knowledge-synthesis:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -635,9 +620,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -659,6 +645,7 @@ services:
   activity-worker-campus-services:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -679,9 +666,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -704,6 +692,7 @@ services:
   activity-worker-notice:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -724,9 +713,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -749,6 +739,7 @@ services:
   activity-worker-navigation:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -769,9 +760,10 @@ services:
         max-file: "3"
     environment:
       EXECUTION_CONTROL_RUNTIME_PROFILE: ${EXECUTION_CONTROL_RUNTIME_PROFILE:-local}
-      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local.json}
+      EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: ${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.local-real-provider.json}
       EXECUTION_CONTROL_METRICS_BEARER_TOKEN: ${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}
       EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL: ${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:?set EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL}
+      EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: ${EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE:-false}
       EXECUTION_CONTROL_TEMPORAL_ADDRESS: ${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?set EXECUTION_CONTROL_TEMPORAL_ADDRESS}
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
@@ -794,6 +786,7 @@ services:
   activity-worker-finalization:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -833,6 +826,7 @@ services:
   temporal-task-queue-sampler:
     init: true
     restart: unless-stopped
+    extra_hosts: *host-gateway
     build:
       context: ../..
       dockerfile: apps/execution-control/Dockerfile
@@ -872,22 +866,21 @@ services:
   worker-autoscaler:
     init: true
     restart: unless-stopped
-    build:
-      context: ../..
-      dockerfile: apps/execution-control/Dockerfile
-      args:
-        GOPROXY: "${EXECUTION_CONTROL_DOCKER_GOPROXY:-https://goproxy.cn,direct}"
-        GOSUMDB: "${EXECUTION_CONTROL_DOCKER_GOSUMDB:-sum.golang.org}"
+    image: docker:28-cli
+    extra_hosts: *host-gateway
     entrypoint:
       - /bin/sh
       - -ec
     command:
       - |
+        install -m 0755 /runtime-bin/worker-autoscaler /usr/local/bin/worker-autoscaler
         while true; do
           /usr/local/bin/worker-autoscaler
           sleep "$${EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS:-60}"
         done
     depends_on:
+      worker-autoscaler-bin:
+        condition: service_completed_successfully
       temporal-task-queue-sampler:
         condition: service_started
     security_opt:
@@ -911,6 +904,7 @@ services:
       EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_OLDEST_AGE_MS:-30000}
       EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS: ${EXECUTION_CONTROL_WORKER_AUTOSCALER_SCALE_UP_WINDOWS:-2}
     volumes:
+      - execution-control-runtime-bin:/runtime-bin:ro
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - supervisor-runtime
@@ -926,6 +920,6 @@ networks:
     name: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}
 
 volumes:
+  execution-control-runtime-bin:
   temporal-postgres-data:
-  zep-ce-postgres-data:
-  zep-ce-neo4j-data:
+  hindsight-postgres-data:

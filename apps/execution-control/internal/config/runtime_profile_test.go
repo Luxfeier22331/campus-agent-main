@@ -140,7 +140,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "provider_timeout_ms": 45000
   },
   "personal_memory": {
-    "runtime": "zep_ce",
+    "runtime": "hindsight",
     "timeout_seconds": 7,
     "recall_limit": 4,
     "recall_max_chars": 900
@@ -191,7 +191,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
 		cfg.RAGQdrantTimeoutMS != 8000 ||
 		cfg.RAGProviderTimeoutMS != 45000 ||
-		cfg.PersonalMemoryRuntime != "zep_ce" ||
+		cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryTimeoutSeconds != 7 ||
 		cfg.PersonalMemoryRecallLimit != 4 ||
 		cfg.PersonalMemoryRecallMaxChars != 900 ||

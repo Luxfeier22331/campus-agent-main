@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: ingestion-core
 status: active
 created: 2026-04-02
-updated: 2026-06-15
+updated: 2026-06-17
 ---
 # Data Plane Architecture
 
@@ -58,26 +58,27 @@ Qdrant alias publish。`apps/app-api` 可以拥有 product/operator control-plan
 ## Qdrant Private Data-Plane Posture
 
 Qdrant 是 data-plane index substrate，不是 product/API surface。当前 staging /
-production posture 固定为 `self-hosted authenticated private data-plane over TLS`：
+production posture 固定为 `self-hosted authenticated private data-plane`：
 
 - `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 必须保留为 private data-plane
   secrets；本地部署不等于无认证部署
 - online execution runtime 只接收 read-only `QDRANT_QUERY_API_KEY`，ingestion /
   backup / restore 才使用 admin `QDRANT_API_KEY`
-- execution-control personal memory 不再接入 Qdrant write path；个人记忆写入由 Zep
+- execution-control personal memory 不再接入 Qdrant write path；个人记忆写入由 Hindsight
   runtime 承担
 - `QDRANT_URL` 指向 Docker data-plane / private network endpoint，不作为 browser、
   panel、docs、chat 或 public smoke endpoint
-- staging / production `QDRANT_URL` 必须使用 HTTPS，runtime 必须配置
-  `QDRANT_TLS_CA_CERT_PATH`；`api_key + http://` warning 代表不合格 data-plane
-  transport，不是可忽略 warning，也不能通过删除 API key 消除
+- 同一 self-host substrate / compose network 内的 `QDRANT_URL` 默认使用
+  `http://qdrant:6333`。跨 substrate、公网入口或 machine ingress 必须使用 HTTPS，并配置
+  `QDRANT_TLS_CA_CERT_PATH`；外部 `api_key + http://` warning 代表不合格 data-plane
+  transport。
 - Qdrant collection / alias lifecycle 继续由 ingestion release 管理；online retrieval
   只消费已发布 alias / runtime profile，不直接把 Qdrant physical collection 名提升为
   product truth
 
 ## Personal Memory Data Plane
 
-Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Zep CE
+Personal memory 不再使用 self-hosted Qdrant collection。个人记忆 data plane 是 Hindsight
 self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
 
 固定边界：
@@ -85,10 +86,11 @@ self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
 - personal memory graph 与 institutional RAG collection 隔离
 - online recall 使用 `PERSONAL_MEMORY_BASE_URL` / `PERSONAL_MEMORY_API_SECRET`
 - explicit profile memory upsert / disable / owner delete 通过 execution-control internal
-  Zep CE command 完成
-- staging / production 必须使用 HTTPS Zep CE endpoint；local dev 可使用 compose 内网
-  `http://zep-ce-api:8000`
-- Graphiti、Neo4j、Postgres / pgvector 是 Zep CE runtime bundle 内部组件，不是
+  Hindsight command 完成
+- staging / production 必须使用 HTTPS Hindsight endpoint；local dev 可使用 compose 内网
+  `http://hindsight-api:8888`
+- Hindsight API、Hindsight worker、Postgres / pgvector 与 provider 配置是 Hindsight runtime
+  内部组件，不是
   `campus-agent` data-plane contract
 - payload contract 由 `docs/architecture/system/memory-plane-architecture.md` 维护，不由
   institutional RAG release manifest 维护

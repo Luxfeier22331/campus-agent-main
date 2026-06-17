@@ -53,7 +53,7 @@ const testDefaultRuntimeConfigProfile = `{
     "provider_timeout_ms": 60000
   },
   "personal_memory": {
-    "runtime": "zep_ce",
+    "runtime": "hindsight",
     "timeout_seconds": 10,
     "recall_limit": 8,
     "recall_max_chars": 2500
@@ -81,8 +81,8 @@ func TestMain(m *testing.M) {
 
 func setStagingPersonalMemoryEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://zep-ce-api:8000")
-	t.Setenv("PERSONAL_MEMORY_API_SECRET", "zep-ce-secret")
+	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8000")
+	t.Setenv("PERSONAL_MEMORY_API_SECRET", "hindsight-secret")
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "staging-memory-salt")
 }
 
@@ -248,7 +248,7 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
 	}
-	if cfg.PersonalMemoryRuntime != "zep_ce" ||
+	if cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryBaseURL != "" ||
 		cfg.PersonalMemoryAPISecret != "" ||
 		cfg.PersonalMemoryOwnerSalt != "" ||
@@ -371,7 +371,7 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 		t.Fatalf("context worker must accept personal memory config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("activity-knowledge-retrieval"); err != nil {
-		t.Fatalf("knowledge retrieval worker recall must accept Zep CE config: %v", err)
+		t.Fatalf("knowledge retrieval worker recall must accept Hindsight config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
 		t.Fatalf("execution-control must accept personal memory config: %v", err)
@@ -399,7 +399,7 @@ func TestLoadFromEnvRejectsRetiredQdrantPersonalMemoryEnv(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvRejectsRetiredZepMemoryEnv(t *testing.T) {
+func TestLoadFromEnvRejectsRetiredPredecessorMemoryEnv(t *testing.T) {
 	for _, tc := range []struct {
 		name  string
 		value string
@@ -415,7 +415,7 @@ func TestLoadFromEnvRejectsRetiredZepMemoryEnv(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(tc.name, tc.value)
 			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected retired Zep env %s to be rejected", tc.name)
+				t.Fatalf("expected retired Hindsight-retired env %s to be rejected", tc.name)
 			} else if !strings.Contains(err.Error(), "is retired") {
 				t.Fatalf("error = %q, want retired env diagnostic", err.Error())
 			}

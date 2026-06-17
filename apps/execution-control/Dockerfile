@@ -19,6 +19,7 @@ COPY configs/runtime/query-serving-scopes.v1.json /src/configs/runtime/query-ser
 COPY configs/runtime/tool-catalog.v1.json /src/configs/runtime/tool-catalog.v1.json
 COPY configs/runtime/tools.v3.json /src/configs/runtime/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
+COPY configs/ingestion /src/configs/ingestion
 COPY packages/evals/fixtures/tool_function_schemas.v1.json /src/packages/evals/fixtures/tool_function_schemas.v1.json
 COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json /src/tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 COPY tests/fixtures/capability_execution_contract /src/tests/fixtures/capability_execution_contract
@@ -67,6 +68,7 @@ COPY configs/runtime/execution-control/runtime-profile.local-real-provider.json 
 COPY configs/runtime/execution-control/runtime-profile.staging.json /etc/campus-agent/runtime-profile.staging.json
 COPY configs/runtime/tools.v3.json /etc/campus-agent/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /etc/campus-agent/workflow-artifacts.v2.json
+COPY configs/ingestion /configs/ingestion
 
 USER appuser
 EXPOSE 8000

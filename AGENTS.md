@@ -84,7 +84,7 @@
 - `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
-- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
+- `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`

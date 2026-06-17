@@ -146,30 +146,27 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_*` 不需要手写；staging env projection 会从
   `STAGING_INGESTION_OBJECT_STORE_*` 明确生成 execution-control notice body runtime
   env。
-- `STAGING_INGESTION_QDRANT_URL=<staging self-hosted Qdrant REST URL>`；当前默认是
-  `nc-arm-6c` 上的 self-hosted single-node Qdrant，本机/同主机 runtime 通常填
-  `https://127.0.0.1:6333`。该 URL 必须让 `/readyz`、`/livez`、`/collections`
-  返回 `200`，不能填 cluster 管理页、错误 hostname 或公网未授权入口
-- `STAGING_INGESTION_QDRANT_API_KEY=<staging Qdrant API key>`
-- `STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=<staging Qdrant read-only API key>`；
-  同机 self-hosted Qdrant 由 lifecycle 脚本启动时必填，并投影为 online runtime
-  `QDRANT_QUERY_API_KEY`
-- `STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`；
-  Qdrant certificate SAN 必须覆盖 `qdrant`、`localhost`、`127.0.0.1`
-- personal memory 使用 self-hosted Zep CE。`start-execution-control-staging.sh` 会在启动
-  execution-control 前执行 Zep runtime check，并写出
+- canonical self-host Qdrant 不需要在 `runtime.env` 手写 URL 或 key；lifecycle 默认投影
+  `QDRANT_URL=http://qdrant:6333`，首次生成 `QDRANT_API_KEY` 与
+  `QDRANT_READ_ONLY_API_KEY`，并把 read-only key 注入 online runtime
+  `QDRANT_QUERY_API_KEY`。
+- 只有外接 / 非 canonical Qdrant endpoint 时才填写 `STAGING_INGESTION_QDRANT_URL`。
+  跨 substrate 或公网入口必须使用 HTTPS + CA；同一 compose network 内的
+  `http://qdrant:6333` 是 accepted internal service DNS。
+- personal memory 使用 self-hosted Hindsight。`start-execution-control-staging.sh` 会在启动
+  execution-control 前执行 Hindsight runtime check，并写出
   `personal-memory-runtime-install.json` / `personal-memory-runtime-check.json`
   evidence；`status-execution-control-staging.sh --check` 会要求
-  `/readyz.personal_memory_runtime.healthy=true`。必须配置
-  `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
-  `PERSONAL_MEMORY_OWNER_SALT`。Zep runtime、timeout 与 recall limits 来自
+  `/readyz.personal_memory_runtime.healthy=true`。staging lifecycle 默认投影
+  `PERSONAL_MEMORY_BASE_URL=http://hindsight-api:8888`，并在 runtime dir 下首次生成并
+  持久化 `PERSONAL_MEMORY_API_SECRET`、`PERSONAL_MEMORY_OWNER_SALT` 与
+  `HINDSIGHT_POSTGRES_PASSWORD`；开发者不需要手工填写这些内部 Hindsight 值。
+  Hindsight runtime、timeout 与 recall limits 来自
   `/etc/campus-agent/runtime-profile.staging.json`，不是 staging env knobs。
-- staging 不消费 `infra/local/.generated/zep-ce.env`。Zep CE bundle 内部的 Postgres /
-  Neo4j / Graphiti secret 必须来自 staging secret store；Graphiti 模型面必须与
-  app-api provider-config `memory_graph_llm` active profile 对齐。Graphiti
-  `OPENAI_BASE_URL` 应指向 app-api internal OpenAI-compatible proxy
-  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`，
-  `OPENAI_API_KEY` 使用 `APP_API_INTERNAL_SHARED_SECRET`。
+- staging 不消费 `infra/local/.generated/runtime.env`。Hindsight Postgres password 来自
+  staging runtime generated secrets file；Hindsight LLM、embedding 与 reranker provider
+  secret 仍是 deployment input，不经过 app-api provider-config，也不使用 retired
+  `memory_graph_llm` role。
 - `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
   query-serving index release metadata 匹配。当前 staging baseline 固定为：
   - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`
@@ -183,14 +180,12 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<operator-console-staging Access aud>`
-- `EXECUTION_CONTROL_METRICS_BEARER_TOKEN=<metrics bearer token>`
-- `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=<structured query secret>`
-- `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=<run projection Postgres URL>`；
-  这是 execution projection store 的显式 URL，不从 `STAGING_INGESTION_SHARED_POSTGRES_URL`、
-  `EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL`、root `.env`、
-  `apps/app-api/.dev.vars` 或其他 repo-local secret 推断。同机 self-hosted Postgres 场景通常写
-  `postgresql://<user>:<password>@127.0.0.1:5432/campus_agent`；lifecycle 会把容器侧
-  URL 投影为 `postgres:5432`。
+- `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` 与
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 不需要手写；lifecycle 首次生成并
+  持久化到 runtime secrets file。
+- canonical self-host run projection store 默认投影为
+  `postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable`。
+  只有外接 Postgres 时才填写 `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`。
 
 以下 internal bridge runtime env 不需要在 canonical `runtime.env` 手写；staging
 `execution_control_staging_load_env` 会在部署/start/preflight/status 时投影：
@@ -209,8 +204,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
 在 ops-owned runtime env 或同等 deployment secret source 覆写这些 internal bridge 地址；
 缺失投影时应视为部署脚本 / env projection bug，而不是要求未部署用户手动配置。
 
-- Temporal 必须显式配置：
-  - `TEMPORAL_POSTGRES_PASSWORD=<temporal postgres password>`
+- Temporal runtime 默认由 lifecycle 投影；以下地址 / identity 不需要在 canonical
+  `runtime.env` 手写，password 与 workflow id salt 首次生成并持久化：
+  - `TEMPORAL_POSTGRES_PASSWORD`
   - `EXECUTION_CONTROL_TEMPORAL_ADDRESS=temporal:7233`
   - `EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging`
   - `EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow`
@@ -225,9 +221,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=<workflow id salt>`
+  - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT`
   - `EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000`
-  缺任一 Temporal 必填配置时，lifecycle 必须 fail closed。
+  缺任一投影值时，lifecycle 必须 fail closed，并作为 env projection bug 处理。
 - `EXECUTION_CONTROL_DURABLE_WORKER_LOOP_*` 与
   `EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_*` 已退役；staging env 出现这些键时必须
   fail closed。

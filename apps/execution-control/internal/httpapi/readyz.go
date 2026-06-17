@@ -16,6 +16,7 @@ type promptConfigGate struct {
 	Admitted                bool   `json:"admitted"`
 	Reason                  string `json:"reason"`
 	Provider                string `json:"provider"`
+	PricingProvider         string `json:"pricing_provider"`
 	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
 	ExecutionModel          string `json:"execution_model"`
@@ -140,7 +141,7 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
 		defer cancel()
 		if err := s.ragLookupExecutor.HealthCheck(checkCtx); err != nil {
-			status["lookup_last_error"] = "rag lookup health check failed"
+			status["lookup_last_error"] = "rag lookup health check failed: " + err.Error()
 		} else {
 			status["lookup_healthy"] = true
 		}
@@ -164,17 +165,17 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 
 func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any {
 	status := map[string]any{
-		"configured":                 s.personalMemoryExecutor != nil,
-		"context_char_budget":        s.config.PersonalMemoryRecallMaxChars,
-		"data_plane":                 "zep_ce_self_host",
-		"healthy":                    false,
-		"last_error":                 "",
-		"online_recall_owner":        "execution-control",
-		"owner_salt_configured":      personalMemoryOwnerSaltConfigured(s.config),
-		"thread_owner":               "execution-control",
-		"raw_transcript_gate":        "sanitized_turn_append_only",
-		"zep_ce_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
-		"zep_ce_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
+		"configured":                    s.personalMemoryExecutor != nil,
+		"context_char_budget":           s.config.PersonalMemoryRecallMaxChars,
+		"data_plane":                    "hindsight_self_host",
+		"healthy":                       false,
+		"last_error":                    "",
+		"online_recall_owner":           "execution-control",
+		"owner_salt_configured":         personalMemoryOwnerSaltConfigured(s.config),
+		"thread_owner":                  "execution-control",
+		"raw_transcript_gate":           "sanitized_turn_append_only",
+		"hindsight_base_url_configured": strings.TrimSpace(s.config.PersonalMemoryBaseURL) != "",
+		"hindsight_secret_configured":   strings.TrimSpace(s.config.PersonalMemoryAPISecret) != "",
 	}
 	if s.personalMemoryErr != nil {
 		status["last_error"] = "personal memory executor could not be initialized"
@@ -251,6 +252,7 @@ func containsRequiredTemporalTaskQueues(
 
 func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	providerName := strings.TrimSpace(cfg.PromptRuntimeProvider)
+	pricingProviderName := promptPricingProviderName(providerName)
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
 	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
@@ -274,7 +276,7 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		switch {
 		case err != nil:
 			reason = "provider_pricing_not_configured"
-		case executionModel != "" && !promptModelHasPricing(catalog, providerName, executionModel):
+		case executionModel != "" && !promptModelHasPricing(catalog, pricingProviderName, executionModel):
 			reason = "execution_model_pricing_missing"
 		default:
 			pricingVersion = catalog.SchemaVersion
@@ -284,10 +286,20 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		Admitted:                reason == "",
 		Reason:                  reason,
 		Provider:                providerName,
+		PricingProvider:         pricingProviderName,
 		PricingVersion:          pricingVersion,
 		Transport:               transport,
 		ExecutionModel:          executionModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
+	}
+}
+
+func promptPricingProviderName(providerName string) string {
+	switch strings.TrimSpace(providerName) {
+	case "openai-responses":
+		return "openai"
+	default:
+		return strings.TrimSpace(providerName)
 	}
 }
 

@@ -310,6 +310,32 @@ func TestReadyzPromptConfigGateDoesNotRequireExecutionTerminalModel(t *testing.T
 	}
 }
 
+func TestReadyzPromptConfigGateUsesBillingProviderForResponsesTransport(t *testing.T) {
+	server := newReadyServerForTest(t, func(cfg *config.Config) {
+		cfg.ExecutionPromptModel = "gpt-5-mini"
+		cfg.PromptRuntimeProvider = "openai-responses"
+		cfg.PromptRuntimeTransport = "responses"
+	})
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
+	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
+		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	}
+	if promptConfigGate["provider"] != "openai-responses" {
+		t.Fatalf("prompt_config_gate.provider = %v, want runtime provider", promptConfigGate["provider"])
+	}
+	if promptConfigGate["pricing_provider"] != "openai" {
+		t.Fatalf("prompt_config_gate.pricing_provider = %v, want openai", promptConfigGate["pricing_provider"])
+	}
+}
+
 func TestReadyzDegradesWhenOTelEnabledWithoutExporter(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:              "campus-agent",

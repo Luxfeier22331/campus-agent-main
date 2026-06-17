@@ -5,6 +5,7 @@
 execution_control_staging_load_env() {
   local node_bin
   local runtime_env_path="${execution_control_staging_env_file}"
+  local runtime_secrets_env_path="${execution_control_staging_runtime_secrets_env_file}"
   local export_script
 
   if [[ -z "${runtime_env_path}" ]]; then
@@ -18,8 +19,8 @@ execution_control_staging_load_env() {
 
   node_bin="$(execution_control_staging_require_command node)"
   export_script="$(
-    "${node_bin}" - "${runtime_env_path}" <<'NODE'
-const [runtimeEnvPath] = process.argv.slice(2);
+    "${node_bin}" - "${runtime_env_path}" "${runtime_secrets_env_path}" <<'NODE'
+const [runtimeEnvPath, runtimeSecretsEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
 const crypto = require("node:crypto");
@@ -28,15 +29,20 @@ if (typeof parseEnv !== "function") {
   throw new Error("node:util.parseEnv is required for staging env projection");
 }
 const fileEnv = new Map();
+const generatedRuntimeEnv = new Map();
 
-for (const filePath of [runtimeEnvPath]) {
+readEnvInto(runtimeEnvPath, fileEnv);
+ensureRuntimeEnv(runtimeSecretsEnvPath, fileEnv);
+readEnvInto(runtimeSecretsEnvPath, generatedRuntimeEnv);
+
+function readEnvInto(filePath, target) {
   if (!filePath) {
-    continue;
+    return;
   }
   try {
     const parsed = parseEnv(fs.readFileSync(filePath, "utf8"));
     for (const [key, value] of Object.entries(parsed)) {
-      fileEnv.set(key, value);
+      target.set(key, value);
     }
     loadedPaths.push(filePath);
   } catch (error) {
@@ -46,17 +52,61 @@ for (const filePath of [runtimeEnvPath]) {
   }
 }
 
+function ensureRuntimeEnv(filePath, runtimeEnv) {
+  if (!filePath) {
+    return;
+  }
+  const existing = new Map();
+  try {
+    const parsed = parseEnv(fs.readFileSync(filePath, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      existing.set(key, value);
+    }
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+  let changed = false;
+  for (const key of [
+    "PERSONAL_MEMORY_API_SECRET",
+    "PERSONAL_MEMORY_OWNER_SALT",
+    "HINDSIGHT_POSTGRES_PASSWORD",
+    "TEMPORAL_POSTGRES_PASSWORD",
+    "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
+    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
+    "QDRANT_API_KEY",
+    "QDRANT_READ_ONLY_API_KEY",
+  ]) {
+    if (!existing.get(key)?.trim() && !runtimeEnv.get(key)?.trim() && !process.env[key]?.trim()) {
+      existing.set(key, crypto.randomBytes(32).toString("base64url"));
+      changed = true;
+    }
+  }
+  if (changed || !fs.existsSync(filePath)) {
+    fs.mkdirSync(require("node:path").dirname(filePath), { recursive: true });
+    fs.writeFileSync(
+      filePath,
+      `${[...existing.entries()].map(([key, value]) => `${key}=${value}`).join("\n")}\n`,
+      { mode: 0o600 },
+    );
+  }
+  if (process.platform !== "win32") {
+    fs.chmodSync(filePath, 0o600);
+  }
+}
+
 function sourceEnvValue(key) {
   const processValue = process.env[key]?.trim() || "";
   if (processValue) {
     return processValue;
   }
-  return fileEnv.get(key)?.trim() || "";
+  return fileEnv.get(key)?.trim() || generatedRuntimeEnv.get(key)?.trim() || "";
 }
 
 const keys = [
   "CAMPUS_AGENT_APP_NAME",
-  "AGENT_RUNTIME_HOST_PORT",
   "AGENT_RUNTIME_PORT",
   "AGENT_RUNTIME_SHARED_SECRET",
   "AGENT_RUNTIME_TOOL_CATALOG_PATH",
@@ -138,7 +188,13 @@ const keys = [
   "EXECUTION_CONTROL_STAGING_HOST",
   "EXECUTION_CONTROL_STAGING_PORT",
   "QDRANT_QUERY_API_KEY",
+  "QDRANT_API_KEY",
+  "QDRANT_READ_ONLY_API_KEY",
   "QDRANT_TLS_CA_CERT_PATH",
+  "PERSONAL_MEMORY_BASE_URL",
+  "PERSONAL_MEMORY_API_SECRET",
+  "PERSONAL_MEMORY_OWNER_SALT",
+  "HINDSIGHT_POSTGRES_PASSWORD",
 ];
 
 function projectLoopbackUrlHost(value, dockerHost, dockerPort) {
@@ -201,6 +257,21 @@ const workerSharedSecret =
   sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||
   "";
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
+if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
+  resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
+}
+if (!resolved.get("QDRANT_API_KEY") && sourceEnvValue("QDRANT_API_KEY")) {
+  resolved.set("QDRANT_API_KEY", sourceEnvValue("QDRANT_API_KEY"));
+}
+if (!resolved.get("QDRANT_READ_ONLY_API_KEY") && sourceEnvValue("QDRANT_READ_ONLY_API_KEY")) {
+  resolved.set("QDRANT_READ_ONLY_API_KEY", sourceEnvValue("QDRANT_READ_ONLY_API_KEY"));
+}
+if (!resolved.get("QDRANT_QUERY_API_KEY")) {
+  const generatedReadOnlyKey = sourceEnvValue("QDRANT_READ_ONLY_API_KEY");
+  if (generatedReadOnlyKey) {
+    resolved.set("QDRANT_QUERY_API_KEY", generatedReadOnlyKey);
+  }
+}
 
 const retiredEnvErrors = [];
 for (const retiredKey of [
@@ -231,9 +302,6 @@ const stagingRequiredMappings = [
   ["STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL", "RAW_ASSET_REGISTRY_DATABASE_URL"],
   ["STAGING_INGESTION_OBJECT_STORE_ENDPOINT", "OBJECT_STORE_ENDPOINT"],
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
-  ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
-  ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_QUERY_API_KEY"],
-  ["STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", "QDRANT_TLS_CA_CERT_PATH"],
   ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
   ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
   ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
@@ -262,6 +330,8 @@ const stagingOptionalMappings = [
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
   ["STAGING_INGESTION_QDRANT_API_KEY", "QDRANT_API_KEY"],
   ["STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY", "QDRANT_READ_ONLY_API_KEY"],
+  ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
+  ["STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", "QDRANT_TLS_CA_CERT_PATH"],
   ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
 ];
 
@@ -405,8 +475,12 @@ function validateStagingQdrantRuntimeUrl(errors, source, value) {
     errors.push(`${source} must be a valid https URL`);
     return;
   }
+  const selfHostedInternalHosts = new Set(["qdrant", "127.0.0.1", "localhost"]);
+  if (parsed.protocol === "http:" && selfHostedInternalHosts.has(parsed.hostname)) {
+    return;
+  }
   if (parsed.protocol !== "https:") {
-    errors.push(`${source} must use https for authenticated Qdrant data-plane`);
+    errors.push(`${source} must use https unless it targets the self-hosted internal Qdrant service`);
   }
 }
 
@@ -619,12 +693,18 @@ if (isLocalEndpoint(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT"))) {
   resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY", localMinioAccess);
   resolved.set("EXECUTION_CONTROL_STAGING_LOCAL_MINIO_SECRET_KEY", localMinioSecret);
 }
-if (
-  !envValue("STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY")
-) {
-  dataPlaneErrors.push(
-    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY is required for online Qdrant query access",
-  );
+if (!resolved.has("QDRANT_URL")) {
+  resolved.set("QDRANT_URL", "http://qdrant:6333");
+  resolved.set("QDRANT_DOCKER_URL", "http://qdrant:6333");
+}
+if (!resolved.has("QDRANT_DOCKER_URL")) {
+  resolved.set("QDRANT_DOCKER_URL", projectQdrantForDocker(resolved.get("QDRANT_URL")));
+}
+if (!resolved.has("QDRANT_READ_ONLY_API_KEY") && envValue("QDRANT_READ_ONLY_API_KEY")) {
+  resolved.set("QDRANT_READ_ONLY_API_KEY", envValue("QDRANT_READ_ONLY_API_KEY"));
+}
+if (!resolved.has("QDRANT_QUERY_API_KEY")) {
+  resolved.set("QDRANT_QUERY_API_KEY", resolved.get("QDRANT_READ_ONLY_API_KEY") || "");
 }
 resolved.set(
   "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",
@@ -647,10 +727,21 @@ resolved.set(
   "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_QDRANT",
   isLocalEndpoint(envValue("STAGING_INGESTION_QDRANT_URL")) ? "true" : "false",
 );
+if (!resolved.has("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")) {
+  resolved.set(
+    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
+    "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
+  );
+}
 if (envValue("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")) {
   resolved.set(
     "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL",
     projectPostgresForDocker(envValue("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")),
+  );
+} else {
+  resolved.set(
+    "EXECUTION_CONTROL_RUN_PROJECTION_DOCKER_DATABASE_URL",
+    resolved.get("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"),
   );
 }
 if (!resolved.has("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL")) {
@@ -1069,8 +1160,8 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
 
-  if [[ "${QDRANT_URL}" != https://* ]]; then
-    echo "QDRANT_URL must use https for execution-control staging Qdrant data-plane." >&2
+  if [[ "${QDRANT_URL}" != http://* && "${QDRANT_URL}" != https://* ]]; then
+    echo "QDRANT_URL must use http or https." >&2
     return 1
   fi
 
@@ -1079,8 +1170,19 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
 
-  if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
-    echo "QDRANT_TLS_CA_CERT_PATH is required after STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH projection." >&2
+  if [[ "${QDRANT_URL}" == http://* ]]; then
+    case "${QDRANT_URL}" in
+      http://qdrant:*|http://127.0.0.1:*|http://localhost:*)
+        ;;
+      *)
+        echo "QDRANT_URL may use http only for the self-hosted internal Qdrant service." >&2
+        return 1
+        ;;
+    esac
+  fi
+
+  if [[ "${QDRANT_URL}" == https://* && -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+    echo "QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane." >&2
     return 1
   fi
 }

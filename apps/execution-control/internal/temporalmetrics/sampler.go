@@ -107,7 +107,7 @@ func (s Sampler) Sample(ctx context.Context) (SnapshotPayload, error) {
 		if err != nil {
 			return SnapshotPayload{}, err
 		}
-		identities := append([]string(nil), result.PollerIdentities...)
+		identities := append([]string{}, result.PollerIdentities...)
 		backlog := SourceCountMetric{State: SourceMetricUnsupported}
 		if result.ApproximateBacklogCount != nil {
 			backlog = SourceCountMetric{Count: result.ApproximateBacklogCount, State: SourceMetricObserved}

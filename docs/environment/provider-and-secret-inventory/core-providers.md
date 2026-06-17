@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-17
 ---
 
 # Provider And Secret Inventory Core Providers
@@ -23,7 +23,6 @@ owns this section group; the original path remains the stable index.
 - 各 online prompt role 对应的可用模型名：
   - `primary_agent`
   - `rag_synthesis`
-  - `memory_graph_llm`
 
 online serving owner：
 
@@ -32,9 +31,6 @@ online serving owner：
 - `execution-control` 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
   `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot
-- Zep CE / Graphiti model consumption 使用 `memory_graph_llm` active profile；Graphiti
-  指向 app-api internal OpenAI-compatible proxy，proxy 再读取 active profile 并转发到真实
-  provider
 
 默认 env 放置位置：
 
@@ -148,17 +144,14 @@ online serving owner：
 
 获取方式：
 
-1. 在目标服务器按 historical
-   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md)
-   部署 single-node Qdrant。
-1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
-   env 或 deploy secret store。
-1. 把本机或内网 Qdrant URL 写入 `QDRANT_URL`，staging / production 必须使用 HTTPS，
-   例如 `https://127.0.0.1:6333`。
+1. canonical self-host runtime 默认由 lifecycle 投影
+   `QDRANT_URL=http://qdrant:6333`，并生成 deploy-scoped `QDRANT_API_KEY` 与
+   `QDRANT_READ_ONLY_API_KEY`。
+1. 只有外接 / 非 canonical Qdrant endpoint 时才显式写入 `QDRANT_URL`；跨 substrate、
+   公网入口或 machine ingress 必须使用 HTTPS。
 1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
    admin `QDRANT_API_KEY` 查询。
-1. 配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle，例如
-   `/srv/docker/campus-agent/staging/qdrant/tls/ca.pem`。
+1. 仅 HTTPS Qdrant endpoint 需要配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle。
 1. 不把 `6333` / `6334` 直接暴露到公网。
 
 外部参考：
@@ -173,12 +166,13 @@ online serving owner：
 - 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
   ADR-0045 supersede
 
-## 4. Zep CE
+## 4. Hindsight
 
-Zep CE 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
-extraction、dedupe / merge 与 graph search。Qdrant 不再承载 personal memory。
-`campus-agent` 只消费 Zep CE `/api/v2`；Graphiti、Neo4j、Postgres / pgvector 是 Zep CE
-runtime bundle 内部组件。
+Hindsight 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
+extraction、dedupe / merge 与 recall。Qdrant 不再承载 personal memory。
+`campus-agent` 只通过 execution-control 的官方 Go SDK 集成消费 Hindsight API；
+PostgreSQL / pgvector、LLM、embedding 与 reranker provider 是 Hindsight deployment
+内部组件。
 
 当前 deployment env handles：
 
@@ -186,27 +180,42 @@ runtime bundle 内部组件。
 - `PERSONAL_MEMORY_API_SECRET`
 - `PERSONAL_MEMORY_OWNER_SALT`
 
-Zep runtime、timeout 与 recall limits 由 execution-control runtime profile
+Hindsight runtime、timeout 与 recall limits 由 execution-control runtime profile
 `personal_memory` 段管理。
 
-local generated Zep CE runtime bundle keys：
+local / staging generated self-host runtime bundle keys：
 
-- `infra/local/.generated/zep-ce.env`
-- `ZEP_CE_POSTGRES_PASSWORD`
-- `ZEP_CE_NEO4J_PASSWORD`
+- `infra/local/.generated/runtime.env`
+- staging runtime dir 下的 `secrets/runtime.env`
+- `HINDSIGHT_POSTGRES_PASSWORD`
+- `PERSONAL_MEMORY_API_SECRET`
+- `PERSONAL_MEMORY_OWNER_SALT`
+- `TEMPORAL_POSTGRES_PASSWORD`
+- `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT`
+- `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
+- `EXECUTION_CONTROL_METRICS_BEARER_TOKEN`
+- `QDRANT_API_KEY`
+- `QDRANT_READ_ONLY_API_KEY`
 
-这些键只服务 local compose 内部 bundle。它们不是 repo top-level `.env` contract；staging /
-production 应由部署 secret store 注入等价值。
+这些键只服务 self-host runtime 内部 bundle。它们不是 repo top-level `.env` contract；staging
+lifecycle 会在 ops-owned runtime dir 下生成等价值，开发者不需要手工填写。
 
-Graphiti OpenAI-compatible projection：
+Hindsight deployment provider env：
 
-- `ZEP_CE_OPENAI_BASE_URL`：派生为 app-api internal proxy
-  `/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`
-- `ZEP_CE_OPENAI_API_KEY`：派生自 `APP_API_INTERNAL_SHARED_SECRET`
+- `HINDSIGHT_API_LLM_PROVIDER`
+- `HINDSIGHT_API_LLM_MODEL`
+- `HINDSIGHT_API_LLM_BASE_URL`
+- `HINDSIGHT_API_LLM_API_KEY`
+- `HINDSIGHT_API_EMBEDDINGS_PROVIDER`
+- `HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY`
+- `HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL`
+- `HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL`
+- `HINDSIGHT_API_RERANKER_PROVIDER`
+- `HINDSIGHT_API_TENANT_EXTENSION`
+- `HINDSIGHT_API_TENANT_API_KEY`
 
-这两个键是 compose projection，不是 provider secret truth。真实 provider base URL、model
-与 API key 必须来自 `memory_graph_llm` provider-config active profile，不能恢复 repo-owned
-`personal_memory_extraction` prompt。
+这些键属于 Hindsight deployment secret。它们不经过 app-api provider-config，也不能恢复
+repo-owned `personal_memory_extraction` prompt。
 
 退休键，存在时必须 fail closed：
 
@@ -225,20 +234,24 @@ Graphiti OpenAI-compatible projection：
 
 获取方式：
 
-1. 部署 self-hosted Zep CE API 及其 runtime bundle。
+1. 部署 self-hosted Hindsight API 及其 runtime bundle。
 1. local dev 运行 `infra/local/start-execution-control-runtime.sh`，脚本会生成
-   `infra/local/.generated/zep-ce.env` 并注入 Zep CE 内部 bundle secret。
-1. staging / production 为 Zep CE 配置稳定 `PERSONAL_MEMORY_API_SECRET`。
-1. staging / production 配置 HTTPS `PERSONAL_MEMORY_BASE_URL`；local dev 可以使用
-   compose 内网 `http://zep-ce-api:8000`。
-1. 为每个环境配置稳定 `PERSONAL_MEMORY_OWNER_SALT`，用于派生 scoped user id。
-1. 不把 Zep CE API secret 写入 repo-tracked env、fixture、eval artifact 或 docs。
+   `infra/local/.generated/runtime.env` 并注入 self-host runtime 内部 bundle secret。
+1. local / staging lifecycle 会首次生成稳定 `PERSONAL_MEMORY_API_SECRET`、
+   `PERSONAL_MEMORY_OWNER_SALT`、`HINDSIGHT_POSTGRES_PASSWORD`、Temporal internal
+   password / salt、internal query secret、metrics token 与 self-host Qdrant keys，并
+   持久化到 ops-owned generated env file。
+1. local / staging 默认使用 compose 内网 `http://hindsight-api:8888`。只有外接
+   Hindsight endpoint 时才覆盖 `PERSONAL_MEMORY_BASE_URL`。
+1. production 如复用 compose-style self-hosted Hindsight，应沿用同样的首次生成并持久化
+   约定；如使用外部 secret store，则由部署脚本写入，不要求开发者手填。
+1. 不把 Hindsight API secret 写入 repo-tracked env、fixture、eval artifact 或 docs。
 
 说明：
 
-- `activity-knowledge` 不需要 Zep secret；它只消费 `context.memory_recall` 输出的 bounded
+- `activity-knowledge` 不需要 Hindsight secret；它只消费 `context.memory_recall` 输出的 bounded
   memory context。
-- `zep-memory-product-path` eval profile 验证 append、recall、explicit profile memory
+- `hindsight-memory-product-path` eval profile 验证 append、recall、explicit profile memory
   upsert / disable、owner disable 与 user isolation。
 
 ## 5. Shared Postgres

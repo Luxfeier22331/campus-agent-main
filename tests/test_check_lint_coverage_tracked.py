@@ -40,7 +40,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("html:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("infra/local/scripts/ensure-zep-ce-secrets.mjs"),
+            lint_families_for_path("infra/local/scripts/ensure-runtime-secrets.mjs"),
             ("web:lint",),
         )
         self.assertEqual(

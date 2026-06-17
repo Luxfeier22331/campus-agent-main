@@ -167,7 +167,7 @@ func (e qdrantRAGLookupExecutor) Lookup(
 }
 
 func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, e.qdrantURL+"/readyz", nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, e.qdrantURL+"/collections", nil)
 	if err != nil {
 		return err
 	}
@@ -178,7 +178,7 @@ func (e qdrantRAGLookupExecutor) HealthCheck(ctx context.Context) error {
 	}
 	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		return fmt.Errorf("qdrant readyz status %d", response.StatusCode)
+		return fmt.Errorf("qdrant collections status %d", response.StatusCode)
 	}
 	return nil
 }

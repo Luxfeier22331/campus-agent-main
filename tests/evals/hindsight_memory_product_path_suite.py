@@ -5,21 +5,21 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from campus_evals.zep_memory_product_path import (
-    ZepMemoryObservation,
-    ZepMemoryRuntimeSettings,
-    collect_zep_memory_runtime_observations,
-    evaluate_zep_memory_cases,
-    load_zep_memory_cases,
-    run_zep_memory_product_path_profile,
+from campus_evals.hindsight_memory_product_path import (
+    HindsightMemoryObservation,
+    HindsightMemoryRuntimeSettings,
+    collect_hindsight_memory_runtime_observations,
+    evaluate_hindsight_memory_cases,
+    load_hindsight_memory_cases,
+    run_hindsight_memory_product_path_profile,
 )
 
 
-class ZepMemoryProductPathSuite(unittest.TestCase):
-    def test_loads_default_cases_for_all_zep_memory_paths(self) -> None:
-        case_set = load_zep_memory_cases()
+class HindsightMemoryProductPathSuite(unittest.TestCase):
+    def test_loads_default_cases_for_all_hindsight_memory_paths(self) -> None:
+        case_set = load_hindsight_memory_cases()
 
-        self.assertEqual(case_set.case_family, "zep_memory_product_path.v1")
+        self.assertEqual(case_set.case_family, "hindsight_memory_product_path.v1")
         self.assertEqual(
             {case.assertion_kind for case in case_set.cases},
             {
@@ -33,9 +33,9 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
         )
 
     def test_evaluator_requires_expected_status_and_tokens(self) -> None:
-        case_set = load_zep_memory_cases()
+        case_set = load_hindsight_memory_cases()
         observations = {
-            case.case_id: ZepMemoryObservation(
+            case.case_id: HindsightMemoryObservation(
                 case_id=case.case_id,
                 status="completed",
                 selected_memory_count=case.min_selected_memory_count,
@@ -46,7 +46,7 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
             for case in case_set.cases
         }
         broken_case = case_set.cases[0]
-        observations[broken_case.case_id] = ZepMemoryObservation(
+        observations[broken_case.case_id] = HindsightMemoryObservation(
             case_id=broken_case.case_id,
             status="completed",
             selected_memory_count=0,
@@ -55,14 +55,14 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
             schema_version=broken_case.required_schema_version,
         )
 
-        report = evaluate_zep_memory_cases(case_set.cases, observations)
+        report = evaluate_hindsight_memory_cases(case_set.cases, observations)
         results = {result.case_id: result for result in report.results}
 
         self.assertFalse(report.passed)
         self.assertEqual(results[broken_case.case_id].failure_class, "required_token_missing")
 
     def test_profile_writes_sanitized_report(self) -> None:
-        case_set = load_zep_memory_cases()
+        case_set = load_hindsight_memory_cases()
         observations = {
             case.case_id: {
                 "status": case.required_status,
@@ -80,7 +80,7 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
                 json.dumps({"observations": observations}, ensure_ascii=False),
                 encoding="utf-8",
             )
-            report = run_zep_memory_product_path_profile(
+            report = run_hindsight_memory_product_path_profile(
                 output_dir=root / "out",
                 observations_path=observations_path,
                 git_head_resolver=lambda: "abc123",
@@ -88,7 +88,7 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
             payload = json.loads(report.output_path.read_text(encoding="utf-8"))
 
         self.assertTrue(report.passed)
-        self.assertEqual(payload["profile_id"], "zep_memory_product_path")
+        self.assertEqual(payload["profile_id"], "hindsight_memory_product_path")
         self.assertEqual(payload["summary"]["failed"], 0)
 
     def test_runtime_collector_requires_real_observations_for_every_case(self) -> None:
@@ -163,35 +163,46 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
                         }
                     )
                 if path == "/internal/memory/personal/graph:recall":
-                    selected_count = 0 if json["user_id"] == "other-zep-memory-user" else 1
+                    selected_count = 0 if json["user_id"] == "other-hindsight-memory-user" else 1
+                    if "thread_id" not in json:
+                        raise AssertionError("recall request must include thread_id")
                     return Response(
                         {
+                            "context_block": "用户记忆:\n相关事实:\n- 用户关注丰台校区培养方案"
+                            if selected_count
+                            else "",
                             "memory_context_items": [
                                 {
                                     "compact_text": "用户关注丰台校区培养方案",
+                                    "capability": "knowledge",
                                     "memory_id": "edge-1",
+                                    "memory_type": "fact",
+                                    "updated_at": "2026-06-16T10:00:00Z",
                                 }
                             ]
                             if selected_count
                             else [],
                             "memory_ref": "projection://runs/live/memory/recall",
                             "payload_sha256": "hash",
+                            "provider": "hindsight",
+                            "retrieval_mode": "recall",
                             "schema_version": "memory_recall_result_v1",
+                            "selected_memory_chars": 42 if selected_count else 0,
                             "selected_memory_count": selected_count,
                             "status": "completed",
                         }
                     )
                 raise AssertionError(f"unexpected path: {path}")
 
-        case_set = load_zep_memory_cases()
-        import campus_evals.zep_memory_product_path as module
+        case_set = load_hindsight_memory_cases()
+        import campus_evals.hindsight_memory_product_path as module
 
         original_client = module.httpx.Client
         module.httpx.Client = RecordingClient  # type: ignore[assignment]
         try:
-            observations = collect_zep_memory_runtime_observations(
+            observations = collect_hindsight_memory_runtime_observations(
                 case_set,
-                settings=ZepMemoryRuntimeSettings(
+                settings=HindsightMemoryRuntimeSettings(
                     execution_control_base_url="http://execution-control.test",
                     worker_shared_secret="secret",
                 ),
@@ -201,8 +212,10 @@ class ZepMemoryProductPathSuite(unittest.TestCase):
 
         self.assertEqual({case.case_id for case in case_set.cases}, set(observations))
         self.assertNotIn("not_collected", {item.status for item in observations.values()})
-        self.assertEqual(observations["zep-memory-cross-thread-recall"].selected_memory_count, 1)
-        self.assertEqual(observations["zep-memory-user-isolation"].selected_memory_count, 0)
+        self.assertEqual(
+            observations["hindsight-memory-cross-thread-recall"].selected_memory_count, 1
+        )
+        self.assertEqual(observations["hindsight-memory-user-isolation"].selected_memory_count, 0)
         self.assertLess(
             seen_paths.index("/internal/memory/personal/graph:recall"),
             seen_paths.index("/internal/memory/personal/items:upsert"),

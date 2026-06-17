@@ -9,7 +9,7 @@ def profile_fixture_smoke_loaders() -> tuple[tuple[str, Callable[[], object]], .
         ("tool-routing-product-path", _load_tool_routing_smoke),
         ("public-chat-entry-e2e", _load_public_chat_entry_smoke),
         ("answer-quality-contract", _load_answer_quality_smoke),
-        ("zep-memory-product-path", _load_zep_memory_product_path_smoke),
+        ("hindsight-memory-product-path", _load_hindsight_memory_product_path_smoke),
     )
 
 
@@ -37,10 +37,10 @@ def _load_answer_quality_smoke() -> object:
     return load_answer_quality_cases()
 
 
-def _load_zep_memory_product_path_smoke() -> object:
-    from campus_evals.zep_memory_product_path import load_zep_memory_cases
+def _load_hindsight_memory_product_path_smoke() -> object:
+    from campus_evals.hindsight_memory_product_path import load_hindsight_memory_cases
 
-    return load_zep_memory_cases()
+    return load_hindsight_memory_cases()
 
 
 __all__ = ["profile_fixture_smoke_loaders"]

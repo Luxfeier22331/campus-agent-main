@@ -4,17 +4,30 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const defaultEnvPath = path.resolve(__dirname, "../.generated/zep-ce.env");
+const defaultEnvPath = path.resolve(__dirname, "../.generated/runtime.env");
 
 const requiredSecrets = [
 	"PERSONAL_MEMORY_API_SECRET",
 	"PERSONAL_MEMORY_OWNER_SALT",
-	"ZEP_CE_POSTGRES_PASSWORD",
-	"ZEP_CE_NEO4J_PASSWORD",
+	"TEMPORAL_POSTGRES_PASSWORD",
+	"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+	"HINDSIGHT_POSTGRES_PASSWORD",
+	"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
+	"EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
+	"QDRANT_API_KEY",
+	"QDRANT_READ_ONLY_API_KEY",
 ];
-const retiredGeneratedSecrets = ["ZEP_CE_OPENAI_API_KEY"];
+const retiredGeneratedSecrets = [
+	"ZEP_CE_API_IMAGE",
+	"ZEP_CE_CONFIG_PATH",
+	"ZEP_CE_MODEL_NAME",
+	"ZEP_CE_NEO4J_PASSWORD",
+	"ZEP_CE_OPENAI_API_KEY",
+	"ZEP_CE_OPENAI_BASE_URL",
+	"ZEP_CE_POSTGRES_PASSWORD",
+];
 
-export async function ensureZepCeSecrets(input = {}) {
+export async function ensureRuntimeSecrets(input = {}) {
 	const envPath = input.envPath ?? defaultEnvPath;
 	const existing = await readEnvFile(envPath);
 	let changed = false;
@@ -101,6 +114,6 @@ async function fileExists(filePath) {
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-	const { envPath } = await ensureZepCeSecrets();
-	console.log(`Zep CE local secrets are available at ${envPath}`);
+	const { envPath } = await ensureRuntimeSecrets();
+	console.log(`Self-host runtime secrets are available at ${envPath}`);
 }

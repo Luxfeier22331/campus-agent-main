@@ -298,7 +298,7 @@ context.memory_recall when needed
 - direct/no-tool terminal branch 覆盖产品身份说明、普通寒暄、澄清、拒绝、
   out-of-scope 与 fail-close outcome；不得把这些拆成
   `assistant_intro`、`product_meta` 或 synthetic capability。
-- `context.memory_recall` 使用 Zep CE runtime recall bounded personal memory
+- `context.memory_recall` 使用 Hindsight runtime recall bounded personal memory
   context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
 - `plan.route` 只能作为 retained deterministic support path / historical
@@ -332,7 +332,7 @@ Knowledge-family durable execution must remain a typed step graph:
 
 固定规则：
 
-- `memory.recall` 使用 Zep CE runtime recall bounded personal memory context，
+- `memory.recall` 使用 Hindsight runtime recall bounded personal memory context，
   输出 selected count、char budget 与 compact memory items。
 - `planning` 承接 execution admission / workflow plan projection，不读取 PG
   profile memory full dump。

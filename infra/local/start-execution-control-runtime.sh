@@ -8,7 +8,7 @@ compose_project_name="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PROJECT_NAME:-campus-e
 compose_parallel_limit="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
 api_host_port="${EXECUTION_CONTROL_HOST_PORT:-27051}"
 data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
-generated_zep_ce_env="${repo_root}/infra/local/.generated/zep-ce.env"
+generated_runtime_env="${repo_root}/infra/local/.generated/runtime.env"
 
 require_command() {
   local command_name="$1"
@@ -31,11 +31,11 @@ ensure_data_plane_network() {
   fi
 }
 
-ensure_local_zep_ce_secrets() {
+ensure_local_runtime_secrets() {
   local node_bin
 
   node_bin="$(require_command node)"
-  "${node_bin}" "${repo_root}/infra/local/scripts/ensure-zep-ce-secrets.mjs" >/dev/null
+  "${node_bin}" "${repo_root}/infra/local/scripts/ensure-runtime-secrets.mjs" >/dev/null
 }
 
 load_runtime_env() {
@@ -47,15 +47,37 @@ load_runtime_env() {
   while IFS= read -r -d '' env_key && IFS= read -r -d '' env_value; do
     export "${env_key}=${env_value}"
   done < <(
-    "${node_bin}" - "${repo_root}/.env" "${repo_root}/apps/app-api/.dev.vars" "${generated_zep_ce_env}" <<'NODE'
-const [repoEnvPath, appApiDevVarsPath, generatedZepCeEnvPath] = process.argv.slice(2);
+    "${node_bin}" - "${repo_root}/.env" "${repo_root}/apps/app-api/.dev.vars" "${generated_runtime_env}" "${repo_root}" "${compose_project_name}" <<'NODE'
+const fs = require("node:fs");
+const crypto = require("node:crypto");
 
-for (const filePath of [repoEnvPath, appApiDevVarsPath, generatedZepCeEnvPath]) {
+const [repoEnvPath, appApiDevVarsPath, generatedRuntimeEnvPath, repoRoot, composeProjectName] = process.argv.slice(2);
+
+for (const filePath of [repoEnvPath, appApiDevVarsPath, generatedRuntimeEnvPath]) {
   try {
-    process.loadEnvFile(filePath);
+    mergeEnvFile(filePath);
   } catch (error) {
     if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
       throw error;
+    }
+  }
+}
+
+function mergeEnvFile(filePath) {
+  const content = fs.readFileSync(filePath, "utf8");
+  for (const line of content.split(/\r?\n/)) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) {
+      continue;
+    }
+    const separatorIndex = trimmed.indexOf("=");
+    if (separatorIndex <= 0) {
+      continue;
+    }
+    const key = trimmed.slice(0, separatorIndex).trim();
+    const value = trimmed.slice(separatorIndex + 1).trim();
+    if (key && !(process.env[key] || "").trim()) {
+      process.env[key] = value;
     }
   }
 }
@@ -65,7 +87,6 @@ const keys = [
   "EXECUTION_CONTROL_DOCKER_GOPROXY",
   "EXECUTION_CONTROL_DOCKER_GOSUMDB",
   "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
-  "AGENT_RUNTIME_HOST_PORT",
   "AGENT_RUNTIME_PORT",
   "AGENT_RUNTIME_SHARED_SECRET",
   "AGENT_RUNTIME_TOOL_CATALOG_PATH",
@@ -160,12 +181,17 @@ const keys = [
   "PERSONAL_MEMORY_BASE_URL",
   "PERSONAL_MEMORY_API_SECRET",
   "PERSONAL_MEMORY_OWNER_SALT",
-  "ZEP_CE_POSTGRES_PASSWORD",
-  "ZEP_CE_NEO4J_PASSWORD",
-  "ZEP_CE_OPENAI_API_KEY",
-  "ZEP_CE_OPENAI_BASE_URL",
-  "ZEP_CE_MODEL_NAME",
-  "ZEP_CE_API_IMAGE",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL",
+  "HINDSIGHT_API_EMBEDDINGS_PROVIDER",
+  "HINDSIGHT_API_IMAGE",
+  "HINDSIGHT_API_LLM_API_KEY",
+  "HINDSIGHT_API_LLM_BASE_URL",
+  "HINDSIGHT_API_LLM_MODEL",
+  "HINDSIGHT_API_LLM_PROVIDER",
+  "HINDSIGHT_API_RERANKER_PROVIDER",
+  "HINDSIGHT_POSTGRES_PASSWORD",
 ];
 
 function projectLocalServiceDns(value, serviceName) {
@@ -198,7 +224,7 @@ const workerSharedSecret =
   "execution-control-local-placeholder";
 const internalQuerySharedSecret =
   process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET?.trim() ||
-  "execution-control-internal-query-local-placeholder";
+  "";
 const agentRuntimeExecutionControlSharedSecret =
   process.env.AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET?.trim() ||
   internalQuerySharedSecret;
@@ -210,24 +236,55 @@ if (agentRuntimeExecutionControlSharedSecret !== internalQuerySharedSecret) {
 const agentRuntimeSharedSecret =
   process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET?.trim() ||
   process.env.AGENT_RUNTIME_SHARED_SECRET?.trim() ||
-  "agent-runtime-local-placeholder";
+  "";
 const appApiInternalBaseUrl =
   process.env.EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL?.trim() ||
   process.env.APP_API_INTERNAL_BASE_URL?.trim() ||
-  process.env.APP_API_BASE_URL?.trim() ||
   "http://host.docker.internal:27031";
 const appApiInternalSharedSecret =
   process.env.EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET?.trim() ||
   process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() ||
   "";
+const qdrantQueryAPIKey =
+  process.env.QDRANT_QUERY_API_KEY?.trim() ||
+  process.env.QDRANT_READ_ONLY_API_KEY?.trim() ||
+  "";
+
+function deriveAgentRuntimeBridgeSecret() {
+  if (!workerSharedSecret || !internalQuerySharedSecret) {
+    return "";
+  }
+  return crypto
+    .createHash("sha256")
+    .update("campus-agent:agent-runtime-bridge:v1\0")
+    .update(workerSharedSecret)
+    .update("\0")
+    .update(internalQuerySharedSecret)
+    .digest("hex");
+}
+
+const resolvedAgentRuntimeSharedSecret =
+  agentRuntimeSharedSecret || deriveAgentRuntimeBridgeSecret();
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
-resolved.set("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
-resolved.set("AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET", agentRuntimeExecutionControlSharedSecret);
-resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
-resolved.set("AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
+resolved.set("EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY", repoRoot);
+resolved.set("EXECUTION_CONTROL_COMPOSE_PROJECT_NAME", composeProjectName);
+if (qdrantQueryAPIKey) {
+  resolved.set("QDRANT_QUERY_API_KEY", qdrantQueryAPIKey);
+}
+if (internalQuerySharedSecret) {
+  resolved.set("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
+  resolved.set("AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET", agentRuntimeExecutionControlSharedSecret);
+}
+if (resolvedAgentRuntimeSharedSecret) {
+  resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", resolvedAgentRuntimeSharedSecret);
+  resolved.set("AGENT_RUNTIME_SHARED_SECRET", resolvedAgentRuntimeSharedSecret);
+}
 if (!resolved.get("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH")) {
-  resolved.set("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", "/etc/campus-agent/runtime-profile.local.json");
+  resolved.set("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", "/etc/campus-agent/runtime-profile.local-real-provider.json");
+}
+if (!resolved.get("EXECUTION_PROMPT_MODEL") && process.env.PROMPT_RUNTIME_MODEL?.trim()) {
+  resolved.set("EXECUTION_PROMPT_MODEL", process.env.PROMPT_RUNTIME_MODEL.trim());
 }
 resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", appApiInternalBaseUrl.replace(/\/+$/, ""));
 if (appApiInternalSharedSecret) {
@@ -235,6 +292,24 @@ if (appApiInternalSharedSecret) {
 }
 if (!resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS")) {
   resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "1000");
+}
+if (!resolved.get("EXECUTION_CONTROL_APP_API_BASE_URL")) {
+  resolved.set("EXECUTION_CONTROL_APP_API_BASE_URL", appApiInternalBaseUrl.replace(/\/+$/, ""));
+}
+if (!resolved.get("EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL")) {
+  resolved.set(
+    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
+    "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
+  );
+}
+if (!resolved.get("CAMPUS_SHARED_POSTGRES_URL")) {
+  resolved.set("CAMPUS_SHARED_POSTGRES_URL", "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable");
+}
+if (!resolved.get("DOCUMENT_REGISTRY_DATABASE_URL")) {
+  resolved.set("DOCUMENT_REGISTRY_DATABASE_URL", "postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable");
+}
+if (!resolved.get("QDRANT_URL")) {
+  resolved.set("QDRANT_URL", "http://qdrant:6333");
 }
 if (!resolved.get("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL")) {
   resolved.set("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
@@ -245,9 +320,6 @@ if (!resolved.get("EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS")) {
 if (!resolved.get("AGENT_RUNTIME_PORT")) {
   resolved.set("AGENT_RUNTIME_PORT", "27062");
 }
-if (!resolved.get("AGENT_RUNTIME_HOST_PORT")) {
-  resolved.set("AGENT_RUNTIME_HOST_PORT", "127.0.0.1:27062");
-}
 if (!resolved.get("AGENT_RUNTIME_TOOL_CATALOG_PATH")) {
   resolved.set("AGENT_RUNTIME_TOOL_CATALOG_PATH", "configs/runtime/tool-catalog.v1.json");
 }
@@ -256,6 +328,12 @@ if (!resolved.get("AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL")) {
 }
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY")) {
   resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "local:execution-control:001");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_ADDRESS")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233");
+}
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_NAMESPACE")) {
+  resolved.set("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging");
 }
 if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY")) {
   resolved.set("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY", "local:workflow-worker:001");
@@ -296,38 +374,71 @@ if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY")) {
     "local:activity-finalization:001",
   );
 }
-if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
-  resolved.set("PERSONAL_MEMORY_BASE_URL", "http://zep-ce-api:8000");
-}
-if (!resolved.get("ZEP_CE_OPENAI_BASE_URL")) {
+if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY")) {
   resolved.set(
-    "ZEP_CE_OPENAI_BASE_URL",
-    `${resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL")}/api/internal/provider-config/openai-compatible/memory_graph_llm/v1`,
+    "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY",
+    "local:temporal-task-queue-sampler:001",
   );
 }
-if (!resolved.get("ZEP_CE_OPENAI_API_KEY") && resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET")) {
-  resolved.set("ZEP_CE_OPENAI_API_KEY", resolved.get("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"));
+if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
+  resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
-if (!resolved.get("ZEP_CE_MODEL_NAME")) {
-  resolved.set("ZEP_CE_MODEL_NAME", "gpt-4o-mini");
+if (!resolved.get("HINDSIGHT_API_LLM_API_KEY")) {
+  const llmApiKey = process.env.PROMPT_RUNTIME_API_KEY?.trim() || process.env.LLM_API_KEY?.trim() || "";
+  if (llmApiKey) {
+    resolved.set("HINDSIGHT_API_LLM_API_KEY", llmApiKey);
+  }
 }
-if (!resolved.get("ZEP_CE_API_IMAGE")) {
-  resolved.set("ZEP_CE_API_IMAGE", "ghcr.io/getzep/zep:latest");
+if (!resolved.get("HINDSIGHT_API_LLM_BASE_URL")) {
+  const llmBaseUrl = process.env.PROMPT_RUNTIME_BASE_URL?.trim() || process.env.LLM_BASE_URL?.trim() || "";
+  if (llmBaseUrl) {
+    resolved.set("HINDSIGHT_API_LLM_BASE_URL", llmBaseUrl);
+  }
+}
+if (!resolved.get("HINDSIGHT_API_LLM_MODEL")) {
+  resolved.set("HINDSIGHT_API_LLM_MODEL", process.env.EXECUTION_PROMPT_MODEL?.trim() || "gpt-4o-mini");
+}
+if (!resolved.get("HINDSIGHT_API_LLM_PROVIDER")) {
+  resolved.set("HINDSIGHT_API_LLM_PROVIDER", "openai");
+}
+if (!resolved.get("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY")) {
+  const embeddingsApiKey = process.env.EMBEDDING_API_KEY?.trim() || resolved.get("HINDSIGHT_API_LLM_API_KEY") || "";
+  if (embeddingsApiKey) {
+    resolved.set("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", embeddingsApiKey);
+  }
+}
+if (!resolved.get("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL")) {
+  const embeddingsBaseUrl = process.env.EMBEDDING_BASE_URL?.trim() || resolved.get("HINDSIGHT_API_LLM_BASE_URL") || "";
+  if (embeddingsBaseUrl) {
+    resolved.set("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", embeddingsBaseUrl);
+  }
+}
+if (!resolved.get("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL")) {
+  resolved.set("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", process.env.EMBEDDING_MODEL?.trim() || "text-embedding-3-small");
+}
+if (!resolved.get("HINDSIGHT_API_EMBEDDINGS_PROVIDER")) {
+  resolved.set("HINDSIGHT_API_EMBEDDINGS_PROVIDER", "openai");
+}
+if (!resolved.get("HINDSIGHT_API_IMAGE")) {
+  resolved.set("HINDSIGHT_API_IMAGE", "ghcr.io/vectorize-io/hindsight-api:0.8.2");
+}
+if (!resolved.get("HINDSIGHT_API_RERANKER_PROVIDER")) {
+  resolved.set("HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
 }
 
 for (const [key, value] of resolved.entries()) {
   let outputValue = value;
   if (key === "DOCUMENT_REGISTRY_DATABASE_URL" || key === "CAMPUS_SHARED_POSTGRES_URL") {
-    outputValue = projectLocalServiceDns(value, "postgres");
+    outputValue = projectLocalServiceDns(value, "campus-agent-postgres");
   } else if (key === "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL") {
-    outputValue = projectLocalServiceDns(value, "postgres");
+    outputValue = projectLocalServiceDns(value, "campus-agent-postgres");
   } else if (key === "OBJECT_STORE_ENDPOINT") {
     outputValue = projectLocalServiceDns(value, "minio");
   } else if (key === "QDRANT_URL") {
     outputValue = projectLocalServiceDns(value, "qdrant");
   } else if (key === "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL") {
     outputValue = projectLocalServiceDns(value, "host.docker.internal");
-  } else if (key === "ZEP_CE_OPENAI_BASE_URL") {
+  } else if (key === "HINDSIGHT_API_LLM_BASE_URL" || key === "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL") {
     outputValue = projectLocalServiceDns(value, "host.docker.internal");
   }
   process.stdout.write(`${key}\0${outputValue}\0`);
@@ -345,43 +456,68 @@ execution_control_runtime_require_runtime_env() {
     echo "QDRANT_URL is required for execution-control runtime." >&2
     return 1
   fi
-  if [[ "${QDRANT_URL}" != https://* ]]; then
-    echo "QDRANT_URL must use https for authenticated Qdrant data-plane." >&2
+  if [[ "${QDRANT_URL}" != http://* && "${QDRANT_URL}" != https://* ]]; then
+    echo "QDRANT_URL must use http or https." >&2
     return 1
   fi
   if [[ -z "${QDRANT_QUERY_API_KEY:-}" ]]; then
     echo "QDRANT_QUERY_API_KEY is required for online Qdrant query access." >&2
     return 1
   fi
-  if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
-    echo "QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane." >&2
-    return 1
-  fi
-  if [[ -z "${QDRANT_TLS_DIR:-}" ]]; then
-    echo "QDRANT_TLS_DIR is required for mounting Qdrant TLS trust material." >&2
-    return 1
+  if [[ "${QDRANT_URL}" == https://* ]]; then
+    if [[ -z "${QDRANT_TLS_CA_CERT_PATH:-}" ]]; then
+      echo "QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane." >&2
+      return 1
+    fi
+    if [[ -z "${QDRANT_TLS_DIR:-}" ]]; then
+      echo "QDRANT_TLS_DIR is required for mounting Qdrant TLS trust material." >&2
+      return 1
+    fi
   fi
   if [[ -z "${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
     echo "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET or APP_API_INTERNAL_SHARED_SECRET is required for provider-config runtime access." >&2
     return 1
   fi
-  if [[ -z "${ZEP_CE_OPENAI_API_KEY:-}" ]]; then
-    echo "ZEP_CE_OPENAI_API_KEY could not be derived from APP_API_INTERNAL_SHARED_SECRET." >&2
+  if [[ -z "${HINDSIGHT_POSTGRES_PASSWORD:-}" ]]; then
+    echo "HINDSIGHT_POSTGRES_PASSWORD is required for local Hindsight Postgres." >&2
     return 1
   fi
+  if [[ -z "${PERSONAL_MEMORY_API_SECRET:-}" ]]; then
+    echo "PERSONAL_MEMORY_API_SECRET is required for Hindsight API authentication." >&2
+    return 1
+  fi
+  if [[ -z "${PERSONAL_MEMORY_OWNER_SALT:-}" ]]; then
+    echo "PERSONAL_MEMORY_OWNER_SALT is required for Hindsight scoped bank ids." >&2
+    return 1
+  fi
+  if [[ -z "${HINDSIGHT_API_LLM_API_KEY:-}" ]]; then
+    echo "HINDSIGHT_API_LLM_API_KEY or PROMPT_RUNTIME_API_KEY is required for Hindsight retain/recall." >&2
+    return 1
+  fi
+  if [[ -z "${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:-}" ]]; then
+    echo "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY or EMBEDDING_API_KEY is required for Hindsight embeddings." >&2
+    return 1
+  fi
+}
+
+print_projected_env() {
+  ensure_local_runtime_secrets
+  load_runtime_env
+  execution_control_runtime_require_runtime_env
+  env -0
 }
 
 main() {
   local docker_bin
 
   docker_bin="$(require_command docker)"
-  ensure_local_zep_ce_secrets
+  ensure_local_runtime_secrets
   load_runtime_env
   execution_control_runtime_require_runtime_env
   ensure_data_plane_network
 
   if [[ "$#" -eq 0 ]]; then
-    set -- up -d --build
+    set -- up -d --build --remove-orphans
   fi
 
   (
@@ -395,6 +531,8 @@ main() {
   )
 }
 
-if [[ "${1:-}" != "__campus_agent_print_projected_env" ]]; then
+if [[ "${1:-}" == "__campus_agent_print_projected_env" ]]; then
+  print_projected_env
+else
   main "$@"
 fi

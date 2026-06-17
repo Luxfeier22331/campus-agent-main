@@ -116,7 +116,7 @@ func runRuntimeCommand(ctx context.Context, options runtimeOptions) (runtimeRepo
 		Mode:              options.Mode,
 		Passed:            true,
 		RuntimeReady:      true,
-		Store:             "zep_ce",
+		Store:             "hindsight",
 	}
 	if err := writeRuntimeReport(options.EvidencePath, report); err != nil {
 		return runtimeReport{}, err

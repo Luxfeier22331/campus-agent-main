@@ -7,7 +7,7 @@ import (
 	"testing"
 )
 
-func TestProfileMemoryUpsertEndpointWritesZepGraphEpisode(t *testing.T) {
+func TestProfileMemoryUpsertEndpointWritesHindsightDocument(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
 	server := newWorkerAuthServerForTest()
 	server.personalMemoryExecutor = executor
@@ -46,7 +46,7 @@ func TestProfileMemoryUpsertEndpointWritesZepGraphEpisode(t *testing.T) {
 	}
 }
 
-func TestProfileMemoryDisableEndpointDeletesZepEpisode(t *testing.T) {
+func TestProfileMemoryDisableEndpointDeletesHindsightDocument(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
 	server := newWorkerAuthServerForTest()
 	server.personalMemoryExecutor = executor
@@ -80,7 +80,7 @@ func TestProfileMemoryDisableEndpointDeletesZepEpisode(t *testing.T) {
 	}
 }
 
-func TestProfileMemoryOwnerDisableEndpointDeletesZepUser(t *testing.T) {
+func TestProfileMemoryOwnerDisableEndpointDeletesHindsightBank(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
 	server := newWorkerAuthServerForTest()
 	server.personalMemoryExecutor = executor
@@ -125,9 +125,9 @@ func TestProfileMemoryAppendEndpointAddsCompletedTurn(t *testing.T) {
 		strings.NewReader(`{
 			"assistant_message":"可以，我会优先结合丰台校区培养方案回答。",
 			"ignore_assistant_for_graph":true,
-			"run_id":"run-zep-live-smoke",
+			"run_id":"run-hindsight-live-smoke",
 			"tenant_id":"tenant-main",
-			"thread_id":"conv-zep-live-smoke",
+			"thread_id":"conv-hindsight-live-smoke",
 			"user_id":"user_01HQ",
 			"user_message":"我主要关注丰台校区培养方案"
 		}`),
@@ -143,18 +143,18 @@ func TestProfileMemoryAppendEndpointAddsCompletedTurn(t *testing.T) {
 	body := decodeBody(t, response)
 	if body["schema_version"] != "memory_conversation_append_result_v1" ||
 		body["status"] != "completed" ||
-		body["thread_id"] != "conv-zep-live-smoke" {
+		body["thread_id"] != "conv-hindsight-live-smoke" {
 		t.Fatalf("body = %#v", body)
 	}
 	if executor.seenAppend.TenantID != "tenant-main" ||
 		executor.seenAppend.UserID != "user_01HQ" ||
-		executor.seenAppend.ThreadID != "conv-zep-live-smoke" ||
+		executor.seenAppend.ThreadID != "conv-hindsight-live-smoke" ||
 		!executor.seenAppend.IgnoreAssistantForGraph {
 		t.Fatalf("seen append = %#v", executor.seenAppend)
 	}
 }
 
-func TestProfileMemoryRecallEndpointSearchesZepGraph(t *testing.T) {
+func TestProfileMemoryRecallEndpointRecallsHindsightMemory(t *testing.T) {
 	executor := &fakePersonalMemoryExecutor{}
 	server := newWorkerAuthServerForTest()
 	server.personalMemoryExecutor = executor
@@ -164,8 +164,9 @@ func TestProfileMemoryRecallEndpointSearchesZepGraph(t *testing.T) {
 		"/internal/memory/personal/graph:recall",
 		strings.NewReader(`{
 			"requested_capability":"knowledge",
-			"run_id":"run-zep-live-recall",
+			"run_id":"run-hindsight-live-recall",
 			"tenant_id":"tenant-main",
+			"thread_id":"conv-hindsight-live-recall",
 			"user_goal":"丰台校区培养方案怎么查？",
 			"user_id":"user_01HQ"
 		}`),
@@ -180,10 +181,11 @@ func TestProfileMemoryRecallEndpointSearchesZepGraph(t *testing.T) {
 	}
 	body := decodeBody(t, response)
 	if body["schema_version"] != "memory_recall_result_v1" ||
-		body["memory_ref"] != "projection://runs/run-zep-live-recall/memory/recall" {
+		body["memory_ref"] != "projection://runs/run-hindsight-live-recall/memory/recall" {
 		t.Fatalf("body = %#v", body)
 	}
 	if executor.seenRequest.TenantID != "tenant-main" ||
+		executor.seenRequest.ThreadID != "conv-hindsight-live-recall" ||
 		executor.seenRequest.UserID != "user_01HQ" ||
 		executor.seenRequest.UserGoal != "丰台校区培养方案怎么查？" {
 		t.Fatalf("seen recall = %#v", executor.seenRequest)

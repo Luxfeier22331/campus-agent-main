@@ -1,9 +1,9 @@
 {
 	"schema_version": 1,
-	"case_family": "zep_memory_product_path.v1",
+	"case_family": "hindsight_memory_product_path.v1",
 	"cases": [
 		{
-			"case_id": "zep-memory-append-completed-turn",
+			"case_id": "hindsight-memory-append-completed-turn",
 			"split": "smoke",
 			"assertion_kind": "append_completed_turn",
 			"required_schema_version": "memory_conversation_append_result_v1",
@@ -13,17 +13,17 @@
 			"forbidden_tokens": ["raw_transcript", "provider_raw_response"]
 		},
 		{
-			"case_id": "zep-memory-cross-thread-recall",
+			"case_id": "hindsight-memory-cross-thread-recall",
 			"split": "release_gate",
 			"assertion_kind": "cross_thread_recall",
 			"required_schema_version": "memory_recall_result_v1",
 			"required_status": "completed",
-			"required_tokens": ["丰台校区", "培养方案"],
+			"required_tokens": ["hindsight", "recall", "丰台校区", "培养方案"],
 			"min_selected_memory_count": 1,
 			"forbidden_tokens": ["other-user-private-memory"]
 		},
 		{
-			"case_id": "zep-memory-explicit-profile-upsert",
+			"case_id": "hindsight-memory-explicit-profile-upsert",
 			"split": "release_gate",
 			"assertion_kind": "explicit_profile_upsert",
 			"required_schema_version": "memory_profile_item_result_v1",
@@ -33,7 +33,7 @@
 			"forbidden_tokens": ["point_id", "qdrant"]
 		},
 		{
-			"case_id": "zep-memory-explicit-profile-disable",
+			"case_id": "hindsight-memory-explicit-profile-disable",
 			"split": "release_gate",
 			"assertion_kind": "explicit_profile_disable",
 			"required_schema_version": "memory_profile_item_result_v1",
@@ -43,7 +43,7 @@
 			"forbidden_tokens": ["point_id", "qdrant"]
 		},
 		{
-			"case_id": "zep-memory-owner-disable",
+			"case_id": "hindsight-memory-owner-disable",
 			"split": "release_gate",
 			"assertion_kind": "owner_disable",
 			"required_schema_version": "memory_profile_owner_disable_result_v1",
@@ -53,12 +53,12 @@
 			"forbidden_tokens": ["raw_transcript", "provider_raw_response"]
 		},
 		{
-			"case_id": "zep-memory-user-isolation",
+			"case_id": "hindsight-memory-user-isolation",
 			"split": "release_gate",
 			"assertion_kind": "user_isolation",
 			"required_schema_version": "memory_recall_result_v1",
 			"required_status": "completed",
-			"required_tokens": [],
+			"required_tokens": ["hindsight", "recall"],
 			"min_selected_memory_count": 0,
 			"forbidden_tokens": ["other-user-private-memory"]
 		}

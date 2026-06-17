@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-13
+updated: 2026-06-17
 ---
 # 当前架构
 
@@ -114,7 +114,7 @@ document/index release`
   RAG graph 仍为 `rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify`。
-- 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Zep CE self-host runtime；
+- 当前 online memory recall 由 `MemoryRecallActivity` 执行，使用 Hindsight self-host runtime；
   app-api chat submit 不再读取 PG `profile.memory_items` 并全量注入
   `context.profile_memory`。Qdrant 只承载 institutional RAG。
 - Step attempt evidence spine 已进入当前代码事实：`runtime.agent_step_attempts`、

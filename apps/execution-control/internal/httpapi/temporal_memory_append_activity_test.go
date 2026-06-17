@@ -36,7 +36,7 @@ func TestAppendConversationMemoryActivityRequiresMemoryEnabledGate(t *testing.T)
 	}
 }
 
-func TestAppendConversationMemoryActivityAddsCompletedTurnToZepThread(t *testing.T) {
+func TestAppendConversationMemoryActivityAddsCompletedTurnToPersonalMemory(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 5, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-enabled", "我之后主要关注保研材料", ptrBool(true), now)
@@ -61,13 +61,13 @@ func TestAppendConversationMemoryActivityAddsCompletedTurnToZepThread(t *testing
 		t.Fatalf("append output = %#v, want completed append of user+assistant", output)
 	}
 	if executor.seenAppend.UserID != "user-executor" {
-		t.Fatalf("zep user id = %q, want user-executor", executor.seenAppend.UserID)
+		t.Fatalf("user id = %q, want user-executor", executor.seenAppend.UserID)
 	}
 	if executor.seenAppend.TenantID != "tenant-main" {
 		t.Fatalf("tenant id = %q, want tenant-main", executor.seenAppend.TenantID)
 	}
 	if executor.seenAppend.ThreadID != "conv-run-memory-append-enabled" {
-		t.Fatalf("zep thread id = %q", executor.seenAppend.ThreadID)
+		t.Fatalf("thread id = %q", executor.seenAppend.ThreadID)
 	}
 	if executor.seenAppend.UserMessage != "我之后主要关注保研材料" {
 		t.Fatalf("user message = %q", executor.seenAppend.UserMessage)
@@ -80,7 +80,7 @@ func TestAppendConversationMemoryActivityAddsCompletedTurnToZepThread(t *testing
 	}
 }
 
-func TestAppendConversationMemoryActivityPreservesTenantForScopedZepUser(t *testing.T) {
+func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 15, 12, 7, 0, 0, time.UTC)
 	createMemoryAppendRunForTest(t, store, "run-memory-append-tenant", "我之后主要关注保研材料", ptrBool(true), now)

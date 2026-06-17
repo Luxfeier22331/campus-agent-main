@@ -460,8 +460,8 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.answer_quality_contract import main as runner
 
         return runner
-    if normalized == "zep-memory-product-path":
-        from campus_evals.zep_memory_product_path import main as runner
+    if normalized == "hindsight-memory-product-path":
+        from campus_evals.hindsight_memory_product_path import main as runner
 
         return runner
     if normalized == "eval-operations-governance":

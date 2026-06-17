@@ -583,6 +583,7 @@ describe("execution control runtime adapter", () => {
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 1))).toEqual({
 			episode_uuid: "episode_01HQ",
 			memory_id: "mem_01HQ",
+			tenant_id: "",
 			updated_at: "2026-06-10T09:00:00.000Z",
 			user_id: "user_01HQ",
 		});

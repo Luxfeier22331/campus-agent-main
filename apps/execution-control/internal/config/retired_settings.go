@@ -79,13 +79,13 @@ func rejectRetiredPersonalMemoryQdrantSettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; personal memory uses Zep CE", name)
+			return fmt.Errorf("%s is retired; personal memory uses Hindsight", name)
 		}
 	}
 	return nil
 }
 
-func rejectRetiredZepMemorySettings() error {
+func rejectRetiredPredecessorMemorySettings() error {
 	retired := []string{
 		"ZEP_BASE_URL",
 		"ZEP_API_KEY",
@@ -97,7 +97,7 @@ func rejectRetiredZepMemorySettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use PERSONAL_MEMORY_* for Zep CE", name)
+			return fmt.Errorf("%s is retired; use PERSONAL_MEMORY_* for Hindsight", name)
 		}
 	}
 	return nil

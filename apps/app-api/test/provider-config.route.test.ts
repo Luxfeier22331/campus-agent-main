@@ -237,100 +237,26 @@ describe("operator provider config routes", () => {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
-		const createResponse = await app.fetch(
-			new Request("https://app-api.internal/api/operator/provider-config/profiles", {
-				body: JSON.stringify({
-					...promptProfilePayload({ role: "primary_agent" }),
-					role: "personal_memory_extraction",
+
+		for (const role of ["personal_memory_extraction", "memory_graph_llm"]) {
+			const createResponse = await app.fetch(
+				new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+					body: JSON.stringify({
+						...promptProfilePayload({ role: "primary_agent" }),
+						role,
+					}),
+					headers: { "content-type": "application/json" },
+					method: "POST",
 				}),
-				headers: { "content-type": "application/json" },
-				method: "POST",
-			}),
-		);
-		const activeResponse = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/internal/provider-config/active?role=personal_memory_extraction",
-				{
+			);
+			const activeResponse = await app.fetch(
+				new Request(`https://app-api.internal/api/internal/provider-config/active?role=${role}`, {
 					headers: { "x-app-internal-auth": "provider-config-internal-secret" },
-				},
-			),
-		);
-
-		expect(createResponse.status).toBe(422);
-		expect(activeResponse.status).toBe(422);
-	});
-
-	it("proxies OpenAI-compatible memory graph requests through active provider config", async () => {
-		const service = buildTestProviderConfigService();
-		const app = createApp(env, {
-			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
-			providerConfigService: service,
-		} as Parameters<typeof createApp>[1]);
-		const createResponse = await createProfile(
-			app,
-			promptProfilePayload({
-				apiKey: "memory-graph-provider-key",
-				baseUrl: "https://memory-provider.example/v1",
-				model: "memory-graph-model",
-				role: "memory_graph_llm",
-			}),
-		);
-		const profileId = profileIdFromCreateResponse(await readJsonObject(createResponse));
-		await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/validate`,
-				{ method: "POST" },
-			),
-		);
-		await app.fetch(
-			new Request(
-				`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/activate`,
-				{ method: "POST" },
-			),
-		);
-		const providerFetch = vi.fn().mockResolvedValue(
-			new Response(JSON.stringify({ id: "chatcmpl_test", object: "chat.completion" }), {
-				headers: { "content-type": "application/json" },
-				status: 200,
-			}),
-		);
-		vi.stubGlobal("fetch", providerFetch);
-
-		try {
-			const response = await app.fetch(
-				new Request(
-					"https://app-api.internal/api/internal/provider-config/openai-compatible/memory_graph_llm/v1/chat/completions",
-					{
-						body: JSON.stringify({
-							messages: [{ content: "hello", role: "user" }],
-							model: "graphiti-env-model",
-						}),
-						headers: {
-							authorization: "Bearer provider-config-internal-secret",
-							"content-type": "application/json",
-						},
-						method: "POST",
-					},
-				),
+				}),
 			);
 
-			expect(response.status).toBe(200);
-			expect(providerFetch).toHaveBeenCalledOnce();
-			const [url, init] = providerFetch.mock.calls[0] as [string, RequestInit];
-			expect(url).toBe("https://memory-provider.example/v1/chat/completions");
-			expect(init.headers).toMatchObject({
-				authorization: "Bearer memory-graph-provider-key",
-				"content-type": "application/json",
-			});
-			expect(JSON.parse(String(init.body))).toMatchObject({
-				messages: [{ content: "hello", role: "user" }],
-				model: "memory-graph-model",
-			});
-			await expect(response.json()).resolves.toMatchObject({
-				id: "chatcmpl_test",
-			});
-		} finally {
-			vi.unstubAllGlobals();
+			expect(createResponse.status).toBe(422);
+			expect(activeResponse.status).toBe(422);
 		}
 	});
 });
