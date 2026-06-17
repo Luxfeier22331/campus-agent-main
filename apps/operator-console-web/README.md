@@ -79,7 +79,6 @@ Current functional domains:
 - `Official Web`: operator-safe official-web projections
 - `Authenticated Notice Processing`: operator-safe notice processing projections
 - `Operations`: dining operations and provider configuration
-- `Jobs`: delayed route shell
 
 Current rollout default:
 
@@ -93,9 +92,8 @@ Current rollout default:
 - `Operations` currently includes dining operations and provider configuration
 - `Audit` is implemented as an operator-safe projection surface, not a raw-log
   viewer
-- `Jobs` remains a delayed route shell
-- `Campus Services Ops` routes exist in `apps/app-api`, but this Worker does
-  not currently expose a campus-services operations UI or proxy allowlist
+- `apps/app-api` has campus-services operator routes, but this Worker does not
+  currently expose a campus-services correction / release workspace
 
 `Requests` is defined against `apps/app-api` owned request projection APIs. This
 app must not treat consumer chat persistence, raw audit logs, or telemetry sinks

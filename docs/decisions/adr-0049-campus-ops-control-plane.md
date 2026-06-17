@@ -33,7 +33,7 @@ initial release 输入，不能继续承担长期线上运营真相。
 
 Dining operations 是 Operator Console 内的受控 operations domain。当前 active
 implementation 由 `apps/operator-console-web` 承载 dining workspace 与
-`/api/ops/dining/*` proxy allowlist。
+`/api/ops/dining/*` 受控转发路由清单。
 
 `apps/app-api` 拥有 dining operations 的写入、draft、release candidate、release、audit
 与学生端 published projection。`apps/campus-web` 只读取 published projection，不读取 draft

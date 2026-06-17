@@ -12,10 +12,10 @@ import type {
 export { buildRequestStepTrajectoryEntries } from "./request-step-trajectory-formatters";
 
 export const CURRENT_RUNTIME_TARGET_OPTIONS = [
-	{ label: "检索专家", value: "knowledge" },
-	{ label: "导航能力", value: "navigation" },
+	{ label: "知识问答", value: "knowledge" },
+	{ label: "地图导航", value: "navigation" },
 	{ label: "校园服务", value: "campus_services" },
-	{ label: "通知能力", value: "notice" },
+	{ label: "通知公告", value: "notice" },
 ] as const;
 
 export function formatDuration(durationMs: number | null) {
@@ -119,13 +119,13 @@ export function formatSelectedCapabilityLabel(target: string | null) {
 
 	switch (target) {
 		case "knowledge":
-			return "检索专家";
+			return "知识问答";
 		case "navigation":
-			return "导航能力";
+			return "地图导航";
 		case "campus_services":
 			return "校园服务";
 		case "notice":
-			return "通知能力";
+			return "通知公告";
 		default:
 			return target;
 	}
@@ -220,7 +220,7 @@ export function formatIntentReasonLabel(reason: string | null) {
 		case "explicit_requested_scope":
 			return "显式请求范围";
 		case "navigation_temporarily_unsupported":
-			return "导航能力暂未开放";
+			return "地图导航暂未开放";
 		case "policy_guardrail":
 			return "策略保护";
 		case "political_persuasion":
@@ -230,7 +230,7 @@ export function formatIntentReasonLabel(reason: string | null) {
 		case "scope_undetermined_delegate":
 			return "范围未明确，委派处理";
 		case "structured_runtime_candidate_signal":
-			return "结构化能力候选信号";
+			return "结构化处理候选信号";
 		case "transaction_guardrail":
 			return "事务操作保护";
 		default:
@@ -363,7 +363,7 @@ export function buildRequestIntentEntries(intent: RequestIntentObservabilitySumm
 			value: formatResolvedSlots(intent.resolvedSlots),
 		},
 		{
-			label: "意图 Schema",
+			label: "意图数据版本",
 			value: intent.schemaVersion || PANEL_COPY.unknown,
 		},
 		{
@@ -418,15 +418,15 @@ export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | nu
 
 	return [
 		{
-			label: "Run ID",
+			label: "运行 ID",
 			value: run.run.runId,
 		},
 		{
-			label: "Run 状态",
+			label: "运行状态",
 			value: run.run.status,
 		},
 		{
-			label: "Run 阶段",
+			label: "运行阶段",
 			value: run.run.phase || PANEL_COPY.unknown,
 		},
 		{
@@ -446,12 +446,12 @@ export function buildRequestRuntimeRunEntries(run: RequestRuntimeRunSummary | nu
 			value: formatRuntimeRunEventSummary(run.eventSummary.terminalEvent),
 		},
 		{
-			label: "可见性分布",
+			label: "事件可见范围",
 			value: [
-				`internal=${run.eventSummary.visibilityCounts.internal}`,
-				`panel=${run.eventSummary.visibilityCounts.panel}`,
-				`browser=${run.eventSummary.visibilityCounts.browser}`,
-				`eval=${run.eventSummary.visibilityCounts.eval}`,
+				`内部记录=${run.eventSummary.visibilityCounts.internal}`,
+				`面板=${run.eventSummary.visibilityCounts.panel}`,
+				`用户侧=${run.eventSummary.visibilityCounts.browser}`,
+				`评测=${run.eventSummary.visibilityCounts.eval}`,
 			].join(" · "),
 		},
 	];
@@ -535,7 +535,7 @@ export function buildRequestReplayEntries(replay: RequestReplaySummary | undefin
 				value: formatClaimSupportSummary(answerQuality.claimSupportSummary),
 			},
 			{
-				label: "Grounding",
+				label: "证据支撑",
 				value: `${answerQuality.groundingVerdict || PANEL_COPY.unknown} · ${formatGroundingDowngradeState(
 					answerQuality.groundingDowngraded,
 				)}`,
@@ -545,7 +545,7 @@ export function buildRequestReplayEntries(replay: RequestReplaySummary | undefin
 
 	if (prompt) {
 		entries.push({
-			label: "Prompt",
+			label: "提示配置",
 			value: formatPromptSummary(prompt),
 		});
 	}

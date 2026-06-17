@@ -17,8 +17,8 @@ const diagnosticSummarySource = readFileSync(
 );
 
 describe("quality eval candidate UI", () => {
-	it("labels RAGAS diagnostic candidates as diagnostic review sources", () => {
-		expect(formatQualityEvalCandidateSource("ragas_diagnostic")).toBe("RAGAS diagnostic");
+	it("labels diagnostic scoring candidates as operator-facing review sources", () => {
+		expect(formatQualityEvalCandidateSource("ragas_diagnostic")).toBe("诊断评分");
 		expect(formatQualityEvalCandidateSource("negative_feedback")).toBe("负反馈");
 		expect(formatQualityEvalCandidateSource("operator_badcase")).toBe("Badcase");
 	});

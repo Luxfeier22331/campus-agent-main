@@ -224,11 +224,6 @@ function OperatorConsoleMenu() {
 				to="/officialWebRuns"
 			/>
 			<RaMenu.Item
-				leftIcon={<RuleFolderOutlinedIcon />}
-				primaryText={PANEL_COPY.menu.jobs}
-				to="/jobs"
-			/>
-			<RaMenu.Item
 				leftIcon={<RestaurantOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.diningOperations}
 				to="/operations/dining"

@@ -127,9 +127,9 @@ projection / operator read model / operator-safe operations domains`
     `/api/official-web/*`、`/api/authenticated-notices/*` 与 `/api/ops/dining/*`
     routes 消费 `apps/app-api`
   - `apps/app-api` 已有 `campus-services` operator routes，但当前
-    `operator-console-web` 不承载 campus-services operations UI 或 proxy allowlist
-  - `Jobs` 与其他未接入 operations domains 仍属于后续 rollout，不应被写成当前
-    merged truth
+    `operator-console-web` 不承载校园服务校对与发布 workspace
+  - 泛化 `Jobs` 不属于当前 Operator Console rollout；后台任务观察必须落到具体
+    operator domain，不应被写成当前 merged truth
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台

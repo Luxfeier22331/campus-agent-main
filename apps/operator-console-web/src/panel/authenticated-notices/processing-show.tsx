@@ -172,7 +172,7 @@ function ProcessingShowContent() {
 					<Card>
 						<CardContent>
 							<Stack spacing={2}>
-								<Typography variant="h6">下游与工具</Typography>
+								<Typography variant="h6">处理与发布</Typography>
 								<Divider />
 								<FieldRow
 									label="候选类型"
@@ -180,10 +180,10 @@ function ProcessingShowContent() {
 								/>
 								<FieldRow label="目标面" value={record.targetSurface || PANEL_COPY.notAvailable} />
 								<FieldRow
-									label="工具状态"
+									label="可查询状态"
 									value={<AuthenticatedNoticeToolReadyChip ready={record.toolReady} />}
 								/>
-								<FieldRow label="Release" value={record.releaseId || PANEL_COPY.notAvailable} />
+								<FieldRow label="发布版本" value={record.releaseId || PANEL_COPY.notAvailable} />
 								<FieldRow
 									label="当前指针"
 									value={record.current ? PANEL_COPY.yes : PANEL_COPY.no}
@@ -197,34 +197,34 @@ function ProcessingShowContent() {
 									value={ragReleaseStatus?.documentSiteStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
-									label="RAG 准备"
+									label="知识库准备"
 									value={ragReleaseStatus?.ragPreparationStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
-									label="RAG 索引"
+									label="索引状态"
 									value={ragReleaseStatus?.ragIndexStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
-									label="RAG Serving"
+									label="查询服务"
 									value={ragReleaseStatus?.ragServingStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
-									label="RAG 验证"
+									label="验证状态"
 									value={ragReleaseStatus?.ragVerificationStatus || PANEL_COPY.notAvailable}
 								/>
-								<FieldRow label="Admission" value={admissionClass || PANEL_COPY.notAvailable} />
+								<FieldRow label="准入结果" value={admissionClass || PANEL_COPY.notAvailable} />
 								<FieldRow
-									label="Promotion"
+									label="发布处理"
 									value={promotionDisposition || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow label="适用状态" value={applicabilityStatus || PANEL_COPY.notAvailable} />
 								<FieldRow label="目标集合" value={targetCollection || PANEL_COPY.notAvailable} />
 								<FieldRow label="原因码" value={reasonCodes || PANEL_COPY.notAvailable} />
-								<FieldRow label="Audit Run" value={auditRunId || PANEL_COPY.notAvailable} />
-								<FieldRow label="Cleanup Run" value={cleanupRunId || PANEL_COPY.notAvailable} />
-								<FieldRow label="Cleanup" value={cleanupDisposition || PANEL_COPY.notAvailable} />
+								<FieldRow label="核查运行" value={auditRunId || PANEL_COPY.notAvailable} />
+								<FieldRow label="清理运行" value={cleanupRunId || PANEL_COPY.notAvailable} />
+								<FieldRow label="清理结果" value={cleanupDisposition || PANEL_COPY.notAvailable} />
 								<FieldRow
-									label="PG 残留"
+									label="旧记录残留"
 									value={postgresExactRemaining || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow

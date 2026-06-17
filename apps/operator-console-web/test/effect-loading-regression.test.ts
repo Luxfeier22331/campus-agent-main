@@ -5,7 +5,6 @@ import mainSource from "../src/main.tsx?raw";
 import appSource from "../src/panel/app.tsx?raw";
 import auditPageSource from "../src/panel/pages/audit-page.tsx?raw";
 import costPageSource from "../src/panel/pages/cost-page.tsx?raw";
-import delayedDomainPageSource from "../src/panel/pages/delayed-domain-page.tsx?raw";
 import overviewPageSource from "../src/panel/pages/overview-page.tsx?raw";
 import qualityPageSource from "../src/panel/pages/quality-page.tsx?raw";
 import requestShowSource from "../src/panel/requests/request-show.tsx?raw";
@@ -56,7 +55,7 @@ describe("Operator Console loading effects", () => {
 
 	it("provides explicit app bar titles for custom panel routes", () => {
 		expect(overviewPageSource).toContain("<Title title={PANEL_COPY.menu.overview} />");
-		expect(delayedDomainPageSource).toContain("<Title title={domain} />");
+		expect(qualityPageSource).toContain("<Title title={PANEL_COPY.menu.quality} />");
 	});
 
 	it("uses query-driven overview loading instead of a hand-rolled getOverview ref loop", () => {

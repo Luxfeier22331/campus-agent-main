@@ -66,7 +66,6 @@ are:
 
 - `Overview`
 - `Requests`
-- `Jobs`
 - `Operations`
 - `Audit`
 
@@ -78,10 +77,13 @@ Recommended mapping:
 - `Overview`: `CustomRoutes` page backed by panel summary endpoints
 - `Requests`: resource-like list/detail pages if the runtime API returns
   paginated request projections
-- `Jobs`: resource-like list/detail pages for job projections
 - `Operations`: `CustomRoutes` pages or action panels for guarded operator
   actions
 - `Audit`: resource-like list/detail views for audit projections
+
+Background task observation must be attached to a concrete operator domain, such
+as official-web target jobs or dining release candidates. The console should not
+add a global `Jobs` page or generic jobs API contract as a placeholder.
 
 ### 4. Map `authProvider` To Operator Admission, Not End-User Auth Product
 
@@ -156,9 +158,9 @@ The first meaningful panel slice should look like:
 
 - `react-admin` default `<Layout>`
 - `CustomRoutes` for `Overview`
-- one or two resource-like views for `Requests` and `Jobs`
+- resource-like views for `Requests` and concrete projection domains
 - a Worker-local `Hono` BFF serving `/api/overview`, `/api/requests`,
-  `/api/jobs`
+  and explicit domain routes
 - `authProvider` backed by protected operator context
 - `dataProvider` backed only by panel-facing BFF routes
 

@@ -20,12 +20,12 @@ function compactOutcome(
 	>["trajectoryAttribution"]["outcome"],
 ) {
 	const values = [
-		outcome.failCloseReason ? `fail_close=${outcome.failCloseReason}` : null,
-		outcome.terminalReason ? `terminal=${outcome.terminalReason}` : null,
-		outcome.replanReason ? `replan=${outcome.replanReason}` : null,
-		outcome.cancelOutcome ? `cancel=${outcome.cancelOutcome}` : null,
-		outcome.timeoutOutcome ? `timeout=${outcome.timeoutOutcome}` : null,
-		outcome.lateCompletionOutcome ? `late=${outcome.lateCompletionOutcome}` : null,
+		outcome.failCloseReason ? `拒绝保护=${outcome.failCloseReason}` : null,
+		outcome.terminalReason ? `终态=${outcome.terminalReason}` : null,
+		outcome.replanReason ? `重规划=${outcome.replanReason}` : null,
+		outcome.cancelOutcome ? `取消=${outcome.cancelOutcome}` : null,
+		outcome.timeoutOutcome ? `超时=${outcome.timeoutOutcome}` : null,
+		outcome.lateCompletionOutcome ? `迟到完成=${outcome.lateCompletionOutcome}` : null,
 	].filter((value): value is string => Boolean(value));
 	return values.length > 0 ? values.join(" · ") : PANEL_COPY.none;
 }
@@ -49,22 +49,22 @@ export function EvalCandidateDiagnosticSummary(props: {
 				)}`}
 			</Typography>
 			<Typography color="text.secondary" variant="caption">
-				{`expected: ${compactIdList(diagnostic.expectedDocIds)} · retrieved: ${compactIdList(
+				{`期望: ${compactIdList(diagnostic.expectedDocIds)} · 召回: ${compactIdList(
 					diagnostic.retrievedDocIds,
-				)} · supporting: ${compactIdList(diagnostic.supportingDocIds)}`}
+				)} · 支撑: ${compactIdList(diagnostic.supportingDocIds)}`}
 			</Typography>
 			<Typography color="text.secondary" variant="caption">
-				{`shape: ${diagnostic.answerShape ?? PANEL_COPY.none} · presentation: ${
+				{`答案形态: ${diagnostic.answerShape ?? PANEL_COPY.none} · 展示类型: ${
 					diagnostic.presentationKind ?? PANEL_COPY.none
 				}`}
 			</Typography>
 			<Typography color="text.secondary" variant="caption">
-				{`trajectory: ${trajectory.status} · step: ${trajectory.stepId ?? PANEL_COPY.none} · status: ${
+				{`处理轨迹: ${trajectory.status} · 步骤: ${trajectory.stepId ?? PANEL_COPY.none} · 状态: ${
 					trajectory.stepStatus ?? PANEL_COPY.none
-				} · capability: ${trajectory.capability ?? PANEL_COPY.none}`}
+				} · 目标: ${trajectory.capability ?? PANEL_COPY.none}`}
 			</Typography>
 			<Typography color="text.secondary" variant="caption">
-				{`outcome: ${compactOutcome(trajectory.outcome)}`}
+				{`结果: ${compactOutcome(trajectory.outcome)}`}
 			</Typography>
 		</Stack>
 	);

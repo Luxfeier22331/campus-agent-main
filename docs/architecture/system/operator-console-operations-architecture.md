@@ -16,10 +16,10 @@ updated: 2026-06-15
 它回答：
 
 - 为什么 dining operations 属于统一 Operator Console，而不是第二个长期后台产品
-- Worker shell 与 `app-api` proxy allowlist 如何分层
+- Worker shell 与 `app-api` 受控转发路由清单如何分层
 - dining workspace 第一批承载哪些能力
 - provider/model/API key 在线配置如何进入同一个 operator data surface
-- 非 dining 后台域在当前阶段为什么只是 reserved route shell
+- 为什么未实现 operations domains 不能以占位路由进入当前产品面
 
 它不负责：
 
@@ -45,7 +45,7 @@ operations domain；当前实现由 `apps/operator-console-web` 承载。
 ```text
 operator browser
 -> operator console dining workspace (current: operator-console-web Worker)
--> explicit /api/ops/* proxy allowlist
+-> explicit /api/ops/* Worker route allowlist
 -> app-api
 -> domain-owned draft/release candidate/release/audit stores
 ```
@@ -72,7 +72,7 @@ product concept. Browser UI writes only through `app-api` operator routes:
 ```text
 operator browser
 -> operator-console-web /operations/provider-config
--> explicit /api/operator/provider-config/* proxy allowlist
+-> explicit /api/operator/provider-config/* Worker route allowlist
 -> app-api encrypted provider-config profiles
 -> execution-control internal active snapshot
 -> agent-runtime / RAG synthesis / embedding calls
@@ -87,28 +87,22 @@ such as `secretLast4` and fingerprint.
 Accepted target routes:
 
 - `/`
-- `/dining`
-- `/dining/:hallId/:floorId`
-- `/dining/assets`
-- `/dining/candidates`
-- `/dining/candidates/:candidateId`
-- `/dining/releases`
-- `/dining/releases/:releaseId`
-- `/dining/audit`
+- `/operations/dining`
+- `/operations/dining/:hallId/:floorId`
+- `/operations/dining/candidates`
+- `/operations/dining/candidates/:candidateId`
+- `/operations/dining/releases`
+- `/operations/dining/releases/:releaseId`
+- `/operations/dining/audit`
 - `/operations/provider-config`
-- `/map`
-- `/feedback`
-- `/knowledge`
-- `/notices`
-- `/services`
 
 Dining and provider configuration are the current implemented operations
-workspace targets. Map, feedback, knowledge, notices and services routes are
-placeholder shells to reserve information architecture, not implemented editors
-or API commitments.
+workspace targets. Unimplemented operations domains must remain absent from the
+Operator Console navigation and route table until they have a concrete operator
+workflow, app-api contract and acceptance path.
 
-Current `operator-console-web` implementation exposes the reserved route shell,
-the primary dining workspace route set and `/operations/provider-config`.
+Current `operator-console-web` implementation exposes the primary dining
+workspace route set and `/operations/provider-config`.
 `/dining/svg-demo` is not part of the information architecture and must not be
 reintroduced.
 

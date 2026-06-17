@@ -431,7 +431,6 @@ export const worker = {
 					requests: "ready",
 					official_web: "ready",
 					authenticated_notices: "ready",
-					jobs: "blocked",
 					operations: "ready",
 					audit: "ready",
 				},

@@ -47,7 +47,7 @@ ingestion worker、execution-control、Temporal history、Qdrant 或 telemetry s
 
 - `apps/operator-console-web` 当前承载 observability / read-only operator domains。
 - `apps/operator-console-web` 同时承载 dining operations workspace 与 `/api/ops/dining/*`
-  proxy allowlist。
+  受控转发路由清单。
 
 `apps/protected-panel-web` 与 `apps/campus-ops-web` 已从 active workspace 退役。包名和部署面不再定义两个长期产品后台。
 

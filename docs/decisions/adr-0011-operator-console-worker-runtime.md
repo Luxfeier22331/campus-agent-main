@@ -99,7 +99,6 @@ Operator Console 长期功能域固定为：
 
 - `Overview`
 - `Requests`
-- `Jobs`
 - `Operations`
 - `Audit`
 
@@ -107,9 +106,13 @@ Operator Console 长期功能域固定为：
 
 - 运行可见性
 - 请求级排障入口
-- 后台任务观察
 - 少量可审计的 operator 动作
 - operator 行为与系统动作审计
+
+Supersession note: 泛化 `Jobs` 是早期 information architecture 占位，当前实现与
+后续 rollout 不再把它作为独立 Operator Console domain。后台任务观察必须挂载到具体
+operator domain，例如 official-web target jobs、dining release candidates 或 authenticated
+notice processing runs。
 
 ## 决策 5：当前默认 rollout 不把所有长期功能域一次性落地
 
@@ -117,7 +120,8 @@ Operator Console 长期功能域固定为：
 
 - `Overview` 是默认起步域
 - `Requests` 需等待 `apps/app-api` 暴露安全 query surface 后再解锁
-- `Jobs` / `Operations` 当前默认保持 delayed，直到产品 scope 被明确重开
+- `Operations` 当前按具体 operations domain 解锁；不得再用泛化 delayed `Jobs`
+  页面保留产品占位
 
 原因：
 

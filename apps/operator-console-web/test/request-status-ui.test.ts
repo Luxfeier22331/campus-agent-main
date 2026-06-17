@@ -240,7 +240,7 @@ describe("Operator Console request status ui", () => {
 
 		expect(entries[0]).toEqual({
 			kind: "summary",
-			metrics: "5 steps · attempts=3 · results=3",
+			metrics: "5 个步骤 · 尝试 3 · 结果 3",
 		});
 		expect(entries.slice(1).map((entry) => (entry.kind === "step" ? entry.stepId : ""))).toEqual([
 			"planning",
@@ -250,30 +250,30 @@ describe("Operator Console request status ui", () => {
 			"finalization.write",
 		]);
 		expect(entries[1]).toMatchObject({
-			attempts: "attempts=1 · results=1",
+			attempts: "尝试 1 · 结果 1",
 			capability: "knowledge",
 			diagnosticGroups: [
 				{
-					items: ["cancel=not_requested", "timeout=not_timed_out", "late=ignored_after_timeout"],
+					items: ["取消=not_requested", "超时=not_timed_out", "迟到完成=ignored_after_timeout"],
 					kind: "runtime",
 				},
 				{
-					items: ["fail_close=current_state_unverifiable"],
+					items: ["拒绝保护=current_state_unverifiable"],
 					kind: "terminal",
 				},
 				{
-					items: ["replan=bounded_replan_after_provider_timeout"],
+					items: ["重规划=bounded_replan_after_provider_timeout"],
 					kind: "replan",
 				},
 			],
 			diagnostics: [
-				"cancel=not_requested",
-				"timeout=not_timed_out",
-				"late=ignored_after_timeout",
-				"fail_close=current_state_unverifiable",
-				"replan=bounded_replan_after_provider_timeout",
+				"取消=not_requested",
+				"超时=not_timed_out",
+				"迟到完成=ignored_after_timeout",
+				"拒绝保护=current_state_unverifiable",
+				"重规划=bounded_replan_after_provider_timeout",
 			],
-			duration: "queue=25 ms · duration=100 ms",
+			duration: "排队 25 ms · 执行 100 ms",
 			kind: "step",
 			latestResultRef: "projection://runs/run_01HQ/planning",
 			model: "openai/gpt-5-mini",
@@ -281,7 +281,7 @@ describe("Operator Console request status ui", () => {
 			status: "completed",
 			stepKind: "planning",
 			taskQueue: "campus-agent.activity.knowledge.plan",
-			tokenCost: "tokens=120/42 · 321 microUSD",
+			tokenCost: "输入/输出 120/42 · 约 $0.0003 USD",
 			workerId: "staging:activity-knowledge-plan:001",
 		});
 		expect(JSON.stringify(entries)).not.toContain("raw");

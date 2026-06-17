@@ -49,8 +49,8 @@ describe("audit domain helpers", () => {
 				sourceDocIds: ["handbook:library-hours", "handbook:holiday-hours"],
 			}),
 		).toEqual([
-			{ label: "Fail Closed", value: "是" },
-			{ label: "ACL 异常", value: "projection_missing" },
+			{ label: "拒绝保护", value: "是" },
+			{ label: "授权异常", value: "projection_missing" },
 			{ label: "执行通道", value: "rag" },
 			{ label: "执行决策", value: "queue_full" },
 			{ label: "失败类型", value: "timeout" },

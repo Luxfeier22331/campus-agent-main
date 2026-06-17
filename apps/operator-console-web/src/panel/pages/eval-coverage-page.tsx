@@ -191,7 +191,7 @@ function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceR
 										size="small"
 									/>
 									<Typography color="text.secondary" variant="caption">
-										{`${surface.ragasDiagnostic.completedCaseCount}/${surface.ragasDiagnostic.caseCount} cases`}
+										{`${surface.ragasDiagnostic.completedCaseCount}/${surface.ragasDiagnostic.caseCount} 个用例`}
 									</Typography>
 									<Typography color="text.secondary" variant="caption">
 										{formatRagasDiagnosticMetricSummary(surface.ragasDiagnostic.metrics)}
@@ -285,15 +285,12 @@ function EvalCoverageDiagnosticDetails(props: { surfaces: OperatorEvalCoverageSu
 								</Typography>
 							</Stack>
 							<Stack direction="row" flexWrap="wrap" gap={1}>
-								<Chip label={`Qrels ${surface.qrelsCaseCount}`} size="small" />
-								<Chip label={`Expected docs ${surface.uniqueExpectedDocCount}`} size="small" />
-								<Chip
-									label={`Release acceptance ${surface.releaseAcceptanceCaseCount}`}
-									size="small"
-								/>
-								<Chip label={`Answer quality ${surface.answerQualityCaseCount}`} size="small" />
-								<Chip label={`Golden qrels ${surface.goldenQrelsCaseCount}`} size="small" />
-								<Chip label={`Known gap ${surface.knownGapCaseCount}`} size="small" />
+								<Chip label={`相关性 ${surface.qrelsCaseCount}`} size="small" />
+								<Chip label={`期望文档 ${surface.uniqueExpectedDocCount}`} size="small" />
+								<Chip label={`发布验收 ${surface.releaseAcceptanceCaseCount}`} size="small" />
+								<Chip label={`答案质量 ${surface.answerQualityCaseCount}`} size="small" />
+								<Chip label={`期望相关文档 ${surface.goldenQrelsCaseCount}`} size="small" />
+								<Chip label={`已知缺口 ${surface.knownGapCaseCount}`} size="small" />
 							</Stack>
 							<Typography color="text.secondary" variant="body2">
 								{`${PANEL_COPY.evalCoveragePage.fields.metricSummary}: ${formatRagasDiagnosticMetricSummary(
@@ -384,7 +381,7 @@ function EvalCoverageContent(props: { record: OperatorEvalCoverageRecord }) {
 				}}
 			>
 				<SummaryCard
-					detail={`${summary.readySurfaceCount} ready / ${summary.blockedSurfaceCount} blocked / ${summary.diagnosticAttentionSurfaceCount} diagnostic`}
+					detail={`${summary.readySurfaceCount} 就绪 / ${summary.blockedSurfaceCount} 阻塞 / ${summary.diagnosticAttentionSurfaceCount} 需诊断`}
 					label={PANEL_COPY.evalCoveragePage.cards.surfaceCount}
 					value={formatCount(summary.surfaceCount)}
 				/>

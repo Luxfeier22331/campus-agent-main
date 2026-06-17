@@ -147,12 +147,10 @@ function formatWorkflowExecutionProjections(trace: RequestWorkflowTraceSummary) 
 		}
 		const selectedTool =
 			workflowStringValue(projection, "selected_tool", "selectedTool") ?? PANEL_COPY.unknown;
-		const owner =
-			workflowStringValue(projection, "projection_owner", "projectionOwner") ?? PANEL_COPY.unknown;
 		const reason =
 			workflowStringValue(projection, "tool_selection_reason", "toolSelectionReason") ??
 			PANEL_COPY.unknown;
-		const value = `${selectedTool}:${owner}/${reason}`;
+		const value = `${selectedTool}:${reason}`;
 		if (!seen.has(value)) {
 			values.push(value);
 			seen.add(value);
@@ -177,8 +175,8 @@ function formatWorkflowResultGuardrails(trace: RequestWorkflowTraceSummary) {
 			PANEL_COPY.unknown;
 		const failureClass = workflowStringValue(resultGuardrail, "failure_class", "failureClass");
 		const value = failureClass
-			? `${outcome}/source_refs=${sourceRefCount}/access=${accessDecision}/failure=${failureClass}`
-			: `${outcome}/source_refs=${sourceRefCount}/access=${accessDecision}`;
+			? `${outcome}/来源=${sourceRefCount}/授权=${accessDecision}/失败=${failureClass}`
+			: `${outcome}/来源=${sourceRefCount}/授权=${accessDecision}`;
 		if (!seen.has(value)) {
 			values.push(value);
 			seen.add(value);
@@ -210,7 +208,7 @@ function formatWorkflowSourceIds(toolCalls: Record<string, unknown>[] | null | u
 function formatWorkflowFailCloseProvenance(trace: RequestWorkflowTraceSummary) {
 	const values: string[] = [];
 	if (trace.failCloseReason) {
-		values.push(`summary:${trace.failCloseReason}`);
+		values.push(`摘要:${trace.failCloseReason}`);
 	}
 	for (const toolCall of trace.toolCallSummaries ?? []) {
 		const toolName = workflowStringValue(toolCall, "tool_name", "tool");
@@ -252,11 +250,11 @@ export function buildRequestWorkflowTraceEntries(
 			value: formatWorkflowToolCalls(trace.toolCallSummaries),
 		},
 		{
-			label: "执行状态",
+			label: "处理选择",
 			value: formatWorkflowExecutionProjections(trace),
 		},
 		{
-			label: "结果护栏",
+			label: "结果检查",
 			value: formatWorkflowResultGuardrails(trace),
 		},
 		{
@@ -264,19 +262,19 @@ export function buildRequestWorkflowTraceEntries(
 			value: formatWorkflowSourceIds(trace.toolCallSummaries),
 		},
 		{
-			label: "Fail Close 来源",
+			label: "拒绝保护来源",
 			value: formatWorkflowFailCloseProvenance(trace),
 		},
 		{
-			label: "Trace 步骤",
+			label: "追踪步骤",
 			value: formatWorkflowTraceSteps(trace.traceSteps),
 		},
 		{
-			label: "Runtime 版本",
+			label: "运行版本",
 			value: formatKeyValueRecord(trace.runtimeVersions),
 		},
 		{
-			label: "Policy 版本",
+			label: "策略版本",
 			value: formatKeyValueRecord(trace.policyArtifactVersions),
 		},
 	];

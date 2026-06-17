@@ -39,6 +39,25 @@ import {
 	renderDomainStatus,
 } from "./formatters";
 
+function formatReadinessStatus(status: string) {
+	switch (status) {
+		case "ready":
+			return "正常";
+		case "not_ready":
+			return "未就绪";
+		case "not_reported":
+			return "未上报";
+		case "blocked":
+			return "阻塞";
+		case "degraded":
+			return "降级";
+		case "missing":
+			return "未连接";
+		default:
+			return status;
+	}
+}
+
 export function OverviewMetricCard(props: { detail: string; label: string; value: string }) {
 	return (
 		<Card
@@ -181,7 +200,7 @@ export function OverviewDiagnosticsCard(props: {
 								</Stack>
 								<Chip
 									color={props.runtimeHealth.status === "ready" ? "success" : "warning"}
-									label={props.runtimeHealth.status}
+									label={formatReadinessStatus(props.runtimeHealth.status)}
 									size="small"
 									variant={props.runtimeHealth.status === "ready" ? "filled" : "outlined"}
 								/>
@@ -199,11 +218,15 @@ export function OverviewDiagnosticsCard(props: {
 							>
 								<Typography variant="body2">
 									<strong>执行服务</strong>:{" "}
-									{props.runtimeHealth.executionRuntime.checks.temporalRuntime}
+									{formatReadinessStatus(
+										props.runtimeHealth.executionRuntime.checks.temporalRuntime,
+									)}
 								</Typography>
 								<Typography variant="body2">
 									<strong>状态同步</strong>:{" "}
-									{props.runtimeHealth.executionRuntime.checks.runProjectionStore}
+									{formatReadinessStatus(
+										props.runtimeHealth.executionRuntime.checks.runProjectionStore,
+									)}
 								</Typography>
 								<Typography variant="body2">
 									<strong>任务队列</strong>:{" "}
@@ -260,7 +283,7 @@ export function OverviewDiagnosticsCard(props: {
 												<Typography variant="body2">节点数 {poller.pollers}</Typography>
 												<Chip
 													color={poller.healthy ? "success" : "warning"}
-													label={poller.healthy ? "ready" : "missing"}
+													label={poller.healthy ? "正常" : "未连接"}
 													size="small"
 													variant={poller.healthy ? "filled" : "outlined"}
 												/>
@@ -288,7 +311,7 @@ export function OverviewDiagnosticsCard(props: {
 							>
 								<Typography variant="body2">
 									<strong>{PANEL_COPY.overviewPage.runtime.runtime}</strong>:{" "}
-									{props.runtimeDiagnostics.runtime}
+									{formatReadinessStatus(props.runtimeDiagnostics.status)}
 								</Typography>
 								<Typography variant="body2">
 									<strong>{PANEL_COPY.overviewPage.runtime.protectedHostname}</strong>:{" "}

@@ -17,18 +17,18 @@ import {
 
 describe("request target formatters", () => {
 	it("maps every current capability to a localized display label", () => {
-		expect(formatSelectedCapabilityLabel("knowledge")).toBe("检索专家");
-		expect(formatSelectedCapabilityLabel("navigation")).toBe("导航能力");
+		expect(formatSelectedCapabilityLabel("knowledge")).toBe("知识问答");
+		expect(formatSelectedCapabilityLabel("navigation")).toBe("地图导航");
 		expect(formatSelectedCapabilityLabel("campus_services")).toBe("校园服务");
-		expect(formatSelectedCapabilityLabel("notice")).toBe("通知能力");
+		expect(formatSelectedCapabilityLabel("notice")).toBe("通知公告");
 	});
 
 	it("publishes current capability filter options as a closed set", () => {
 		expect(CURRENT_RUNTIME_TARGET_OPTIONS).toEqual([
-			{ label: "检索专家", value: "knowledge" },
-			{ label: "导航能力", value: "navigation" },
+			{ label: "知识问答", value: "knowledge" },
+			{ label: "地图导航", value: "navigation" },
 			{ label: "校园服务", value: "campus_services" },
-			{ label: "通知能力", value: "notice" },
+			{ label: "通知公告", value: "notice" },
 		]);
 	});
 });
@@ -98,7 +98,7 @@ describe("request intent formatters", () => {
 			{ label: "路由置信度", value: "高" },
 			{ label: "缺失槽位", value: "无" },
 			{ label: "解析槽位", value: "notice_id=notice:2026-spring-break" },
-			{ label: "意图 Schema", value: "intent-schema-1.0.0" },
+			{ label: "意图数据版本", value: "intent-schema-1.0.0" },
 			{ label: "分类器版本", value: "deterministic-intent-v1" },
 		]);
 	});
@@ -175,26 +175,26 @@ describe("request workflow trace formatters", () => {
 			{ label: "工具序列", value: "service_status_lookup" },
 			{ label: "工具调用", value: "service_status_lookup:completed/resolved_current" },
 			{
-				label: "执行状态",
-				value: "service_status_lookup:campus_services/typed_payload_allowed_tool",
+				label: "处理选择",
+				value: "service_status_lookup:typed_payload_allowed_tool",
 			},
 			{
-				label: "结果护栏",
-				value: "source_backed/source_refs=1/access=allowed",
+				label: "结果检查",
+				value: "source_backed/来源=1/授权=allowed",
 			},
 			{ label: "来源证据", value: "notice:muc_internal_portal:353903" },
-			{ label: "Fail Close 来源", value: "无" },
+			{ label: "拒绝保护来源", value: "无" },
 			{
-				label: "Trace 步骤",
+				label: "追踪步骤",
 				value: "runtime_policy(runtime_policy):delegate · finalization(finalization):completed",
 			},
 			{
-				label: "Runtime 版本",
+				label: "运行版本",
 				value:
 					"bridge_contract=supervisor_bridge_v6 · supervisor_api_runtime=go-runtime-control-plane-v1",
 			},
 			{
-				label: "Policy 版本",
+				label: "策略版本",
 				value: "intent_classifier=go-runtime-policy-v2 · intent_schema=intent-schema-1.0.0",
 			},
 		]);
@@ -282,9 +282,9 @@ describe("request durable runtime formatters", () => {
 		});
 
 		expect(rows).toEqual([
-			{ label: "Run ID", value: "run_01HQ" },
-			{ label: "Run 状态", value: "completed" },
-			{ label: "Run 阶段", value: "completed" },
+			{ label: "运行 ID", value: "run_01HQ" },
+			{ label: "运行状态", value: "completed" },
+			{ label: "运行阶段", value: "completed" },
 			{ label: "终态原因", value: "answer_completed" },
 			{ label: "事件数", value: "2" },
 			{
@@ -295,7 +295,7 @@ describe("request durable runtime formatters", () => {
 				label: "终态事件",
 				value: "2 · finalization.completed · browser · 2026年6月4日 09:02",
 			},
-			{ label: "可见性分布", value: "internal=1 · panel=0 · browser=1 · eval=0" },
+			{ label: "事件可见范围", value: "内部记录=1 · 面板=0 · 用户侧=1 · 评测=0" },
 		]);
 		expect(JSON.stringify(rows)).not.toContain("payload");
 	});
@@ -345,10 +345,10 @@ describe("request durable runtime formatters", () => {
 			kind: "step",
 			stepId: "agent.primary",
 			diagnostics: expect.arrayContaining([
-				"agent_terminal=tool_selected",
-				"agent_tools=knowledge_query",
-				"sdk_trace=trace://openai-agents/trace-agent-001",
-				"tool_results=agent-runtime://run-001/tools/knowledge_query",
+				"模型代理终态=tool_selected",
+				"模型代理工具=knowledge_query",
+				"模型代理追踪=trace://openai-agents/trace-agent-001",
+				"工具结果=agent-runtime://run-001/tools/knowledge_query",
 			]),
 		});
 	});
@@ -396,7 +396,7 @@ describe("request durable runtime formatters", () => {
 			kind: "step",
 			model: "openai/gpt-5-mini",
 			providerRequestRef: "provider://requests/req_001",
-			tokenCost: "tokens=120/42 · 321 microUSD",
+			tokenCost: "输入/输出 120/42 · 约 $0.0003 USD",
 		});
 	});
 
@@ -444,21 +444,21 @@ describe("request durable runtime formatters", () => {
 				{
 					kind: "runtime",
 					items: expect.arrayContaining([
-						"cancel=activity_context_canceled",
-						"timeout=provider_timeout",
-						"late=ignored_after_cancel",
+						"取消=activity_context_canceled",
+						"超时=provider_timeout",
+						"迟到完成=ignored_after_cancel",
 					]),
 				},
 				{
 					kind: "terminal",
 					items: expect.arrayContaining([
-						"terminal=user_canceled",
-						"fail_close=current_state_unverifiable",
+						"终态=user_canceled",
+						"拒绝保护=current_state_unverifiable",
 					]),
 				},
 				{
 					kind: "replan",
-					items: ["replan=bounded_replan_after_provider_timeout"],
+					items: ["重规划=bounded_replan_after_provider_timeout"],
 				},
 			],
 		});
@@ -540,8 +540,8 @@ describe("request replay formatters", () => {
 			{ label: "检索计划", value: "student_rules:current · current · completed" },
 			{ label: "来源轨迹", value: "召回 2 · 支撑 1" },
 			{ label: "声明支撑", value: "2/3 支撑 · 1 未支撑" },
-			{ label: "Grounding", value: "partial · 证据受限" },
-			{ label: "Prompt", value: "rag_answer_v1@v1 · ok" },
+			{ label: "证据支撑", value: "partial · 证据受限" },
+			{ label: "提示配置", value: "rag_answer_v1@v1 · ok" },
 			{ label: "执行语义", value: "answered" },
 		]);
 	});
@@ -564,6 +564,6 @@ describe("request replay formatters", () => {
 					policyReason: null,
 				},
 			}),
-		).toContainEqual({ label: "Grounding", value: "passed · 未知" });
+		).toContainEqual({ label: "证据支撑", value: "passed · 未知" });
 	});
 });

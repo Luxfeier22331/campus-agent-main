@@ -31,7 +31,6 @@ import { ProviderConfigPage } from "./operations/provider-config/page";
 import { AccessRequiredPage } from "./pages/access-required-page";
 import { AuditPage } from "./pages/audit-page";
 import { CostPage } from "./pages/cost-page";
-import { DelayedDomainPage } from "./pages/delayed-domain-page";
 import { EvalCoveragePage } from "./pages/eval-coverage-page";
 import { IntentPage } from "./pages/intent-page";
 import { OverviewPage } from "./pages/overview-page";
@@ -139,10 +138,6 @@ export function OperatorConsoleAdminApp() {
 				<Route element={<DiningReleasesPage />} path="/operations/dining/releases/:releaseId" />
 				<Route element={<DiningAuditPage />} path="/operations/dining/audit" />
 				<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
-				<Route
-					element={<DelayedDomainPage domain={PANEL_COPY.menu.jobs} reason="任务功能暂未开放。" />}
-					path="/jobs"
-				/>
 				<Route element={<Navigate replace to="/observability/audit" />} path="/audit" />
 			</CustomRoutes>
 		</Admin>

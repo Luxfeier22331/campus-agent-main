@@ -48,7 +48,6 @@ function createOverviewResponse(operatorContext: {
 			},
 			panel_domains: {
 				audit: "ready",
-				jobs: "blocked",
 				official_web: "ready",
 				operations: "deferred",
 				overview: "ready",

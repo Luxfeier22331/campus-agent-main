@@ -143,6 +143,14 @@ describe("Operator Console shell chinese copy", () => {
 		expect(appSource).not.toContain('name="operatorAudit"');
 	});
 
+	it("does not expose generic jobs as a placeholder product surface", () => {
+		expect(layoutSource).not.toContain("PANEL_COPY.menu.jobs");
+		expect(layoutSource).not.toContain('to="/jobs"');
+		expect(appSource).not.toContain('path="/jobs"');
+		expect(appSource).not.toContain("任务功能暂未开放");
+		expect(appSource).not.toContain("DelayedDomainPage");
+	});
+
 	it("exposes provider configuration as an operations route without reading raw keys", () => {
 		expect(appSource).toContain('path="/operations/provider-config"');
 		expect(layoutSource).toContain("PANEL_COPY.menu.providerConfig");

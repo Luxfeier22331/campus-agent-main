@@ -18,15 +18,15 @@ import type {
 } from "./model";
 
 const KIND_LABEL: Record<ProviderConfigKind, string> = {
-	embedding: "Embedding",
-	prompt: "Prompt",
+	embedding: "向量模型",
+	prompt: "生成模型",
 };
 
 const ROLE_LABEL: Record<ProviderConfigRole, string> = {
 	index_embedding: "索引向量化",
-	primary_agent: "主 Agent",
-	rag_query_embedding: "RAG 查询向量化",
-	rag_synthesis: "RAG 合成",
+	primary_agent: "主问答",
+	rag_query_embedding: "知识检索向量化",
+	rag_synthesis: "知识问答生成",
 };
 
 const STATUS_LABEL = {

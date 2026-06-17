@@ -17,7 +17,7 @@ describe("safety domain helpers", () => {
 			{ count: 84, key: "allowed", label: "允许" },
 			{ count: 5, key: "approvalRequired", label: "待审批" },
 			{ count: 7, key: "denied", label: "拒绝" },
-			{ count: 4, key: "failClosed", label: "Fail Closed" },
+			{ count: 4, key: "failClosed", label: "拒绝保护" },
 		]);
 	});
 
@@ -30,7 +30,7 @@ describe("safety domain helpers", () => {
 		expect(formatSafetyAnomalyStatus("open")).toBe("待处理");
 		expect(formatSafetyAnomalyCode("projection_missing")).toBe("同步缺失");
 		expect(formatSafetyAnomalyCode("projection_conflict")).toBe("同步冲突");
-		expect(formatSafetyAnomalyCode("fail_open_suspected")).toBe("疑似 Fail Open");
+		expect(formatSafetyAnomalyCode("fail_open_suspected")).toBe("疑似错误放行");
 		expect(formatSafetyAnomalyCode("custom_acl_code")).toBe("custom_acl_code");
 	});
 
@@ -65,21 +65,21 @@ describe("safety domain helpers", () => {
 			{
 				detail: "4 / 100",
 				key: "failClosed",
-				label: "Fail Closed",
+				label: "拒绝保护",
 				tone: "warning",
 				value: "4.0%",
 			},
 			{
 				detail: "7 / 100",
 				key: "restrictedDeny",
-				label: "Restricted Deny",
+				label: "受限拒绝",
 				tone: "info",
 				value: "7.0%",
 			},
 			{
 				detail: "2 / 100",
 				key: "aclAnomaly",
-				label: "ACL 异常",
+				label: "授权异常",
 				tone: "warning",
 				value: "2.0%",
 			},

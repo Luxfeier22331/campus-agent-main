@@ -565,7 +565,7 @@ export function SafetyDetailDrawer(props: {
 										{props.selectedAnomaly.requestId}
 									</Typography>
 									<Typography variant="body2">
-										<strong>Trace ID</strong>: {props.selectedAnomaly.traceId}
+										<strong>追踪 ID</strong>: {props.selectedAnomaly.traceId}
 									</Typography>
 									<Typography variant="body2">
 										<strong>{PANEL_COPY.safetyPage.queueColumns.principalType}</strong>:{" "}

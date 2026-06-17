@@ -146,7 +146,7 @@ function RequestStepTrajectoryTimeline(props: {
 	return (
 		<Stack spacing={1.5}>
 			<Stack direction="row" spacing={1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
-				<Typography variant="subtitle2">Step 轨迹</Typography>
+				<Typography variant="subtitle2">处理步骤</Typography>
 				<Chip label={summaryText} size="small" variant="outlined" />
 			</Stack>
 			<Stack spacing={1.25}>
@@ -194,15 +194,15 @@ function RequestStepTrajectoryTimeline(props: {
 									}}
 								>
 									<RequestFieldRow
-										label="能力 / 队列"
-										value={`${entry.capability} · ${entry.taskQueue}`}
+										label="处理目标 / 队列"
+										value={`${formatSelectedCapabilityLabel(entry.capability)} · ${entry.taskQueue}`}
 									/>
-									<RequestFieldRow label="Worker" value={entry.workerId} />
-									<RequestFieldRow label="Attempts" value={entry.attempts} />
+									<RequestFieldRow label="处理节点" value={entry.workerId} />
+									<RequestFieldRow label="尝试结果" value={entry.attempts} />
 									<RequestFieldRow label="耗时" value={entry.duration} />
 									<RequestFieldRow label="模型" value={entry.model} />
 									<RequestFieldRow label="Tokens / 成本" value={entry.tokenCost} />
-									<RequestFieldRow label="Provider Request" value={entry.providerRequestRef} />
+									<RequestFieldRow label="供应商请求" value={entry.providerRequestRef} />
 									<RequestFieldRow label="结果引用" value={entry.latestResultRef} />
 									<RequestFieldRow
 										label="诊断"
@@ -529,7 +529,7 @@ function RequestShowContent() {
 												value={observability.versionQuerySummary || PANEL_COPY.none}
 											/>
 											<RequestFieldRow
-												label="Prompt"
+												label="提示配置"
 												value={
 													observability.prompt?.id || observability.prompt?.version
 														? `${observability.prompt.id || PANEL_COPY.unknown}@${observability.prompt.version || PANEL_COPY.unknown}`
@@ -540,15 +540,15 @@ function RequestShowContent() {
 
 										<Stack spacing={2}>
 											<RequestFieldRow
-												label="ACL 判定"
+												label="授权判定"
 												value={formatAclDecisionLabel(observability.aclDecision)}
 											/>
 											<RequestFieldRow
-												label="ACL 异常"
+												label="授权异常"
 												value={observability.aclAnomalyCode || PANEL_COPY.none}
 											/>
 											<RequestFieldRow
-												label="是否 Fail Closed"
+												label="是否拒绝保护"
 												value={formatPanelBoolean(observability.failClosed)}
 											/>
 											<RequestFieldRow
@@ -560,8 +560,8 @@ function RequestShowContent() {
 												value={formatPanelBoolean(observability.traceAvailable)}
 											/>
 											<RequestFieldRow
-												label="Trace 链接"
-												value={linkValue(links?.traceLink ?? null, "打开 trace")}
+												label="追踪链接"
+												value={linkValue(links?.traceLink ?? null, "打开追踪")}
 											/>
 											<RequestFieldRow
 												label="问题链接"
@@ -632,7 +632,7 @@ function RequestShowContent() {
 						<Card sx={{ gridColumn: { lg: "1 / -1", xs: "auto" } }}>
 							<CardContent>
 								<Stack spacing={2}>
-									<Typography variant="h6">编排观测</Typography>
+									<Typography variant="h6">处理路径</Typography>
 									<Divider />
 									<Box
 										sx={{
@@ -646,7 +646,7 @@ function RequestShowContent() {
 									>
 										<Stack spacing={2}>
 											<RequestFieldRow
-												label="分支"
+												label="处理分支"
 												value={workflowTrace?.directVsDelegateBranch || PANEL_COPY.unknown}
 											/>
 											<RequestFieldRow
@@ -654,7 +654,7 @@ function RequestShowContent() {
 												value={workflowTrace?.planningOutcome || PANEL_COPY.unknown}
 											/>
 											<RequestFieldRow
-												label="Trace 目标"
+												label="处理目标"
 												value={formatSelectedCapabilityLabel(
 													workflowTrace?.selectedCapability ?? null,
 												)}
@@ -662,7 +662,7 @@ function RequestShowContent() {
 										</Stack>
 										<Stack spacing={2}>
 											<RequestFieldRow
-												label="Tool"
+												label="使用工具"
 												value={
 													tool?.selectedTool ||
 													workflowTrace?.selectedTools.join(", ") ||
@@ -670,11 +670,11 @@ function RequestShowContent() {
 												}
 											/>
 											<RequestFieldRow
-												label="Tool 结果"
+												label="工具结果"
 												value={tool?.businessOutcome || PANEL_COPY.unknown}
 											/>
 											<RequestFieldRow
-												label="Tool Fail Close"
+												label="拒绝保护原因"
 												value={
 													tool?.failCloseReason || workflowTrace?.failCloseReason || PANEL_COPY.none
 												}
@@ -682,7 +682,7 @@ function RequestShowContent() {
 										</Stack>
 										<Stack spacing={2}>
 											<RequestFieldRow
-												label="Guardrails"
+												label="保护检查"
 												value={formatRecordSummary(workflowTrace?.guardrailOutcomes)}
 											/>
 											<RequestFieldRow
@@ -690,7 +690,7 @@ function RequestShowContent() {
 												value={formatRecordSummary(workflowTrace?.contextResolution)}
 											/>
 											<RequestFieldRow
-												label="Handoff"
+												label="交接摘要"
 												value={formatRecordSummary(workflowTrace?.handoff)}
 											/>
 										</Stack>

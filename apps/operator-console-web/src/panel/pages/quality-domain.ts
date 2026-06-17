@@ -69,11 +69,11 @@ export function formatQualityBadcaseStatus(status: string) {
 export function formatQualityBadcaseDetectedBy(value: string) {
 	switch (value) {
 		case "runtime_monitor":
-			return "运行时监测";
+			return "在线监测";
 		case "sampled_grading":
 			return "采样评分";
 		case "ragas_diagnostic":
-			return "RAGAS diagnostic";
+			return "诊断评分";
 		default:
 			return value;
 	}
@@ -94,7 +94,7 @@ export function formatQualityBadcaseCauseClass(value: string) {
 		case "retrieval_quality_low":
 			return "召回质量低";
 		case "synthesis_grounding_failed":
-			return "生成接地失败";
+			return "证据支撑失败";
 		default:
 			return value;
 	}
@@ -107,7 +107,7 @@ export function formatQualityEvalCandidateSource(value: string) {
 		case "operator_badcase":
 			return "Badcase";
 		case "ragas_diagnostic":
-			return "RAGAS diagnostic";
+			return "诊断评分";
 		default:
 			return value;
 	}

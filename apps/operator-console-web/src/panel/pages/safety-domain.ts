@@ -35,7 +35,7 @@ export function buildSafetyDecisionDistributionEntries(
 		{
 			count: input.failClosed,
 			key: "failClosed",
-			label: "Fail Closed",
+			label: "拒绝保护",
 		},
 	] as const;
 }
@@ -45,21 +45,21 @@ export function buildSafetyPostureEntries(summary: OperatorSafetySummaryRecord["
 		{
 			detail: formatMetricEvidence(summary.failClosedRate),
 			key: "failClosed",
-			label: "Fail Closed",
+			label: "拒绝保护",
 			tone: summary.failClosedRate.count > 0 ? "warning" : "success",
 			value: formatMetricRate(summary.failClosedRate.value),
 		},
 		{
 			detail: formatMetricEvidence(summary.restrictedDenyRate),
 			key: "restrictedDeny",
-			label: "Restricted Deny",
+			label: "受限拒绝",
 			tone: summary.restrictedDenyRate.count > 0 ? "info" : "success",
 			value: formatMetricRate(summary.restrictedDenyRate.value),
 		},
 		{
 			detail: formatMetricEvidence(summary.aclAnomalyRate),
 			key: "aclAnomaly",
-			label: "ACL 异常",
+			label: "授权异常",
 			tone: summary.aclAnomalyRate.count > 0 ? "warning" : "success",
 			value: formatMetricRate(summary.aclAnomalyRate.value),
 		},
@@ -95,7 +95,7 @@ export function formatSafetyAnomalyCode(value: string) {
 		case "projection_conflict":
 			return "同步冲突";
 		case "fail_open_suspected":
-			return "疑似 Fail Open";
+			return "疑似错误放行";
 		case "unauthorized_path":
 			return "未授权路径";
 		default:

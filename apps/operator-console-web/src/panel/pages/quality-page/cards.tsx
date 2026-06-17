@@ -728,7 +728,7 @@ export function QualityDetailDrawer(props: {
 									{props.selectedBadcase.runId ?? PANEL_COPY.pending}
 								</Typography>
 								<Typography variant="body2">
-									<strong>Trace ID</strong>: {props.selectedBadcase.traceId}
+									<strong>追踪 ID</strong>: {props.selectedBadcase.traceId}
 								</Typography>
 								<Typography variant="body2">
 									<strong>{PANEL_COPY.qualityPage.queueColumns.surface}</strong>:{" "}

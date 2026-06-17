@@ -1,4 +1,4 @@
-import { PANEL_COPY } from "../panel-copy";
+import { formatPanelMicrousd, PANEL_COPY } from "../panel-copy";
 import type { RequestRuntimeRunSummary } from "../types";
 
 import type { RequestStepTrajectoryEntry } from "./request-formatters";
@@ -25,8 +25,8 @@ function formatTokenCostSummary(input: {
 	const estimatedCostMicrousd = Number.isFinite(input.estimatedCostMicrousd)
 		? input.estimatedCostMicrousd
 		: 0;
-	const cost = estimatedCostMicrousd > 0 ? `${estimatedCostMicrousd} microUSD` : "cost=0";
-	return `tokens=${inputTokens}/${outputTokens} · ${cost}`;
+	const cost = estimatedCostMicrousd > 0 ? formatPanelMicrousd(estimatedCostMicrousd) : "成本 0";
+	return `输入/输出 ${inputTokens}/${outputTokens} · ${cost}`;
 }
 
 type OperatorStep = NonNullable<
@@ -57,17 +57,17 @@ export function buildRequestStepTrajectoryEntries(
 	return [
 		{
 			kind: "summary" as const,
-			metrics: `${trajectory.steps.length} steps · attempts=${attemptCount} · results=${resultCount}`,
+			metrics: `${trajectory.steps.length} 个步骤 · 尝试 ${attemptCount} · 结果 ${resultCount}`,
 		},
 		...trajectory.steps.map((step) => {
 			const diagnosticGroups = buildStepDiagnosticGroups(step);
 			const diagnostics = diagnosticGroups.flatMap((group) => group.items);
 			return {
-				attempts: `attempts=${step.attemptCount} · results=${step.resultCount}`,
+				attempts: `尝试 ${step.attemptCount} · 结果 ${step.resultCount}`,
 				capability: step.capability || PANEL_COPY.unknown,
 				diagnosticGroups,
 				diagnostics,
-				duration: `queue=${formatDuration(step.queueWaitMs)} · duration=${formatDuration(step.durationMs)}`,
+				duration: `排队 ${formatDuration(step.queueWaitMs)} · 执行 ${formatDuration(step.durationMs)}`,
 				kind: "step" as const,
 				latestResultRef: step.latestResultRef || PANEL_COPY.none,
 				model: formatStepModel(step),
@@ -87,30 +87,30 @@ function buildStepDiagnosticGroups(
 	step: AnyStep,
 ): Extract<RequestStepTrajectoryEntry, { kind: "step" }>["diagnosticGroups"] {
 	const runtime = [
-		`cancel=${step.cancelOutcome || PANEL_COPY.none}`,
-		`timeout=${step.timeoutOutcome || PANEL_COPY.none}`,
-		`late=${step.lateCompletionOutcome || PANEL_COPY.none}`,
+		`取消=${step.cancelOutcome || PANEL_COPY.none}`,
+		`超时=${step.timeoutOutcome || PANEL_COPY.none}`,
+		`迟到完成=${step.lateCompletionOutcome || PANEL_COPY.none}`,
 	];
 	const terminal: string[] = [];
 	if ("terminalReason" in step && step.terminalReason) {
-		terminal.push(`terminal=${step.terminalReason}`);
+		terminal.push(`终态=${step.terminalReason}`);
 	}
 	if (step.failCloseReason) {
-		terminal.push(`fail_close=${step.failCloseReason}`);
+		terminal.push(`拒绝保护=${step.failCloseReason}`);
 	}
-	const replan = step.replanReason ? [`replan=${step.replanReason}`] : [];
+	const replan = step.replanReason ? [`重规划=${step.replanReason}`] : [];
 	const agent: string[] = [];
 	if (step.agentTerminalReason) {
-		agent.push(`agent_terminal=${step.agentTerminalReason}`);
+		agent.push(`模型代理终态=${step.agentTerminalReason}`);
 	}
 	if (step.agentSelectedTools && step.agentSelectedTools.length > 0) {
-		agent.push(`agent_tools=${step.agentSelectedTools.join(",")}`);
+		agent.push(`模型代理工具=${step.agentSelectedTools.join(",")}`);
 	}
 	if (step.agentSdkTraceRef) {
-		agent.push(`sdk_trace=${step.agentSdkTraceRef}`);
+		agent.push(`模型代理追踪=${step.agentSdkTraceRef}`);
 	}
 	if (step.agentToolResultRefs && step.agentToolResultRefs.length > 0) {
-		agent.push(`tool_results=${step.agentToolResultRefs.join(",")}`);
+		agent.push(`工具结果=${step.agentToolResultRefs.join(",")}`);
 	}
 	return [
 		{ kind: "runtime" as const, items: runtime },

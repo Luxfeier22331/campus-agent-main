@@ -57,7 +57,7 @@ export function buildDecisionSummaryCards(
 		},
 		{
 			count: summary.decisionDistribution.failClosed,
-			label: "Fail Closed",
+			label: "拒绝保护",
 		},
 	];
 	const total = entries.reduce((accumulator, entry) => accumulator + entry.count, 0);

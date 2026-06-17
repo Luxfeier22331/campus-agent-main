@@ -77,13 +77,13 @@ export function buildAuditDiagnosticEntries(input: {
 
 	if (input.failClosed !== null) {
 		entries.push({
-			label: "Fail Closed",
+			label: "拒绝保护",
 			value: input.failClosed ? PANEL_COPY.yes : PANEL_COPY.no,
 		});
 	}
 	if (input.aclAnomalyCode) {
 		entries.push({
-			label: "ACL 异常",
+			label: "授权异常",
 			value: input.aclAnomalyCode,
 		});
 	}

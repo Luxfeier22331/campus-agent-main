@@ -244,7 +244,7 @@ document/index release`
 - 承载 dining draft / release candidate / release / audit workspace；不拥有 dining truth、
   auth/session truth 或第二套 operator backend
 - `apps/app-api` 已有 `campus-services` operator routes，但当前 `operator-console-web`
-  不承载 campus-services operations UI 或 proxy allowlist
+  不承载校园服务校对与发布 workspace
 - 它是唯一当前 Operator Console implementation package，不定义第二个长期后台产品概念
 
 ### `apps/app-api`
