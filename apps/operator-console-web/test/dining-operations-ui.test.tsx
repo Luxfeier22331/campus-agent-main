@@ -351,6 +351,44 @@ describe("operator console dining operations pages", () => {
 		});
 	});
 
+	it("shows a diagnostic error when persisted dining operations state is invalid", async () => {
+		diningApiMock.getDiningOpsHalls.mockRejectedValue({
+			body: {
+				error: {
+					code: "dining_operations_state_invalid",
+					message: "Persisted dining operations state is missing draft version truth.",
+				},
+			},
+			message: "Persisted dining operations state is missing draft version truth.",
+			status: 500,
+		});
+
+		renderWithQueryClient(<DiningWorkspacePage />);
+
+		expect(await screen.findByText("食堂运营状态未初始化或持久化状态不完整。")).toBeInTheDocument();
+		expect(screen.getByText("请先执行 dining seed 后再刷新页面。")).toBeInTheDocument();
+		expect(screen.queryByText("选择一个食堂楼层")).not.toBeInTheDocument();
+	});
+
+	it("shows a diagnostic error when dining floor state cannot be loaded", async () => {
+		diningApiMock.getDiningOpsFloor.mockRejectedValue({
+			body: {
+				error: {
+					code: "dining_operations_state_invalid",
+					message: "Persisted dining operations state is missing draft version truth.",
+				},
+			},
+			message: "Persisted dining operations state is missing draft version truth.",
+			status: 500,
+		});
+
+		renderWithQueryClient(<DiningWorkspacePage />);
+
+		expect(await screen.findByText("食堂运营状态未初始化或持久化状态不完整。")).toBeInTheDocument();
+		expect(screen.getByText("请先执行 dining seed 后再刷新页面。")).toBeInTheDocument();
+		expect(screen.queryByText("选择一个食堂楼层")).not.toBeInTheDocument();
+	});
+
 	it("binds an unassigned SVG anchor to an existing dining point", async () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 

@@ -60,11 +60,13 @@ export function DiningWorkspacePage() {
 		params.floorId ??
 		hallsQuery.data?.halls.find((hall) => hall.hallId === activeHallId)?.floors[0]?.floorId ??
 		"";
+	const hallsErrorState = hallsQuery.error ? buildDiningOpsErrorState(hallsQuery.error) : null;
 	const floorQuery = useQuery({
-		enabled: Boolean(activeHallId && activeFloorId),
+		enabled: !hallsErrorState && Boolean(activeHallId && activeFloorId),
 		queryFn: () => getDiningOpsFloor({ floorId: activeFloorId, hallId: activeHallId }),
 		queryKey: ["dining-ops", "floor", activeHallId, activeFloorId],
 	});
+	const floorErrorState = floorQuery.error ? buildDiningOpsErrorState(floorQuery.error) : null;
 	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
 	const [selectedAnchor, setSelectedAnchor] = useState<DiningSvgAnchor | null>(null);
 
@@ -78,6 +80,10 @@ export function DiningWorkspacePage() {
 		floorQuery.data?.windows.find((window) => window.windowId === selectedWindowId) ?? null;
 	const selectedAnchorId = selectedAnchor?.anchorId ?? selectedWindow?.svgAnchorId ?? null;
 	const floorplan = floorQuery.data ? resolveRepoFloorplan(floorQuery.data) : null;
+
+	if (hallsErrorState) {
+		return <DiningOpsErrorState {...hallsErrorState} />;
+	}
 
 	return (
 		<section className="grid gap-6 xl:grid-cols-[260px_1fr_340px]">
@@ -117,7 +123,9 @@ export function DiningWorkspacePage() {
 						草稿
 					</span>
 				</div>
-				{floorQuery.data ? (
+				{floorErrorState ? (
+					<DiningOpsErrorContent {...floorErrorState} />
+				) : floorQuery.data ? (
 					<SvgFloorplanWorkspace
 						floorId={floorQuery.data.floor.floorId}
 						floorplan={floorQuery.data.floor.floorplan}
@@ -153,6 +161,71 @@ export function DiningWorkspacePage() {
 			/>
 		</section>
 	);
+}
+
+function DiningOpsErrorState(props: { action: string; detail: string; title: string }) {
+	return (
+		<section className="ops-panel p-6">
+			<DiningOpsErrorContent {...props} />
+		</section>
+	);
+}
+
+function DiningOpsErrorContent(props: { action: string; detail: string; title: string }) {
+	return (
+		<div className="max-w-2xl space-y-3" role="alert">
+			<p className="ops-eyebrow">食堂运营</p>
+			<h2 className="font-semibold text-lg text-red-700">{props.title}</h2>
+			<p className="text-sm text-zinc-600">{props.detail}</p>
+			<p className="text-sm text-zinc-700">{props.action}</p>
+		</div>
+	);
+}
+
+function buildDiningOpsErrorState(error: unknown) {
+	const code = getRuntimeErrorCode(error);
+	if (code === "dining_operations_state_invalid") {
+		return {
+			action: "请先执行 dining seed 后再刷新页面。",
+			detail: "app-api 报告食堂运营缺少当前草稿版本或发布状态，前端不会自动补种子或伪造草稿。",
+			title: "食堂运营状态未初始化或持久化状态不完整。",
+		};
+	}
+
+	return {
+		action: "请确认 app-api 与食堂运营数据面状态后重试。",
+		detail: getRuntimeErrorMessage(error) ?? "食堂运营目录读取失败。",
+		title: "食堂运营目录读取失败。",
+	};
+}
+
+function getRuntimeErrorCode(error: unknown) {
+	if (!error || typeof error !== "object") {
+		return null;
+	}
+	const maybeError = error as {
+		body?: {
+			error?: {
+				code?: string | null;
+			};
+		};
+	};
+	return maybeError.body?.error?.code?.trim() || null;
+}
+
+function getRuntimeErrorMessage(error: unknown) {
+	if (!error || typeof error !== "object") {
+		return null;
+	}
+	const maybeError = error as {
+		body?: {
+			error?: {
+				message?: string | null;
+			};
+		};
+		message?: string | null;
+	};
+	return maybeError.body?.error?.message?.trim() || maybeError.message?.trim() || null;
 }
 
 function resolveRepoFloorplan(floor: DiningOpsFloorResponse) {

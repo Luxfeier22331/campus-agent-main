@@ -132,6 +132,13 @@ release candidate creation/validation/approval/scheduling/publish, release
 list/detail/rollback and audit list routes. Future UI refinement may improve
 density or navigation, but it must stay on these route and data boundaries.
 
+If `app-api` reports `dining_operations_state_invalid`, the workspace shows a
+diagnostic blocked state and does not render an editable draft workspace. The
+Operator Console must not auto-seed dining data, synthesize a draft version, or
+fall back to static floorplan data as editable truth. Initial dining state is
+created by the app-api seed/release path and then consumed through
+`/api/ops/dining/*`.
+
 Dining floorplans are repo-owned versioned static SVG assets. The workspace
 does not upload/replace SVG, does not use Konva/react-konva as the primary
 floorplan technology and does not include freeform floorplan shape editing.

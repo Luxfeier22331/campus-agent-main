@@ -333,6 +333,7 @@ export const PANEL_COPY = {
 		states: {
 			loadFailed: "评测覆盖读取失败。",
 			loading: "正在读取评测覆盖快照…",
+			snapshotNotPublished: "尚未发布评测覆盖快照。",
 		},
 	},
 	safetyPage: {

@@ -219,6 +219,10 @@ identity，也不证明当前 Operator Console domains 可用。
 - Shell：panel shell loads after Cloudflare Access login
 - Overview：`/observability/overview` loads and calls `/api/operator/overview`
 - Runtime Health：overview runtime card calls `/api/operator/runtime/health`
+- Eval Coverage：`/observability/eval-coverage` loads and calls
+  `/api/operator/evals/coverage`; if no eval coverage snapshot has been
+  published, the page must show `尚未发布评测覆盖快照。` instead of raw backend
+  error text
 - Requests：`/requests` loads and calls `/api/requests`
 - Provider Config：`/operations/provider-config` loads and calls
   `/api/operator/provider-config/profiles`
@@ -226,9 +230,17 @@ identity，也不证明当前 Operator Console domains 可用。
 - Authenticated Notices：`/authenticatedNoticeProcessing` loads and calls
   `/api/authenticated-notices/processing`
 - Dining Operations：`/operations/dining` loads and calls `/api/ops/dining/halls`
+  or shows `食堂运营状态未初始化或持久化状态不完整。` when the staging dining seed has
+  not been applied
 
 以上证据可以是 browser automation report、network capture 摘要或截图加对应
 HTTP status 记录；不能用 service-token smoke 代替。
+
+Runtime Health is a projection owned by `app-api`; the Operator Console must not
+directly call execution-control, Temporal, PG, Sentry or Axiom during this
+browser check. Dining and eval coverage checks must use real published/seeded
+state when the release claims those domains are ready; otherwise the accepted
+evidence is the governed diagnostic state above, not synthesized frontend data.
 
 ## 7. Browser QA
 
@@ -248,8 +260,8 @@ HTTP status 记录；不能用 service-token smoke 代替。
 - `https://operator-console-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
-  - Overview、Runtime Health、Requests、Provider Config、Official Web、
-    Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
+  - Overview、Runtime Health、Eval Coverage、Requests、Provider Config、
+    Official Web、Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字证据。console / network 明显错误必须记录。
 

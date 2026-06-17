@@ -58,6 +58,24 @@ function toQueryErrorMessage(error: unknown, defaultMessage: string) {
 	});
 }
 
+function getQueryErrorCode(error: unknown) {
+	if (!error || typeof error !== "object") {
+		return null;
+	}
+	const maybeError = error as {
+		body?: {
+			error?: {
+				code?: string | null;
+			};
+		};
+	};
+	return maybeError.body?.error?.code?.trim() || null;
+}
+
+function isEvalCoverageSnapshotNotPublished(error: unknown) {
+	return getQueryErrorCode(error) === "eval_coverage_snapshot_not_found";
+}
+
 function SummaryCard(props: { detail: string; label: string; value: string }) {
 	return (
 		<Card sx={{ borderRadius: 2 }} variant="outlined">
@@ -434,7 +452,8 @@ export function EvalCoveragePage() {
 		queryKey: ["operator-console-eval-coverage"],
 		staleTime: 60_000,
 	});
-	const errorMessage = coverageQuery.error
+	const snapshotNotPublished = isEvalCoverageSnapshotNotPublished(coverageQuery.error);
+	const errorMessage = coverageQuery.error && !snapshotNotPublished
 		? toQueryErrorMessage(coverageQuery.error, PANEL_COPY.evalCoveragePage.states.loadFailed)
 		: null;
 
@@ -444,6 +463,11 @@ export function EvalCoveragePage() {
 			<PanelPage>
 				{coverageQuery.isPending ? (
 					<Alert severity="info">{PANEL_COPY.evalCoveragePage.states.loading}</Alert>
+				) : null}
+				{snapshotNotPublished ? (
+					<Alert severity="info">
+						{PANEL_COPY.evalCoveragePage.states.snapshotNotPublished}
+					</Alert>
 				) : null}
 				{errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 				{coverageQuery.data?.data ? <EvalCoverageContent record={coverageQuery.data.data} /> : null}

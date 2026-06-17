@@ -228,3 +228,24 @@ The local Access smoke server issues a signed `CF_Authorization` cookie and
 serves the matching JWKS at `/cdn-cgi/access/certs`. This keeps local smoke on
 the same signed-assertion admission path as the Worker instead of adding a
 panel-side bypass.
+
+Local browser smoke preconditions:
+
+- start or reuse local `apps/app-api` with the same shared secret expected by
+  `operator-console-web`
+- start `apps/execution-control` before treating Runtime Health as ready; if
+  `app-api /api/operator/runtime/health` reports the execution-control
+  projection as blocked, the panel must show that diagnostic instead of
+  inventing a frontend-ready state
+- migrate/bootstrap the shared local database when schema drift is possible:
+  `pnpm --dir apps/app-api db:bootstrap`
+- seed dining operations before expecting the dining workspace to show editable
+  floors: `pnpm --dir apps/app-api dining:seed-initial-release`
+- publish a real eval coverage snapshot before expecting Eval Coverage to show
+  the coverage matrix; if none has been published, the page shows the governed
+  empty state `尚未发布评测覆盖快照。`
+
+For local smoke, `dining_operations_state_invalid` and
+`eval_coverage_snapshot_not_found` are valid diagnostic outcomes when their
+preconditions are absent. They are not frontend fallback paths, and the panel
+must not auto-seed dining data or synthesize eval coverage data.
