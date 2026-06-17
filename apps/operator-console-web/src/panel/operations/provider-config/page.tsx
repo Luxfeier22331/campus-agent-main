@@ -107,8 +107,8 @@ export function ProviderConfigPage() {
 	return (
 		<section className="space-y-4">
 			<div className="ops-panel p-5">
-				<p className="ops-eyebrow">Provider runtime</p>
-				<h2 className="ops-title">Provider 配置</h2>
+				<p className="ops-eyebrow">模型服务配置</p>
+				<h2 className="ops-title">模型服务配置</h2>
 				<form
 					className="mt-4 grid gap-3 lg:grid-cols-3"
 					onSubmit={(event) => {

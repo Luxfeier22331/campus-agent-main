@@ -6,8 +6,8 @@ const RUNTIME_ERROR_MESSAGES: Record<string, string> = {
 	dependency_not_ready: "面板运行时依赖尚未就绪。",
 	forbidden: "当前身份没有运维面板访问权限。",
 	frontend_assets_not_ready: "面板前端资源尚未就绪。",
-	internal_error: "app-api 当前返回了未预期错误，请稍后重试。",
-	invalid_runtime_payload: "面板运行时返回了无效数据。",
+	internal_error: "服务暂时不可用，请稍后重试。",
+	invalid_runtime_payload: "返回数据格式异常，请联系维护人员。",
 	not_found: "未找到请求的资源。",
 	operator_identity_required: "当前会话缺少可信运维身份，无法访问该受保护接口。",
 };

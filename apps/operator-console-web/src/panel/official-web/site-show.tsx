@@ -104,10 +104,7 @@ function OfficialWebSiteShowContent() {
 	return (
 		<PanelPage>
 			<Stack spacing={3}>
-				<Alert severity="info">
-					此视图展示 app-api 维护的 official_web
-					站点投影、最近采集运行，以及后续会交给控制面的页面新鲜度积压队列。它不是基础设施控制台。
-				</Alert>
+				<Alert severity="info">查看官网站点、最近采集运行和页面新鲜度。</Alert>
 
 				<Box
 					sx={{
@@ -137,7 +134,7 @@ function OfficialWebSiteShowContent() {
 					<Card>
 						<CardContent>
 							<Stack spacing={2}>
-								<Typography variant="h6">最近投影</Typography>
+								<Typography variant="h6">最近更新</Typography>
 								<Divider />
 								<SiteFieldRow label="最近运行" value={record.latestRunId || PANEL_COPY.noRuns} />
 								<SiteFieldRow

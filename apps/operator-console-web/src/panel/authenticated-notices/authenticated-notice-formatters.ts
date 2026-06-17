@@ -5,7 +5,7 @@ const LIFECYCLE_LABELS: Record<string, string> = {
 	failed_terminal: "终止失败",
 	imported: "已导入",
 	manual_review: "人工复核",
-	materialized: "已物化",
+	materialized: "已更新",
 	mixed_terminal: "混合终态",
 	queued: "已入队",
 	succeeded: "队列成功",

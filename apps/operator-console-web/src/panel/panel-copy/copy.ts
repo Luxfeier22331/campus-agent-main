@@ -15,11 +15,11 @@ export const PANEL_COPY = {
 	notAttached: "未关联",
 	notSelected: "未选择",
 	unnamedPrincipal: "未命名主体",
-	noGroupsProjected: "未投影任何分组",
+	noGroupsProjected: "暂无分组",
 	noSourceDocumentsCaptured: "未记录来源文档",
 	noRuns: "暂无运行记录",
 	noRecentRuns: "暂无最近运行记录",
-	workerServiceBinding: "通过 Worker service binding 绑定",
+	workerServiceBinding: "服务连接已配置",
 	menu: {
 		overview: "总览",
 		quality: "质量",
@@ -38,19 +38,17 @@ export const PANEL_COPY = {
 		jobs: "任务",
 		operations: "操作",
 		diningOperations: "食堂运营",
-		providerConfig: "Provider 配置",
+		providerConfig: "模型服务配置",
 		audit: "审计",
 	},
 	operatorObservabilityRouteShell: {
 		overview: {
 			label: "控制面总览",
-			reason:
-				"这里预留给 operator overview 域。当前阶段只冻结 route shell 和共享数据层，不会继续借用当前壳层 /api/overview 冒充最终控制面总览。",
+			reason: "控制面总览暂未开放。",
 		},
 		quality: {
 			label: "质量",
-			reason:
-				"这里预留给质量域。后续页面会直接消费 app-api 的 quality summary、timeseries 和 badcase seams，不会伪装成 CRUD 资源。",
+			reason: "质量治理页面暂未开放。",
 		},
 		safety: {
 			label: "安全与授权",
@@ -59,13 +57,11 @@ export const PANEL_COPY = {
 		},
 		cost: {
 			label: "成本",
-			reason:
-				"这里预留给成本域。后续页面会直接消费 app-api 的 token 与 estimated cost 聚合，不会在 panel 侧自行重算。",
+			reason: "成本页面暂未开放。",
 		},
 		audit: {
 			label: "审计时间线",
-			reason:
-				"这里预留给运维审计域。后续页面会接入 curated audit timeline 与 detail seam，而不是直接暴露原始日志或 sink 内容。",
+			reason: "审计时间线暂未开放。",
 		},
 	},
 	overviewPage: {
@@ -94,7 +90,7 @@ export const PANEL_COPY = {
 			failureRate: "失败率",
 			latency: "延迟",
 			requestVolume: "受理请求",
-			sinkHealth: "投影与追踪健康",
+			sinkHealth: "状态同步与追踪健康",
 			refusalRate: "拒答率",
 		},
 		cardDetail: {
@@ -102,13 +98,13 @@ export const PANEL_COPY = {
 			completed: "已完成",
 			errored: "错误",
 			missingTraceRate: "缺失 Trace 率",
-			outboxPendingCount: "待投影",
+			outboxPendingCount: "待同步",
 			outboxRetryCount: "已重试",
 			outboxStaleCount: "滞留",
 			p50: "P50",
 			p95: "P95",
 			p99: "P99",
-			projectionFailureCount: "投影失败",
+			projectionFailureCount: "同步失败",
 		},
 		trends: {
 			cost: "成本与 Token 走势",
@@ -131,9 +127,9 @@ export const PANEL_COPY = {
 			title: "告警摘要",
 		},
 		runtime: {
-			apiBase: "App API 基础 URL",
-			diagnosticsOnly: "这部分只反映壳层与 app-api 接入状态，不代表控制面指标真相。",
-			domainRollout: "壳层域能力状态",
+			apiBase: "服务地址",
+			diagnosticsOnly: "查看服务连接、执行服务和处理节点的当前状态。",
+			domainRollout: "功能状态",
 			operatorIdentity: "当前运维主体",
 			protectedHostname: "受保护域名",
 			protectionEnvelope: "保护封装",
@@ -182,7 +178,7 @@ export const PANEL_COPY = {
 	},
 	qualityPage: {
 		title: "质量",
-		subtitle: "面向质量治理查看 runtime 指标、采样评分和 badcase 队列。",
+		subtitle: "面向质量治理查看运行指标、采样评分和待复核样本。",
 		asOf: "数据时间",
 		refreshing: "筛选已更新，正在刷新质量域数据。",
 		filters: {
@@ -249,11 +245,10 @@ export const PANEL_COPY = {
 			detail: "查看详情",
 			empty: "当前筛选下没有 badcase。",
 			evalCandidatesEmpty: "当前筛选下没有评测候选。",
-			evalCandidatesHint:
-				"评测候选由 app-api 从 badcase 队列投影生成，用于进入后续 eval intake review。",
+			evalCandidatesHint: "查看待进入评测复核的样本。",
 			nextPage: "下一页",
 			previousPage: "上一页",
-			queueHint: "badcase queue 读取的是 app-api 投影，不直接展示 raw sink 或原始 grader payload。",
+			queueHint: "查看待复核样本及其评测摘要。",
 			rowsPerPage: "每页条数",
 			viewRequest: "查看请求详情",
 		},
@@ -327,8 +322,7 @@ export const PANEL_COPY = {
 			noLowScore: "当前 surface 没有低分 RAGAS diagnostic case。",
 			noExcluded: "当前快照没有排除面。",
 			surfaceMatrix: "覆盖矩阵",
-			surfaceMatrixDescription:
-				"该矩阵只消费 app-api 发布的 operator-safe eval coverage projection，不读取本地评测 artifact。",
+			surfaceMatrixDescription: "该矩阵展示当前评测覆盖快照和已知缺口。",
 		},
 		states: {
 			loadFailed: "评测覆盖读取失败。",
@@ -382,14 +376,13 @@ export const PANEL_COPY = {
 			filterHint: "队列筛选会叠加在上方时间窗、接入面和执行目标筛选之上。",
 			filters: {
 				anomalyCode: "异常代码",
-				anomalyCodePlaceholder: "例如 projection_missing",
+				anomalyCodePlaceholder: "例如 missing_permission",
 				severity: "风险等级",
 				status: "队列状态",
 			},
 			nextPage: "下一页",
 			previousPage: "上一页",
-			queueHint:
-				"异常队列读取的是 app-api 提供的 curated safety anomaly projection，不直接展示 raw audit 或 sink payload。",
+			queueHint: "异常队列只展示可处理的摘要、状态和回链。",
 			rowsPerPage: "每页条数",
 			viewRequest: "查看请求详情",
 		},
@@ -410,7 +403,7 @@ export const PANEL_COPY = {
 			issueLink: "打开问题",
 			links: "回链",
 			requestMeta: "请求元信息",
-			summaryHint: "详情只展示受控的异常摘要与回链，不暴露底层原始 sink 内容。",
+			summaryHint: "详情只展示异常摘要与回链，原始日志和敏感内容不在此页展示。",
 			traceLink: "打开 Trace",
 		},
 		states: {
@@ -436,17 +429,13 @@ export const PANEL_COPY = {
 		sections: {
 			distributions: "成本分布",
 			modelDistribution: "模型成本分布",
-			modelDistributionDescription:
-				"按模型查看 estimated cost 与请求量的结构，不引入 provider 对账语义。",
+			modelDistributionDescription: "按模型查看预估成本与请求量结构。",
 			surfaceDistribution: "接入面成本分布",
-			surfaceDistributionDescription:
-				"按接入面对比 estimated cost 与请求量，继续只消费 app-owned rollup。",
+			surfaceDistributionDescription: "按接入面对比预估成本与请求量。",
 			summary: "成本摘要",
-			summaryDescription:
-				"只基于当前摘要筛选查看 token 与 estimated cost，不回退到 raw billing explorer。",
+			summaryDescription: "查看当前筛选下的 Token 用量与预估成本。",
 			timeseries: "成本趋势",
-			timeseriesDescription:
-				"使用 app-api 已有 timeseries seam 展示 estimated cost 与总 Token 走势。",
+			timeseriesDescription: "查看预估成本与总 Token 走势。",
 		},
 		cards: {
 			cachedInputTokens: "缓存输入 Tokens",
@@ -478,7 +467,7 @@ export const PANEL_COPY = {
 	},
 	auditPage: {
 		title: "审计",
-		subtitle: "围绕请求时间线查看治理事件、终态原因与追踪回链，不回退到原始日志浏览。",
+		subtitle: "围绕请求时间线查看治理事件、终态原因与追踪回链。",
 		refreshing: "筛选已更新，正在刷新审计时间线。",
 		filters: {
 			allPrincipalTypes: "全部主体类型",
@@ -503,8 +492,7 @@ export const PANEL_COPY = {
 		sections: {
 			detail: "审计详情",
 			timeline: "审计时间线",
-			timelineDescription:
-				"读取的是 app-api 提供的 curated audit timeline，不直接暴露原始日志、鉴权材料或 sink payload。",
+			timelineDescription: "查看可复核的审计事件摘要、状态和关联回链。",
 		},
 		timeline: {
 			empty: "当前筛选下没有审计事件。",
@@ -534,7 +522,7 @@ export const PANEL_COPY = {
 			links: "关联回链",
 			noDiagnostics: "当前事件没有额外诊断摘要。",
 			noLinks: "当前事件没有关联外部回链。",
-			policyProjectionVersion: "策略投影版本",
+			policyProjectionVersion: "策略版本",
 			requestedCapability: "请求能力",
 			requestMeta: "事件元信息",
 			terminalCode: "终态代码",
@@ -568,17 +556,16 @@ export const PANEL_COPY = {
 	requestsList: {
 		title: "请求分诊台",
 		summary: "先按状态和搜索收敛，再进入详情页查看观测、审计与深度诊断。",
-		intro: "请求列表读取 app-api 维护的请求投影视图，不会回放回答运行时，也不会直接检查原始日志。",
+		intro: "查看聊天请求的处理状态、耗时、结果类型和最近更新时间。",
 		paginationHint:
 			"分页依赖游标链路，请按顺序向后翻页；如果游标链缺失，直接跳页会按 fail-closed 处理。",
-		projectionLagHint: "新完成的聊天请求可能会延迟片刻出现，因为投影器需要先物化读模型。",
+		projectionLagHint: "新完成的聊天请求可能会延迟片刻出现在列表中。",
 		searchLabel: "搜索请求",
 		searchPlaceholder: "请求 ID / 问题 / 主体 / 错误码",
 		allStatuses: "全部状态",
 		conversationId: "会话 ID",
 		noRequestsTitle: "暂无请求",
-		noRequestsDescription:
-			"此表只展示 app-api 已经物化完成的请求投影。刚被受理的聊天流量可能会短暂缺席，直到投影追上。",
+		noRequestsDescription: "当前没有可查看的请求记录。",
 		columns: {
 			capability: "能力",
 			conversationId: "会话 ID",

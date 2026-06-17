@@ -7,7 +7,7 @@ import showSource from "../src/panel/authenticated-notices/processing-show.tsx?r
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
 
 describe("Operator Console authenticated notice processing UI", () => {
-	it("wires authenticated notice processing as an app-api owned panel resource", () => {
+	it("wires authenticated notice processing as an operator panel resource", () => {
 		expect(appSource).toContain('name="authenticatedNoticeProcessing"');
 		expect(appSource).toContain("AuthenticatedNoticeProcessingListPage");
 		expect(appSource).toContain("AuthenticatedNoticeProcessingShowPage");
@@ -28,24 +28,24 @@ describe("Operator Console authenticated notice processing UI", () => {
 		expect(listSource).not.toContain('rowClick="show"');
 	});
 
-	it("keeps list/detail copy explicit about redaction and app-api projection ownership", () => {
-		expect(listSource).toContain("operator-safe projection");
-		expect(listSource).toContain("不暴露通知正文");
-		expect(showSource).toMatch(/详情来自\s+app-api\s+持有的通知处理投影/);
-		expect(showSource).toContain("不显示原始正文");
+	it("keeps list/detail copy operator-facing and explicit about redaction", () => {
+		expect(listSource).toContain("查看通知处理状态、处理批次、发布状态和最近更新时间。");
+		expect(showSource).toContain("通知正文、附件和 OCR 原文不在此页展示");
 		expect(showSource).toContain("处理时间线");
-		expect(`${listSource}\n${showSource}`).not.toMatch(/objectKey|ocrText|rawHtml|artifact_path/);
+		expect(`${listSource}\n${showSource}`).not.toMatch(
+			/app-api|operator-safe projection|通知处理投影|objectKey|ocrText|rawHtml|artifact_path/,
+		);
 	});
 
-	it("shows app-api computed freshness instead of making the panel infer staleness", () => {
+	it("shows server-computed freshness instead of making the panel infer staleness", () => {
 		expect(listSource).toContain("AuthenticatedNoticeFreshnessChip");
 		expect(listSource).toContain("record.freshnessStatus");
-		expect(showSource).toContain("投影新鲜度");
+		expect(showSource).toContain("数据新鲜度");
 		expect(showSource).toContain("record.staleReasonCode");
 		expect(`${listSource}\n${showSource}`).not.toContain("Date.now()");
 	});
 
-	it("shows regulation admission and hold fields in the operator-safe projection", () => {
+	it("shows regulation admission and hold fields in the operator view", () => {
 		expect(formatAuthenticatedNoticeCandidateKindLabel("regulation")).toBe("规章制度");
 		expect(listSource).toContain('{ id: "regulation", name: "规章制度" }');
 		expect(showSource).toContain("Admission");

@@ -319,9 +319,7 @@ function RequestShowContent() {
 	return (
 		<PanelPage>
 			<Stack spacing={3}>
-				<Alert severity="info">
-					此视图展示 app-api 的请求投影快照。它被有意设计为读模型，而不是实时执行回放端点。
-				</Alert>
+				<Alert severity="info">查看该请求的处理结果、步骤状态、耗时和可诊断事件。</Alert>
 
 				<Box
 					sx={{
@@ -519,7 +517,7 @@ function RequestShowContent() {
 												value={formatPanelMicrousd(observability.estimatedCost.microusd)}
 											/>
 											<RequestFieldRow
-												label="投影延迟"
+												label="同步延迟"
 												value={formatDuration(observability.projectionLagMs)}
 											/>
 											<RequestFieldRow
@@ -602,8 +600,7 @@ function RequestShowContent() {
 								<Stack spacing={2}>
 									<Typography variant="h6">运行事实</Typography>
 									<Typography color="text.secondary" variant="body2">
-										RunEvent 与 Step 轨迹来自 sanitized projection；此区块不展示原始 payload、prompt
-										或回答草稿。
+										此处仅展示可诊断事件，不展示原始对话、提示词或模型原始返回。
 									</Typography>
 									<Divider />
 									<Box
@@ -765,7 +762,7 @@ function RequestShowContent() {
 								>
 									<RequestFieldRow label="开始时间" value={formatTimestamp(record.startedAt)} />
 									<RequestFieldRow label="完成时间" value={formatTimestamp(record.completedAt)} />
-									<RequestFieldRow label="投影时间" value={formatTimestamp(record.projectedAt)} />
+									<RequestFieldRow label="更新时间" value={formatTimestamp(record.projectedAt)} />
 									<RequestFieldRow label="耗时" value={formatDuration(record.durationMs)} />
 								</Box>
 							</Stack>

@@ -287,11 +287,11 @@ describe("Operator Console shell chinese copy", () => {
 		expect(auditPageSource).not.toContain("href={detailLinks.traceLink}");
 	});
 
-	it("renders request detail durable run truth from operator-safe runtime summaries", () => {
+	it("renders request detail durable run truth from runtime summaries", () => {
 		expect(requestShowSource).toContain("buildRequestRuntimeRunEntries");
 		expect(requestShowSource).toContain("observabilityRecord?.runtimeRun");
 		expect(requestShowSource).toContain("运行事实");
-		expect(requestShowSource).toContain("RunEvent");
+		expect(requestShowSource).toContain("可诊断事件");
 	});
 
 	it("keeps guarded external links isolated from the opener browsing context", () => {

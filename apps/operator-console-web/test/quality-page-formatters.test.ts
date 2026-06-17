@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { buildRuntimeSummaryCards } from "../src/panel/pages/quality-page/formatters";
 
 describe("quality page formatters", () => {
-	it("renders app-api feedback aggregates as runtime summary cards", () => {
+	it("renders feedback aggregates as runtime summary cards", () => {
 		const cards = buildRuntimeSummaryCards({
 			asOf: "2026-04-20T09:00:00.000Z",
 			runtime: {

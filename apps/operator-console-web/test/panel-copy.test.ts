@@ -60,6 +60,6 @@ describe("Operator Console chinese copy helpers", () => {
 				message: "Unexpected app-api failure.",
 				statusText: "Internal Server Error",
 			}),
-		).toBe("app-api 当前返回了未预期错误，请稍后重试。");
+		).toBe("服务暂时不可用，请稍后重试。");
 	});
 });

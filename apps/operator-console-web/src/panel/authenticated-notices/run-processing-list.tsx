@@ -72,8 +72,7 @@ function EmptyState() {
 						{PANEL_COPY.emptyState.authenticatedNoticeRunProcessing}
 					</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里展示 collector run / replay batch / queue run 的安全聚合投影；只有 app-api 接收到
-						run-level snapshot 后才会出现。
+						当前没有可查看的通知运行记录。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -95,7 +94,7 @@ export function AuthenticatedNoticeRunProcessingListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="通知 run 处理页读取的是 app-api 的安全投影；如果查询失败，面板不会回退到队列表、对象存储或 trace 文件。"
+					description="通知运行记录加载失败。请稍后重试，或查看服务状态。"
 					title="通知 run 处理读取失败"
 				/>
 			}
@@ -107,10 +106,7 @@ export function AuthenticatedNoticeRunProcessingListPage() {
 			title={PANEL_COPY.menu.authenticatedNoticeRunProcessing}
 		>
 			<Stack spacing={2}>
-				<Alert severity="info">
-					该视图只展示 app-api 持有的 run-level operator-safe
-					projection：不暴露队列表、对象存储、trace 文件或通知正文。
-				</Alert>
+				<Alert severity="info">查看通知采集运行、处理批次和最新队列状态。</Alert>
 				<PanelResponsiveDatagrid minWidth={1280}>
 					<Datagrid
 						bulkActionButtons={false}
@@ -152,7 +148,7 @@ export function AuthenticatedNoticeRunProcessingListPage() {
 						/>
 						<TextField label="来源面" source="sourceSurface" />
 						<TextField label="运行 ID" source="runId" />
-						<DateField label="投影时间" locales="zh-CN" showTime source="projectedAt" />
+						<DateField label="更新时间" locales="zh-CN" showTime source="projectedAt" />
 						<FunctionField
 							label={PANEL_COPY.view}
 							render={(record: AuthenticatedNoticeRunProcessingRecord) => (

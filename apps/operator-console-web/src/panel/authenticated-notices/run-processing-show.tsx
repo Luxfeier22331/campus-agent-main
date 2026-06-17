@@ -52,8 +52,7 @@ function RunProcessingShowContent() {
 		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
-					详情来自 app-api 持有的 run-level 通知处理投影，只解释 collector run、replay batch 与
-					queue run 的处理结果；不显示原始正文、OCR、附件、对象存储定位符或 trace 文件内容。
+					查看该通知运行的采集、回放、队列处理和发布结果。原始正文、附件和 OCR 原文不在此页展示。
 				</Alert>
 				<Box
 					sx={{
@@ -100,7 +99,7 @@ function RunProcessingShowContent() {
 									value={<AuthenticatedNoticeQueueChip status={record.latestQueueStatus} />}
 								/>
 								<FieldRow
-									label="投影新鲜度"
+									label="数据新鲜度"
 									value={<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />}
 								/>
 								<FieldRow
@@ -127,7 +126,7 @@ function RunProcessingShowContent() {
 									value={formatAuthenticatedNoticeTimestamp(record.lastObservedAt)}
 								/>
 								<FieldRow
-									label="投影时间"
+									label="更新时间"
 									value={formatAuthenticatedNoticeTimestamp(record.projectedAt)}
 								/>
 							</Stack>
@@ -172,14 +171,14 @@ function RunProcessingShowContent() {
 					<Card>
 						<CardContent>
 							<Stack spacing={2}>
-								<Typography variant="h6">Source Truth / Downstream</Typography>
+								<Typography variant="h6">来源与发布</Typography>
 								<Divider />
 								<FieldRow
 									label="选中通知数"
 									value={readNumber(record.sourceTruth, "selectedNoticeCount")}
 								/>
 								<FieldRow
-									label="物化 release"
+									label="发布记录"
 									value={readNumber(record.downstream, "materializedReleaseCount")}
 								/>
 								<FieldRow

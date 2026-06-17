@@ -91,9 +91,9 @@ export function formatSafetyAnomalyStatus(value: string) {
 export function formatSafetyAnomalyCode(value: string) {
 	switch (value) {
 		case "projection_missing":
-			return "投影缺失";
+			return "同步缺失";
 		case "projection_conflict":
-			return "投影冲突";
+			return "同步冲突";
 		case "fail_open_suspected":
 			return "疑似 Fail Open";
 		case "unauthorized_path":

@@ -6,8 +6,8 @@ import { createElement, type ReactElement } from "react";
 import { HttpError, testDataProvider, useAuthenticated, useDataProvider } from "react-admin";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { OperatorConsoleDataProvider } from "../src/panel/data-provider";
 import appSource from "../src/panel/app.tsx?raw";
+import type { OperatorConsoleDataProvider } from "../src/panel/data-provider";
 import domainSource from "../src/panel/pages/eval-coverage-domain.ts?raw";
 import { EvalCoveragePage } from "../src/panel/pages/eval-coverage-page";
 import pageSource from "../src/panel/pages/eval-coverage-page.tsx?raw";
@@ -59,7 +59,7 @@ describe("Operator Console eval coverage UI", () => {
 		expect(layoutSource).toContain('to="/observability/eval-coverage"');
 	});
 
-	it("keeps eval coverage page on the app-api projection seam", () => {
+	it("keeps eval coverage page on the published coverage snapshot", () => {
 		expect(pageSource).toContain("getOperatorEvalCoverage");
 		expect(pageSource).toContain("qrelsCaseCount");
 		expect(pageSource).toContain("uniqueExpectedDocCount");

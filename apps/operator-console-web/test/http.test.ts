@@ -57,7 +57,7 @@ describe("Operator Console http copy", () => {
 		});
 	});
 
-	it("maps app-api internal errors to chinese operator-facing messages", async () => {
+	it("maps internal errors to chinese operator-facing messages", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			createErrorResponse(
 				{
@@ -71,7 +71,7 @@ describe("Operator Console http copy", () => {
 		);
 
 		await expect(fetchJson("/api/official-web/sites")).rejects.toMatchObject({
-			message: "app-api 当前返回了未预期错误，请稍后重试。",
+			message: "服务暂时不可用，请稍后重试。",
 			status: 500,
 		});
 	});

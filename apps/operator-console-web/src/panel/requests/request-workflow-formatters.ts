@@ -252,7 +252,7 @@ export function buildRequestWorkflowTraceEntries(
 			value: formatWorkflowToolCalls(trace.toolCallSummaries),
 		},
 		{
-			label: "执行投影",
+			label: "执行状态",
 			value: formatWorkflowExecutionProjections(trace),
 		},
 		{

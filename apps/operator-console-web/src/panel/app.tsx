@@ -140,12 +140,7 @@ export function OperatorConsoleAdminApp() {
 				<Route element={<DiningAuditPage />} path="/operations/dining/audit" />
 				<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
 				<Route
-					element={
-						<DelayedDomainPage
-							domain={PANEL_COPY.menu.jobs}
-							reason="任务域暂缓开放，直到运行时提供受治理的任务投影接口，而不是直接暴露队列或对象存储内部细节。"
-						/>
-					}
+					element={<DelayedDomainPage domain={PANEL_COPY.menu.jobs} reason="任务功能暂未开放。" />}
 					path="/jobs"
 				/>
 				<Route element={<Navigate replace to="/observability/audit" />} path="/audit" />

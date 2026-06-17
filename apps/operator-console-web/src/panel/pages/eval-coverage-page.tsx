@@ -453,9 +453,10 @@ export function EvalCoveragePage() {
 		staleTime: 60_000,
 	});
 	const snapshotNotPublished = isEvalCoverageSnapshotNotPublished(coverageQuery.error);
-	const errorMessage = coverageQuery.error && !snapshotNotPublished
-		? toQueryErrorMessage(coverageQuery.error, PANEL_COPY.evalCoveragePage.states.loadFailed)
-		: null;
+	const errorMessage =
+		coverageQuery.error && !snapshotNotPublished
+			? toQueryErrorMessage(coverageQuery.error, PANEL_COPY.evalCoveragePage.states.loadFailed)
+			: null;
 
 	return (
 		<>
@@ -465,9 +466,7 @@ export function EvalCoveragePage() {
 					<Alert severity="info">{PANEL_COPY.evalCoveragePage.states.loading}</Alert>
 				) : null}
 				{snapshotNotPublished ? (
-					<Alert severity="info">
-						{PANEL_COPY.evalCoveragePage.states.snapshotNotPublished}
-					</Alert>
+					<Alert severity="info">{PANEL_COPY.evalCoveragePage.states.snapshotNotPublished}</Alert>
 				) : null}
 				{errorMessage ? <Alert severity="error">{errorMessage}</Alert> : null}
 				{coverageQuery.data?.data ? <EvalCoverageContent record={coverageQuery.data.data} /> : null}

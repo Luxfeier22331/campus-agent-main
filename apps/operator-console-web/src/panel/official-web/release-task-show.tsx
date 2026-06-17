@@ -45,9 +45,7 @@ function ReleaseTaskShowContent() {
 	return (
 		<PanelPage>
 			<Stack spacing={3}>
-				<Alert severity="info">
-					详情来自 app-api 持有的发布任务安全投影；不显示对象存储定位符、原始 HTML、正文或执行栈。
-				</Alert>
+				<Alert severity="info">查看发布任务的处理状态、输入摘要和输出摘要。</Alert>
 				<Box
 					sx={{
 						display: "grid",
@@ -85,14 +83,14 @@ function ReleaseTaskShowContent() {
 								<FieldRow label="最新阶段" value={record.latestStage} />
 								<FieldRow label="尝试次数" value={`${record.attemptCount}/${record.maxAttempts}`} />
 								<FieldRow
-									label="投影新鲜度"
+									label="数据新鲜度"
 									value={`${record.freshnessStatus}${
 										record.staleReasonCode ? ` · ${record.staleReasonCode}` : ""
 									}`}
 								/>
 								<FieldRow label="创建时间" value={formatPanelTimestamp(record.createdAt)} />
 								<FieldRow label="更新时间" value={formatPanelTimestamp(record.updatedAt)} />
-								<FieldRow label="投影时间" value={formatPanelTimestamp(record.projectedAt)} />
+								<FieldRow label="更新时间" value={formatPanelTimestamp(record.projectedAt)} />
 							</Stack>
 						</CardContent>
 					</Card>

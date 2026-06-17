@@ -82,8 +82,7 @@ function ProcessingShowContent() {
 		<PanelPage>
 			<Stack spacing={3}>
 				<Alert severity="info">
-					详情来自 app-api
-					持有的通知处理投影，只用于解释入队、消费、下游物化和工具可用状态；不显示原始正文、OCR、附件或对象存储路径。
+					查看该通知处理记录的入队、处理、发布和索引状态。通知正文、附件和 OCR 原文不在此页展示。
 				</Alert>
 				<Box
 					sx={{
@@ -131,7 +130,7 @@ function ProcessingShowContent() {
 									value={<AuthenticatedNoticeQueueChip status={record.queueStatus} />}
 								/>
 								<FieldRow
-									label="投影新鲜度"
+									label="数据新鲜度"
 									value={<AuthenticatedNoticeFreshnessChip status={record.freshnessStatus} />}
 								/>
 								<FieldRow
@@ -153,7 +152,7 @@ function ProcessingShowContent() {
 									value={formatAuthenticatedNoticeTimestamp(record.lastObservedAt)}
 								/>
 								<FieldRow
-									label="投影时间"
+									label="更新时间"
 									value={formatAuthenticatedNoticeTimestamp(record.projectedAt)}
 								/>
 								<FieldRow
@@ -190,7 +189,7 @@ function ProcessingShowContent() {
 									value={record.current ? PANEL_COPY.yes : PANEL_COPY.no}
 								/>
 								<FieldRow
-									label="物化状态"
+									label="更新状态"
 									value={record.materializationStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
@@ -233,7 +232,7 @@ function ProcessingShowContent() {
 									value={objectStoreExactKeysRemaining || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow
-									label="Qdrant 残留"
+									label="检索索引状态"
 									value={qdrantResidueCount || PANEL_COPY.notAvailable}
 								/>
 							</Stack>
@@ -243,7 +242,7 @@ function ProcessingShowContent() {
 					<Card>
 						<CardContent>
 							<Stack spacing={2}>
-								<Typography variant="h6">班车 read-model</Typography>
+								<Typography variant="h6">班车记录</Typography>
 								<Divider />
 								<FieldRow label="排班快照" value={countValue(record, "snapshots")} />
 								<FieldRow label="当前快照" value={countValue(record, "currentSnapshots")} />

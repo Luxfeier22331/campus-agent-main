@@ -179,7 +179,7 @@ export function RequestListPage() {
 			disableSyncWithLocation
 			error={
 				<PanelListErrorState
-					description="请求页读取的是 app-api 维护的请求投影视图；当后端查询失败时，面板会直接显示错误，而不是伪装成空列表。"
+					description="请求列表加载失败。请稍后重试，或查看服务状态。"
 					title="请求列表读取失败"
 				/>
 			}

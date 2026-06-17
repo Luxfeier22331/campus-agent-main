@@ -30,7 +30,7 @@ const filters = [
 			{ id: "queued", name: "已排队" },
 			{ id: "claimed", name: "已认领" },
 			{ id: "running", name: "运行中" },
-			{ id: "materialized", name: "已物化" },
+			{ id: "materialized", name: "已更新" },
 			{ id: "published", name: "已发布" },
 			{ id: "indexed", name: "已索引" },
 			{ id: "failed_retryable", name: "可重试失败" },
@@ -68,7 +68,7 @@ function EmptyState() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebReleaseTasks}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里展示 ingestion-control 回报给 app-api 的发布任务安全投影。
+						当前没有可查看的官网发布任务。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -97,7 +97,7 @@ export function OfficialWebReleaseTasksListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="官网发布任务页只读取 app-api 的 operator-safe projection；如果查询失败，面板不会直接访问 ingestion 队列表。"
+					description="官网发布任务加载失败。请稍后重试，或查看服务状态。"
 					title="官网发布任务读取失败"
 				/>
 			}
@@ -109,9 +109,7 @@ export function OfficialWebReleaseTasksListPage() {
 			title={PANEL_COPY.menu.officialWebReleaseTasks}
 		>
 			<Stack spacing={2}>
-				<Alert severity="info">
-					该视图只展示发布任务投影：不暴露 source-truth object key、bucket、原始 HTML 或执行栈。
-				</Alert>
+				<Alert severity="info">查看内容发布任务的处理状态和更新时间。</Alert>
 				<PanelResponsiveDatagrid minWidth={1280}>
 					<Datagrid
 						bulkActionButtons={false}
@@ -131,7 +129,7 @@ export function OfficialWebReleaseTasksListPage() {
 						<TextField label="选择写目标" source="selectedWriteTarget" />
 						<TextField label="尝试" source="attemptCount" />
 						<TextField label="运行 ID" source="runId" />
-						<DateField label="投影时间" locales="zh-CN" showTime source="projectedAt" />
+						<DateField label="更新时间" locales="zh-CN" showTime source="projectedAt" />
 						<FunctionField
 							label={PANEL_COPY.view}
 							render={(record: OfficialWebReleaseTaskRecord) => (

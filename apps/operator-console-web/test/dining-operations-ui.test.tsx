@@ -366,7 +366,7 @@ describe("operator console dining operations pages", () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
 		expect(await screen.findByText("食堂运营状态未初始化或持久化状态不完整。")).toBeInTheDocument();
-		expect(screen.getByText("请先执行 dining seed 后再刷新页面。")).toBeInTheDocument();
+		expect(screen.getByText("请先完成食堂运营数据初始化后再刷新页面。")).toBeInTheDocument();
 		expect(screen.queryByText("选择一个食堂楼层")).not.toBeInTheDocument();
 	});
 
@@ -385,7 +385,7 @@ describe("operator console dining operations pages", () => {
 		renderWithQueryClient(<DiningWorkspacePage />);
 
 		expect(await screen.findByText("食堂运营状态未初始化或持久化状态不完整。")).toBeInTheDocument();
-		expect(screen.getByText("请先执行 dining seed 后再刷新页面。")).toBeInTheDocument();
+		expect(screen.getByText("请先完成食堂运营数据初始化后再刷新页面。")).toBeInTheDocument();
 		expect(screen.queryByText("选择一个食堂楼层")).not.toBeInTheDocument();
 	});
 

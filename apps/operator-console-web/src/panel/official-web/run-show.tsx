@@ -43,10 +43,7 @@ function OfficialWebRunShowContent() {
 	return (
 		<PanelPage>
 			<Stack spacing={3}>
-				<Alert severity="info">
-					此运行详情来自 app-api
-					的投影快照，展示采集真相、产物引用和分发状态，而不会暴露底层基础设施内部细节。
-				</Alert>
+				<Alert severity="info">查看采集运行结果、产物引用和分发状态。</Alert>
 
 				<Box
 					sx={{
@@ -95,7 +92,7 @@ function OfficialWebRunShowContent() {
 								<RunFieldRow label="开始时间" value={formatTimestamp(record.startedAt)} />
 								<RunFieldRow label="最近心跳" value={formatTimestamp(record.lastHeartbeatAt)} />
 								<RunFieldRow label="结束时间" value={formatTimestamp(record.finishedAt)} />
-								<RunFieldRow label="投影时间" value={formatTimestamp(record.projectedAt)} />
+								<RunFieldRow label="更新时间" value={formatTimestamp(record.projectedAt)} />
 								<RunFieldRow
 									label="执行更新时间"
 									value={formatTimestamp(record.ingestionExecutionUpdatedAt)}

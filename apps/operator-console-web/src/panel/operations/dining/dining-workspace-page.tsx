@@ -186,14 +186,14 @@ function buildDiningOpsErrorState(error: unknown) {
 	const code = getRuntimeErrorCode(error);
 	if (code === "dining_operations_state_invalid") {
 		return {
-			action: "请先执行 dining seed 后再刷新页面。",
-			detail: "app-api 报告食堂运营缺少当前草稿版本或发布状态，前端不会自动补种子或伪造草稿。",
+			action: "请先完成食堂运营数据初始化后再刷新页面。",
+			detail: "当前缺少可编辑草稿或发布状态。",
 			title: "食堂运营状态未初始化或持久化状态不完整。",
 		};
 	}
 
 	return {
-		action: "请确认 app-api 与食堂运营数据面状态后重试。",
+		action: "请确认食堂运营数据已初始化后重试。",
 		detail: getRuntimeErrorMessage(error) ?? "食堂运营目录读取失败。",
 		title: "食堂运营目录读取失败。",
 	};

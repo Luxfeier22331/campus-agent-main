@@ -28,8 +28,8 @@ describe("safety domain helpers", () => {
 		expect(formatSafetyAnomalySeverity("high")).toBe("高风险");
 		expect(formatSafetyAnomalySeverity("medium")).toBe("中风险");
 		expect(formatSafetyAnomalyStatus("open")).toBe("待处理");
-		expect(formatSafetyAnomalyCode("projection_missing")).toBe("投影缺失");
-		expect(formatSafetyAnomalyCode("projection_conflict")).toBe("投影冲突");
+		expect(formatSafetyAnomalyCode("projection_missing")).toBe("同步缺失");
+		expect(formatSafetyAnomalyCode("projection_conflict")).toBe("同步冲突");
 		expect(formatSafetyAnomalyCode("fail_open_suspected")).toBe("疑似 Fail Open");
 		expect(formatSafetyAnomalyCode("custom_acl_code")).toBe("custom_acl_code");
 	});

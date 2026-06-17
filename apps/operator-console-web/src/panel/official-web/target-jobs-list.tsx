@@ -43,11 +43,7 @@ const targetJobFilters = [
 ];
 
 function OfficialWebTargetJobsContractNotice() {
-	return (
-		<Alert severity="info">
-			目标任务读取 app-api 的 operator 投影，只展示 target lineage、候选 URL、尝试计数和校验摘要。
-		</Alert>
-	);
+	return <Alert severity="info">查看页面采集目标、尝试次数和校验状态。</Alert>;
 }
 
 function OfficialWebTargetJobsEmpty() {
@@ -57,7 +53,7 @@ function OfficialWebTargetJobsEmpty() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebTargetJobs}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里不会从对象存储或采集器本地目录推导任务。没有 app-api target job 投影时保持为空。
+						当前没有可查看的官网目标任务。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -74,7 +70,7 @@ export function OfficialWebTargetJobsListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="目标任务页只读取 app-api 已物化的 target-first 投影；如果查询失败，面板会直接显示后端错误。"
+					description="官网目标任务加载失败。请稍后重试，或查看服务状态。"
 					title="官网目标任务读取失败"
 				/>
 			}
@@ -109,7 +105,7 @@ export function OfficialWebTargetJobsListPage() {
 							)}
 						/>
 						<FunctionField
-							label="物化"
+							label="更新策略"
 							render={(record: OfficialWebTargetJobRecord) => (
 								<OfficialWebMaterializationPolicyChip
 									materializationPolicy={record.materializationPolicy}

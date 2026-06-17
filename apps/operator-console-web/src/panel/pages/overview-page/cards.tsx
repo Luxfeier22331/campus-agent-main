@@ -173,7 +173,7 @@ export function OverviewDiagnosticsCard(props: {
 							>
 								<Stack spacing={0.5}>
 									<Typography sx={{ fontWeight: 600 }} variant="body2">
-										Execution Runtime Health
+										执行服务健康
 									</Typography>
 									<Typography color="text.secondary" variant="body2">
 										{props.runtimeHealth.temporalRuntime?.namespace || PANEL_COPY.unknown}
@@ -198,19 +198,19 @@ export function OverviewDiagnosticsCard(props: {
 								}}
 							>
 								<Typography variant="body2">
-									<strong>Temporal</strong>:{" "}
+									<strong>执行服务</strong>:{" "}
 									{props.runtimeHealth.executionRuntime.checks.temporalRuntime}
 								</Typography>
 								<Typography variant="body2">
-									<strong>Run projection</strong>:{" "}
+									<strong>状态同步</strong>:{" "}
 									{props.runtimeHealth.executionRuntime.checks.runProjectionStore}
 								</Typography>
 								<Typography variant="body2">
-									<strong>Workflow queue</strong>:{" "}
+									<strong>任务队列</strong>:{" "}
 									{props.runtimeHealth.temporalRuntime?.workflowTaskQueue || PANEL_COPY.notSet}
 								</Typography>
 								<Typography variant="body2">
-									<strong>Worker</strong>:{" "}
+									<strong>处理节点</strong>:{" "}
 									{props.runtimeHealth.temporalRuntime?.workerId || PANEL_COPY.notSet}
 								</Typography>
 							</Box>
@@ -224,7 +224,7 @@ export function OverviewDiagnosticsCard(props: {
 							{props.runtimeHealth.temporalRuntime ? (
 								<Stack spacing={1}>
 									<Typography sx={{ fontWeight: 600 }} variant="body2">
-										Temporal task queue pollers
+										任务队列处理节点
 									</Typography>
 									<Box
 										sx={{
@@ -257,7 +257,7 @@ export function OverviewDiagnosticsCard(props: {
 												<Typography color="text.secondary" variant="body2">
 													{poller.type}
 												</Typography>
-												<Typography variant="body2">pollers={poller.pollers}</Typography>
+												<Typography variant="body2">节点数 {poller.pollers}</Typography>
 												<Chip
 													color={poller.healthy ? "success" : "warning"}
 													label={poller.healthy ? "ready" : "missing"}

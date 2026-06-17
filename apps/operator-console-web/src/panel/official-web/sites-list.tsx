@@ -18,12 +18,7 @@ import {
 import { buildOfficialWebSiteShowPath } from "./official-web-routes";
 
 function OfficialWebSitesContractNotice() {
-	return (
-		<Alert severity="info">
-			站点列表读取 app-api 维护的 official_web 站点投影，不会直接检查对象存储、队列或
-			ingestion-control 内部细节。
-		</Alert>
-	);
+	return <Alert severity="info">查看官网站点、最近采集状态和内容更新时间。</Alert>;
 }
 
 function OfficialWebSitesEmpty() {
@@ -33,8 +28,7 @@ function OfficialWebSitesEmpty() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebSites}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						该读模型只展示 app-api 已经投影完成的官网站点。如果站点尚未完成投影或 staging
-						仍未导入样本，这里会保持为空。
+						当前没有可查看的官网站点。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -51,7 +45,7 @@ export function OfficialWebSitesListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="官网站点页读取的是 app-api 维护的 official_web 站点投影；如果后端查询失败，这里会直接暴露错误，而不是把失败误判为空结果。"
+					description="官网站点加载失败。请稍后重试，或查看服务状态。"
 					title="官网站点读取失败"
 				/>
 			}

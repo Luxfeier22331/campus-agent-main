@@ -33,7 +33,7 @@ const filters = [
 	<SelectInput
 		choices={[
 			{ id: "tool_ready", name: "工具可用" },
-			{ id: "materialized", name: "已物化" },
+			{ id: "materialized", name: "已更新" },
 			{ id: "manual_review", name: "人工复核" },
 			{ id: "failed_retryable", name: "可重试失败" },
 			{ id: "failed_terminal", name: "终止失败" },
@@ -81,8 +81,7 @@ function EmptyState() {
 						{PANEL_COPY.emptyState.authenticatedNoticeProcessing}
 					</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里仅展示 app-api 已接收的安全处理投影。历史采集内容需要手动入队或 backfill
-						后才会出现。
+						当前没有可查看的通知处理记录。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -104,7 +103,7 @@ export function AuthenticatedNoticeProcessingListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="通知处理页读取的是 app-api 的安全投影；如果查询失败，面板会直接显示后端错误，不回退到队列或对象存储。"
+					description="通知处理记录加载失败。请稍后重试，或查看服务状态。"
 					title="通知处理读取失败"
 				/>
 			}
@@ -116,10 +115,7 @@ export function AuthenticatedNoticeProcessingListPage() {
 			title={PANEL_COPY.menu.authenticatedNoticeProcessing}
 		>
 			<Stack spacing={2}>
-				<Alert severity="info">
-					该视图只展示 app-api 持有的 operator-safe projection：不暴露通知正文、OCR
-					文本、附件字节、本地路径、对象存储 key 或原始日志。
-				</Alert>
+				<Alert severity="info">查看通知处理状态、处理批次、发布状态和最近更新时间。</Alert>
 				<PanelResponsiveDatagrid minWidth={1320}>
 					<Datagrid
 						bulkActionButtons={false}
@@ -171,7 +167,7 @@ export function AuthenticatedNoticeProcessingListPage() {
 							}
 						/>
 						<TextField label="运行 ID" source="runId" />
-						<DateField label="投影时间" locales="zh-CN" showTime source="projectedAt" />
+						<DateField label="更新时间" locales="zh-CN" showTime source="projectedAt" />
 						<FunctionField
 							label={PANEL_COPY.view}
 							render={(record: AuthenticatedNoticeProcessingRecord) => (

@@ -69,11 +69,7 @@ const runFilters = [
 ];
 
 function OfficialWebRunsContractNotice() {
-	return (
-		<Alert severity="info">
-			采集运行列表读取 app-api 维护的投影视图。游标分页按设计只能顺序前进，不会绕过运行时边界。
-		</Alert>
-	);
+	return <Alert severity="info">查看采集运行结果、产物状态和失败原因。</Alert>;
 }
 
 function OfficialWebRunsEmpty() {
@@ -83,8 +79,7 @@ function OfficialWebRunsEmpty() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebRuns}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						该列表只展示 app-api 已物化的官网采集运行投影。若当前 staging
-						尚未回放样本运行或投影未完成，这里会保持为空。
+						当前没有可查看的官网采集运行。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -101,7 +96,7 @@ export function OfficialWebRunsListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="官网采集运行页读取的是 app-api 已物化的运行投影；如果查询失败，面板会直接显示后端错误，而不是退化成空态。"
+					description="官网采集运行加载失败。请稍后重试，或查看服务状态。"
 					title="官网采集运行读取失败"
 				/>
 			}

@@ -6,7 +6,7 @@ import showSource from "../src/panel/authenticated-notices/run-processing-show.t
 import layoutSource from "../src/panel/panel-layout.tsx?raw";
 
 describe("Operator Console authenticated notice run processing UI", () => {
-	it("wires run-level processing as a separate app-api owned panel resource", () => {
+	it("wires run-level processing as a separate operator panel resource", () => {
 		expect(appSource).toContain('name="authenticatedNoticeRunProcessing"');
 		expect(appSource).toContain("AuthenticatedNoticeRunProcessingListPage");
 		expect(appSource).toContain("AuthenticatedNoticeRunProcessingShowPage");
@@ -15,14 +15,13 @@ describe("Operator Console authenticated notice run processing UI", () => {
 		expect(layoutSource).toContain('to="/authenticatedNoticeRunProcessing"');
 	});
 
-	it("keeps the run-level view explicit about projection ownership and redaction", () => {
-		expect(listSource).toMatch(/run-level operator-safe\s+projection/);
-		expect(listSource).toContain("不暴露队列表、对象存储、trace 文件或通知正文");
-		expect(showSource).toMatch(/详情来自\s+app-api\s+持有的 run-level 通知处理投影/);
+	it("keeps the run-level view operator-facing and explicit about redaction", () => {
+		expect(listSource).toContain("查看通知采集运行、处理批次和最新队列状态。");
+		expect(showSource).toContain("原始正文、附件和 OCR");
 		expect(showSource).toContain("队列任务汇总");
 		expect(showSource).toContain("处理时间线");
 		expect(`${listSource}\n${showSource}`).not.toMatch(
-			/objectKey|ocrText|rawHtml|artifact_path|sourceObjectRefs/,
+			/app-api|operator-safe|projection|通知处理投影|objectKey|ocrText|rawHtml|artifact_path|sourceObjectRefs/,
 		);
 	});
 

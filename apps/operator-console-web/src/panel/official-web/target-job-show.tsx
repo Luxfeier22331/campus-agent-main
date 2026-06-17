@@ -58,10 +58,7 @@ function OfficialWebTargetJobShowContent() {
 	return (
 		<PanelPage>
 			<Stack spacing={3}>
-				<Alert severity="info">
-					目标任务详情来自 app-api operator 投影。页面展示 URL
-					候选、抓取尝试和校验状态，不把对象存储 key 或采集器本地路径作为面板契约。
-				</Alert>
+				<Alert severity="info">查看 URL 候选、抓取尝试和校验状态。</Alert>
 
 				<Box
 					sx={{
@@ -90,7 +87,7 @@ function OfficialWebTargetJobShowContent() {
 									value={<OfficialWebConsumerFamilyChip consumerFamily={record.consumerFamily} />}
 								/>
 								<TargetJobFieldRow
-									label="物化策略"
+									label="更新策略"
 									value={
 										<OfficialWebMaterializationPolicyChip
 											materializationPolicy={record.materializationPolicy}

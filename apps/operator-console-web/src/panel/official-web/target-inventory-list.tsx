@@ -60,12 +60,7 @@ const targetInventoryFilters = [
 ];
 
 function OfficialWebTargetInventoryContractNotice() {
-	return (
-		<Alert severity="info">
-			目标清单来自 app-api 的 official-web operator 投影，用于审阅页面级采集目标、字段缺口和
-			selected-write readiness；具体 release task 状态由 ingestion 投影承载。
-		</Alert>
-	);
+	return <Alert severity="info">查看页面级采集目标、字段缺口和发布准备状态。</Alert>;
 }
 
 function OfficialWebTargetInventoryEmpty() {
@@ -75,8 +70,7 @@ function OfficialWebTargetInventoryEmpty() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebTargetInventory}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里不会从历史 broad crawl、对象存储或采集器本地目录推导目标；没有 app-api
-						目标清单投影时保持为空。
+						当前没有可查看的官网目标清单。
 					</Typography>
 				</Stack>
 			</CardContent>
@@ -99,7 +93,7 @@ function OfficialWebSelectedWriteCell({ record }: { record: OfficialWebTargetInv
 		return <Typography color="text.secondary">-</Typography>;
 	}
 
-	return <Typography variant="body2">等待 ingestion release 投影</Typography>;
+	return <Typography variant="body2">等待发布任务</Typography>;
 }
 
 export function OfficialWebTargetInventoryListPage() {
@@ -111,7 +105,7 @@ export function OfficialWebTargetInventoryListPage() {
 			emptyWhileLoading
 			error={
 				<PanelListErrorState
-					description="目标清单页只读取 app-api 已治理的 inventory 投影；如果查询失败，面板会直接显示后端错误。"
+					description="官网目标清单加载失败。请稍后重试，或查看服务状态。"
 					title="官网目标清单读取失败"
 				/>
 			}

@@ -175,7 +175,7 @@ describe("request workflow trace formatters", () => {
 			{ label: "工具序列", value: "service_status_lookup" },
 			{ label: "工具调用", value: "service_status_lookup:completed/resolved_current" },
 			{
-				label: "执行投影",
+				label: "执行状态",
 				value: "service_status_lookup:campus_services/typed_payload_allowed_tool",
 			},
 			{

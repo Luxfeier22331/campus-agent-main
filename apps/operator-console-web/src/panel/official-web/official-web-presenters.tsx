@@ -150,7 +150,7 @@ export function OfficialWebRunIntentChip({
 export function OfficialWebHostsSummary({ hostRoots }: { hostRoots: string[] }) {
 	return (
 		<Typography variant="body2">
-			{hostRoots.length > 0 ? hostRoots.join(", ") : "暂无已投影主机"}
+			{hostRoots.length > 0 ? hostRoots.join(", ") : "暂无已登记主机"}
 		</Typography>
 	);
 }
