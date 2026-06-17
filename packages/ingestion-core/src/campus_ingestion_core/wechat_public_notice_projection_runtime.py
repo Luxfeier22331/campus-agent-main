@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 
-from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     InMemoryNoticeConsumptionProjectionStore,
     NoticeConsumptionProjectionEntry,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
 )
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.wechat_public_notice_projection_models import (
     WeChatPublicNoticeProjectionObjectStore,

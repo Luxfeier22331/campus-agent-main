@@ -70,7 +70,7 @@ repo 级 instruction hierarchy 固定拆成五层：
   - owns provider-facing prompt contract validation, structured output execution,
     provider response normalization and prompt trace construction for
     knowledge/RAG synthesis and other explicit provider activities
-- `packages/knowledge-capability`
+- Go-owned knowledge / RAG runtime
   - owns rag role prompt assets、typed task packet 与 typed evidence packet
 - `apps/app-api`
   - owns encrypted provider-config profiles and operator mutation APIs
@@ -195,12 +195,12 @@ repo 当前推荐的 system / role 设计固定为：
 
 直接含义：
 
-- `packages/knowledge-capability` 的 prompt family 只负责 `answer / clarify /
+- knowledge runtime 的 prompt family 只负责 `answer / clarify /
   no-answer / unsupported` 的 grounded wording
 - Python worker 当前不拥有 production execution terminal prompt family；
   non-delegate terminal routing 由 Go direct terminal path 返回，Go 继续负责
   delegated agent response finalization
-- `packages/retrieval-core` 不拥有 top-level system prompt
+- retrieval runtime seam 不拥有 top-level system prompt
 - `apps/*` 不拥有 execution prompt truth，只负责 request packaging / runtime admission
   / product projection
 
@@ -241,14 +241,14 @@ repo 当前推荐的 system / role 设计固定为：
 - owns runtime policy / routing frame / handoff projection
 - 不拥有 retrieval evidence ranking 和 collection-specific answer synthesis
 
-### `packages/knowledge-capability`
+### Knowledge Runtime
 
 - owns knowledge-path / `knowledge` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
 - 不拥有 account truth、operator access truth、serving truth 或 capability-opening truth
 
-### `packages/retrieval-core`
+### Retrieval Runtime
 
 - 不拥有 top-level task prompt
 - 只拥有 evidence retrieval 与 safe evidence serialization helper
@@ -267,7 +267,7 @@ instructions、typed task packet 与 strict tool/output contract，不得新增
 LLM-assisted execution wording，必须作为新的显式 workstream 重新定义 prompt family、
 eval gate 与 code finalization，不得复用已删除的旧 execution prompt assets。
 
-### Knowledge Path (`packages/knowledge-capability`)
+### Knowledge Path
 
 - `rag_answer_v1`
 - `rag_clarify_v1`
@@ -282,9 +282,10 @@ eval gate 与 code finalization，不得复用已删除的旧 execution prompt a
 
 ## Prompt Asset Placement
 
-prompt assets 长期放在各自 package source tree 内，而不是集中堆到 repo root：
-
-- `packages/knowledge-capability/src/campus_knowledge_capability/prompts/`
+prompt assets 长期放在各自 owner source tree 内，而不是集中堆到 repo root。当前
+knowledge/RAG prompt assets 由 Go-owned execution path 与 `packages/prompt-runtime`
+contract 管理；旧 Python `packages/knowledge-capability` prompt tree 已从 active workspace
+删除。
 
 prompt-facing vocabulary 规则固定为：
 

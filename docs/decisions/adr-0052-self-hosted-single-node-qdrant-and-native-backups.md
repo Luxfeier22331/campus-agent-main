@@ -119,9 +119,9 @@ collection snapshot 本身不承担 alias truth；alias binding 必须来自 man
 ADR-0020 标记为 superseded。旧 `qdrant-cloud-backup-and-restore-runbook.md`
 保留为 historical cloud/free-tier reference。
 
-新的 active runbook 为：
+新的 active staging data-plane runbook 为：
 
-- `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 
 现有 object-store backup cleanup 命令只用于清理历史 `*/backups/*` bundle；
 新的默认 backup 不再写入 derived bucket。

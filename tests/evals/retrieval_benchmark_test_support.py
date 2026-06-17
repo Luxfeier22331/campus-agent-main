@@ -28,7 +28,6 @@ from campus_evals import (
     validate_retrieval_qrels_fixture,
 )
 from campus_evals.retrieval_benchmark import main as benchmark_main
-from campus_evals.retrieval_live_benchmark import main as live_benchmark_main
 
 FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
@@ -223,7 +222,6 @@ __all__ = (
     "evaluate_retrieval_run",
     "io",
     "json",
-    "live_benchmark_main",
     "load_retrieval_benchmark_run",
     "load_retrieval_qrels_dataset",
     "patch",

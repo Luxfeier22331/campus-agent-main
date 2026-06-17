@@ -28,8 +28,8 @@ updated: 2026-06-13
 ## Env Surfaces
 
 - active operator override examples live under `env/commands/*.env.example`
-- narrow historical recovery examples live under
-  `env/commands/historical/*.env.example`
+- historical Python ingestion command override examples are removed from the
+  active branch tip with their executable command surfaces
 
 ## Usage Rule
 
@@ -38,6 +38,6 @@ updated: 2026-06-13
   `env-ownership-and-overrides.md`
 - 需要判断 staging / eval readiness gate 与 deploy-side contract，读
   `deploy-and-eval-readiness.md`
-- 需要找命令级 env 模板时，先看 `env/commands/*.env.example`；仅历史 closeout / narrow recovery
-  使用 `env/commands/historical/*.env.example`
+- 需要找命令级 env 模板时，先看 `env/commands/*.env.example`；旧 Python ingestion
+  closeout / rebuild / release command env 不再作为 tracked fallback surface
 - 需要具体 deploy、smoke、rotate 或 recovery 步骤，回到对应 runbook

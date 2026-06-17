@@ -25,7 +25,7 @@ func TestSelectRAGEvidenceFailsClosedWithoutAnswerBearingEvidence(t *testing.T) 
 			Title:     "学生手册",
 		}},
 		SchemaVersion: "retrieval_lookup_result_v1",
-	})
+	}, 8)
 	if err == nil {
 		t.Fatal("selection without answer-bearing evidence must fail closed")
 	}
@@ -68,7 +68,7 @@ func TestSelectRAGEvidenceKeepsOnlyAnswerBearingEvidence(t *testing.T) {
 			},
 		},
 		SchemaVersion: "retrieval_lookup_result_v1",
-	})
+	}, 8)
 	if err != nil {
 		t.Fatalf("select evidence: %v", err)
 	}

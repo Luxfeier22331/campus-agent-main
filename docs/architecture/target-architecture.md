@@ -37,7 +37,7 @@ updated: 2026-06-13
   参与 typed step
 - shared app runtime 与 execution engine 分层
 - Temporal-backed durable execution plane
-- execution-control + workflow / activity worker pools + worker autoscaler
+- execution-control + workflow / activity worker pools + KEDA/HPA worker autoscaling
 - Go-owned workflow worker 与 capability activity worker plane；Python 不作为长期
   online answer hot path
 - 独立 ingestion / data plane
@@ -129,7 +129,9 @@ flowchart LR
     Context["activity-worker-context\nmemory recall / context packet"]
     PrimaryAgent["activity-worker-agent\nOpenAI Agents SDK bridge"]
     AgentRuntime["agent-runtime\nmodel-facing primary agent loop"]
-    Knowledge["activity-worker-knowledge\nRAG / evidence / synthesis support"]
+    KnowledgePlan["knowledge-plan worker\nRAG planning / selection / grounding"]
+    KnowledgeRetrieval["knowledge-retrieval worker\nQdrant / embedding lookup"]
+    KnowledgeSynthesis["knowledge-synthesis worker\nprovider synthesis"]
     Services["activity-worker-campus-services\nservice tools"]
     Nav["activity-worker-navigation\nnavigation tools"]
     Notice["activity-worker-notice\nnotice tools"]
@@ -162,7 +164,9 @@ flowchart LR
 
   Temporal --> Workflow
   Temporal --> Context
-  Temporal --> Knowledge
+  Temporal --> KnowledgePlan
+  Temporal --> KnowledgeRetrieval
+  Temporal --> KnowledgeSynthesis
   Temporal --> Services
   Temporal --> Nav
   Temporal --> Notice
@@ -218,13 +222,16 @@ collector/source admission
   operator-safe read model；不拥有 ingestion task execution、source mutation、
   document/index materialization 或 Qdrant alias publish。
 - ingestion control plane 拥有 task admission、task registry、claim / lease /
-  retry / dead-letter、run shard state、telemetry closeout 与 operator projection
-  snapshot。
-- `apps/ingestion-worker` 是 durable executor shell；它按 source family 分派任务，
-  调用 ingestion contracts、deterministic kernels 与 provider/domain adapters，并把
-  redacted closeout 投影回 operator surface。
+  retry / dead-letter、run shard state、registry-aware executor dispatch、telemetry
+  closeout 与 operator projection snapshot。
+- `apps/ingestion-control` 的 executor shell 按 registry 分派 `ts_control` /
+  `rust_kernel` 任务，并把 redacted closeout 投影回 operator surface；缺失 handler /
+  kernel 时 fail closed。
+- `apps/ingestion-worker` 只保留 Python adapter island；Python extraction 只能由显式
+  TS task handler 调用，不作为 collection lifecycle 或 fallback executor。
 - `packages/ingestion-core` 继续拥有 canonical data-plane contract、shared file asset
-  loader、source-truth / materialization / release task 语义与 collection strategy。
+  loader、source-truth / materialization strategy 与 collection strategy；release
+  lifecycle 由 ingestion-control task registry/executor 承接。
 - Rust 只作为 proof-gated deterministic kernel lane，用于 profiling 已证明的高吞吐
   CPU / memory 热点，例如 JSONL streaming、document-units validation、chunk packing、
   hash / dedup / diff、release manifest validation 与 embedding batch input preparation。
@@ -278,9 +285,10 @@ collector/source admission
   live fanout adjunct
 - K8s 只作为 pod/resource/rollout substrate；不得拥有 workflow history、task queue truth、
   product run projection、event projection 或 terminal truth
-- worker autoscaler 只能调整 workflow / activity worker replica count，不得写
+- production worker autoscaling 目标态由 KEDA Temporal scaler + Kubernetes HPA
+  承接；autoscaler 只能调整 workflow / activity worker replica count，不得写
   workflow state、product run projection、step projection、event projection 或 terminal
-  state
+  state。Docker Compose `worker-autoscaler` 只保留 local / transitional staging 语义。
 - capability 不得只因为 typed tool / worker 函数可执行就进入 production-open；normal、
   fail-close、cancel、timeout、late-completion 与 replan outcome 必须能写入
   step/attempt/result projection，并能被 app-api operator read model 消费
@@ -318,6 +326,9 @@ collector/source admission
 - worker runtime 拆成 workflow worker 与 activity worker pools；deterministic
   workflow code 负责 orchestration，package-owned specialists 继续负责 bounded
   semantic reasoning
+- production worker runtime 目标部署在 Kubernetes 中以独立 Deployment 表达，并通过
+  KEDA Temporal scaler + Kubernetes HPA 按 Temporal task queue backlog 调整 replica；
+  K8s/HPA/KEDA 不拥有 workflow history、product projection 或 terminal truth。
 - worker plane 拆分优先于语言重写：先把 workflow worker、context / memory
   activity worker、knowledge activity worker、finalization / projection worker
   与 notice / navigation / campus_services worker 拆成可独立扩容、可观测、
@@ -406,7 +417,8 @@ collector/source admission
 - `navigation` 长期可消费 transport point refs / service point refs，但不拥有
   timetable truth 或 service-status truth。
 - `knowledge` 长期拆成 scope resolution、retrieval planning、answer
-  synthesis、grounding validation 等内部角色。
+  synthesis、grounding validation 等内部角色；当前 runtime owner 为 Go-owned
+  `apps/execution-control` RAG Temporal graph
 - `context.memory_recall` 是 capability-neutral bounded context step，不属于
   RAG worker 的私有前置逻辑；`plan.route` 只能作为 retained deterministic
   support path / historical planning artifact，不再是普通 chat 的 first
@@ -426,7 +438,7 @@ collector/source admission
 - `knowledge` 不再作为所有 campus 请求的默认 fallback；它是 knowledge / retrieval /
   grounding specialist，可以消费 notice、service、navigation step 产生的 bounded context，
   但不能代持这些 domain capability 的 source truth
-- `retrieval-core` 长期负责 retrieval execution、rerank / merge / dedupe、query
+- repo-owned retrieval runtime seam 长期负责 retrieval execution、rerank / merge / dedupe、query
   activity 与 candidate-set shaping
 - retrieval backend、vector infra、framework 选择隐藏在 agent / retrieval boundary 之后
 - 非 RAG deterministic capability 只要是稳定能力边界，默认应作为 typed tool / internal query
@@ -491,7 +503,7 @@ graph / typed activity -> sanitized StepResult projection`
   repo 预先暴露的 model-visible read-only tool catalog 内选择工具
 - tool 必须优先建模为 read-only typed capability；state-changing tool 不属于当前
   campus 主问答产品目标
-- tool 后端必须是 repo-owned internal query service、retrieval-core 或已 admission
+- tool 后端必须是 repo-owned internal query service、retrieval runtime seam 或已 admission
   的 source-channel adjunct，不得直接暴露 browser-facing API、raw SQL、raw object-store
   bytes、collector runtime 或 ingestion/index build path
 - tool result 必须先变成 bounded result projection 或 `StepOutputProjection`，再进入

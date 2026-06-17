@@ -78,7 +78,18 @@ def build_rag_retrieval_quality_gate_report(
         if evidence_root is not None
         else default_retrieval_quality_evidence_root(repo_root=root)
     )
-    readiness_payload = _load_json_object(evidence / "runtime-readiness.current.json")
+    readiness_path = evidence / "runtime-readiness.current.json"
+    if not readiness_path.exists():
+        return RagRetrievalQualityGateReport(
+            schema_version=RAG_RETRIEVAL_QUALITY_GATE_SCHEMA_VERSION,
+            report_id="rag_retrieval_quality_gate",
+            passed=False,
+            surfaces=(),
+            gaps=("missing_evidence_artifact:runtime-readiness.current.json",),
+            excluded_surfaces=dict(EXCLUDED_RAG_RETRIEVAL_QUALITY_SURFACES),
+            non_blocking_surfaces=dict(NON_BLOCKING_RAG_RETRIEVAL_QUALITY_SURFACES),
+        )
+    readiness_payload = _load_json_object(readiness_path)
     readiness_by_scope = {
         str(surface.get("scope") or ""): surface
         for surface in readiness_payload.get("surfaces") or ()

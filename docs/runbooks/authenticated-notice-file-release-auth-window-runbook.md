@@ -18,10 +18,10 @@ updated: 2026-04-18
 它不替代：
 
 - `docs/reference/authenticated-notice-file-release-export-contract.md` 的导出契约
-- `docs/runbooks/authenticated-notice-bootstrap-smoke-runbook.md` 的 notice
-  bootstrap import smoke
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md` 的 replay /
-  preparation 路径
+- `docs/runbooks/ingestion-control-clean-target-runbook.md` 的 ingestion task
+  admission / closeout 路径
+- `docs/runbooks/archive/python-ingestion-worker/` 中的 historical replay /
+  preparation 旧证据
 
 ## 适用范围
 
@@ -33,7 +33,7 @@ updated: 2026-04-18
 
 当前明确不做：
 
-- ingestion-worker replay
+- ingestion-control replay
 - regulation promotion
 - OCR
 - chunk preparation

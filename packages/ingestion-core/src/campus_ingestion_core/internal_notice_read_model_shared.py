@@ -34,6 +34,9 @@ class InternalNoticeReadModelEntry:
     entitlement_groups: tuple[str, ...] = ()
     policy_projection_version: str = ""
     published_at: str = ""
+    published_at_ts: str = ""
+    effective_at_ts: str = ""
+    expires_at_ts: str = ""
     source_url: str = ""
     canonical_url: str = ""
     canonical_document_id: str = ""

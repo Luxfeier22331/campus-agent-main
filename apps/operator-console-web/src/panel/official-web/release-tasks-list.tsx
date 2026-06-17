@@ -68,7 +68,7 @@ function EmptyState() {
 				<Stack spacing={1.5}>
 					<Typography variant="h6">{PANEL_COPY.emptyState.officialWebReleaseTasks}</Typography>
 					<Typography color="text.secondary" variant="body2">
-						这里展示 ingestion-worker 回报给 app-api 的发布任务安全投影。
+						这里展示 ingestion-control 回报给 app-api 的发布任务安全投影。
 					</Typography>
 				</Stack>
 			</CardContent>

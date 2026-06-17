@@ -21,7 +21,7 @@ updated: 2026-04-20
 ## Current Canonical Entry
 
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
 

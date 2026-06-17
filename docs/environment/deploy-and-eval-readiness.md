@@ -27,7 +27,7 @@ updated: 2026-04-23
 
 - `README.md`
 - `provider-and-secret-inventory.md`
-- `../runbooks/staging-worker-deploy-runbook.md`
+- `../runbooks/execution-control-staging-operations.md`
 - `../runbooks/provider-secret-governance.md`
 
 ## Readiness Gates
@@ -63,10 +63,10 @@ from Worker staging:
 
 Conditional readiness:
 
-- if `EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true`, doctor requires
+- if runtime profile `execution_audit.enabled=true`, doctor requires
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-- if `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
+- if runtime profile `open_capabilities` opens `campus_services` or `notice`,
   doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
   read-model/object-store runtime dependencies
@@ -114,8 +114,9 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - 不再把 `ayafeed.com` 或 `*.rag.ayafeed.com` 视为 campus-agent staging deploy truth
 - `mucwiki-edge.link` 是当前 repo-owned staging zone
-- `apps/execution-control` 的 deploy substrate 已冻结为 Docker-first internal execution
-  service
+- `apps/execution-control` 的当前 staging deploy substrate 是 Docker-first internal
+  execution service；production target deploy substrate 已由 ADR-0056 收口为
+  Kubernetes + KEDA
 - `apps/execution-control` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
   `STAGING_EXECUTION_CONTROL_BASE_URL`
 - campus / public chat / panel 的 app-api upstream invariant 是 `APP_API` Service
@@ -179,6 +180,6 @@ uv run --all-packages python -m scripts.eval_gate doctor --json
 
 ## Related Runbooks
 
-- `docs/runbooks/staging-worker-deploy-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 - `docs/runbooks/provider-secret-governance.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

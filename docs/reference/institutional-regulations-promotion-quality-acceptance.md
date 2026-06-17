@@ -28,8 +28,8 @@ promotion/materialization 的 acceptance truth。
 相关文档：
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
-- `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
-- `docs/runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-policy-regulation-promotion-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-regulation-target-quality-acceptance-runbook.md
   `
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
 

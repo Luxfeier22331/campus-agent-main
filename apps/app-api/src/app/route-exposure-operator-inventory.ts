@@ -376,6 +376,24 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/runtime/autoscaler/decisions",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/runtime/autoscaler/actuations",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/runtime/temporal-task-queues",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/safety/anomalies",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",

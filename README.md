@@ -18,7 +18,9 @@ campus-web same-origin allowlisted /api/* -> app-api
 
 browser -> public-chat-web -> app-api -> execution-control
 -> Temporal -> workflow-worker / activity-worker-context /
-activity-worker-agent / activity-worker-knowledge / capability workers /
+activity-worker-agent / activity-worker-knowledge-plan /
+activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
+capability workers /
 activity-worker-finalization
 -> memory recall / OpenAI Agents SDK primary agent loop / typed capability
 branch / Go RAG DTO/runtime
@@ -79,7 +81,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
     `ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `knowledge-capability`、`retrieval-core`、`ingestion-core`、`contracts`
+    `ingestion-core`、`contracts`、`prompt-runtime`、`campus-services-capability`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -96,9 +98,8 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
-- [`packages/knowledge-capability`](./packages/knowledge-capability/)
 - [`packages/prompt-runtime`](./packages/prompt-runtime/)
-- [`packages/retrieval-core`](./packages/retrieval-core/)
+- [`packages/ingestion-core`](./packages/ingestion-core/)
 
 ## Documentation
 
@@ -175,8 +176,8 @@ canonical artifacts / reader assets in object storage
 - sync manifest 指向的对象存储 reader assets
 - 对应环境的 app-api operator database 与对象存储读取配置
 
-完整发布、导入、构建和验收步骤见
-[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md)。
+旧 document-reader 发布、导入、构建和验收流程已归档，见 historical
+[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md)。
 不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 

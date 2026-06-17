@@ -23,6 +23,9 @@ owns this section group; the original path remains the stable index.
 - `POST /api/internal/execution/audit-events`
 - `POST /api/internal/operator/evals/coverage-snapshots`
 - `POST /api/internal/operator/evals/diagnostic-badcases`
+- `POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
+- `GET /api/internal/operator/runtime/temporal-task-queues`
+- `GET /api/internal/operator/runtime/autoscaler/actuations`
 
 适用前提：
 
@@ -30,9 +33,33 @@ owns this section group; the original path remains the stable index.
 - 这是 internal producer（grader worker / sink reconciliation worker）写入 projection
   的入口
 - 这些 endpoint 不向 panel 暴露，不支持 ad-hoc query
+- runtime query endpoints 只供 execution-control 读取 sanitized projection，不暴露
+  raw Temporal response、Docker output 或 app-api database rows
 - 对于 app-api 自己掌握的 request lifecycle，runtime 内置 recorder 可以直接写入同一
   `operator.trace_backlink_projection`；internal endpoint 仍保留给 external sink
   reconciliation worker / grader worker
+
+### Runtime Task Queue / Autoscaler Projection
+
+`execution-control` publishes sanitized runtime observations through:
+
+- `POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
+
+`execution-control` reads sanitized runtime projections through:
+
+- `GET /api/internal/operator/runtime/temporal-task-queues`
+- `GET /api/internal/operator/runtime/autoscaler/actuations`
+
+Rules:
+
+- task queue snapshots and autoscaler projections use
+  `temporal_task_queue_metrics_snapshot.v1`
+- autoscaler cooldown reads recent `worker_autoscaler_actuation.v1` projection
+  through the internal actuation query endpoint
+- query responses are operator-safe projections only; they must not include raw
+  Temporal responses, raw Docker Compose output, provider traces, credentials,
+  cookies or tokens
+- runtime projection query endpoints require `x-app-internal-auth`
 
 ### `POST /api/internal/operator/evals/coverage-snapshots`
 

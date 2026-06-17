@@ -370,6 +370,82 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/runtime/temporal-task-queues", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listTemporalTaskQueues({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					taskQueue: c.req.query("taskQueue") ?? null,
+					taskQueueKind: c.req.query("taskQueueKind") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/runtime/autoscaler/decisions", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerDecisions({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					decision: c.req.query("decision") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/runtime/autoscaler/actuations", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerActuations({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					decisionId: c.req.query("decisionId") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					status: c.req.query("status") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
 	input.app.get("/api/operator/intent/timeseries", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

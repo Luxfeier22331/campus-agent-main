@@ -4,10 +4,18 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: accepted
 created: 2026-04-02
-updated: 2026-04-02
+updated: 2026-06-15
 decision_id: ADR-0021
 ---
 # ADR-0021：Institution-Scoped Entity Alias Governance
+
+## 当前边界说明
+
+本 ADR 的 institution-scoped alias governance 结论仍有效。早期将 owner 写为
+Python `packages/knowledge-capability` / `packages/retrieval-core` 的段落已由
+`docs/architecture/system/python-capability-boundaries.md` 局部 supersede；当前
+owner 是 Go-owned execution-control retrieval seam、repo-owned DTO / domain
+semantics packages 与 eval fixtures 的组合边界。
 
 ## 背景
 
@@ -136,13 +144,13 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 - `思修课` 也不是 repo-wide 通用 safe alias
 - `思修课` 只在中央民族大学课程域中被接受为 `思想政治理论课` 的 institution-scoped family alias
 
-### 决策 5：alias resolution 的 owner 在 knowledge
+### 决策 5：alias resolution 的 owner 在 knowledge-family seam
 
 长期 owner split 固定如下：
 
-- `packages/knowledge-capability 拥有 alias/entity resolution、ambiguity policy、clarification
-  policy 与 answer shaping contract
-- `packages/retrieval-core` 只消费 canonical entity/filter truth，不拥有 alias 治理语义
+- knowledge-family seam 拥有 alias/entity resolution、ambiguity policy、clarification
+  policy 与 answer shaping contract；当前实现不得恢复旧 Python knowledge package
+- retrieval runtime 只消费 canonical entity/filter truth，不拥有 alias 治理语义
 - `packages/ingestion-core` 负责构建离线派生的 canonical entity facts，例如 course facts /
   family facts / audience facts
 - `packages/evals` 负责验证 alias resolution 的 deterministic truth 与 fail-close

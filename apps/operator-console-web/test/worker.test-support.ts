@@ -37,6 +37,8 @@ export function createOperatorQueryServiceMock(
 		listSafetyAnomalies: vi.fn(),
 		getCostSummary: vi.fn(),
 		getCostTimeseries: vi.fn(),
+		listAutoscalerActuations: vi.fn(),
+		listAutoscalerDecisions: vi.fn(),
 		list: vi.fn().mockResolvedValue({
 			page: {
 				nextCursor: null,
@@ -46,6 +48,7 @@ export function createOperatorQueryServiceMock(
 		listAudit: vi.fn(),
 		listQualityBadcases: vi.fn(),
 		listQualityEvalCandidates: vi.fn(),
+		listTemporalTaskQueues: vi.fn(),
 		...overrides,
 	};
 }

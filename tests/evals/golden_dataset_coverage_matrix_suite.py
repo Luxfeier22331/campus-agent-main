@@ -18,19 +18,19 @@ class GoldenDatasetCoverageMatrixSuite(unittest.TestCase):
 
         self.assertIn("generated_by: campus_evals.golden_dataset_coverage_matrix", rendered)
         self.assertIn(
-            "| `regulations/student_rules` | `handbook` | `case_results` | 52 | 46 | 25 | 5 | 0 | 4 | `baseline_ready` |",
+            "| `regulations/student_rules` | `regulations-student-rules` | `release_acceptance_result` | 52 | 46 | 25 | 5 | 0 | 4 | `baseline_ready` |",
             rendered,
         )
         self.assertIn(
-            "| `regulations/institutional_rules` | `institutional-rules-release-baseline` | `composite_gate` | 46 | 42 | 45 | 42 | 89 | 0 | `baseline_ready` |",
+            "| `regulations/institutional_rules` | `regulations-institutional-rules` | `release_acceptance_result` | 46 | 42 | 45 | 42 | 89 | 0 | `baseline_ready` |",
             rendered,
         )
         self.assertIn(
-            "| `curriculum/curriculum_plan` | `curriculum` | `case_results` | 60 | 49 | 30 | 5 | 0 | 0 | `baseline_ready` |",
+            "| `curriculum/curriculum_plan` | `curriculum-curriculum-plan` | `release_acceptance_result` | 60 | 49 | 30 | 5 | 0 | 0 | `baseline_ready` |",
             rendered,
         )
         self.assertIn(
-            "| `official_web/stable_reference` | `official-web-stable-reference` | `case_results` | 4 | 3 | 5 | 0 | 0 | 0 | `baseline_ready` |",
+            "| `official_web/stable_reference` | `official-web-stable-reference-release` | `release_acceptance_result` | 4 | 3 | 5 | 0 | 0 | 0 | `baseline_ready` |",
             rendered,
         )
         self.assertIn(

@@ -656,15 +656,27 @@ boundary。
 runtime OTel 接入口径、事件 taxonomy、attribute allowlist、forbidden fields 与 runtime
 ownership matrix 固定在
 `docs/reference/runtime-otel-telemetry-taxonomy.md`。该 reference 的核心约束是：OTel SDK
-只进入 `apps/*` runtime / adapter / deployment 层；`retrieval-core`、`knowledge`、
-`ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖 Sentry、Axiom、Collector
-或 OpenTelemetry SDK。
+只进入 `apps/*` runtime / adapter / deployment 层；retrieval runtime seam、knowledge
+runtime、`ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖
+Sentry、Axiom、Collector 或 OpenTelemetry SDK。
 
-Runtime bridge implementation state belongs in `../current-architecture.md`.
-This document only keeps the long-term seam: runtime boundaries emit sanitized
-OTel-compatible trace/metric signals, collector/adapter policy handles
-redaction and sink fan-out, and app-api-owned projection remains the operator
-read model.
+当前 runtime bridge 已收口为：
+
+- `apps/execution-control` 是 online trace owner，负责 request admission、bridge
+  attempt、Temporal workflow/activity attempt 与 finalization 的 sanitized OTLP
+  trace signal
+- `apps/execution-control` 在启用 OTel 后对 configured product answer paths
+  采用 fail-close 语义；telemetry 交付失败返回
+  `telemetry_delivery_failed`，sampling 丢弃仍只作为显式采样计数
+- online knowledge / RAG observation 由 Go
+  `activity-worker-knowledge-retrieval` / `execution-control` runtime adapter
+  把 `retrieval.runtime_observation` 映射成 sanitized runtime event sink；
+  Python bridge 只可保留 offline / eval / historical sink
+- `apps/ingestion-control` 负责 offline run-level started/completed/failed telemetry
+- `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom
+  fan-out template
+- `docs/runbooks/runtime-otel-collector-pipeline.md` 提供 local debug、staging env、
+  closeout smoke 与 drop diagnosis 操作口径
 
 ## Cost Model
 

@@ -30,7 +30,7 @@ class ObjectStoreAdmin(ObjectStoreByteReader, Protocol):
 
 
 def _build_object_store_from_env(source: Mapping[str, str]) -> ObjectStoreAdmin:
-    from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+    from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
     from campus_ingestion_core.settings import ObjectStoreSettings
 
     return S3ObjectStoreAdmin(ObjectStoreSettings.from_env(dict(source)))

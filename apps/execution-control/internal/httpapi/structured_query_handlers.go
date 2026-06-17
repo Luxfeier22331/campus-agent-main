@@ -44,6 +44,8 @@ func (s *Server) handleStructuredQuery(
 		result = s.structuredQuery.LookupAcademicCalendar(ctx, body)
 	case structuredquery.ToolCampusNoticeDiscover:
 		result = s.structuredQuery.LookupCampusNoticeDiscover(ctx, body)
+	case structuredquery.ToolCampusNoticePeriodSummary:
+		result = s.structuredQuery.LookupCampusNoticePeriodSummary(ctx, body)
 	case structuredquery.ToolCampusNoticeChangeSet:
 		result = s.structuredQuery.LookupCampusNoticeChangeSet(ctx, body)
 	case structuredquery.ToolCampusNoticeGet:

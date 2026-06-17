@@ -32,16 +32,14 @@ from campus_ingestion_core.internal_notice_chunking_validation_shared import (
     InternalNoticeValidationInputs,
     _derive_document_title,
     _load_rows,
-    _record_key,
     _require_document_units_key,
     _resolve_max_workers,
     _resolve_notice_id_from_document_id,
 )
-from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
-from campus_ingestion_core.registry_scope_chunk_preparation import load_chunk_preparation_manifest
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names
 
 
@@ -71,24 +69,10 @@ def _build_validation_inputs(
         )
     )
     if preparation_run_id:
-        selected_records, missing_manifest_records, manifest_closeout_run_id = (
-            _select_manifest_records(
-                source=source,
-                registry=runtime_registry,
-                object_store=runtime_object_store,
-                bucket=bucket_derived,
-                corpus=corpus,
-                collection=collection,
-                preparation_run_id=preparation_run_id,
-                closeout_store=closeout_store,
-            )
+        raise ValueError(
+            "preparation_run_id is no longer supported; use closeout_run_id or current scope"
         )
-        records = selected_records
-        selection_mode: Literal[
-            "current_scope", "preparation_manifest", "verified_closeout_run"
-        ] = "preparation_manifest"
-        resolved_closeout_run_id = manifest_closeout_run_id
-    elif closeout_run_id:
+    if closeout_run_id:
         runtime_closeout_store = (
             closeout_store
             or build_authenticated_notice_closeout_store_from_env(
@@ -107,7 +91,7 @@ def _build_validation_inputs(
         )
         records = selected_records
         missing_manifest_records = ()
-        selection_mode = "verified_closeout_run"
+        selection_mode: Literal["current_scope", "verified_closeout_run"] = "verified_closeout_run"
         resolved_closeout_run_id = closeout_run_id
     else:
         runtime_registry = runtime_registry or build_document_registry_from_env(
@@ -146,84 +130,6 @@ def _build_validation_inputs(
         notice_risk_profiles=notice_risk_profiles,
         notice_risk_counts=notice_risk_counts,
         high_risk_notice_count=high_risk_notice_count,
-    )
-
-
-def _select_manifest_records(
-    *,
-    source: dict[str, str],
-    registry: DocumentRegistry | None,
-    object_store: InternalNoticeChunkValidationArtifactReader,
-    bucket: str,
-    corpus: str,
-    collection: str,
-    preparation_run_id: str,
-    closeout_store: CloseoutStore | None,
-) -> tuple[tuple[DocumentRegistryRecord, ...], tuple[str, ...], str | None]:
-    manifest = load_chunk_preparation_manifest(
-        reader=object_store,
-        bucket=bucket,
-        corpus=corpus,
-        collection=collection,
-        preparation_run_id=preparation_run_id,
-    )
-    if manifest.selection_mode == "verified_closeout_run":
-        if not manifest.closeout_run_id:
-            raise ValueError(
-                "closeout-backed preparation manifest is missing closeout_run_id: "
-                f"{preparation_run_id}"
-            )
-        runtime_closeout_store = (
-            closeout_store
-            or build_authenticated_notice_closeout_store_from_env(
-                source,
-                prefer_operator=True,
-            )
-        )
-        pairs = load_verified_closeout_run_document_record_pairs(
-            run_id=manifest.closeout_run_id,
-            closeout_store=runtime_closeout_store,
-            expected_corpus=corpus,
-            expected_collection=collection,
-        )
-        pairs_by_key = {_record_key(pair.final_record): pair for pair in pairs}
-        selected_records: list[DocumentRegistryRecord] = []
-        missing_manifest_records: list[str] = []
-        for document in manifest.documents:
-            pair = pairs_by_key.get(
-                (document.document_id, document.revision_track, document.version_id)
-            )
-            if pair is None:
-                missing_manifest_records.append(
-                    f"{document.document_id}::{document.revision_track}::{document.version_id}"
-                )
-                continue
-            selected_records.append(pair.staged_record)
-        return (
-            tuple(selected_records),
-            tuple(sorted(missing_manifest_records)),
-            manifest.closeout_run_id,
-        )
-    selected_records = []
-    missing_manifest_records: list[str] = []
-    runtime_registry = registry or build_document_registry_from_env(
-        source,
-        prefer_operator=True,
-    )
-    for document in manifest.documents:
-        record = runtime_registry.get(
-            document.document_id, document.revision_track, document.version_id
-        )
-        if record is None:
-            missing_manifest_records.append(
-                f"{document.document_id}::{document.revision_track}::{document.version_id}"
-            )
-            continue
-        selected_records.append(record)
-    return (
-        tuple(selected_records),
-        tuple(sorted(missing_manifest_records)),
-        manifest.closeout_run_id,
     )
 
 

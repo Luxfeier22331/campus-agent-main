@@ -61,7 +61,7 @@ from campus_ingestion_core.authenticated_notice_source_truth_replay import (
     load_authenticated_notice_source_truth_replay_inventory_from_payload,
 )
 from campus_ingestion_core.object_store import build_operations_artifact_key
-from campus_ingestion_core.raw_ingestion import OnlineOcrClient
+from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrClient
 from campus_ingestion_core.registry import (
     DocumentRegistry,
     RawAssetRegistry,

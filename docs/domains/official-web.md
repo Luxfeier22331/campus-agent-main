@@ -36,9 +36,10 @@ Documentation ownership rules remain in `../documentation-architecture.md`.
 
 ## Runbooks
 
-- `../runbooks/official-web-collector-smoke-and-audit.md`
 - `../runbooks/official-web-dynamic-shell-discovery.md`
-- `../runbooks/official-web-source-truth-projection-replay.md`
+- `../runbooks/ingestion-control-clean-target-runbook.md`
+- historical Python ingestion worker runbooks:
+  `../runbooks/archive/python-ingestion-worker/`
 
 ## Reference And Policy
 

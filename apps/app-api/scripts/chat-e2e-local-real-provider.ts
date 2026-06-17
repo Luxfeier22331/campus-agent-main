@@ -3,9 +3,6 @@ import process from "node:process";
 
 const localRealProviderTimeoutMs =
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS?.trim() || "180000";
-const localRealProviderExecutionTimeoutMs =
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_EXECUTION_TIMEOUT_MS?.trim() ||
-	localRealProviderTimeoutMs;
 
 const args = [
 	"--dir",
@@ -36,9 +33,10 @@ const child = spawn("pnpm", args, {
 			"agent-runtime-local-placeholder",
 		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
 		EXECUTION_CONTROL_TIMEOUT_MS:
-			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
-		EXECUTION_CONTROL_REQUEST_TIMEOUT_MS:
-			process.env.EXECUTION_CONTROL_REQUEST_TIMEOUT_MS || localRealProviderExecutionTimeoutMs,
+			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderTimeoutMs,
+		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:
+			process.env.EXECUTION_CONTROL_RUNTIME_CONFIG_PATH ||
+			"/etc/campus-agent/runtime-profile.local-real-provider.json",
 	},
 	stdio: "inherit",
 });

@@ -255,7 +255,7 @@ offline/eval hardening：
   runtime surface
 - `refusal` / `incomplete` / `content-filter` 现在会以 observability-safe typed
   product state 留痕，而不是只作为 fallback reason
-- `packages/knowledge-capability` 中的 claim validator 不作为 online serving gate；
+- 旧 Python `packages/knowledge-capability` 中的 claim validator 不作为 online serving gate；
   不继续把 Python validator depth 当作主链路实现缺口
 - claim-level semantic grounding 只有在 badcase / eval 证明 evidence-integrity 不足时，
   才作为 Go RAG hardening 进入实施

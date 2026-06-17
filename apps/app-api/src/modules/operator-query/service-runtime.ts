@@ -17,6 +17,9 @@ import {
 	normalizeQualityBadcaseListFilters,
 	normalizeRequestListFilters,
 	normalizeSafetyAnomalyListFilters,
+	normalizeTemporalTaskQueueListFilters,
+	normalizeWorkerAutoscalerActuationListFilters,
+	normalizeWorkerAutoscalerDecisionListFilters,
 } from "./service-normalization";
 import type {
 	NormalizedOperatorOverviewFilters,
@@ -680,6 +683,27 @@ export function buildOperatorQueryService(
 				feedbackCandidates,
 				ragasDiagnosticCandidates,
 				filters.limit,
+			);
+		},
+
+		async listTemporalTaskQueues(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listTemporalTaskQueues(
+				normalizeTemporalTaskQueueListFilters(input.filters),
+			);
+		},
+
+		async listAutoscalerDecisions(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listAutoscalerDecisions(
+				normalizeWorkerAutoscalerDecisionListFilters(input.filters),
+			);
+		},
+
+		async listAutoscalerActuations(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listAutoscalerActuations(
+				normalizeWorkerAutoscalerActuationListFilters(input.filters),
 			);
 		},
 	};

@@ -29,15 +29,15 @@ from campus_ingestion_core.online_ocr_evidence import (
     build_provider_summary,
     extract_paddle_plain_text,
 )
-from campus_ingestion_core.raw_ingestion import (
+from campus_ingestion_core.raw_ingestion_online_ocr import (
     DEFAULT_ONLINE_OCR_MODEL,
     ONLINE_OCR_PROVIDER_ASYNC_JOBS,
     ONLINE_OCR_PROVIDER_MINERU_API,
     OnlineOcrClient,
     OnlineOcrSettings,
-    S3ObjectStoreClient,
     build_online_ocr_client,
 )
+from campus_ingestion_core.raw_ingestion_source_truth_support import S3ObjectStoreClient
 from campus_ingestion_core.registry import RawAssetRegistry, build_raw_asset_registry_from_env
 from campus_ingestion_core.settings import ObjectStoreSettings
 

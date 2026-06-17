@@ -416,26 +416,6 @@ def _resolve_profile_spec(profile: str) -> EvalProfileDefinition:
 
 def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
     normalized = resolve_profile_id(profile)
-    if normalized == "handbook":
-        from campus_evals.handbook_live_benchmark import main as runner
-
-        return runner
-    if normalized == "curriculum":
-        from campus_evals.curriculum_live_benchmark import main as runner
-
-        return runner
-    if normalized == "official-web-stable-reference":
-        from campus_evals.official_web_live_benchmark import main as runner
-
-        return runner
-    if normalized == "service-guide-lookup":
-        from campus_evals.service_guide_lookup_release_gate import main as runner
-
-        return runner
-    if normalized == "contact-directory-lookup":
-        from campus_evals.contact_directory_lookup_release_gate import main as runner
-
-        return runner
     if normalized == "campus-services-product-path":
         from campus_evals.campus_services_product_path_opening_gate import main as runner
 
@@ -484,10 +464,6 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.zep_memory_product_path import main as runner
 
         return runner
-    if normalized == "institutional-rules-release-baseline":
-        from campus_evals.institutional_rules_release_baseline_gate import main as runner
-
-        return runner
     if normalized == "eval-operations-governance":
         from campus_evals.eval_profile_gate import eval_operations_governance_main as runner
 
@@ -528,7 +504,7 @@ def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
 def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
     text = workflow_path.read_text(encoding="utf-8")
     required_tokens = (
-        "scripts.generate_capability_execution_contracts",
+        "scripts.generate_supervisor_execution_contracts",
         "--check",
         "multi-agent-runtime-contract",
         "actions/upload-artifact",
@@ -604,11 +580,15 @@ def _audit_rag_retrieval_quality_gate() -> dict[str, object]:
             "excluded_surfaces": {},
             "non_blocking_surfaces": {},
         }
+    required_evidence_missing = tuple(
+        gap for gap in report.gaps if gap.startswith("missing_evidence_artifact:")
+    )
     return {
         "check_id": "rag_retrieval_quality_gate",
         "passed": report.passed,
         "surfaces": [surface.surface_key for surface in report.surfaces],
         "gaps": list(report.gaps),
+        "required_evidence_missing": list(required_evidence_missing),
         "excluded_surfaces": report.excluded_surfaces,
         "non_blocking_surfaces": report.non_blocking_surfaces,
     }

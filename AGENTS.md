@@ -84,7 +84,7 @@
 - `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`
-- `docs/decisions/adr-0056-zep-native-personal-memory-plane.md`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
@@ -424,18 +424,23 @@ pnpm web:build:affected
   execution admission、capability / policy gate、Temporal command/query/cancel、
   memory recall、RAG activity execution、provider usage/cost projection、Go
   finalization 与 runtime observability
-- `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排
-- `packages/knowledge-capability`: knowledge-family / RAG capability 的
-  semantic specialist package；负责 retrieval planning、evidence verification、
-  grounded synthesis、
-  clarification 与 confidence 逻辑；不是 product entry、top-level router 或其他
-  capability 的 source-truth owner
+- `apps/ingestion-control`: TS-owned ingestion task control plane；负责 task
+  admission、claim / lease、retry、dead-letter、closeout 与 operator projection；
+  ingestion-worker 只保留 Python extraction adapter island
+- `apps/ingestion-worker`: Python extraction adapter island；当前只保留 env
+  bootstrap 与 legacy Office normalization，不拥有 collection lifecycle、task
+  executor、release 或 alias publish truth
 - `packages/prompt-runtime`: provider-facing prompt runtime；负责 prompt contract
   validation、Responses structured output execution、provider response
   normalization 与 prompt trace construction；不得通过 `packages/shared` 重新导出
-- `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径
+- `packages/ingestion-kernels-rs`: deterministic ingestion file kernels；负责
+  document-units validation、chunk preparation、release manifest validation 等可证明的
+  file-level work，不连接 PG / Qdrant / S3 / provider
 - `packages/ingestion-core`: ingestion/data plane
   的逻辑消费层，负责去重、版本推进、解析、chunking、索引写入编排
+- `apps/execution-control` internal retrieval seam: Go-owned / repo-owned DTO +
+  Qdrant-native retrieval runtime；旧 Python retrieval / knowledge packages 已从 active
+  workspace 删除
 - `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
   contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
 - `packages/contracts`: execution -> capability handoff、evidence bundle 与共享

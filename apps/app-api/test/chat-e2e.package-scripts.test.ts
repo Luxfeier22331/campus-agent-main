@@ -65,7 +65,8 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
 		expect(scriptSource).toContain("PROMPT_RUNTIME_PROVIDER");
 		expect(scriptSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
-		expect(scriptSource).toContain("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS");
+		expect(scriptSource).toContain("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH");
+		expect(scriptSource).not.toContain("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS");
 		expect(scriptSource).not.toContain(retiredPythonSdkRuntimeFlag);
 		expect(scriptSource).not.toContain("retired-python-worker-timeout");
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");

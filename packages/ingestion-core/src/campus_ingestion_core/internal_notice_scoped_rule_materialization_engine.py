@@ -78,10 +78,6 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from campus_ingestion_core.regulation_rag_release_lane import (
-    RagReleaseCandidateEnqueueReport,
-    RegulationRagReleaseCandidateStore,
-)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -107,7 +103,6 @@ def materialize_scoped_rules_from_internal_notice_scope(
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
-    rag_release_candidate_store: RegulationRagReleaseCandidateStore | None = None,
 ) -> InternalNoticeScopedRuleMaterializationReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
@@ -195,12 +190,6 @@ def materialize_scoped_rules_from_internal_notice_scope(
         if selected_request
         else None,
     )
-    rag_release_report = _enqueue_rag_release_candidates(
-        store=rag_release_candidate_store,
-        registry=runtime_registry,
-        source=source,
-        stats_document_ids=(*stats.created_document_ids, *stats.updated_document_ids),
-    )
     return InternalNoticeScopedRuleMaterializationReport(
         scoped_rule_candidate_count=len(candidates),
         materialized_document_count=len(documents),
@@ -221,9 +210,6 @@ def materialize_scoped_rules_from_internal_notice_scope(
         ),
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
-        rag_release_candidate_created_count=rag_release_report.created_count,
-        rag_release_candidate_skipped_unchanged_count=rag_release_report.skipped_unchanged_count,
-        rag_release_candidate_ids=rag_release_report.candidate_ids,
     )
 
 
@@ -585,21 +571,6 @@ def _build_selected_scope_preserve_predicate(
 ) -> Callable[[DocumentRegistryRecord], bool]:
     materialized_document_id_set = set(materialized_document_ids)
     return lambda record: record.document_id not in materialized_document_id_set
-
-
-def _enqueue_rag_release_candidates(
-    *,
-    store: RegulationRagReleaseCandidateStore | None,
-    registry: DocumentRegistry,
-    source: Mapping[str, str],
-    stats_document_ids: Sequence[str],
-) -> RagReleaseCandidateEnqueueReport:
-    del store, registry, source, stats_document_ids
-    return RagReleaseCandidateEnqueueReport(
-        created_count=0,
-        skipped_unchanged_count=0,
-        candidate_ids=(),
-    )
 
 
 def _build_scoped_rule_projection_metadata(

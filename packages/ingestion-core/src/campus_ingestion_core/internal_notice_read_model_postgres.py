@@ -152,7 +152,7 @@ class PostgresInternalNoticeReadModelStore:
         query = (
             f"select record from {self.table_name} "
             f"where {' and '.join(filters)} "
-            "order by published_at desc nulls last, source_notice_id desc, unit_id asc "
+            "order by published_at_ts desc nulls last, source_notice_id desc, unit_id asc "
             "limit %s"
         )
         return self._fetch_entries(query, tuple(params))
@@ -171,7 +171,7 @@ class PostgresInternalNoticeReadModelStore:
         query = (
             f"select record from {self.table_name} "
             f"where {' and '.join(filters)} "
-            "order by published_at desc nulls last, unit_id asc limit 1"
+            "order by published_at_ts desc nulls last, unit_id asc limit 1"
         )
         rows = self._fetch_entries(query, tuple(params))
         return rows[0] if rows else None
@@ -210,6 +210,9 @@ class PostgresInternalNoticeReadModelStore:
                     entitlement_groups text[] not null,
                     policy_projection_version text not null,
                     published_at text not null,
+                    published_at_ts timestamptz not null,
+                    effective_at_ts timestamptz,
+                    expires_at_ts timestamptz,
                     canonical_document_id text not null,
                     canonical_markdown_object_key text not null,
                     body_excerpt text not null,
@@ -248,12 +251,56 @@ class PostgresInternalNoticeReadModelStore:
             )
             cursor.execute(
                 f"""
+                alter table {table_sql}
+                add column if not exists published_at_ts timestamptz
+                """
+            )
+            cursor.execute(
+                f"""
+                update {table_sql}
+                set published_at_ts = published_at::timestamptz
+                where published_at_ts is null
+                  and published_at <> ''
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                alter column published_at_ts set not null
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists effective_at_ts timestamptz
+                """
+            )
+            cursor.execute(
+                f"""
+                alter table {table_sql}
+                add column if not exists expires_at_ts timestamptz
+                """
+            )
+            cursor.execute(
+                f"""
                 create index if not exists idx_{suffix}_query
                 on {table_sql} (
                     source_family,
                     queryable,
                     target_surface,
-                    published_at desc
+                    published_at_ts desc
+                )
+                """
+            )
+            cursor.execute(
+                f"""
+                create index if not exists idx_{suffix}_temporal
+                on {table_sql} (
+                    source_family,
+                    queryable,
+                    published_at_ts,
+                    effective_at_ts,
+                    expires_at_ts
                 )
                 """
             )
@@ -301,6 +348,9 @@ class PostgresInternalNoticeReadModelStore:
                     item.entitlement_groups,
                     item.policy_projection_version,
                     item.published_at,
+                    item.published_at_ts,
+                    nullif(item.effective_at_ts, '')::timestamptz as effective_at_ts,
+                    nullif(item.expires_at_ts, '')::timestamptz as expires_at_ts,
                     item.canonical_document_id,
                     item.canonical_markdown_object_key,
                     item.body_excerpt,
@@ -324,6 +374,9 @@ class PostgresInternalNoticeReadModelStore:
                     entitlement_groups text[],
                     policy_projection_version text,
                     published_at text,
+                    published_at_ts timestamptz,
+                    effective_at_ts text,
+                    expires_at_ts text,
                     canonical_document_id text,
                     canonical_markdown_object_key text,
                     body_excerpt text,
@@ -348,6 +401,9 @@ class PostgresInternalNoticeReadModelStore:
                 entitlement_groups,
                 policy_projection_version,
                 published_at,
+                published_at_ts,
+                effective_at_ts,
+                expires_at_ts,
                 canonical_document_id,
                 canonical_markdown_object_key,
                 body_excerpt,
@@ -372,6 +428,9 @@ class PostgresInternalNoticeReadModelStore:
                 entitlement_groups,
                 policy_projection_version,
                 published_at,
+                published_at_ts,
+                effective_at_ts,
+                expires_at_ts,
                 canonical_document_id,
                 canonical_markdown_object_key,
                 body_excerpt,
@@ -393,6 +452,9 @@ class PostgresInternalNoticeReadModelStore:
                 entitlement_groups = excluded.entitlement_groups,
                 policy_projection_version = excluded.policy_projection_version,
                 published_at = excluded.published_at,
+                published_at_ts = excluded.published_at_ts,
+                effective_at_ts = excluded.effective_at_ts,
+                expires_at_ts = excluded.expires_at_ts,
                 canonical_document_id = excluded.canonical_document_id,
                 canonical_markdown_object_key = excluded.canonical_markdown_object_key,
                 body_excerpt = excluded.body_excerpt,
@@ -422,6 +484,9 @@ class PostgresInternalNoticeReadModelStore:
                 "entitlement_groups": list(record.entitlement_groups),
                 "policy_projection_version": record.policy_projection_version,
                 "published_at": record.published_at,
+                "published_at_ts": record.published_at_ts,
+                "effective_at_ts": record.effective_at_ts,
+                "expires_at_ts": record.expires_at_ts,
                 "canonical_document_id": record.canonical_document_id,
                 "canonical_markdown_object_key": record.canonical_markdown_object_key,
                 "body_excerpt": record.body_excerpt,

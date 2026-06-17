@@ -12,6 +12,25 @@ import type { RequestExecutionStatus } from "../runtime-command";
 import type { RuntimeRunPhase } from "../runtime-run";
 import type { ObservedSourceTraceEntry } from "../source-trace";
 import type { VersionQuery, VersionQueryMode } from "../version-query";
+
+export type {
+	AutoscalerActuationStatus as WorkerAutoscalerActuationStatus,
+	AutoscalerDecisionKind as WorkerAutoscalerDecisionKind,
+	NormalizedTemporalTaskQueueListFilters,
+	NormalizedWorkerAutoscalerActuationListFilters,
+	NormalizedWorkerAutoscalerDecisionListFilters,
+	TemporalTaskQueueKind,
+	TemporalTaskQueueListFilters,
+	TemporalTaskQueueListResult,
+	TemporalTaskQueueSnapshotRecord,
+	WorkerAutoscalerActuationListFilters,
+	WorkerAutoscalerActuationListResult,
+	WorkerAutoscalerActuationRecord,
+	WorkerAutoscalerDecisionListFilters,
+	WorkerAutoscalerDecisionListResult,
+	WorkerAutoscalerDecisionRecord,
+} from "../operator-runtime-observability";
+
 import type {
 	MetricRatio,
 	OperatorOverviewWindow,

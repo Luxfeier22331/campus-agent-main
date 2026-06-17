@@ -41,6 +41,9 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.internal_notice_read_model (
     queryable boolean NOT NULL,
     title text NOT NULL,
     published_at text NOT NULL,
+    published_at_ts timestamptz NOT NULL,
+    effective_at_ts timestamptz,
+    expires_at_ts timestamptz,
     canonical_document_id text NOT NULL,
     canonical_markdown_object_key text NOT NULL,
     body_excerpt text NOT NULL,
@@ -57,7 +60,16 @@ ON ingestion_projection.internal_notice_read_model (
     source_family,
     queryable,
     target_surface,
-    published_at DESC
+    published_at_ts DESC
+);
+
+CREATE INDEX IF NOT EXISTS internal_notice_read_model_temporal_idx
+ON ingestion_projection.internal_notice_read_model (
+    source_family,
+    queryable,
+    published_at_ts,
+    effective_at_ts,
+    expires_at_ts
 );
 
 CREATE INDEX IF NOT EXISTS internal_notice_read_model_notice_idx

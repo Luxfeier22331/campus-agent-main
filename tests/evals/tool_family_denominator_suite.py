@@ -28,6 +28,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                 "academic_calendar_lookup",
                 "campus_notice_change_set_lookup",
                 "campus_notice_discover",
+                "campus_notice_period_summary",
                 "campus_notice_get",
                 "retrieval.query",
             }.issubset(tools)
@@ -64,6 +65,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
             "academic_calendar_lookup",
             "campus_notice_change_set_lookup",
             "campus_notice_discover",
+            "campus_notice_period_summary",
             "campus_notice_get",
             "retrieval.query",
         }

@@ -37,17 +37,19 @@ updated: 2026-06-13
 
 `browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
+workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
+activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
 capability workers / activity-worker-finalization -> memory recall / typed
 capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
 models -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-agent /
-activity-worker-knowledge / capability workers / activity-worker-finalization ->
-memory recall / OpenAI Agents SDK primary agent loop / typed capability branch /
-Go RAG DTO/runtime -> Qdrant / provider / structured read models -> sanitized
-projection`
+activity-worker-knowledge-plan / activity-worker-knowledge-retrieval /
+activity-worker-knowledge-synthesis / capability workers /
+activity-worker-finalization -> memory recall / OpenAI Agents SDK primary agent
+loop / typed capability branch / Go RAG DTO/runtime -> Qdrant / provider /
+structured read models -> sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader /
 current React docs shell`
@@ -55,9 +57,9 @@ current React docs shell`
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
 
-`collector -> app-api official_web control plane -> ingestion-worker`
+`collector -> app-api official_web control plane -> ingestion-control task admission`
 
-`ingestion-worker -> ingestion-core release task -> source truth / projection /
+`ingestion-control registry executor -> source truth / projection /
 document/index release`
 
 关键约束：
@@ -140,7 +142,7 @@ document/index release`
 - online query path 与 offline data plane 持续分层
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
   claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
-  `packages/ingestion-core` / `apps/ingestion-worker`
+  `apps/ingestion-control` 的 task lifecycle 与 registry-aware executor
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
   source-truth schema、collector principal、run ledger 与 offline projection handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
@@ -344,16 +346,22 @@ document/index release`
 - 不拥有 product-layer auth/session/conversation、browser-facing capability
   policy 或 agent semantic reasoning
 
+### `apps/ingestion-control`
+
+- internal ingestion/data-plane task control plane
+- 拥有 task admission、registry validation、claim / lease、retry、dead-letter、
+  closeout 与 operator-safe projection snapshot
+- registry-aware executor 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
+  kernel 时 fail closed，不回退 Python collection CLI
+- Python 只允许作为 explicit TS handler 内部调用的 MinerU / OCR / legacy Office /
+  ML extraction adapter island
+
 ### `apps/ingestion-worker`
 
-- offline ingestion/data-plane executor
-- 承接 source-truth / projection / chunk / index write path
-- 拥有 official-web release task runtime；从 ingestion-owned task payload 推进
-  selected-write / stable-reference release，不通过 app-api executor route 回写状态
-- 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
-  index release / publish / audit 的 sanitized started/completed/failed run
-  event；
-  export failure 不让 ingestion job 失败
+- Python adapter island
+- 当前只保留 env bootstrap 与 legacy Office normalization adapter
+- 不拥有 collection lifecycle、release / alias publish、Qdrant ops、source-channel
+  queue consumer 或 on-demand batch runner
 
 ### `apps/official-web-collector`
 
@@ -361,10 +369,11 @@ document/index release`
 - 上报 crawl run lifecycle 与 artifact refs
 - 不拥有 operator ledger、request projection 或 ingestion truth
 
-## 当前 Package 边界
+## 当前 Package / Runtime 边界
 
-- `packages/knowledge-capability 当前默认 knowledge agent，负责 retrieval-specific
-  planning、clarification、grounded answer synthesis
+- `apps/execution-control` 当前拥有 Go-owned knowledge / RAG Temporal activity graph，
+  负责 retrieval-specific planning、evidence selection、grounded synthesis 与
+  fail-close finalization runtime
 - `packages/navigation-capability 是 navigation semantic specialist package；产品主路径对
   `place_lookup` 仍保持 fail-close，直到地图产品正式上线。deterministic place / point
   reads 必须先表现为 typed tool 或 internal query service；navigation specialist 只能作为
@@ -377,8 +386,9 @@ document/index release`
   `agent_step` / agent-as-tool 内消费工具输出。其中 `academic_calendar_lookup` 只消费
   `calendar/academic_calendar` projection-backed read model，支持教学周、命名校历事件区间、
   学期窗口与补课/调休上课事实，不负责校历查看入口说明
-- `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
-  shaping
+- repo-owned internal retrieval seam / Go RAG runtime 负责 retrieval abstraction、
+  metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
+  active workspace
 - `packages/ingestion-core` ingestion/data-plane consumption logic
 - `packages/contracts` supervisor / capability handoff 与 shared typed seam
 

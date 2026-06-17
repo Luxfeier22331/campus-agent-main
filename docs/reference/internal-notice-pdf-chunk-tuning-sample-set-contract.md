@@ -30,8 +30,8 @@ chunk tuning 时的样本集 contract。
 
 当前仍应优先尊重：
 
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/architecture/system/data-plane-architecture.md`
 
 ## 适用范围
@@ -360,7 +360,8 @@ sample set 不接受“纯随机抓取 PDF”。
 
 ## 相关稳定文档
 
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/architecture/system/data-plane-architecture.md`

@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0007
 status: accepted
 created: 2026-03-26
-updated: 2026-04-03
+updated: 2026-06-15
 ---
 # ADR-0007 Retrieval Baseline 更新（phase1 为历史命名）
 
@@ -19,6 +19,10 @@ updated: 2026-04-03
   `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
 - retrieval runtime truth 以
   `docs/architecture/system/retrieval-serving-architecture.md` 为准
+- 本文早期对 Python `knowledge-capability` / `retrieval-core` package owner 的表述已由
+  `docs/architecture/system/python-capability-boundaries.md` 局部 supersede；当前 online
+  retrieval runtime 收口为 Go-owned execution-control / repo-owned DTO + Qdrant native
+  adapter seam
 - serving alias / physical collection / index release 运行真相以
   `docs/reference/runtime-serving-and-index-terms.md` 和 operator runbook 为准
 - 当前 phase 进度、执行顺序和 gate 状态以 `.planning/*` 为准，不由本文维护

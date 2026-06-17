@@ -82,6 +82,23 @@ func TestDecodeCapabilityExecutionLegacyRuntimeDecisionsWireStillValidatesWhenPr
 	}
 }
 
+func TestStepOutputProjectionKindValidAcceptsAllSchemaProjectionKinds(t *testing.T) {
+	for _, kind := range []StepOutputProjectionKind{
+		StepOutputProjectionKindNoticeContext,
+		StepOutputProjectionKindNoticeChangeSet,
+		StepOutputProjectionKindNoticePeriodSummary,
+		StepOutputProjectionKindScheduleBaseline,
+		StepOutputProjectionKindServiceGuideFacts,
+		StepOutputProjectionKindPlaceContext,
+		StepOutputProjectionKindEvidenceBundle,
+		StepOutputProjectionKindGroundingVerdict,
+	} {
+		if !kind.Valid() {
+			t.Fatalf("projection kind %q should be valid", kind)
+		}
+	}
+}
+
 func canonicalCapabilityExecutionRequestPayload() map[string]any {
 	return map[string]any{
 		"execution_contract_version": "capability_execution_v1",

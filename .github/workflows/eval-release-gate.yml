@@ -8,11 +8,6 @@ on:
         required: true
         type: choice
         options:
-          - handbook
-          - curriculum
-          - official-web-stable-reference
-          - service-guide-lookup
-          - contact-directory-lookup
           - campus-services-product-path
           - multi-agent-runtime-contract
           - public-chat-product-path
@@ -163,17 +158,6 @@ jobs:
           fi
           if [ "${{ inputs.collect_runtime }}" = "true" ]; then
             args+=(--collect-runtime)
-          fi
-          case_results_publishable=false
-          case "${{ inputs.profile }}" in
-            handbook|curriculum|official-web-stable-reference)
-              case_results_publishable=true
-              ;;
-          esac
-          if [ "${{ inputs.publish_dry_run }}" = "true" ] && [ "$case_results_publishable" = "true" ]; then
-            args+=(--publish-dry-run)
-            args+=(--publish-grade-source "${EVAL_GATE_PUBLISH_GRADE_SOURCE}")
-            args+=(--publish-grader-version "${EVAL_GATE_PUBLISH_GRADER_VERSION}")
           fi
           "${args[@]}" | tee eval-gate-accept.json
           python - <<'PY'

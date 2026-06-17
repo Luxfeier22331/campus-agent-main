@@ -165,7 +165,9 @@ func normalizeActivityTaskQueues(values []string) []string {
 	queues := []string{
 		ActivityTaskQueueContext,
 		ActivityTaskQueueAgent,
-		ActivityTaskQueueKnowledge,
+		ActivityTaskQueueKnowledgePlan,
+		ActivityTaskQueueKnowledgeRetrieval,
+		ActivityTaskQueueKnowledgeSynthesis,
 		ActivityTaskQueueFinalization,
 	}
 	for _, value := range values {
@@ -220,17 +222,28 @@ type WorkerRuntime struct {
 }
 
 type WorkerOptions struct {
-	Address                string
-	Namespace              string
-	WorkflowQueue          string
-	ContextQueue           string
-	KnowledgeQueue         string
-	FinalizationQueue      string
-	WorkerID               string
-	ContextActivities      ContextActivities
-	AgentActivities        AgentActivities
-	KnowledgeActivities    KnowledgeActivities
-	FinalizationActivities FinalizationActivities
+	Address                 string
+	Namespace               string
+	WorkflowQueue           string
+	ContextQueue            string
+	KnowledgePlanQueue      string
+	KnowledgeRetrievalQueue string
+	KnowledgeSynthesisQueue string
+	FinalizationQueue       string
+	WorkerID                string
+	ContextActivities       ContextActivities
+	AgentActivities         AgentActivities
+	KnowledgeActivities     KnowledgeActivities
+	FinalizationActivities  FinalizationActivities
+}
+
+type WorkerProfile struct {
+	ActivitySlots                int
+	ActivityTaskPollers          int
+	TaskQueueActivitiesPerSecond float64
+	WorkerActivitiesPerSecond    float64
+	WorkflowTaskSlots            int
+	WorkflowTaskPollers          int
 }
 
 type ContextActivities interface {
@@ -329,9 +342,17 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if contextQueue == "" {
 		contextQueue = ActivityTaskQueueContext
 	}
-	knowledgeQueue := strings.TrimSpace(options.KnowledgeQueue)
-	if knowledgeQueue == "" {
-		knowledgeQueue = ActivityTaskQueueKnowledge
+	knowledgePlanQueue := strings.TrimSpace(options.KnowledgePlanQueue)
+	if knowledgePlanQueue == "" {
+		knowledgePlanQueue = ActivityTaskQueueKnowledgePlan
+	}
+	knowledgeRetrievalQueue := strings.TrimSpace(options.KnowledgeRetrievalQueue)
+	if knowledgeRetrievalQueue == "" {
+		knowledgeRetrievalQueue = ActivityTaskQueueKnowledgeRetrieval
+	}
+	knowledgeSynthesisQueue := strings.TrimSpace(options.KnowledgeSynthesisQueue)
+	if knowledgeSynthesisQueue == "" {
+		knowledgeSynthesisQueue = ActivityTaskQueueKnowledgeSynthesis
 	}
 	finalizationQueue := strings.TrimSpace(options.FinalizationQueue)
 	if finalizationQueue == "" {
@@ -340,16 +361,81 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	workflowWorker := NewWorkflowWorker(temporalClient, workflowQueue)
 	contextWorker := NewContextActivityWorker(temporalClient, contextQueue, options.ContextActivities)
 	agentWorker := NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, options.AgentActivities)
-	knowledgeWorker := NewKnowledgeActivityWorker(temporalClient, knowledgeQueue, options.KnowledgeActivities)
+	knowledgePlanWorker := NewKnowledgePlanActivityWorker(
+		temporalClient,
+		knowledgePlanQueue,
+		options.KnowledgeActivities,
+		worker.Options{},
+	)
+	knowledgeRetrievalWorker := NewKnowledgeRetrievalActivityWorker(
+		temporalClient,
+		knowledgeRetrievalQueue,
+		options.KnowledgeActivities,
+		worker.Options{},
+	)
+	knowledgeSynthesisWorker := NewKnowledgeSynthesisActivityWorker(
+		temporalClient,
+		knowledgeSynthesisQueue,
+		options.KnowledgeActivities,
+		worker.Options{},
+	)
 	finalizationWorker := NewFinalizationActivityWorker(
 		temporalClient,
 		finalizationQueue,
 		options.FinalizationActivities,
 	)
 	return &WorkerRuntime{
-		client:  temporalClient,
-		workers: []worker.Worker{workflowWorker, contextWorker, agentWorker, knowledgeWorker, finalizationWorker},
+		client: temporalClient,
+		workers: []worker.Worker{
+			workflowWorker,
+			contextWorker,
+			agentWorker,
+			knowledgePlanWorker,
+			knowledgeRetrievalWorker,
+			knowledgeSynthesisWorker,
+			finalizationWorker,
+		},
 	}, nil
+}
+
+func WorkerOptionsForProfile(profile WorkerProfile) (worker.Options, error) {
+	options := worker.Options{}
+	if profile.ActivitySlots < 0 {
+		return worker.Options{}, errors.New("activity slots must be a positive integer")
+	}
+	if profile.ActivitySlots > 0 {
+		options.MaxConcurrentActivityExecutionSize = profile.ActivitySlots
+	}
+	if profile.ActivityTaskPollers < 0 {
+		return worker.Options{}, errors.New("activity task pollers must be a non-negative integer")
+	}
+	if profile.ActivityTaskPollers > 0 {
+		options.MaxConcurrentActivityTaskPollers = profile.ActivityTaskPollers
+	}
+	if profile.TaskQueueActivitiesPerSecond < 0 {
+		return worker.Options{}, errors.New("task queue activities per second must be non-negative")
+	}
+	options.TaskQueueActivitiesPerSecond = profile.TaskQueueActivitiesPerSecond
+	if profile.WorkerActivitiesPerSecond < 0 {
+		return worker.Options{}, errors.New("worker activities per second must be non-negative")
+	}
+	options.WorkerActivitiesPerSecond = profile.WorkerActivitiesPerSecond
+	if profile.WorkflowTaskSlots < 0 {
+		return worker.Options{}, errors.New("workflow task slots must be a non-negative integer")
+	}
+	if profile.WorkflowTaskSlots > 0 {
+		options.MaxConcurrentWorkflowTaskExecutionSize = profile.WorkflowTaskSlots
+	}
+	if profile.WorkflowTaskPollers < 0 {
+		return worker.Options{}, errors.New("workflow task pollers must be a non-negative integer")
+	}
+	if profile.WorkflowTaskPollers > 0 {
+		options.MaxConcurrentWorkflowTaskPollers = profile.WorkflowTaskPollers
+	}
+	if profile.ActivityTaskPollers > 0 && profile.ActivitySlots <= 0 {
+		return worker.Options{}, errors.New("activity slots must be a positive integer when activity pollers are configured")
+	}
+	return options, nil
 }
 
 func NewTemporalClient(ctx context.Context, address string, namespace string, workerID string) (client.Client, error) {
@@ -415,16 +501,43 @@ func NewAgentActivityWorker(temporalClient client.Client, queue string, activiti
 	return agentWorker
 }
 
-func NewKnowledgeActivityWorker(temporalClient client.Client, queue string, activities KnowledgeActivities) worker.Worker {
+func NewKnowledgePlanActivityWorker(
+	temporalClient client.Client,
+	queue string,
+	activities KnowledgeActivities,
+	options worker.Options,
+) worker.Worker {
 	knowledgeQueue := strings.TrimSpace(queue)
 	if knowledgeQueue == "" {
-		knowledgeQueue = ActivityTaskQueueKnowledge
+		knowledgeQueue = ActivityTaskQueueKnowledgePlan
 	}
-	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, worker.Options{})
+	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.PlanRAGActivity,
 		activityRegisterOptions(PlanRAGActivityName),
 	)
+	knowledgeWorker.RegisterActivityWithOptions(
+		activities.SelectEvidenceActivity,
+		activityRegisterOptions(SelectEvidenceActivityName),
+	)
+	knowledgeWorker.RegisterActivityWithOptions(
+		activities.VerifyGroundingActivity,
+		activityRegisterOptions(VerifyGroundingActivityName),
+	)
+	return knowledgeWorker
+}
+
+func NewKnowledgeRetrievalActivityWorker(
+	temporalClient client.Client,
+	queue string,
+	activities KnowledgeActivities,
+	options worker.Options,
+) worker.Worker {
+	knowledgeQueue := strings.TrimSpace(queue)
+	if knowledgeQueue == "" {
+		knowledgeQueue = ActivityTaskQueueKnowledgeRetrieval
+	}
+	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.RetrieveIndexedLookupActivity,
 		activityRegisterOptions(RetrieveIndexedLookupActivityName),
@@ -433,17 +546,23 @@ func NewKnowledgeActivityWorker(temporalClient client.Client, queue string, acti
 		activities.ExpandOrRescueRetrievalActivity,
 		activityRegisterOptions(ExpandOrRescueRetrievalActivityName),
 	)
-	knowledgeWorker.RegisterActivityWithOptions(
-		activities.SelectEvidenceActivity,
-		activityRegisterOptions(SelectEvidenceActivityName),
-	)
+	return knowledgeWorker
+}
+
+func NewKnowledgeSynthesisActivityWorker(
+	temporalClient client.Client,
+	queue string,
+	activities KnowledgeActivities,
+	options worker.Options,
+) worker.Worker {
+	knowledgeQueue := strings.TrimSpace(queue)
+	if knowledgeQueue == "" {
+		knowledgeQueue = ActivityTaskQueueKnowledgeSynthesis
+	}
+	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.SynthesizeRAGAnswerActivity,
 		activityRegisterOptions(SynthesizeRAGAnswerActivityName),
-	)
-	knowledgeWorker.RegisterActivityWithOptions(
-		activities.VerifyGroundingActivity,
-		activityRegisterOptions(VerifyGroundingActivityName),
 	)
 	return knowledgeWorker
 }

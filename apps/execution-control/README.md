@@ -105,33 +105,21 @@ Current admission boundary:
 
 - Temporal task queues own durable workflow/activity scheduling. The legacy
   in-process answer queue no longer participates in online serving.
-- `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS` and lane budget env remain
-  admission/policy knobs for request validation and future activity budgeting,
-  not the canonical execution queue.
-- Lane budgets are configured with
-  `EXECUTION_CONTROL_LANE_<LANE>_MAX_CONCURRENT`,
-  `EXECUTION_CONTROL_LANE_<LANE>_QUEUE_CAPACITY`, and
-  `EXECUTION_CONTROL_LANE_<LANE>_QUEUE_TIMEOUT_MS`.
+- `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH` points at the execution-control runtime
+  profile. Admission budgets, lane budgets, artifact paths, OTel enablement,
+  execution audit enablement, RAG budgets, personal-memory query defaults, and
+  worker profiles are profile-owned.
 - Current lanes are `rag`, `navigation`, `campus_services`, `notice`, and
-  `default`; unset lane budgets inherit the global budget.
+  `default`.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
 - Retired bridge settings and retired Python worker settings fail closed in
   online execution-control config. Do not use them as local or staging runtime
   inputs.
-- `EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH` points at the Go-owned
-  query-serving scope allowlist. When unset, local repo runs discover
-  `configs/runtime/query-serving-scopes.v1.json` from the repo root; if no
-  policy file is found, knowledge scoped requests fail closed. The Docker image
-  sets this env var to `/etc/campus-agent/query-serving-scopes.v1.json`.
-- `EXECUTION_CONTROL_INTENT_POLICY_PATH` points at the Go-owned intent policy
-  artifact. The server loads this artifact once at startup and uses that runtime
-  snapshot for request routing; Docker sets it to
-  `/etc/campus-agent/intent-policy.v1.json`.
-- `EXECUTION_CONTROL_PROVIDER_PRICING_PATH` points at the Go-owned online provider
-  pricing catalog. `/readyz` fails closed when an admitted online model lacks
-  pricing metadata; Docker sets it to
-  `/etc/campus-agent/provider-pricing.v1.json`.
+- The runtime profile points at the Go-owned query-serving scope allowlist,
+  intent policy artifact, and online provider pricing catalog. `/readyz` fails
+  closed when any required artifact is missing or when an admitted online model
+  lacks pricing metadata.
 
 Current cancellation boundary:
 
@@ -148,11 +136,10 @@ Current structured query runtime boundary:
 
 - Internal query routes require `x-execution-query-auth`.
 - Structured product serving gates for `campus_services` and `notice` are
-  closed by default. `EXECUTION_CONTROL_OPEN_CAPABILITIES` is the Go-owned
+  closed by default. Runtime profile `open_capabilities` is the Go-owned
   allowlist for opening those capabilities after eval / product admission
-  evidence exists. It accepts `campus_services`, `navigation`, `notice`, or
-  comma-separated combinations of these values; wildcard values such as `*` or
-  `all` are rejected.
+  evidence exists. It accepts `campus_services`, `navigation`, or `notice`;
+  wildcard values such as `*` or `all` are rejected.
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth
   and is injected by the execution runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
@@ -164,7 +151,7 @@ Current structured query runtime boundary:
   `ingestion_projection` contract, not runtime env.
 - `EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime
   time for deterministic tests; production should normally omit it.
-- `EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS` bounds internal query execution.
+- Runtime profile `structured_query_timeout_ms` bounds internal query execution.
 - `EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads
   from object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
@@ -203,8 +190,8 @@ Current observability boundary:
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
   empty by default.
-- OTel trace export is disabled by default. When enabled,
-  `EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured. Configured
+- OTel trace export is controlled by the runtime profile. When enabled, the
+  profile OTLP endpoint must be configured. Configured
   answer paths fail closed with `telemetry_delivery_failed` when telemetry
   delivery fails; `/readyz` and `/metrics` expose exported / sampled-dropped /
   failed / sample-ratio / last-error state for diagnosis.
@@ -243,32 +230,17 @@ Key env:
 ```bash
 export API_AUTH_MODE=trusted-worker
 export API_WORKER_SHARED_SECRET=worker-secret
-export EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8
-export EXECUTION_CONTROL_QUEUE_CAPACITY=24
-export EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000
-export EXECUTION_CONTROL_LANE_RAG_MAX_CONCURRENT=6
-export EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY=12
-export EXECUTION_CONTROL_LANE_RAG_QUEUE_TIMEOUT_MS=3000
-export EXECUTION_CONTROL_LANE_NAVIGATION_MAX_CONCURRENT=2
-export EXECUTION_CONTROL_LANE_NAVIGATION_QUEUE_CAPACITY=4
-export EXECUTION_CONTROL_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
-export EXECUTION_CONTROL_OPEN_CAPABILITIES=
-export EXECUTION_CONTROL_OTEL_ENABLED=false
-export EXECUTION_CONTROL_OTEL_SAMPLE_RATIO=1
-export EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION=execution-control-otel-attrs-v1
-export EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=false
+export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-profile.local.json
 export EXECUTION_CONTROL_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
 export EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
-export EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS=500
-export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
-export EXECUTION_CONTROL_INTENT_POLICY_PATH=
-export EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH=
 export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-local
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
 export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
-export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=local:activity-knowledge-plan:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=local:activity-knowledge-retrieval:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=local:activity-knowledge-synthesis:001
 export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
 export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
 export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
@@ -283,12 +255,9 @@ export PROMPT_RUNTIME_PROVIDER=openai
 export PROMPT_RUNTIME_TRANSPORT=responses
 export PROMPT_RUNTIME_BASE_URL=https://api.openai.com/v1
 export PROMPT_RUNTIME_API_KEY=
-export AGENT_PROMPT_MODEL=gpt-5-mini
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
-export EXECUTION_CONTROL_PROVIDER_PRICING_PATH=configs/runtime/provider-pricing.v1.json
 export CAMPUS_SHARED_POSTGRES_URL=
 export EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
-export EXECUTION_CONTROL_STRUCTURED_QUERY_TIMEOUT_MS=1000
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=
 export INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model
 export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT=
@@ -323,24 +292,36 @@ Worker autoscaler dry-run proof:
 
 ```bash
 go run ./cmd/worker-autoscaler \
-  --input-path /path/to/autoscaler-input.json \
-  --evidence-path /path/to/worker-autoscaler-evidence.json
+  --app-api-base-url http://app-api:27031 \
+  --shared-secret "$APP_API_INTERNAL_SHARED_SECRET" \
+  --compose-project-name campus-agent-staging \
+  --compose-project-directory /srv/campus-agent \
+  --mode dry-run
 ```
 
-Worker autoscaler apply-mode evidence-only proof:
+Worker autoscaler apply-mode proof:
 
 ```bash
 go run ./cmd/worker-autoscaler \
+  --app-api-base-url http://app-api:27031 \
+  --shared-secret "$APP_API_INTERNAL_SHARED_SECRET" \
+  --compose-project-name campus-agent-staging \
+  --compose-project-directory /srv/campus-agent \
   --mode apply \
-  --input-path /path/to/autoscaler-input.json \
-  --evidence-path /path/to/worker-autoscaler-decision.json \
-  --actuator-evidence-path /path/to/worker-autoscaler-actuation.json
+  --cooldown-seconds 180 \
+  --scale-up-backlog-threshold 8 \
+  --scale-up-oldest-age-ms 30000 \
+  --scale-up-windows 2 \
+  --scale-down-windows 6
 ```
 
 This command belongs to the Execution Operations Plane. It reads task queue /
-budget observations and writes desired-replica evidence only; it does not write
-Temporal workflow state, run projection, step projection, event projection, or
-terminal state.
+budget observations through app-api runtime projection, reads Docker Compose
+replica state, and publishes autoscaler decisions / actuations back to app-api.
+It may adjust allowlisted worker replica counts only; it does not write Temporal
+workflow state, run projection, step projection, event projection, or terminal
+state. Apply failures are published as `failed` actuation evidence before the
+command exits non-zero.
 
 Local runtime smoke:
 

@@ -36,6 +36,23 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertNotIn("multi-agent-product-path", profile_ids)
         self.assertEqual(len(profile_ids), len(set(profile_ids)))
 
+    def test_old_python_live_eval_profiles_are_removed_from_active_registry(self) -> None:
+        removed_profile_ids = (
+            "handbook",
+            "curriculum",
+            "official-web-stable-reference",
+            "service-guide-lookup",
+            "contact-directory-lookup",
+            "institutional-rules-release-baseline",
+        )
+
+        for profile_id in removed_profile_ids:
+            with self.subTest(profile_id=profile_id):
+                self.assertNotIn(profile_id, accepted_profile_ids())
+                self.assertNotIn(profile_id, dispatchable_profile_ids())
+                with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+                    get_profile_definition(profile_id)
+
     def test_registry_rejects_retired_personal_memory_extraction_profile(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
             resolve_profile_id("personal-memory-extraction")

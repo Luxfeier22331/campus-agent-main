@@ -29,6 +29,8 @@
 !configs/runtime/workflow-artifacts.v2.json
 !tests/
 !tests/fixtures/
+!tests/fixtures/capability_execution_contract/
+!tests/fixtures/capability_execution_contract/**
 !tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 !tests/fixtures/capability_execution_contract/
 !tests/fixtures/capability_execution_contract/**

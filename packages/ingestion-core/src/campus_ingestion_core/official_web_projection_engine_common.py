@@ -89,7 +89,6 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
     {
         "contact_directory_candidate",
         "service_guide_candidate",
-        "academic_calendar_candidate",
         "stable_reference_candidate",
         "regulation_candidate",
         "student_regulation_candidate",

@@ -90,5 +90,4 @@ owns this section group; the original path remains the stable index.
   official-account-collector/.env.example)
 - [../../runbooks/provider-secret-governance.md](../../runbooks/provider-secret-govern
   ance.md)
-- [../../runbooks/local-postgres-dev-recovery-runbook.md](../../runbooks/local-postgre
-  s-dev-recovery-runbook.md)
+- historical [../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md](../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md)

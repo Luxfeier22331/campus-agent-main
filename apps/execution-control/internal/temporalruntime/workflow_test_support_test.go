@@ -112,7 +112,7 @@ func (Activities) PlanRouteActivity(
 		RunID:               input.RunID,
 		Status:              "planned",
 		ToolName:            "retrieval.query",
-		WorkerRole:          "activity-worker-knowledge",
+		WorkerRole:          "activity-worker-knowledge-plan",
 		PayloadKind:         "rag_request",
 	}, nil
 }

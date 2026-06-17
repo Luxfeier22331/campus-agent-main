@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
@@ -31,9 +32,10 @@ type ragSynthesisExecutor interface {
 }
 
 type providerBackedRAGSynthesisExecutor struct {
-	clientFactory  func(providerConfigSnapshot) *provider.ResponsesClient
-	configResolver providerConfigResolver
-	pricing        provider.PricingCatalog
+	clientFactory   func(providerConfigSnapshot) *provider.ResponsesClient
+	configResolver  providerConfigResolver
+	pricing         provider.PricingCatalog
+	providerTimeout time.Duration
 }
 
 func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
@@ -43,11 +45,17 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	if err := validateRAGSynthesisPacket(packet); err != nil {
 		return ragSynthesisResult{}, err
 	}
-	client, err := e.resolveClient(ctx)
+	executeCtx := ctx
+	cancel := func() {}
+	if e.providerTimeout > 0 {
+		executeCtx, cancel = context.WithTimeout(ctx, e.providerTimeout)
+	}
+	defer cancel()
+	client, err := e.resolveClient(executeCtx)
 	if err != nil {
 		return ragSynthesisResult{}, err
 	}
-	result := client.Execute(ctx, provider.ResponsesRequest{
+	result := client.Execute(executeCtx, provider.ResponsesRequest{
 		Input:              ragProviderInput(packet),
 		ProviderRequestRef: providerRequestRefForPacket(packet),
 		Text:               ragProviderTextSchema(packet),

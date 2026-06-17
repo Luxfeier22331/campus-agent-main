@@ -44,8 +44,8 @@ from campus_ingestion_core.authenticated_notice_source_truth_shared import (
     infer_authenticated_notice_year,
     resolve_authenticated_notice_attachment_object_key,
 )
-from campus_ingestion_core.collected_notice_classification import (
-    resolve_collected_notice_target_candidates,
+from campus_ingestion_core.authenticated_notice_target_routing import (
+    resolve_authenticated_notice_target_candidates,
 )
 from campus_ingestion_core.internal_notice_schedule_body import (
     ScheduleNoticeBody,
@@ -366,7 +366,7 @@ def _missing_fact_attachment_ref_ids(
 ) -> tuple[str, ...]:
     if notice_capture_route != "candidate_service_fact":
         return ()
-    target_candidates = resolve_collected_notice_target_candidates(
+    target_candidates = resolve_authenticated_notice_target_candidates(
         notice_family=routing_sample.notice_family,
         primary_route=routing_sample.suggested_consumption_route,
         title=routing_sample.notice_title,

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 )
@@ -97,6 +98,50 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 	}
 	if result.ProviderSummary.EstimatedCostMicroUSD != 296 {
 		t.Fatalf("estimated cost = %d, want 296", result.ProviderSummary.EstimatedCostMicroUSD)
+	}
+}
+
+func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
+	executor, err := newRAGSynthesisExecutor(config.Config{
+		PromptRuntimeAPIKey:           "test-key",
+		PromptRuntimeBaseURL:          "https://provider.example/v1",
+		PromptRuntimeProvider:         "openai",
+		PromptRuntimeTransport:        "responses",
+		PromptStrictStructuredOutputs: true,
+		ProviderPricingPath: writeRAGPricingCatalogForTest(t, `{
+			"schema_version":"provider-pricing-v1",
+			"currency":"USD",
+			"models":[{
+				"provider":"openai",
+				"model":"gpt-5-mini",
+				"input_microusd_per_1k_tokens":250,
+				"cached_input_microusd_per_1k_tokens":25,
+				"output_microusd_per_1k_tokens":2000
+			}]
+		}`),
+		RAGProviderTimeoutMS: 4500,
+	}, staticProviderConfigResolver{
+		string(providerConfigRoleRAGSynthesis): {
+			APIKey:    "test-key",
+			BaseURL:   "https://provider.example/v1",
+			Model:     "gpt-5-mini",
+			ProfileID: "provider_profile_rag_synthesis",
+			Provider:  "openai",
+			Revision:  3,
+			Role:      string(providerConfigRoleRAGSynthesis),
+			TimeoutMS: 30000,
+			Transport: "responses",
+		},
+	})
+	if err != nil {
+		t.Fatalf("new rag synthesis executor: %v", err)
+	}
+	providerExecutor, ok := executor.(providerBackedRAGSynthesisExecutor)
+	if !ok {
+		t.Fatalf("executor type = %T, want providerBackedRAGSynthesisExecutor", executor)
+	}
+	if providerExecutor.providerTimeout.String() != "4.5s" {
+		t.Fatalf("provider timeout = %s, want 4.5s", providerExecutor.providerTimeout)
 	}
 }
 

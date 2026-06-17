@@ -21,7 +21,7 @@ function OfficialWebSitesContractNotice() {
 	return (
 		<Alert severity="info">
 			站点列表读取 app-api 维护的 official_web 站点投影，不会直接检查对象存储、队列或
-			ingestion-worker 内部细节。
+			ingestion-control 内部细节。
 		</Alert>
 	);
 }

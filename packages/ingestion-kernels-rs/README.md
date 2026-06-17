@@ -2,9 +2,11 @@
 
 Deterministic file-level kernels for ingestion/data-plane proof work.
 
-Current kernel:
+Current kernels:
 
 - `validate_document_units_jsonl`
+- `chunk_document_units_jsonl`
+- `validate_release_manifest_json`
 
 Boundary:
 

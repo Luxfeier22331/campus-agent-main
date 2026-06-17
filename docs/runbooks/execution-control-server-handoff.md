@@ -31,7 +31,9 @@ updated: 2026-06-09
   - `workflow-worker`
   - `activity-worker-context`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
+  - `activity-worker-knowledge-plan`
+  - `activity-worker-knowledge-retrieval`
+  - `activity-worker-knowledge-synthesis`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
@@ -154,10 +156,9 @@ infra/local/smoke-execution-control-runtime.sh closed_gate
   - `no-new-privileges`
   - JSON log rotation (`10m * 3`)
 - process-level:
-  - `EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS`
-  - `EXECUTION_CONTROL_QUEUE_CAPACITY`
-  - `EXECUTION_CONTROL_QUEUE_TIMEOUT_MS`
-  - lane budgets (`EXECUTION_CONTROL_LANE_*`)
+  - `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH`
+  - runtime profile admission budget
+  - runtime profile lane budgets
 - ingress-level:
   - metrics token (`EXECUTION_CONTROL_METRICS_BEARER_TOKEN`) when metrics endpoint
     is externally reachable

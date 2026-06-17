@@ -28,11 +28,14 @@ RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/workflow-worker ./cmd/workflow-worker \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-context ./cmd/activity-worker-context \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-agent ./cmd/activity-worker-agent \
-  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge ./cmd/activity-worker-knowledge \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge-plan ./cmd/activity-worker-knowledge-plan \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge-retrieval ./cmd/activity-worker-knowledge-retrieval \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-knowledge-synthesis ./cmd/activity-worker-knowledge-synthesis \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-campus-services ./cmd/activity-worker-campus-services \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-notice ./cmd/activity-worker-notice \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-navigation ./cmd/activity-worker-navigation \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-finalization ./cmd/activity-worker-finalization \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/temporal-task-queue-sampler ./cmd/temporal-task-queue-sampler \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker-autoscaler ./cmd/worker-autoscaler
 
 FROM debian:bookworm-slim
@@ -46,16 +49,22 @@ COPY --from=build /out/execution-control /usr/local/bin/execution-control
 COPY --from=build /out/workflow-worker /usr/local/bin/workflow-worker
 COPY --from=build /out/activity-worker-context /usr/local/bin/activity-worker-context
 COPY --from=build /out/activity-worker-agent /usr/local/bin/activity-worker-agent
-COPY --from=build /out/activity-worker-knowledge /usr/local/bin/activity-worker-knowledge
+COPY --from=build /out/activity-worker-knowledge-plan /usr/local/bin/activity-worker-knowledge-plan
+COPY --from=build /out/activity-worker-knowledge-retrieval /usr/local/bin/activity-worker-knowledge-retrieval
+COPY --from=build /out/activity-worker-knowledge-synthesis /usr/local/bin/activity-worker-knowledge-synthesis
 COPY --from=build /out/activity-worker-campus-services /usr/local/bin/activity-worker-campus-services
 COPY --from=build /out/activity-worker-notice /usr/local/bin/activity-worker-notice
 COPY --from=build /out/activity-worker-navigation /usr/local/bin/activity-worker-navigation
 COPY --from=build /out/activity-worker-finalization /usr/local/bin/activity-worker-finalization
+COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-queue-sampler
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/capabilities.v1.json /etc/campus-agent/capabilities.v1.json
 COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json
 COPY configs/runtime/provider-pricing.v1.json /etc/campus-agent/provider-pricing.v1.json
 COPY configs/runtime/query-serving-scopes.v1.json /etc/campus-agent/query-serving-scopes.v1.json
+COPY configs/runtime/execution-control/runtime-profile.local.json /etc/campus-agent/runtime-profile.local.json
+COPY configs/runtime/execution-control/runtime-profile.local-real-provider.json /etc/campus-agent/runtime-profile.local-real-provider.json
+COPY configs/runtime/execution-control/runtime-profile.staging.json /etc/campus-agent/runtime-profile.staging.json
 COPY configs/runtime/tools.v3.json /etc/campus-agent/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /etc/campus-agent/workflow-artifacts.v2.json
 
@@ -63,9 +72,7 @@ USER appuser
 EXPOSE 8000
 ENV CAMPUS_AGENT_HTTP_HOST=0.0.0.0 \
   EXECUTION_CONTROL_CAPABILITY_SPEC_PATH=/etc/campus-agent/capabilities.v1.json \
-  EXECUTION_CONTROL_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json \
-  EXECUTION_CONTROL_PROVIDER_PRICING_PATH=/etc/campus-agent/provider-pricing.v1.json \
-  EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH=/etc/campus-agent/query-serving-scopes.v1.json \
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.local.json \
   EXECUTION_CONTROL_TOOL_SPEC_PATH=/etc/campus-agent/tools.v3.json \
   EXECUTION_CONTROL_WORKFLOW_ARTIFACT_REGISTRY_PATH=/etc/campus-agent/workflow-artifacts.v2.json
 

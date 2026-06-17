@@ -8,7 +8,6 @@ from pathlib import Path
 from campus_evals.answer_quality_contract import load_answer_quality_cases
 from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 from campus_evals.case_governance import load_denominator_registry
-from campus_evals.profile_registry import get_profile_definition
 from campus_evals.rag_known_gap import case_count_by_surface, load_rag_known_gap_cases
 from campus_evals.retrieval_qrels_policy import (
     default_query_enabled_retrieval_qrels_paths,
@@ -29,11 +28,17 @@ EXCLUDED_RAG_DENOMINATOR_SURFACES = {
     "official_web/fresh_news": "not_current_rag_consumption_surface",
 }
 
-_PROFILE_BY_SURFACE = {
-    "regulations/student_rules": "handbook",
-    "regulations/institutional_rules": "institutional-rules-release-baseline",
-    "curriculum/curriculum_plan": "curriculum",
-    "official_web/stable_reference": "official-web-stable-reference",
+_DETERMINISTIC_GATE_BY_SURFACE = {
+    "regulations/student_rules": ("regulations-student-rules", "release_acceptance_result"),
+    "regulations/institutional_rules": (
+        "regulations-institutional-rules",
+        "release_acceptance_result",
+    ),
+    "curriculum/curriculum_plan": ("curriculum-curriculum-plan", "release_acceptance_result"),
+    "official_web/stable_reference": (
+        "official-web-stable-reference-release",
+        "release_acceptance_result",
+    ),
 }
 _RELEASE_ACCEPTANCE_FIXTURE_BY_SURFACE = {
     "regulations/student_rules": "student_rules_release_acceptance.v1.json",
@@ -198,8 +203,7 @@ def _build_surface_coverage(
     known_gap_counts: dict[str, int],
 ) -> RagEvalSurfaceCoverage:
     fixture_root = root / "packages" / "evals" / "fixtures"
-    profile_id = _PROFILE_BY_SURFACE[surface_key]
-    profile = get_profile_definition(profile_id)
+    profile_id, profile_artifact_kind = _DETERMINISTIC_GATE_BY_SURFACE[surface_key]
     gaps: list[str] = []
     maturity_gaps: list[str] = []
     policy = maturity_policy[surface_key]
@@ -257,8 +261,8 @@ def _build_surface_coverage(
     maturity_status = "baseline_ready" if not maturity_gaps else "coverage_present_but_thin"
     return RagEvalSurfaceCoverage(
         surface_key=surface_key,
-        profile_id=profile.profile_id,
-        profile_artifact_kind=profile.artifact_kind,
+        profile_id=profile_id,
+        profile_artifact_kind=profile_artifact_kind,
         qrels_fixture=qrels_fixture,
         qrels_case_count=qrels_case_count,
         unique_expected_doc_count=unique_expected_doc_count,

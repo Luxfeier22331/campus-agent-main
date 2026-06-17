@@ -30,13 +30,15 @@ delivery/runtime seam 的 supporting architecture。
 
 `browser -> campus-web Q&A -> app-api /api/chatkit -> chatkit-adapter ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge /
+workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
+activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
 capability workers / activity-worker-finalization -> sanitized projection`
 
 `browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-agent /
-activity-worker-knowledge / capability workers / activity-worker-finalization ->
-sanitized projection`
+activity-worker-knowledge-plan / activity-worker-knowledge-retrieval /
+activity-worker-knowledge-synthesis / capability workers /
+activity-worker-finalization -> sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -66,7 +68,9 @@ projection / operator read model / operator-safe operations domains`
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
-- `apps/execution-control` 是 Docker-first internal execution engine
+- `apps/execution-control` 当前是 Docker-first internal execution engine；production
+  target deployment substrate 已接受 Kubernetes + KEDA，但不改变 product/runtime owner
+  boundary
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
@@ -244,7 +248,9 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - internal execution admission
 - typed execution transport
-- forward deploy substrate 已冻结为 Docker-first internal execution service
+- 当前 forward deploy substrate 是 Docker-first internal execution service；production
+  target deploy substrate 是 Kubernetes internal execution-control Service + KEDA/HPA
+  worker autoscaling
 - Docker-side Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
@@ -257,8 +263,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 产品 runtime 与 offline data plane 的分界固定为：
 
-`app-api operator/collector control plane -> ingestion-worker release task
-runtime`
+`app-api operator/collector control plane -> ingestion-control release task runtime`
 
 固定规则：
 
@@ -267,9 +272,9 @@ runtime`
   ledger
 - `apps/app-api` 不提供 official-web release executor read/callback routes
 - `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
-- `packages/ingestion-core` 定义 release task contract 与状态推进
-- `apps/ingestion-worker` 执行 release task，负责 claim、lease、retry、
-  dead-letter、materialize、publish 与失败状态
+- `apps/ingestion-control` 定义并执行 release task lifecycle，负责 claim、lease、
+  retry、dead-letter、materialize、publish 与失败状态
+- `packages/ingestion-core` 保留 canonical data-plane contract 与 collection strategy
 - Operator Console 不调用 release task mutation；它只展示 app-api/operator projection 或未来
   ingestion 投影后的 read model
 
@@ -335,6 +340,12 @@ future operator-facing observability 域也遵循同一 ownership rule：
 - Operator Console 只能读取 runtime-owned projection / aggregate APIs
 - `Sentry`、`Axiom` 与其他 sink 继续只是 debugging / analysis / grading surface，不反向成为
   canonical Operator Console read model
+- Temporal task queue snapshot、worker autoscaler decision / actuation 也属于
+  operator runtime projection。当前 Docker Compose autoscaler 只能通过 app-api
+  internal HTTP 发布 sanitized payload；production target 下 KEDA/HPA scale event 也必须
+  先物化为 app-api operator-safe projection。Operator Console 和 eval 不直接读取
+  Temporal history、Docker state、Kubernetes API、HPA/KEDA API 或 execution-control
+  本地证据文件
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
 `docs/architecture/system/operator-observability-architecture.md`。
@@ -396,7 +407,9 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
+- `apps/execution-control` 当前部署 substrate 是 Docker-first internal execution service；
+  production target substrate 是 Kubernetes + KEDA，详见
+  `kubernetes-execution-runtime-architecture.md`
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
   semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
   online answer hot path
@@ -426,7 +439,7 @@ contract 或 auth family route/endpoint truth。
 - `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
 - `docs/architecture/system/operator-observability-architecture.md`

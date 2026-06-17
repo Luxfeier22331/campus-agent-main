@@ -1,0 +1,22 @@
+{
+	"schema_version": "ingestion_task_registry.v1",
+	"source_family": "calendar",
+	"corpus": "calendar",
+	"collection": "academic_calendar",
+	"tasks": [
+		{
+			"task_kind": "structured_projection_publish",
+			"executor_kind": "ts_control",
+			"input_contract": "academic_calendar_source_truth.v1",
+			"output_contract": "structured_projection_publish_closeout.v1",
+			"can_publish_alias": false
+		},
+		{
+			"task_kind": "operator_projection_snapshot",
+			"executor_kind": "ts_control",
+			"input_contract": "academic_calendar_projection.v1",
+			"output_contract": "academic_calendar_operator_projection.v1",
+			"can_publish_alias": false
+		}
+	]
+}

@@ -58,8 +58,8 @@ combinations live in split environment references.
   作用: primary agent / RAG synthesis 在线回答 provider profile、eval 默认 judge/ragas LLM
   主要 online owner: `apps/app-api` provider-config profile；Operator Console
   `/operations/provider-config` 创建、验证、激活
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `EXECUTION_PROMPT_MODEL`
-  `AGENT_PROMPT_MODEL`
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY`；`EXECUTION_PROMPT_MODEL`
+  仅用于显式 deterministic execution prompt lane
   放置位置: online serving 不再以 root `.env` 为真相；root `.env` 只用于 local seed /
   eval / command-scoped override
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
@@ -87,7 +87,8 @@ combinations live in split environment references.
   放置位置: root `.env`
   何时必需: retrieval / indexing
   获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
-  `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md` 部署 container，并由 deploy
+  historical `docs/runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md`
+  部署 container，并由 deploy
   secret / env 提供 HTTPS URL、admin key、read-only query key 与 CA certificate path
 
 - Provider / system: Shared Postgres
@@ -113,15 +114,16 @@ combinations live in split environment references.
   mode；source-only collector 与 derived-only online runtime 使用更窄的 bucket-scoped key。
 
 - Provider / system: OCR service
-  作用: canonical raw ingestion / replay，lane-level compare
+  作用: extraction adapter / source-truth materialization lane、lane-level compare
   主要 env keys: `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL`
   `OCR_MINERU_*`
   放置位置: root `.env` 或 command-scoped env
   何时必需: 只有 ingestion / replay / compare 需要
   获取方式: canonical lane 由 routing owner 决定；`OCR_*` 表示当前 active
-  provider，`OCR_MINERU_*` 只作为 `process_raw_ingestion_job` source-truth-only 的附加
-  MinerU lane；其中 `curriculum/curriculum_plan` 的 canonical source OCR truth
-  已冻结为 `mineru_api / vlm`，以 collection runtime profile 为准，不再跟随 root
+  provider，`OCR_MINERU_*` 只作为 task-registry-declared source-truth
+  materialization / typed-PDF extraction 的附加 MinerU lane；其中
+  `curriculum/curriculum_plan` 的 canonical source OCR truth 已冻结为
+  `mineru_api / vlm`，以 collection runtime profile 为准，不再跟随 root
   `OCR_*` 默认值漂移
 
 - Provider / system: Eval-only provider override

@@ -735,16 +735,18 @@ func TestValidateReplanWithinBoundsRejectsExpandedCapability(t *testing.T) {
 
 func TestWorkerRuntimeRequiresFinalizationActivities(t *testing.T) {
 	_, err := NewWorkerRuntime(context.Background(), WorkerOptions{
-		Address:                "127.0.0.1:1",
-		Namespace:              "campus-agent-test",
-		WorkflowQueue:          WorkflowTaskQueue,
-		ContextQueue:           ActivityTaskQueueContext,
-		KnowledgeQueue:         ActivityTaskQueueKnowledge,
-		FinalizationQueue:      ActivityTaskQueueFinalization,
-		ContextActivities:      &Activities{},
-		AgentActivities:        &Activities{},
-		KnowledgeActivities:    &Activities{},
-		FinalizationActivities: nil,
+		Address:                 "127.0.0.1:1",
+		Namespace:               "campus-agent-test",
+		WorkflowQueue:           WorkflowTaskQueue,
+		ContextQueue:            ActivityTaskQueueContext,
+		KnowledgePlanQueue:      ActivityTaskQueueKnowledgePlan,
+		KnowledgeRetrievalQueue: ActivityTaskQueueKnowledgeRetrieval,
+		KnowledgeSynthesisQueue: ActivityTaskQueueKnowledgeSynthesis,
+		FinalizationQueue:       ActivityTaskQueueFinalization,
+		ContextActivities:       &Activities{},
+		AgentActivities:         &Activities{},
+		KnowledgeActivities:     &Activities{},
+		FinalizationActivities:  nil,
 	})
 	if err == nil {
 		t.Fatal("expected missing finalization activities to fail")

@@ -74,7 +74,9 @@ Readiness must confirm:
 Required activity task queues:
 
 - `campus-agent.activity.context`
-- `campus-agent.activity.knowledge`
+- `campus-agent.activity.knowledge.plan`
+- `campus-agent.activity.knowledge.retrieval`
+- `campus-agent.activity.knowledge.synthesis`
 - `campus-agent.activity.finalization`
 
 Capability-gated activity task queues:
@@ -83,8 +85,8 @@ Capability-gated activity task queues:
 - `campus-agent.activity.navigation`
 - `campus-agent.activity.campus_services`
 
-If `EXECUTION_CONTROL_OPEN_CAPABILITIES` opens one of these capabilities, the
-matching task queue must have a poller. Missing pollers are a readiness blocker.
+If runtime profile `open_capabilities` opens one of these capabilities, the matching
+task queue must have a poller. Missing pollers are a readiness blocker.
 
 ## Worker Identity
 
@@ -140,29 +142,50 @@ authorization header, raw source body, or object-store credentials.
 
 ## Worker Autoscaler Proof
 
-The worker autoscaler belongs to the Execution Operations Plane. It reads task
-queue and downstream budget evidence, computes desired replicas, and writes only
-decision evidence.
+The worker autoscaler belongs to the Execution Operations Plane. It reads
+app-api operator runtime task queue projections, reads Docker Compose replica
+state, computes desired worker replicas, and publishes sanitized decision /
+actuation projections back to app-api. It does not read app-api Postgres
+directly.
 
-Dry-run command:
+First run the task queue sampler:
 
 ```bash
 cd apps/execution-control
-go run ./cmd/worker-autoscaler \
-  --input-path /path/to/autoscaler-input.json \
-  --evidence-path /path/to/worker-autoscaler-evidence.json
+workflow_queue="${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}"
+go run ./cmd/temporal-task-queue-sampler \
+  --temporal-address "$EXECUTION_CONTROL_TEMPORAL_ADDRESS" \
+  --temporal-namespace "$EXECUTION_CONTROL_TEMPORAL_NAMESPACE" \
+  --workflow-task-queue "$workflow_queue" \
+  --app-api-base-url "$EXECUTION_CONTROL_APP_API_BASE_URL" \
+  --shared-secret "$EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"
 ```
 
-The output must include:
+Then run the autoscaler dry-run:
 
-- `mode= dry_run`
-- `writes_execution_state=false`
-- one decision per observed queue
-- task queue name, current replicas, desired replicas, reason, pollers, backlog,
-  and schedule-to-start latency
+```bash
+go run ./cmd/worker-autoscaler \
+  --mode dry-run \
+  --app-api-base-url "$EXECUTION_CONTROL_APP_API_BASE_URL" \
+  --shared-secret "$EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET" \
+  --compose-project-name "$EXECUTION_CONTROL_COMPOSE_PROJECT_NAME" \
+  --compose-project-directory "$EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"
+```
 
-The autoscaler must not write workflow state, run projection, step projection,
-event projection, terminal state, or downstream budget.
+The app-api operator runtime projection must include:
+
+- latest Temporal task queue snapshots for each autoscaled service policy
+- one autoscaler decision per target service
+- `sourceSnapshotId` linking each decision to a task queue snapshot
+- observed `backlog` and `oldestTaskAge` from Temporal
+  `DescribeTaskQueue(report_stats=true)`
+- explicit `unsupported_by_source` for `scheduleToStartLatency` until a dedicated
+  latency metric source is wired
+
+Apply mode is allowed only for the Docker Compose service allowlist documented in
+`docs/contracts/operator-runtime-observability-contract.md`. The autoscaler must
+not write workflow state, run projection, step projection, event projection,
+terminal state, or downstream budget.
 
 ## Closeout
 

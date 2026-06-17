@@ -143,7 +143,9 @@ migration evidence, not target execution substrate.
 
 - `campus-agent.workflow`
 - `campus-agent.activity.context`
-- `campus-agent.activity.knowledge`
+- `campus-agent.activity.knowledge.plan`
+- `campus-agent.activity.knowledge.retrieval`
+- `campus-agent.activity.knowledge.synthesis`
 - `campus-agent.activity.notice`
 - `campus-agent.activity.navigation`
 - `campus-agent.activity.campus_services`
@@ -220,10 +222,12 @@ agent-as-tool。
   grounding.verify -> finalization.write`。
 - `plan.route` 只保留为 retained deterministic support path / historical
   planning artifact；它不再是 ordinary chat 的第一模型决策入口。
-- Go `activity-worker-knowledge` 拥有 online RAG lookup 与 synthesis provider execution，
-  并通过 repo-owned DTO、`provider_execution_summary_v1` 与 step attempt evidence
-  记录 lookup latency、provider request ref、latency、token、estimated cost、
-  cancel / timeout outcome。
+- Go `activity-worker-knowledge-plan`、`activity-worker-knowledge-retrieval` 与
+  `activity-worker-knowledge-synthesis` 分别拥有 RAG planning / evidence
+  selection / grounding、online Qdrant / embedding lookup、synthesis provider
+  execution，并通过 repo-owned DTO、`provider_execution_summary_v1` 与 step
+  attempt evidence 记录 lookup latency、provider request ref、latency、token、
+  estimated cost、cancel / timeout outcome。
 - Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /
   eval / tooling / historical bridge reference。
 

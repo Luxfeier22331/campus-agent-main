@@ -4,8 +4,8 @@
 	"capabilities": [
 		{
 			"id": "knowledge",
-			"owner_package": "packages/knowledge-capability",
-			"worker_role": "activity-worker-knowledge",
+			"owner_package": "apps/execution-control",
+			"worker_role": "activity-worker-knowledge-plan",
 			"runtime_adapter": "temporal_activity_worker",
 			"active": true,
 			"opening_gate": "open",
@@ -48,8 +48,12 @@
 			"runtime_adapter": "temporal_activity_worker",
 			"active": true,
 			"opening_gate": "open",
-			"allowed_structured_tools": ["campus_notice_discover", "campus_notice_change_set_lookup"],
-			"context_projection_kinds": ["notice_context", "notice_change_set"],
+			"allowed_structured_tools": [
+				"campus_notice_discover",
+				"campus_notice_period_summary",
+				"campus_notice_change_set_lookup"
+			],
+			"context_projection_kinds": ["notice_context", "notice_change_set", "notice_period_summary"],
 			"description": "Notice discovery and internal selected notice resolution capability."
 		}
 	]

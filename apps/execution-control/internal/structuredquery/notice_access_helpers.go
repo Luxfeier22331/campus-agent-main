@@ -5,12 +5,22 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
+	"unicode"
 )
 
 func noticePublicCardDisplayPolicy() noticeDisplayPolicy {
 	return noticeDisplayPolicy{
 		PublicSurface:     "card_only",
+		FullBodyForbidden: true,
+		BodyAccess:        "none",
+	}
+}
+
+func noticeBoundedSummaryDisplayPolicy() noticeDisplayPolicy {
+	return noticeDisplayPolicy{
+		PublicSurface:     "bounded_summary",
 		FullBodyForbidden: true,
 		BodyAccess:        "none",
 	}
@@ -33,6 +43,30 @@ func normalizeNoticeDiscoverRequest(request *noticeDiscoverRequest) {
 		request.SourceFamilies[index] = strings.TrimSpace(value)
 	}
 	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
+}
+
+func normalizeNoticePeriodSummaryRequest(request *noticePeriodSummaryRequest) {
+	request.QueryText = strings.TrimSpace(request.QueryText)
+	request.DateRange.StartDate = strings.TrimSpace(request.DateRange.StartDate)
+	request.DateRange.EndDate = strings.TrimSpace(request.DateRange.EndDate)
+	request.DateRange.Timezone = strings.TrimSpace(request.DateRange.Timezone)
+	if request.DateRange.Timezone == "" {
+		request.DateRange.Timezone = "Asia/Shanghai"
+	}
+	for index, value := range request.SourceFamilies {
+		request.SourceFamilies[index] = strings.TrimSpace(value)
+	}
+	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
+	request.GroupBy = strings.TrimSpace(request.GroupBy)
+}
+
+func isSupportedNoticePeriodSummaryGroupBy(value string) bool {
+	switch strings.TrimSpace(value) {
+	case "topic", "day", "source_family":
+		return true
+	default:
+		return false
+	}
 }
 
 func normalizeNoticeTargetSurfaces(values []string) []string {
@@ -106,6 +140,200 @@ func noticeRowsForIDs(
 		}
 	}
 	return selected
+}
+
+func noticeCardForReadModelRow(row noticeReadModelRecord) noticeCard {
+	return noticeCard{
+		NoticeID:      strings.TrimSpace(row.SourceNoticeID),
+		Title:         strings.TrimSpace(row.Title),
+		SourceFamily:  strings.TrimSpace(row.SourceFamily),
+		SourceURL:     strings.TrimSpace(row.SourceURL),
+		CanonicalURL:  noticeCanonicalURL(row),
+		PublishedAt:   strings.TrimSpace(row.PublishedAt),
+		EffectiveAt:   strings.TrimSpace(row.EffectiveAt),
+		TargetSurface: strings.TrimSpace(row.TargetSurface),
+		PrimaryRole:   strings.TrimSpace(row.PrimaryRole),
+		BodyExcerpt:   strings.TrimSpace(row.BodyExcerpt),
+		IsCurrent:     true,
+		DisplayPolicy: noticePublicCardDisplayPolicy(),
+	}
+}
+
+func groupNoticePeriodSummaryRows(
+	rows []noticeReadModelRecord,
+	request noticePeriodSummaryRequest,
+) []noticePeriodSummaryGroup {
+	type accumulator struct {
+		title     string
+		noticeIDs []string
+		excerpts  []string
+	}
+	grouped := map[string]*accumulator{}
+	order := []string{}
+	for _, row := range rows {
+		key := noticePeriodGroupKey(row, request)
+		if key == "" {
+			key = "其他"
+		}
+		item := grouped[key]
+		if item == nil {
+			item = &accumulator{title: key}
+			grouped[key] = item
+			order = append(order, key)
+		}
+		noticeID := strings.TrimSpace(row.SourceNoticeID)
+		if noticeID != "" {
+			item.noticeIDs = append(item.noticeIDs, noticeID)
+		}
+		excerpt := strings.TrimSpace(row.BodyExcerpt)
+		if excerpt != "" {
+			item.excerpts = append(item.excerpts, excerpt)
+		}
+	}
+	groups := make([]noticePeriodSummaryGroup, 0, len(order))
+	for _, key := range order {
+		item := grouped[key]
+		groups = append(groups, noticePeriodSummaryGroup{
+			GroupKey:    key,
+			Title:       item.title,
+			NoticeCount: len(item.noticeIDs),
+			Summary:     noticePeriodGroupSummary(item.title, item.noticeIDs, item.excerpts),
+			NoticeIDs:   append([]string(nil), item.noticeIDs...),
+		})
+	}
+	return groups
+}
+
+func noticePeriodGroupKey(row noticeReadModelRecord, request noticePeriodSummaryRequest) string {
+	switch strings.TrimSpace(request.GroupBy) {
+	case "day":
+		publishedAt := strings.TrimSpace(row.PublishedAt)
+		if len(publishedAt) >= len("2006-01-02") {
+			return publishedAt[:len("2006-01-02")]
+		}
+		return publishedAt
+	case "source_family":
+		return strings.TrimSpace(row.SourceFamily)
+	default:
+		return noticeTopicGroupKey(row, request.QueryText)
+	}
+}
+
+func noticeTopicGroupKey(row noticeReadModelRecord, queryText string) string {
+	if topic := noticeTopicText(queryText); topic != "" {
+		return topic
+	}
+	if topic := noticeTopicText(row.Title); topic != "" {
+		return topic
+	}
+	if primaryRole := strings.TrimSpace(row.PrimaryRole); primaryRole != "" {
+		return primaryRole
+	}
+	title := strings.TrimSpace(row.Title)
+	if len([]rune(title)) <= 12 {
+		return title
+	}
+	runes := []rune(title)
+	return string(runes[:12])
+}
+
+func noticeTopicText(value string) string {
+	var builder strings.Builder
+	for _, char := range strings.TrimSpace(value) {
+		if unicode.IsDigit(char) || unicode.IsPunct(char) || unicode.IsSymbol(char) || unicode.IsSpace(char) {
+			continue
+		}
+		builder.WriteRune(char)
+	}
+	text := builder.String()
+	for _, token := range []string{
+		"通知公告",
+		"通知",
+		"公告",
+		"总结",
+		"汇总",
+		"概览",
+		"查询",
+		"查看",
+		"请问",
+		"哪些",
+		"什么",
+		"是否",
+		"有没有",
+		"近期",
+		"最近",
+		"本周",
+		"本月",
+		"当月",
+		"上旬",
+		"中旬",
+		"下旬",
+		"相关",
+		"有关",
+		"关于",
+		"年",
+		"月",
+		"日",
+		"号",
+		"的",
+	} {
+		text = strings.ReplaceAll(text, token, "")
+	}
+	runes := []rune(strings.TrimSpace(text))
+	if len(runes) < 2 {
+		return ""
+	}
+	if len(runes) > 12 {
+		return string(runes[:12])
+	}
+	return string(runes)
+}
+
+func noticePeriodGroupSummary(title string, noticeIDs []string, excerpts []string) string {
+	if len(excerpts) > 0 {
+		return fmt.Sprintf("%s：%s", title, strings.Join(excerpts, "；"))
+	}
+	return fmt.Sprintf("%s：共 %d 条通知。", title, len(noticeIDs))
+}
+
+func boundedNoticePeriodSummary(
+	request noticePeriodSummaryRequest,
+	rows []noticeReadModelRecord,
+	groups []noticePeriodSummaryGroup,
+) string {
+	if len(groups) == 0 {
+		return ""
+	}
+	parts := make([]string, 0, len(groups)+1)
+	parts = append(
+		parts,
+		fmt.Sprintf(
+			"%s 至 %s 共检索到 %d 条相关通知。",
+			request.DateRange.StartDate,
+			request.DateRange.EndDate,
+			len(rows),
+		),
+	)
+	for _, group := range groups {
+		parts = append(parts, group.Summary)
+	}
+	return strings.Join(parts, " ")
+}
+
+func countNoticeSourceRefs(rows []noticeReadModelRecord) int {
+	seen := map[string]bool{}
+	for _, row := range rows {
+		sourceURL := strings.TrimSpace(row.SourceURL)
+		if sourceURL != "" {
+			seen[sourceURL] = true
+			continue
+		}
+		noticeID := strings.TrimSpace(row.SourceNoticeID)
+		if noticeID != "" {
+			seen[noticeID] = true
+		}
+	}
+	return len(seen)
 }
 
 func buildTransportNoticeChangeSet(
@@ -435,6 +663,17 @@ func failClosedNoticeGet(noticeID string, sourceFamily string, reason string) Re
 		Outcome:         "temporarily_unverifiable",
 		SourceFamily:    sourceFamily,
 		DisplayPolicy:   noticePublicCardDisplayPolicy(),
+		FailCloseReason: reason,
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedNoticePeriodSummary(queryText string, dateRange noticeDateRange, reason string) Response {
+	body := noticePeriodSummaryResult{
+		QueryText:       queryText,
+		Outcome:         "temporarily_unverifiable",
+		DateRange:       dateRange,
+		DisplayPolicy:   noticeBoundedSummaryDisplayPolicy(),
 		FailCloseReason: reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}

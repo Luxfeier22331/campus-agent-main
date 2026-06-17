@@ -19,7 +19,8 @@ def _write(path: Path, content: str) -> None:
 
 def _execution_control_required_env() -> list[str]:
     return [
-        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+        "EXECUTION_PROMPT_MODEL=gpt-5.4",
+        "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-profile.staging.json",
         "EXECUTION_CONTROL_SHARED_SECRET=control-secret",
         "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
         "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://runtime.example/campus_agent",
@@ -40,6 +41,25 @@ def _execution_control_required_env() -> list[str]:
     ]
 
 
+def _write_execution_control_runtime_profile(
+    repo_root: Path,
+    *,
+    open_capabilities: list[str] | None = None,
+    execution_audit_enabled: bool = False,
+) -> None:
+    _write(
+        repo_root / "configs/runtime/execution-control/runtime-profile.staging.json",
+        json.dumps(
+            {
+                "schema_version": "campus_execution_control_runtime_profile.v1",
+                "open_capabilities": open_capabilities or [],
+                "execution_audit": {"enabled": execution_audit_enabled},
+            }
+        )
+        + "\n",
+    )
+
+
 class DoctorEnvTest(unittest.TestCase):
     def test_collect_env_doctor_status_reports_eval_surface_bootstrap_and_checked_keys(
         self,
@@ -58,7 +78,6 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
-
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="evals")
 
@@ -137,9 +156,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
                         *_execution_control_required_env(),
-                        "EXECUTION_CONTROL_QUEUE_CAPACITY=24",
-                        "EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000",
-                        "EXECUTION_CONTROL_OTEL_SAMPLE_RATIO=1",
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
                         "EXECUTION_CONTROL_TRANSPORT_WORKER_THREADS=8",
@@ -147,6 +163,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -158,6 +175,9 @@ class DoctorEnvTest(unittest.TestCase):
             required = status["settings"]["required"]
             optional = status["settings"]["optional"]
             self.assertNotIn("transport_worker_threads", optional)
+            self.assertNotIn("transport_queue_capacity", optional)
+            self.assertNotIn("transport_queue_timeout_ms", optional)
+            self.assertNotIn("otel_sample_ratio", optional)
             self.assertNotIn("agent_worker_base_url", required)
             self.assertNotIn("agent_worker_shared_secret", required)
             self.assertNotIn("agent_runtime_base_url", required)
@@ -176,10 +196,6 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertEqual(
                 required["temporal_knowledge_worker_identity"]["resolved_key"],
                 "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
-            )
-            self.assertEqual(
-                optional["transport_queue_capacity"]["resolved_key"],
-                "EXECUTION_CONTROL_QUEUE_CAPACITY",
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
@@ -211,6 +227,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -270,11 +287,11 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
-                        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED=true",
                     ]
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root, execution_audit_enabled=True)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -300,10 +317,12 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
-                        "EXECUTION_CONTROL_OPEN_CAPABILITIES=campus_services",
                     ]
                 )
                 + "\n",
+            )
+            _write_execution_control_runtime_profile(
+                repo_root, open_capabilities=["campus_services"]
             )
 
             with patch.dict(os.environ, {}, clear=True):
@@ -330,13 +349,13 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
-                        "EXECUTION_CONTROL_OPEN_CAPABILITIES=notice",
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
                     ]
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root, open_capabilities=["notice"])
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -367,6 +386,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -397,6 +417,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
+            _write_execution_control_runtime_profile(repo_root)
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(
@@ -423,7 +444,6 @@ class DoctorEnvTest(unittest.TestCase):
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
                         "EXECUTION_PROMPT_MODEL=gpt-5.4",
-                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -500,7 +520,6 @@ class DoctorEnvTest(unittest.TestCase):
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
                         "EXECUTION_PROMPT_MODEL=gpt-5.4",
-                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -516,7 +535,6 @@ class DoctorEnvTest(unittest.TestCase):
                     "QDRANT_URL": "https://qdrant.example.com",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
                     "EXECUTION_PROMPT_MODEL": "gpt-5.4",
-                    "AGENT_PROMPT_MODEL": "gpt-5.4-mini",
                 },
                 clear=True,
             ):
@@ -544,7 +562,6 @@ class DoctorEnvTest(unittest.TestCase):
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
                         "EXECUTION_PROMPT_MODEL=gpt-5.4",
-                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",

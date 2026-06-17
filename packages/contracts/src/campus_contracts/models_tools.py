@@ -21,13 +21,25 @@ from campus_contracts.models_notice import (
     CampusNoticeGetResult as CampusNoticeGetResult,
 )
 from campus_contracts.models_notice import (
+    CampusNoticePeriodSummaryPayload as CampusNoticePeriodSummaryPayload,
+)
+from campus_contracts.models_notice import (
+    CampusNoticePeriodSummaryResult as CampusNoticePeriodSummaryResult,
+)
+from campus_contracts.models_notice import (
     NoticeCard as NoticeCard,
 )
 from campus_contracts.models_notice import (
     NoticeContextProjection as NoticeContextProjection,
 )
 from campus_contracts.models_notice import (
+    NoticeDateRange as NoticeDateRange,
+)
+from campus_contracts.models_notice import (
     NoticeDisplayPolicy as NoticeDisplayPolicy,
+)
+from campus_contracts.models_notice import (
+    NoticePeriodSummaryGroup as NoticePeriodSummaryGroup,
 )
 from campus_contracts.models_shared import (
     ContactDirectoryChannelType,

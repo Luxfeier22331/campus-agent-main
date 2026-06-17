@@ -102,9 +102,11 @@ class InMemoryInternalNoticeReadModelStore:
             or all(term in f"{record.title}\n{record.search_text}".casefold() for term in terms)
         ]
         return tuple(
-            sorted(rows, key=lambda item: (item.published_at, item.source_notice_id), reverse=True)[
-                :max_results
-            ]
+            sorted(
+                rows,
+                key=lambda item: (item.published_at_ts, item.source_notice_id),
+                reverse=True,
+            )[:max_results]
         )
 
     def get_by_notice_id(
@@ -123,4 +125,4 @@ class InMemoryInternalNoticeReadModelStore:
         ]
         if not rows:
             return None
-        return sorted(rows, key=lambda item: (item.published_at, item.unit_id), reverse=True)[0]
+        return sorted(rows, key=lambda item: (item.published_at_ts, item.unit_id), reverse=True)[0]

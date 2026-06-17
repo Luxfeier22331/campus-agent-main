@@ -29,7 +29,7 @@ ingestion handoff 语义。
 1. collector 上传 object-storage artifacts 并发送 heartbeat
 1. collector finalize，`app-api` durable 写入 terminal state 与 artifact refs
 1. `app-api` 发出 ingestion handoff event
-1. ingestion worker 消费 handoff event 并开始 offline execution
+1. ingestion-control 消费 handoff event 并开始 offline execution
 1. operator 只通过 app-owned projections 查看 site/run/detail
 
 这里冻结的重点是：
@@ -37,7 +37,7 @@ ingestion handoff 语义。
 - crawl run truth 必须先进入 `app-api` durable ledger
 - object storage artifacts 与 app-owned run ledger 共同构成 control-plane truth
 - ingestion handoff 只能在 terminal finalize 之后发生
-- panel 不能通过对象存储扫描、日志扫描或 ingestion worker 直连来补状态
+- panel 不能通过对象存储扫描、日志扫描或 ingestion-control 直连来补状态
 
 ## 状态模型
 
@@ -145,11 +145,11 @@ handoff 规则固定为：
   refs
 - `pageChanges` 只包含 `new / changed / deleted`
 - `not_modified` 与 `fetch_failed` 只保留在 page-change summary 与 freshness truth 中
-- ingestion worker 消费 handoff 时再去对象存储读取 artifact 内容
+- ingestion-control 消费 handoff 时再去对象存储读取 artifact 内容
 
 第一版推荐链路：
 
-`official_web.crawl_runs -> official_web.run_outbox -> ingestion-worker`
+`official_web.crawl_runs -> official_web.run_outbox -> ingestion-control`
 
 ## 一致性规则
 
@@ -161,7 +161,7 @@ handoff 规则固定为：
 这不是允许 panel 改去读：
 
 - 对象存储目录
-- `apps/ingestion-worker` 内部状态
+- `apps/ingestion-control` 内部状态
 - telemetry sink
 - raw logs
 
@@ -216,4 +216,4 @@ operator query surface 需要能把这三类边界分清，而不是折叠成一
 
 - 不在本文定义 queue vendor 或 cron 平台
 - 不在本文设计 collector 内部 frontier persistence
-- 不让 ingestion worker 反向拥有 crawl-run lifecycle truth
+- 不让 ingestion-control 反向拥有 crawl-run lifecycle truth

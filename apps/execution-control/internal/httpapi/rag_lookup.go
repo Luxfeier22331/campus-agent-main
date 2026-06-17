@@ -57,16 +57,23 @@ func newQdrantRAGLookupExecutor(
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
 		return nil, errors.New("QDRANT_QUERY_API_KEY is required for online Qdrant lookup")
 	}
-	timeout := time.Duration(cfg.QdrantTimeoutSeconds * float64(time.Second))
-	if timeout <= 0 {
-		timeout = 10 * time.Second
+	qdrantTimeout := time.Duration(cfg.RAGQdrantTimeoutMS) * time.Millisecond
+	if qdrantTimeout <= 0 {
+		qdrantTimeout = time.Duration(cfg.QdrantTimeoutSeconds * float64(time.Second))
 	}
-	httpClient, err := qdrantTLSHTTPClient(timeout, cfg.QdrantTLSCACertPath)
+	if qdrantTimeout <= 0 {
+		qdrantTimeout = 10 * time.Second
+	}
+	embeddingTimeout := time.Duration(cfg.RAGEmbeddingTimeoutMS) * time.Millisecond
+	if embeddingTimeout <= 0 {
+		embeddingTimeout = qdrantTimeout
+	}
+	httpClient, err := qdrantTLSHTTPClient(qdrantTimeout, cfg.QdrantTLSCACertPath)
 	if err != nil {
 		return nil, err
 	}
 	return qdrantRAGLookupExecutor{
-		embeddingHTTPClient: &http.Client{Timeout: timeout},
+		embeddingHTTPClient: &http.Client{Timeout: embeddingTimeout},
 		embeddingRole:       providerConfigRoleRAGQueryEmbedding,
 		embeddingProvider:   strings.TrimSpace(cfg.EmbeddingProvider),
 		configResolver:      configResolver,
@@ -74,7 +81,7 @@ func newQdrantRAGLookupExecutor(
 		qdrantQueryAPIKey:   strings.TrimSpace(cfg.QdrantQueryAPIKey),
 		qdrantURL:           qdrantURL,
 		runtimeProfileRoot:  retrievalRuntimeProfileRoot(),
-		timeout:             timeout,
+		timeout:             qdrantTimeout,
 	}, nil
 }
 

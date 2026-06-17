@@ -76,7 +76,13 @@ def build_process_smoke_plan(
         "PROMPT_STRICT_STRUCTURED_OUTPUTS": "true",
     }
     object_store_base_url = f"http://{object_store_host}:{object_store_port}"
-    profile_api_env = _profile_api_env(
+    output_dir.mkdir(parents=True, exist_ok=True)
+    runtime_config_path = _write_process_smoke_runtime_profile(
+        repo_root=repo_root,
+        output_dir=output_dir,
+        profile=profile,
+    )
+    profile_api_env = _profile_resource_env(
         profile,
         object_store_base_url=object_store_base_url,
         structured_query_secret=structured_query_secret,
@@ -87,9 +93,7 @@ def build_process_smoke_plan(
         "API_WORKER_SHARED_SECRET": api_secret,
         "CAMPUS_AGENT_HTTP_HOST": api_host,
         "CAMPUS_AGENT_HTTP_PORT": str(api_port),
-        "EXECUTION_CONTROL_OTEL_ENABLED": "false",
-        "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
-        "EXECUTION_CONTROL_OPEN_CAPABILITIES": os.getenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", ""),
+        "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH": str(runtime_config_path),
         **_temporal_env(),
         **profile_api_env,
     }
@@ -148,7 +152,84 @@ def build_process_smoke_plan(
     )
 
 
-def _profile_api_env(
+def _write_process_smoke_runtime_profile(
+    *,
+    repo_root: Path,
+    output_dir: Path,
+    profile: str,
+) -> Path:
+    runtime_profile = {
+        "schema_version": "campus_execution_control_runtime_profile.v1",
+        "max_concurrent_answers": 8,
+        "queue_capacity": 24,
+        "queue_timeout_ms": 3000,
+        "request_timeout_ms": 45000,
+        "request_body_limit_bytes": 1048576,
+        "shutdown_grace_ms": 45000,
+        "intent_policy_path": str(repo_root / "configs/runtime/intent-policy.v1.json"),
+        "provider_pricing_path": str(repo_root / "configs/runtime/provider-pricing.v1.json"),
+        "query_serving_scopes_path": str(
+            repo_root / "configs/runtime/query-serving-scopes.v1.json"
+        ),
+        "structured_query_timeout_ms": 1000,
+        "open_capabilities": _profile_open_capabilities(profile),
+        "multi_step_workflow_enabled": profile in MULTI_STEP_WORKFLOW_PROFILES,
+        "otel": {
+            "enabled": False,
+            "endpoint": "http://127.0.0.1:4318/v1/traces",
+            "metrics_enabled": False,
+            "metrics_endpoint": "http://127.0.0.1:4318/v1/metrics",
+            "service_name": "campus-execution-control-process-smoke",
+            "export_timeout_ms": 1000,
+            "export_interval_ms": 15000,
+            "sample_ratio": 1,
+            "allowed_attributes_version": "execution-control-otel-attrs-v1",
+        },
+        "execution_audit": {
+            "enabled": False,
+            "timeout_ms": 500,
+        },
+        "lane_budgets": {
+            "rag": {"max_concurrent": 6, "queue_capacity": 12, "queue_timeout_ms": 3000},
+            "navigation": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
+            "campus_services": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
+            "notice": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
+            "default": {"max_concurrent": 1, "queue_capacity": 2, "queue_timeout_ms": 1500},
+        },
+        "rag": {
+            "top_k_max": 8,
+            "selected_evidence_max": 8,
+            "retrieval_max_concurrent": 4,
+            "synthesis_max_concurrent": 2,
+            "embedding_timeout_ms": 10000,
+            "qdrant_timeout_ms": 10000,
+            "provider_timeout_ms": 60000,
+        },
+        "personal_memory": {
+            "collection": "personal_memory_v1",
+            "top_k": 5,
+            "max_chars": 1200,
+            "score_threshold": 0,
+        },
+    }
+    path = output_dir / f"runtime-profile.{profile}.json"
+    path.write_text(
+        json.dumps(runtime_profile, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+    return path
+
+
+def _profile_open_capabilities(profile: str) -> list[str]:
+    if profile in campus_services_sdk_profiles() or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
+        return ["campus_services"]
+    if profile == "notice_discover_sdk_opened":
+        return ["notice"]
+    if profile == "transport_notice_override_multistep":
+        return ["campus_services"]
+    return []
+
+
+def _profile_resource_env(
     profile: str,
     *,
     object_store_base_url: str,
@@ -156,7 +237,6 @@ def _profile_api_env(
 ) -> dict[str, str]:
     if profile in campus_services_sdk_profiles():
         return {
-            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
             "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
@@ -164,7 +244,6 @@ def _profile_api_env(
         }
     if profile == "notice_discover_sdk_opened":
         env = {
-            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "notice",
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
         if profile_requires_object_store(profile):
@@ -179,7 +258,6 @@ def _profile_api_env(
         return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
         env = {
-            "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
@@ -188,14 +266,12 @@ def _profile_api_env(
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
-            env["EXECUTION_CONTROL_OPEN_CAPABILITIES"] = "campus_services"
             env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
                 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
     if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
         return {
-            "EXECUTION_CONTROL_OPEN_CAPABILITIES": "campus_services",
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}

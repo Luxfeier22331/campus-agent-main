@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-batch_kind="${INGESTION_ON_DEMAND_BATCH_KIND:-internal-notice-multimodal-drain}"
-
-exec /app/scripts/run-ingestion-worker-batch.sh "${batch_kind}" "$@"
+exec uv run --project /app --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment "$@"

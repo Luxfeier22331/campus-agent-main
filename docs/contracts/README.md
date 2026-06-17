@@ -31,6 +31,7 @@ updated: 2026-06-13
 - `app-api-dining-ops-http.md`
 - `structured-query-internal-runtime.md`
 - `durable-agent-runtime-contract.md`
+- `operator-runtime-observability-contract.md`
 
 ## Operator / Official Web contract
 

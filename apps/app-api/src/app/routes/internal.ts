@@ -14,10 +14,12 @@ import {
 } from "../../http";
 import {
 	buildEndUserEmailAdmissionPolicy,
+	buildExecutionAuthorizationContext,
 	hashAppPassword,
 	hasMatchingInternalSecret,
 	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
+	type ResolvedAppPrincipal,
 } from "../../modules/auth";
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
@@ -151,6 +153,32 @@ function collectExecutionAuditRequestIds(payload: Record<string, unknown>): stri
 		}
 	}
 	return [...requestIds];
+}
+
+function buildInternalRuntimeOperatorPrincipal(): ResolvedAppPrincipal {
+	const principalId = "execution-control-runtime";
+	const actor = {
+		departments: [],
+		principalId,
+		principalType: "operator" as const,
+		roles: ["operator", "execution_control_runtime"],
+		userId: principalId,
+	};
+	return {
+		actor,
+		authorization: buildExecutionAuthorizationContext(actor),
+		permissions: {
+			chat: false,
+			operator: true,
+		},
+		principal: {
+			displayName: "Execution Control Runtime",
+			email: null,
+			principalId,
+			type: "operator",
+		},
+		session: null,
+	};
 }
 
 function providerConfigProxyError(input: {
@@ -375,6 +403,58 @@ export function registerInternalRoutes(input: {
 		return jsonResponse(
 			await scope.resolveOperatorObservabilityCommandService().ingestEvalDiagnosticBadcases({
 				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
+
+	input.app.post("/api/internal/operator/runtime/temporal-task-queue-snapshots", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorObservabilityCommandService().ingestTemporalTaskQueueSnapshots({
+				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/temporal-task-queues", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listTemporalTaskQueues({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					taskQueue: c.req.query("taskQueue") ?? null,
+					taskQueueKind: c.req.query("taskQueueKind") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
+			}),
+		);
+	});
+
+	input.app.get("/api/internal/operator/runtime/autoscaler/actuations", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerActuations({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					decisionId: c.req.query("decisionId") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					status: c.req.query("status") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
 			}),
 		);
 	});

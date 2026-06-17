@@ -49,8 +49,6 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         self.assertEqual(
             [check["check_id"] for check in artifact["checks"]],
             [
-                "service_guide_lookup_release_gate",
-                "contact_directory_lookup_release_gate",
                 "supervisor_go_structured_runtime_tests",
                 "campus_services_capability_adapter_tests",
                 "app_api_campus_services_runtime_tests",
@@ -79,49 +77,19 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
             tool_verdicts["service_process_lookup"]["reason"],
             "later_wave_tool_not_admitted_to_product_path",
         )
-        self.assertIn(
-            (
-                "uv",
-                "run",
-                "--all-packages",
-                "python",
-                "-m",
-                "scripts.eval_gate",
-                "accept",
-                "--profile",
-                "service-guide-lookup",
-                "--output-dir",
-                str(output_dir / "service-guide-lookup-release-gate"),
-            ),
-            commands,
-        )
-        self.assertIn(
-            (
-                "uv",
-                "run",
-                "--all-packages",
-                "python",
-                "-m",
-                "scripts.eval_gate",
-                "accept",
-                "--profile",
-                "contact-directory-lookup",
-                "--output-dir",
-                str(output_dir / "contact-directory-lookup-release-gate"),
-            ),
-            commands,
-        )
+        self.assertFalse(any("--profile" in command for command in commands))
 
-    def test_opening_gate_marks_single_tool_blocked_when_service_guide_release_gate_fails(
+    def test_opening_gate_no_longer_runs_old_python_lookup_release_gates(
         self,
     ) -> None:
+        commands: list[tuple[str, ...]] = []
+
         def fake_command_runner(
             command: tuple[str, ...],
             *,
             cwd: Path | None = None,
         ) -> CommandResult:
-            if "--profile" in command and "service-guide-lookup" in command:
-                return CommandResult(returncode=1, stdout="", stderr="service guide gate failed")
+            commands.append(command)
             return CommandResult(returncode=0, stdout="ok", stderr="")
 
         with TemporaryDirectory() as temp_dir:
@@ -137,17 +105,20 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                 )
             )
 
-        self.assertFalse(report.passed)
-        tool_verdicts = {item["tool_name"]: item for item in artifact["tool_verdicts"]}
-        self.assertEqual(tool_verdicts["service_guide_lookup"]["status"], "blocked")
-        self.assertIn(
+        self.assertTrue(report.passed)
+        self.assertNotIn(
             "service_guide_lookup_release_gate",
-            tool_verdicts["service_guide_lookup"]["failed_checks"],
+            [check["check_id"] for check in artifact["checks"]],
         )
+        self.assertNotIn(
+            "contact_directory_lookup_release_gate",
+            [check["check_id"] for check in artifact["checks"]],
+        )
+        self.assertFalse(any("service-guide-lookup" in command for command in commands))
+        self.assertFalse(any("contact-directory-lookup" in command for command in commands))
+        tool_verdicts = {item["tool_name"]: item for item in artifact["tool_verdicts"]}
+        self.assertEqual(tool_verdicts["service_guide_lookup"]["status"], "open")
         self.assertEqual(tool_verdicts["contact_directory_lookup"]["status"], "open")
-        self.assertEqual(tool_verdicts["service_status_lookup"]["status"], "open")
-        self.assertEqual(tool_verdicts["transport_schedule_lookup"]["status"], "open")
-        self.assertEqual(tool_verdicts["service_process_lookup"]["status"], "keep_closed")
 
     def test_opening_gate_blocks_all_open_candidates_when_shared_runtime_check_fails(
         self,

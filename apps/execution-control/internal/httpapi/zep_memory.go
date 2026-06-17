@@ -437,7 +437,7 @@ func (c zepCEHTTPClient) do(ctx context.Context, method string, path string, bod
 	if err != nil {
 		return err
 	}
-	defer response.Body.Close()
+	defer func() { _ = response.Body.Close() }()
 	if response.StatusCode == http.StatusNotFound {
 		return errZepCENotFound
 	}

@@ -200,7 +200,7 @@ func aclDecision(denied bool) string {
 
 func candidateCountForTool(tool string, result map[string]any) int {
 	switch tool {
-	case "campus_notice_discover":
+	case "campus_notice_discover", "campus_notice_period_summary":
 		return len(arrayValue(result["notice_cards"]))
 	case "transport_schedule_lookup":
 		return len(arrayValue(result["candidate_routes"]))

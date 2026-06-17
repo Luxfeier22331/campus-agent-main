@@ -41,6 +41,21 @@
 			"notes": "Internal selected notice context; campus_notice_get remains capability-internal."
 		},
 		{
+			"kind": "notice_period_summary",
+			"display_name": "NoticePeriodSummary",
+			"owner_capability": "notice",
+			"producer_tools": ["campus_notice_period_summary"],
+			"source_truth_owner": "internal_notice_read_model",
+			"visibility": "capability_private",
+			"current_projection_support": "supported_go_runtime",
+			"answer_eligible": true,
+			"requires_grounding": true,
+			"freshness_policy": "bounded_date_range",
+			"allowed_consumers": ["knowledge", "execution-control-finalizer"],
+			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
+			"notes": "Bounded date-range notice summary produced from structured notice read model cards and excerpts."
+		},
+		{
 			"kind": "notice_change_set",
 			"display_name": "NoticeChangeSet",
 			"owner_capability": "notice",
@@ -190,6 +205,19 @@
 			"eval_denominator": ["workflow_trace", "release_gate"],
 			"priority": 1,
 			"notes": "Internal selected notice resolution stays capability-internal and read-only."
+		},
+		{
+			"binding_id": "notice.notice_period_summary.date_range_lookup",
+			"owner_capability": "notice",
+			"tool_name": "campus_notice_period_summary",
+			"produces": ["notice_period_summary"],
+			"consumes": [],
+			"required_inputs": ["request:user_query", "request:date_range"],
+			"state_changing": false,
+			"opening_gate": "open",
+			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
+			"priority": 1,
+			"notes": "Date-range notice summary producer over the structured notice read model."
 		},
 		{
 			"binding_id": "notice.notice_change_set.transport_override_lookup",

@@ -20,12 +20,6 @@ from campus_evals.answer_quality_contract import (
     load_answer_quality_cases,
     run_answer_quality_contract_profile,
 )
-from campus_evals.answer_ready_closeout_audit import (
-    AnswerReadyCloseoutAuditReport,
-    AnswerReadyCloseoutCase,
-    AnswerReadyCloseoutCaseResult,
-    audit_answer_ready_closeout,
-)
 from campus_evals.answer_ready_component_eval import (
     ANSWER_READY_COMPONENT_CASES_PATH,
     AnswerReadyComponentCase,
@@ -38,11 +32,6 @@ from campus_evals.answer_ready_component_eval import (
     evaluate_answer_ready_component_cases,
     load_answer_ready_component_cases,
     load_answer_ready_component_observations,
-)
-from campus_evals.answer_ready_component_runtime import (
-    AnswerReadyComponentRuntimeArtifact,
-    build_answer_ready_component_observation,
-    collect_answer_ready_component_runtime_observations,
 )
 from campus_evals.app_api_chat_runtime import (
     AppApiEvalClient,
@@ -213,6 +202,7 @@ from campus_evals.operator_observability import (
     build_case_results_publish_batch,
     build_profile_report_publish_batch,
     build_publish_parser,
+    inject_operator_step_trajectories,
     load_request_correlation_manifest,
     publish_case_results_artifact,
     publish_profile_report_artifact,
@@ -277,16 +267,6 @@ from campus_evals.quality_calibration import (
     quality_calibration_main,
     run_quality_calibration_profile,
 )
-from campus_evals.rag_realistic_chain_validation import (
-    PORTAL_PASSWORD_CASE_ID,
-    SCHOLARSHIP_DOC_IDS,
-    RagRealisticChainCase,
-    RagRealisticChainCaseResult,
-    RagRealisticChainValidationReport,
-    load_rag_realistic_chain_cases,
-    run_live_env_validation,
-    run_seeded_inprocess_validation,
-)
 from campus_evals.ragas_adapter import (
     RagasProjection,
     RagasSupplementalAdapter,
@@ -295,12 +275,6 @@ from campus_evals.ragas_adapter import (
     build_ragas_projection,
     build_ragas_scorer,
     build_ragas_supplemental_adapter_from_env,
-)
-from campus_evals.regulation_answer_ready_component_live_runner import (
-    build_runtime_artifacts as build_regulation_answer_ready_runtime_artifacts,
-)
-from campus_evals.regulation_answer_ready_component_live_runner import (
-    run_component_eval_for_collection as run_regulation_answer_ready_component_eval,
 )
 from campus_evals.retrieval_chunk_quality import (
     RetrievalChunkQualityReport,
@@ -376,73 +350,6 @@ from campus_evals.workflow_trace_gate import (
     validate_workflow_trace_case_set,
 )
 
-
-def build_curriculum_live_executor(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import build_curriculum_live_executor as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_app_api_curriculum_live_executor(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import (
-        build_app_api_curriculum_live_executor as _build,
-    )
-
-    return _build(*args, **kwargs)
-
-
-def build_inprocess_curriculum_live_executor(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import (
-        build_inprocess_curriculum_live_executor as _build,
-    )
-
-    return _build(*args, **kwargs)
-
-
-def build_curriculum_live_profile(*args, **kwargs):
-    from campus_evals.curriculum_live_benchmark import build_curriculum_live_profile as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_handbook_live_profile(*args, **kwargs):
-    from campus_evals.handbook_live_benchmark import build_handbook_live_profile as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_official_web_live_executor(*args, **kwargs):
-    from campus_evals.official_web_live_benchmark import build_official_web_live_executor as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_handbook_live_executor(*args, **kwargs):
-    from campus_evals.handbook_live_benchmark import build_handbook_live_executor as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_official_web_live_profile(*args, **kwargs):
-    from campus_evals.official_web_live_benchmark import build_official_web_live_profile as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_app_api_handbook_live_executor(*args, **kwargs):
-    from campus_evals.handbook_live_benchmark import build_app_api_handbook_live_executor as _build
-
-    return _build(*args, **kwargs)
-
-
-def build_inprocess_handbook_live_executor(*args, **kwargs):
-    from campus_evals.handbook_live_benchmark import (
-        build_inprocess_handbook_live_executor as _build,
-    )
-
-    return _build(*args, **kwargs)
-
-
 __all__ = [
     "AGENTIC_RETRIEVAL_PLAN_CASES_PATH",
     "ANSWER_QUALITY_CASES_PATH",
@@ -459,12 +366,10 @@ __all__ = [
     "OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH",
     "OPERATOR_STEP_TRAJECTORY_RELEASE_FIXTURE_SCHEMA_VERSION",
     "OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION",
-    "PORTAL_PASSWORD_CASE_ID",
     "PUBLIC_CHAT_ENTRY_CASES_PATH",
     "PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH",
     "QUALITY_CALIBRATION_RUBRICS",
     "REVIEW_DECISIONS",
-    "SCHOLARSHIP_DOC_IDS",
     "TOOL_FAMILY_DENOMINATOR_PATH",
     "TOOL_ROUTING_CASES_PATH",
     "WORKFLOW_TRACE_GATE_CASES_PATH",
@@ -479,15 +384,11 @@ __all__ = [
     "AnswerQualityObservation",
     "AnswerQualityReport",
     "AnswerQualityResult",
-    "AnswerReadyCloseoutAuditReport",
-    "AnswerReadyCloseoutCase",
-    "AnswerReadyCloseoutCaseResult",
     "AnswerReadyComponentCase",
     "AnswerReadyComponentCaseSet",
     "AnswerReadyComponentObservationSet",
     "AnswerReadyComponentReport",
     "AnswerReadyComponentResult",
-    "AnswerReadyComponentRuntimeArtifact",
     "AppApiEvalClient",
     "AppApiEvalClientError",
     "AppApiEvalClientSettings",
@@ -556,9 +457,6 @@ __all__ = [
     "PublicChatProductPathResult",
     "QualityCalibrationObservation",
     "QualityCalibrationReport",
-    "RagRealisticChainCase",
-    "RagRealisticChainCaseResult",
-    "RagRealisticChainValidationReport",
     "RagasProjection",
     "RagasSettings",
     "RagasSupplementalAdapter",
@@ -602,28 +500,16 @@ __all__ = [
     "accept_live_benchmark_profile",
     "accepted_profile_ids",
     "attach_workflow_trace_gate",
-    "audit_answer_ready_closeout",
-    "build_answer_ready_component_observation",
     "build_answer_rubric_adapter",
-    "build_app_api_curriculum_live_executor",
-    "build_app_api_handbook_live_executor",
     "build_case_results_publish_batch",
-    "build_curriculum_live_executor",
-    "build_curriculum_live_profile",
     "build_default_handbook_supplemental_adapters_from_env",
     "build_default_ragas_metric_names",
-    "build_handbook_live_executor",
-    "build_handbook_live_profile",
     "build_handbook_ragas_adapter",
     "build_http_ragas_embeddings",
     "build_http_ragas_llm",
-    "build_inprocess_curriculum_live_executor",
-    "build_inprocess_handbook_live_executor",
     "build_json_judge",
     "build_metric_key",
     "build_observed_regression_review_outputs",
-    "build_official_web_live_executor",
-    "build_official_web_live_profile",
     "build_profile_report_publish_batch",
     "build_public_chat_product_path_report",
     "build_publish_parser",
@@ -633,11 +519,9 @@ __all__ = [
     "build_ragas_scorer",
     "build_ragas_supplemental_adapter_from_env",
     "build_refusal_rubric_adapter",
-    "build_regulation_answer_ready_runtime_artifacts",
     "build_release_evidence_fixture",
     "build_retrieval_monitoring_backlog",
     "build_retrieval_tuning_report",
-    "collect_answer_ready_component_runtime_observations",
     "collect_document_quality_runtime_observations",
     "collect_public_chat_product_path_runtime_observations",
     "collect_repairable_benchmark_targets",
@@ -672,6 +556,7 @@ __all__ = [
     "handbook_regression_locked_cases",
     "handbook_release_gate_cases",
     "handbook_smoke_cases",
+    "inject_operator_step_trajectories",
     "iter_profile_definitions",
     "load_agentic_retrieval_plan_cases",
     "load_answer_quality_cases",
@@ -688,7 +573,6 @@ __all__ = [
     "load_official_web_current_truth_inventory",
     "load_public_chat_entry_cases",
     "load_public_chat_product_path_cases",
-    "load_rag_realistic_chain_cases",
     "load_request_correlation_manifest",
     "load_retrieval_benchmark_run",
     "load_retrieval_hybrid_query_dataset",
@@ -737,12 +621,9 @@ __all__ = [
     "run_eval_operations_governance_profile_gate",
     "run_formal_benchmark",
     "run_live_benchmark_profile",
-    "run_live_env_validation",
     "run_public_chat_entry_e2e_profile",
     "run_public_chat_product_path_profile_gate",
     "run_quality_calibration_profile",
-    "run_regulation_answer_ready_component_eval",
-    "run_seeded_inprocess_validation",
     "run_tool_family_denominator_profile_gate",
     "run_tool_routing_product_path_profile",
     "summarize_retrieval_metrics",

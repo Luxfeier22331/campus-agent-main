@@ -132,7 +132,19 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
+					Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
@@ -184,7 +196,19 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledge,
+					Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+					Type:    temporalruntime.TaskQueueTypeActivity,
+					Pollers: 1,
+					Healthy: true,
+				},
+				{
+					Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
@@ -228,7 +252,9 @@ func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) 
 	for _, want := range []string{
 		"custom.workflow",
 		temporalruntime.ActivityTaskQueueContext,
-		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueKnowledgePlan,
+		temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+		temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 		temporalruntime.ActivityTaskQueueFinalization,
 		temporalruntime.ActivityTaskQueueCampusService,
 		temporalruntime.ActivityTaskQueueNavigation,

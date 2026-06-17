@@ -46,16 +46,12 @@ Current scaffold note:
 - this directory no longer only freezes shape: repo now includes a scope-refresh
   materialization path from `campus_notices/internal_notice` into
   `regulations/institutional_rules`
-- materialization is currently implemented by:
-  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_regulatio
-    n_materialization.py`
-  - `apps/ingestion-worker/src/campus_ingestion_worker/materialize_internal_noti
-    ce_regulation_candidates.py`
-- local-only target acceptance chunk preparation is currently implemented by:
-  - `packages/ingestion-core/src/campus_ingestion_core/internal_notice_instituti
-    onal_regulation_chunk_prep.py`
-  - `apps/ingestion-worker/src/campus_ingestion_worker/prepare_institutional_reg
-    ulation_chunks.py`
+- materialization strategy remains in ingestion-core during the transition, but
+  task lifecycle belongs to ingestion-control and must be admitted through the
+  collection task registry before it can publish
+- local-only target acceptance chunk preparation is no longer a Python worker
+  command surface; rebuild it as a registry-declared `rust_kernel` /
+  `ts_control` task before opening new release automation
 - the current boundary has moved into release-managed `query_serving`
 - query-serving publish must still pass the deterministic release acceptance gate
   before alias mutation

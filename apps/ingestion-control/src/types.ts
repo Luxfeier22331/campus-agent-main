@@ -119,3 +119,20 @@ export interface IngestionTaskStore {
 		filters: IngestionTaskProjectionFilters,
 	): MaybePromise<IngestionTaskOperatorProjectionList>;
 }
+
+export interface IngestionTaskRegistryTask {
+	task_kind: IngestionTaskEnvelope["task_kind"];
+	executor_kind: "rust_kernel" | "ts_control";
+	kernel_id?: string;
+	input_contract: string;
+	output_contract: string;
+	can_publish_alias: boolean;
+}
+
+export interface IngestionTaskRegistry {
+	schema_version: "ingestion_task_registry.v1";
+	source_family: string;
+	corpus: string;
+	collection: string;
+	tasks: IngestionTaskRegistryTask[];
+}

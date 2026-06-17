@@ -82,7 +82,7 @@ class InternalNoticeValidationInputs:
     collection: str
     records: tuple[DocumentRegistryRecord, ...]
     selected_records: tuple[DocumentRegistryRecord, ...]
-    selection_mode: Literal["current_scope", "preparation_manifest", "verified_closeout_run"]
+    selection_mode: Literal["current_scope", "verified_closeout_run"]
     preparation_run_id: str | None
     closeout_run_id: str | None
     missing_manifest_records: tuple[str, ...]

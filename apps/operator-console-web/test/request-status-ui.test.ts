@@ -135,9 +135,9 @@ describe("Operator Console request status ui", () => {
 					status: "completed",
 					stepId: "planning",
 					stepKind: "planning",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.knowledge.plan",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:activity-knowledge:001",
+					workerId: "staging:activity-knowledge-plan:001",
 				},
 				{
 					attemptCount: 1,
@@ -159,9 +159,9 @@ describe("Operator Console request status ui", () => {
 					status: "completed",
 					stepId: "retrieval.indexed_lookup",
 					stepKind: "retrieval.indexed_lookup",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:activity-knowledge:001",
+					workerId: "staging:activity-knowledge-retrieval:001",
 				},
 				{
 					attemptCount: 1,
@@ -183,9 +183,9 @@ describe("Operator Console request status ui", () => {
 					status: "completed",
 					stepId: "synthesis",
 					stepKind: "synthesis",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.knowledge.synthesis",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:activity-knowledge:001",
+					workerId: "staging:activity-knowledge-synthesis:001",
 				},
 				{
 					attemptCount: 1,
@@ -207,9 +207,9 @@ describe("Operator Console request status ui", () => {
 					status: "completed",
 					stepId: "grounding.verify",
 					stepKind: "grounding.verify",
-					taskQueue: "campus-agent.activity.knowledge",
+					taskQueue: "campus-agent.activity.knowledge.plan",
 					timeoutOutcome: "not_timed_out",
-					workerId: "staging:activity-knowledge:001",
+					workerId: "staging:activity-knowledge-plan:001",
 				},
 				{
 					attemptCount: 1,
@@ -280,9 +280,9 @@ describe("Operator Console request status ui", () => {
 			providerRequestRef: "provider://requests/req_001",
 			status: "completed",
 			stepKind: "planning",
-			taskQueue: "campus-agent.activity.knowledge",
+			taskQueue: "campus-agent.activity.knowledge.plan",
 			tokenCost: "tokens=120/42 · 321 microUSD",
-			workerId: "staging:activity-knowledge:001",
+			workerId: "staging:activity-knowledge-plan:001",
 		});
 		expect(JSON.stringify(entries)).not.toContain("raw");
 		expect(JSON.stringify(entries)).not.toContain("semantic.rag");

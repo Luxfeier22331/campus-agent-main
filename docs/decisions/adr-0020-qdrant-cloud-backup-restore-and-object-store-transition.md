@@ -19,9 +19,9 @@ snapshot-to-object-storage backup path. The active decision is:
 
 - `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 
-The active runbook is:
+The active staging data-plane runbook is:
 
-- `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
+- `docs/runbooks/execution-control-staging-operations.md`
 
 ## Historical Summary
 

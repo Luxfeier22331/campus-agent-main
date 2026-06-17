@@ -43,9 +43,13 @@ updated: 2026-06-12
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
 - `adr-0043-execution-control-docker-first-runtime.md`
+  - superseded by `adr-0056-kubernetes-keda-execution-runtime.md` for production
+    execution-control deployment substrate; still useful as current Docker Compose
+    / local / transitional staging history
 - `adr-0047-run-centric-durable-agent-runtime.md`
   - superseded by `adr-0048-temporal-execution-plane.md` for target execution substrate
 - `adr-0048-temporal-execution-plane.md`
+- `adr-0056-kubernetes-keda-execution-runtime.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 

@@ -48,7 +48,7 @@ contract。
 
 - collector command endpoints machine-to-machine 调用的 start / heartbeat /
   finalize seam
-- ingestion projection ingest endpoints 由 `apps/ingestion-worker` machine-to-machine
+- ingestion projection ingest endpoints 由 `apps/ingestion-control` machine-to-machine
   上报 operator-safe read model
 - operator query endpoints 由 Operator Console 通过 runtime APIs 消费的
   site/run/detail seam；当前 read-only implementation surface 是 `operator-console-web`
@@ -115,7 +115,7 @@ These routes are intentionally outside app-api and must return `404`:
 - `POST /api/internal/official-web/target-selected-write-tasks/:selectedWriteId/execution-status`
 
 Release task claim / retry / executor progress / publish status belongs to
-`packages/ingestion-core` plus `apps/ingestion-worker`. App-api only exposes already-ingested
+`packages/ingestion-core` plus `apps/ingestion-control`. App-api only exposes already-ingested
 official-web projections and the operator command ledger needed to record stable-reference
 approve/reject decisions.
 

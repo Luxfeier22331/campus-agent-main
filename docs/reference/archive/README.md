@@ -15,6 +15,9 @@ updated: 2026-04-20
 
 - `authenticated-notice/README.md`
 - `official-web/README.md`
+- `python-ingestion-worker/`
+  - historical Python ingestion worker reference materials removed from active
+    reference surface.
 - `public-chat-web/README.md`
 
 ## Incident / Snapshot Archive

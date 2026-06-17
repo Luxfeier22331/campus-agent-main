@@ -88,7 +88,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 - `operator.*` panel/read-model projections；owner 是 `apps/app-api`
 - `official_web.*` crawl-run control-plane durable truth；owner 是 `apps/app-api`
 - `ingestion_registry.*` 或其他 registry tables offline document/raw asset registry
-  truth；owner 是 `packages/ingestion-core` / `apps/ingestion-worker`
+  truth；owner 是 `packages/ingestion-core` / `apps/ingestion-control`
 
 ## Env Ownership Rules
 

@@ -5,20 +5,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
-    "compare-online-ocr.env.example",
     "legacy-office-conversion-service.env.example",
-    "official-web-handoff-consumer.env.example",
-    "official-web-handoff-receiver.env.example",
-    "official-web-release-task.env.example",
-    "process-raw-ingestion-job.env.example",
-    "rebuild-local-data.env.example",
-    "release-registry-scope.env.example",
     "execution-control-runtime.env.example",
 }
-HISTORICAL_COMMAND_ENV_EXAMPLES = {
-    "migrate-student-handbook.env.example",
-    "official-web-history-backfill.env.example",
-}
+HISTORICAL_COMMAND_ENV_EXAMPLES: set[str] = set()
 
 
 class EnvironmentLayoutTest(unittest.TestCase):
@@ -40,18 +30,16 @@ class EnvironmentLayoutTest(unittest.TestCase):
         )
 
         self.assertIn("env/commands/*.env.example", docs_environment)
-        self.assertIn("env/commands/historical/*.env.example", docs_environment)
-        self.assertIn("env/commands/historical/*.env.example", root_env)
+        self.assertNotIn("env/commands/historical/*.env.example", docs_environment)
+        self.assertNotIn("env/commands/historical/*.env.example", root_env)
         self.assertIn(
-            "env/commands/historical/official-web-history-backfill.env.example",
+            "campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment",
             ingestion_readme,
         )
-        self.assertIn(
-            "env/commands/historical/migrate-student-handbook.env.example",
-            ingestion_readme,
-        )
-        self.assertIn("--file-path", ingestion_readme)
+        self.assertIn("No compatibility wrapper or fallback command", ingestion_readme)
         self.assertNotIn("--pdf-path", ingestion_readme)
+        self.assertNotIn("official-web-history-backfill", ingestion_readme)
+        self.assertNotIn("migrate-student-handbook", ingestion_readme)
 
 
 if __name__ == "__main__":

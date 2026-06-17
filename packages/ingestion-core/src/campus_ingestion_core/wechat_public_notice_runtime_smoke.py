@@ -13,13 +13,13 @@ from campus_ingestion_core.internal_notice_read_model import (
     build_internal_notice_read_model_store_from_env,
     check_internal_notice_read_model_consistency,
 )
-from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
     normalize_notice_ids,
 )
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.wechat_public_notice_multimodal import (
     ChatCompletionsWeChatPublicNoticeMultimodalProvider,

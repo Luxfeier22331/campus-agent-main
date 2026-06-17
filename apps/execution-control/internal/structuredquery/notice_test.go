@@ -199,6 +199,200 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 	}
 }
 
+func TestLookupCampusNoticeDiscoverPassesTemporalQueryToReadModel(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:            "internal_notice_restricted",
+				SourceNoticeID:          "355222",
+				Title:                   "中央民族大学丰台校区家具采购项目比选公告",
+				VisibilityLevel:         "restricted",
+				EntitlementGroups:       []string{"students"},
+				PolicyProjectionVersion: "phase1-authorization-projection-v1",
+				SourceURL:               "https://portal.example.edu/notices/355222",
+				PublishedAt:             "2026-04-12",
+				TargetSurface:           "notice_level_query",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"家具采购",
+			"temporal_query":{"mode":"current_year","year_hint":"2026"},
+			"source_families":["internal_notice_restricted"]
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", response.Outcome)
+	}
+	if store.searchTemporalQuery.Mode != "current_year" {
+		t.Fatalf("temporal mode = %q, want current_year", store.searchTemporalQuery.Mode)
+	}
+	if store.searchTemporalQuery.YearHint != "2026" {
+		t.Fatalf("temporal year_hint = %q, want 2026", store.searchTemporalQuery.YearHint)
+	}
+}
+
+func TestLookupCampusNoticePeriodSummaryReturnsBoundedGroupedSummary(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:            "internal_notice_restricted",
+				SourceNoticeID:          "notice-001",
+				Title:                   "关于开展奖学金申请工作的通知",
+				VisibilityLevel:         "restricted",
+				EntitlementGroups:       []string{"students"},
+				PolicyProjectionVersion: "phase1-authorization-projection-v1",
+				SourceURL:               "https://portal.example.edu/notices/notice-001",
+				PublishedAt:             "2026-04-02T09:00:00+08:00",
+				TargetSurface:           "notice_level_query",
+				PrimaryRole:             "notice_window",
+				BodyExcerpt:             "奖学金申请材料提交安排。",
+			},
+			{
+				SourceFamily:            "internal_notice_restricted",
+				SourceNoticeID:          "notice-002",
+				Title:                   "关于奖学金评审答辩安排的通知",
+				VisibilityLevel:         "restricted",
+				EntitlementGroups:       []string{"students"},
+				PolicyProjectionVersion: "phase1-authorization-projection-v1",
+				SourceURL:               "https://portal.example.edu/notices/notice-002",
+				PublishedAt:             "2026-04-08T09:00:00+08:00",
+				TargetSurface:           "notice_level_query",
+				PrimaryRole:             "notice_window",
+				BodyExcerpt:             "奖学金评审答辩时间地点。",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticePeriodSummary(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"4月上旬奖学金通知总结",
+			"date_range":{"start_date":"2026-04-01","end_date":"2026-04-10","timezone":"Asia/Shanghai"},
+			"source_families":["internal_notice_restricted"],
+			"target_surfaces":["notice_level_query"],
+			"group_by":"topic",
+			"max_items":10
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(noticePeriodSummaryResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticePeriodSummaryResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.DateRange.StartDate != "2026-04-01" || result.DateRange.EndDate != "2026-04-10" {
+		t.Fatalf("date_range = %#v", result.DateRange)
+	}
+	if result.SourceRefCount != 2 {
+		t.Fatalf("source_ref_count = %d, want 2", result.SourceRefCount)
+	}
+	if len(result.NoticeCards) != 2 {
+		t.Fatalf("notice_cards = %#v", result.NoticeCards)
+	}
+	if len(result.Groups) != 1 || result.Groups[0].GroupKey != "奖学金" {
+		t.Fatalf("groups = %#v, want scholarship topic group", result.Groups)
+	}
+	if result.BoundedSummary == "" {
+		t.Fatal("bounded_summary is empty")
+	}
+	if store.searchDateRange.StartDate != "2026-04-01" || store.searchDateRange.EndDate != "2026-04-10" {
+		t.Fatalf("search date range = %#v", store.searchDateRange)
+	}
+	if !result.DisplayPolicy.FullBodyForbidden || result.DisplayPolicy.PublicSurface != "bounded_summary" {
+		t.Fatalf("display_policy = %#v, want bounded full-body-forbidden summary", result.DisplayPolicy)
+	}
+}
+
+func TestLookupCampusNoticePeriodSummaryDerivesTopicFromQueryWithoutSpecialCase(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{{
+			SourceFamily:            "internal_notice_restricted",
+			SourceNoticeID:          "notice-003",
+			Title:                   "关于毕业派遣手续办理的通知",
+			VisibilityLevel:         "restricted",
+			EntitlementGroups:       []string{"students"},
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			SourceURL:               "https://portal.example.edu/notices/notice-003",
+			PublishedAt:             "2026-04-03T09:00:00+08:00",
+			TargetSurface:           "notice_level_query",
+			PrimaryRole:             "notice_window",
+			BodyExcerpt:             "毕业派遣手续办理时间和材料要求。",
+		}},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticePeriodSummary(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"4月上旬毕业派遣通知总结",
+			"date_range":{"start_date":"2026-04-01","end_date":"2026-04-10","timezone":"Asia/Shanghai"},
+			"source_families":["internal_notice_restricted"],
+			"target_surfaces":["notice_level_query"],
+			"group_by":"topic",
+			"max_items":10
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(noticePeriodSummaryResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticePeriodSummaryResult", response.Body)
+	}
+	if len(result.Groups) != 1 || result.Groups[0].GroupKey != "毕业派遣" {
+		t.Fatalf("groups = %#v, want query-derived topic group", result.Groups)
+	}
+}
+
 func TestLookupCampusNoticeDiscoverFailsClosedWhenRestrictedRowLacksAuthzProjection(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		searchRows: []noticeReadModelRecord{

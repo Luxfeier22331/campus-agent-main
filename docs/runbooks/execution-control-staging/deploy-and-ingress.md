@@ -162,7 +162,8 @@ staging 不应依赖 repo-root `.env.staging.local`。
   evidence；`status-execution-control-staging.sh --check` 会要求
   `/readyz.personal_memory_runtime.healthy=true`。必须配置
   `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
-  `PERSONAL_MEMORY_OWNER_SALT`。
+  `PERSONAL_MEMORY_OWNER_SALT`。Zep runtime、timeout 与 recall limits 来自
+  `/etc/campus-agent/runtime-profile.staging.json`，不是 staging env knobs。
 - staging 不消费 `infra/local/.generated/zep-ce.env`。Zep CE bundle 内部的 Postgres /
   Neo4j / Graphiti secret 必须来自 staging secret store；Graphiti 模型面必须与
   app-api provider-config `memory_graph_llm` active profile 对齐。Graphiti
@@ -217,7 +218,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=staging:activity-knowledge-plan:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=staging:activity-knowledge-retrieval:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=staging:activity-knowledge-synthesis:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:<instance>`

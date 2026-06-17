@@ -20,6 +20,11 @@ interface QualityBadcaseCursor {
 	openedAt: string;
 }
 
+interface RuntimeProjectionCursor {
+	id: string;
+	timestamp: string;
+}
+
 export function encodeRequestCursor(input: { requestId: string; startedAt: string }): string {
 	return encodeBase64UrlJson(input satisfies RequestProjectionCursor);
 }
@@ -122,6 +127,33 @@ export function decodeQualityBadcaseCursor(cursor: string): QualityBadcaseCursor
 		return {
 			badcaseId: parsed.badcaseId,
 			openedAt: parsed.openedAt,
+		};
+	} catch {
+		return null;
+	}
+}
+
+export function encodeRuntimeProjectionCursor(input: { id: string; timestamp: string }): string {
+	return encodeBase64UrlJson(input satisfies RuntimeProjectionCursor);
+}
+
+export function decodeRuntimeProjectionCursor(cursor: string): RuntimeProjectionCursor | null {
+	try {
+		const parsed = decodeBase64UrlJson<Partial<RuntimeProjectionCursor>>(cursor);
+
+		if (
+			typeof parsed.id !== "string" ||
+			!parsed.id ||
+			typeof parsed.timestamp !== "string" ||
+			!parsed.timestamp ||
+			Number.isNaN(Date.parse(parsed.timestamp))
+		) {
+			return null;
+		}
+
+		return {
+			id: parsed.id,
+			timestamp: parsed.timestamp,
 		};
 	} catch {
 		return null;

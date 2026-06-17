@@ -3,14 +3,15 @@ package structuredquery
 import "time"
 
 const (
-	ToolServiceStatusLookup     = "service_status_lookup"
-	ToolServiceGuideLookup      = "service_guide_lookup"
-	ToolTransportScheduleLookup = "transport_schedule_lookup"
-	ToolContactDirectoryLookup  = "contact_directory_lookup"
-	ToolAcademicCalendarLookup  = "academic_calendar_lookup"
-	ToolCampusNoticeDiscover    = "campus_notice_discover"
-	ToolCampusNoticeChangeSet   = "campus_notice_change_set_lookup"
-	ToolCampusNoticeGet         = "campus_notice_get"
+	ToolServiceStatusLookup       = "service_status_lookup"
+	ToolServiceGuideLookup        = "service_guide_lookup"
+	ToolTransportScheduleLookup   = "transport_schedule_lookup"
+	ToolContactDirectoryLookup    = "contact_directory_lookup"
+	ToolAcademicCalendarLookup    = "academic_calendar_lookup"
+	ToolCampusNoticeDiscover      = "campus_notice_discover"
+	ToolCampusNoticePeriodSummary = "campus_notice_period_summary"
+	ToolCampusNoticeChangeSet     = "campus_notice_change_set_lookup"
+	ToolCampusNoticeGet           = "campus_notice_get"
 
 	defaultStructuredRuntimeHealthTimeout = 250 * time.Millisecond
 )

@@ -5,6 +5,7 @@ from campus_notice_capability.query_service import (
     NoticeChangeSetLookupQuery,
     NoticeDiscoverQuery,
     NoticeGetQuery,
+    NoticePeriodSummaryQuery,
     NoticeQueryService,
 )
 from campus_notice_capability.sdk_tool_executor import execute_notice_sdk_tool
@@ -15,6 +16,7 @@ __all__ = [
     "NoticeDiscoverQuery",
     "NoticeGetQuery",
     "NoticeHTTPQueryService",
+    "NoticePeriodSummaryQuery",
     "NoticeQueryService",
     "execute_notice_sdk_tool",
     "run_notice_get_internal_request",

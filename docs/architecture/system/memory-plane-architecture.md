@@ -45,17 +45,17 @@ Zep CE runtime 以独立自托管服务部署，`campus-agent` 只消费 Zep CE 
 HTTP API。Graphiti、Neo4j、Postgres / pgvector 是 Zep CE runtime bundle 内部
 组件，不是 `campus-agent` 业务代码或 contract 的集成边界。
 
-Zep CE runtime 的 execution-control 配置项为：
+Zep CE runtime 的 execution-control deployment env handles 为：
 
 ```text
-PERSONAL_MEMORY_RUNTIME=zep_ce
 PERSONAL_MEMORY_BASE_URL
 PERSONAL_MEMORY_API_SECRET
 PERSONAL_MEMORY_OWNER_SALT
-PERSONAL_MEMORY_TIMEOUT_SECONDS
-PERSONAL_MEMORY_RECALL_LIMIT
-PERSONAL_MEMORY_RECALL_MAX_CHARS
 ```
+
+`personal_memory.runtime`、`personal_memory.timeout_seconds`、
+`personal_memory.recall_limit` 与 `personal_memory.recall_max_chars` 由
+execution-control runtime profile 管理，不再通过 env 配置。
 
 Zep CE bundle 内部的 Graphiti LLM 消费不恢复 repo-owned memory extraction prompt。
 它使用 app-api provider-config prompt role `memory_graph_llm` 管理模型、base URL 与
@@ -260,8 +260,13 @@ Zep CE posture：
 - `PERSONAL_MEMORY_API_SECRET` 只注入需要 personal memory 的 execution-control
   runtime role：
   `execution-control` 与 `activity-context`。
-- `activity-knowledge` 不要求 Zep 配置；knowledge worker 消费的是 bounded memory context，
-  不是 memory substrate。
+- `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
+  `PERSONAL_MEMORY_OWNER_SALT` 是部署 env handles；`runtime`、timeout 与 recall
+  limits 由 execution-control runtime profile 管理。
+- `activity-knowledge-plan` / `activity-knowledge-synthesis` 不要求 Zep 配置；
+  `activity-knowledge-retrieval` 只在需要 query-side recall runtime 时加载 Zep
+  connectivity；knowledge worker 消费的是 bounded memory context，不拥有 memory
+  substrate。
 
 Qdrant posture：
 

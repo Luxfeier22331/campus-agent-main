@@ -7,14 +7,11 @@ from typing import Any
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
-from campus_ingestion_core.collected_notice_regulation_text_normalization import (
-    REGULATION_CANONICAL_NORMALIZER_VERSION,
-)
-
 INSTITUTIONAL_TARGET_COLLECTION = "institutional_rules"
 SCOPED_TARGET_COLLECTION = "scoped_rules"
 STUDENT_TARGET_COLLECTION = "student_rules"
 DOCUMENT_UNITS_SCHEMA_VERSION = "document_units_jsonl"
+REGULATION_CANONICAL_NORMALIZER_VERSION = "regulation_canonical_cleaning_v1"
 
 _CHINESE_NUMBER = "一二三四五六七八九十百千万〇零两0-9"
 _STRUCTURAL_BLOCK_START_RE = re.compile(

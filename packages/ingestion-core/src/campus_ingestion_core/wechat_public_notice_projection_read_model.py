@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping, Sequence
 
+from campus_ingestion_core.internal_notice_read_model_entries import (
+    _normalize_required_notice_timestamp,
+)
 from campus_ingestion_core.internal_notice_read_model_shared import (
     DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS,
     DEFAULT_INTERNAL_NOTICE_SEARCH_TEXT_MAX_CHARS,
@@ -114,6 +117,11 @@ def build_wechat_public_notice_read_model_entries(
                 source_bucket=source_bucket,
                 derived_bucket=derived_bucket,
             )
+        published_at = (
+            _text(metadata.get("publish_time"))
+            or str(entry.source_notice_release_time or "").strip()
+        )
+        published_at_ts = _normalize_required_notice_timestamp(published_at)
         rows.append(
             InternalNoticeReadModelEntry(
                 source_family=entry.source_family,
@@ -129,8 +137,8 @@ def build_wechat_public_notice_read_model_entries(
                 visibility_level="public",
                 entitlement_groups=(),
                 policy_projection_version="public-notice-projection-v1",
-                published_at=_text(metadata.get("publish_time"))
-                or str(entry.source_notice_release_time or "").strip(),
+                published_at=published_at,
+                published_at_ts=published_at_ts,
                 source_url=source_url,
                 canonical_url=source_url,
                 canonical_document_id=canonical_document_id,

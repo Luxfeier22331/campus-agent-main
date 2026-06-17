@@ -1,13 +1,86 @@
 package config
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
 
+const testDefaultRuntimeConfigProfile = `{
+  "schema_version": "campus_execution_control_runtime_profile.v1",
+  "max_concurrent_answers": 8,
+  "queue_capacity": 24,
+  "queue_timeout_ms": 3000,
+  "request_timeout_ms": 45000,
+  "request_body_limit_bytes": 1048576,
+  "shutdown_grace_ms": 45000,
+  "intent_policy_path": "../../configs/runtime/intent-policy.v1.json",
+  "provider_pricing_path": "../../configs/runtime/provider-pricing.v1.json",
+  "query_serving_scopes_path": "../../configs/runtime/query-serving-scopes.v1.json",
+  "structured_query_timeout_ms": 1000,
+  "open_capabilities": [],
+  "multi_step_workflow_enabled": false,
+  "otel": {
+    "enabled": false,
+    "endpoint": "http://otel-collector:4318/v1/traces",
+    "metrics_enabled": false,
+    "metrics_endpoint": "http://otel-collector:4318/v1/metrics",
+    "service_name": "campus-execution-control",
+    "export_timeout_ms": 1000,
+    "export_interval_ms": 15000,
+    "sample_ratio": 1,
+    "allowed_attributes_version": "execution-control-otel-attrs-v1"
+  },
+  "execution_audit": {
+    "enabled": false,
+    "timeout_ms": 500
+  },
+  "lane_budgets": {
+    "rag": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
+    "navigation": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
+    "campus_services": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
+    "notice": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
+    "default": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000}
+  },
+  "rag": {
+    "top_k_max": 8,
+    "selected_evidence_max": 8,
+    "retrieval_max_concurrent": 4,
+    "synthesis_max_concurrent": 2,
+    "embedding_timeout_ms": 10000,
+    "qdrant_timeout_ms": 10000,
+    "provider_timeout_ms": 60000
+  },
+  "personal_memory": {
+    "runtime": "zep_ce",
+    "timeout_seconds": 10,
+    "recall_limit": 8,
+    "recall_max_chars": 2500
+  }
+}`
+
+func TestMain(m *testing.M) {
+	dir, err := os.MkdirTemp("", "campus-execution-control-config-test-")
+	if err != nil {
+		panic(err)
+	}
+	profilePath := filepath.Join(dir, "runtime-profile.json")
+	if err := os.WriteFile(profilePath, []byte(testDefaultRuntimeConfigProfile), 0o600); err != nil {
+		panic(err)
+	}
+	if os.Getenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH") == "" {
+		if err := os.Setenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", profilePath); err != nil {
+			panic(err)
+		}
+	}
+	code := m.Run()
+	_ = os.RemoveAll(dir)
+	os.Exit(code)
+}
+
 func setStagingPersonalMemoryEnv(t *testing.T) {
 	t.Helper()
-	t.Setenv("PERSONAL_MEMORY_RUNTIME", "zep_ce")
 	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://zep-ce-api:8000")
 	t.Setenv("PERSONAL_MEMORY_API_SECRET", "zep-ce-secret")
 	t.Setenv("PERSONAL_MEMORY_OWNER_SALT", "staging-memory-salt")
@@ -54,9 +127,7 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "")
-	t.Setenv("PROMPT_RUNTIME_MODEL", "")
 	t.Setenv("EXECUTION_PROMPT_MODEL", "")
-	t.Setenv("AGENT_PROMPT_MODEL", "")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
 	t.Setenv("LLM_API_KEY", "")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "")
@@ -171,7 +242,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	}
 	if cfg.PromptRuntimeProvider != "" ||
 		cfg.ExecutionPromptModel != "" ||
-		cfg.AgentPromptModel != "" ||
 		cfg.PromptRuntimeAPIKey != "" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
@@ -187,6 +257,20 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.PersonalMemoryRecallMaxChars != 2500 ||
 		cfg.EmbeddingDimensions != 0 {
 		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
+	}
+	if cfg.RAGTopKMax != 8 ||
+		cfg.RAGSelectedEvidenceMax != 8 ||
+		cfg.RAGRetrievalMaxConcurrent != 4 ||
+		cfg.RAGSynthesisMaxConcurrent != 2 ||
+		cfg.RAGEmbeddingTimeoutMS != 10_000 ||
+		cfg.RAGQdrantTimeoutMS != 10_000 ||
+		cfg.RAGProviderTimeoutMS != 60_000 {
+		t.Fatalf("unexpected rag budget defaults: %#v", cfg)
+	}
+	if cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivitySlots != 4 ||
+		cfg.WorkerProfiles["activity-knowledge-synthesis"].ActivitySlots != 2 ||
+		cfg.WorkerProfiles["activity-knowledge-plan"].ActivitySlots != 16 {
+		t.Fatalf("unexpected worker profile defaults: %#v", cfg.WorkerProfiles)
 	}
 }
 
@@ -261,8 +345,17 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
 		t.Fatalf("agent worker must not require personal memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
-		t.Fatalf("knowledge worker must not require personal memory config: %v", err)
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
+		t.Fatal("retired single knowledge worker role must be rejected")
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge-plan"); err != nil {
+		t.Fatalf("knowledge plan worker must not require query-side personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge-synthesis"); err != nil {
+		t.Fatalf("knowledge synthesis worker must not require query-side personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge-retrieval"); err == nil {
+		t.Fatal("knowledge retrieval worker must require query-side personal memory config")
 	}
 	if _, err := LoadFromEnvForRole("activity-campus-services"); err != nil {
 		t.Fatalf("campus services worker must not require personal memory config: %v", err)
@@ -276,6 +369,9 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	setStagingPersonalMemoryEnv(t)
 	if _, err := LoadFromEnvForRole("activity-context"); err != nil {
 		t.Fatalf("context worker must accept personal memory config: %v", err)
+	}
+	if _, err := LoadFromEnvForRole("activity-knowledge-retrieval"); err != nil {
+		t.Fatalf("knowledge retrieval worker recall must accept Zep CE config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
 		t.Fatalf("execution-control must accept personal memory config: %v", err)
@@ -463,6 +559,8 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 	_, err := LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected LoadFromEnv to reject invalid queue capacity")
+	} else if !strings.Contains(err.Error(), "EXECUTION_CONTROL_QUEUE_CAPACITY is retired") {
+		t.Fatalf("error = %q, want retired queue capacity error", err.Error())
 	}
 }
 
@@ -487,38 +585,43 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 }
 
 func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS", "4")
-	t.Setenv("EXECUTION_CONTROL_QUEUE_CAPACITY", "12")
-	t.Setenv("EXECUTION_CONTROL_QUEUE_TIMEOUT_MS", "2500")
-	t.Setenv("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS", "30000")
-	t.Setenv("EXECUTION_CONTROL_SHUTDOWN_GRACE_MS", "20000")
+	setRuntimeConfigProfile(t, `{
+  "schema_version": "campus_execution_control_runtime_profile.v1",
+  "max_concurrent_answers": 4,
+  "queue_capacity": 12,
+  "queue_timeout_ms": 2500,
+  "request_timeout_ms": 30000,
+  "shutdown_grace_ms": 20000,
+  "intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
+  "lane_budgets": {
+    "rag": {"max_concurrent": 2, "queue_capacity": 5, "queue_timeout_ms": 1500}
+  },
+  "otel": {
+    "enabled": true,
+    "endpoint": "http://collector:4318/v1/traces",
+    "headers": "authorization=Bearer test",
+    "service_name": "custom-execution-control",
+    "export_timeout_ms": 750,
+    "export_interval_ms": 15000,
+    "metrics_enabled": true,
+    "metrics_endpoint": "http://collector:4318/v1/metrics",
+    "sample_ratio": 0.25,
+    "allowed_attributes_version": "custom-attrs-v1"
+  },
+  "execution_audit": {
+    "enabled": true,
+    "url": "http://app-api:27031/api/internal/execution/audit-events",
+    "shared_secret": "audit-secret",
+    "timeout_ms": 250
+  },
+  "open_capabilities": ["campus_services", "notice"],
+  "multi_step_workflow_enabled": true
+}`)
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
-	t.Setenv("EXECUTION_CONTROL_INTENT_POLICY_PATH", "/etc/campus-agent/intent-policy.v1.json")
-	t.Setenv("EXECUTION_CONTROL_LANE_RAG_MAX_CONCURRENT", "2")
-	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY", "5")
-	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_TIMEOUT_MS", "1500")
-	t.Setenv("EXECUTION_CONTROL_OTEL_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT", "http://collector:4318/v1/traces")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer test")
-	t.Setenv("EXECUTION_CONTROL_OTEL_SERVICE_NAME", "custom-execution-control")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORT_TIMEOUT_MS", "750")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORT_INTERVAL_MS", "15000")
-	t.Setenv("EXECUTION_CONTROL_OTEL_METRICS_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector:4318/v1/metrics")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED", "true")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
-	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_TIMEOUT_MS", "250")
-	t.Setenv("EXECUTION_CONTROL_OTEL_SAMPLE_RATIO", "0.25")
-	t.Setenv("EXECUTION_CONTROL_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
-	t.Setenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", "campus_services, notice")
-	t.Setenv("EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED", "true")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")
 	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
-	t.Setenv("PROMPT_RUNTIME_MODEL", "gpt-shared")
 	t.Setenv("EXECUTION_PROMPT_MODEL", "gpt-execution")
-	t.Setenv("AGENT_PROMPT_MODEL", "gpt-agent")
 	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
 	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
 	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
@@ -562,7 +665,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		!cfg.WorkflowRunAutoMigrate ||
 		cfg.PromptRuntimeProvider != "openai-responses" ||
 		cfg.ExecutionPromptModel != "gpt-execution" ||
-		cfg.AgentPromptModel != "gpt-agent" ||
 		cfg.PromptRuntimeAPIKey != "prompt-key" ||
 		cfg.PromptRuntimeTransport != "responses" ||
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
@@ -639,124 +741,6 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *t
 
 	if cfg.PromptRuntimeProvider != "" {
 		t.Fatalf("prompt runtime provider = %q, want empty", cfg.PromptRuntimeProvider)
-	}
-}
-
-func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
-	for _, value := range []string{"*", "all", "campus_services,all"} {
-		t.Run(value, func(t *testing.T) {
-			t.Setenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", value)
-
-			_, err := LoadFromEnv()
-			if err == nil {
-				t.Fatalf("expected EXECUTION_CONTROL_OPEN_CAPABILITIES=%q to fail", value)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
-	for _, value := range []string{"campus_services,unknown_capability", "academic_calendar"} {
-		t.Run(value, func(t *testing.T) {
-			t.Setenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", value)
-
-			_, err := LoadFromEnv()
-			if err == nil {
-				t.Fatalf("expected EXECUTION_CONTROL_OPEN_CAPABILITIES=%q to fail", value)
-			}
-		})
-	}
-}
-
-func TestLoadFromEnvAcceptsNavigationOpenCapability(t *testing.T) {
-	t.Setenv("EXECUTION_CONTROL_OPEN_CAPABILITIES", "navigation")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if len(cfg.OpenCapabilities) != 1 || cfg.OpenCapabilities[0] != "navigation" {
-		t.Fatalf("open capabilities = %#v, want navigation", cfg.OpenCapabilities)
-	}
-}
-
-func TestCapabilityOpenDoesNotTreatWildcardAsRuntimeAllow(t *testing.T) {
-	cfg := Config{OpenCapabilities: []string{"*"}}
-
-	if cfg.CapabilityOpen("notice") {
-		t.Fatal("wildcard open capability must not open notice")
-	}
-}
-
-func TestCapabilityOpenDoesNotOpenPlaceLookupBeforeMapRollout(t *testing.T) {
-	cfg := Config{}
-
-	if cfg.CapabilityOpen("place_lookup") {
-		t.Fatal("place_lookup must remain closed until map rollout")
-	}
-}
-
-func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
-	t.Setenv("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", "postgres://notice.example/db")
-	t.Setenv("INTERNAL_NOTICE_READ_MODEL_TABLE", "custom_schema.custom_notice_read_model")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", "derived-access")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", "derived-secret")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "us-east-1")
-	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET", "notice-body-test")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.NoticeReadModelDatabaseURL != "postgresql://notice.example/db" {
-		t.Fatalf("notice read model database url = %q", cfg.NoticeReadModelDatabaseURL)
-	}
-	if cfg.NoticeReadModelTable != "custom_schema.custom_notice_read_model" {
-		t.Fatalf("notice read model table = %q", cfg.NoticeReadModelTable)
-	}
-	if cfg.NoticeBodyObjectStoreEndpoint != "http://minio:9000" ||
-		cfg.NoticeBodyObjectStoreAccessKey != "derived-access" ||
-		cfg.NoticeBodyObjectStoreSecretKey != "derived-secret" ||
-		cfg.NoticeBodyObjectStoreRegion != "us-east-1" ||
-		cfg.NoticeBodyObjectStoreBucket != "notice-body-test" {
-		t.Fatalf("unexpected notice object store config: %#v", cfg)
-	}
-}
-
-func TestLoadFromEnvUsesSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
-	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
-	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
-	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
-	t.Setenv("OBJECT_STORE_SECRET_KEY", "generic-secret")
-	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "derived-access")
-	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "derived-secret")
-	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived")
-
-	cfg, err := LoadFromEnv()
-	if err != nil {
-		t.Fatalf("LoadFromEnv returned error: %v", err)
-	}
-
-	if cfg.NoticeReadModelDatabaseURL != "postgresql://shared.example/db" {
-		t.Fatalf("notice read model database url = %q", cfg.NoticeReadModelDatabaseURL)
-	}
-	if cfg.StructuredProjectionDatabaseURL != "postgresql://shared.example/db" {
-		t.Fatalf("structured projection database url = %q", cfg.StructuredProjectionDatabaseURL)
-	}
-	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
-		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
-	}
-	if cfg.NoticeBodyObjectStoreAccessKey != "" {
-		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreAccessKey)
-	}
-	if cfg.NoticeBodyObjectStoreSecretKey != "" {
-		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeBodyObjectStoreSecretKey)
-	}
-	if cfg.NoticeBodyObjectStoreEndpoint != "" || cfg.NoticeBodyObjectStoreBucket != "" {
-		t.Fatalf("notice body object store config must not come from generic object store env: %#v", cfg)
 	}
 }
 

@@ -86,13 +86,15 @@ func TestHTTPProofWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 				"namespace":"campus-agent-staging",
 				"task_queue":"campus-agent.workflow",
 				"worker_id":"staging:execution-control:001",
-				"task_queues":[
-					"campus-agent.workflow",
-					"campus-agent.activity.context",
-					"campus-agent.activity.knowledge",
-					"campus-agent.activity.finalization"
-				]
-			}
+					"task_queues":[
+						"campus-agent.workflow",
+						"campus-agent.activity.context",
+						"campus-agent.activity.knowledge.plan",
+						"campus-agent.activity.knowledge.retrieval",
+						"campus-agent.activity.knowledge.synthesis",
+						"campus-agent.activity.finalization"
+					]
+				}
 		}`))
 	}))
 	defer server.Close()

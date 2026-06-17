@@ -21,24 +21,21 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - Go `apps/execution-control` 拥有 intent framing、routing、policy 与 response
   finalization
-- `packages/knowledge-capability` 拥有 ambiguity handling、query planning、
+- Go-owned knowledge / RAG runtime 拥有 ambiguity handling、query planning、
   retrieval-oriented answer shaping
-- `packages/retrieval-core` 拥有 evidence retrieval kernel
+- repo-owned retrieval runtime seam 拥有 evidence retrieval kernel
 
 补充约束：
 
 - repo-global developer invariants 由 `packages/prompt-runtime` 持有
-- package-owned role prompt 当前由 `packages/knowledge-capability` prompt
-  registry 持有；
-  Python production legacy terminal prompt family 已移除
-- `packages/knowledge-capability` 的 runtime package 名称继续保持 current
-  merged truth；但
-  prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
-  wording，不再把 `knowledge` 当默认对外标签
+- package-owned role prompt 当前由 Go-owned knowledge / RAG runtime 与
+  `packages/prompt-runtime` contract 持有；Python production legacy terminal prompt
+  family 已移除
+- prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
+  wording，不把 `knowledge` 当默认对外标签
 - retired Python bridge 的 prompt stack 已从 active workspace 删除；developer
   invariants、role prompt、trusted task packet、untrusted user/evidence packet 的
-  active owner 分别落在 `packages/prompt-runtime`、`packages/knowledge-capability`
-  与 Go-owned execution path
+  active owner 分别落在 `packages/prompt-runtime` 与 Go-owned execution path
 - `packages/prompt-runtime` 负责 provider-facing prompt contract validation、
   provider-backed strict structured outputs、provider response normalization，并生成
   validated `PromptTrace`
@@ -73,7 +70,7 @@ code-owned runtime seam。当前接受的实现基线是：
 
 固定规则：
 
-- `retrieval-core` 不拥有 top-level planner prompt
+- retrieval runtime seam 不拥有 top-level planner prompt
 - planner prompt 不得直接返回最终用户答案
 - synthesis prompt 不得绕过 plan / executor / supporting evidence selection
 
@@ -152,7 +149,7 @@ code-owned runtime seam。当前接受的实现基线是：
 
 - `apps/app-api`
 - `apps/execution-control`
-- `packages/retrieval-core`
+- repo-owned retrieval runtime seam
 - registry / runtime profile / release manifest
 
 共同拥有。
@@ -323,7 +320,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 拥有语义终态 finalization
 - 长期上应区分 `policy_refusal`、`out_of_scope` 与普通 `needs_clarification`
 
-### `packages/knowledge-capability` Ownership
+### Knowledge Runtime Ownership
 
 - 只处理已进入 in-scope knowledge path 的问题
 - 拥有 ambiguity handling、retrieval planning、grounded answer
@@ -331,7 +328,7 @@ repo 的 hallucination control 必须分别针对这五类做 gate，而不是�
 - 不应承担通用 off-domain classification
 - 不应把明显域外问题伪装成 handbook / curriculum 空召回
 
-### `packages/retrieval-core` ownership
+### Retrieval Runtime Ownership
 
 - 只拥有 retrieval / evidence shaping / admitted source constraint execution
 - 不拥有 top-level policy refusal 或 product scope judgement

@@ -45,8 +45,7 @@ online serving owner：
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `EXECUTION_PROMPT_MODEL`
-- `AGENT_PROMPT_MODEL`
+- `EXECUTION_PROMPT_MODEL`（仅显式 deterministic execution prompt lane 使用）
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
 
@@ -149,8 +148,8 @@ online serving owner：
 
 获取方式：
 
-1. 在目标服务器按
-   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/self-hosted-qdrant-native-backup-runbook.md)
+1. 在目标服务器按 historical
+   [Self-Hosted Qdrant Native Backup Runbook](../../runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md)
    部署 single-node Qdrant。
 1. 生成 deploy-scoped `QDRANT_API_KEY` 与 `QDRANT_READ_ONLY_API_KEY`，写入服务器本地
    env 或 deploy secret store。
@@ -181,15 +180,14 @@ extraction、dedupe / merge 与 graph search。Qdrant 不再承载 personal memo
 `campus-agent` 只消费 Zep CE `/api/v2`；Graphiti、Neo4j、Postgres / pgvector 是 Zep CE
 runtime bundle 内部组件。
 
-当前键：
+当前 deployment env handles：
 
-- `PERSONAL_MEMORY_RUNTIME=zep_ce`
 - `PERSONAL_MEMORY_BASE_URL`
 - `PERSONAL_MEMORY_API_SECRET`
 - `PERSONAL_MEMORY_OWNER_SALT`
-- `PERSONAL_MEMORY_TIMEOUT_SECONDS`
-- `PERSONAL_MEMORY_RECALL_LIMIT`
-- `PERSONAL_MEMORY_RECALL_MAX_CHARS`
+
+Zep runtime、timeout 与 recall limits 由 execution-control runtime profile
+`personal_memory` 段管理。
 
 local generated Zep CE runtime bundle keys：
 
@@ -278,8 +276,7 @@ Graphiti OpenAI-compatible projection：
 
 如果使用本地 Docker Postgres：
 
-- 使用 [../../runbooks/local-postgres-dev-recovery-runbook.md](../../runbooks/local-post
-  gres-dev-recovery-runbook.md)
+- 使用 historical [../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md](../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md)
 - 或直接执行 `uv run --all-packages python -m scripts.restore_local_postgres_dev
   - -execute`
 

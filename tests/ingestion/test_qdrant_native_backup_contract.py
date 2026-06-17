@@ -27,8 +27,8 @@ class QdrantNativeBackupContractTest(unittest.TestCase):
         self.assertFalse(hasattr(core, "SnapshotRestoreReport"))
         self.assertFalse(hasattr(core, "create_snapshot_backup"))
         self.assertFalse(hasattr(core, "restore_snapshot_backup"))
-        self.assertTrue(hasattr(core, "FilesystemSnapshotBackupRequest"))
-        self.assertTrue(hasattr(core, "create_filesystem_snapshot_backup"))
+        self.assertFalse(hasattr(core, "FilesystemSnapshotBackupRequest"))
+        self.assertFalse(hasattr(core, "create_filesystem_snapshot_backup"))
 
     def test_self_hosted_qdrant_healthcheck_uses_configured_tls_tcp_probe(self) -> None:
         compose_path = REPO_ROOT / "infra" / "local" / "docker-compose.qdrant-single-node.yml"

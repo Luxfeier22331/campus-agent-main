@@ -5,6 +5,7 @@ import { createEvalCoverageStoreHandlers } from "./store/eval-coverage";
 import { createMetricStoreHandlers } from "./store/metrics";
 import { createRequestStoreHandlers } from "./store/requests";
 import type { RuntimeDbGetter } from "./store/runtime";
+import { createRuntimeOpsStoreHandlers } from "./store/runtime-ops";
 
 export function createPgOperatorQueryStore(
 	env: Env,
@@ -20,5 +21,6 @@ export function createPgOperatorQueryStore(
 		...createEvalCoverageStoreHandlers({ getDb, now }),
 		...createRequestStoreHandlers({ getDb, now }),
 		...createMetricStoreHandlers({ getDb, now }),
+		...createRuntimeOpsStoreHandlers({ getDb, now }),
 	};
 }

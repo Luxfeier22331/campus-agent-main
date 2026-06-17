@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: capability
-owner_boundary: packages/retrieval-core
+owner_boundary: retrieval-runtime-seam
 status: active
 created: 2026-04-02
 updated: 2026-06-05
@@ -116,22 +116,23 @@ execution -> rerank / merge / dedupe -> evidence shaping`
 
 owner 分层固定为：
 
-- agent：query framing、ambiguity handling、surface / entity / version planning
-- retrieval-core：step execution、fusion、merge / dedupe、evidence shaping
+- `apps/execution-control` knowledge / RAG runtime：query framing、ambiguity handling、
+  surface / entity / version planning、step execution、fusion、merge / dedupe 与
+  evidence shaping
 - registry / serving profile：version / visibility / serving scope truth
 
 ## Target Relation To Agentic Retrieval
 
 target pipeline 固定升级为：
 
-`durable RunStep(planning) -> typed retrieval/domain tools -> retrieval-core
+`durable RunStep(planning) -> typed retrieval/domain tools -> retrieval runtime
 execution -> rerank / merge / dedupe -> evidence coverage verify -> supporting
 evidence selection -> synthesis -> grounding`
 
 补充约束：
 
 - planner-first target 不改变 serving truth owner
-- retrieval-core 仍不拥有产品级 capability admission
+- retrieval runtime 仍不拥有产品级 capability admission
 - live branch 只允许进入 admitted source channel
 - synthesis 不得补齐 missing retrieval/tool result；evidence verifier 决定 replan /
   clarification / fail-close
@@ -283,10 +284,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   - `legacy_old_index_compatibility`：仅供 old-index compatibility/历史诊断/受控测试使用；
     可以继续报告 `missing_contract` diagnostics，但这些结果不得计入 target release
     completion、component-eval target pass 或 serving adoption truth
-- production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
-  retrieval-core 只暴露 `RetrievalObservationSink` /
+- production observation 集成边界固定在 runtime adapter，不进入 deleted Python
+  retrieval package；retrieval runtime seam 只暴露 `RetrievalObservationSink` /
   `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
-  `activity-worker-knowledge` / `execution-control` runtime adapter 负责把
+  `activity-worker-knowledge-retrieval` / `execution-control` runtime adapter 负责把
   `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
   backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
@@ -295,7 +296,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   `failure_kind`、`candidate_count`、`reference_count`、`latency_ms`、`query_sha256`；有
   trace context 时附带 trace/span correlation，没有 trace context 时仍以 `request_id`
   做跨组件关联
-- metrics 从 observation 派生，不要求 retrieval-core 直接发 metrics：request count、
+- metrics 从 observation 派生，不要求 retrieval runtime 直接发 metrics：request count、
   latency histogram、no-hit / low-confidence / forbidden-hit count、release metadata
   drift count、reranker failed count、live-assisted count 都应由 runtime adapter 或
   Collector/backend 聚合

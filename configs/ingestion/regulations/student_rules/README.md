@@ -79,5 +79,7 @@ deferred. The phone directory selector is locked to
 to the resulting contact records but must not consume the phone page directly.
 
 The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with
-real document ranges before `process_raw_ingestion_job` runs with
-`INGESTION_CORPUS=regulations` and `INGESTION_COLLECTION=student_rules`.
+real document ranges before `apps/ingestion-control` admits the
+`document_materialize` task for `regulations/student_rules`. The retired Python
+raw-ingestion CLI is not an active ingestion entry path; missing TS handlers or
+Rust kernels fail closed instead of spawning that old path.

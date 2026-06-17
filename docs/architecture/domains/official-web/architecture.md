@@ -14,7 +14,7 @@ updated: 2026-05-04
 
 它回答的是：
 
-- collector、`app-api`、object storage、`ingestion-worker` 如何分层
+- collector、`app-api`、object storage、`ingestion-control` 如何分层
 - crawl policy、source-truth contract 与 operator/control-plane surface 各自属于谁
 - `official_web` 如何接入 shared product/runtime architecture
 
@@ -34,16 +34,19 @@ updated: 2026-05-04
 
 `external scheduler -> official-web collector -> object storage + app-api
 official_web control plane -> app-api ledger/outbox/read model ->
-ingestion-worker -> release task state machine -> document/chunk/index /
-structured projection -> app-api operator-safe projection -> Operator Console`
+ingestion-control task registry/executor -> release task state machine ->
+document/chunk/index / structured projection ->
+app-api operator-safe projection -> Operator Console`
 
 关键边界：
 
 - collector 负责 crawl / fetch / normalize / upload / report
 - `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与
-  ingestion handoff；它还接收 ingestion worker 上报的 redacted release task projection
-- `apps/ingestion-worker` 是 offline executor，负责 release task claim /
-  lease / retry / materialize / index / publish
+  ingestion handoff；它还接收 ingestion-control 上报的 redacted release task projection
+- `apps/ingestion-control` 是 offline task control plane 与 registry-aware executor，负责
+  release task claim / lease / retry / materialize / index / publish
+- `apps/ingestion-worker` 只保留 Python extraction adapter island；official-web
+  lifecycle 不回退到 Python collection CLI
 - Operator Console 通过 `apps/app-api` 消费 `official_web` operator surfaces 与
   release task projection read model；当前 read-only implementation surface 是
   `operator-console-web`
@@ -97,13 +100,13 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   downstream read model
 - ingestion staging 负责 replay、candidate review report、selected-write dry-run
   admission 与 no-promotion proof；contact/service 的 current read model 写入必须再经过
-  ingestion-owned release task state machine 与 ingestion-worker selected-write executor；
+  ingestion-control owned release task state machine 与 registry executor；
   app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
   operator release gate command ledger
 - selected-write preview 与 release-task operator summary 固定采用双轨语义：
   task-scope bundle / `recordCount` / `taskScopeDisplayNames` 只表示本次 admitted target
   将写入的记录；full bundle / `fullRecordCount` / `fullImpactDisplayNames` 表示 merge 进当前
-  projection 后的全量 current 影响面。这个语义由 ingestion worker 产出，app-api 与
+  projection 后的全量 current 影响面。这个语义由 ingestion-control 产出，app-api 与
   Operator Console 只消费 redacted projection，不自行重算
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的
   deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
@@ -227,7 +230,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 ## Forbidden Shapes
 
-- 不把 collector 内嵌进 `apps/ingestion-worker`
+- 不把 collector 内嵌进 `apps/ingestion-control` 或 Python adapter worker
 - 不把 `official_web` control plane 拆成第二个产品 backend
 - 不让 collector 直接写 document registry、query-serving runtime 或 retrieval index
 - 不把 crawl policy、page schema、collection projection 语义混写成一篇文档

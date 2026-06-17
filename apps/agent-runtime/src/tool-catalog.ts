@@ -236,6 +236,28 @@ function parameterSchemaForTool(toolName: string): JsonObjectSchema {
 				},
 				["query_text"],
 			);
+		case "campus_notice_period_summary":
+			return strictObjectSchema(
+				{
+					query_text: nonEmptyStringSchema,
+					date_range: strictObjectSchema(
+						{
+							start_date: nonEmptyStringSchema,
+							end_date: nonEmptyStringSchema,
+							timezone: nonEmptyStringSchema,
+						},
+						["start_date", "end_date"],
+					),
+					source_families: stringArraySchema,
+					target_surfaces: stringArraySchema,
+					group_by: {
+						type: "string",
+						enum: ["topic", "day", "source_family"],
+					},
+					max_items: { type: "integer", minimum: 1, maximum: 20 },
+				},
+				["query_text", "date_range"],
+			);
 		default:
 			return strictObjectSchema({});
 	}

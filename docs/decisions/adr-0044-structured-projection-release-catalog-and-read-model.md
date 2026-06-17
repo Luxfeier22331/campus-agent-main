@@ -134,7 +134,7 @@ build structured projection release
 - object storage 与 PG 分层不变：对象 bytes 不迁入 PG，PG 保存 release
   metadata 与结构化查询视图
 - Redis 不进入 truth path
-- ingestion worker 负责离线 materialization 与 release publication；
+- ingestion-control 负责离线 materialization 与 release publication；
   execution-control 只消费 current typed read model
 - release catalog、current pointer、typed read model 与 release-id cache 是 runtime
   consumption 的唯一 repo-supported path，不再扩展 mounted JSON
@@ -147,4 +147,4 @@ build structured projection release
 - `docs/architecture/target-architecture.md`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
+- `docs/decisions/adr-0048-temporal-execution-plane.md`

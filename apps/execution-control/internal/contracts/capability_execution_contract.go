@@ -75,13 +75,14 @@ const (
 type StepOutputProjectionKind string
 
 const (
-	StepOutputProjectionKindNoticeContext     StepOutputProjectionKind = "notice_context"
-	StepOutputProjectionKindNoticeChangeSet   StepOutputProjectionKind = "notice_change_set"
-	StepOutputProjectionKindScheduleBaseline  StepOutputProjectionKind = "schedule_baseline"
-	StepOutputProjectionKindServiceGuideFacts StepOutputProjectionKind = "service_guide_facts"
-	StepOutputProjectionKindPlaceContext      StepOutputProjectionKind = "place_context"
-	StepOutputProjectionKindEvidenceBundle    StepOutputProjectionKind = "evidence_bundle"
-	StepOutputProjectionKindGroundingVerdict  StepOutputProjectionKind = "grounding_verdict"
+	StepOutputProjectionKindNoticeContext       StepOutputProjectionKind = "notice_context"
+	StepOutputProjectionKindNoticeChangeSet     StepOutputProjectionKind = "notice_change_set"
+	StepOutputProjectionKindNoticePeriodSummary StepOutputProjectionKind = "notice_period_summary"
+	StepOutputProjectionKindScheduleBaseline    StepOutputProjectionKind = "schedule_baseline"
+	StepOutputProjectionKindServiceGuideFacts   StepOutputProjectionKind = "service_guide_facts"
+	StepOutputProjectionKindPlaceContext        StepOutputProjectionKind = "place_context"
+	StepOutputProjectionKindEvidenceBundle      StepOutputProjectionKind = "evidence_bundle"
+	StepOutputProjectionKindGroundingVerdict    StepOutputProjectionKind = "grounding_verdict"
 )
 
 type RuntimeDecisionSummaryWire struct {
@@ -578,6 +579,8 @@ func (value WorkflowMode) Valid() bool {
 func (value StepOutputProjectionKind) Valid() bool {
 	switch value {
 	case StepOutputProjectionKindNoticeContext,
+		StepOutputProjectionKindNoticeChangeSet,
+		StepOutputProjectionKindNoticePeriodSummary,
 		StepOutputProjectionKindScheduleBaseline,
 		StepOutputProjectionKindServiceGuideFacts,
 		StepOutputProjectionKindPlaceContext,

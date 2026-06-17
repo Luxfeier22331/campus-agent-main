@@ -5,12 +5,19 @@ owner_boundary: docs/decisions
 decision_id: ADR-0016
 status: accepted
 created: 2026-03-28
-updated: 2026-04-26
+updated: 2026-06-15
 ---
 # ADR-0016 App API Request Projection And Operator Console Query Ownership
 
 适用范围：operator-facing request list/detail、shared `app-api` request
 projection、Operator Console `Requests` domain 的长期 ownership
+
+## 当前边界说明
+
+本文的 request projection owner 结论仍有效。早期以 `apps/supervisor-agent-worker`
+描述 agent worker 的段落只保留为历史反例；当前 Python supervisor worker 已从 active
+workspace 删除，execution closeout 与 projection 由 `apps/execution-control`、Temporal
+activity workers 和 `app-api` projection boundary 承接。
 
 ## 背景
 
@@ -82,11 +89,12 @@ projection、Operator Console `Requests` domain 的长期 ownership
 - execution engine 与 operator query 是不同产品边界
 - 否则会重新把 `execution-control` 扩回产品 backend
 
-## 决策 4：agent worker 不拥有 Operator Console read model host
+## 决策 4：semantic execution worker 不拥有 Operator Console read model host
 
 结论：
 
-- `apps/supervisor-agent-worker` 只返回 private `CapabilityResponse`
+- semantic execution worker / typed activity worker 只返回 execution-internal typed
+  result
 - 不拥有 request projection store、list/detail API 或面向 Operator Console 的 read
   model host
 - execution audit summary、response observability projection 与 public
@@ -94,7 +102,7 @@ projection、Operator Console `Requests` domain 的长期 ownership
 
 原因：
 
-- agent worker 的职责是 private semantic worker，而不是产品 surface 数据面
+- semantic execution worker 的职责是 private semantic execution，而不是产品 surface 数据面
 - 这样可以保持 product-layer、execution runtime 与 agent semantic worker 的边界清晰
 
 ## 决策 5：以下数据面不是 canonical request projection truth

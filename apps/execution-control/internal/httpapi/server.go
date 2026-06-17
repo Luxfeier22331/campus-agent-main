@@ -300,9 +300,14 @@ func newRAGSynthesisExecutor(
 	if err != nil {
 		return nil, err
 	}
+	providerTimeout := time.Duration(cfg.RAGProviderTimeoutMS) * time.Millisecond
+	if providerTimeout <= 0 {
+		providerTimeout = 60 * time.Second
+	}
 	return providerBackedRAGSynthesisExecutor{
-		configResolver: configResolver,
-		pricing:        catalog,
+		configResolver:  configResolver,
+		pricing:         catalog,
+		providerTimeout: providerTimeout,
 	}, nil
 }
 
@@ -480,6 +485,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleStructuredQuery(writer, request, structuredquery.ToolAcademicCalendarLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
+	case request.Method == http.MethodPost && path == "/internal/query/notices/period-summary":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticePeriodSummary)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/change-set":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeChangeSet)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":

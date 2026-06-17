@@ -29,8 +29,8 @@ from campus_ingestion_core.handbook_chunking_validation_shared import (
     _resolve_validation_workers,
     _sample_candidate_matches_bucket,
 )
-from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
 from campus_ingestion_core.settings import ObjectStoreSettings, resolve_object_store_bucket_names

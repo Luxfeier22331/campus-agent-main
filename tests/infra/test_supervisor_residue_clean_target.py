@@ -17,6 +17,8 @@ ACTIVE_SCAN_ROOTS = (
     REPO_ROOT / "tests",
 )
 ACTIVE_SCAN_FILES = (
+    REPO_ROOT / "AGENTS.md",
+    REPO_ROOT / "README.md",
     REPO_ROOT / ".env.example",
     REPO_ROOT / ".env.staging.local.example",
 )
@@ -45,6 +47,19 @@ ALLOWLISTED_FILES = {
     Path("apps/execution-control/internal/config/config_test.go"),
     Path("tests/infra/test_execution_control_architecture_residue.py"),
     Path("tests/infra/test_supervisor_residue_clean_target.py"),
+}
+ACTIVE_RETIRED_OWNER_FORBIDDEN_SNIPPETS = {
+    "- `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排",
+    "- `packages/knowledge-capability`: knowledge-family / RAG capability",
+    "- `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径",
+    "它顺序启动 `supervisor-agent-worker`、`execution-control`",
+    "packages/ingestion-core packages/retrieval-core packages/navigation-capability packages/contracts",
+    "返回 ingestion-worker 可消费的 deterministic `releaseId`",
+    "Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /",
+    "`apps/supervisor-agent-worker` 是 private semantic worker",
+    "Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration",
+    " `packages/knowledge-capability` 负责 retrieval strategy selection",
+    " `packages/retrieval-core` 负责 query preprocessing",
 }
 
 
@@ -94,6 +109,17 @@ class SupervisorResidueCleanTargetTest(unittest.TestCase):
         self.assertFalse(
             offenders,
             "active runtime must not reference the retired Python supervisor bridge:\n"
+            + "\n".join(offenders),
+        )
+
+    def test_active_truth_does_not_describe_retired_python_packages_as_current_owners(
+        self,
+    ) -> None:
+        offenders = self._find_active_references(tuple(ACTIVE_RETIRED_OWNER_FORBIDDEN_SNIPPETS))
+
+        self.assertFalse(
+            offenders,
+            "active truth must not describe retired Python worker/retrieval packages as current owners:\n"
             + "\n".join(offenders),
         )
 

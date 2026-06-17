@@ -640,6 +640,95 @@
 		},
 		{
 			"type": "function",
+			"name": "campus_notice_period_summary",
+			"description": "Summarize governed campus notices over a bounded date range from the notice read model.",
+			"strict": true,
+			"parameters": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"query_text": {
+						"type": "string",
+						"description": "Original notice period summary question."
+					},
+					"date_range": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"start_date": {
+								"type": "string",
+								"description": "Inclusive start date in YYYY-MM-DD."
+							},
+							"end_date": {
+								"type": "string",
+								"description": "Inclusive end date in YYYY-MM-DD."
+							},
+							"timezone": {
+								"type": ["string", "null"],
+								"description": "IANA timezone for date interpretation."
+							}
+						},
+						"required": ["start_date", "end_date", "timezone"],
+						"description": "Bounded notice publication date range."
+					},
+					"source_families": {
+						"type": ["array", "null"],
+						"description": "Allowed notice source families.",
+						"items": {
+							"type": "string",
+							"description": "Allowed notice source families.",
+							"enum": [
+								"official_web_public_notice",
+								"internal_notice_restricted",
+								"wechat_public_notice"
+							]
+						}
+					},
+					"target_surfaces": {
+						"type": ["array", "null"],
+						"description": "Allowed notice target surfaces.",
+						"items": {
+							"type": "string",
+							"description": "Allowed notice target surfaces.",
+							"enum": [
+								"notice_level_query",
+								"procurement_notice_history",
+								"regulations/*",
+								"regulations/student_rules",
+								"regulations/institutional_rules",
+								"regulations/scoped_rules",
+								"campus_services/service_status_candidate",
+								"campus_services/special_service_candidate",
+								"campus_services/stable_contact_candidate",
+								"publication_surface_candidate",
+								"multimodal_processing_candidate",
+								"unsupported"
+							]
+						}
+					},
+					"group_by": {
+						"type": ["string", "null"],
+						"description": "Summary grouping mode.",
+						"enum": ["topic", "day", "source_family", null]
+					},
+					"max_items": {
+						"type": ["integer", "null"],
+						"description": "Positive maximum number of notice cards.",
+						"minimum": 1
+					}
+				},
+				"required": [
+					"query_text",
+					"date_range",
+					"source_families",
+					"target_surfaces",
+					"group_by",
+					"max_items"
+				]
+			}
+		},
+		{
+			"type": "function",
 			"name": "retrieve_evidence",
 			"description": "Return bounded evidence anchors for an admitted deterministic RAG query slot.",
 			"strict": true,

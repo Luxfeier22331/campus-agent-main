@@ -16,15 +16,13 @@ updated: 2026-06-13
 - `e2e-qa-release-runbook.md`
   - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
     public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
-- `staging-worker-deploy-runbook.md`
-- `document-reader-publish-and-docs-deploy-runbook.md`
-  - 包含 serving seed export / verify / restore，以及旧
-    `manifests/public-docs-reader-assets.json` root 的受控迁移清理。
+- `execution-control-staging-operations.md`
+  - 当前 execution-control + Temporal staging runtime 运维入口。
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
-- `index-release-runbook.md`
-  - 包含 Qdrant backup retention audit；当前 collection GC 需要 qdrant-native
-    filesystem snapshot evidence，历史对象存储 snapshot bundle 不能按时间或体积直接删。
+- `ingestion-control-clean-target-runbook.md`
+  - 当前 ingestion/data-plane operational 入口；旧 Python collection worker
+    runbook 已归档。
 
 ## Collaboration / Workstreams
 
@@ -53,32 +51,24 @@ updated: 2026-06-13
 
 ## Local Infra / Recovery
 
-- `local-postgres-dev-recovery-runbook.md`
 - `execution-control-local-runtime-smoke.md`
-- `self-hosted-qdrant-native-backup-runbook.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
 
 ## Authenticated Notice / Internal Notice
 
-- `ingestion-worker-on-demand-batch-runbook.md`
-- `authenticated-notice-processing-operator-console-runbook.md`
 - `authenticated-notice-file-release-auth-window-runbook.md`
-- `authenticated-notice-bootstrap-smoke-runbook.md`
-- `authenticated-notice-source-truth-replay-runbook.md`
-- `authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
-  - 包含 source attachment cleanup 与 `authenticated_notice_portal/runs/` source run
-    retention audit。
-- `authenticated-notice-async-staged-closeout-runbook.md`：包含 closeout operations
-  evidence retention 的 audit / dry-run / delete 流程。
-- `internal-notice-policy-regulation-promotion-runbook.md`
-- `internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `ingestion-control-clean-target-runbook.md`
+  - authenticated notice / internal notice 的 ingestion task lifecycle 入口；
+    replay、closeout、promotion、cleanup 等旧 Python worker 操作只保留 archive
+    证据。
 
 ## Official Web
 
-- `official-web-collector-smoke-and-audit.md`
 - `official-web-dynamic-shell-discovery.md`
-- `official-web-source-truth-projection-replay.md`
+- `ingestion-control-clean-target-runbook.md`
+  - official-web ingestion / release task lifecycle 入口；旧 collector smoke 与
+    source-truth projection replay runbook 已归档。
 
 ## Collection rebuild checklists
 
@@ -94,6 +84,8 @@ updated: 2026-06-13
 
 - `archive/README.md`
   - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
+- `archive/python-ingestion-worker/`
+  - historical Python ingestion worker runbook；只用于追溯旧链路，不是当前操作入口。
 - `archive/qdrant-cloud-backup-and-restore-runbook.md`
   - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
     self-hosted single-node Qdrant native snapshots。

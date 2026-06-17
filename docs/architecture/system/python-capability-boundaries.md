@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: supervisor-agent-worker
+owner_boundary: python-capability-boundaries
 status: active
 created: 2026-04-26
 updated: 2026-06-14
@@ -10,9 +10,9 @@ updated: 2026-06-14
 
 ## 文档边界
 
-本文冻结 Python side retired / offline boundary。它不改变 Temporal / Go
-execution-control 的 ownership，只说明 Python 不再参与 online answer hot path，以及后续只能保留在哪些
-非热路径场景。
+本文冻结 Python side retired / adapter boundary。它不改变 Temporal / Go
+execution-control 的 ownership，只说明 Python 不再参与 online answer hot path，
+以及后续只能保留在哪些非热路径场景。
 
 ## Runtime Boundary
 
@@ -29,15 +29,15 @@ Python 不再拥有 deterministic execution runtime truth。
 - Python 不拥有 online RAG provider cancellation、token / estimated cost accounting、
   sanitized step projection、workflow step truth 或 top-level semantic orchestration
 
-## Agent Boundary
+## Knowledge / RAG Boundary
 
-`packages/knowledge-capability` 当前保留 offline/eval/historical bridge 语义能力：
+旧 Python `packages/knowledge-capability` 已从 active workspace 删除。当前
+knowledge-family semantic agent 能力由 Go-owned `apps/execution-control` RAG Temporal
+graph 承接：
 
 - query framing、scope-specific semantic planning、bounded synthesis packet assembly、
-  claim-level grounding validation reference
-- online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`；
-  Python `OpenAIAgentsRagRuntime` 仅保留 non-serving / test artifact，不是默认 online
-  runtime
+  grounding validation
+- online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`
 - retrieval evidence 到 `CapabilityResponse` 的 contract 化
 
 这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
@@ -47,27 +47,20 @@ Python 不再拥有 deterministic execution runtime truth。
 其中 online `grounding.verify` 当前语义是 evidence-integrity verification，不消费
 Python claim-level validator。
 
-内部拆分规则：
-
-- `service.py` 保持 capability service facade，不继续吸收 scope planning 大块逻辑
-- scope-specific logic 分到 `service_scope_*`
-- direct answer composition 分到 `answering_*`
-- grounding validation 的 result、trust policy、support policy、
-  source-trust summary 分文件维护
-
 ## Retrieval Boundary
 
-`packages/retrieval-core` 当前保留 online retrieval kernel：
+旧 Python `packages/retrieval-core` 已从 active workspace 删除。当前 online retrieval
+kernel 收口到 Go-owned execution-control / repo-owned internal retrieval seam：
 
 - Qdrant backend runtime adapter、embedding query cache、registry lookup、
   evidence shaping
 - retrieval request projection、step validation、step result construction、
   merge / dedupe
-- retrieval-core 不拥有 product capability admission，也不维护 query-enabled scope truth
+- retrieval runtime 不拥有 product capability admission，也不维护 query-enabled scope truth
 
-当前 retrieval implementation 可以在内部依赖 LlamaIndex adapter/helper，但 LlamaIndex 不是
-架构层，也不得进入 contracts、execution-control、panel/eval canonical truth。长期 online retrieval
-boundary 收口为 repo-owned DTO + Qdrant native adapter + sanitized query activity projection。
+LlamaIndex 不是架构层，也不得进入 contracts、execution-control、panel/eval canonical
+truth。长期 online retrieval boundary 收口为 repo-owned DTO + Qdrant native adapter +
+sanitized query activity projection。
 
 当前 rerank 事实限定为 Qdrant hybrid / RRF、heuristic ranking 与 profile-gated rerank
 interface；未发现线上 cross-encoder、torch、ONNX 或 sentence-transformers rerank 作为 current
@@ -75,11 +68,11 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 
 内部拆分规则：
 
-- `backend_qdrant.py` 保持 backend orchestration facade
-- backend errors、embedding cache、registry lookup、evidence source shaping 分文件维护
-- `service.py` 保持 retrieval service facade
-- request projection 属于 `service_requests.py`
-- step execution result、replan validation、merge / trust filtering 属于 `service_execution.py`
+- Go retrieval activity / query service 保持 backend orchestration facade
+- backend errors、embedding cache、registry lookup、evidence source shaping 继续按 owner
+  分文件维护
+- request projection、step execution result、replan validation、merge / trust
+  filtering 属于 repo-owned retrieval runtime seam
 
 ## Data-Plane Boundary
 
@@ -98,7 +91,7 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 - 不把 Go runtime types、Qdrant / S3 / provider SDK types 写入 `packages/contracts`
 - 不把 deterministic Execution Agent Layer admission、routing、structured payload
   planning 写回 Python
-- 不把 ingestion source-truth / projection logic 拉入 `packages/knowledge-capability`
+- 不把 ingestion source-truth / projection logic 拉入 knowledge runtime
 - 不把 retrieval backend private helpers 重新塞进 agent service
 - 大模块出现增长时优先按 owner 拆文件，而不是在 facade 继续堆分支
 - 不把 Python 继续保留在长期 online answer hot path 当作默认扩容策略

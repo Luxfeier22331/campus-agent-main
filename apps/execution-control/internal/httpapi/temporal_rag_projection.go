@@ -45,6 +45,7 @@ func temporalRAGPlanFromRun(
 func ragPlanProjectionForRun(
 	run execution.DurableRun,
 	queryServingScopesPath string,
+	topKMax int,
 ) (ragruntime.PlanProjection, error) {
 	payload, ok := run.Metadata["execution_payload"].(map[string]any)
 	if !ok {
@@ -65,6 +66,12 @@ func ragPlanProjectionForRun(
 	topK := positiveIntFromAny(payload["top_k"])
 	if topK <= 0 {
 		topK = profile.RetrievalTopK
+	}
+	if topKMax <= 0 {
+		return ragruntime.PlanProjection{}, errors.New("rag top_k max must be configured")
+	}
+	if topK > topKMax {
+		return ragruntime.PlanProjection{}, fmt.Errorf("rag top_k %d exceeds configured max %d", topK, topKMax)
 	}
 	queryMode, versionQuery := ragVersionQueryForRun(payload)
 	plan := ragruntime.PlanProjection{
@@ -307,12 +314,16 @@ func temporalRAGLookupResultFromRun(
 func selectRAGEvidence(
 	run execution.DurableRun,
 	lookup ragruntime.RetrievalLookupResult,
+	selectedEvidenceMax int,
 ) (ragruntime.EvidenceSelectionResult, error) {
 	plan := ragruntime.PlanProjection{}
 	if raw, ok := run.Metadata["temporal_rag"].(map[string]any); ok {
 		if decoded, err := decodeRAGProjection[ragruntime.PlanProjection](raw["plan"]); err == nil {
 			plan = decoded
 		}
+	}
+	if selectedEvidenceMax <= 0 {
+		return ragruntime.EvidenceSelectionResult{}, errors.New("rag selected evidence max must be configured")
 	}
 	selection, err := ragruntime.SelectSupportingEvidence(ragruntime.EvidenceSelectionRequest{
 		Lookup: lookup,
@@ -321,6 +332,10 @@ func selectRAGEvidence(
 	})
 	if err != nil {
 		return ragruntime.EvidenceSelectionResult{}, err
+	}
+	if len(selection.SelectedEvidence) > selectedEvidenceMax {
+		selection.SelectedEvidence = selection.SelectedEvidence[:selectedEvidenceMax]
+		selection.SupportingEvidenceCount = len(selection.SelectedEvidence)
 	}
 	selection.EvidenceRef = temporalProjectionRef(run.RunID, "evidence/selection")
 	hash, err := ragruntime.HashProjection(selection)

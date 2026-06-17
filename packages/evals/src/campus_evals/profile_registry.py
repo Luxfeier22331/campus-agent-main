@@ -5,10 +5,6 @@ from typing import Literal
 
 ArtifactKind = Literal["case_results", "profile_report", "composite_gate", "report_only"]
 RunnerKind = Literal[
-    "handbook",
-    "curriculum",
-    "official_web",
-    "release_gate",
     "profile_gate",
     "composite_gate",
     "report_only",
@@ -36,45 +32,6 @@ class EvalProfileDefinition:
 
 
 _PROFILE_DEFINITIONS = (
-    EvalProfileDefinition(
-        "handbook",
-        "handbook",
-        3,
-        "student-handbook-formal-benchmark-accept",
-        "case_results",
-        supports_case_results_publish=True,
-    ),
-    EvalProfileDefinition(
-        "curriculum",
-        "curriculum",
-        3,
-        "curriculum-plan-live-gate-accept",
-        "case_results",
-        supports_case_results_publish=True,
-    ),
-    EvalProfileDefinition(
-        "official-web-stable-reference",
-        "official_web",
-        1,
-        "official-web-stable-reference-live-gate-accept",
-        "case_results",
-        official_web_scope="stable_reference",
-        supports_case_results_publish=True,
-    ),
-    EvalProfileDefinition(
-        "service-guide-lookup",
-        "release_gate",
-        1,
-        "service-guide-lookup-release-gate-accept",
-        "composite_gate",
-    ),
-    EvalProfileDefinition(
-        "contact-directory-lookup",
-        "release_gate",
-        1,
-        "contact-directory-lookup-release-gate-accept",
-        "composite_gate",
-    ),
     EvalProfileDefinition(
         "campus-services-product-path",
         "composite_gate",
@@ -173,15 +130,6 @@ _PROFILE_DEFINITIONS = (
         "profile_report",
         supports_collect_runtime=True,
         operations_profile_id="zep_memory_product_path",
-    ),
-    EvalProfileDefinition(
-        "institutional-rules-release-baseline",
-        "composite_gate",
-        1,
-        "institutional-rules-release-baseline-gate-accept",
-        "composite_gate",
-        dispatchable=False,
-        operations_policy_subject=False,
     ),
     EvalProfileDefinition(
         "eval-operations-governance",

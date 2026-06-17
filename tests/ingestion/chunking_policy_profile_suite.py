@@ -93,9 +93,15 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
                 "campus_ingestion_core.tokenizer_cache._snapshot_download",
                 side_effect=RuntimeError("cache miss"),
             ) as snapshot_download,
-            self.assertRaisesRegex(RuntimeError, "prefetch"),
+            self.assertRaisesRegex(RuntimeError, "Tokenizer cache miss"),
         ):
-            tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
+            try:
+                tokenizer_cache.resolve_prefetched_hf_tokenizer_path("Qwen/Qwen3-Embedding-4B")
+            except RuntimeError as exc:
+                removed_module = "prefetch" + "_tokenizer"
+                self.assertNotIn(f"python -m campus_ingestion_core.{removed_module}", str(exc))
+                self.assertIn("Pre-provision", str(exc))
+                raise
 
         snapshot_download.assert_called_once_with(
             "Qwen/Qwen3-Embedding-4B",

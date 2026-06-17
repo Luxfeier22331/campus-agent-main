@@ -13,8 +13,8 @@ from campus_ingestion_core.authenticated_notice_routing_sampling import (
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
-from campus_ingestion_core.collected_notice_classification import (
-    resolve_collected_notice_target_candidates,
+from campus_ingestion_core.authenticated_notice_target_routing import (
+    resolve_authenticated_notice_target_candidates,
 )
 from campus_ingestion_core.internal_notice_consumption_projection_models import (
     InternalNoticeConsumptionProjectionObjectStore,
@@ -58,7 +58,7 @@ def routes_to_service_status_candidate(
         if routing_sample.suggested_consumption_route != "service_status_candidate":
             return False
         return bool(
-            resolve_collected_notice_target_candidates(
+            resolve_authenticated_notice_target_candidates(
                 notice_family=routing_sample.notice_family,
                 primary_route=routing_sample.suggested_consumption_route,
                 title=_inventory_title(
@@ -91,7 +91,7 @@ def resolve_service_status_candidate_kind(
 ) -> str:
     family = routing_sample.notice_family if routing_sample is not None else ""
     route = routing_sample.suggested_consumption_route if routing_sample is not None else ""
-    targets = resolve_collected_notice_target_candidates(
+    targets = resolve_authenticated_notice_target_candidates(
         notice_family=family,
         primary_route=route or "service_status_candidate",
         title=title_compact,

@@ -14,7 +14,7 @@ updated: 2026-05-01
 
 它回答：
 
-- ingestion worker 如何把安全 processing snapshot 写入 app-api
+- ingestion-control 如何把安全 processing snapshot 写入 app-api
 - Operator Console 如何查询通知处理状态
 - 哪些字段不得通过 operator API 暴露
 
@@ -135,7 +135,7 @@ operations 目录或 raw logs。
       "lastObservedAt": "2026-05-01T08:00:01.000Z",
       "sourceUpdatedAt": "2026-05-01T08:00:00.000Z",
       "projectedAt": "2026-05-01T08:00:01.000Z",
-      "producerVersion": "campus_ingestion_core.authenticated_notice_processing_projection.v1",
+      "producerVersion": "ingestion_control.authenticated_notice_operator_projection.v1",
       "redactionVersion": "authenticated_notice_processing_redaction.v1"
     }
   ]
@@ -289,7 +289,7 @@ query filters：
       "firstObservedAt": "2026-05-01T00:09:11.528648Z",
       "lastObservedAt": "2026-05-01T00:09:11.528648Z",
       "projectedAt": "2026-05-01T00:10:00.000Z",
-      "producerVersion": "campus_ingestion_core.authenticated_notice_run_processing_projection.v1",
+      "producerVersion": "ingestion_control.authenticated_notice_run_operator_projection.v1",
       "redactionVersion": "authenticated_notice_processing_redaction.v1"
     }
   ]

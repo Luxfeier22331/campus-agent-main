@@ -47,21 +47,19 @@ updated: 2026-06-12
 
 ## Active Runbooks
 
-- `../runbooks/authenticated-notice-bootstrap-smoke-runbook.md`
-- `../runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `../runbooks/authenticated-notice-async-staged-closeout-runbook.md`
-- `../runbooks/internal-notice-policy-regulation-promotion-runbook.md`
-- `../runbooks/internal-notice-regulation-target-quality-acceptance-runbook.md`
+- `../runbooks/ingestion-control-clean-target-runbook.md`
+- `../runbooks/authenticated-notice-file-release-auth-window-runbook.md`
 
 ## Active Reference / Quality / Strategy
 
 - `../reference/authenticated-notice-file-release-export-contract.md`
-- `../reference/authenticated-notice-file-release-owner-recovery-readiness-contr
-  act.md`
-- `../reference/internal-notice-offline-preparation-strategy.md`
-- `../reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `../reference/institutional-regulations-promotion-quality-acceptance.md`
 - `../reference/institutional-regulations-offline-inventory.md`
 - `../reference/internal-notice-manual-review-collection-strategy.md`
 - `../reference/internal-notice-manual-review-future-query-contract.md`
 - `../reference/internal-notice-pdf-chunk-tuning-sample-set-contract.md`
+
+## Historical Ingestion References
+
+- `../runbooks/archive/python-ingestion-worker/`
+- `../reference/archive/python-ingestion-worker/`

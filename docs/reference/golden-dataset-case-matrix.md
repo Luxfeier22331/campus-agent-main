@@ -27,10 +27,10 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 
 | Surface | Profile | Artifact | Qrels | Expected docs | Release acceptance | Answer quality | Golden qrels | Known gaps | Maturity |
 | ------- | ------- | -------- | ----- | ------------- | ------------------ | -------------- | ------------ | ---------- | -------- |
-| `regulations/student_rules` | `handbook` | `case_results` | 52 | 46 | 25 | 5 | 0 | 4 | `baseline_ready` |
-| `regulations/institutional_rules` | `institutional-rules-release-baseline` | `composite_gate` | 46 | 42 | 45 | 42 | 89 | 0 | `baseline_ready` |
-| `curriculum/curriculum_plan` | `curriculum` | `case_results` | 60 | 49 | 30 | 5 | 0 | 0 | `baseline_ready` |
-| `official_web/stable_reference` | `official-web-stable-reference` | `case_results` | 4 | 3 | 5 | 0 | 0 | 0 | `baseline_ready` |
+| `regulations/student_rules` | `regulations-student-rules` | `release_acceptance_result` | 52 | 46 | 25 | 5 | 0 | 4 | `baseline_ready` |
+| `regulations/institutional_rules` | `regulations-institutional-rules` | `release_acceptance_result` | 46 | 42 | 45 | 42 | 89 | 0 | `baseline_ready` |
+| `curriculum/curriculum_plan` | `curriculum-curriculum-plan` | `release_acceptance_result` | 60 | 49 | 30 | 5 | 0 | 0 | `baseline_ready` |
+| `official_web/stable_reference` | `official-web-stable-reference-release` | `release_acceptance_result` | 4 | 3 | 5 | 0 | 0 | 0 | `baseline_ready` |
 
 ## Operator Readiness Matrix
 
@@ -70,8 +70,8 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 
 | Dimension | Current value | Source |
 | --------- | ------------- | ------ |
-| Profile | `handbook` | profile registry |
-| Artifact kind | `case_results` | profile registry |
+| Profile | `regulations-student-rules` | profile registry |
+| Artifact kind | `release_acceptance_result` | profile registry |
 | Qrels cases | 52 | `packages/evals/fixtures/student_handbook_retrieval_qrels.json` |
 | Unique expected docs | 46 | qrels expected sources |
 | Release acceptance cases | 25 | `packages/evals/fixtures/student_rules_release_acceptance.v1.json` |
@@ -88,8 +88,8 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 
 | Dimension | Current value | Source |
 | --------- | ------------- | ------ |
-| Profile | `institutional-rules-release-baseline` | profile registry |
-| Artifact kind | `composite_gate` | profile registry |
+| Profile | `regulations-institutional-rules` | profile registry |
+| Artifact kind | `release_acceptance_result` | profile registry |
 | Qrels cases | 46 | `packages/evals/fixtures/institutional_rules_retrieval_qrels.json` |
 | Unique expected docs | 42 | qrels expected sources |
 | Release acceptance cases | 45 | `packages/evals/fixtures/institutional_rules_release_acceptance.v1.json` |
@@ -106,8 +106,8 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 
 | Dimension | Current value | Source |
 | --------- | ------------- | ------ |
-| Profile | `curriculum` | profile registry |
-| Artifact kind | `case_results` | profile registry |
+| Profile | `curriculum-curriculum-plan` | profile registry |
+| Artifact kind | `release_acceptance_result` | profile registry |
 | Qrels cases | 60 | `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json` |
 | Unique expected docs | 49 | qrels expected sources |
 | Release acceptance cases | 30 | `packages/evals/fixtures/curriculum_plan_release_acceptance.v1.json` |
@@ -124,8 +124,8 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 
 | Dimension | Current value | Source |
 | --------- | ------------- | ------ |
-| Profile | `official-web-stable-reference` | profile registry |
-| Artifact kind | `case_results` | profile registry |
+| Profile | `official-web-stable-reference-release` | profile registry |
+| Artifact kind | `release_acceptance_result` | profile registry |
 | Qrels cases | 4 | `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json` |
 | Unique expected docs | 3 | qrels expected sources |
 | Release acceptance cases | 5 | `packages/evals/fixtures/official_web_stable_reference_release_acceptance.v1.json` |

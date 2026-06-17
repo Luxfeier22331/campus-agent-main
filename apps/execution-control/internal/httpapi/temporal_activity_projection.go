@@ -182,7 +182,7 @@ func (s *Server) failRAGPlanActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "rag.plan",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.PlanRAGActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -204,7 +204,7 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "retrieval.indexed_lookup",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.RetrieveIndexedLookupActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -226,7 +226,7 @@ func (s *Server) failExpandOrRescueRetrievalActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "retrieval.expand_or_rescue",
 		StepKind:      "retrieval",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.ExpandOrRescueRetrievalActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -248,7 +248,7 @@ func (s *Server) failSelectEvidenceActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "evidence.selection",
 		StepKind:      "selection",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SelectEvidenceActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -270,7 +270,7 @@ func (s *Server) failVerifyGroundingActivity(
 		ResultKind:    "activity_failure",
 		StepID:        "grounding.verify",
 		StepKind:      "grounding",
-		TaskQueue:     temporalruntime.ActivityTaskQueueKnowledge,
+		TaskQueue:     temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.VerifyGroundingActivityName),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),

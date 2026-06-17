@@ -222,7 +222,7 @@ def run_curriculum_course_map_multimodal_probe(
     if runtime_object_store is None and (
         pdf_bytes is None or provider_response_bytes is None or layout_elements_bytes is None
     ):
-        from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
+        from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
         from campus_ingestion_core.settings import ObjectStoreSettings
 
         runtime_object_store = S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))

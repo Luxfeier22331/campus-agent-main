@@ -14,7 +14,7 @@ updated: 2026-06-17
 Accepted on 2026-03-28.
 
 Memory ownership / online recall runtime 条款已由
-`ADR-0056 Zep CE Self-Hosted Personal Memory Plane` supersede。`ADR-0053
+`ADR-0057 Zep CE Self-Hosted Personal Memory Plane` supersede。`ADR-0053
 Qdrant-Native Personal Memory Index` 仅保留为已 superseded 的历史桥接记录，不再作为当前
 实现或目标架构引用。本文继续冻结 account / session、user-scoped memory binding、raw
 state 不跨边界、个人 memory 不进入 institutional index 等约束。
@@ -22,6 +22,11 @@ state 不跨边界、个人 memory 不进入 institutional index 等约束。
 本文不再冻结受限文档、学生 / 教职工差异化 capability 权限、approval / HITL 或
 state-changing tools。相关旧口径已由当前产品定位与 account / operator / memory supporting
 architecture 收窄。
+
+本文早期提到的 Python `apps/supervisor-agent-worker` 与 `packages/knowledge-capability`
+已从 active workspace 删除；相关 online execution / memory / retrieval 边界以
+`docs/architecture/current-architecture.md` 与
+`docs/architecture/system/python-capability-boundaries.md` 为准。
 
 ## 背景
 
@@ -82,7 +87,7 @@ architecture 收窄。
 
 ## 决策 3：memory 不得伪造 source truth 或 capability opening truth
 
-ADR-0056 允许 memory 进入 bounded online recall。本文继续冻结以下硬约束：
+ADR-0057 允许 memory 进入 bounded online recall。本文继续冻结以下硬约束：
 
 - 用户自述、模型推断、session summary 或 inferred memory 不得升级为 source truth、
   capability opening truth、operator access truth 或 fail-close override。
@@ -196,7 +201,7 @@ ADR-0056 允许 memory 进入 bounded online recall。本文继续冻结以下�
   personalization 与 `RagIntentFrame`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
   是 superseded historical background，仅作历史参考
-- `docs/decisions/adr-0056-zep-native-personal-memory-plane.md`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
   负责 personal memory online recall runtime、Zep CE self-host substrate 与 ADR-0015
   memory 旧口径替代
 - `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
@@ -213,7 +218,7 @@ ADR-0056 允许 memory 进入 bounded online recall。本文继续冻结以下�
 直接结果如下：
 
 - 后续 account / session / memory binding 必须以 `app-api` 为 product
-  owner；online memory recall runtime 以 ADR-0056 与 memory-plane architecture 为准
+  owner；online memory recall runtime 以 ADR-0057 与 memory-plane architecture 为准
 - Execution Agent Layer 负责 top-level intent framing 时可以参考 typed personal context，但不能把
   personal context 当作能力开放或 source truth
 - `knowledge` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过
@@ -235,4 +240,4 @@ ADR-0056 允许 memory 进入 bounded online recall。本文继续冻结以下�
   仅作为 superseded historical background
 - `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
   仅作为 superseded historical background
-- `docs/decisions/adr-0056-zep-native-personal-memory-plane.md`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`

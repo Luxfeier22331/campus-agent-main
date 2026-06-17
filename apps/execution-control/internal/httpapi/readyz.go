@@ -19,7 +19,6 @@ type promptConfigGate struct {
 	PricingVersion          string `json:"pricing_version"`
 	Transport               string `json:"transport"`
 	ExecutionModel          string `json:"execution_model"`
-	AgentModel              string `json:"agent_model"`
 	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
 }
 
@@ -204,7 +203,9 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	required := []string{
 		temporalruntime.ActivityTaskQueueContext,
-		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueKnowledgePlan,
+		temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+		temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 		temporalruntime.ActivityTaskQueueFinalization,
 	}
 	capabilityQueues := map[string]string{
@@ -253,15 +254,12 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
 	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
 	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
-	agentModel := strings.TrimSpace(cfg.AgentPromptModel)
 	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
 	reason := ""
 	pricingVersion := ""
 	switch {
 	case providerName == "":
 		reason = "prompt_provider_not_configured"
-	case agentModel == "":
-		reason = "prompt_models_not_configured"
 	case !cfg.PromptStrictStructuredOutputs:
 		reason = "strict_structured_outputs_disabled"
 	case apiKey == "":
@@ -276,8 +274,6 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		switch {
 		case err != nil:
 			reason = "provider_pricing_not_configured"
-		case !promptModelHasPricing(catalog, providerName, agentModel):
-			reason = "agent_model_pricing_missing"
 		case executionModel != "" && !promptModelHasPricing(catalog, providerName, executionModel):
 			reason = "execution_model_pricing_missing"
 		default:
@@ -291,7 +287,6 @@ func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
 		PricingVersion:          pricingVersion,
 		Transport:               transport,
 		ExecutionModel:          executionModel,
-		AgentModel:              agentModel,
 		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
 	}
 }

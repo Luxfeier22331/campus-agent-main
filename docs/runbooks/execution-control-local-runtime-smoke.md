@@ -44,7 +44,9 @@ activity worker 同时存在。
 - `activity-worker-context`
 - `agent-runtime`
 - `activity-worker-agent`
-- `activity-worker-knowledge`
+- `activity-worker-knowledge-plan`
+- `activity-worker-knowledge-retrieval`
+- `activity-worker-knowledge-synthesis`
 - `activity-worker-campus-services`
 - `activity-worker-notice`
 - `activity-worker-navigation`
@@ -87,17 +89,7 @@ export AGENT_RUNTIME_TOOL_CATALOG_PATH=configs/runtime/tool-catalog.v1.json
 export AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL=http://127.0.0.1:27051
 export AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET=structured-query-secret
 export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
-export EXECUTION_CONTROL_MAX_CONCURRENT_ANSWERS=8
-export EXECUTION_CONTROL_QUEUE_CAPACITY=24
-export EXECUTION_CONTROL_QUEUE_TIMEOUT_MS=3000
-export EXECUTION_CONTROL_LANE_RAG_MAX_CONCURRENT=6
-export EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY=12
-export EXECUTION_CONTROL_LANE_RAG_QUEUE_TIMEOUT_MS=3000
-export EXECUTION_CONTROL_LANE_NAVIGATION_MAX_CONCURRENT=2
-export EXECUTION_CONTROL_LANE_NAVIGATION_QUEUE_CAPACITY=4
-export EXECUTION_CONTROL_LANE_NAVIGATION_QUEUE_TIMEOUT_MS=1500
-export EXECUTION_CONTROL_OTEL_ENABLED=false
-export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
+export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.local.json
 ```
 
 说明：
@@ -105,6 +97,9 @@ export EXECUTION_CONTROL_REQUEST_TIMEOUT_MS=45000
 - 本地 smoke 必须配置 Temporal、projection store、agent-runtime、Qdrant、
   embedding provider 与 prompt provider；缺任一时 `/readyz` 或对应 activity
   应 fail closed
+- admission budget、lane budget、OTel 开关、request timeout、artifact path 与
+  open capability 都由 `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH` 指向的 runtime
+  profile 管理，不再通过单项 env override
 - `EXECUTION_CONTROL_DOCKER_GOPROXY` 是 Go module proxy，不是 Docker registry mirror；本地默认可用
   `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
 - 不要把 `EXECUTION_CONTROL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验

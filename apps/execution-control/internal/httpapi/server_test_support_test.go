@@ -34,7 +34,10 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 }
 
 func newServerForTest() *Server {
-	return NewServer(config.Config{})
+	return NewServer(config.Config{
+		RAGSelectedEvidenceMax: 8,
+		RAGTopKMax:             8,
+	})
 }
 
 func newWorkerAuthServerForTest() *Server {
@@ -46,6 +49,8 @@ func newWorkerAuthServerForTest() *Server {
 func newStructuredQueryAuthServerForTest() *Server {
 	return NewServer(config.Config{
 		InternalQuerySharedSecret:         "query-secret",
+		RAGSelectedEvidenceMax:            8,
+		RAGTopKMax:                        8,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})
 }
@@ -191,7 +196,19 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledge,
+				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -251,12 +268,13 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 		AppName:                       "campus-agent",
 		MaxConcurrentAnswers:          8,
 		PromptRuntimeProvider:         "openai",
-		AgentPromptModel:              "gpt-5-mini",
 		PromptRuntimeAPIKey:           "test-key",
 		PromptRuntimeTransport:        "responses",
 		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
 		ProviderPricingPath:           providerPricingCatalogForTest(t),
 		PromptStrictStructuredOutputs: true,
+		RAGSelectedEvidenceMax:        8,
+		RAGTopKMax:                    8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

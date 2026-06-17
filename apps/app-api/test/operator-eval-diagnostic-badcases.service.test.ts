@@ -60,6 +60,7 @@ function createCommandStore() {
 		upsertEvalCoverageSnapshot: vi.fn(),
 		upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
 		upsertQualityGrades: vi.fn(),
+		upsertTemporalTaskQueueRuntime: vi.fn(),
 		upsertTraceBacklinks: vi.fn(),
 	};
 }

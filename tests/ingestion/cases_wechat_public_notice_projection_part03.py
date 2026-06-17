@@ -107,6 +107,7 @@ class WeChatPublicNoticeProjectionTestPart03(unittest.TestCase):
             source_document_id="notice:woa_article_suppressed",
             role_metadata={
                 "notice_title": "抑制样例",
+                "publish_time": "2026-04-21T08:00:00+08:00",
                 "body_state": "captured",
                 "source_url": "https://mp.weixin.qq.com/s/suppressed",
             },

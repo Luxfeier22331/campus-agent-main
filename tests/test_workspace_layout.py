@@ -20,8 +20,6 @@ EXPECTED_WORKSPACES = {
     "packages/ingestion-core",
     "packages/navigation-capability",
     "packages/official-web-core",
-    "packages/knowledge-capability",
-    "packages/retrieval-core",
     "packages/shared",
 }
 

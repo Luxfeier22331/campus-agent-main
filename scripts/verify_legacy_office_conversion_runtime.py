@@ -12,7 +12,7 @@ from urllib import error as urllib_error
 from urllib import request as urllib_request
 
 from campus_ingestion_core.file_asset_contract import serialize_file_asset_outcome
-from campus_ingestion_core.raw_ingestion import S3ObjectStoreClient
+from campus_ingestion_core.raw_ingestion_source_truth_support import S3ObjectStoreClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.normalize_authenticated_notice_legacy_office_attachment import (

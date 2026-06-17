@@ -3,9 +3,15 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 
-def go_decode_helpers(workflow_modes: Iterable[str]) -> str:
+def go_decode_helpers(
+    workflow_modes: Iterable[str],
+    projection_kinds: Iterable[str],
+) -> str:
     workflow_mode_cases = ", ".join(
         f"WorkflowMode{_go_const_suffix(value)}" for value in workflow_modes
+    )
+    projection_kind_cases = ",\n\t\t".join(
+        f"StepOutputProjectionKind{_go_const_suffix(value)}" for value in projection_kinds
     )
     template = """
 func DecodeCapabilityExecutionRequestWireJSON(data []byte) (CapabilityExecutionRequestWire, error) {
@@ -335,7 +341,20 @@ func (value StepOutputProjectionKind) Valid() bool {
 \t}
 }
 """
-    return template.replace("__WORKFLOW_MODE_CASES__", workflow_mode_cases)
+    legacy_projection_kind_cases = "\n".join(
+        (
+            "StepOutputProjectionKindNoticeContext,",
+            "\t\tStepOutputProjectionKindScheduleBaseline,",
+            "\t\tStepOutputProjectionKindServiceGuideFacts,",
+            "\t\tStepOutputProjectionKindPlaceContext,",
+            "\t\tStepOutputProjectionKindEvidenceBundle,",
+            "\t\tStepOutputProjectionKindGroundingVerdict",
+        )
+    )
+    result = template.replace("__WORKFLOW_MODE_CASES__", workflow_mode_cases)
+    if legacy_projection_kind_cases not in result:
+        raise ValueError("StepOutputProjectionKind Valid template block drifted")
+    return result.replace(legacy_projection_kind_cases, projection_kind_cases)
 
 
 def _go_const_suffix(value: str) -> str:

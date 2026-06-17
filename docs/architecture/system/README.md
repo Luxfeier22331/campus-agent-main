@@ -28,6 +28,8 @@ capability-local readiness.
   - `agent-framework-boundary-architecture.md`
 - Temporal, durable run/event/step projection, cancel, timeout and resume:
   - `durable-agent-runtime-architecture.md`
+- Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
+  - `kubernetes-execution-runtime-architecture.md`
 - Prompt, system instruction and provider-facing prompt ownership:
   - `prompt-and-instruction-architecture.md`
   - `prompt-and-instruction/current-runtime-baseline.md`

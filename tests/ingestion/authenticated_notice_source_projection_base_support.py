@@ -49,7 +49,7 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 
-from campus_ingestion_core.raw_ingestion import OnlineOcrProviderResult
+from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrProviderResult
 
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -306,9 +306,13 @@ def _build_minimal_docx_bytes(*, paragraphs: tuple[str, ...]) -> bytes:
 
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("[Content_Types].xml", content_types)
-        archive.writestr("_rels/.rels", root_rels)
-        archive.writestr("word/document.xml", "\n".join(document_xml))
+        for name, content in (
+            ("[Content_Types].xml", content_types),
+            ("_rels/.rels", root_rels),
+            ("word/document.xml", "\n".join(document_xml)),
+        ):
+            info = zipfile.ZipInfo(name, date_time=(2026, 1, 1, 0, 0, 0))
+            archive.writestr(info, content)
     return buffer.getvalue()
 
 

@@ -591,5 +591,7 @@ __all__ = [
     "build_attachment_fetch_status_records_from_bundle_records",
     "build_attachment_source_url_hash",
     "build_authenticated_notice_attachment_fetch_status_store_from_env",
+    "build_authenticated_notice_control_plane_status_report",
+    "build_authenticated_notice_live_historical_reconcile_report",
     "build_reference_only_attachment_explanation_report",
 ]

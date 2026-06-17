@@ -22,7 +22,7 @@ import {
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config.js";
-import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue.js";
+import { buildVerifiedCollectorRunTask } from "./ingest-queue-enqueue.js";
 import * as noticeTypeConfig from "./notice-types.js";
 
 export async function main(): Promise<void> {
@@ -82,11 +82,20 @@ export async function main(): Promise<void> {
 					sourceHomeUrl: config.sourceHomeUrl,
 					verifiedRunEnqueue: config.ingestQueueEnqueueOnSuccess
 						? ({ ledgerRecord }) =>
-								enqueueVerifiedCollectorRun({
-									ledgerRecord,
-									outputDir: config.ingestQueueEnqueueOutputDir,
-									siteId: config.siteId,
-								})
+								Promise.resolve(
+									console.log(
+										JSON.stringify(
+											{
+												ingestionTask: buildVerifiedCollectorRunTask({
+													ledgerRecord,
+													siteId: config.siteId,
+												}),
+											},
+											null,
+											2,
+										),
+									),
+								)
 						: undefined,
 					writeLocalArtifacts: config.writeLocalExports,
 				});

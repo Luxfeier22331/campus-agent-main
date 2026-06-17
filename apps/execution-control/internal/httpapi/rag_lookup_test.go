@@ -523,6 +523,43 @@ func TestNewQdrantRAGLookupExecutorSeparatesQdrantTLSClientFromEmbeddingClient(t
 	}
 }
 
+func TestNewQdrantRAGLookupExecutorUsesSplitTimeouts(t *testing.T) {
+	qdrant := httptest.NewTLSServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		_, _ = response.Write([]byte("all shards are ready"))
+	}))
+	defer qdrant.Close()
+	caPath := writeTestCACert(t, qdrant)
+
+	lookupExecutor, err := newQdrantRAGLookupExecutor(config.Config{
+		QdrantQueryAPIKey:     "readonly-key",
+		QdrantTLSCACertPath:   caPath,
+		QdrantTimeoutSeconds:  10,
+		QdrantURL:             qdrant.URL,
+		RAGEmbeddingTimeoutMS: 2500,
+		RAGQdrantTimeoutMS:    3500,
+	}, staticProviderConfigResolver{
+		string(providerConfigRoleRAGQueryEmbedding): embeddingProviderConfigSnapshotForTest(
+			providerConfigRoleRAGQueryEmbedding,
+			"https://provider.example/v1",
+			"embedding-model",
+			3,
+		),
+	})
+	if err != nil {
+		t.Fatalf("new qdrant executor: %v", err)
+	}
+	executor, ok := lookupExecutor.(qdrantRAGLookupExecutor)
+	if !ok {
+		t.Fatalf("executor type = %T, want qdrantRAGLookupExecutor", lookupExecutor)
+	}
+	if executor.embeddingHTTPClient.Timeout.String() != "2.5s" {
+		t.Fatalf("embedding timeout = %s, want 2.5s", executor.embeddingHTTPClient.Timeout)
+	}
+	if executor.httpClient.Timeout.String() != "3.5s" {
+		t.Fatalf("qdrant timeout = %s, want 3.5s", executor.httpClient.Timeout)
+	}
+}
+
 func TestNewQdrantRAGLookupExecutorFailsClosedWithoutTLSCA(t *testing.T) {
 	_, err := newQdrantRAGLookupExecutor(config.Config{
 		EmbeddingAPIKey:      "embedding-key",
@@ -754,17 +791,4 @@ func qdrantReleaseMetadataScrollResponseForTest(t *testing.T, corpus string, col
 
 func retrievalRuntimeProfileForTest(corpus string, collection string) (retrievalruntime.RuntimeProfile, error) {
 	return retrievalruntime.LoadRuntimeProfile("", corpus, collection)
-}
-
-func mustRetrievalRuntimeProfileForTest(
-	t *testing.T,
-	corpus string,
-	collection string,
-) retrievalruntime.RuntimeProfile {
-	t.Helper()
-	profile, err := retrievalRuntimeProfileForTest(corpus, collection)
-	if err != nil {
-		t.Fatalf("load runtime profile for test: %v", err)
-	}
-	return profile
 }

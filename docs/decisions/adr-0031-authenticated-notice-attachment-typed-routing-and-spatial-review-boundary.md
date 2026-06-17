@@ -194,8 +194,8 @@ Accepted on 2026-04-08.
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`

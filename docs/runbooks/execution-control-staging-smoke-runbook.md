@@ -38,7 +38,9 @@ execution origin 为准。
   - `activity-worker-context`
   - `agent-runtime`
   - `activity-worker-agent`
-  - `activity-worker-knowledge`
+  - `activity-worker-knowledge-plan`
+  - `activity-worker-knowledge-retrieval`
+  - `activity-worker-knowledge-synthesis`
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`

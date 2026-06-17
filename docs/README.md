@@ -31,6 +31,8 @@ class owns a fact.
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
   - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
+- Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
+  - [architecture/system/kubernetes-execution-runtime-architecture.md](./architecture/system/kubernetes-execution-runtime-architecture.md)
 - Tool or capability readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)

@@ -5,12 +5,20 @@ owner_boundary: docs/decisions
 decision_id: ADR-0018
 status: accepted
 created: 2026-03-29
-updated: 2026-06-04
+updated: 2026-06-15
 ---
 # ADR-0018 App API Official Web Control-Plane Ownership
 
 适用范围：`official_web` source channel 的 crawl-run 控制面、collector 上报入口、operator 查询面与
 ingestion handoff ownership
+
+## 当前边界说明
+
+本 ADR 的 app-api official-web control-plane ownership 仍然有效；其中把
+`apps/ingestion-worker` 描述为 offline executor / release task runtime 的段落已由
+ADR-0054 局部 supersede。当前 release task runtime owner 是
+`apps/ingestion-control`；`apps/ingestion-worker` 只保留 Python extraction adapter
+island。
 
 ## 背景
 
@@ -170,6 +178,23 @@ ingestion handoff ownership
 
 - 本 ADR 只冻结 accepted direction
 - 它不表示 `official_web` control plane 已经在代码中全部实现
+
+## 2026-06-12 边界修订：Ingestion-Control 接管 Release Task Runtime
+
+ADR-0050 接受 `apps/ingestion-control` 作为 ingestion task control plane 与
+registry-aware executor。自该边界生效后，本 ADR 中由 `apps/ingestion-worker` 承担
+offline executor / release task runtime 的表述只作为历史背景保留。
+
+更新后的固定边界：
+
+- `apps/app-api` 仍只拥有 official-web control plane、operator command ledger 与
+  operator-safe projection read model
+- `apps/ingestion-control` 拥有 release task admission、claim / lease、retry、
+  dead-letter、materialize、publish、closeout 与 operator-safe projection snapshot
+- `packages/ingestion-core` 保留 canonical data-plane contract 与 collection strategy，
+  不再通过 Python collection CLI 或 worker facade 定义 task lifecycle
+- `apps/ingestion-worker` 只保留 Python extraction adapter island；official-web
+  lifecycle 不回退到 Python worker command
 
 ## 相关文档
 

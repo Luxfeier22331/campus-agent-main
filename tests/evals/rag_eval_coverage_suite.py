@@ -34,7 +34,8 @@ class RagEvalCoverageSuite(unittest.TestCase):
         by_surface = {surface.surface_key: surface for surface in report.surfaces}
         institutional = by_surface["regulations/institutional_rules"]
 
-        self.assertEqual(institutional.profile_id, "institutional-rules-release-baseline")
+        self.assertEqual(institutional.profile_id, "regulations-institutional-rules")
+        self.assertEqual(institutional.profile_artifact_kind, "release_acceptance_result")
         self.assertTrue(institutional.has_release_baseline_gate)
         self.assertTrue(institutional.has_answer_quality_cases)
         self.assertEqual(institutional.answer_quality_case_count, 42)

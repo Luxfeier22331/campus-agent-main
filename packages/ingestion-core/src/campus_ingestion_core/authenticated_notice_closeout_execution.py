@@ -48,7 +48,7 @@ from campus_ingestion_core.object_store import (
     build_operations_artifact_key,
     is_source_object_key,
 )
-from campus_ingestion_core.raw_ingestion import OnlineOcrClient
+from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrClient
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 

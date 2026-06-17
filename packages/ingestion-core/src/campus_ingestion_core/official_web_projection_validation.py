@@ -14,7 +14,6 @@ _CONSUMER_CANDIDATE_FAMILIES = frozenset(
     {
         "contact_directory_candidate",
         "service_guide_candidate",
-        "academic_calendar_candidate",
         "regulation_candidate",
         "student_regulation_candidate",
         "notice_news_candidate",
@@ -27,13 +26,11 @@ _SELECTED_WRITE_CANDIDATE_FAMILIES = frozenset(
     {
         "contact_directory_candidate",
         "service_guide_candidate",
-        "academic_calendar_candidate",
     }
 )
 _TYPED_CANDIDATE_SCHEMA_BY_FAMILY = {
     "contact_directory_candidate": "official_web_contact_directory_candidate.v1",
     "service_guide_candidate": "official_web_service_guide_candidate.v1",
-    "academic_calendar_candidate": "official_web_academic_calendar_candidate.v1",
     "regulation_candidate": "official_web_regulation_candidate.v1",
     "student_regulation_candidate": "official_web_regulation_candidate.v1",
     "notice_news_candidate": "official_web_inventory_candidate.v1",
@@ -496,44 +493,6 @@ def _validate_typed_candidate(
                     "severity": "error",
                     "code": "consumer_candidate_typed_service_contacts_invalid",
                     "message": "service typed candidate must include contacts object",
-                }
-            )
-    elif consumer_family == "academic_calendar_candidate":
-        if not isinstance(typed_candidate.get("records"), list):
-            issues.append(
-                {
-                    "severity": "error",
-                    "code": "consumer_candidate_typed_academic_calendar_field_invalid",
-                    "message": "academic calendar typed candidate field must be an array: records",
-                }
-            )
-        for field_name in (
-            "academic_year_label",
-            "term_label",
-            "date_range",
-            "calendar_arrangement",
-            "holiday_name",
-            "class_day_pattern",
-        ):
-            value = typed_candidate.get(field_name)
-            if not isinstance(value, str):
-                issues.append(
-                    {
-                        "severity": "error",
-                        "code": "consumer_candidate_typed_academic_calendar_field_invalid",
-                        "message": (
-                            "academic calendar typed candidate field must be a string: "
-                            f"{field_name}"
-                        ),
-                    }
-                )
-        week_index = typed_candidate.get("week_index")
-        if not isinstance(week_index, int):
-            issues.append(
-                {
-                    "severity": "error",
-                    "code": "consumer_candidate_typed_academic_calendar_field_invalid",
-                    "message": "academic calendar typed candidate field must be an integer: week_index",
                 }
             )
     elif consumer_family in {"regulation_candidate", "student_regulation_candidate"}:

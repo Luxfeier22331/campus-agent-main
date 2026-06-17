@@ -20,6 +20,15 @@ var (
 	errInvalidOptions        = errors.New("invalid temporal runtime http proof options")
 )
 
+var requiredTemporalTaskQueues = []string{
+	"campus-agent.workflow",
+	"campus-agent.activity.context",
+	"campus-agent.activity.knowledge.plan",
+	"campus-agent.activity.knowledge.retrieval",
+	"campus-agent.activity.knowledge.synthesis",
+	"campus-agent.activity.finalization",
+}
+
 type proofOptions struct {
 	EvidencePath string
 	GatewayURL   string
@@ -178,12 +187,7 @@ func requireDurableReadyz(report readyzReport) error {
 		return fmt.Errorf("%w: temporal namespace is empty", errTemporalReadyzBlocked)
 	case strings.TrimSpace(report.TemporalRuntime.TaskQueue) == "":
 		return fmt.Errorf("%w: temporal task queue is empty", errTemporalReadyzBlocked)
-	case !containsAllTaskQueues(report.TemporalRuntime.TaskQueues, []string{
-		"campus-agent.workflow",
-		"campus-agent.activity.context",
-		"campus-agent.activity.knowledge",
-		"campus-agent.activity.finalization",
-	}):
+	case !containsAllTaskQueues(report.TemporalRuntime.TaskQueues, requiredTemporalTaskQueues):
 		return fmt.Errorf("%w: temporal required task queues are incomplete", errTemporalReadyzBlocked)
 	case strings.TrimSpace(report.TemporalRuntime.WorkerID) == "":
 		return fmt.Errorf("%w: temporal worker identity is empty", errTemporalReadyzBlocked)
