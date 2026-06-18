@@ -82,10 +82,41 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             ),
             issues,
         )
+
+    def test_audit_requires_langfuse_integration_check_lane(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            scripts = _required_scripts()
+            scripts.pop("ci:langfuse")
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": scripts,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                lint_run="pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path="package.json",
+                message="missing required CI lane script: ci:langfuse",
+            ),
+            issues,
+        )
         self.assertIn(
             CiWorkflowContractIssue(
                 path=".github/workflows/lint.yml",
-                message="workflow does not call required script: pnpm ci:repo-static",
+                message="workflow does not call required script: pnpm ci:langfuse",
             ),
             issues,
         )
@@ -128,6 +159,7 @@ def _required_scripts() -> dict[str, str]:
         "ci:repo-guard": "pnpm repo:guard",
         "ci:repo-static": "pnpm repo:static",
         "ci:intent": "pnpm eval:intent",
+        "ci:langfuse": "pnpm langfuse:check",
         "ci:go": "pnpm go:check",
         "ci:web-graph:affected": "pnpm web:check:affected",
         "ci:web-graph:full": "pnpm web:check",
@@ -139,7 +171,7 @@ def _write_minimal_workflows(
     root: Path,
     *,
     pnpm_version: str,
-    lint_run: str = "pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+    lint_run: str = "pnpm ci:repo-static && pnpm ci:intent && pnpm ci:langfuse && pnpm ci:go",
     install_golangci_lint: bool = True,
 ) -> None:
     go_lint_install_steps = (

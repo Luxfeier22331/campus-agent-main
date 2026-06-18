@@ -14,6 +14,7 @@ REQUIRED_CI_SCRIPTS = (
     "ci:repo-guard",
     "ci:repo-static",
     "ci:intent",
+    "ci:langfuse",
     "ci:go",
     "ci:web-graph:affected",
     "ci:web-graph:full",
@@ -25,6 +26,7 @@ REQUIRED_WORKFLOW_SCRIPT_CALLS = {
     ".github/workflows/lint.yml": (
         "pnpm ci:repo-static",
         "pnpm ci:intent",
+        "pnpm ci:langfuse",
         "pnpm ci:go",
     ),
 }
