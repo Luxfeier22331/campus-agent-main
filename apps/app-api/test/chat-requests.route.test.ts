@@ -22,6 +22,38 @@ const env = {
 	},
 };
 
+const inboundTraceHeaders = {
+	baggage: "release=2026.06.18",
+	sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+	traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+};
+
+const emptyTraceHeaders = {
+	baggage: null,
+	sentryTrace: null,
+	traceParent: null,
+};
+
+const answerResponse = {
+	answer: {
+		conversation: {
+			createdAt: "2026-03-28T07:59:00.000Z",
+			id: "conv_01HQ",
+			messages: [],
+			title: "图书馆开放时间",
+			updatedAt: "2026-03-28T08:00:01.000Z",
+		},
+		result: {
+			kind: "answer" as const,
+			requestId: "req_01HQ",
+			text: "图书馆开放到 22:00。",
+			traceId: "trace_01HQ",
+		},
+	},
+	requestId: "req_01HQ",
+	traceId: "trace_01HQ",
+};
+
 function createCampusPrincipal() {
 	return {
 		actor: {
@@ -51,25 +83,7 @@ function createCampusPrincipal() {
 describe("POST /api/chat/requests", () => {
 	it("returns a product-layer answer payload plus request/trace headers", async () => {
 		const service: ChatCommandService = {
-			submit: vi.fn().mockResolvedValue({
-				answer: {
-					conversation: {
-						createdAt: "2026-03-28T07:59:00.000Z",
-						id: "conv_01HQ",
-						messages: [],
-						title: "图书馆开放时间",
-						updatedAt: "2026-03-28T08:00:01.000Z",
-					},
-					result: {
-						kind: "answer",
-						requestId: "req_01HQ",
-						text: "图书馆开放到 22:00。",
-						traceId: "trace_01HQ",
-					},
-				},
-				requestId: "req_01HQ",
-				traceId: "trace_01HQ",
-			}),
+			submit: vi.fn().mockResolvedValue(answerResponse),
 		};
 		const app = createApp(env, {
 			chatCommandService: service,
@@ -127,7 +141,41 @@ describe("POST /api/chat/requests", () => {
 					principalId: "user_01HQ",
 				}),
 			}),
+			traceHeaders: emptyTraceHeaders,
+			waitUntil: undefined,
 		});
+	});
+
+	it("passes inbound W3C trace context to the chat command service", async () => {
+		const service: ChatCommandService = {
+			submit: vi.fn().mockResolvedValue(answerResponse),
+		};
+		const app = createApp(env, {
+			chatCommandService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/requests", {
+				body: JSON.stringify({
+					prompt: "图书馆开放到几点？",
+				}),
+				headers: {
+					baggage: inboundTraceHeaders.baggage,
+					"content-type": "application/json",
+					"sentry-trace": inboundTraceHeaders.sentryTrace,
+					traceparent: inboundTraceHeaders.traceParent,
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(service.submit).toHaveBeenCalledWith(
+			expect.objectContaining({
+				traceHeaders: inboundTraceHeaders,
+			}),
+		);
 	});
 
 	it("fails closed when no principal is available", async () => {
@@ -370,8 +418,10 @@ describe("POST /api/chat/requests/stream", () => {
 				}),
 				headers: {
 					accept: "text/event-stream",
+					baggage: inboundTraceHeaders.baggage,
 					"content-type": "application/json",
 					"idempotency-key": "idem-stream-001",
+					traceparent: inboundTraceHeaders.traceParent,
 				},
 				method: "POST",
 			}),
@@ -395,6 +445,7 @@ describe("POST /api/chat/requests/stream", () => {
 					principalId: "user_01HQ",
 				}),
 			}),
+			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
 			waitUntil: undefined,
 		});
 		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
@@ -504,7 +555,9 @@ describe("POST /api/internal/evals/chat/requests", () => {
 					},
 				}),
 				headers: {
+					baggage: inboundTraceHeaders.baggage,
 					"content-type": "application/json",
+					traceparent: inboundTraceHeaders.traceParent,
 					"x-app-internal-auth": "trusted-secret",
 					"x-eval-user-email": "eval-benchmark@example.edu",
 					"x-eval-user-id": "eval_user_01HQ",
@@ -620,6 +673,7 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				}),
 			}),
 			surface: "eval_benchmark",
+			traceHeaders: { ...inboundTraceHeaders, sentryTrace: null },
 		});
 	});
 
@@ -701,6 +755,8 @@ describe("POST /api/internal/evals/chat/requests", () => {
 				},
 			}),
 			surface: "eval_benchmark",
+			traceHeaders: emptyTraceHeaders,
+			waitUntil: undefined,
 		});
 	});
 

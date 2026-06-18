@@ -247,6 +247,11 @@ describe("chat command durable runtime cutover", () => {
 			},
 			principal: createPrincipal(),
 			surface: "public_chat_web",
+			traceHeaders: {
+				baggage: "release=2026.06.18",
+				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
+				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+			},
 		});
 
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
@@ -326,8 +331,9 @@ describe("chat command durable runtime cutover", () => {
 			selectedCapability: "knowledge",
 			surface: "public_chat_web",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				baggage: "release=2026.06.18",
+				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
+				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 			},
 			traceId: "trace_0001",
 			turnId: "turn_0001",
@@ -352,8 +358,9 @@ describe("chat command durable runtime cutover", () => {
 			afterSequence: 0,
 			runId: "run_0001",
 			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				baggage: "release=2026.06.18",
+				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
+				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 			},
 			traceId: "trace_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,

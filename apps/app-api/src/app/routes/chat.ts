@@ -230,6 +230,7 @@ export function registerChatRoutes(input: {
 				idempotencyKey: c.req.header("idempotency-key") ?? null,
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: resolved.principal,
+				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});
 			input.scheduleRequestProjectionDrain?.({
@@ -288,6 +289,7 @@ export function registerChatRoutes(input: {
 					idempotencyKey: c.req.header("idempotency-key") ?? null,
 					payload: await readJsonRequestBody(c.req.raw),
 					principal: resolved.principal,
+					traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 					waitUntil: resolveWaitUntil(c),
 				})
 				[Symbol.asyncIterator]();
@@ -333,6 +335,7 @@ export function registerChatRoutes(input: {
 				payload: await readJsonRequestBody(c.req.raw),
 				principal: buildInternalEvalPrincipalFromRequest(c.req.raw),
 				surface: "eval_benchmark",
+				traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
 				waitUntil: resolveWaitUntil(c),
 			});
 

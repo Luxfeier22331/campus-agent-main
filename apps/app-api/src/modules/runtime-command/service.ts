@@ -346,7 +346,7 @@ export function buildChatCommandService(
 			safetyIdentifier: context.safetyIdentifier,
 			surface: context.surface,
 			tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-			traceHeaders: telemetry?.getTraceHeaders(),
+			traceHeaders: context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
 			traceId: context.traceId,
 			userGoal: context.validatedPayload.prompt,
 		};
@@ -600,7 +600,7 @@ export function buildChatCommandService(
 					input.executionRuntime.listRunEvents({
 						afterSequence,
 						runId: input.context.runId ?? "",
-						traceHeaders: telemetry?.getTraceHeaders(),
+						traceHeaders: input.context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
 						traceId: input.context.traceId,
 						waitMs,
 					}),
@@ -716,7 +716,7 @@ export function buildChatCommandService(
 						executionRuntime.listRunEvents({
 							afterSequence,
 							runId: context.runId ?? "",
-							traceHeaders: telemetry?.getTraceHeaders(),
+							traceHeaders: context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
 							traceId: context.traceId,
 							waitMs,
 						}),

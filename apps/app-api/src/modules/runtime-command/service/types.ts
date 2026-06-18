@@ -7,7 +7,7 @@ import type {
 } from "../../integration";
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
-import type { AppTelemetry } from "../../telemetry";
+import type { AppTelemetry, TracePropagationHeaders } from "../../telemetry";
 import type { VersionQuery } from "../../version-query";
 
 export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
@@ -77,6 +77,7 @@ export interface ChatCommandSubmitInput {
 	payload: ChatCommandPayload;
 	principal: ResolvedAppPrincipal;
 	surface?: string;
+	traceHeaders?: TracePropagationHeaders;
 	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 }
 
