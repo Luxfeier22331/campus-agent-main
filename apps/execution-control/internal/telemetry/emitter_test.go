@@ -246,6 +246,12 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"duration_ms":                          true,
 		"failure_code":                         true,
 		"failure_kind":                         true,
+		"langfuse.trace.name":                  true,
+		"langfuse.session.id":                  true,
+		"langfuse.user.id":                     true,
+		"langfuse.release":                     true,
+		"langfuse.trace.tags":                  true,
+		"deployment.environment":               true,
 		"lane":                                 true,
 		"outcome":                              true,
 		"plan_id":                              true,
@@ -303,6 +309,57 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	status := emitter.Status()
 	if status.ExportedCount != 1 {
 		t.Fatalf("exported count = %d, want 1", status.ExportedCount)
+	}
+}
+
+func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{
+		enabled:        true,
+		sampleRatio:    1,
+		tracer:         provider.Tracer("test"),
+		allowedVersion: "execution-control-otel-attrs-v1",
+	}
+
+	if err := emitter.Emit(context.Background(), Event{
+		Name:                  "answer.completed",
+		ConversationID:        "conv-langfuse-001",
+		UserID:                "user-langfuse-001",
+		Release:               "release-2026-06-18",
+		RequestID:             "req-langfuse-001",
+		RunID:                 "run-langfuse-001",
+		TraceID:               "trace-langfuse-001",
+		SelectedCapability:    "knowledge",
+		DeploymentEnvironment: "staging",
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	found := map[string]string{}
+	for _, attr := range spans[0].Attributes() {
+		found[string(attr.Key)] = attr.Value.AsString()
+	}
+	expectedValues := map[string]string{
+		"langfuse.trace.name":    "online-answer",
+		"langfuse.session.id":    "conv-langfuse-001",
+		"langfuse.user.id":       "user-langfuse-001",
+		"langfuse.release":       "release-2026-06-18",
+		"langfuse.trace.tags":    "surface:execution-control,capability:knowledge,env:staging",
+		"request_id":             "req-langfuse-001",
+		"run_id":                 "run-langfuse-001",
+		"trace_id":               "trace-langfuse-001",
+		"selected_capability":    "knowledge",
+		"deployment.environment": "staging",
+	}
+	for key, want := range expectedValues {
+		if found[key] != want {
+			t.Fatalf("telemetry attribute %s = %q, want %q", key, found[key], want)
+		}
 	}
 }
 

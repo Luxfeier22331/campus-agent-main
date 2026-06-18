@@ -33,6 +33,10 @@ type Event struct {
 	Name                   string
 	RequestID              string
 	TraceID                string
+	ConversationID         string
+	UserID                 string
+	Release                string
+	DeploymentEnvironment  string
 	Lane                   string
 	RequestedCapability    string
 	Outcome                string
@@ -214,6 +218,12 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 
 	attributes := []attribute.KeyValue{
 		attribute.String("telemetry.allowed_attributes_version", e.allowedVersion),
+		attribute.String("langfuse.trace.name", "online-answer"),
+		attribute.String("langfuse.session.id", event.ConversationID),
+		attribute.String("langfuse.user.id", event.UserID),
+		attribute.String("langfuse.release", event.Release),
+		attribute.String("langfuse.trace.tags", langfuseTraceTags(event)),
+		attribute.String("deployment.environment", event.DeploymentEnvironment),
 		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
 		attribute.String("bridge_cancel_status", event.BridgeCancelStatus),
 		attribute.String("canonical_index_truth", event.CanonicalIndexTruth),
@@ -421,6 +431,17 @@ func (e *Emitter) shouldSample(event Event) bool {
 	_, _ = hasher.Write([]byte(key))
 	bucket := float64(hasher.Sum32()%10_000) / 10_000
 	return bucket < e.sampleRatio
+}
+
+func langfuseTraceTags(event Event) string {
+	tags := []string{"surface:execution-control"}
+	if capability := strings.TrimSpace(event.SelectedCapability); capability != "" {
+		tags = append(tags, "capability:"+capability)
+	}
+	if environment := strings.TrimSpace(event.DeploymentEnvironment); environment != "" {
+		tags = append(tags, "env:"+environment)
+	}
+	return strings.Join(tags, ",")
 }
 
 func parseHeaders(value string) map[string]string {
