@@ -388,6 +388,13 @@ func (s *Server) StartDraining() {
 	s.admission.StartDraining()
 }
 
+func (s *Server) TelemetryStatus() telemetry.Status {
+	if s == nil || s.telemetry == nil {
+		return telemetry.Status{}
+	}
+	return s.telemetry.Status()
+}
+
 func (s *Server) Shutdown(ctx context.Context) error {
 	var firstErr error
 	if s.telemetry != nil {

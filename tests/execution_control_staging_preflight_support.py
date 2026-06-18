@@ -87,6 +87,9 @@ _PROJECTED_STAGING_KEYS = [
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+    "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
     "EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS",
     "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",
     "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_MINIO",
@@ -134,6 +137,9 @@ _VALID_OBSERVABILITY_SINK_ENV = {
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER": "Bearer axiom-ingest-token",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET": "campus-agent-runtime",
+    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT": "https://langfuse.internal/api/public/otel",
+    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": "Basic cGstbGY6c2stbGY=",
+    "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION": "4",
 }
 
 _VALID_TEMPORAL_ENV = {
@@ -190,6 +196,7 @@ def run_common_script_with_env(
         set -euo pipefail
         export EXECUTION_CONTROL_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
         export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env_path))}
+        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
         source {shlex.quote(str(common_path))}
         execution_control_staging_load_env
         execution_control_staging_require_runtime_env

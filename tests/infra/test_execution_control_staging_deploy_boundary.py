@@ -113,6 +113,15 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET"],
             "query-secret",
         )
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT"],
+            "https://langfuse.internal/api/public/otel",
+        )
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER"],
+            "Basic cGstbGY6c2stbGY=",
+        )
+        self.assertEqual(projected["OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION"], "4")
 
     def test_env_loader_projects_internal_agent_runtime_bridge_without_manual_secret(self) -> None:
         result = run_common_script_with_env(
@@ -352,6 +361,7 @@ def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProces
         set -euo pipefail
         export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
         export EXECUTION_CONTROL_STAGING_RUNTIME_DIR={shlex.quote(str(root / ".tmp" / "execution-control-staging"))}
+        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
         source {shlex.quote(str(common_path))}
         execution_control_staging_load_env
         export first_base_url="${{PERSONAL_MEMORY_BASE_URL}}"
@@ -421,6 +431,9 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
                     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom",
                     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime",
+                    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel",
+                    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=Basic cGstbGY6c2stbGY=",
+                    "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4",
                 )
             )
             + "\n",
@@ -430,6 +443,7 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
         set -euo pipefail
         export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
         export EXECUTION_CONTROL_STAGING_RUNTIME_DIR={shlex.quote(str(root / ".tmp" / "execution-control-staging"))}
+        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
         source {shlex.quote(str(common_path))}
         execution_control_staging_load_env
         execution_control_staging_require_runtime_env

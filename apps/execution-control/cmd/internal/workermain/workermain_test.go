@@ -1,10 +1,14 @@
 package workermain
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/trace/noop"
 )
 
 func TestTemporalClientOptionsApplyTracingInterceptors(t *testing.T) {
@@ -73,6 +77,51 @@ func TestWorkerOptionsForRoleAppliesTracingToUnprofiledWorkers(t *testing.T) {
 
 	if len(options.Interceptors) != 1 {
 		t.Fatalf("worker interceptors = %d, want 1", len(options.Interceptors))
+	}
+}
+
+func TestNewWorkerTelemetryRuntimeInstallsProviderBeforeTracing(t *testing.T) {
+	otel.SetTracerProvider(noop.NewTracerProvider())
+	t.Cleanup(func() {
+		otel.SetTracerProvider(noop.NewTracerProvider())
+	})
+
+	runtime, err := newWorkerTelemetryRuntime(
+		context.Background(),
+		config.Config{
+			OTelEnabled:                  true,
+			OTelEndpoint:                 "http://collector:4318/v1/traces",
+			OTelServiceName:              "campus-execution-control",
+			OTelExportTimeoutMS:          int(time.Second / time.Millisecond),
+			OTelAllowedAttributesVersion: "execution-control-otel-attrs-v1",
+			TemporalTracingEnabled:       true,
+		},
+		RoleWorkflow,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("newWorkerTelemetryRuntime returned error: %v", err)
+	}
+	t.Cleanup(func() {
+		shutdownWorkerTelemetry(runtime, config.Config{ShutdownGraceMS: 1000}, nil)
+	})
+
+	if _, ok := otel.GetTracerProvider().(noop.TracerProvider); ok {
+		t.Fatal("global OTel tracer provider is still noop after worker telemetry bootstrap")
+	}
+}
+
+func TestNewWorkerTelemetryRuntimeRejectsTemporalTracingWithoutOTel(t *testing.T) {
+	_, err := newWorkerTelemetryRuntime(
+		context.Background(),
+		config.Config{
+			TemporalTracingEnabled: true,
+		},
+		RoleWorkflow,
+		nil,
+	)
+	if err == nil {
+		t.Fatal("expected Temporal tracing without OTel to fail")
 	}
 }
 

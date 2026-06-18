@@ -7,12 +7,14 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/httpapi"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -40,6 +42,12 @@ func Run(role Role) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+	workerTelemetry, err := newWorkerTelemetryRuntime(ctx, cfg, role, logger)
+	if err != nil {
+		logger.Error("campus execution worker telemetry invalid", "role", string(role), "error", err.Error())
+		os.Exit(1)
+	}
+	defer shutdownWorkerTelemetry(workerTelemetry, cfg, logger)
 	tracing, err := temporalruntime.NewTracingInterceptors(temporalruntime.TracingOptions{
 		Enabled:      cfg.TemporalTracingEnabled,
 		OTelEndpoint: cfg.OTelEndpoint,
@@ -55,7 +63,7 @@ func Run(role Role) {
 		os.Exit(1)
 	}
 	defer temporalClient.Close()
-	runtimeWorker, err := buildWorker(role, cfg, temporalClient, tracing)
+	runtimeWorker, err := buildWorker(role, cfg, temporalClient, tracing, workerTelemetry)
 	if err != nil {
 		logger.Error("campus execution worker invalid", "role", string(role), "error", err.Error())
 		os.Exit(1)
@@ -78,6 +86,7 @@ func buildWorker(
 	cfg config.Config,
 	temporalClient client.Client,
 	tracing temporalruntime.TracingInterceptors,
+	workerTelemetry *workerTelemetryRuntime,
 ) (worker.Worker, error) {
 	options, err := workerOptionsForRole(cfg, role, tracing)
 	if err != nil {
@@ -91,7 +100,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleContext:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewContextActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueContext,
@@ -99,7 +108,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleAgent:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewAgentActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueAgent,
@@ -107,7 +116,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleKnowledgePlan:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewKnowledgePlanActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgePlan,
@@ -115,7 +124,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleKnowledgeRetrieval:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewKnowledgeRetrievalActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
@@ -123,7 +132,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleKnowledgeSynthesis:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewKnowledgeSynthesisActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
@@ -131,7 +140,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleCampusServices:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueCampusService,
@@ -139,7 +148,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleNotice:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueNotice,
@@ -147,7 +156,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleNavigation:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueNavigation,
@@ -155,7 +164,7 @@ func buildWorker(
 			options,
 		), nil
 	case RoleFinalization:
-		server := newActivityServer(cfg)
+		server := workerTelemetry.ActivityServer()
 		return temporalruntime.NewFinalizationActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueFinalization,
@@ -204,4 +213,85 @@ func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.Worke
 
 func newActivityServer(cfg config.Config) *httpapi.Server {
 	return httpapi.NewServerWithDependencies(cfg, nil, nil, nil)
+}
+
+type workerTelemetryRuntime struct {
+	server  *httpapi.Server
+	emitter *telemetry.Emitter
+}
+
+func newWorkerTelemetryRuntime(
+	ctx context.Context,
+	cfg config.Config,
+	role Role,
+	logger *slog.Logger,
+) (*workerTelemetryRuntime, error) {
+	if logger == nil {
+		logger = slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	}
+	if roleNeedsActivityServer(role) {
+		server := newActivityServer(cfg)
+		if err := ensureTemporalTracingExporter(cfg, server.TelemetryStatus()); err != nil {
+			_ = server.Shutdown(ctx)
+			return nil, err
+		}
+		return &workerTelemetryRuntime{server: server}, nil
+	}
+	emitter := telemetry.NewEmitter(ctx, cfg, logger)
+	if err := ensureTemporalTracingExporter(cfg, emitter.Status()); err != nil {
+		_ = emitter.Shutdown(ctx)
+		return nil, err
+	}
+	return &workerTelemetryRuntime{emitter: emitter}, nil
+}
+
+func roleNeedsActivityServer(role Role) bool {
+	return role != RoleWorkflow
+}
+
+func ensureTemporalTracingExporter(cfg config.Config, status telemetry.Status) error {
+	if cfg.TemporalTracingEnabled && !cfg.OTelEnabled {
+		return fmt.Errorf("Temporal tracing requires runtime profile otel.enabled=true")
+	}
+	if cfg.TemporalTracingEnabled && !status.ExporterConfigured {
+		return fmt.Errorf("Temporal tracing requires configured OTel trace exporter")
+	}
+	return nil
+}
+
+func (r *workerTelemetryRuntime) ActivityServer() *httpapi.Server {
+	if r == nil {
+		return nil
+	}
+	if r.server == nil {
+		panic("activity server is not initialized for workflow-only worker telemetry runtime")
+	}
+	return r.server
+}
+
+func shutdownWorkerTelemetry(
+	runtime *workerTelemetryRuntime,
+	cfg config.Config,
+	logger *slog.Logger,
+) {
+	timeout := time.Duration(cfg.ShutdownGraceMS) * time.Millisecond
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	if runtime == nil {
+		return
+	}
+	if runtime.server != nil {
+		if err := runtime.server.Shutdown(ctx); err != nil && logger != nil {
+			logger.Warn("campus execution worker server shutdown failed", "error", err.Error())
+		}
+		return
+	}
+	if runtime.emitter != nil {
+		if err := runtime.emitter.Shutdown(ctx); err != nil && logger != nil {
+			logger.Warn("campus execution worker telemetry shutdown failed", "error", err.Error())
+		}
+	}
 }

@@ -36,6 +36,9 @@ REQUIRED_STAGING_ENV_KEYS = [
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
     "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+    "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
     "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
@@ -98,6 +101,7 @@ URL_KEYS = [
     "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
 ]
 
@@ -215,6 +219,15 @@ def invalid_observability_keys(values: dict[str, str]) -> list[str]:
     sentry_auth = values.get("OTEL_COLLECTOR_SENTRY_AUTH_VALUE", "")
     if sentry_auth and not sentry_auth.startswith("sentry sentry_key="):
         invalid.append("OTEL_COLLECTOR_SENTRY_AUTH_VALUE")
+    langfuse_endpoint = values.get("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT", "")
+    if langfuse_endpoint and not langfuse_endpoint.rstrip("/").endswith("/api/public/otel"):
+        invalid.append("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT")
+    langfuse_auth = values.get("OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER", "")
+    if langfuse_auth and not langfuse_auth.startswith("Basic "):
+        invalid.append("OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER")
+    langfuse_ingestion_version = values.get("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION", "")
+    if langfuse_ingestion_version and langfuse_ingestion_version != "4":
+        invalid.append("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION")
     return invalid
 
 

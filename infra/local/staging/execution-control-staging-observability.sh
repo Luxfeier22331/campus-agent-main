@@ -59,7 +59,10 @@ execution_control_staging_require_observability_sink_env() {
     OTEL_COLLECTOR_SENTRY_AUTH_VALUE \
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT \
     OTEL_COLLECTOR_AXIOM_AUTH_HEADER \
-    OTEL_COLLECTOR_AXIOM_EVENTS_DATASET; do
+    OTEL_COLLECTOR_AXIOM_EVENTS_DATASET \
+    OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT \
+    OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER \
+    OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION; do
     if [[ -z "${!required_key:-}" ]]; then
       missing_keys+=("${required_key}")
     fi
@@ -83,6 +86,18 @@ execution_control_staging_require_observability_sink_env() {
   fi
   if [[ "${OTEL_COLLECTOR_SENTRY_AUTH_VALUE}" != sentry\ sentry_key=* ]]; then
     echo "OTEL_COLLECTOR_SENTRY_AUTH_VALUE must use the Sentry x-sentry-auth value: sentry sentry_key=<public key>." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}" != */api/public/otel ]]; then
+    echo "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT must end with /api/public/otel." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}" != Basic\ * ]]; then
+    echo "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER must use Basic auth." >&2
+    return 1
+  fi
+  if [[ "${OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}" != "4" ]]; then
+    echo "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION must be 4." >&2
     return 1
   fi
 }

@@ -44,6 +44,9 @@ VALID_STAGING_ENV = textwrap.dedent(
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
     OTEL_COLLECTOR_AXIOM_AUTH_HEADER=Bearer axiom-ingest-token
     OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+    OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel
+    OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=Basic cGstbGY6c2stbGY=
+    OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4
     EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics
     EXECUTION_CONTROL_SHARED_SECRET=worker-secret
     EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret
@@ -174,6 +177,7 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY", payload["blockers"])
         self.assertNotIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
         self.assertNotIn("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", payload["blockers"])
@@ -297,6 +301,34 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_AUTH_VALUE", payload["blockers"])
+
+    def test_rejects_invalid_langfuse_observability_sink_contract(self) -> None:
+        invalid_env = (
+            VALID_STAGING_ENV.replace(
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel",
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel/v1/traces",
+            )
+            .replace(
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=Basic cGstbGY6c2stbGY=",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=Bearer langfuse-token",
+            )
+            .replace(
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=3",
+            )
+        )
+        result = run_preflight(
+            {
+                "ops/staging/runtime.env": invalid_env,
+            },
+            env={"CLOUDFLARE_API_TOKEN": "cf-token"},
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        payload = json.loads(result.stdout)
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT", payload["blockers"])
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER", payload["blockers"])
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION", payload["blockers"])
 
 
 if __name__ == "__main__":
