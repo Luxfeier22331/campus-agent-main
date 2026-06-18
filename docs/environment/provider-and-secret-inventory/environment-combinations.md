@@ -30,12 +30,12 @@ owns this section group; the original path remains the stable index.
 - `apps/app-api/.dev.vars`
   - `BETTER_AUTH_SECRET`
   - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
-  - `PUBLIC_CHAT_WEB_ORIGIN`
+  - `AUTH_SHELL_ORIGIN`
   - `EXECUTION_CONTROL_*`
   - 如果 supervisor ingress 受 Cloudflare Access 保护，补充
     `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   - `APP_API_INTERNAL_SHARED_SECRET`
-- `apps/public-chat-web/.dev.vars`
+- `apps/campus-web/.dev.vars`
   - `APP_API_BASE_URL`
 - `apps/operator-console-web/.dev.vars`
   - 只有调 panel 时才需要
@@ -78,7 +78,7 @@ owns this section group; the original path remains the stable index.
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
 - [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev.vars.example)
-- [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
+- [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev
   .vars.example)
 - [../../apps/operator-console-web/.dev.vars.example](../../apps/operator-console-
   web/.dev.vars.example)

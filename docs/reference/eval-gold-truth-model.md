@@ -114,7 +114,7 @@ candidate review manifest，不能直接写入 golden truth。
 `Phase 8-13` 新增的 eval family 不 author domain truth，也不替代 runtime owner。它们只固定
 denominator expectation、sanitized observation shape 与 deterministic verdict：
 
-- `public_chat_product_path`
+- `online_answer_path`
   - truth 来源是产品路径 case expectation：request / trace correlation、selected capability、
     terminal outcome、response contract 与 operator backflow summary
   - 不保存 raw transcript、raw prompt 或 provider raw response

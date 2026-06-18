@@ -72,7 +72,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			sourceDocIds: ["student_rules:national-scholarship"],
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			userMessageId: "msg_user_01HQ",
@@ -138,7 +138,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			startedAt: "2026-06-04T01:02:03.000Z",
 			status: "completed",
 			supportingSources: [],
-			surface: "public_chat_web",
+			surface: "campus_web",
 			templateSha256: null,
 			toolBusinessOutcome: null,
 			toolFailCloseReason: null,
@@ -250,7 +250,7 @@ describe("pg chat command store", () => {
 		const state = await store.getAbuseControlState({
 			now: "2026-03-28T08:06:00.000Z",
 			safetyIdentifier: "safe_01HQ",
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(state).toEqual({

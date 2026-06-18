@@ -8,7 +8,6 @@ export interface AuthResetMailConfig {
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
 	fetchImplementation?: typeof fetch;
-	publicChatOrigin: string;
 	resendApiKey: string;
 }
 

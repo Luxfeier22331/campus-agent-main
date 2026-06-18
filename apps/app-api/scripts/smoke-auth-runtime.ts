@@ -56,7 +56,7 @@ export async function signInSmokeIdentity(input: {
 	captchaToken: string;
 	email: string;
 	password: string;
-	publicChatOrigin: string;
+	authShellOrigin: string;
 }): Promise<string> {
 	const response = await input.appFetch(
 		new Request("https://app-api.internal/api/auth/sign-in/email", {
@@ -66,8 +66,8 @@ export async function signInSmokeIdentity(input: {
 			}),
 			headers: {
 				"content-type": "application/json",
-				origin: input.publicChatOrigin,
-				referer: `${input.publicChatOrigin.replace(/\/$/, "")}/login`,
+				origin: input.authShellOrigin,
+				referer: `${input.authShellOrigin.replace(/\/$/, "")}/login`,
 				"x-captcha-response": input.captchaToken,
 			},
 			method: "POST",

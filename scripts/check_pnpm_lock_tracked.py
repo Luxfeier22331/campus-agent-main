@@ -21,6 +21,7 @@ def tracked_pnpm_lock_files(*, root: Path | None = None) -> tuple[Path, ...]:
         if not line.startswith(".planning/")
         and "/vendor/" not in line
         and "/node_modules/" not in line
+        and path.exists()
     )
 
 

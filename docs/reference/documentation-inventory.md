@@ -35,15 +35,15 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 301
-- Git tracked docs Markdown files: 298
+- Current-worktree docs Markdown files: 292
+- Git tracked docs Markdown files: 289
 - Untracked docs Markdown files included: 3
 - Generated on: 2026-06-18
 
 ### By Directory Area
 
-- `reference`: 60
-- `runbooks`: 55
+- `reference`: 53
+- `runbooks`: 53
 - `decisions`: 55
 - `contracts`: 44
 - `architecture`: 40
@@ -56,11 +56,11 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `doc_type`
 
-- `reference`: 53
-- `runbook`: 48
+- `reference`: 47
+- `runbook`: 46
 - `decision`: 50
 - `contract`: 36
-- `index`: 32
+- `index`: 31
 - `architecture`: 33
 - `data`: 18
 - `policy`: 4
@@ -69,21 +69,21 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `truth_scope`
 
-- `ops`: 90
+- `ops`: 88
 - `repository`: 71
 - `data`: 50
-- `product`: 21
+- `product`: 15
 - `capability`: 15
 - `execution`: 16
 - `eval`: 13
 
 ### By Owner Class
 
-- `reference`: 57
-- `operational_truth`: 49
+- `reference`: 50
+- `operational_truth`: 48
 - `decision_record`: 50
 - `contract_truth`: 36
-- `reference_index`: 32
+- `reference_index`: 31
 - `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
@@ -95,12 +95,12 @@ class defined by `docs/documentation-architecture.md`.
 ### By Governance Action
 
 - `keep_executable_truth`: 53
-- `keep_ops_procedure`: 48
+- `keep_ops_procedure`: 47
 - `preserve_adr`: 49
 - `keep_owner_truth`: 31
-- `keep_reference_truth`: 28
-- `keep_archive_historical`: 28
-- `keep_thin_index`: 26
+- `keep_reference_truth`: 26
+- `keep_archive_historical`: 23
+- `keep_thin_index`: 25
 - `keep_large_owner_truth`: 6
 - `keep_thin_domain_hub`: 6
 
@@ -116,7 +116,6 @@ class defined by `docs/documentation-architecture.md`.
 - `eval`: 8
 - `regulation`: 8
 - `navigation`: 7
-- `public-chat-web`: 7
 - `qdrant`: 6
 - `student-handbook`: 5
 - `memory`: 5
@@ -1662,46 +1661,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=18`
   - Governance action: `keep_archive_historical`
   - Drift signal: `historical_path`
-- `docs/reference/archive/public-chat-web/README.md`
-  - Title: Public Chat Web Donor Historical Archive
-  - Owner class: `reference_index`
-  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
-  - Owner boundary: `docs/reference/archive/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=44`
-  - Governance action: `keep_thin_index`
-  - Drift signal: `index_must_stay_thin`
-- `docs/reference/archive/public-chat-web/public-chat-web-chatbot-donor-baseline.md`
-  - Title: Public Chat Web Chatbot Donor Baseline
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=29`
-  - Governance action: `keep_archive_historical`
-  - Drift signal: `historical_path`
-- `docs/reference/archive/public-chat-web/public-chat-web-donor-diff-whitelist.md`
-  - Title: Public Chat Web Donor Diff Whitelist
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=30`
-  - Governance action: `keep_archive_historical`
-  - Drift signal: `historical_path`
-- `docs/reference/archive/public-chat-web/public-chat-web-route-state-parity-inventory.md`
-  - Title: Public Chat Web Route State Parity Inventory
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=30`
-  - Governance action: `keep_archive_historical`
-  - Drift signal: `historical_path`
-- `docs/reference/archive/public-chat-web/public-chat-web-strict-donor-parity-gap-inventory.md`
-  - Title: Public Chat Web Strict Donor Parity Closeout Snapshot
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=28`
-  - Governance action: `keep_archive_historical`
-  - Drift signal: `historical_path`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
   - Title: Authenticated Notice File-Release Export Contract
   - Owner class: `reference`
@@ -1870,22 +1829,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=99`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/public-chat-web-donor-diff-classification.md`
-  - Title: Public Chat Web Donor Diff Classification
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=297`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/public-chat-web-donor-parity-review-checklist.md`
-  - Title: Public Chat Web Donor Parity Review Checklist
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
-  - Owner boundary: `apps/public-chat-web`
-  - Ledger: `area=reference`, `cluster=public-chat-web`, `state=tracked`, `lines=169`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
 - `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
   - Title: Restricted Document Center Artifact Contract
   - Owner class: `reference`
@@ -1993,14 +1936,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=17`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
-- `docs/runbooks/archive/path-redirects/public-chat-staging-smoke-artifact-template.md`
-  - Title: Public Chat Staging Smoke Artifact Template
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=historical`
-  - Owner boundary: `docs/runbooks/archive`
-  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=17`
-  - Governance action: `keep_archive_historical`
-  - Drift signal: `historical_path`
 - `docs/runbooks/archive/path-redirects/worker-observability-smoke-artifact-template.md`
   - Title: Worker Observability Smoke Artifact Template
   - Owner class: `reference`
@@ -2335,14 +2270,6 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=template`, `truth_scope=ops`, `status=active`
   - Owner boundary: `docs/runbooks/templates`
   - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=211`
-  - Governance action: `keep_ops_procedure`
-  - Drift signal: `ok`
-- `docs/runbooks/templates/public-chat-staging-smoke-artifact-template.md`
-  - Title: Public Chat Staging Smoke Artifact Template
-  - Owner class: `operational_truth`
-  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
-  - Owner boundary: `docs/runbooks/templates`
-  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=84`
   - Governance action: `keep_ops_procedure`
   - Drift signal: `ok`
 - `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`

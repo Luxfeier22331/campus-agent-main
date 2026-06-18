@@ -14,7 +14,7 @@ export function registerWorkerReadinessSuite() {
 							database: "ready",
 							officialWebHandoff: "not_configured",
 							operatorBridge: "configured",
-							publicChatOrigin: "configured",
+							authShellOrigin: "configured",
 							executionControl: "ready",
 						},
 					}),

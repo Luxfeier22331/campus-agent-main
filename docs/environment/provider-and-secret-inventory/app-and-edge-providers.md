@@ -20,7 +20,7 @@ owns this section group; the original path remains the stable index.
 
 - `apps/app-api/.dev.vars` 或 Cloudflare Worker secret store：
   - `AUTH_TURNSTILE_SECRET_KEY`
-- `apps/public-chat-web/.dev.vars` 或 `apps/public-chat-web/wrangler.toml`
+- `apps/campus-web/.dev.vars` 或 `apps/campus-web/wrangler.toml`
   `env.<name>.vars`：
   - `AUTH_TURNSTILE_SITE_KEY`
   - `AUTH_TURNSTILE_APPEARANCE`
@@ -30,10 +30,10 @@ owns this section group; the original path remains the stable index.
 
 - `AUTH_TURNSTILE_SECRET_KEY` 只供 `apps/app-api` Better Auth captcha plugin
   使用，不能下沉到浏览器
-- `AUTH_TURNSTILE_SITE_KEY` 是公开 runtime string，由 `public-chat-web` Worker 注入
+- `AUTH_TURNSTILE_SITE_KEY` 是公开 runtime string，由 `campus-web` Worker 注入
   public auth shell
 - `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 是公开 runtime posture，由
-  `public-chat-web` Worker 注入 auth shell；默认分别是 `interaction-only` / `render`
+  `campus-web` Worker 注入 auth shell；默认分别是 `interaction-only` / `render`
 - Cloudflare widget `mode` 仍是 dashboard/widget truth，不在 repo 内复制一套
   `managed/non-interactive/invisible` 逻辑；repo 只表达 runtime `appearance/execution`
 - staging deploy 不再把 `AUTH_TURNSTILE_SITE_KEY` / `AUTH_TURNSTILE_APPEARANCE` /
@@ -293,7 +293,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 当前 owner：
 
 - `apps/app-api`
-- `apps/public-chat-web`
+- `apps/campus-web`
 - `apps/operator-console-web`
 
 默认放置位置：
@@ -329,7 +329,7 @@ root convenience keys：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
 - 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
-- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`operator-console-web`、`hub-web`
+- 默认用 `surface` tag 区分 `app-api`、`campus-web`、`operator-console-web`、`hub-web`
 - 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
@@ -411,7 +411,7 @@ root convenience keys：
 涉及运行面：
 
 - `apps/app-api`
-- `apps/public-chat-web`
+- `apps/campus-web`
 - `apps/operator-console-web`
 
 获取方式：

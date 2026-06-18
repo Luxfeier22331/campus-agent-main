@@ -4,7 +4,7 @@ export interface SharedProductBootstrapEnv {
 	databaseSslMode: string;
 	databaseUrl: string;
 	betterAuthSecret?: string;
-	publicChatOrigin?: string;
+	authShellOrigin?: string;
 }
 
 export const APP_AUTH_SCHEMA: string;

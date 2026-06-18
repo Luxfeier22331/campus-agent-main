@@ -22,7 +22,6 @@ export interface Env {
 	RESEND_API_KEY?: string;
 	AUTH_RESET_EMAIL_FROM?: string;
 	AUTH_RESET_EMAIL_REPLY_TO?: string;
-	PUBLIC_CHAT_WEB_ORIGIN?: string;
 	EXECUTION_CONTROL_ACCESS_CLIENT_ID?: string;
 	EXECUTION_CONTROL_ACCESS_CLIENT_SECRET?: string;
 	EXECUTION_CONTROL_BASE_URL?: string;
@@ -68,7 +67,6 @@ export interface AppApiConfig {
 	resendApiKey: string;
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
-	publicChatOrigin: string;
 	databaseConnectionString: string;
 	databaseSslMode: DatabaseSslMode;
 	operatorDatabaseUrl?: string;
@@ -91,7 +89,6 @@ export interface AppAuthConfig {
 	resendApiKey: string;
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
-	publicChatOrigin?: string;
 	endUserEmailDomainAllowlist: string[];
 	endUserEmailAllowlist: string[];
 }
@@ -103,7 +100,6 @@ const MISSING_CONFIG_KEYS = [
 	"AUTH_TURNSTILE_SECRET_KEY",
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
-	"PUBLIC_CHAT_WEB_ORIGIN",
 	"EXECUTION_CONTROL_BASE_URL",
 	"EXECUTION_CONTROL_SHARED_SECRET",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
@@ -194,23 +190,20 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[4]);
 	}
-	if (!env.PUBLIC_CHAT_WEB_ORIGIN?.trim()) {
+	if (!env.EXECUTION_CONTROL_BASE_URL?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[5]);
 	}
-	if (!env.EXECUTION_CONTROL_BASE_URL?.trim()) {
+	if (!env.EXECUTION_CONTROL_SHARED_SECRET?.trim()) {
 		missing.push(MISSING_CONFIG_KEYS[6]);
 	}
-	if (!env.EXECUTION_CONTROL_SHARED_SECRET?.trim()) {
+	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
 		missing.push(MISSING_CONFIG_KEYS[7]);
 	}
-	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
+	if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
 		missing.push(MISSING_CONFIG_KEYS[8]);
 	}
-	if (parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).length === 0) {
-		missing.push(MISSING_CONFIG_KEYS[9]);
-	}
 	if (!env.APP_API_INTERNAL_SHARED_SECRET?.trim()) {
-		missing.push(MISSING_CONFIG_KEYS[10]);
+		missing.push(MISSING_CONFIG_KEYS[9]);
 	}
 
 	return missing;
@@ -241,15 +234,6 @@ export function getMissingAuthRuntimeConfig(env: Env): string[] {
 	return missing;
 }
 
-export function readPublicChatOrigin(env: Pick<Env, "PUBLIC_CHAT_WEB_ORIGIN">): string {
-	const origin = env.PUBLIC_CHAT_WEB_ORIGIN?.trim();
-	if (!origin) {
-		throw new Error("PUBLIC_CHAT_WEB_ORIGIN is required.");
-	}
-
-	return new URL(origin).origin;
-}
-
 export function readAuthShellOrigin(env: Pick<Env, "AUTH_SHELL_ORIGIN">): string {
 	const origin = env.AUTH_SHELL_ORIGIN?.trim();
 	if (!origin) {
@@ -265,15 +249,6 @@ function readRequiredTrimmedValue(value: string | null | undefined, key: string)
 		throw new Error(`${key} is required.`);
 	}
 	return normalized;
-}
-
-export function readOptionalOrigin(value: string | null | undefined): string | undefined {
-	const normalized = value?.trim();
-	if (!normalized) {
-		return;
-	}
-
-	return new URL(normalized).origin;
 }
 
 export function readAppAuthConfig(env: Env): AppAuthConfig {
@@ -297,7 +272,6 @@ export function readAppAuthConfig(env: Env): AppAuthConfig {
 			"AUTH_RESET_EMAIL_FROM",
 		),
 		authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
-		publicChatOrigin: readOptionalOrigin(env.PUBLIC_CHAT_WEB_ORIGIN),
 		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
 			(item) => item.toLowerCase(),
 		),
@@ -340,7 +314,6 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 
 	return {
 		...authConfig,
-		publicChatOrigin: authConfig.publicChatOrigin ?? readPublicChatOrigin(env),
 		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
 		internalSharedSecret,

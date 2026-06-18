@@ -136,7 +136,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 							status: "open",
 							summary:
 								"knowledge request finalized without the required policy projection for knowledge.",
-							surface: "public_chat_web",
+							surface: "campus_web",
 							traceId: "trace_01HQ",
 						},
 					],
@@ -158,7 +158,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/safety/anomalies?limit=10&window=24h&surface=public_chat_web&selectedCapability=knowledge&severity=high&anomalyCode=projection_missing",
+					"https://app-api.internal/api/operator/safety/anomalies?limit=10&window=24h&surface=campus_web&selectedCapability=knowledge&severity=high&anomalyCode=projection_missing",
 				),
 			);
 
@@ -181,7 +181,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 						status: "open",
 						summary:
 							"knowledge request finalized without the required policy projection for knowledge.",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 					},
 				],
@@ -197,7 +197,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 					selectedCapability: "knowledge",
 					severity: "high",
 					status: null,
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,
@@ -229,7 +229,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 							{
 								estimatedCostMicrousd: 3810,
 								requestCount: 1,
-								surface: "public_chat_web",
+								surface: "campus_web",
 							},
 						],
 						estimatedCost: {
@@ -279,7 +279,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 						{
 							estimatedCostMicrousd: 3810,
 							requestCount: 1,
-							surface: "public_chat_web",
+							surface: "campus_web",
 						},
 					],
 					estimatedCost: {
@@ -356,7 +356,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web",
+					"https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=campus_web",
 				),
 			);
 
@@ -387,7 +387,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 					principalType: null,
 					requestedCapability: null,
 					selectedCapability: null,
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,
@@ -416,7 +416,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 							selectedCapability: "knowledge",
 							status: "completed",
 							summary: "Knowledge request completed via knowledge.",
-							surface: "public_chat_web",
+							surface: "campus_web",
 							traceId: "trace_01HQ",
 						},
 					],
@@ -450,7 +450,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 						selectedCapability: "knowledge",
 						status: "completed",
 						summary: "Knowledge request completed via knowledge.",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 					},
 				],
@@ -497,7 +497,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 						selectedCapability: "knowledge",
 						status: "completed",
 						summary: "Knowledge request completed via knowledge.",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						terminalCode: "completed",
 						traceId: "trace_01HQ",
 					},
@@ -546,7 +546,7 @@ export function registerOperatorQuerySafetyCostAuditSuite(): void {
 					selectedCapability: "knowledge",
 					status: "completed",
 					summary: "Knowledge request completed via knowledge.",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					terminalCode: "completed",
 					traceId: "trace_01HQ",
 				},

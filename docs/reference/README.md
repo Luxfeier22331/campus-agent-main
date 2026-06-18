@@ -52,14 +52,6 @@ updated: 2026-06-13
 
 - `campus-navigation-authoritative-source-inventory.md`
 
-## Public Chat Web Donor Baseline
-
-- `public-chat-web-donor-diff-classification.md`
-  - current donor diff truth and allowed seam baseline
-- `public-chat-web-donor-parity-review-checklist.md`
-  - current donor parity review gate; per-run evidence still belongs in smoke /
-    release artifacts, not in this reference
-
 ## Frontend Design Inputs
 
 - `muc-campus-qa-frontend-design/`

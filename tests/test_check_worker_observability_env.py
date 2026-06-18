@@ -45,17 +45,6 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write(
-                repo_root / "apps/public-chat-web/.dev.vars",
-                "\n".join(
-                    [
-                        "SENTRY_DSN=https://shared.example",
-                        "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=public-chat-web@dev-local",
-                    ]
-                )
-                + "\n",
-            )
-            _write(
                 repo_root / "apps/operator-console-web/.dev.vars",
                 "\n".join(
                     [
@@ -84,7 +73,6 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertTrue(status["source_ready"])
             self.assertEqual(status["source_missing_keys"], [])
             self.assertTrue(status["targets"]["apps/app-api/.dev.vars"]["ready"])
-            self.assertTrue(status["targets"]["apps/public-chat-web/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/operator-console-web/.dev.vars"]["ready"])
             self.assertTrue(status["targets"]["apps/campus-web/.dev.vars"]["ready"])
 
@@ -128,17 +116,6 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                         "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                         "AXIOM_DATASET=campus-agent-runtime",
                         "AXIOM_TOKEN=axiom-token",
-                    ]
-                )
-                + "\n",
-            )
-            _write(
-                repo_root / "apps/public-chat-web/.dev.vars",
-                "\n".join(
-                    [
-                        "SENTRY_DSN=https://shared.example",
-                        "SENTRY_ENVIRONMENT=development",
-                        "SENTRY_RELEASE=public-chat-web@dev-local",
                     ]
                 )
                 + "\n",

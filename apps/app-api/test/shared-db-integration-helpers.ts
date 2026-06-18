@@ -68,8 +68,6 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
 		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
-		PUBLIC_CHAT_WEB_ORIGIN:
-			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
 	});
 	await runSharedDatabaseDriftReconcile({
 		allowNonEmptyDriftTables: true,
@@ -122,8 +120,6 @@ export function buildSharedDbIntegrationEnv(input: {
 			process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
-		PUBLIC_CHAT_WEB_ORIGIN:
-			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
 		RESEND_API_KEY: process.env.RESEND_API_KEY?.trim() || "shared-db-integration-resend-key",
 		EXECUTION_CONTROL_BASE_URL:
 			process.env.EXECUTION_CONTROL_BASE_URL?.trim() || "https://execution-control.internal",

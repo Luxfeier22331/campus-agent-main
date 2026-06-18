@@ -13,7 +13,6 @@ EXPECTED_WORKSPACES = {
     "apps/ingestion-worker",
     "apps/official-web-collector",
     "apps/operator-console-web",
-    "apps/public-chat-web",
     "apps/execution-control",
     "packages/contracts",
     "packages/evals",

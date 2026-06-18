@@ -21,7 +21,6 @@
 			"!!.tmp",
 			"!!.worktrees",
 			"!!var",
-			"!!apps/public-chat-web/vendor",
 			"!!apps/app-api/drizzle/meta"
 		]
 	},

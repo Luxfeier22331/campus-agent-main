@@ -18,7 +18,6 @@ _EDITORCONFIG_EXCLUDES = (
     ".tmp/",
     ".worktrees/",
     "node_modules/",
-    "apps/public-chat-web/vendor/",
 )
 
 

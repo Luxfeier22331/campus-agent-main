@@ -10,8 +10,7 @@ on:
         options:
           - campus-services-product-path
           - multi-agent-runtime-contract
-          - public-chat-product-path
-          - public-chat-entry-e2e
+          - online-answer-path
           - tool-family-denominator
           - tool-routing-product-path
           - document-quality

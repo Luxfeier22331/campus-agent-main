@@ -54,7 +54,7 @@ owns this section group; the original path remains the stable index.
 
 规则：
 
-- 只承载 public chat user 的 conversation ownership
+- 只承载 online answer user 的 conversation ownership
 - conversation 可以通过显式 draft create 创建，也可以在首轮
   `POST /api/chat/requests/stream` 中 lazy create
 - 不承载 operator request projection
@@ -159,7 +159,7 @@ owns this section group; the original path remains the stable index.
   payload
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
   supervisor admission
-- rollout / rollback 不改变表语义：关闭 public-chat-web UI 只停止新浏览器入口，不删除
+- rollout / rollback 不改变表语义：关闭 campus-web UI 只停止新浏览器入口，不删除
   `chat.message_feedback`；已写入 feedback 继续作为 app-api-owned quality signal
   供 operator summary、timeseries 和 eval candidate export 读取
 

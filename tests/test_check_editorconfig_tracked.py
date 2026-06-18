@@ -48,7 +48,6 @@ class CheckEditorconfigTrackedTest(unittest.TestCase):
                     ".tmp/",
                     ".worktrees/",
                     "node_modules/",
-                    "apps/public-chat-web/vendor/",
                 )
             )
             and (repo_root / decoded).exists()

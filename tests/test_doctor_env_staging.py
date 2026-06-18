@@ -69,22 +69,6 @@ class DoctorEnvStagingTest(unittest.TestCase):
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
-    def test_collect_env_doctor_status_reports_public_chat_worker_staging_without_shell_inputs(
-        self,
-    ) -> None:
-        with TemporaryDirectory() as temp_dir:
-            repo_root = Path(temp_dir) / "campus-agent"
-            repo_root.mkdir(parents=True)
-
-            with patch.dict(os.environ, {}, clear=True):
-                status = collect_env_doctor_status(
-                    repo_root=repo_root, surface="worker-staging-public-chat-web"
-                )
-
-            self.assertTrue(status["overall_ready"])
-            self.assertEqual(status["settings"]["required"], {})
-            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
-
     def test_collect_env_doctor_status_reports_campus_web_worker_staging_requirements(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"

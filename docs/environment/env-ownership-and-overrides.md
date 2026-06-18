@@ -84,9 +84,6 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   ampus-agent/apps/wechat-official-account-collector/.env.example)
   - `wechat-official-account-collector` FeedWe credentials、control-plane 与 source-bucket
     runtime env
-- [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/a
-  pps/public-chat-web/.dev.vars.example)
-  - `public-chat-web` Worker string env
 - [`apps/operator-console-web/.dev.vars.example`](/home/reptilian/code/campus-age
   nt/apps/operator-console-web/.dev.vars.example)
   - `operator-console-web` Worker string env

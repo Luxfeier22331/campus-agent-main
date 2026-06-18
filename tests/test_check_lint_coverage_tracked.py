@@ -19,7 +19,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
         candidates = set(tracked_lint_candidate_paths(root=repo_root))
 
         self.assertIn("package.json", candidates)
-        self.assertIn("apps/public-chat-web/index.html", candidates)
+        self.assertIn("apps/campus-web/index.html", candidates)
         self.assertIn("apps/campus-web/docs/index.md", candidates)
         self.assertIn(
             "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
@@ -36,7 +36,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("java:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("apps/public-chat-web/index.html"),
+            lint_families_for_path("apps/campus-web/index.html"),
             ("html:lint",),
         )
         self.assertEqual(
@@ -76,10 +76,6 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
     def test_lint_exclusion_reason_covers_known_deferred_surfaces(self) -> None:
         self.assertEqual(lint_exclusion_reason(".planning/PROJECT.md"), "planning_artifact")
-        self.assertEqual(
-            lint_exclusion_reason("apps/public-chat-web/vendor/vercel-ai-chatbot/package.json"),
-            "vendor_snapshot",
-        )
         self.assertIsNone(lint_exclusion_reason("apps/campus-web/docs/index.md"))
         self.assertIsNone(
             lint_exclusion_reason(

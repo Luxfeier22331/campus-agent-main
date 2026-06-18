@@ -109,8 +109,8 @@ deploy 依赖后删除 package。
 
 - 当前产品入口、账号浏览器 shell 与 OAuth/OIDC public issuer 统一到 `campus.muc.wiki`。
 - `return_app=campus` 与跨 shell hub return target 不再是当前架构的一部分。
-- `public-chat-web` 如作为 legacy surface 保留，只能把旧 chat-local auth routes 重定向到
-  `AUTH_SHELL_ORIGIN` 指向的 campus account shell；不得重新引入 `HUB_WEB_BASE_URL`。
+- 旧 chat-local auth routes 如需兼容，只能重定向到 `AUTH_SHELL_ORIGIN`
+  指向的 campus account shell；不得重新引入 `HUB_WEB_BASE_URL`。
 - 新增或修改 active docs/runbooks/tests 时，不得把 `hub-web` 描述成 current/future product
   entry 或 account shell。
 

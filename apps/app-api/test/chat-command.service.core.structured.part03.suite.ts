@@ -68,7 +68,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				prompt: "图书馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(finalWrites[0]).toMatchObject({
@@ -230,7 +230,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				},
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(finalWrites[0]).toMatchObject({
@@ -401,7 +401,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 				prompt: "转专业怎么申请？",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(finalWrites[0]).toMatchObject({

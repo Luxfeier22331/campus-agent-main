@@ -464,23 +464,11 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "BETTER_AUTH_SECRET=dev-secret-dev-secret-dev-secret",
                         "AUTH_SHELL_ORIGIN=https://campus.example.com",
-                        "PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com",
                         "EXECUTION_CONTROL_BASE_URL=https://execution-control.internal",
                         "EXECUTION_CONTROL_SHARED_SECRET=shared-secret",
                         "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST=muc.edu.cn",
                         "APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com",
                         "APP_API_INTERNAL_SHARED_SECRET=internal-secret",
-                    ]
-                )
-                + "\n",
-            )
-            _write(
-                repo_root / "apps" / "public-chat-web" / ".dev.vars",
-                "\n".join(
-                    [
-                        "APP_API_BASE_URL=https://app-api.internal",
-                        "PUBLIC_CHAT_HOSTNAME=chat.example.com",
-                        "AUTH_SHELL_ORIGIN=https://campus.example.com",
                     ]
                 )
                 + "\n",
@@ -503,7 +491,6 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(shared_pg["connectivity"]["checked"])
             self.assertTrue(status["files"]["apps/app-api/.env"]["ready"])
             self.assertTrue(status["files"]["apps/app-api/.dev.vars"]["ready"])
-            self.assertTrue(status["files"]["apps/public-chat-web/.dev.vars"]["ready"])
 
     def test_collect_env_doctor_status_reports_shared_postgres_from_shell_without_leaking_url(
         self,

@@ -46,7 +46,7 @@ describe("chat command durable runtime cutover", () => {
 					requestedCapability: "knowledge",
 				},
 				principal: createPrincipal(),
-				surface: "public_chat_web",
+				surface: "campus_web",
 			}),
 		).rejects.toMatchObject({
 			code: "execution_runtime_required",
@@ -83,7 +83,7 @@ describe("chat command durable runtime cutover", () => {
 					requestedCapability: "knowledge",
 				},
 				principal: createPrincipal(),
-				surface: "public_chat_web",
+				surface: "campus_web",
 			}) ?? []) {
 				throw new Error("stream should fail before emitting events");
 			}
@@ -138,7 +138,7 @@ describe("chat command durable runtime cutover", () => {
 					requestedCapability: "knowledge",
 				},
 				principal: createPrincipal(),
-				surface: "public_chat_web",
+				surface: "campus_web",
 			}),
 		).rejects.toMatchObject({
 			code: "execution_runtime_required",
@@ -177,7 +177,7 @@ describe("chat command durable runtime cutover", () => {
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -246,7 +246,7 @@ describe("chat command durable runtime cutover", () => {
 				},
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceHeaders: {
 				baggage: "release=2026.06.18",
 				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
@@ -329,7 +329,7 @@ describe("chat command durable runtime cutover", () => {
 				contract: "durable-agent-runtime-contract-v1",
 			},
 			selectedCapability: "knowledge",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceHeaders: {
 				baggage: "release=2026.06.18",
 				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
@@ -428,7 +428,7 @@ describe("chat command durable runtime cutover", () => {
 				requestedCapability: "campus_services",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
@@ -505,7 +505,7 @@ describe("chat command durable runtime cutover", () => {
 				prompt: "图书馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
@@ -584,7 +584,7 @@ describe("chat command durable runtime cutover", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(supervisor.execute).not.toHaveBeenCalled();

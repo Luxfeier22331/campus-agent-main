@@ -232,7 +232,7 @@ owns this section group; the original path remains the stable index.
     ],
     "bySurface": [
       {
-        "surface": "public_chat_web",
+        "surface": "campus_web",
         "requestCount": 1098,
         "estimatedCostMicrousd": 4325000
       }
@@ -304,7 +304,7 @@ owns this section group; the original path remains the stable index.
       "traceId": "trace_01HQ",
       "occurredAt": "2026-04-03T00:00:00.500Z",
       "eventType": "authz.decision",
-      "surface": "public_chat_web",
+      "surface": "campus_web",
       "principalType": "campus_member",
       "selectedCapability": "knowledge",
       "status": "allowed",
@@ -342,7 +342,7 @@ owns this section group; the original path remains the stable index.
     "traceId": "trace_01HQ",
     "occurredAt": "2026-04-03T00:00:00.500Z",
     "eventType": "authz.decision",
-    "surface": "public_chat_web",
+    "surface": "campus_web",
     "principalType": "campus_member",
     "entitlementSnapshotId": "ent_01HQ",
     "policyProjectionVersion": "2026-04-02",

@@ -22,7 +22,7 @@ func TestWriteFinalizationActivityFailsClosedWhenGroundingIsUnsupported(t *testi
 		RequestID:      "req-rag-unsupported-grounding",
 		TraceID:        "trace-rag-unsupported-grounding",
 		OwnerUserID:    "user-rag",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           execution.DurableLaneRAG,
 		Status:         execution.DurableRunStatusRunning,
 		CreatedAt:      now,

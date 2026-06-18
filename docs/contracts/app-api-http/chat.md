@@ -138,7 +138,7 @@ answer feedback 是 browser-facing product signal，但 durable truth 归 `app-a
 
 rollout 规则：
 
-- public-chat-web 可以关闭或隐藏 feedback UI；这只停止新的浏览器入口，不删除
+- campus-web 可以关闭或隐藏 feedback UI；这只停止新的浏览器入口，不删除
   已写入的 `chat.message_feedback`
 - feedback route 保持 session-principal admission，缺失登录态、cross-user
   conversation、非 assistant message、`kind=error` 或无 `requestId` 都 fail closed
@@ -148,7 +148,7 @@ rollout 规则：
 
 rollback 规则：
 
-- 回滚 public-chat-web UI 不回滚 `app-api` schema，不清空 feedback truth
+- 回滚 campus-web UI 不回滚 `app-api` schema，不清空 feedback truth
 - 如需停止采集，优先关闭浏览器 UI 或 worker route proxy；不要删除
   `chat.message_feedback`
 - 如发现 feedback 写入路径异常，先保持 route fail closed，再用 operator quality
@@ -173,12 +173,12 @@ rollback 规则：
 
 ### `POST /api/chat/requests`
 
-这是 public chat 的同步兼容 / 诊断命令入口。产品默认入口与 release gate 是
+这是 online answer 的同步兼容 / 诊断命令入口。产品默认入口与 release gate 是
 `POST /api/chat/requests/stream`；同步入口会等待 durable finalization，不应用作
 Cloudflare Worker 上的 RAG / memory staging closeout 标准。
 
-当前 `public-chat-web` 只 admission `knowledge` capability。这里描述的是该 surface 当前开放的
-capability allowlist，不是长期产品入口原则；前向 routing 语义见
+当前 online answer 接受已 admission 的 capability hint。这里描述的是请求字段与
+surface policy 的交互，不是把整个产品入口固定为某个 capability；前向 routing 语义见
 `docs/architecture/system/capability-routing-and-admission-architecture.md` 与 `docs/dec
 isions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-pol
 icy.md`。
@@ -213,7 +213,7 @@ icy.md`。
 - 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create
   conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestedCapability` 可选；当前 public chat 接受已 admission 的 explicit
+- `requestedCapability` 可选；当前 online answer 接受已 admission 的 explicit
   capability hint，例如 `knowledge`、`campus_services`、`notice` 与仍保持
   fail-close 的 `navigation` seam
 - `requestedCapability` 缺失时，`app-api` 不伪造成 `knowledge`，也不预选 tool
@@ -270,7 +270,7 @@ icy.md`。
 
 ### `POST /api/chat/requests/stream`
 
-这是 public chat 的产品默认 lifecycle streaming 命令入口。它不提供 token delta，
+这是 online answer 的产品默认 lifecycle streaming 命令入口。它不提供 token delta，
 不暴露 `execution-control` raw event；browser 只消费 `app-api` 产品级 SSE
 contract。release / staging chat smoke 默认使用该入口。
 
@@ -355,7 +355,7 @@ terminal event 额外携带：
 
 ### `GET /api/chat/runs/:runId/events/stream`
 
-这是 public chat 的 durable run event resume stream 入口。它订阅已有
+这是 online answer 的 durable run event resume stream 入口。它订阅已有
 `run_id` 的 browser-visible run event projection，不创建新 request，不重新执行 agent，
 也不重新 finalization。当前实现是 bounded continuous subscription：服务端按
 `after_sequence` cursor 轮询新事件，遇到 terminal event 后关闭；如果订阅预算内没有

@@ -134,7 +134,7 @@ pnpm ci:web-graph:full
 - `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
 - 当前它包含：
   - `apps/app-api` 的 `test:node`
-  - `apps/public-chat-web` 的 `test:worker`
+  - `apps/campus-web` 的 `test:worker`
   - `apps/operator-console-web` 的 `test:worker`
 
 ### JS/TS Worker Lane
@@ -151,7 +151,7 @@ pnpm web:test:worker
 - 用于补跑 Worker shell、route admission、runtime readiness 与绑定契约
 - 当前它覆盖：
   - `apps/app-api` 的 `test:worker`
-  - `apps/public-chat-web` 的 `test:worker`
+  - `apps/campus-web` 的 `test:worker`
   - `apps/operator-console-web` 的 `test:worker`
 
 ### JS/TS Integration Lane
@@ -235,9 +235,9 @@ docs/runbooks/e2e-qa-release-runbook.md
 
 ## 单一 Worker app 语义
 
-`apps/public-chat-web` 与 `apps/operator-console-web` 当前都只有单一 Worker test lane，因此：
+`apps/campus-web` 与 `apps/operator-console-web` 当前都只有单一 Worker test lane，因此：
 
-- `pnpm --dir apps/public-chat-web test` 等价于 `pnpm --dir apps/public-chat-web
+- `pnpm --dir apps/campus-web test` 等价于 `pnpm --dir apps/campus-web
   test:worker`
 - `pnpm --dir apps/operator-console-web test` 等价于 `pnpm --dir
   apps/operator-console-web test:worker`

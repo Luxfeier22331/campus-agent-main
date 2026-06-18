@@ -273,7 +273,7 @@ uv run --all-packages python -m scripts.eval_gate accept \
 - local gate `PASS` 只表示“可进入 rollout 判定”，不自动等于 staging/prod 已开
 - staging/prod 开放前必须额外满足：
   - `execution-control /readyz`：`capability_gates.campus_services.open=true`
-  - `app-api/public-chat /readyz`：`preflight.campusServicesProductPath.status=ready`
+  - `app-api/campus-web /readyz`：`preflight.campusServicesProductPath.status=ready`
 - 若上述 preflight blocker 任一项退化，必须立即回滚 capability flag
 
 ## Runtime Tool Deferred Signals

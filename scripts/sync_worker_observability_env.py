@@ -17,9 +17,6 @@ OBSERVABILITY_TARGETS = {
         "AXIOM_DATASET": "AXIOM_DATASET",
         "AXIOM_TOKEN": "AXIOM_TOKEN",
     },
-    "apps/public-chat-web/.dev.vars": {
-        "SENTRY_DSN": "SENTRY_DSN",
-    },
     "apps/operator-console-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
     },

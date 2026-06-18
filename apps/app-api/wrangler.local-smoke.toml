@@ -21,7 +21,6 @@ required = [
 
 [vars]
 APP_API_ENVIRONMENT = "development"
-PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:27011"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"

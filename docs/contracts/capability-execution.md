@@ -161,7 +161,7 @@ graph 与 sanitized projection 一起落地，不能只声明字段。
 
 长期执行链路固定为：
 
-`public-chat-web -> app-api -> execution-control -> Temporal ->
+`campus-web -> app-api -> execution-control -> Temporal ->
 workflow/activity workers -> sanitized run event + step/attempt/result projection
 -> app-api response / stream / operator read model`
 
@@ -355,7 +355,7 @@ payload 或 provider raw response。
       "roles": ["user"]
     },
     "surface": {
-      "surface_id": "public-chat-web",
+      "surface_id": "campus-web",
       "caller_class": "chat_user",
       "allowed_capabilities": ["knowledge"]
     },

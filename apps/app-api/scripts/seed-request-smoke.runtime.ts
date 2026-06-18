@@ -388,7 +388,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			captchaToken: provisionInput.captchaToken,
 			email: provisionInput.email,
 			password: provisionInput.password,
-			publicChatOrigin: provisionInput.publicChatOrigin,
+			authShellOrigin: provisionInput.authShellOrigin,
 		});
 		const conversationIds = new Map<string, string>();
 		const seededRequests: Array<{
@@ -471,12 +471,9 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 					.find(Boolean) ?? "ops@example.com",
 		});
 		const operatorListResponse = await app.fetch(
-			new Request(
-				"https://app-api.internal/api/operator/requests?limit=20&surface=public_chat_web",
-				{
-					headers: operatorHeaders,
-				},
-			),
+			new Request("https://app-api.internal/api/operator/requests?limit=20&surface=campus_web", {
+				headers: operatorHeaders,
+			}),
 		);
 		const operatorListPayload = await expectJsonResponse<{
 			page: {

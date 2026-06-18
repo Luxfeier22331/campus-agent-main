@@ -142,7 +142,7 @@ describe("staging docs gated smoke args", () => {
 					"--name",
 					"Smoke User",
 					"--chat-base-url",
-					"https://chat.example.com",
+					"https://campus.example.com",
 					"--app-api-readyz-url",
 					"https://api.example.com/readyz",
 					"--docs-base-url",
@@ -158,7 +158,7 @@ describe("staging docs gated smoke args", () => {
 			),
 		).toEqual({
 			appApiReadyzUrl: "https://api.example.com/readyz",
-			chatBaseUrl: "https://chat.example.com",
+			chatBaseUrl: "https://campus.example.com",
 			docsBaseUrl: "https://docs.example.com",
 			email: "smoke-user@example.edu",
 			gatedCollectionNavigationPath: "/api/docs/collections/regulations/scoped_rules/navigation",

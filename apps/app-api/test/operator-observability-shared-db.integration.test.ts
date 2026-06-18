@@ -216,7 +216,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "created_at", "updated_at"
         ) values (
           $1, $2, $3, $4,
-          'public_chat_web', 'user_obs_01', 'user_obs_01', '["student"]'::jsonb,
+          'campus_web', 'user_obs_01', 'user_obs_01', '["student"]'::jsonb,
           '[]'::jsonb, 'student',
           'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', null, null,
@@ -240,7 +240,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "model_provider", "model_name", "input_tokens", "output_tokens", "cached_input_tokens",
           "estimated_cost_microusd", "trace_available", "projection_lag_ms", "measured_at", "updated_at"
         ) values (
-          $1, $2, $3, 'public_chat_web', 'student',
+          $1, $2, $3, 'campus_web', 'student',
           'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
           'regulations/student_rules', 'student_rules', 'knowledge', 'completed', null,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
@@ -261,7 +261,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "selected_capability", "status", "error_code", "question_preview", "answer_preview",
           "diagnostics_json", "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "projected_at"
         ) values (
-          $1, $2, 'public_chat_web', $3, 'student',
+          $1, $2, 'campus_web', $3, 'student',
           'user_obs_01', 'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb,
           'knowledge', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
@@ -278,7 +278,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "principal_type", "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
           "selected_capability", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
         ) values (
-          $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'public_chat_web',
+          $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'campus_web',
           'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
           'knowledge', 'completed', 'completed', 'Knowledge request completed via knowledge.',
           '{"aclAnomalyCode":null,"failClosed":false,"sourceDocIds":["handbook:library-hours","handbook:holiday-hours"]}'::jsonb,
@@ -294,7 +294,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "selected_capability", "requested_capability", "principal_type", "collection", "model_name",
           "metrics_json", "projected_at"
         ) values (
-          $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'public_chat_web',
+          $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'campus_web',
           'knowledge', 'knowledge', 'student', 'student_rules', '${modelName}',
           '{"approvalRequiredCount":0,"citationEligibleCount":2,"citationMissCount":1,"emptyRecallCount":0,"needsClarificationCount":0,"noAnswerCount":0,"rejectedCount":0,"requestCount":4,"retrievalEligibleCount":4}'::jsonb,
           '${requestProjectedAt.toISOString()}'
@@ -308,7 +308,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "badcase_id", "request_id", "trace_id", "surface", "selected_capability", "status",
           "cause_class", "detected_by", "opened_at", "summary", "grade_json", "projected_at"
         ) values (
-          $1, $2, $3, 'public_chat_web', 'knowledge', 'open',
+          $1, $2, $3, 'campus_web', 'knowledge', 'open',
           'citation_missing', 'runtime_monitor', '${badcaseOpenedAt.toISOString()}',
           'citationExpected=true 但 citationCount=0', null, '${badcaseOpenedAt.toISOString()}'
         )
@@ -414,7 +414,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 
 		const qualitySummaryResponse = await app.fetch(
 			new Request(
-				`https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
+				`https://app-api.internal/api/operator/quality/summary?window=24h&surface=campus_web&modelName=${encodeURIComponent(modelName)}`,
 				{
 					headers: authHeaders,
 				},
@@ -449,7 +449,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 
 		const qualityTimeseriesResponse = await app.fetch(
 			new Request(
-				`https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
+				`https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=campus_web&modelName=${encodeURIComponent(modelName)}`,
 				{
 					headers: authHeaders,
 				},
@@ -519,7 +519,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 					status: "open",
 					summary:
 						"knowledge request finalized without the required policy projection for knowledge capability.",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					traceId,
 				},
 			],
@@ -527,7 +527,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 
 		const costTimeseriesResponse = await app.fetch(
 			new Request(
-				`https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=public_chat_web&modelName=${encodeURIComponent(modelName)}`,
+				`https://app-api.internal/api/operator/cost/timeseries?window=24h&granularity=1h&surface=campus_web&modelName=${encodeURIComponent(modelName)}`,
 				{
 					headers: authHeaders,
 				},

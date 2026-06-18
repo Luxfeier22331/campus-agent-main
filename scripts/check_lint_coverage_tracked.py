@@ -122,8 +122,6 @@ def lint_exclusion_reason(path: str) -> str | None:
         return "temporary_workspace_artifact"
     if path.startswith(".worktrees/"):
         return "worktree_runtime_artifact"
-    if path.startswith("apps/public-chat-web/vendor/"):
-        return "vendor_snapshot"
     if path.startswith("apps/app-api/drizzle/meta/"):
         return "generated_drizzle_metadata"
     if path.startswith("docs/reference/muc-campus-qa-frontend-design/"):
@@ -224,7 +222,6 @@ def _is_python_tracked_file(path: str) -> bool:
             ".planning/",
             ".tmp/",
             ".worktrees/",
-            "apps/public-chat-web/vendor/",
             "apps/app-api/drizzle/meta/",
         )
     )

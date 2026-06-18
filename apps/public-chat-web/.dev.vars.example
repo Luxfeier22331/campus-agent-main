@@ -1,8 +1,0 @@
-PUBLIC_CHAT_APP_NAME=campus-agent-public-chat-web
-PUBLIC_CHAT_HOSTNAME=chat.example.com
-AUTH_SHELL_ORIGIN=https://campus.example.com
-# Must point to the shared `apps/app-api` runtime, not `apps/execution-control`.
-APP_API_BASE_URL=https://app-api.internal
-SENTRY_DSN=
-SENTRY_ENVIRONMENT=development
-SENTRY_RELEASE=public-chat-web@dev-local

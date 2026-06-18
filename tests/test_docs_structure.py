@@ -121,9 +121,6 @@ class DocsStructureTest(unittest.TestCase):
             "app-api-worker-foundation.md",
             "golden-dataset-schema-and-bootstrap.md",
             "official-web-app-api-control-plane-foundation.md",
-            "public-chat-web-chatbot-replatform.md",
-            "public-chat-web-donor-first-reset.md",
-            "public-chat-web-vendor-runtime-full-transplant.md",
             "source-truth-normalization-refactor.md",
             "student-handbook-retrieval-eval-bootstrap.md",
         }

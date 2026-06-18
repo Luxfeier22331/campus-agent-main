@@ -28,7 +28,7 @@ documentation SoT cleanup. The parent path remains the stable index.
     "requestId": "req_01HQ",
     "traceId": "trace_01HQ",
     "conversationId": "conv_01HQ",
-    "surface": "public_chat_web",
+    "surface": "campus_web",
     "status": "completed",
     "requestedCapability": "knowledge",
     "requestedScope": null,

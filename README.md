@@ -16,8 +16,8 @@ browser -> campus-web -> student experience / account shell
 
 campus-web same-origin allowlisted /api/* -> app-api
 
-browser -> public-chat-web -> app-api -> execution-control
--> Temporal -> workflow-worker / activity-worker-context /
+browser -> campus-web Q&A -> app-api / chatkit-adapter -> app-api chat routes
+-> execution-control -> Temporal -> workflow-worker / activity-worker-context /
 activity-worker-agent / activity-worker-knowledge-plan /
 activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
 capability workers /
@@ -76,7 +76,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 仓库按 runtime boundary 与 capability boundary 组织：
 
 - [`apps/`](./apps/)
-  - runtime shell 与 transport boundary，例如 `campus-web`、`public-chat-web`、
+  - runtime shell 与 transport boundary，例如 `campus-web`、
     `operator-console-web`、`app-api`、`execution-control`、
     `ingestion-worker`
 - [`packages/`](./packages/)

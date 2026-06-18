@@ -6,7 +6,7 @@
 
 `configs/branding/web-public/favicon.ico` is the repo-owned canonical copy.
 
-- `public-chat-web`
+- `online-answer-web`
 - `protected-panel-web`
 - `campus-web`
 

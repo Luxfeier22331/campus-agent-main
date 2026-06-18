@@ -121,7 +121,7 @@ export function buildChatCommandService(
 			});
 		}
 
-		const surface = input.surface?.trim() || "public_chat_web";
+		const surface = input.surface?.trim() || "campus_web";
 		const validatedPayload = resolveValidatedPayload(input.payload, { surface });
 		if (
 			dependencies.requireExecutionRuntime &&

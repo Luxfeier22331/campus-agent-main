@@ -80,7 +80,7 @@ describe("request observability", () => {
 			resolvedScope: null,
 			safetyIdentifier,
 			startedAt: "2026-04-05T08:00:00.000Z",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			versionQuery: {
 				compareToVersionId: "v2025-student-rules",
@@ -113,7 +113,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			versionQuery: {
 				compareToVersionId: "v2025-student-rules",
@@ -193,7 +193,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -264,7 +264,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-05T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -352,7 +352,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-13T08:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_workflow_01HQ",
 		});
 
@@ -425,7 +425,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T08:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -481,7 +481,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -548,7 +548,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
 			status: "no_answer",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -658,7 +658,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T10:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_trace",
 		});
 
@@ -755,7 +755,7 @@ describe("request observability", () => {
 			sourceDocIds: [],
 			startedAt: "2026-04-12T11:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_empty_recall",
 		});
 

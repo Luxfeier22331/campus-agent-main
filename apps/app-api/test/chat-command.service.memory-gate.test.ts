@@ -55,7 +55,7 @@ describe("chat command service memory gate projection", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(profileMemoryStore.loadSummary).toHaveBeenCalledWith({
@@ -106,14 +106,14 @@ describe("chat command service memory gate projection", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(telemetry.captureException).toHaveBeenCalledWith(
 			expect.any(Error),
 			expect.objectContaining({
 				route: "/api/chat/requests",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_0001",
 			}),
 		);

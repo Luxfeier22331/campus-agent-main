@@ -10,8 +10,8 @@ updated: 2026-06-13
 
 ## 文档边界
 
-本文冻结 `campus-web`、legacy public chat、Operator Console、shared `app-api` 与
-delivery/runtime seam 的 supporting architecture。
+本文冻结 `campus-web`、Operator Console、shared `app-api` 与 delivery/runtime seam 的
+supporting architecture。
 
 它回答的是：
 
@@ -34,12 +34,6 @@ workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
 activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
 capability workers / activity-worker-finalization -> sanitized projection`
 
-`browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-agent /
-activity-worker-knowledge-plan / activity-worker-knowledge-retrieval /
-activity-worker-knowledge-synthesis / capability workers /
-activity-worker-finalization -> sanitized projection`
-
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
@@ -47,8 +41,8 @@ projection / operator read model / operator-safe operations domains`
 
 这意味着：
 
-- 当前已落地的 campus/legacy public/protected surface 是 shared `app-api` 前面的 browser
-  surface；docs 已收口为 `campus-web /docs/*` 内部支撑面
+- 当前已落地的 student-facing public surface 与 protected Operator Console 都在 shared
+  `app-api` 前面；docs 已收口为 `campus-web /docs/*` 内部支撑面
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service
   Binding；
   `APP_API_BASE_URL` / `OPERATOR_CONSOLE_APP_API_BASE_URL` 只是构造内部
@@ -61,8 +55,6 @@ projection / operator read model / operator-safe operations domains`
   `https://cdn.platform.openai.com` 的 script/frame 资源
 - `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有 product backend、
   conversation truth 或 execution engine 责任
-- `apps/public-chat-web` 是 legacy chat surface；它不再定义当前产品入口、账号入口或
-  auth return target
 - `apps/public-docs` 已删除；当前 docs browser surface 只由 `campus-web /docs/*`
   承担
 - `apps/app-api` 是 shared product/control-plane backend
@@ -80,8 +72,8 @@ projection / operator read model / operator-safe operations domains`
 
 补充结论：
 
-- 当前 `public chat` 的 knowledge-only posture 只表示该 surface 当前开放的 capability set
-- 它不等于整个产品的长期入口语义
+- 当前 online answer surface posture 只表示学生侧 Q&A 当前开放的 capability set；它不等于
+  整个产品的长期入口语义
 - ordinary chat 的目标态 first decision 由 primary agent 在 admitted visible
   tool set 内完成；surface capability policy 仍由 shared `app-api` 表达，
   durable admission / projection 仍由 Execution Agent Layer 表达
@@ -106,10 +98,6 @@ projection / operator read model / operator-safe operations domains`
     raw records
   - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
     `https://campus-staging.mucwiki-edge.link`
-- `public-chat-web`
-  - legacy public chat surface；保留旧 `/login`、`/register`、`/forgot-password`、
-    `/reset-password` route 作为 bounded redirect 到 campus account shell
-  - 不拥有 account shell、captcha widget runtime 或 password-reset form runtime
 - `chatkit-adapter`
   - internal protocol adapter for ChatKit custom server integration
   - maps ChatKit thread/item/action/event protocol to app-api conversation, message,
@@ -168,17 +156,6 @@ projection / operator read model / operator-safe operations domains`
 - no generic app-api proxy
 - no auth/session/identity/federation backend ownership
 
-### `apps/public-chat-web`
-
-- legacy public chat UI
-- same-site `/api/*` seam into `apps/app-api`
-- chat-local auth browser routes are bounded compatibility redirects/shims to
-  campus account routes
-- does not own account-shell UI, captcha widget runtime, or password-reset form
-- browser auth handoff is
-  `public-chat-web compat route -> campus-web /account/* -> /api/auth/* -> app-api`
-- 不拥有 auth/session/conversation truth
-
 ### `apps/chatkit-adapter`
 
 - internal ChatKit custom server integration adapter for `campus-web` Q&A
@@ -229,7 +206,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 直接含义：
 
-- `public-chat-web` 当前只开放 `knowledge`，是 current surface posture
+- `campus-web` Q&A 的 capability set 是 current surface posture
 - `campus-web /docs/*` 是非执行 reader surface，不自动进入 capability routing
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 browser-facing capability allowlist truth
@@ -370,14 +347,10 @@ public auth family 的 runtime/product posture 固定为：
 
 - `campus-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
   `/account/reset-password` 这组 public account browser shell
-- `public-chat-web` 的 `/login`、`/register`、`/forgot-password`、`/reset-password`
-  只保留为 bounded compatibility redirects/shims，不再定义 account shell ownership
 - `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side
   verification
 - auth family 的 human verification transport 固定走 same-origin `campus-web ->
   /api/auth/* -> app-api`
-- `public-chat-web` 不再注入 Turnstile runtime config，也不再持有 auth-page
-  staging/live-smoke posture
 
 长期 abuse-control 规则固定为：
 

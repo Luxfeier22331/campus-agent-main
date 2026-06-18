@@ -23,7 +23,7 @@ Execution Agent Layer 与 internal execution admission。
 
 `ADR-0012`、`ADR-0013`、`ADR-0015`、`ADR-0016` 与 `ADR-0034` 已经冻结了以下方向：
 
-- `public-chat-web` 与 `operator-console-web` 是两个 Worker web surface
+- `campus-web` 与 `operator-console-web` 是两个 Worker web surface
 - `apps/app-api` 是 shared application/control-plane backend
 - `apps/app-api` 拥有 canonical identity / memory projection
 - `apps/execution-control` 是 execution engine
@@ -41,7 +41,7 @@ Execution Agent Layer 与 internal execution admission。
 - `execution-control` 继续从 edge/header 恢复最终业务 actor
 - request projection 先做成 queue-first 或日志重算，再回头补数据库 truth
 - Better Auth 与 app-domain schema 分裂成两套 migration 世界观
-- `public-chat-web`、panel 或 `execution-control` 分别长出自己的身份语义
+- `campus-web`、panel 或 `execution-control` 分别长出自己的身份语义
 
 ## 决策
 

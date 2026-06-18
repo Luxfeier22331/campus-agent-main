@@ -152,7 +152,7 @@ promotion boundary 至少负责判断：
 
 这只表示经 selected admission 的 canonical regulation target 可以进入受限
 knowledge query path；不表示 wrapper notice、source-channel triage rows 或
-public-chat citation 被打开。
+online answer citation 被打开。
 
 直到 promotion contract、quality gate、identity/version/provenance 规则都落盘为止，不推进
 release/index。

@@ -65,14 +65,14 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			requestId: "req_0001",
 			selectedCapability: "knowledge",
 			status: "error",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_0002",
 		});
 		expect(telemetry.captureException).toHaveBeenCalledWith(
 			expect.any(Error),
 			expect.objectContaining({
 				route: "/api/chat/requests",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_0002",
 			}),
 		);

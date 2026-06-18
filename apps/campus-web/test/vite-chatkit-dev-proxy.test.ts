@@ -130,9 +130,7 @@ describe("campus-web vite local dev proxy", () => {
 		expect(headers.get("traceparent")).toBe(
 			"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
 		);
-		expect(headers.get("sentry-trace")).toBe(
-			"0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-		);
+		expect(headers.get("sentry-trace")).toBe("0123456789abcdef0123456789abcdef-0123456789abcdef-1");
 		expect(headers.get("baggage")).toBe("sentry-environment=local");
 		expect(headers.get("x-trace-id")).toBe("trace_local_01");
 	});

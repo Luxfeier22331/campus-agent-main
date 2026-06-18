@@ -15,7 +15,6 @@ updated: 2026-06-10
 
 - `apps/app-api`
 - `apps/campus-web`
-- legacy `apps/public-chat-web`
 - `apps/operator-console-web`
 
 它回答的是：
@@ -35,8 +34,8 @@ updated: 2026-06-10
 
 ## 当前 smoke 形态
 
-当前 repo 还没有把 `campus-web`、legacy `public-chat-web`、`operator-console-web` 与 shared
-`app-api` 收敛成一个统一的 repo-level `pnpm smoke` 脚本。
+当前 repo 还没有把 `campus-web`、`operator-console-web` 与 shared `app-api`
+收敛成一个统一的 repo-level `pnpm smoke` 脚本。
 
 因此，当前 canonical gate 仍然是基于 Worker runtime 的 targeted vitest 与 app-specific
 smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route 和 same-origin
@@ -49,7 +48,7 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
 - 运行 Worker 测试时允许本地监听端口
 - 为避免 `wrangler` 写入默认家目录日志，命令使用 repo-local
   `XDG_CONFIG_HOME=./.wrangler-home`
-- 做 public chat local browser smoke 前，如果本地 Postgres 可能落后于
+- 做 online answer local browser smoke 前，如果本地 Postgres 可能落后于
   `apps/app-api/db/shared-product-migrations/*`，先执行
   `pnpm --dir apps/app-api db:bootstrap`
 
@@ -70,24 +69,24 @@ pnpm --dir apps/campus-web test:node -- test/campus-worker.test.ts
 pnpm --dir apps/campus-web docs:build
 ```
 
-再验证 legacy public chat 主链路 smoke：
+再验证 campus-web online answer 主链路 smoke：
 
 ```bash
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
-  "smokes a chat request through public-chat-web into app-api"
+pnpm --dir apps/campus-web test:worker -- --reporter=verbose -t \
+  "smokes a chat request through campus-web into app-api"
 ```
 
 再验证 public auth proxy 仍保留 Better Auth 所需请求头：
 
 ```bash
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
+pnpm --dir apps/campus-web test:worker -- --reporter=verbose -t \
   "forwards origin and referer for same-site auth requests"
 ```
 
-并验证 public chat shell 在 `app-api` bridge 缺失时保持 fail closed：
+并验证 online answer shell 在 `app-api` bridge 缺失时保持 fail closed：
 
 ```bash
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
+pnpm --dir apps/campus-web test:worker -- --reporter=verbose -t \
   "fails closed when app-api binding is not configured for the public shell"
 ```
 
@@ -127,9 +126,9 @@ pnpm --dir apps/campus-web dev
 - campus-web 只代理 allowlisted `/api/docs/*`，unknown `/api/*`、operator APIs 与
   generic proxy 继续 fail closed
 
-## Public Chat E2E Profiles
+## Online Answer E2E Profiles
 
-public/chat 的 E2E contract 不应由 staging 域名定义。当前 repo-owned 入口是：
+online answer 的 E2E contract 不应由 staging 域名定义。当前 repo-owned 入口是：
 
 ```bash
 pnpm --dir apps/app-api chat:e2e:dev
@@ -140,16 +139,16 @@ pnpm --dir apps/app-api chat:e2e:local-real-provider
 profile 语义：
 
 - `dev`：面向 repo-local dev URLs；wrapper 会启动 local execution runtime，预置 smoke
-  identity，启动或复用 `public-chat-web dev:live-smoke`，再通过
-  `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
-  执行真实 public/chat 请求
-- `staging`：部署验收 profile，默认使用 `chat-staging` /
+  identity，启动或复用 `campus-web dev:live-smoke`，再通过
+  `http://127.0.0.1:27014 -> service binding app-api -> http://127.0.0.1:27051`
+  执行真实 online answer 请求
+- `staging`：部署验收 profile，默认使用 `campus-staging` /
   `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
   public smoke surface
-- `local-real-provider`：复用 `dev` 的 public/chat 产品路径编排，但强制启用
+- `local-real-provider`：复用 `dev` 的 online answer 产品路径编排，但强制启用
   Temporal execution-control runtime 并默认使用真实
   `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
-  `public-chat-web -> app-api -> execution-control -> Temporal memory + RAG
+  `campus-web -> app-api -> execution-control -> Temporal memory + RAG
   graph -> Go activity workers -> Go finalizer`，不是 deployed staging smoke，
   也不是 notice discover 专用 smoke
 
@@ -172,9 +171,9 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 - `campus-web -> app-api` 的 same-origin docs control-plane 链路可用
 - `campus-web` docs seam 不会退化成 generic `app-api` proxy
 - gated reader assets 需要 `app-api` admission 后才能读取
-- `public-chat-web -> app-api` 的 same-site chat request 链路可用
-- `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
-- public chat shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
+- `campus-web -> app-api` 的 same-site chat request 链路可用
+- `campus-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
+- online answer shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
 - `operator-console-web -> app-api` 的 operator request query 链路可用
 - Operator Console 到 `app-api` 的 trusted internal bridge admission 正常
 - Operator Console 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
@@ -191,7 +190,7 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 - `public-docs` 的本地 browser/live smoke 不再是 forward product topology 的 canonical
   smoke 入口；该 app 已删除，历史 Rspress/MDX/anchor/highlight/search 实现只能通过 git
   history 追溯
-- `public-chat-web` 的本地 browser/live smoke 仍固定走 `dev:live-smoke` 单命令 auxiliary
+- `campus-web` 的本地 browser/live smoke 仍固定走 `dev:live-smoke` 单命令 auxiliary
   Worker 拓扑
-- 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `campus-web`、legacy
-  `public-chat-web`、`operator-console-web` 和 shared `app-api` 收敛
+- 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `campus-web`、
+  `operator-console-web` 和 shared `app-api` 收敛

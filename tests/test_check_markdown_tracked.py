@@ -88,7 +88,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
         self.assertIn("packages/navigation-capability/README.md", relative_paths)
         self.assertNotIn("packages/retrieval-core/AGENTS.md", relative_paths)
         self.assertNotIn(".planning/PROJECT.md", relative_paths)
-        self.assertNotIn("apps/public-chat-web/vendor/vercel-ai-chatbot/README.md", relative_paths)
+        self.assertFalse(any("/vendor/" in path for path in relative_paths))
 
     @patch("scripts.check_markdown_tracked.subprocess.run")
     def test_main_invokes_markdownlint_with_tracked_files(

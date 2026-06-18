@@ -21,7 +21,6 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 				? "configured"
 				: "not_configured",
 		operatorBridge: "configured",
-		publicChatCompatibilityOrigin: "configured",
 		executionControl: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};
@@ -40,7 +39,6 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
 			environment: config.environment,
 			authShellOrigin: config.authShellOrigin,
-			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			resendFetch: fetch,
 		});

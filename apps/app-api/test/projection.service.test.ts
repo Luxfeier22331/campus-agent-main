@@ -51,7 +51,7 @@ function createExecutionSource(
 		sourceDocIds: ["handbook:library-hours"],
 		startedAt: "2026-03-28T08:00:00.000Z",
 		status: "completed",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		traceId: "trace_01HQ",
 		visibilityScope: "main",
 		...overrides,
@@ -139,7 +139,7 @@ describe("request projection projector", () => {
 			sourceDocIds: ["handbook:library-hours"],
 			startedAt: "2026-03-28T08:00:00.000Z",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 			visibilityScope: "main",
 		});
@@ -161,7 +161,7 @@ describe("request projection projector", () => {
 			selectedCapability: "knowledge",
 			status: "completed",
 			summary: "Knowledge request completed via knowledge capability.",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			terminalCode: "completed",
 			traceId: "trace_01HQ",
 		});
@@ -191,9 +191,9 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|5m|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+						"quality|5m|2026-03-28T08:00:00.000Z|campus_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
 					selectedCapability: "knowledge",
-					surface: "public_chat_web",
+					surface: "campus_web",
 				},
 				{
 					bucketEnd: "2026-03-28T08:15:00.000Z",
@@ -218,9 +218,9 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|15m|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+						"quality|15m|2026-03-28T08:00:00.000Z|campus_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
 					selectedCapability: "knowledge",
-					surface: "public_chat_web",
+					surface: "campus_web",
 				},
 				{
 					bucketEnd: "2026-03-28T09:00:00.000Z",
@@ -245,9 +245,9 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1h|2026-03-28T08:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+						"quality|1h|2026-03-28T08:00:00.000Z|campus_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
 					selectedCapability: "knowledge",
-					surface: "public_chat_web",
+					surface: "campus_web",
 				},
 				{
 					bucketEnd: "2026-03-29T00:00:00.000Z",
@@ -272,9 +272,9 @@ describe("request projection projector", () => {
 					requestId: "req_01HQ",
 					requestedCapability: "knowledge",
 					rollupId:
-						"quality|1d|2026-03-28T00:00:00.000Z|public_chat_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
+						"quality|1d|2026-03-28T00:00:00.000Z|campus_web|knowledge|knowledge|student|student_rules|_|req_01HQ",
 					selectedCapability: "knowledge",
-					surface: "public_chat_web",
+					surface: "campus_web",
 				},
 			],
 		});

@@ -62,7 +62,7 @@ documentation SoT cleanup. The parent path remains the stable index.
         "eligibleCount": 61
       },
       "distributions": {
-        "surface": [{ "value": "public_chat_web", "count": 82 }],
+        "surface": [{ "value": "campus_web", "count": 82 }],
         "answerKind": [
           { "value": "answer", "count": 56 },
           { "value": "no_answer", "count": 18 },
@@ -209,7 +209,7 @@ documentation SoT cleanup. The parent path remains the stable index.
       "badcaseId": "qbad_01HQ",
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
-      "surface": "public_chat_web",
+      "surface": "campus_web",
       "selectedCapability": "knowledge",
       "status": "open",
       "causeClass": "citation_missing",
@@ -271,7 +271,7 @@ documentation SoT cleanup. The parent path remains the stable index.
       "candidateId": "eval_candidate:req_01HQ:unsupported_by_evidence",
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
-      "surface": "public_chat_web",
+      "surface": "campus_web",
       "selectedCapability": "knowledge",
       "causeClass": "unsupported_by_evidence",
       "summary": "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
@@ -296,7 +296,7 @@ documentation SoT cleanup. The parent path remains the stable index.
       "candidateId": "eval_candidate:negative_feedback:feedback_01HQ",
       "requestId": "req_01HQ",
       "traceId": "trace_01HQ",
-      "surface": "public_chat_web",
+      "surface": "campus_web",
       "selectedCapability": "knowledge",
       "causeClass": "wrong_intent",
       "summary": "Negative answer feedback for answer: wrong_intent.",

@@ -196,7 +196,6 @@ SURFACE_SPECS = {
                 "required_keys": (
                     "BETTER_AUTH_SECRET",
                     "AUTH_SHELL_ORIGIN",
-                    "PUBLIC_CHAT_WEB_ORIGIN",
                     "EXECUTION_CONTROL_BASE_URL",
                     "EXECUTION_CONTROL_SHARED_SECRET",
                     "APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
@@ -208,10 +207,6 @@ SURFACE_SPECS = {
                     "SENTRY_DSN",
                     "AXIOM_TOKEN",
                 ),
-            },
-            "apps/public-chat-web/.dev.vars": {
-                "required_keys": ("APP_API_BASE_URL", "PUBLIC_CHAT_HOSTNAME", "AUTH_SHELL_ORIGIN"),
-                "optional_keys": ("SENTRY_DSN",),
             },
         },
     },

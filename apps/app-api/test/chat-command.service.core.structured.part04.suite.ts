@@ -65,7 +65,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 				prompt: "民族博物馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(finalWrites[0]).toMatchObject({

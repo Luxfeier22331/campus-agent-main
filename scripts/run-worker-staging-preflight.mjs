@@ -113,7 +113,7 @@ function parseArgs(argv) {
 
 	if (!appPath) {
 		fail(
-			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/campus-web|apps/public-chat-web|apps/operator-console-web>",
+			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/campus-web|apps/operator-console-web>",
 		);
 	}
 
@@ -163,27 +163,6 @@ const APP_PREFLIGHTS = {
 			],
 			["pnpm", ["--dir", "apps/campus-web", "build:staging"]],
 			["pnpm", ["--dir", "apps/campus-web", "deploy:verify-config:staging"]],
-		],
-	},
-	"apps/public-chat-web": {
-		doctorSurface: "worker-staging-public-chat-web",
-		commands: [
-			[
-				"uv",
-				[
-					"run",
-					"--all-packages",
-					"python",
-					"-m",
-					"scripts.check_worker_secret_presence",
-					"--app",
-					"apps/public-chat-web",
-					"--env",
-					"staging",
-				],
-			],
-			["pnpm", ["--dir", "apps/public-chat-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/public-chat-web", "deploy:verify-config:staging"]],
 		],
 	},
 	"apps/operator-console-web": {

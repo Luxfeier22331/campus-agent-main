@@ -61,7 +61,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		expect(getAbuseControlState).toHaveBeenCalledWith({
 			now: "2026-03-28T08:00:00.000Z",
 			safetyIdentifier: expectedSafetyIdentifier,
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(response.answer.result).toEqual({

@@ -18,7 +18,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					requestId: "req_01HQ",
 					traceId: "trace_01HQ",
 					conversationId: "conv_01HQ",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					status: "completed",
 					requestedCapability: "knowledge",
 					requestedScopeJson: {
@@ -197,7 +197,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					requestId: "req_replay_01HQ",
 					traceId: "trace_replay_01HQ",
 					conversationId: "conv_replay_01HQ",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					principalType: "student",
 					entitlementSnapshotId: "entitlements-2026-03-29",
 					entitlementGroupsJson: ["students"],
@@ -354,7 +354,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					requestId: "req_versioned_01HQ",
 					traceId: "trace_versioned_01HQ",
 					conversationId: "conv_versioned_01HQ",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					status: "completed",
 					requestedCapability: "knowledge",
 					requestedScopeJson: {
@@ -384,7 +384,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					requestId: "req_versioned_01HQ",
 					traceId: "trace_versioned_01HQ",
 					conversationId: "conv_versioned_01HQ",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					status: "completed",
 					requestedCapability: "knowledge",
 					requestedScopeJson: {

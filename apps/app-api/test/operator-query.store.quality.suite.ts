@@ -26,7 +26,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				retrievalAttempted: true,
 				startedAt: new Date("2026-03-28T08:10:00.000Z"),
 				status: "completed",
-				surface: "public_chat_web",
+				surface: "campus_web",
 			},
 			{
 				citationExpected: false,
@@ -38,7 +38,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				retrievalAttempted: false,
 				startedAt: new Date("2026-03-28T08:20:00.000Z"),
 				status: "no_answer",
-				surface: "public_chat_web",
+				surface: "campus_web",
 			},
 			{
 				citationExpected: false,
@@ -50,7 +50,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				retrievalAttempted: false,
 				startedAt: new Date("2026-03-28T08:30:00.000Z"),
 				status: "needs_clarification",
-				surface: "public_chat_web",
+				surface: "campus_web",
 			},
 			{
 				citationExpected: false,
@@ -62,7 +62,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				retrievalAttempted: false,
 				startedAt: new Date("2026-03-28T08:40:00.000Z"),
 				status: "rejected",
-				surface: "public_chat_web",
+				surface: "campus_web",
 			},
 		];
 		const feedbackRows = [
@@ -152,7 +152,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 					{ count: 1, value: "unspecified" },
 					{ count: 1, value: "wrong_intent" },
 				],
-				surface: [{ count: 2, value: "public_chat_web" }],
+				surface: [{ count: 2, value: "campus_web" }],
 				vote: [
 					{ count: 1, value: "helpful" },
 					{ count: 1, value: "unhelpful" },
@@ -335,7 +335,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				selectedCapability: "navigation",
 				status: "open",
 				summary: "Intent classifier selected the wrong target",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_intent_01",
 			},
 		];
@@ -424,7 +424,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				selectedCapability: "knowledge",
 				status: "open",
 				summary: "Citation missing",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_shared_01",
 			},
 			{
@@ -437,7 +437,7 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 				selectedCapability: "navigation",
 				status: "open",
 				summary: "Intent classifier selected the wrong target",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_shared_01",
 			},
 		];

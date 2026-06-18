@@ -38,7 +38,6 @@ describe("app-api smoke identity provisioning", () => {
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv,
 		);
 
@@ -50,7 +49,6 @@ describe("app-api smoke identity provisioning", () => {
 			APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
 			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 			AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
-			PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 		});
 	});
 
@@ -73,7 +71,7 @@ describe("app-api smoke identity provisioning", () => {
 				operatorEmailAllowlist: "ops@example.com",
 				password: "SmokePass!2026",
 				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
-				publicChatOrigin: "https://chat-staging.mucwiki-edge.link",
+				authShellOrigin: "https://campus-staging.mucwiki-edge.link",
 				executionControlBaseUrl: "https://execution-control.internal",
 				executionControlSharedSecret: "smoke-identity-supervisor-secret",
 			}),
@@ -89,7 +87,6 @@ describe("app-api smoke identity provisioning", () => {
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
 				AUTH_TURNSTILE_SECRET_KEY: "cf-staging-secret",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv),
 		).toThrow("APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN is required");
 	});
@@ -124,7 +121,6 @@ describe("app-api smoke identity provisioning", () => {
 				APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
 				APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 				APP_API_SMOKE_IDENTITY_PASSWORD: "SmokePass!2026",
-				PUBLIC_CHAT_WEB_ORIGIN: "https://chat-staging.mucwiki-edge.link",
 			} as NodeJS.ProcessEnv,
 		);
 

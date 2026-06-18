@@ -42,7 +42,7 @@ function requestExecutionWrite(
 		sourceDocIds: [],
 		startedAt: "2026-06-04T01:02:03.000Z",
 		status: "accepted",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		traceId: "trace_001",
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",

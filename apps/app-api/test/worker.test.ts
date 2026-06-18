@@ -34,7 +34,6 @@ const env = {
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
@@ -91,7 +90,6 @@ function createRuntimeReadinessResult() {
 			executionRuntime: "not_required",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
-			publicChatCompatibilityOrigin: "configured",
 			executionControl: "ready",
 		},
 		failed: {},
@@ -148,9 +146,6 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).toContain(
 			'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
-		);
-		expect(stagingVarsBlock).toContain(
-			'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"');
 		expect(stagingVarsBlock).not.toContain("EXECUTION_CONTROL_BASE_URL");
@@ -213,7 +208,6 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");
-		expect(runWithStagingDbEnvSource).toContain("https://chat-staging.mucwiki-edge.link");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_BASE_URL");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_ID");
 		expect(stagingPreflightSource).toContain("STAGING_EXECUTION_CONTROL_ACCESS_CLIENT_SECRET");
@@ -333,7 +327,6 @@ describe("app-api worker foundation", () => {
 				executionRuntime: "not_required",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
-				publicChatCompatibilityOrigin: "configured",
 				executionControl: "ready",
 			},
 			preflight: {
@@ -369,7 +362,6 @@ describe("app-api worker foundation", () => {
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -424,7 +416,6 @@ describe("app-api worker foundation", () => {
 						"AUTH_TURNSTILE_SECRET_KEY",
 						"RESEND_API_KEY",
 						"AUTH_RESET_EMAIL_FROM",
-						"PUBLIC_CHAT_WEB_ORIGIN",
 						"EXECUTION_CONTROL_BASE_URL",
 						"EXECUTION_CONTROL_SHARED_SECRET",
 						"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
@@ -446,7 +437,6 @@ describe("app-api worker foundation", () => {
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -489,7 +479,6 @@ describe("app-api worker foundation", () => {
 					executionRuntime: "not_ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
 					executionControl: "ready",
 				},
 				failed: {
@@ -554,7 +543,6 @@ describe("app-api worker foundation", () => {
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatCompatibilityOrigin: "configured",
 					executionControl: "ready",
 				},
 				failed: {},
@@ -601,7 +589,7 @@ describe("app-api worker foundation", () => {
 		});
 	});
 
-	it("schedules a request projection drain after a successful public chat request", async () => {
+	it("schedules a request projection drain after a successful online answer request", async () => {
 		const requestProjector = {
 			drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 			drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 1 }),

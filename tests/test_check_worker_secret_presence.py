@@ -84,10 +84,10 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
-                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                repo_root / "apps" / "campus-web" / "wrangler.toml",
                 "\n".join(
                     [
-                        'name = "public-chat-web"',
+                        'name = "campus-web"',
                         "",
                         "[env.staging.secrets]",
                         'required = ["SENTRY_DSN"]',
@@ -113,7 +113,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                         "--env",
                         "staging",
                         "--app",
-                        "apps/public-chat-web",
+                        "apps/campus-web",
                         "--json",
                     ],
                     run_command=fake_run,
@@ -123,9 +123,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(payload["overall_ready"])
             self.assertEqual(payload["env"], "staging")
-            self.assertEqual(
-                payload["apps"]["apps/public-chat-web"]["required_secrets"], ["SENTRY_DSN"]
-            )
+            self.assertEqual(payload["apps"]["apps/campus-web"]["required_secrets"], ["SENTRY_DSN"])
 
     def test_default_worker_secret_audit_includes_campus_web(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -133,7 +131,6 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             for app_path in (
                 "apps/app-api",
                 "apps/campus-web",
-                "apps/public-chat-web",
                 "apps/operator-console-web",
             ):
                 _write(
@@ -170,7 +167,6 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                     "apps/app-api",
                     "apps/campus-web",
                     "apps/operator-console-web",
-                    "apps/public-chat-web",
                 ],
             )
 
@@ -178,10 +174,10 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
-                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                repo_root / "apps" / "campus-web" / "wrangler.toml",
                 "\n".join(
                     [
-                        'name = "public-chat-web"',
+                        'name = "campus-web"',
                         "",
                         "[env.staging.secrets]",
                         'required = ["SENTRY_DSN"]',
@@ -201,11 +197,11 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             status = collect_worker_secret_presence(
                 repo_root=repo_root,
                 env_name="staging",
-                app_paths=("apps/public-chat-web",),
+                app_paths=("apps/campus-web",),
                 run_command=fake_run,
             )
 
-            app_status = status["apps"]["apps/public-chat-web"]
+            app_status = status["apps"]["apps/campus-web"]
             self.assertFalse(app_status["ready"])
             self.assertIn("run-wrangler-command.mjs", app_status["audit_command"])
             self.assertNotIn("\u001b", app_status["error"])
@@ -218,10 +214,10 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
-                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                repo_root / "apps" / "campus-web" / "wrangler.toml",
                 "\n".join(
                     [
-                        'name = "public-chat-web"',
+                        'name = "campus-web"',
                         "",
                         "[env.staging.secrets]",
                         'required = ["SENTRY_DSN"]',
@@ -245,7 +241,7 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             collect_worker_secret_presence(
                 repo_root=repo_root,
                 env_name="staging",
-                app_paths=("apps/public-chat-web",),
+                app_paths=("apps/campus-web",),
                 run_command=fake_run,
             )
 
@@ -262,10 +258,10 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
             _write(
-                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                repo_root / "apps" / "campus-web" / "wrangler.toml",
                 "\n".join(
                     [
-                        'name = "public-chat-web"',
+                        'name = "campus-web"',
                         "",
                         "[env.staging.secrets]",
                         'required = ["SENTRY_DSN"]',
@@ -280,11 +276,11 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             status = collect_worker_secret_presence(
                 repo_root=repo_root,
                 env_name="staging",
-                app_paths=("apps/public-chat-web",),
+                app_paths=("apps/campus-web",),
                 run_command=fake_run,
             )
 
-            app_status = status["apps"]["apps/public-chat-web"]
+            app_status = status["apps"]["apps/campus-web"]
             self.assertFalse(app_status["ready"])
             self.assertIn("timed out", app_status["error"])
             self.assertIn("30s", app_status["error"])
@@ -374,10 +370,10 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             fake_home = Path(temp_dir) / "fake-home"
             _write(
-                repo_root / "apps" / "public-chat-web" / "wrangler.toml",
+                repo_root / "apps" / "campus-web" / "wrangler.toml",
                 "\n".join(
                     [
-                        'name = "public-chat-web"',
+                        'name = "campus-web"',
                         "",
                         "[env.staging.secrets]",
                         'required = ["SENTRY_DSN"]',
@@ -414,16 +410,14 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 status = collect_worker_secret_presence(
                     repo_root=repo_root,
                     env_name="staging",
-                    app_paths=("apps/public-chat-web",),
+                    app_paths=("apps/campus-web",),
                     run_command=fake_run,
                 )
 
-            app_status = status["apps"]["apps/public-chat-web"]
+            app_status = status["apps"]["apps/campus-web"]
             self.assertFalse(app_status["ready"])
             self.assertIn("expired at 2026-04-18T20:14:50.499Z", app_status["error"])
-            self.assertIn(
-                "pnpm --dir apps/public-chat-web exec wrangler login", app_status["error"]
-            )
+            self.assertIn("pnpm --dir apps/campus-web exec wrangler login", app_status["error"])
             self.assertIn("CLOUDFLARE_API_TOKEN", app_status["error"])
 
 

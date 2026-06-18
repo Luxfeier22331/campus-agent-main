@@ -105,7 +105,6 @@ export interface AppRuntimeReadinessResult {
 		executionRuntime: "ready" | "not_ready" | "not_required";
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
-		publicChatCompatibilityOrigin: "configured";
 		executionControl: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;

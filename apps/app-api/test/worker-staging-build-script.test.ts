@@ -43,7 +43,7 @@ describe("worker staging build wrapper", () => {
 		const childSource = `
 				const { mkdirSync, writeFileSync } = require("node:fs");
 				const { join } = require("node:path");
-				const workerDist = join(process.cwd(), "dist", "public_chat_web");
+				const workerDist = join(process.cwd(), "dist", "campus_web");
 				mkdirSync(workerDist, { recursive: true });
 				writeFileSync(join(workerDist, ".dev.vars"), 'SENTRY_DSN = "__campus_agent_runtime_secret_placeholder__SENTRY_DSN"\\n');
 				writeFileSync(join(workerDist, "index.js"), 'export default {};\\n');
@@ -62,7 +62,7 @@ describe("worker staging build wrapper", () => {
 			},
 		);
 
-		const generatedDevVarsPath = join(workDir, "dist", "public_chat_web", ".dev.vars");
+		const generatedDevVarsPath = join(workDir, "dist", "campus_web", ".dev.vars");
 		expect(result.stderr).not.toContain("runtime secret placeholder leaked");
 		expect(result.status).toBe(0);
 		expect(existsSync(generatedDevVarsPath)).toBe(false);
@@ -70,12 +70,12 @@ describe("worker staging build wrapper", () => {
 
 	it("still fails when a runtime secret placeholder reaches deployable code", () => {
 		const workDir = mkdtempSync(join(tmpdir(), "worker-staging-build-"));
-		const workerDist = join(workDir, "dist", "public_chat_web");
+		const workerDist = join(workDir, "dist", "campus_web");
 		mkdirSync(workerDist, { recursive: true });
 		const childSource = `
 				const { writeFileSync } = require("node:fs");
 				const { join } = require("node:path");
-				writeFileSync(join(process.cwd(), "dist", "public_chat_web", "index.js"), 'const dsn = "__campus_agent_runtime_secret_placeholder__SENTRY_DSN";\\n');
+				writeFileSync(join(process.cwd(), "dist", "campus_web", "index.js"), 'const dsn = "__campus_agent_runtime_secret_placeholder__SENTRY_DSN";\\n');
 			`;
 
 		const result = spawnSync(

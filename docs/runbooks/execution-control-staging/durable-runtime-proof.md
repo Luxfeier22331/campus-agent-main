@@ -78,7 +78,7 @@ reconnect；它只能作为 execution runtime substrate evidence，不能替代
 - HTTP proof 的 `readyz.temporal_runtime.healthy=true`
 
 该 proof 只证明 projection store / Temporal runtime 的生产不变量；它不能安装 schema，也不能替代真实
-deployed `chat-staging -> app-api-staging -> execution-control -> Temporal workflow/activity`
+deployed `campus-staging -> app-api-staging -> execution-control -> Temporal workflow/activity`
 reconnect evidence。`status-execution-control-staging.sh --check` 现在会显式拒绝
 projection store 或 Temporal runtime 未 ready 的 execution-control readyz，也会拒绝
 `api-staging /readyz` 中 `dependencies.executionRuntime` 不是 `ready` 的状态。该 gate 只防止

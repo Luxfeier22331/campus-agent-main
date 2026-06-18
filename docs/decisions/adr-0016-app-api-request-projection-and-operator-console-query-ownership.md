@@ -68,7 +68,7 @@ activity workers 和 `app-api` projection boundary 承接。
 
 原因：
 
-- `apps/app-api` 是 public chat 与 Operator Console surfaces 的 shared
+- `apps/app-api` 是 online answer 与 Operator Console surfaces 的 shared
   application/control-plane backend
 - 它负责 chat ingress，并且是最适合收口 request ledger / query surface 的边界
 - 该决策不要求把 request projection host 下沉到 `packages/*`
@@ -112,7 +112,7 @@ activity workers 和 `app-api` projection boundary 承接。
 以下都不是 Operator Console `Requests` 的 canonical truth：
 
 - `chat.*` conversation / message store
-- 历史 standalone public chat conversation / message store
+- 历史 standalone online answer conversation / message store
 - JSONL audit sink
 - `Axiom`、`Sentry` 或其他 telemetry sink
 - raw trace dump

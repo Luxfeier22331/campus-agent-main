@@ -34,7 +34,7 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		started_at: "",
 		status: "queued",
 		streaming_started_at: "",
-		surface: "public-chat-web",
+		surface: "campus-web",
 		terminal_reason: "",
 		trace_id: "trace_durable_001",
 		turn_id: "turn_durable_001",
@@ -169,7 +169,7 @@ describe("execution control runtime adapter", () => {
 				contract: "durable-agent-runtime-contract-v1",
 			},
 			selectedCapability: "knowledge",
-			surface: "public-chat-web",
+			surface: "campus-web",
 			traceId: "trace_durable_001",
 			turnId: "turn_durable_001",
 		});
@@ -203,7 +203,7 @@ describe("execution control runtime adapter", () => {
 				contract: "durable-agent-runtime-contract-v1",
 			},
 			selected_capability: "knowledge",
-			surface: "public-chat-web",
+			surface: "campus-web",
 			trace_id: "trace_durable_001",
 			turn_id: "turn_durable_001",
 		});
@@ -223,7 +223,7 @@ describe("execution control runtime adapter", () => {
 			startedAt: "",
 			status: "queued",
 			streamingStartedAt: "",
-			surface: "public-chat-web",
+			surface: "campus-web",
 			terminalReason: "",
 			traceId: "trace_durable_001",
 			turnId: "turn_durable_001",
@@ -709,7 +709,7 @@ describe("execution control runtime adapter", () => {
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",
 				runId: "run_durable_001",
-				surface: "public-chat-web",
+				surface: "campus-web",
 				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({
@@ -746,7 +746,7 @@ describe("execution control runtime adapter", () => {
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",
 				runId: "run_durable_001",
-				surface: "public-chat-web",
+				surface: "campus-web",
 				turnId: "turn_durable_001",
 			}),
 		).rejects.toMatchObject({

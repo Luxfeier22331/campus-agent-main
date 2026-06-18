@@ -37,14 +37,14 @@ projection 与 finalization。普通 chat 的第一语义决策由 primary agent
 
 - 顶层执行路径是否继续默认把产品入口理解成 `knowledge/RAG` 路由器
 - `requested_scope` 是否仍应被默认理解成所有请求共享的顶层入口字段
-- `public chat` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
+- `online answer` 当前 knowledge-only posture 是否会被误读成长期产品架构原则
 - clarification、approval、out-of-scope 与 capability routing 之间应如何分层
 
 如果这条边界不冻结，后续实现很容易继续退化为：
 
 - 所有请求先进入 `knowledge`，再在 knowledge path 内临时补 notice/service/navigation 分叉
 - 用 `requested_scope` 代替 capability routing
-- 把 `public chat` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
+- 把 `online answer` 当前 knowledge-only 姿态写成整个 repo 的长期入口真相
 - 把 routing clarification 与 agent clarification 混成一个模糊 clarification 桶
 
 ## 决策
@@ -84,7 +84,7 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 
 直接含义：
 
-- `public-chat-web` 当前 knowledge-only 只是 current surface posture
+- `campus-web` 当前 knowledge-only 只是 current surface posture
 - `public-docs` 不自动进入 execution capability routing
 - future `服务状态`、`校园地图` 等 surface 可以拥有不同 capability set
 - `apps/execution-control` 与 agent 都不拥有 browser-facing capability allowlist
@@ -135,11 +135,11 @@ no-tool、notice、campus_services、navigation 或 `knowledge_query`，而不�
 
 缺少这些证据时，不允许把新的 routing 变化视为稳定架构的一部分。
 
-### 决策 7：当前 public chat knowledge-only posture 不是长期架构原则
+### 决策 7：当前 online answer knowledge-only posture 不是长期架构原则
 
 当前 merged truth 继续允许：
 
-- public chat 仍可按 rollout posture 只开放成熟 capability 子集
+- online answer 仍可按 rollout posture 只开放成熟 capability 子集
 - `place_lookup` 在产品路径上继续 fail-close；地点查询、route planning、地图 UI 与
   `place_card` product consumption 等地图产品上线后再独立 admission
 

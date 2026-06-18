@@ -15,7 +15,7 @@ const args = [
 		"中央民族大学本科学生国家奖学金评审办法",
 	"--expect-prompt-runtime-state",
 	"rag_sdk_completed",
-	"--restart-public-chat",
+	"--restart-campus-web",
 	"--restart-execution-control-runtime",
 ];
 

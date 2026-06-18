@@ -125,7 +125,7 @@ Forward run projection 说明：
 
 当前冻结说明：
 
-- public chat request path 继续要求 resolved end-user principal
+- online answer request path 继续要求 resolved end-user principal
 - 如果没有 principal，直接返回 `session_required`
 - 当前不会因为缺少 principal 而创建 anonymous conversation 或 anonymous request truth
 

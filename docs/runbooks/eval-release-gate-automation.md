@@ -26,8 +26,7 @@ updated: 2026-04-27
 
 - `campus-services-product-path`
 - `multi-agent-runtime-contract`
-- `public-chat-product-path`
-- `public-chat-entry-e2e`
+- `online-answer-path`
 - `tool-family-denominator`
 - `tool-routing-product-path`
 - `document-quality`
@@ -86,7 +85,7 @@ uv run --all-packages python -m scripts.eval_gate accept \
 - tool-family denominator 中的 service-guide / contact-directory cases
 - Go structured runtime matrix tests
 - `app-api` runtime tests + typecheck
-- `public-chat-web` worker E2E + typecheck
+- `campus-web` worker E2E + typecheck
 
 artifact 默认写入：
 
@@ -103,7 +102,7 @@ artifact 默认写入：
 - opening 前必须同时满足：
   - gate artifact `summary.failed_checks=0`
   - `execution-control /readyz` 中 `capability_gates.campus_services.open=true`
-  - `app-api` 与 `public-chat-web` `/readyz` 中
+  - `app-api` 与 `campus-web` `/readyz` 中
     `preflight.campusServicesProductPath.status=ready`
 - rollback 条件（任一命中即回滚）：
   - opening gate 出现 failed checks

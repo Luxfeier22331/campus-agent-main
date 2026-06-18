@@ -27,7 +27,7 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		startedAt: "",
 		status: "running",
 		streamingStartedAt: "",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		terminalReason: "",
 		traceId: "trace_01HQ",
 		turnId: "turn_01HQ",

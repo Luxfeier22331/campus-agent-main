@@ -35,7 +35,7 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		terminalReason: "",
 		traceId: "trace_0001",
 		turnId: "turn_0001",
@@ -142,7 +142,7 @@ describe("chat command durable stream closeout", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 			waitUntil: (promise) => {
 				waitUntilPromises.push(promise);
 			},
@@ -241,7 +241,7 @@ describe("chat command durable stream closeout", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 			waitUntil: (promise) => {
 				waitUntilPromises.push(promise);
 			},
@@ -329,7 +329,7 @@ describe("chat command durable stream closeout", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		}) ?? []) {
 			events.push(event.event);
 		}

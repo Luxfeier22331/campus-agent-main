@@ -169,7 +169,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 				selectedCapability: "knowledge",
 				startedAt: new Date("2026-03-28T08:10:00.000Z"),
 				status: "completed",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_feedback_01",
 			},
 			{
@@ -187,7 +187,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 				selectedCapability: null,
 				startedAt: new Date("2026-03-28T08:20:00.000Z"),
 				status: "no_answer",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_feedback_02",
 			},
 		];
@@ -268,7 +268,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 			limit: 20,
 			selectedCapability: null,
 			status: null,
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "1h",
 		});
 
@@ -322,7 +322,7 @@ export function registerOperatorQueryStoreEvalCandidateReviewSuite(
 					runId: "run_feedback_01",
 					selectedCapability: "knowledge",
 					summary: "Negative answer feedback for answer: wrong_intent, outdated_or_missing_source.",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					traceId: "trace_feedback_01",
 				},
 			],

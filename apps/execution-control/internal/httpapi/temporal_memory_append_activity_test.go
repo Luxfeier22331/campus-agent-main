@@ -244,7 +244,7 @@ func createMemoryAppendRunForTest(
 		RequestID:        "req-" + runID,
 		TraceID:          "trace-" + runID,
 		OwnerUserID:      "user-executor",
-		Surface:          "public-chat-web",
+		Surface:          "campus-web",
 		Lane:             execution.DurableLaneDefault,
 		Status:           execution.DurableRunStatusCompleted,
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,

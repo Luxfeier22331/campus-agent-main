@@ -32,7 +32,6 @@ members = [
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-prompt-runtime",
-    "campus-public-chat-web",
     "campus-regulation-semantics",
     "campus-services-capability",
     "campus-shared",
@@ -483,11 +482,6 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "pydantic", specifier = ">=2.0" },
 ]
-
-[[package]]
-name = "campus-public-chat-web"
-version = "0.1.0"
-source = { virtual = "apps/public-chat-web" }
 
 [[package]]
 name = "campus-regulation-semantics"

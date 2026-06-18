@@ -32,7 +32,7 @@ describe("chat command service", () => {
 					prompt: "图书馆开放到几点？",
 				},
 				principal: createPrincipal(),
-				surface: "public_chat_web",
+				surface: "campus_web",
 			}),
 		).rejects.toMatchObject({
 			code: "execution_runtime_required",

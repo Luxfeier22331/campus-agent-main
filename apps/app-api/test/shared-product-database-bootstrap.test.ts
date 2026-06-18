@@ -33,14 +33,13 @@ describe("app-api shared product database bootstrap", () => {
 			APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
 			AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 		} as NodeJS.ProcessEnv);
 
 		expect(env.authSchema).toBe("app_auth");
 		expect(env.chatSchema).toBe("chat");
 		expect(env.databaseUrl).toBe("postgresql://db.example/campus_agent");
 		expect(env.databaseSslMode).toBe("require");
-		expect(env.publicChatOrigin).toBe("https://chat.example.com");
+		expect(env.authShellOrigin).toBe("https://campus.muc.wiki");
 	});
 
 	it("rejects legacy public better-auth tables instead of adopting them", () => {

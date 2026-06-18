@@ -214,7 +214,7 @@ updated: 2026-06-12
 说明：
 
 - surface capability allowlist 先于 knowledge-family scope 生效
-- `public-chat-web` 当前 knowledge-only 是 current surface posture，不是长期产品架构原则
+- `campus-web` 当前 knowledge-only 是 current surface posture，不是长期产品架构原则
 - 某条 capability 暂未在某个 surface 开放，不等于该 capability 已从长期产品架构里删除
 
 ### Knowledge-Family-Specific Scope

@@ -39,7 +39,7 @@ updated: 2026-04-20
 ## Deployment Handoff
 
 - Environment:
-- `public-chat-web` hostname:
+- `campus-web` hostname:
 - `operator-console-web` hostname:
 - `app-api` hostname:
 - Worker release:
@@ -54,15 +54,15 @@ updated: 2026-04-20
 
 - `check_worker_observability_env --json`:
 - `pnpm --dir apps/app-api test:worker -- --reporter=verbose`:
-- `pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t
-  "smokes a chat request through public-chat-web into app-api"`:
+- `pnpm --dir apps/campus-web test:worker -- --reporter=verbose -t
+  "smokes a chat request through campus-web into app-api"`:
 - `pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t
   "smokes request queries through operator-console-web into app-api with
   internal caller admission"`:
 
 ## Post-Deploy Verification
 
-- `public-chat-web -> app-api`:
+- `campus-web -> app-api`:
 - `operator-console-web -> app-api`:
 - `app-api` controlled error:
 - `app-api` scheduled / projection drain:
@@ -70,7 +70,7 @@ updated: 2026-04-20
 ## Evidence
 
 - Sentry notes:
-- `public-chat-web -> app-api` trace file:
+- `campus-web -> app-api` trace file:
 - `operator-console-web -> app-api` trace file:
 - `app-api` runtime event file:
 - Trace IDs:
@@ -85,7 +85,7 @@ updated: 2026-04-20
 ## `chat-trace.md` 模板
 
 ```md
-# Public Chat To App API Trace
+# Online Answer To App API Trace
 
 ## Run Metadata
 
@@ -101,10 +101,10 @@ updated: 2026-04-20
 
 ## Trace Evidence
 
-- `public-chat-web` event link / screenshot:
+- `campus-web` event link / screenshot:
 - `app-api` event link / screenshot:
 - Shared trace observed:
-- `surface=public-chat-web` observed:
+- `surface=campus-web` observed:
 - `surface=app_api` observed:
 
 ## Notes

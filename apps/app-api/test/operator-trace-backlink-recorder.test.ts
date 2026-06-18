@@ -27,7 +27,7 @@ describe("operator trace backlink recorder", () => {
 			errorCode: "supervisor_timeout",
 			requestId: "req_01HQ",
 			selectedCapability: "knowledge",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 
@@ -104,7 +104,7 @@ describe("operator trace backlink recorder", () => {
 		await expect(
 			recorder.record({
 				requestId: "req_01HQ",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_01HQ",
 			}),
 		).resolves.toBeUndefined();
@@ -114,7 +114,7 @@ describe("operator trace backlink recorder", () => {
 			recorder.record({
 				errorCode: "internal_error",
 				requestId: "req_01HQ",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_01HQ",
 			}),
 		).resolves.toBeUndefined();

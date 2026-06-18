@@ -13,5 +13,4 @@ updated: 2026-04-20
 
 ## Files
 
-- `public-chat-staging-smoke-artifact-template.md`
 - `worker-observability-smoke-artifact-template.md`

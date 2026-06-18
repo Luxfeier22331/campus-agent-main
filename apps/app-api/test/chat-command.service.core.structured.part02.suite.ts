@@ -426,7 +426,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					prompt: currentCase.prompt,
 				},
 				principal: createPrincipal(),
-				surface: "public_chat_web",
+				surface: "campus_web",
 			});
 			expect(response.answer.result.kind).toBe("answer");
 			if (response.answer.result.kind !== "answer") {

@@ -58,7 +58,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(acceptedWrites[0]).toMatchObject({
@@ -124,7 +124,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		}) ?? []) {
 			events.push(event);
 		}
@@ -187,7 +187,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -236,7 +236,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(supervisor.execute).not.toHaveBeenCalled();
@@ -282,7 +282,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -355,7 +355,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		}) ?? []) {
 			events.push({
 				event: event.event,

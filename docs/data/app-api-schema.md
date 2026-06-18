@@ -163,7 +163,7 @@ details live in split data documents.
 
 只服务：
 
-- public chat UX
+- online answer UX
 - current-user history
 - answer quality feedback
 

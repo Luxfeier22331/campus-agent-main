@@ -32,7 +32,7 @@ describe("chat memory staging e2e runner", () => {
 		const result = await runChatMemoryE2eStaging(
 			[
 				"--chat-base-url",
-				"https://chat.example.com",
+				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
 			],
@@ -187,19 +187,19 @@ describe("chat memory staging e2e runner", () => {
 						value: expect.stringContaining("smoke memory sentinel"),
 					},
 					method: "POST",
-					url: "https://chat.example.com/api/me/profile-memory/items",
+					url: "https://campus.example.com/api/me/profile-memory/items",
 				}),
 				expect.objectContaining({
 					method: "POST",
-					url: "https://chat.example.com/api/chat/requests/stream",
+					url: "https://campus.example.com/api/chat/requests/stream",
 				}),
 				{
 					method: "GET",
-					url: "https://chat.example.com/api/chat/runs/run_01HQ/steps",
+					url: "https://campus.example.com/api/chat/runs/run_01HQ/steps",
 				},
 				{
 					method: "DELETE",
-					url: "https://chat.example.com/api/me/profile-memory/items/mem_01HQ",
+					url: "https://campus.example.com/api/me/profile-memory/items/mem_01HQ",
 				},
 			]),
 		);

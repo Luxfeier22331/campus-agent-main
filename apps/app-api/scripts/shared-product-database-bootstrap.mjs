@@ -65,8 +65,8 @@ export function readSharedProductBootstrapEnv(env = process.env) {
 	}
 	const normalizedDatabaseUrl = new URL(databaseUrl);
 	normalizedDatabaseUrl.searchParams.delete("sslmode");
-	const publicChatOrigin = readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)
-		? new URL(readOptionalEnv("PUBLIC_CHAT_WEB_ORIGIN", env)).origin
+	const authShellOrigin = readOptionalEnv("AUTH_SHELL_ORIGIN", env)
+		? new URL(readOptionalEnv("AUTH_SHELL_ORIGIN", env)).origin
 		: undefined;
 
 	return {
@@ -75,7 +75,7 @@ export function readSharedProductBootstrapEnv(env = process.env) {
 		databaseSslMode: env.APP_API_DATABASE_SSLMODE?.trim() || "require",
 		databaseUrl: normalizedDatabaseUrl.toString(),
 		betterAuthSecret: readOptionalEnv("BETTER_AUTH_SECRET", env),
-		publicChatOrigin,
+		authShellOrigin,
 	};
 }
 
@@ -173,16 +173,16 @@ function buildBetterAuthOptions(env, pool) {
 	if (!env.betterAuthSecret) {
 		throw new Error("BETTER_AUTH_SECRET is required when bootstrapping fresh app_auth tables.");
 	}
-	if (!env.publicChatOrigin) {
-		throw new Error("PUBLIC_CHAT_WEB_ORIGIN is required when bootstrapping fresh app_auth tables.");
+	if (!env.authShellOrigin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required when bootstrapping fresh app_auth tables.");
 	}
 
 	return {
 		appName: "Campus Agent",
 		basePath: "/api/auth",
-		baseURL: env.publicChatOrigin,
+		baseURL: env.authShellOrigin,
 		secret: env.betterAuthSecret,
-		trustedOrigins: [env.publicChatOrigin],
+		trustedOrigins: [env.authShellOrigin],
 		emailAndPassword: {
 			enabled: true,
 		},

@@ -82,7 +82,7 @@ describe("operator query service aggregate summaries", () => {
 				principalType: " campus_member ",
 				requestedCapability: " knowledge ",
 				selectedCapability: " knowledge ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: "24h",
 			},
 			principal: createOperatorPrincipal(),
@@ -95,7 +95,7 @@ describe("operator query service aggregate summaries", () => {
 			principalType: "campus_member",
 			requestedCapability: "knowledge",
 			selectedCapability: "knowledge",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "24h",
 		});
 		expect(result.runtime.requestCount).toBe(4);
@@ -152,7 +152,7 @@ describe("operator query service aggregate summaries", () => {
 
 		const result = await service.getSafetySummary({
 			filters: {
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: "7d",
 			},
 			principal: createOperatorPrincipal(),
@@ -165,7 +165,7 @@ describe("operator query service aggregate summaries", () => {
 			principalType: null,
 			requestedCapability: null,
 			selectedCapability: null,
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "7d",
 		});
 		expect(result.summary.decisionDistribution.failClosed).toBe(1);
@@ -194,7 +194,7 @@ describe("operator query service aggregate summaries", () => {
 						{
 							estimatedCostMicrousd: 3810,
 							requestCount: 1,
-							surface: "public_chat_web",
+							surface: "campus_web",
 						},
 					],
 					estimatedCost: {
@@ -224,7 +224,7 @@ describe("operator query service aggregate summaries", () => {
 		const result = await service.getCostSummary({
 			filters: {
 				modelName: " gpt-5.2-mini ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: "1h",
 			},
 			principal: createOperatorPrincipal(),
@@ -237,7 +237,7 @@ describe("operator query service aggregate summaries", () => {
 			principalType: null,
 			requestedCapability: null,
 			selectedCapability: null,
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "1h",
 		});
 		expect(result.summary.tokens.input).toBe(812);
@@ -275,7 +275,7 @@ describe("operator query service aggregate summaries", () => {
 				requestId: " req_01HQ ",
 				selectedCapability: " knowledge ",
 				status: " completed ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				traceId: " trace_01HQ ",
 			},
 			principal: createOperatorPrincipal(),
@@ -289,7 +289,7 @@ describe("operator query service aggregate summaries", () => {
 			requestId: "req_01HQ",
 			selectedCapability: "knowledge",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01HQ",
 		});
 		expect(result.page.nextCursor).toBe("cursor_01HQ");
@@ -340,7 +340,7 @@ describe("operator query service aggregate summaries", () => {
 				principalType: " campus_member ",
 				requestedCapability: " knowledge ",
 				selectedCapability: " knowledge ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: "24h",
 			},
 			principal: createOperatorPrincipal(),
@@ -353,7 +353,7 @@ describe("operator query service aggregate summaries", () => {
 			principalType: "campus_member",
 			requestedCapability: "knowledge",
 			selectedCapability: "knowledge",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "24h",
 		});
 		expect(result.series).toHaveLength(1);
@@ -488,7 +488,7 @@ describe("operator query service aggregate summaries", () => {
 				limit: 10,
 				selectedCapability: " knowledge ",
 				status: " open ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: " 24h ",
 			},
 			principal: createOperatorPrincipal(),
@@ -501,7 +501,7 @@ describe("operator query service aggregate summaries", () => {
 			limit: 10,
 			selectedCapability: "knowledge",
 			status: "open",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "24h",
 		});
 		expect(result.page.nextCursor).toBe("cursor_01HQ");
@@ -539,7 +539,7 @@ describe("operator query service aggregate summaries", () => {
 						selectedCapability: "knowledge",
 						status: "open",
 						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 					},
 					{
@@ -562,7 +562,7 @@ describe("operator query service aggregate summaries", () => {
 						selectedCapability: "navigation",
 						status: "open",
 						summary: "intent classifier selected the wrong handoff target",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HR",
 					},
 				],
@@ -585,7 +585,7 @@ describe("operator query service aggregate summaries", () => {
 				limit: 10,
 				selectedCapability: " knowledge ",
 				status: " open ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: " 24h ",
 			},
 			principal: createOperatorPrincipal(),
@@ -598,7 +598,7 @@ describe("operator query service aggregate summaries", () => {
 			limit: 10,
 			selectedCapability: "knowledge",
 			status: "open",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "24h",
 		});
 		expect(result).toEqual({
@@ -626,7 +626,7 @@ describe("operator query service aggregate summaries", () => {
 					runId: "run_01HQ",
 					selectedCapability: "knowledge",
 					summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					traceId: "trace_01HQ",
 				},
 				{
@@ -652,7 +652,7 @@ describe("operator query service aggregate summaries", () => {
 					runId: "run_01HR",
 					selectedCapability: "navigation",
 					summary: "intent classifier selected the wrong handoff target",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					traceId: "trace_01HR",
 				},
 			],
@@ -699,7 +699,7 @@ describe("operator query service aggregate summaries", () => {
 						requestId: "req_feedback_01",
 						selectedCapability: "knowledge",
 						summary: "Negative answer feedback for answer: wrong_intent.",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_feedback_01",
 					},
 				],
@@ -722,7 +722,7 @@ describe("operator query service aggregate summaries", () => {
 				limit: 10,
 				selectedCapability: " knowledge ",
 				status: " pending_review ",
-				surface: " public_chat_web ",
+				surface: " campus_web ",
 				window: " 24h ",
 			},
 			principal: createOperatorPrincipal(),
@@ -736,7 +736,7 @@ describe("operator query service aggregate summaries", () => {
 			limit: 10,
 			selectedCapability: "knowledge",
 			status: "pending_review",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			window: "24h",
 		});
 		expect(result.candidates).toHaveLength(1);

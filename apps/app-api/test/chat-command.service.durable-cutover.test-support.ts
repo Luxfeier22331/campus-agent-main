@@ -21,7 +21,7 @@ export function durableRun(overrides: Partial<ExecutionControlRun> = {}): Execut
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
-		surface: "public_chat_web",
+		surface: "campus_web",
 		terminalReason: "",
 		traceId: "trace_0001",
 		turnId: "turn_0001",

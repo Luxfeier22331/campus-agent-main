@@ -95,7 +95,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				},
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(supervisor.execute).toHaveBeenCalledWith({
@@ -115,7 +115,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				corpus: "regulations",
 			},
 			safetyIdentifier: expectedSafetyIdentifier,
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
@@ -292,7 +292,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				requestedCapability: "knowledge",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(supervisor.execute).toHaveBeenCalledWith(

@@ -15,7 +15,6 @@ from typing import Any
 DEFAULT_APP_PATHS = (
     "apps/app-api",
     "apps/campus-web",
-    "apps/public-chat-web",
     "apps/operator-console-web",
 )
 

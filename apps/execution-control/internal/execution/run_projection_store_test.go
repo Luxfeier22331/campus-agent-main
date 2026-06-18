@@ -18,7 +18,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		RequestID:      "req-001",
 		TraceID:        "trace-001",
 		OwnerUserID:    "user-001",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           DurableLaneRAG,
 		CreatedAt:      createdAt,
 		Metadata:       map[string]any{"source": "test"},
@@ -47,7 +47,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		TurnID:         "turn-002",
 		RequestID:      "req-002",
 		OwnerUserID:    "user-001",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           DurableLaneRAG,
 		CreatedAt:      createdAt.Add(time.Second),
 	})
@@ -84,7 +84,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		TurnID:         "turn-003",
 		RequestID:      "req-003",
 		OwnerUserID:    "user-001",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           DurableLaneRAG,
 		CreatedAt:      createdAt.Add(6 * time.Second),
 	}); err != nil {
@@ -110,7 +110,7 @@ func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.
 		TurnID:         "turn-001",
 		RequestID:      "req-001",
 		OwnerUserID:    "user-001",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           DurableLaneRAG,
 		CreatedAt:      now,
 	})
@@ -456,7 +456,7 @@ func createRunProjectionForTest(
 		TurnID:         runID + "-turn",
 		RequestID:      runID + "-request",
 		OwnerUserID:    "user-001",
-		Surface:        "public-chat-web",
+		Surface:        "campus-web",
 		Lane:           DurableLaneRAG,
 		CreatedAt:      now,
 	}); err != nil {

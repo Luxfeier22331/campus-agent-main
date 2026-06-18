@@ -152,8 +152,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-					referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
+					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({
@@ -224,8 +224,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
-					referer: `${process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com"}/login`,
+					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
+					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({

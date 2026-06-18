@@ -46,8 +46,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
 
 ## 文档边界
 
-这份文档冻结 shared `apps/app-api` 对 `campus-web`、legacy `public-chat-web` 与
-Operator Console implementation surfaces 暴露的 browser-facing HTTP contract。
+这份文档冻结 shared `apps/app-api` 对 `campus-web` 与 Operator Console
+implementation surfaces 暴露的 browser-facing HTTP contract。
 
 它补充但不替代以下文档：
 
@@ -90,7 +90,6 @@ Operator Console implementation surfaces 暴露的 browser-facing HTTP contract�
 长期调用形态固定为：
 
 - `browser -> campus-web same-origin /api/* -> app-api`
-- `browser -> public-chat-web same-site /api/* -> app-api`
 - `browser -> operator console surface same-site /api/* -> app-api`
 
 因此：
@@ -110,7 +109,7 @@ Operator Console implementation surfaces 暴露的 browser-facing HTTP contract�
 `apps/app-api/src/app/route-exposure.ts` 是当前 route exposure inventory 的代码侧
 contract test carrier。新增 route 必须声明：
 
-- `browser-surface`：由 campus-web / legacy public chat same-origin proxy 调用
+- `browser-surface`：由 campus-web same-origin proxy 调用
 - `operator-via-panel`：由 Operator Console internal bridge 调用；当前代码名保留
   `panel`，不表示长期只存在 `operator-console-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
@@ -368,7 +367,7 @@ assistant message 可以包含 `feedback`：
 {
   "requestId": "req_01HQ...",
   "traceId": "trace_01HQ...",
-  "surface": "public_chat_web",
+  "surface": "campus_web",
   "conversationId": "conv_01HQ...",
   "status": "completed",
   "requestedCapability": "knowledge",

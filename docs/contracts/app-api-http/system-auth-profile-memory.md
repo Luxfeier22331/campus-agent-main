@@ -39,7 +39,7 @@ owns this section group; the original path remains the stable index.
     "database": "ready",
     "officialWebHandoff": "not_configured",
     "operatorBridge": "configured",
-    "publicChatOrigin": "configured",
+    "authShellOrigin": "configured",
     "executionControl": "ready"
   },
   "preflight": {
@@ -66,7 +66,7 @@ owns this section group; the original path remains the stable index.
 
 当 runtime config 缺失时，返回 `503 dependency_not_ready`，并在 `details.missing` 中列出缺失键。
 
-`preflight.campusServicesProductPath` 是 public/chat campus services opening gate
+`preflight.campusServicesProductPath` 是 online answer campus services opening gate
 的诊断块。
 它不改变 `app-api` 对非 campus-services 产品路径的基础 readiness 语义；当 status 为
 `blocked` 时，`blockers` 会指出具体 gate / projection / read-model 缺口。
@@ -95,7 +95,7 @@ owns this section group; the original path remains the stable index.
 ### `ALL /api/auth/*`
 
 - 由 Better Auth handler 挂载
-- `public-chat-web` 通过 same-site route 暴露给浏览器
+- `campus-web` 通过 same-site route 暴露给浏览器
 - `operator-console-web` 不在 v1 上复用这一套 end-user 登录流程
 
 ### `GET /api/me`

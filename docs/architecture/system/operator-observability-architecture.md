@@ -593,7 +593,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 
 适合承接：
 
-- `public-chat-web -> app-api` 与 `operator console surface -> app-api` trace
+- `campus-web -> app-api` 与 `operator console surface -> app-api` trace
   continuity
 - downstream HTTP / timeout / retry failure
 - Worker shell 与 app runtime exception capture

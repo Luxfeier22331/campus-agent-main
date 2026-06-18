@@ -29,7 +29,7 @@ architecture。
 - 某个具体 capability family 的内部 planner / retrieval 细节
 
 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。本文描述的是长期
-supporting architecture，不得把它误读成“public chat 当前已经不是 knowledge-only”。
+supporting architecture，不得把它误读成“online answer 当前已经不是 knowledge-only”。
 
 ## Core Conclusion
 
@@ -78,8 +78,8 @@ execution finalization`
 
 当前 repo 仍保持以下 current / implementation truth：
 
-- `public-chat-web -> app-api` 的公开 chat posture 曾长期以 `knowledge`
-  为默认主路径；当前 worktree 已接入 `agent.primary`，且 Go `execution-control`
+- 公开 chat posture 曾长期以 `knowledge` 为默认主路径；当前 worktree 已接入
+  `agent.primary`，且 Go `execution-control`
   已停止把缺失 `requested_capability` 默认写成 `knowledge`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
   地图 UI、route planning 与 `place_card` product consumption 等 navigation 能力等地图产品上线后再开放
@@ -130,7 +130,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 补充约束：
 
 - `campus-web /docs/*` 是 docs-first reader surface，不自动进入这条 execution routing path
-- `public-chat-web`、future `服务状态`、future `校园地图` 可以拥有不同 capability set
+- `campus-web` Q&A、future `服务状态`、future `校园地图` 可以拥有不同 capability set
 - 单个 surface 的内部 IA 不自动升级成产品级 routing 原则
 
 ### 2. Admission / Guardrails
@@ -312,7 +312,7 @@ Execution Agent Layer 长期继续统一负责：
 
 直接含义：
 
-- `public-chat-web` 当前 knowledge-only 是 surface posture
+- `campus-web` Q&A 的当前 capability set 是 surface posture
 - `campus-web /docs/*` 不消费 execution routing，不因此拥有 `knowledge` capability
 - future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
 - `apps/execution-control` 不拥有 product-layer surface allowlist truth

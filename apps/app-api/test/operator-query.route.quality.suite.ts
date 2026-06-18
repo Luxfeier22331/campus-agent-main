@@ -222,7 +222,7 @@ export function registerOperatorQueryQualitySuite(): void {
 									{ count: 1, value: "citation_not_expected" },
 								],
 								reasonCode: [{ count: 1, value: "wrong_intent" }],
-								surface: [{ count: 2, value: "public_chat_web" }],
+								surface: [{ count: 2, value: "campus_web" }],
 								vote: [
 									{ count: 1, value: "helpful" },
 									{ count: 1, value: "unhelpful" },
@@ -298,7 +298,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/summary?window=24h&surface=public_chat_web",
+					"https://app-api.internal/api/operator/quality/summary?window=24h&surface=campus_web",
 				),
 			);
 
@@ -333,7 +333,7 @@ export function registerOperatorQueryQualitySuite(): void {
 								{ count: 1, value: "citation_not_expected" },
 							],
 							reasonCode: [{ count: 1, value: "wrong_intent" }],
-							surface: [{ count: 2, value: "public_chat_web" }],
+							surface: [{ count: 2, value: "campus_web" }],
 							vote: [
 								{ count: 1, value: "helpful" },
 								{ count: 1, value: "unhelpful" },
@@ -402,7 +402,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					principalType: null,
 					requestedCapability: null,
 					selectedCapability: null,
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,
@@ -462,7 +462,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=public_chat_web",
+					"https://app-api.internal/api/operator/quality/timeseries?window=24h&granularity=1h&surface=campus_web",
 				),
 			);
 
@@ -505,7 +505,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					principalType: null,
 					requestedCapability: null,
 					selectedCapability: null,
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,
@@ -546,7 +546,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							selectedCapability: "knowledge",
 							status: "open",
 							summary: "citationExpected=true 但 citationCount=0",
-							surface: "public_chat_web",
+							surface: "campus_web",
 							traceId: "trace_01HQ",
 						},
 					],
@@ -565,7 +565,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=public_chat_web&selectedCapability=knowledge&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=campus_web&selectedCapability=knowledge&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -592,7 +592,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						selectedCapability: "knowledge",
 						status: "open",
 						summary: "citationExpected=true 但 citationCount=0",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 					},
 				],
@@ -608,7 +608,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					limit: null,
 					selectedCapability: "knowledge",
 					status: "open",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,
@@ -653,7 +653,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							requestId: "req_01HQ",
 							selectedCapability: "knowledge",
 							summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-							surface: "public_chat_web",
+							surface: "campus_web",
 							traceId: "trace_01HQ",
 						},
 					],
@@ -672,7 +672,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=public_chat_web&selectedCapability=knowledge&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=campus_web&selectedCapability=knowledge&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -702,7 +702,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						requestId: "req_01HQ",
 						selectedCapability: "knowledge",
 						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						traceId: "trace_01HQ",
 					},
 				],
@@ -718,7 +718,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					limit: null,
 					selectedCapability: "knowledge",
 					status: "open",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,

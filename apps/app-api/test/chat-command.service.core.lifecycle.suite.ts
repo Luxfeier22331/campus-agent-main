@@ -54,7 +54,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆开放到几点？",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		})) {
 			events.push(event);
 			if (event.event === "request.completed") {
@@ -151,7 +151,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆开放到几点？",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		})) {
 			events.push(event);
 		}
@@ -213,7 +213,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 				prompt: "图书馆在哪里",
 			},
 			principal: createPrincipal(),
-			surface: "public_chat_web",
+			surface: "campus_web",
 		});
 
 		expect(supervisor.execute).toHaveBeenCalledWith(

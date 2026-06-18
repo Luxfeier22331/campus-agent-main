@@ -49,9 +49,9 @@ Identity Platform 至少覆盖：
 - preferences / profile memory control
 - federation client and claims policy
 
-`apps/campus-web`、legacy `apps/public-chat-web`、`apps/operator-console-web`、
-historical supervisor API app、agent、retrieval 与 MediaWiki 都不得拥有 canonical app
-identity truth。已删除的 `apps/public-docs` 也不得重新成为 identity browser surface owner。
+`apps/campus-web`、`apps/operator-console-web`、historical supervisor API app、
+agent、retrieval 与 MediaWiki 都不得拥有 canonical app identity truth。已删除的
+`apps/public-docs` 也不得重新成为 identity browser surface owner。
 
 ### 决策 2：Better Auth 是 auth runtime adapter，不是产品账号模型
 

@@ -11,8 +11,8 @@
   memory recall / typed capability branch / Go RAG DTO/runtime ->
   Qdrant / provider / structured read models -> sanitized projection`
 - 当前 product entry surface 已收口到 `campus-web -> student experience /
-  account shell / docs reader`；`operator-console-web` 与 legacy
-  `public-chat-web` 作为并列 browser surface 进入 shared `app-api`
+  account shell / docs reader`；`operator-console-web` 作为受控 browser surface
+  进入 shared `app-api`
 - 架构目标是 capability-neutral orchestrated execution：顶层由 Execution Agent Layer
   做 admission、routing、workflow planning 与 finalization；RAG、navigation、
   notice、services 等能力默认以 typed tool / workflow capability 进入，只有存在明确语义职责时才表现为
@@ -20,7 +20,7 @@
 - 当前 accepted merged truth 已具备 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference` 四条默认 query-enabled surface，以及 `campus-web`、
-  `public-chat-web`、`operator-console-web`、`app-api` 等前向产品形态；
+  `operator-console-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =

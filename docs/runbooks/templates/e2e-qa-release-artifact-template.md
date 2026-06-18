@@ -26,7 +26,7 @@ updated: 2026-06-09
 - Included surfaces:
   - `api-staging.mucwiki-edge.link`
   - `campus-staging.mucwiki-edge.link`
-  - `chat-staging.mucwiki-edge.link`
+  - `campus-staging.mucwiki-edge.link`
   - `operator-console-staging.mucwiki-edge.link`
 - Explicitly excluded:
   - `campus.muc.wiki` production custom-hostname path
@@ -66,11 +66,11 @@ updated: 2026-06-09
   - Result:
   - Evidence file:
 - chat health
-  - URL: `https://chat-staging.mucwiki-edge.link/healthz`
+  - URL: `https://campus-staging.mucwiki-edge.link/healthz`
   - Result:
   - Evidence file:
 - chat ready
-  - URL: `https://chat-staging.mucwiki-edge.link/readyz`
+  - URL: `https://campus-staging.mucwiki-edge.link/readyz`
   - Result:
   - Evidence file:
 - campus docs
@@ -140,7 +140,7 @@ updated: 2026-06-09
   - Console / network issues:
   - Verdict:
 - Chat
-  - URL: `https://chat-staging.mucwiki-edge.link`
+  - URL: `https://campus-staging.mucwiki-edge.link`
   - Screenshot / evidence:
   - Console / network issues:
   - Verdict:

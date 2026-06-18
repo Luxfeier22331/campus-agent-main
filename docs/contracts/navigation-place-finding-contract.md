@@ -18,7 +18,7 @@ updated: 2026-04-26
 - `execution-control -> typed navigation capability activity / internal query service`
   的 active execution seam
 - `apps/app-api` 对 assistant structured parts 的归一化边界
-- `apps/public-chat-web` 对地点卡片的消费形态
+- `apps/campus-web` 对地点卡片的消费形态
 
 它不覆盖：
 
@@ -190,9 +190,9 @@ updated: 2026-04-26
 - 它持久化到 `chat.messages.structured_parts_json`
 - 当前首发不保存 provider payload、provider ID、route polyline 或 route segment
 
-## Public Chat Consumption
+## Online Answer Consumption
 
-`apps/public-chat-web` 预留的 `place_card` browser shape 为：
+`apps/campus-web` 预留的 `place_card` browser shape 为：
 
 ```json
 {

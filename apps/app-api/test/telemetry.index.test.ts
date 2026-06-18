@@ -60,7 +60,7 @@ describe("app telemetry", () => {
 					collection: "student_rules",
 					corpus: "regulations",
 				},
-				surface: "public_chat_web",
+				surface: "campus_web",
 				traceId: "trace_01",
 			}),
 		).not.toThrow();
@@ -124,7 +124,7 @@ describe("app telemetry", () => {
 				corpus: "regulations",
 			},
 			safetyIdentifier,
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01",
 		});
 
@@ -142,7 +142,7 @@ describe("app telemetry", () => {
 			},
 			safetyIdentifier,
 			status: "accepted",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			traceId: "trace_01",
 		});
 

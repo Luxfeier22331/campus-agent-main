@@ -47,7 +47,7 @@ describe("docs readiness", () => {
 		mockedProbeAppAuthRuntime.mockResolvedValue(undefined);
 	});
 
-	it("does not require supervisor or public-chat runtime config when docs auth shell is configured", async () => {
+	it("does not require supervisor or campus-web runtime config when docs auth shell is configured", async () => {
 		await expect(defaultDocsReadinessProbe(env)).resolves.toEqual({
 			dependencies: {
 				auth: "ready",
@@ -60,7 +60,6 @@ describe("docs readiness", () => {
 		expect(mockedBuildBetterAuthConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				authShellOrigin: "https://campus.muc.wiki",
-				publicChatOrigin: undefined,
 			}),
 		);
 	});

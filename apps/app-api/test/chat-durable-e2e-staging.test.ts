@@ -35,7 +35,7 @@ describe("chat durable staging e2e runner", () => {
 		const result = await runChatDurableE2eStaging(
 			[
 				"--chat-base-url",
-				"https://chat.example.com",
+				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
 			],
@@ -161,25 +161,25 @@ describe("chat durable staging e2e runner", () => {
 		expect(calls).toEqual(
 			expect.arrayContaining([
 				{ url: "https://api.example.com/readyz" },
-				{ url: "https://chat.example.com/readyz" },
+				{ url: "https://campus.example.com/readyz" },
 				expect.objectContaining({
 					body: {
 						prompt: "中央民族大学本科学生国家奖学金评审办法",
 					},
 					method: "POST",
-					url: "https://chat.example.com/api/chat/requests/stream",
+					url: "https://campus.example.com/api/chat/requests/stream",
 				}),
 				{
 					afterSequence: 0,
-					url: "https://chat.example.com/api/chat/runs/run_01HQ/events/stream?after_sequence=0",
+					url: "https://campus.example.com/api/chat/runs/run_01HQ/events/stream?after_sequence=0",
 				},
 				{
 					method: "GET",
-					url: "https://chat.example.com/api/chat/runs/run_01HQ",
+					url: "https://campus.example.com/api/chat/runs/run_01HQ",
 				},
 				{
 					method: "GET",
-					url: "https://chat.example.com/api/chat/conversations/conv_01HQ",
+					url: "https://campus.example.com/api/chat/conversations/conv_01HQ",
 				},
 			]),
 		);
@@ -190,7 +190,7 @@ describe("chat durable staging e2e runner", () => {
 			runChatDurableE2eStaging(
 				[
 					"--chat-base-url",
-					"https://chat.example.com",
+					"https://campus.example.com",
 					"--app-api-readyz-url",
 					"https://api.example.com/readyz",
 				],

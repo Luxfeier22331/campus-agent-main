@@ -80,7 +80,7 @@ export function resolveRequestSurface(request: Request): string {
 		pathname.startsWith("/api/auth/") ||
 		pathname === "/api/me"
 	) {
-		return "public_chat_web";
+		return "campus_web";
 	}
 
 	return "app_api";

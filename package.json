@@ -37,7 +37,7 @@
 		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concurrency=2",
 		"web:check": "turbo run typecheck test build --concurrency=2",
 		"web:dev": "turbo run dev",
-		"web:dev:chat": "turbo run dev --filter=public-chat-web",
+		"web:dev:chat": "turbo run dev --filter=campus-web",
 		"web:dev:docs": "pnpm --dir apps/campus-web docs:build && turbo run dev --filter=campus-web",
 		"web:lint": "uv run --all-packages python -m scripts.check_biome_tracked",
 		"web:lint:fix": "pnpm exec biome check --write .",

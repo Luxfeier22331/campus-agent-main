@@ -408,7 +408,7 @@ operator publish 只允许从 accepted artifact 进入。
 - `curriculum_plan`
 - `official_web/stable_reference`
 - `workflow_trace_gate.v1` artifact/runtime gate
-- `public_chat_product_path`
+- `online_answer_path`
 - `service_status_lookup`
 - `transport_schedule_lookup`
 - `service_guide_lookup`
@@ -420,7 +420,6 @@ operator publish 只允许从 accepted artifact 进入。
 - `agentic_retrieval_plan`
 - `eval_operations_governance`
 - `tool_routing_product_path`
-- `public_chat_entry_e2e`
 - `answer_quality_contract`
 - `multi_capability_runtime_contract`
 

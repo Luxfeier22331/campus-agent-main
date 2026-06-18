@@ -12,14 +12,14 @@ updated: 2026-05-01
 
 这份 runbook 只覆盖当前 canonical staging smoke：
 
-- `public-chat-web`
+- `campus-web`
 - `app-api`
 - `execution-control` 由 repo-owned staging runtime 承接，但只作为 app-api-only
   trusted machine upstream
 
 它回答的是：
 
-- 如何把 `chat-staging -> app-api-staging -> execution-control trusted machine upstream`
+- 如何把 `campus-staging -> app-api-staging -> execution-control trusted machine upstream`
   跑通
 - 每轮 smoke 最少要验证哪些链路
 - 什么时候需要重新 deploy `app-api-staging`
@@ -58,7 +58,7 @@ execution origin 为准。
 
 这条 smoke 通过，表示：
 
-- `chat-staging -> app-api-staging -> current execution-control upstream` 真实可用
+- `campus-staging -> app-api-staging -> current execution-control upstream` 真实可用
 - browser 真实请求不再卡在 transport failure
 - typed execution outcome 可以成功回到 chat surface
 
@@ -117,8 +117,8 @@ curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
 ```bash
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://api-staging.mucwiki-edge.link/readyz
-curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/healthz
-curl --noproxy '*' -sS -i https://chat-staging.mucwiki-edge.link/readyz
+curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/healthz
+curl --noproxy '*' -sS -i https://campus-staging.mucwiki-edge.link/readyz
 curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/healthz
 curl --noproxy '*' -sS -i https://operator-console-staging.mucwiki-edge.link/readyz
 ```
@@ -148,14 +148,14 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 
 这条命令会：
 
-1. 先检查 `app-api-staging` 与 `chat-staging` 的 `readyz`
+1. 先检查 `app-api-staging` 与 `campus-staging` 的 `readyz`
 1. 若 readyz 阻塞，输出结构化 `blocked_by`，且不重置 smoke identity、不发起
    chat request
 1. 用固定 smoke identity `help_bot@outlook.com` 重建 staging 账号并清理旧聊天数据
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
 1. 带着拿到的 session cookie 真实请求
-   `https://chat-staging.mucwiki-edge.link/api/chat/requests/stream`
+   `https://campus-staging.mucwiki-edge.link/api/chat/requests/stream`
 1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
 1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
    error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
@@ -169,7 +169,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 - 预先提供 `APP_API_SMOKE_IDENTITY_PASSWORD`
 - agent 在真实浏览器里通过 Turnstile challenge
 
-如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `chat-staging` 的
+如果需要追加人工 UI 验证，可在 automation 通过后再手工打开 `campus-staging` 的
 `/chat` 做 donor-shell 浏览器观察，但这不是 agent automation 的前置。
 
 推荐问题：

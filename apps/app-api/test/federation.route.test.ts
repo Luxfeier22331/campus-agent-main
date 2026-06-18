@@ -9,7 +9,6 @@ const env = {
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
-	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	RESEND_API_KEY: "resend_test_key",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",

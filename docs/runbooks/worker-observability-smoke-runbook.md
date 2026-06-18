@@ -14,7 +14,7 @@ updated: 2026-06-09
 
 - `apps/app-api`
 - `apps/campus-web`
-- `apps/public-chat-web`
+- `apps/campus-web`
 - `apps/operator-console-web`
 
 它回答的是：
@@ -60,7 +60,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `overall_ready = true`
 - `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
   `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
-- `apps/campus-web/.dev.vars`、`apps/public-chat-web/.dev.vars` 与
+- `apps/campus-web/.dev.vars`、`apps/campus-web/.dev.vars` 与
   `apps/operator-console-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、
   `SENTRY_RELEASE`
 - root `.env` 使用共享 `SENTRY_DSN`，不是 per-surface `SENTRY_DSN_*`
@@ -81,8 +81,8 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
-  "smokes a chat request through public-chat-web into app-api"
+pnpm --dir apps/campus-web test:worker -- --reporter=verbose -t \
+  "smokes a chat request through campus-web into app-api"
 pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
   "smokes request queries through operator-console-web into app-api with \
   internal caller admission"
@@ -113,7 +113,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 只有在真实部署环境已存在时，才进入下一节。执行 `Post-Deploy Verification` 前，至少应具备：
 
 - 目标环境名，例如 `staging` 或 `prod`
-- 真实 `public-chat-web`、`operator-console-web`、`app-api` hostname
+- 真实 `campus-web`、`operator-console-web`、`app-api` hostname
 - 当次 Worker release 标识
 - deploy secret store 中的 `SENTRY_*` / `AXIOM_*` 已下发确认
 - repo-local `SENTRY_API_TOKEN` 或等价 Sentry UI access，以及可访问 `Axiom` dataset 的操作权限
@@ -163,7 +163,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 ## Post-Deploy Verification
 
-### 1. `public-chat-web -> app-api`
+### 1. `campus-web -> app-api`
 
 执行一条最小 chat 请求，保留：
 
@@ -174,9 +174,9 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 预期：
 
-- `public-chat-web` 与 `app-api` 都能在 `Sentry` 中看到同一条 trace 上的相邻事件
+- `campus-web` 与 `app-api` 都能在 `Sentry` 中看到同一条 trace 上的相邻事件
 - `app-api` 事件标签至少包含 `surface=app_api`
-- `public-chat-web` 事件标签至少包含 `surface=public-chat-web`
+- `campus-web` 事件标签至少包含 `surface=campus-web`
 - 四个 Worker 默认共享同一个 Sentry project；通过 `environment` 与 `surface` 过滤事件
 
 ### 2. `operator-console-web -> app-api`
@@ -237,7 +237,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - 目标环境
 - Worker release 标识
 - 使用的 dataset 名称
-- `public-chat-web -> app-api` trace 说明
+- `campus-web -> app-api` trace 说明
 - `operator-console-web -> app-api` trace 说明
 - `app-api` runtime event 说明
 - 失败时的 `x-trace-id`
@@ -264,7 +264,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `Post-Deploy Verification` 触发条件： 已存在至少一个真实部署环境，并具备本 runbook 的 deployment
   handoff inputs
 - `Post-Deploy Verification` 关闭条件：
-  `public-chat-web`、`operator-console-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
+  `campus-web`、`operator-console-web`、`app-api` 三端至少各完成一轮真实 smoke，`Axiom` 收到
   `projection.drain` 或等价 runtime event，并且 `Sentry` 至少保留一条 trace-linked 或
   controlled-error event evidence
 - 在没有真实部署环境时，这条 follow-up 的正确状态是 `post-deploy verification pending`，不是“本地工程阻塞”

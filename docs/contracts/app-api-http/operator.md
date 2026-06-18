@@ -55,7 +55,7 @@ owns this section group; the original path remains the stable index.
   "request": {
     "requestId": "req_01HQ...",
     "traceId": "trace_01HQ...",
-    "surface": "public_chat_web",
+    "surface": "campus_web",
     "conversationId": "conv_01HQ...",
     "status": "completed",
     "requestedCapability": "knowledge",

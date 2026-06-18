@@ -31,7 +31,7 @@ describe("Operator Console minimal data clients", () => {
 					sourceDocIds: [],
 					startedAt: "2026-03-28T08:00:00.000Z",
 					status: "completed",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					traceId: "trace_01HQ",
 				},
 			],

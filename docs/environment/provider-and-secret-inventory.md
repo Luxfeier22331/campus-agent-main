@@ -211,8 +211,7 @@ combinations live in split environment references.
   base64 后写入 Basic authorization header；Cloud Langfuse 使用同一接口
 
 - Provider / system: Cloudflare Workers / Wrangler
-  作用: `app-api`、`campus-web`、legacy `public-chat-web`、`operator-console-web` 与
-  `operator-console-web` deploy 与 secret store
+  作用: `app-api`、`campus-web` 与 `operator-console-web` deploy 与 secret store
   主要 env keys: shell env / secret store，不固定 repo key 名
   放置位置: local shell、CI secret store、Cloudflare dashboard
   何时必需: 只有 Worker dev/deploy 需要

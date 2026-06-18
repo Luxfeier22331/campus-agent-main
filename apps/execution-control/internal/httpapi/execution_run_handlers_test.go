@@ -102,7 +102,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 			"request_id":"req-temporal-001",
 			"trace_id":"trace-temporal-001",
 			"owner_user_id":"user-temporal-001",
-			"surface":"public-chat-web",
+			"surface":"campus-web",
 			"requested_capability":"knowledge",
 			"selected_capability":"knowledge",
 			"lane":"rag",
@@ -201,7 +201,7 @@ func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *test
 			"request_id":"req-temporal-neutral",
 			"trace_id":"trace-temporal-neutral",
 			"owner_user_id":"user-temporal-neutral",
-			"surface":"public-chat-web",
+			"surface":"campus-web",
 			"lane":"default",
 			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 			"metadata":{

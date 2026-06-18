@@ -52,7 +52,7 @@ describe("chat e2e args", () => {
 		});
 	});
 
-	it("uses public-chat readiness instead of direct app-api readiness for dev by default", () => {
+	it("uses campus-web readiness instead of direct app-api readiness for dev by default", () => {
 		expect(
 			parseChatE2eArgs(["--profile", "dev"], {
 				AUTH_TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
@@ -82,7 +82,7 @@ describe("chat e2e args", () => {
 					"--prompt",
 					"民族学本科人才培养方案总学分要求是多少？",
 					"--chat-base-url",
-					"http://127.0.0.1:27011",
+					"http://127.0.0.1:27014",
 					"--app-api-readyz-url",
 					"http://127.0.0.1:27031/readyz",
 					"--exec-readyz-url",
@@ -103,7 +103,7 @@ describe("chat e2e args", () => {
 		).toEqual({
 			appApiReadyzUrl: "http://127.0.0.1:27031/readyz",
 			captchaToken: "dev-captcha-token",
-			chatBaseUrl: "http://127.0.0.1:27011",
+			chatBaseUrl: "http://127.0.0.1:27014",
 			email: "smoke-user@example.edu",
 			execReadyzUrl: "http://127.0.0.1:27051/readyz",
 			expectPromptRuntimeState: "rag_sdk_completed",

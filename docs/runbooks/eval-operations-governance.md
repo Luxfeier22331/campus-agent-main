@@ -65,7 +65,7 @@ The gate covers:
   and TypeScript app-api adapter
 - workflow trace evaluator and fixture denominator
 - tool-family denominator evaluator and fixture denominator
-- public-chat product-path evaluator, including sanitized
+- online-answer product-path evaluator, including sanitized
   `workflow_trace_summary` replay against selected capability, branch and fail-close
   reason
 - targeted execution-control, app-api and operator-console-web test lanes, including
@@ -76,8 +76,8 @@ not mutate serving admission, does not introduce an Agents SDK runtime, and does
 not produce live case-results artifacts for operator publish dry-run.
 
 `multi-agent-product-path` is retained as a deprecated alias for compatibility.
-True product-path runtime E2E should use `public-chat-product-path
---collect-runtime` and the public chat acceptance backlog.
+True product-path runtime E2E should use `online-answer-path
+--collect-runtime` and the online answer acceptance backlog.
 
 Failure handling:
 

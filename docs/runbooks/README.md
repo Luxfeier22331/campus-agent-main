@@ -46,7 +46,6 @@ updated: 2026-06-13
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/e2e-qa-release-artifact-template.md`
-- `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`
 
 ## Local Infra / Recovery

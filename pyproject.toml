@@ -28,7 +28,6 @@ extend-exclude = [
   ".planning",
   ".tmp",
   ".worktrees",
-  "apps/public-chat-web/vendor",
   "apps/app-api/drizzle/meta",
 ]
 
@@ -130,7 +129,6 @@ members = [
   "apps/ingestion-worker",
   "apps/legacy-office-conversion-service",
   "apps/official-web-collector",
-  "apps/public-chat-web",
   "packages/*",
 ]
 

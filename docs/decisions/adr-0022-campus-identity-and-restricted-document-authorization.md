@@ -177,7 +177,7 @@ projection，不自行重建最终权限结论。
 - authorization pre-filter 必须在 candidate retrieval 前执行
 - 未授权 evidence 不允许先被召回后再在回答层裁剪
 - projection 缺失、冲突或不可安全判定时必须 fail-closed
-- 未授权内容的标题、snippet、citation、anchor 与 existence hint 不得在默认 public chat 路径泄露
+- 未授权内容的标题、snippet、citation、anchor 与 existence hint 不得在默认 online answer 路径泄露
 
 ### 决策 8：Cloudflare / IdP / app-layer authz 的职责必须分离
 
@@ -238,7 +238,7 @@ projection，不自行重建最终权限结论。
   entitlement_*` 主写入
 - `retrieval-core` 需要在 restricted document 路径上只依赖 projection，并最终删除 legacy ACL
   carrier path
-- public chat、panel、service 与 operator surface 需要补齐 allow/deny matrix 与泄露防护测试
+- online answer、panel、service 与 operator surface 需要补齐 allow/deny matrix 与泄露防护测试
 
 明确不做：
 

@@ -193,7 +193,7 @@ redaction 与字段裁剪。
 
 - `apps/app-api` 接入 `Sentry` 的 Worker `fetch` 与 `scheduled`，并作为当前 product
   topology 的主 observability owner
-- `apps/public-chat-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
+- `apps/campus-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`
 - `apps/operator-console-web` 接入 `Sentry` 的 Worker shell，并向 `app-api` 透传
   `x-trace-id`、`sentry-trace`、`baggage`

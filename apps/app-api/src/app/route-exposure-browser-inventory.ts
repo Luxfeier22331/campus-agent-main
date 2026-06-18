@@ -17,7 +17,7 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		method: "ALL",
 		path: "/api/auth/*",
 		callerClass: "browser-surface",
-		admission: "better-auth provider request via public-chat-web same-site proxy",
+		admission: "better-auth provider request via campus-web same-origin seam",
 	},
 	{
 		method: "DELETE",

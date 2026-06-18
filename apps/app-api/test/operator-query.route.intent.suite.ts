@@ -47,7 +47,7 @@ export function registerOperatorQueryIntentSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=public_chat_web&selectedCapability=navigation",
+					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=campus_web&selectedCapability=navigation",
 				),
 			);
 
@@ -69,7 +69,7 @@ export function registerOperatorQueryIntentSuite(): void {
 					principalType: null,
 					requestedCapability: null,
 					selectedCapability: "navigation",
-					surface: "public_chat_web",
+					surface: "campus_web",
 					window: "24h",
 				},
 				principal,

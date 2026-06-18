@@ -30,7 +30,7 @@ describe("chat e2e runner", () => {
 				"--profile",
 				"staging",
 				"--chat-base-url",
-				"https://chat.example.com",
+				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
 			],
@@ -113,19 +113,19 @@ describe("chat e2e runner", () => {
 				body: {
 					prompt: "中央民族大学本科学生国家奖学金评审办法",
 				},
-				url: "https://chat.example.com/api/chat/requests/stream",
+				url: "https://campus.example.com/api/chat/requests/stream",
 			},
 		]);
 		expect(jsonCalls).not.toContainEqual(
 			expect.objectContaining({
 				method: "POST",
-				url: "https://chat.example.com/api/chat/requests",
+				url: "https://campus.example.com/api/chat/requests",
 			}),
 		);
 		expect(jsonCalls).toEqual(
 			expect.arrayContaining([
-				{ method: undefined, url: "https://chat.example.com/api/chat/conversations" },
-				{ method: "GET", url: "https://chat.example.com/api/chat/conversations/conv_01HQ" },
+				{ method: undefined, url: "https://campus.example.com/api/chat/conversations" },
+				{ method: "GET", url: "https://campus.example.com/api/chat/conversations/conv_01HQ" },
 			]),
 		);
 	});
@@ -139,7 +139,7 @@ describe("chat e2e runner", () => {
 				"--transport",
 				"sync",
 				"--chat-base-url",
-				"https://chat.example.com",
+				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
 			],
@@ -214,7 +214,7 @@ describe("chat e2e runner", () => {
 		expect(result.readyz.exec).toBe(null);
 		expect(readyzUrls).toEqual([
 			"https://api.example.com/readyz",
-			"https://chat.example.com/readyz",
+			"https://campus.example.com/readyz",
 		]);
 	});
 
@@ -225,7 +225,7 @@ describe("chat e2e runner", () => {
 				"--profile",
 				"staging",
 				"--chat-base-url",
-				"https://chat.example.com",
+				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
 				"--exec-readyz-url",
@@ -281,7 +281,7 @@ describe("chat e2e runner", () => {
 				"--transport",
 				"sync",
 				"--chat-base-url",
-				"http://127.0.0.1:27011",
+				"http://127.0.0.1:27014",
 				"--exec-readyz-url",
 				"http://127.0.0.1:27051/readyz",
 			],
@@ -376,7 +376,7 @@ describe("chat e2e runner", () => {
 				"--transport",
 				"sync",
 				"--chat-base-url",
-				"http://127.0.0.1:27011",
+				"http://127.0.0.1:27014",
 				"--exec-readyz-url",
 				"http://127.0.0.1:27051/readyz",
 				"--expect-prompt-runtime-state",
@@ -466,7 +466,7 @@ describe("chat e2e runner", () => {
 					"--transport",
 					"sync",
 					"--chat-base-url",
-					"http://127.0.0.1:27011",
+					"http://127.0.0.1:27014",
 					"--exec-readyz-url",
 					"http://127.0.0.1:27051/readyz",
 					"--expect-prompt-runtime-state",

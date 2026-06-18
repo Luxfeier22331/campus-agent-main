@@ -108,7 +108,6 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
 flowchart LR
   subgraph Client["Browser Surfaces"]
     Campus["campus-web"]
-    Chat["public-chat-web legacy"]
     Panel["Operator Console\n(current surfaces: operator-console-web)"]
   end
 

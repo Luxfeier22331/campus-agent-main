@@ -25,7 +25,7 @@ control-plane HTTP contract。
 
 - Rspress 主题、static asset routing 或部署方式
 - docs shell 的 UI 细节
-- `public-chat-web` 当前已上线消息 shape
+- `campus-web` 当前已上线消息 shape
 - retrieval backend 的底层算法或存储实现
 
 补充约束：

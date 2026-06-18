@@ -24,10 +24,9 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
-				authShellOrigin: "https://chat.example.com",
+				authShellOrigin: "https://campus.example.com",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",
@@ -38,8 +37,8 @@ export function registerAppApiAuthConfigSuite() {
 				database: {} as never,
 			} as never);
 
-			expect(config.baseURL).toBe("https://chat.example.com");
-			expect(config.trustedOrigins).toEqual(["https://chat.example.com"]);
+			expect(config.baseURL).toBe("https://campus.example.com");
+			expect(config.trustedOrigins).toEqual(["https://campus.example.com"]);
 			expect(config.basePath).toBe("/");
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: true,
@@ -110,13 +109,12 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
-		it("uses the campus browser auth shell origin while retaining public-chat as an explicit trusted origin", () => {
+		it("uses the campus browser auth shell origin as the only trusted browser origin", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
@@ -126,10 +124,7 @@ export function registerAppApiAuthConfigSuite() {
 			} as never);
 
 			expect(config.baseURL).toBe("https://campus.muc.wiki");
-			expect(config.trustedOrigins).toEqual([
-				"https://campus.muc.wiki",
-				"https://chat.example.com",
-			]);
+			expect(config.trustedOrigins).toEqual(["https://campus.muc.wiki"]);
 		});
 
 		it("materializes identity product state through better-auth user creation hooks", async () => {
@@ -139,7 +134,6 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authTurnstileSecretKey: "turnstile_secret_key",
 				resendApiKey: "resend_test_key",
@@ -176,7 +170,6 @@ export function registerAppApiAuthConfigSuite() {
 				authShellOrigin: "https://campus.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
-				publicChatOrigin: "https://chat.example.com",
 				authResetEmailFrom: "Campus Agent <auth@example.com>",
 				authResetEmailReplyTo: "support@example.com",
 				authTurnstileSecretKey: "turnstile_secret_key",

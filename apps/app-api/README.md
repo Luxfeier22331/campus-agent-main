@@ -4,7 +4,7 @@ Shared Worker-native application backend for campus-agent v2.
 
 This directory currently contains two aligned artifacts:
 
-- the Worker app that serves auth/chat/operator APIs for `public-chat-web` and
+- the Worker app that serves auth/chat/operator APIs for `campus-web` and
   `operator-console-web`
 - the companion Python package `campus_app_api`, used for typed context
   projection helpers on the Python-side execution path
@@ -12,7 +12,6 @@ This directory currently contains two aligned artifacts:
 This app is the shared product backend behind:
 
 - `apps/campus-web`
-- `apps/public-chat-web`
 - `apps/operator-console-web`
 
 It owns:
@@ -103,7 +102,7 @@ Runtime hardening baseline:
   `request.finalized`, `request.transport_error`, `projection.enqueued`, and
   `projection.drain`
 - trace propagation keeps canonical `x-trace-id` and also forwards
-  `sentry-trace` / `baggage` across `public-chat-web -> app-api ->
+  `sentry-trace` / `baggage` across `campus-web -> app-api ->
   execution-control` and `operator-console-web -> app-api`
 - observability sinks are never the panel request truth source;
   `operator.request_projection` remains canonical
@@ -207,7 +206,6 @@ Environment:
 - `AUTH_RESET_EMAIL_REPLY_TO`
 - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
 - `AUTH_SHELL_ORIGIN`
-- `PUBLIC_CHAT_WEB_ORIGIN`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
 - `APP_API_END_USER_EMAIL_ALLOWLIST`
 - `EXECUTION_CONTROL_BASE_URL`
@@ -256,8 +254,8 @@ Local development:
 - for `official_web` live control-plane smoke,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` must be non-empty and must match
   `apps/official-web-collector/.env` `OFFICIAL_WEB_SERVICE_TOKEN`
-- if current staging only targets `app-api + public-chat-web +
-  operator-console-web`, and does not yet enable official-web live control-plane,
+- if current staging only targets `app-api + campus-web + operator-console-web`,
+  and does not yet enable official-web live control-plane,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
 - dining floorplan upload and `dining:seed-initial-release` use the configured
   S3-compatible derived bucket. Local dev normally points `OBJECT_STORE_*` at
@@ -273,9 +271,6 @@ Deployment minimum gate:
   stay fresh
 - `AUTH_SHELL_ORIGIN` must point at the deployed `campus-web` account browser
   shell
-- `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat origin and trusted
-  Better Auth origin while chat-local auth URLs are kept as bounded
-  redirects/shims
 - `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in /
   sign-up / request-password-reset surface remains not ready
 - `RESEND_API_KEY` and `AUTH_RESET_EMAIL_FROM` must both be present or password
@@ -411,9 +406,9 @@ Deploy note:
 - `chat:memory:e2e:staging` writes an explicit profile-memory item, submits a
   stream chat request, reads `/api/chat/runs/:runId/steps`, and verifies the
   sanitized `memory.recall` projection before deleting the temporary memory.
-- `chat:e2e:dev` is the local public/chat wrapper. It starts local supervisor
+- `chat:e2e:dev` is the local chat wrapper. It starts the local execution
   runtime, runs `db:bootstrap`, provisions the smoke identity, starts or reuses
-  `public-chat-web dev:live-smoke`, and then runs `chat:e2e -- --profile dev`.
+  the campus-web dev surface, and then runs `chat:e2e -- --profile dev`.
 
 Testing lanes:
 

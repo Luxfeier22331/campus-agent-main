@@ -44,7 +44,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
 		expect(scriptSource).toContain("db:bootstrap");
 		expect(scriptSource).toContain("smoke-identity:provision");
-		expect(scriptSource).toContain("PUBLIC_CHAT_LIVE_SMOKE");
+		expect(scriptSource).toContain("CAMPUS_WEB_LIVE_SMOKE");
 		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");
 		expect(scriptSource).toContain("waitForReadyzWhileChildAlive");
 		expect(scriptSource).toContain("--force-recreate");
@@ -53,7 +53,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain('"dev"');
 	});
 
-	it("keeps local real-provider e2e on the public chat RAG path", () => {
+	it("keeps local real-provider e2e on the online answer RAG path", () => {
 		const scriptSource = readFileSync(
 			resolve(__dirname, "../scripts/chat-e2e-local-real-provider.ts"),
 			"utf8",
@@ -70,7 +70,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain(retiredPythonSdkRuntimeFlag);
 		expect(scriptSource).not.toContain("retired-python-worker-timeout");
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");
-		expect(scriptSource).toContain('"--restart-public-chat"');
+		expect(scriptSource).toContain('"--restart-campus-web"');
 		expect(scriptSource).toContain('"--restart-execution-control-runtime"');
 		expect(scriptSource).not.toContain('"--restart-supervisor-runtime"');
 		expect(scriptSource).toContain('"--expect-prompt-runtime-state"');

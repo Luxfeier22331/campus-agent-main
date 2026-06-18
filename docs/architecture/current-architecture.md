@@ -43,14 +43,6 @@ capability workers / activity-worker-finalization -> memory recall / typed
 capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
 models -> sanitized projection`
 
-`browser -> public-chat-web -> app-api -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-agent /
-activity-worker-knowledge-plan / activity-worker-knowledge-retrieval /
-activity-worker-knowledge-synthesis / capability workers /
-activity-worker-finalization -> memory recall / OpenAI Agents SDK primary agent
-loop / typed capability branch / Go RAG DTO/runtime -> Qdrant / provider /
-structured read models -> sanitized projection`
-
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader /
 current React docs shell`
 
@@ -70,8 +62,8 @@ document/index release`
 - `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；该外部 frontend
   runtime 是当前 accepted dependency，CSP 必须显式允许其 script/frame 资源
 - Operator Console 的当前 implementation surfaces 不绕过 `apps/app-api`
-- campus / legacy public chat / Operator Console surfaces 到 `apps/app-api` 的
-  Worker-to-Worker 调用走 `APP_API` Service Binding；
+- `campus-web` 与 Operator Console surfaces 到 `apps/app-api` 的 Worker-to-Worker
+  调用走 `APP_API` Service Binding；
   `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
 - `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有产品后端、
@@ -205,19 +197,6 @@ document/index release`
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
 - 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
-  `apps/app-api`
-
-### `apps/public-chat-web`
-
-- public-facing Worker web surface
-- 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
-  作为 bounded compatibility redirects/shims 到 campus account routes
-- 只负责 browser route shell 与 chat UI
-- 不再拥有 public auth/account shell、captcha widget 或 password-reset form runtime
-- browser auth handoff 固定为
-  `public-chat-web compat route -> campus-web /account/* -> same-origin /api/auth/*`
-  -> `app-api`
-- 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api`
 
 ### `apps/chatkit-adapter`

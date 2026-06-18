@@ -146,7 +146,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - request-scoped typed navigation context projection
 - canonical request identity and audit / projection input
 
-### `apps/public-chat-web` / future navigation surfaces
+### `apps/campus-web` / future navigation surfaces
 
 长期负责：
 

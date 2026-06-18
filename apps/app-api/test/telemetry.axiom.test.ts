@@ -17,7 +17,7 @@ describe("axiom runtime event sink", () => {
 				request_id: "req_01HQ",
 				release: "app-api@2026.04.20",
 				trace_id: "trace_01HQ",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				status: "accepted",
 				unexpected_blob: "should-not-pass",
 				prompt: "图书馆开放到几点？",
@@ -33,7 +33,7 @@ describe("axiom runtime event sink", () => {
 			request_id: "req_01HQ",
 			release: "app-api@2026.04.20",
 			status: "accepted",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 	});
@@ -44,7 +44,7 @@ describe("axiom runtime event sink", () => {
 				event_type: "experimental.debug_dump",
 				occurred_at: "2026-04-20T12:30:00.000Z",
 				request_id: "req_01HQ",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				trace_id: "trace_01HQ",
 			}),
 		).toBeNull();
@@ -70,7 +70,7 @@ describe("axiom runtime event sink", () => {
 				requested_capability: "knowledge",
 				retryable: true,
 				status: "error",
-				surface: "public_chat_web",
+				surface: "campus_web",
 				trace_id: "trace_01HQ",
 			}),
 		).toEqual({
@@ -89,7 +89,7 @@ describe("axiom runtime event sink", () => {
 			requested_capability: "knowledge",
 			retryable: true,
 			status: "error",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 	});
@@ -107,7 +107,7 @@ describe("axiom runtime event sink", () => {
 			event_type: "request.accepted",
 			request_id: "req_01HQ",
 			status: "accepted",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 
@@ -132,7 +132,7 @@ describe("axiom runtime event sink", () => {
 			request_id: "req_01HQ",
 			requested_scope_summary: "regulations/student_rules",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 
@@ -145,7 +145,7 @@ describe("axiom runtime event sink", () => {
 						request_id: "req_01HQ",
 						requested_scope_summary: "regulations/student_rules",
 						status: "completed",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						trace_id: "trace_01HQ",
 					},
 				]),
@@ -176,7 +176,7 @@ describe("axiom runtime event sink", () => {
 			request_id: "req_01HQ",
 			requested_scope_summary: "regulations/student_rules",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 
@@ -189,7 +189,7 @@ describe("axiom runtime event sink", () => {
 						request_id: "req_01HQ",
 						requested_scope_summary: "regulations/student_rules",
 						status: "completed",
-						surface: "public_chat_web",
+						surface: "campus_web",
 						trace_id: "trace_01HQ",
 					},
 				]),
@@ -231,7 +231,7 @@ describe("axiom runtime event sink", () => {
 			event_type: "request.finalized",
 			request_id: "req_01HQ",
 			status: "completed",
-			surface: "public_chat_web",
+			surface: "campus_web",
 			trace_id: "trace_01HQ",
 		});
 

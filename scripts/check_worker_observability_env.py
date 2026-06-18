@@ -30,16 +30,6 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "AXIOM_TOKEN": "AXIOM_TOKEN",
         },
     },
-    "apps/public-chat-web/.dev.vars": {
-        "required_keys": (
-            "SENTRY_DSN",
-            "SENTRY_ENVIRONMENT",
-            "SENTRY_RELEASE",
-        ),
-        "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN",
-        },
-    },
     "apps/operator-console-web/.dev.vars": {
         "required_keys": (
             "SENTRY_DSN",

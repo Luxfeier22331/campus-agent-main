@@ -83,8 +83,8 @@ for url in \
   https://api-staging.mucwiki-edge.link/readyz \
   https://campus-staging.mucwiki-edge.link/healthz \
   https://campus-staging.mucwiki-edge.link/readyz \
-  https://chat-staging.mucwiki-edge.link/healthz \
-  https://chat-staging.mucwiki-edge.link/readyz
+  https://campus-staging.mucwiki-edge.link/healthz \
+  https://campus-staging.mucwiki-edge.link/readyz
 do
   echo "## $url"
   curl --noproxy '*' -sS -i "$url"
@@ -250,7 +250,7 @@ evidence is the governed diagnostic state above, not synthesized frontend data.
   - campus shell 可见
   - account / dining / map / docs / feedback 入口可打开
   - 不出现 `ayafeed.com`、`localhost`、`127.0.0.1`
-- `https://chat-staging.mucwiki-edge.link`
+- `https://campus-staging.mucwiki-edge.link`
   - 使用 staging smoke identity 后 chat UI 可打开
   - conversations 列表能看到本轮 E2E 创建的新会话
   - 人工发送一条问题能返回 answer

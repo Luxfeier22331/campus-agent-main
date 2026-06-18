@@ -28,11 +28,6 @@ expectContains(
 expectContains(source, "custom_domain = true", "Missing staging custom domain route flag.");
 expectContains(
 	source,
-	'PUBLIC_CHAT_WEB_ORIGIN = "https://chat-staging.mucwiki-edge.link"',
-	"Missing staging public chat origin.",
-);
-expectContains(
-	source,
 	'AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link"',
 	"Missing staging auth shell origin.",
 );

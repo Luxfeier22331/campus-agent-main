@@ -33,7 +33,7 @@ architecture 收窄。
 
 `campus-agent` 的长期产品形态不再只是“匿名问题 -> handbook RAG”，但当前主问答产品也不是复杂身份授权系统。
 
-后续 public chat 与 protected ops surface 都可能逐步携带：
+后续 online answer 与 protected ops surface 都可能逐步携带：
 
 - account / session
 - 持久化的用户 profile / preference / goal memory

@@ -10,7 +10,7 @@ updated: 2026-04-25
 
 ## 文档边界
 
-本文冻结 campus-web、public chat、Operator Console implementation surfaces、shared `app-api`
+本文冻结 campus-web、Operator Console implementation surfaces、shared `app-api`
 这组 Worker surface 的长期 delivery / release hardening supporting architecture。
 
 它回答的是：
@@ -41,11 +41,9 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 
 固定约束：
 
-- `apps/campus-web`、`apps/public-chat-web`、Operator Console implementation surfaces、
-  `apps/app-api` 必须共享一套
+- `apps/campus-web`、Operator Console implementation surfaces、`apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
-- staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link`、
-  `chat-staging.mucwiki-edge.link` 与
+- staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link` 与
   `operator-console-staging.mucwiki-edge.link`；docs 作为
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
@@ -77,7 +75,6 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   Binding 调用
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
-- `apps/public-chat-web` -> `<https://chat-staging.mucwiki-edge.link`>
 - `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
 - `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
@@ -121,9 +118,9 @@ release identity 的长期规则固定为：
 - public/panel 都必须指向同一个 `app-api` staging origin
 - public/docs/panel 的 `app-api` staging origin 是 `APP_API` Service Binding +
   `https://app-api.internal`，不是 public custom domain fetch
-- internal shared secret、operator allowlist、public chat allowlist 必须按跨 app
+- internal shared secret、operator allowlist、campus-web origin allowlist 必须按跨 app
   invariant 收口
-- `PUBLIC_CHAT_WEB_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
+- `AUTH_SHELL_ORIGIN`、`APP_API_BASE_URL=https://app-api.internal`、
   `OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal` 不能漂移
 
 ### Data Freshness / DB Gate
@@ -197,7 +194,7 @@ Kubernetes production target 还必须覆盖：
 
 固定规则：
 
-- public chat staging 使用 canonical smoke identity
+- online answer staging 使用 canonical smoke identity
 - smoke identity 的创建、密码重置、旧聊天清理统一由 repo-owned script 执行
 - operator smoke 继续使用真实 Access-admitted operator principal
 - smoke identity 只属于 deploy / verification tooling，不写进产品文案、测试快照或 runbook 摘要正文
@@ -206,7 +203,7 @@ Kubernetes production target 还必须覆盖：
 
 post-deploy verification 的长期 closure 固定为：
 
-- `public-chat-web -> app-api` 至少一条真实 trace
+- `campus-web -> app-api` 至少一条真实 trace
 - `Operator Console surface -> app-api` 至少一条真实 trace；当前 staging implementation
   surface 是 `operator-console-web`
 - `app-api` 至少一条 runtime event / scheduled drain evidence
