@@ -51,7 +51,7 @@ class RetrievalQrelsPolicyTest(unittest.TestCase):
                         "normalized_denominator_classes": ["no_hit"],
                         "scopes": {
                             "regulations/student_rules": {
-                                "fixture": "student_handbook_retrieval_qrels.json",
+                                "fixture": "rag/student_rules/retrieval_qrels.json",
                                 "min_case_count": 1,
                                 "required_classes": ["no_hit"],
                                 "required_scenarios": ["no_hit"],

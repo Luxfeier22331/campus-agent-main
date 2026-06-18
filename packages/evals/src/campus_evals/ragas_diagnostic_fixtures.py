@@ -1,14 +1,14 @@
 from __future__ import annotations
 
 SURFACE_QRELS_FIXTURES = {
-    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
-    "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
+    "regulations/student_rules": "rag.student_rules.retrieval_qrels",
+    "regulations/institutional_rules": "rag.institutional_rules.retrieval_qrels",
+    "curriculum/curriculum_plan": "rag.curriculum_plan.retrieval_qrels",
+    "official_web/stable_reference": "rag.official_web_stable_reference.retrieval_qrels",
 }
 
 SURFACE_HYBRID_QUERY_FIXTURES = {
-    "regulations/student_rules": "student_handbook_hybrid_queries.json",
+    "regulations/student_rules": "rag.student_rules.hybrid_queries",
 }
 
 PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {

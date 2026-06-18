@@ -40,11 +40,11 @@ updated: 2026-04-23
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `.planning/WORKSTREAMS.md`
-- `packages/evals/fixtures/student_handbook_hybrid_queries.json`
+- `packages/evals/fixtures/rag/student_rules/hybrid_queries.json`
 
 补充边界：
 
-- `student_handbook_hybrid_queries.json` 当前只承担 live rebuild 后的抽样查询验收，不是
+- `rag/student_rules/hybrid_queries.json` 当前只承担 live rebuild 后的抽样查询验收，不是
   retrieval qrels 的 canonical truth 文件
 - 后续用于 `Hit@K` / `Recall@K` / `Precision@K` / `MRR@K` 的 retrieval ground
   truth，应独立维护在 `packages/evals/fixtures/` 下的专用 qrels fixture 中
@@ -178,7 +178,7 @@ reptilian/code/campus-agent/docs/reference/student-handbook-eval-metrics.md)。
 
 ## Query 抽样验收
 
-优先使用 `packages/evals/fixtures/student_handbook_hybrid_queries.json` 中的样本，至少覆盖：
+优先使用 `packages/evals/fixtures/rag/student_rules/hybrid_queries.json` 中的样本，至少覆盖：
 
 - `article_number_exact_match` 条款号、章节号、标题号检索必须稳定命中对应制度片段
 - `policy_title_exact_match` 唯一制度名 exact-match 不应被相邻制度噪声压掉

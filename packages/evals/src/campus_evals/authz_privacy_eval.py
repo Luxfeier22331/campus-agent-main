@@ -4,11 +4,10 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-AUTHZ_PRIVACY_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "authz_privacy_cases.v1.json"
-)
+AUTHZ_PRIVACY_CASES_PATH = fixture_path("e2e.authz_privacy")
 
 
 @dataclass(frozen=True, slots=True)

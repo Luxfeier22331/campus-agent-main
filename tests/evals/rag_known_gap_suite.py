@@ -2,15 +2,10 @@ from __future__ import annotations
 
 import json
 import unittest
-from pathlib import Path
 
-KNOWN_GAP_CASES_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "rag_known_gap_cases.v1.json"
-)
+from campus_evals.fixture_registry import fixture_path
+
+KNOWN_GAP_CASES_PATH = fixture_path("ops.rag_known_gap_cases")
 
 
 class RagKnownGapSuite(unittest.TestCase):

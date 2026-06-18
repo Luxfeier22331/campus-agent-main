@@ -44,7 +44,7 @@ updated: 2026-04-12
 - corpus-specific Python live runner 已删除；fresh release acceptance artifact
   由当前 TS/Go runtime owner 产出，再输入 eval coverage / qrels tooling
 - live gate policy fixture 固定为
-  `packages/evals/fixtures/curriculum_plan_live_gate_policy.json`
+  `packages/evals/fixtures/rag/curriculum_plan/live_gate_policy.json`
 - 该 policy 只消费：
   - `ragas.faithfulness`
   - `ragas.answer_relevancy`
@@ -56,12 +56,12 @@ updated: 2026-04-12
 
 当前已冻结的自动化基线包括：
 
-- retrieval qrels：`packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
+- retrieval qrels：`packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`
   - total cases：`25`
   - `smoke = 16`
   - `regression_locked = 9`
 - hybrid live query
-  fixture：`packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
+  fixture：`packages/evals/fixtures/rag/curriculum_plan/hybrid_queries.json`
   - total cases：`12`
   - categories： - `policy_title_exact_match` - `fixed_phrase_sparse_win` -
     `short_fact_section` - `table_retrieval` - `semantic_dense_win` -
@@ -170,7 +170,7 @@ repo-tracked 自动化基线：
 retrieval benchmark scorer：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
-  packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
+  packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json --results
   <run-results.json>`
 
 case-level context diagnostics：

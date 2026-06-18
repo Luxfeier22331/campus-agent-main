@@ -5,6 +5,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import (
     DimensionResult,
     ExecutionResult,
@@ -16,9 +17,7 @@ from campus_evals.workflow_trace_gate_projection import (
     _trace_projection_completeness,
 )
 
-WORKFLOW_TRACE_GATE_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "workflow_trace_gate_cases.v1.json"
-)
+WORKFLOW_TRACE_GATE_CASES_PATH = fixture_path("e2e.workflow_trace.gate")
 
 
 @dataclass(frozen=True, slots=True)

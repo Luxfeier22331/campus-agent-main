@@ -4,11 +4,10 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-DOCUMENT_QUALITY_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "document_quality_cases.v1.json"
-)
+DOCUMENT_QUALITY_CASES_PATH = fixture_path("e2e.document_quality")
 
 
 @dataclass(frozen=True, slots=True)

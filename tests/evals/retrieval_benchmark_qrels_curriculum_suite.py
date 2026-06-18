@@ -4,6 +4,7 @@ from tests.evals.retrieval_benchmark_test_support import (
     CURRICULUM_ANNOTATION_TEMPLATE_PATH,
     CURRICULUM_MANIFEST_PATH,
     CURRICULUM_QRELS_FIXTURE_PATH,
+    CURRICULUM_RELEASE_ACCEPTANCE_FIXTURE_PATH,
     KnowledgeScope,
     RetrievalQrelsDataset,
     json,
@@ -180,9 +181,7 @@ class RetrievalCurriculumQrelsFixtureTest(unittest.TestCase):
     def test_curriculum_maturity_expansion_covers_core_program_families(self) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
         release_acceptance = json.loads(
-            (
-                CURRICULUM_QRELS_FIXTURE_PATH.parent / "curriculum_plan_release_acceptance.v1.json"
-            ).read_text(encoding="utf-8")
+            CURRICULUM_RELEASE_ACCEPTANCE_FIXTURE_PATH.read_text(encoding="utf-8")
         )
         case_ids = {case.case_id for case in dataset.cases}
         release_case_ids = {case["case_id"] for case in release_acceptance["cases"]}

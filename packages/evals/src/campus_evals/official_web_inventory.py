@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import json
 from functools import lru_cache
-from pathlib import Path
 
-OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "fixtures"
-    / "official_web_muc_public_pages_current_truth_inventory.json"
+from campus_evals.fixture_registry import fixture_path
+
+OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = fixture_path(
+    "rag.official_web_muc_public_pages.current_truth_inventory"
 )
 
 _ALLOWED_ANSWER_GATE_STATUSES = frozenset({"inventory_only"})

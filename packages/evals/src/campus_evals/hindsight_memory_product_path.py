@@ -10,6 +10,7 @@ from pathlib import Path
 
 import httpx
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.profile_report import (
     EvalProfileReport,
     load_json_object,
@@ -21,9 +22,7 @@ from campus_evals.profile_report import (
     write_profile_report,
 )
 
-HINDSIGHT_MEMORY_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "hindsight_memory_product_path_cases.v1.json"
-)
+HINDSIGHT_MEMORY_CASES_PATH = fixture_path("memory.hindsight_product_path")
 
 
 @dataclass(frozen=True, slots=True)

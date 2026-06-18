@@ -4,6 +4,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.profile_report import (
     EvalProfileReport,
     load_json_object,
@@ -14,9 +15,7 @@ from campus_evals.profile_report import (
     write_profile_report,
 )
 
-TOOL_ROUTING_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "tool_routing_cases.v1.json"
-)
+TOOL_ROUTING_CASES_PATH = fixture_path("tools.routing.product_path")
 
 
 @dataclass(frozen=True, slots=True)

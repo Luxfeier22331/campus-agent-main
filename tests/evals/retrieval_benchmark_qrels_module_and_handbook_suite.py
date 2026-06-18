@@ -8,6 +8,7 @@ from tests.evals.retrieval_benchmark_test_support import (
     INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH,
     INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH,
     INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+    STUDENT_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH,
     KnowledgeScope,
     RetrievalQrelsDataset,
     campus_evals,
@@ -162,9 +163,7 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
     def test_student_rules_first_batch_expansion_covers_core_policy_families(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
         release_acceptance = json.loads(
-            (FIXTURE_PATH.parent / "student_rules_release_acceptance.v1.json").read_text(
-                encoding="utf-8"
-            )
+            STUDENT_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH.read_text(encoding="utf-8")
         )
         case_ids = {case.case_id for case in dataset.cases}
         release_case_ids = {case["case_id"] for case in release_acceptance["cases"]}
@@ -203,9 +202,7 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
     def test_student_rules_second_batch_expansion_reaches_maturity_target(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
         release_acceptance = json.loads(
-            (FIXTURE_PATH.parent / "student_rules_release_acceptance.v1.json").read_text(
-                encoding="utf-8"
-            )
+            STUDENT_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH.read_text(encoding="utf-8")
         )
         case_ids = {case.case_id for case in dataset.cases}
         unique_expected_doc_ids = {
@@ -515,7 +512,7 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
         self.assertGreaterEqual(len(dataset.cases), 88)
         self.assertEqual(
             set(dataset.baseline["source_fixture"]),
-            {"institutional_rules_retrieval_qrels.json"},
+            {"rag/institutional_rules/retrieval_qrels.json"},
         )
         self.assertTrue(
             all(

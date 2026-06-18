@@ -232,7 +232,7 @@ uv run --all-packages python -m unittest \
 
 `official_web/muc_public_pages` 只做 import / replay / QC / audit inventory，不跑
 answer-bearing live gate。对应的
-`packages/evals/fixtures/official_web_muc_public_pages_retrieval_qrels.json` 只保留
+`packages/evals/fixtures/rag/official_web_muc_public_pages/retrieval_qrels.json` 只保留
 inventory-not-query-enabled guard cases，不能写 expected / forbidden sources。
 
 1. 如果当前 batch 要继续做 `stable_reference` release 闭环，优先走 app-api release gate /
@@ -272,7 +272,7 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
   --qrels \
-    packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json
+    packages/evals/fixtures/rag/official_web_stable_reference/retrieval_qrels.json
   --output /tmp/official-web-stable-reference-live-retrieval.json \
   --force-enable-retrieval \
   --qdrant-collection-name <physical-collection> \

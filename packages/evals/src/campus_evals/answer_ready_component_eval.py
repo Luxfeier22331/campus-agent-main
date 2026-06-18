@@ -9,6 +9,7 @@ from campus_regulation_semantics.regulation_semantic_registry import (
     canonical_regulation_condition_subject,
 )
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.profile_report import (
     load_json_object,
     load_observation_mapping,
@@ -16,9 +17,7 @@ from campus_evals.profile_report import (
     string_tuple,
 )
 
-ANSWER_READY_COMPONENT_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "answer_ready_component_cases.v1.json"
-)
+ANSWER_READY_COMPONENT_CASES_PATH = fixture_path("e2e.answer_ready_component")
 
 
 @dataclass(frozen=True, slots=True)

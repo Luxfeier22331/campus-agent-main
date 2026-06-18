@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
+
 ALLOWED_GATE_LEVELS = frozenset({"soft_gate", "hard_gate"})
-DEFAULT_STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "student_handbook_judge_gate_policy.json"
+DEFAULT_STUDENT_HANDBOOK_JUDGE_GATE_POLICY_PATH = fixture_path(
+    "rag.student_rules.judge_gate_policy"
 )
 
 

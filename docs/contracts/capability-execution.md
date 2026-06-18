@@ -132,7 +132,8 @@ direct/no-tool terminal outcome，不产生 capability handoff；也可以选择
 campus-services / notice typed read-only tool。所有 SDK selected tools、bounded tool
 result refs、SDK trace ref、usage summary 与 terminal reason 都必须写入 sanitized
 step / attempt / result projection，再由 `app-api` operator read model、panel 与 eval
-消费。model-visible tool schema 以 canonical `tool_function_schemas.v1` fixture 为准；
+消费。model-visible tool schema 以 canonical
+`configs/runtime/tool-function-schemas.v1.json` runtime config 为准；
 agent-runtime 必须把实际 tool call arguments 作为 `arguments_json` 返回给
 execution-control，execution-control 必须在投影 typed tool result 前按 canonical schema
 验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。

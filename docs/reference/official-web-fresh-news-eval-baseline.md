@@ -30,7 +30,7 @@ repo-tracked 基线入口固定为：
 - split manifest:
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
 - retrieval qrels:
-  `packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/official_web_fresh_news/retrieval_qrels.json`
 - deterministic seed cases: `packages/evals/src/campus_evals/scenarios.py` ->
   `official_web_fresh_news_seed_validation_cases()`，仅作为 offline seed contract 保留
 
@@ -82,5 +82,5 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 
 - retrieval benchmark：
   - `uv run --all-packages python -m campus_evals.retrieval_benchmark
-    --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json
+    --qrels packages/evals/fixtures/rag/official_web_fresh_news/retrieval_qrels.json
     --results <run-results.json> --format json`

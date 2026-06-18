@@ -67,7 +67,7 @@ class RagEvalCoverageSuite(unittest.TestCase):
         self.assertTrue(student_rules.has_answer_quality_cases)
         self.assertGreaterEqual(student_rules.answer_quality_case_count, 5)
         self.assertEqual(student_rules.known_gap_case_count, 4)
-        self.assertTrue(student_rules.known_gap_fixture.endswith("rag_known_gap_cases.v1.json"))
+        self.assertTrue(student_rules.known_gap_fixture.endswith("ops/rag_known_gap_cases.v1.json"))
         self.assertEqual(curriculum_plan.qrels_case_count, 60)
         self.assertEqual(curriculum_plan.release_acceptance_case_count, 30)
         self.assertEqual(curriculum_plan.unique_expected_doc_count, 49)
@@ -91,7 +91,7 @@ class RagEvalCoverageSuite(unittest.TestCase):
         )
         self.assertTrue(
             by_surface["regulations/student_rules"].maturity_backlog_fixture.endswith(
-                "rag_eval_maturity_backlog.v1.json"
+                "ops/rag_eval_maturity_backlog.v1.json"
             )
         )
 

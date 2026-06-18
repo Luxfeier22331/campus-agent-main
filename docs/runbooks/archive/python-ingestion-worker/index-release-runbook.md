@@ -212,9 +212,9 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - Qdrant payload index 必须在 physical collection 创建后、points upsert 前建立；release
   path 不得等到写入 points 后才补建 filter index
 - `regulations/student_rules` 的 alias publish gate 使用：
-  `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
+  `packages/evals/fixtures/rag/student_rules/release_acceptance.v1.json`
 - `regulations/student_rules` 的 formal qrels 与调参仍使用：
-  `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/student_rules/retrieval_qrels.json`
 
 对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific
 materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
@@ -394,7 +394,7 @@ recommendation，不直接手改生产 profile：
 
 ```bash
 uv run --all-packages python -m campus_evals.retrieval_tuning \
-  --qrels packages/evals/fixtures/student_handbook_retrieval_qrels.json \
+  --qrels packages/evals/fixtures/rag/student_rules/retrieval_qrels.json \
   --candidate <candidate-run-results.json> \
   --candidate <candidate-run-results.json> \
   --runtime-profile \

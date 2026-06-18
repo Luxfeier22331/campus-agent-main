@@ -46,7 +46,7 @@ func validateSDKToolArguments(toolName string, arguments map[string]any) error {
 func sdkToolArgumentSchema(toolName string) (toolJSONSchema, bool, error) {
 	path := resolveToolFunctionSchemaPath()
 	if path == "" {
-		return toolJSONSchema{}, false, fmt.Errorf("tool function schema fixture is not available")
+		return toolJSONSchema{}, false, fmt.Errorf("tool function schema config is not available")
 	}
 	raw, err := os.ReadFile(path)
 	if err != nil {
@@ -220,7 +220,7 @@ func resolveToolFunctionSchemaPath() string {
 		return ""
 	}
 	for dir := workingDir; ; dir = filepath.Dir(dir) {
-		candidate := filepath.Join(dir, "packages", "evals", "fixtures", "tool_function_schemas.v1.json")
+		candidate := filepath.Join(dir, "configs", "runtime", "tool-function-schemas.v1.json")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate
 		}

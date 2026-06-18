@@ -66,7 +66,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/student_rules/retrieval_qrels.json")
         )
 
         case = next(case for case in dataset.cases if case.case_id == "policy-title-scholarship")
@@ -79,7 +79,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/institutional_rules_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/institutional_rules/retrieval_qrels.json")
         )
 
         case = next(case for case in dataset.cases if case.case_id == "institutional-three-assists")
@@ -92,7 +92,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/student_rules/retrieval_qrels.json")
         )
 
         case = next(
@@ -107,7 +107,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/student_rules/retrieval_qrels.json")
         )
 
         case = next(
@@ -122,7 +122,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json")
         )
 
         case = next(case for case in dataset.cases if case.case_id == "ethnology-plan-title")
@@ -137,7 +137,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json")
         )
 
         case = next(
@@ -156,7 +156,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json")
         )
 
         case = next(
@@ -173,7 +173,7 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
-            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+            Path("packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json")
         )
 
         case = next(

@@ -5,6 +5,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.profile_report import (
     EvalProfileReport,
     load_json_object,
@@ -15,9 +16,7 @@ from campus_evals.profile_report import (
     write_profile_report,
 )
 
-PUBLIC_CHAT_ENTRY_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "public_chat_entry_cases.v1.json"
-)
+PUBLIC_CHAT_ENTRY_CASES_PATH = fixture_path("e2e.public_chat.entry")
 
 
 @dataclass(frozen=True, slots=True)

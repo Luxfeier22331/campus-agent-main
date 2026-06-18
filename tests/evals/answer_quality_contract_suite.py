@@ -11,32 +11,15 @@ from campus_evals.answer_quality_contract import (
     load_answer_quality_cases,
     run_answer_quality_contract_profile,
 )
+from campus_evals.fixture_registry import fixture_path
 
 from tests.evals.retrieval_benchmark_test_support import (
     INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
 )
 
-INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "institutional_rules_answer_quality_cases.v1.json"
-)
-STUDENT_RULES_ANSWER_CASES_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "student_rules_answer_quality_cases.v1.json"
-)
-CURRICULUM_PLAN_ANSWER_CASES_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "curriculum_plan_answer_quality_cases.v1.json"
-)
+INSTITUTIONAL_RULES_ANSWER_CASES_PATH = fixture_path("rag.institutional_rules.answer_quality")
+STUDENT_RULES_ANSWER_CASES_PATH = fixture_path("rag.student_rules.answer_quality")
+CURRICULUM_PLAN_ANSWER_CASES_PATH = fixture_path("rag.curriculum_plan.answer_quality")
 
 SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES = frozenset(
     {

@@ -5,12 +5,11 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.profile_report import load_json_object, required_string, string_tuple
 
 RAG_KNOWN_GAP_SCHEMA_VERSION = "rag-known-gap-cases-v1"
-RAG_KNOWN_GAP_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "rag_known_gap_cases.v1.json"
-)
+RAG_KNOWN_GAP_CASES_PATH = fixture_path("ops.rag_known_gap_cases")
 _PENDING_AUTHENTICATED_COLLECTION = "pending_authenticated_collection"
 
 

@@ -248,6 +248,15 @@ from campus_evals.public_chat_entry_e2e import (
     load_public_chat_entry_cases,
     run_public_chat_entry_e2e_profile,
 )
+from campus_evals.public_chat_main_path_cases import (
+    PUBLIC_CHAT_MAIN_PATH_CASES_PATH,
+    PublicChatMainPathCase,
+    PublicChatMainPathCaseSet,
+    PublicChatMainPathExpected,
+    PublicChatMainPathSourceTruth,
+    PublicChatMainPathTraceContract,
+    load_public_chat_main_path_cases,
+)
 from campus_evals.public_chat_product_path_eval import (
     PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH,
     PublicChatProductPathCase,
@@ -367,6 +376,7 @@ __all__ = [
     "OPERATOR_STEP_TRAJECTORY_RELEASE_FIXTURE_SCHEMA_VERSION",
     "OPERATOR_STEP_TRAJECTORY_SCHEMA_VERSION",
     "PUBLIC_CHAT_ENTRY_CASES_PATH",
+    "PUBLIC_CHAT_MAIN_PATH_CASES_PATH",
     "PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH",
     "QUALITY_CALIBRATION_RUBRICS",
     "REVIEW_DECISIONS",
@@ -449,6 +459,11 @@ __all__ = [
     "PublicChatEntryObservation",
     "PublicChatEntryReport",
     "PublicChatEntryResult",
+    "PublicChatMainPathCase",
+    "PublicChatMainPathCaseSet",
+    "PublicChatMainPathExpected",
+    "PublicChatMainPathSourceTruth",
+    "PublicChatMainPathTraceContract",
     "PublicChatProductPathCase",
     "PublicChatProductPathCaseSet",
     "PublicChatProductPathExpected",
@@ -572,6 +587,7 @@ __all__ = [
     "load_observed_regression_review_decisions",
     "load_official_web_current_truth_inventory",
     "load_public_chat_entry_cases",
+    "load_public_chat_main_path_cases",
     "load_public_chat_product_path_cases",
     "load_request_correlation_manifest",
     "load_retrieval_benchmark_run",

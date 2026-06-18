@@ -8,6 +8,7 @@ from campus_evals.benchmark import (
     load_retrieval_hybrid_query_dataset,
     load_retrieval_qrels_dataset,
 )
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.ragas_diagnostic_constants import (
     DEFAULT_RAGAS_DIAGNOSTIC_METRIC_NAMES,
     DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
@@ -267,16 +268,16 @@ def _load_case(*, root: Path, surface_key: str, case_id: str) -> RetrievalQrelsC
 
 
 def _qrels_path(*, root: Path, surface_key: str) -> Path:
-    return root / "packages" / "evals" / "fixtures" / SURFACE_QRELS_FIXTURES[surface_key]
+    _ = root
+    return fixture_path(SURFACE_QRELS_FIXTURES[surface_key])
 
 
 def _load_hybrid_dataset(*, root: Path, surface_key: str) -> Any | None:
     fixture_name = SURFACE_HYBRID_QUERY_FIXTURES.get(surface_key)
     if not fixture_name:
         return None
-    return load_retrieval_hybrid_query_dataset(
-        root / "packages" / "evals" / "fixtures" / fixture_name
-    )
+    _ = root
+    return load_retrieval_hybrid_query_dataset(fixture_path(fixture_name))
 
 
 __all__ = [

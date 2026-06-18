@@ -36,7 +36,7 @@ candidate review manifest，不能直接写入 golden truth。
   `uv run --all-packages python -m campus_evals.eval_admission intent-candidates`
   with `--input <mined.jsonl> --output <review-manifest.json>`
 - accepted observed regression fixture：
-  `packages/evals/fixtures/intent_observed_regression.json`
+  `packages/evals/fixtures/ops/intent_observed_regression.json`
 - review apply workflow：
   `uv run --all-packages python -m campus_evals.observed_regression_review apply`
   with `--manifest <pending.json> --decisions <decisions.json> --reviewed-output

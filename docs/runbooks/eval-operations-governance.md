@@ -15,13 +15,13 @@ turn supplemental provider availability into deterministic truth.
 ## Source Of Truth
 
 - Machine-readable policy:
-  `packages/evals/fixtures/eval_operations_profile_policy.v1.json`
+  `packages/evals/fixtures/ops/eval_operations_profile_policy.v1.json`
 - Policy evaluator:
   `campus_evals.eval_operations_governance`
 - Profile artifact runner:
   `campus_evals.eval_profile_gate`
 - Denominator registry:
-  `packages/evals/fixtures/eval_denominator_registry.v1.json`
+  `packages/evals/fixtures/ops/eval_denominator_registry.v1.json`
 
 ## Required Profile Fields
 

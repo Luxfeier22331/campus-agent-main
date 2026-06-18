@@ -6,7 +6,7 @@
 		"dense_model": "Qwen3-Embedding-4B",
 		"sparse_model": "qdrant/bm25",
 		"fusion": "rrf",
-		"source_fixture": ["institutional_rules_retrieval_qrels.json"],
+		"source_fixture": ["rag/institutional_rules/retrieval_qrels.json"],
 		"quality_gate": "institutional_rules_golden_dataset.v1",
 		"scope_policy": "42 released/selected university-level institutional_rules only; scoped_rules remain excluded unless a title is explicitly re-admitted as institutional_rules consumption truth"
 	},

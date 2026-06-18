@@ -30,7 +30,7 @@ repo-tracked 基线入口固定为：
 - split manifest:
   `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
 - retrieval qrels:
-  `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/official_web_stable_reference/retrieval_qrels.json`
 - deterministic release gate: `packages/evals/src/campus_evals/scenarios.py` ->
   `official_web_stable_reference_release_gate_cases()`
 - release acceptance artifact: current official-web source-channel / release
@@ -91,7 +91,7 @@ accepted baseline 目前固定采用 `2026-05-14` 这一轮 repo-tracked denomin
 - retrieval benchmark：
   - `uv run --all-packages python -m campus_evals.retrieval_benchmark
     --qrels
-    packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json
+    packages/evals/fixtures/rag/official_web_stable_reference/retrieval_qrels.json
     --results <run-results.json> --format json`
 - deterministic release gate：
   - consume the sanitized official-web release acceptance artifact through

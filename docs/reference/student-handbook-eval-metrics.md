@@ -29,10 +29,10 @@ updated: 2026-04-20
 repo-tracked 基线入口固定为：
 
 - retrieval qrels：
-  `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/student_rules/retrieval_qrels.json`
 - workflow / release gate： `packages/evals/src/campus_evals/scenarios.py`
 - supplemental policy：
-  `packages/evals/fixtures/student_handbook_judge_gate_policy.json`
+  `packages/evals/fixtures/rag/student_rules/judge_gate_policy.json`
 - release acceptance artifact：由当前 TS/Go runtime owner 产出 sanitized
   `student_rules_release_acceptance.v1.result.json`，再交给 coverage / qrels
   tooling 消费；已不再提供 corpus-specific Python live runner entrypoint

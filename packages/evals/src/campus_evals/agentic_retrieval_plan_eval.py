@@ -4,11 +4,10 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-AGENTIC_RETRIEVAL_PLAN_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "agentic_retrieval_plan_cases.v1.json"
-)
+AGENTIC_RETRIEVAL_PLAN_CASES_PATH = fixture_path("e2e.agentic_retrieval_plan")
 
 
 @dataclass(frozen=True, slots=True)

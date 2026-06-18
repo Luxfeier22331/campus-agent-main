@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+from campus_evals.fixture_registry import fixture_path
 
 RETRIEVAL_QRELS_DENOMINATOR_POLICY_SCHEMA_VERSION = "retrieval-qrels-denominator-policy-v1"
 NORMALIZED_QRELS_DENOMINATOR_CLASSES = (
@@ -43,8 +44,17 @@ class RetrievalQrelsDenominatorPolicy:
 
 
 def default_retrieval_qrels_denominator_policy_path(*, repo_root: str | Path | None = None) -> Path:
-    root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
-    return root / "packages" / "evals" / "fixtures" / "retrieval_qrels_denominator_policy.v1.json"
+    if repo_root is not None:
+        root = Path(repo_root)
+        return (
+            root
+            / "packages"
+            / "evals"
+            / "fixtures"
+            / "ops"
+            / "retrieval_qrels_denominator_policy.v1.json"
+        )
+    return fixture_path("ops.retrieval_qrels_denominator_policy")
 
 
 def load_retrieval_qrels_denominator_policy(
@@ -197,6 +207,10 @@ def _load_scope_policy(scope_key: str, payload: object) -> RetrievalQrelsScopePo
 
 
 def _resolve_fixture_path(*, fixture: str, fixture_root: Path, policy_path: Path) -> Path:
+    try:
+        return fixture_path(fixture)
+    except (FileNotFoundError, KeyError):
+        pass
     path = Path(fixture)
     if path.is_absolute():
         return path

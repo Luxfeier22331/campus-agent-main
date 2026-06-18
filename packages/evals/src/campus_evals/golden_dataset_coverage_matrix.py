@@ -28,7 +28,11 @@ def render_golden_dataset_coverage_matrix(
     lines = [
         "---",
         "doc_type: reference",
+        "truth_scope: eval",
+        "owner_boundary: packages/evals",
         "status: active",
+        "created: 2026-06-13",
+        "updated: 2026-06-18",
         f"generated_by: {GOLDEN_DATASET_COVERAGE_MATRIX_GENERATOR}",
         f"source_report_schema: {RAG_EVAL_COVERAGE_REPORT_SCHEMA_VERSION}",
         "---",

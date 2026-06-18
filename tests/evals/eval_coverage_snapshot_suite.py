@@ -306,7 +306,7 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
             release_result = _write_json(
                 root / "student-release-result.json",
                 {
-                    "fixture": "student_rules_release_acceptance.v1.json",
+                    "fixture": "rag/student_rules/release_acceptance.v1.json",
                     "cases": [
                         {"case_id": "passed-case", "status": "passed"},
                         {"case_id": "failed-case", "status": "failed"},
@@ -378,7 +378,7 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
             release_result = _write_json(
                 root / "student-release-result.json",
                 {
-                    "fixture": "student_rules_release_acceptance.v1.json",
+                    "fixture": "rag/student_rules/release_acceptance.v1.json",
                     "cases": [{"case_id": "unknown-case", "status": "skipped"}],
                 },
             )

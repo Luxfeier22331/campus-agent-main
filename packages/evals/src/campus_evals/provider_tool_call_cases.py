@@ -4,9 +4,9 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-PROVIDER_TOOL_CALL_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "provider_tool_call_cases.v1.json"
-)
+from campus_evals.fixture_registry import fixture_path
+
+PROVIDER_TOOL_CALL_CASES_PATH = fixture_path("tools.provider_tool_calls")
 
 
 @dataclass(frozen=True, slots=True)

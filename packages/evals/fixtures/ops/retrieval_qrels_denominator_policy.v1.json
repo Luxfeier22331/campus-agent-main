@@ -17,7 +17,7 @@
 	],
 	"scopes": {
 		"regulations/student_rules": {
-			"fixture": "student_handbook_retrieval_qrels.json",
+			"fixture": "rag.student_rules.retrieval_qrels",
 			"min_case_count": 15,
 			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
 			"required_scenarios": [
@@ -38,7 +38,7 @@
 			}
 		},
 		"regulations/institutional_rules": {
-			"fixture": "institutional_rules_retrieval_qrels.json",
+			"fixture": "rag.institutional_rules.retrieval_qrels",
 			"min_case_count": 33,
 			"required_classes": ["positive", "no_hit", "forbidden", "version_locked", "authz"],
 			"required_scenarios": [
@@ -63,7 +63,7 @@
 			}
 		},
 		"curriculum/curriculum_plan": {
-			"fixture": "curriculum_plan_retrieval_qrels.json",
+			"fixture": "rag.curriculum_plan.retrieval_qrels",
 			"min_case_count": 20,
 			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
 			"required_scenarios": [
@@ -95,7 +95,7 @@
 			}
 		},
 		"official_web/stable_reference": {
-			"fixture": "official_web_stable_reference_retrieval_qrels.json",
+			"fixture": "rag.official_web_stable_reference.retrieval_qrels",
 			"min_case_count": 4,
 			"required_classes": ["positive", "no_hit", "version_locked"],
 			"required_scenarios": ["school_profile", "organization_units", "fee_reference", "no_hit"],

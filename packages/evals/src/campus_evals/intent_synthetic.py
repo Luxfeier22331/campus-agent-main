@@ -16,11 +16,10 @@ from campus_contracts import (
     VersionQuery,
 )
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.intent_models import IntentCase
 
-DEFAULT_INTENT_SYNTHETIC_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "intent_synthetic_cases.v1.json"
-)
+DEFAULT_INTENT_SYNTHETIC_CASES_PATH = fixture_path("ops.intent_synthetic_cases")
 
 _ACCEPTED_REGRESSION = "accepted_regression"
 _EXPLORATORY_CANDIDATE = "exploratory_candidate"

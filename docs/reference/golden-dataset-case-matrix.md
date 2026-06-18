@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/evals
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-18
 generated_by: campus_evals.golden_dataset_coverage_matrix
 source_report_schema: rag-eval-coverage-report-v2
 ---
@@ -72,14 +72,14 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 | --------- | ------------- | ------ |
 | Profile | `regulations-student-rules` | profile registry |
 | Artifact kind | `release_acceptance_result` | profile registry |
-| Qrels cases | 52 | `packages/evals/fixtures/student_handbook_retrieval_qrels.json` |
+| Qrels cases | 52 | `packages/evals/fixtures/rag/student_rules/retrieval_qrels.json` |
 | Unique expected docs | 46 | qrels expected sources |
-| Release acceptance cases | 25 | `packages/evals/fixtures/student_rules_release_acceptance.v1.json` |
+| Release acceptance cases | 25 | `packages/evals/fixtures/rag/student_rules/release_acceptance.v1.json` |
 | Release baseline gate | `no` | profile policy |
 | Answer quality cases | 5 | answer-quality fixture set |
 | Golden qrels cases | 0 | golden qrels fixture set |
-| Known-gap cases | 4 | `packages/evals/fixtures/rag_known_gap_cases.v1.json` |
-| Maturity target | 45 qrels / 25 release / 30 docs | `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json` |
+| Known-gap cases | 4 | `packages/evals/fixtures/ops/rag_known_gap_cases.v1.json` |
+| Maturity target | 45 qrels / 25 release / 30 docs | `packages/evals/fixtures/ops/rag_eval_maturity_backlog.v1.json` |
 | Backlog case types | `policy_title_exact_match`, `article_or_clause_reference`, `service_process_question`, `similar_policy_hard_negative`, `historical_version_or_current_only`, `unsupported_policy_no_hit`, `citation_backlink_integrity` | maturity backlog |
 | Coverage gaps | `none` | coverage report |
 | Maturity gaps | `none` | coverage report |
@@ -90,13 +90,13 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 | --------- | ------------- | ------ |
 | Profile | `regulations-institutional-rules` | profile registry |
 | Artifact kind | `release_acceptance_result` | profile registry |
-| Qrels cases | 46 | `packages/evals/fixtures/institutional_rules_retrieval_qrels.json` |
+| Qrels cases | 46 | `packages/evals/fixtures/rag/institutional_rules/retrieval_qrels.json` |
 | Unique expected docs | 42 | qrels expected sources |
-| Release acceptance cases | 45 | `packages/evals/fixtures/institutional_rules_release_acceptance.v1.json` |
+| Release acceptance cases | 45 | `packages/evals/fixtures/rag/institutional_rules/release_acceptance.v1.json` |
 | Release baseline gate | `yes` | profile policy |
 | Answer quality cases | 42 | answer-quality fixture set |
 | Golden qrels cases | 89 | golden qrels fixture set |
-| Known-gap cases | 0 | `packages/evals/fixtures/rag_known_gap_cases.v1.json` |
+| Known-gap cases | 0 | `packages/evals/fixtures/ops/rag_known_gap_cases.v1.json` |
 | Maturity target | 45 qrels / 42 release / 42 docs | `` |
 | Backlog case types | `none` | maturity backlog |
 | Coverage gaps | `none` | coverage report |
@@ -108,14 +108,14 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 | --------- | ------------- | ------ |
 | Profile | `curriculum-curriculum-plan` | profile registry |
 | Artifact kind | `release_acceptance_result` | profile registry |
-| Qrels cases | 60 | `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json` |
+| Qrels cases | 60 | `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json` |
 | Unique expected docs | 49 | qrels expected sources |
-| Release acceptance cases | 30 | `packages/evals/fixtures/curriculum_plan_release_acceptance.v1.json` |
+| Release acceptance cases | 30 | `packages/evals/fixtures/rag/curriculum_plan/release_acceptance.v1.json` |
 | Release baseline gate | `no` | profile policy |
 | Answer quality cases | 5 | answer-quality fixture set |
 | Golden qrels cases | 0 | golden qrels fixture set |
-| Known-gap cases | 0 | `packages/evals/fixtures/rag_known_gap_cases.v1.json` |
-| Maturity target | 60 qrels / 30 release / 45 docs | `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json` |
+| Known-gap cases | 0 | `packages/evals/fixtures/ops/rag_known_gap_cases.v1.json` |
+| Maturity target | 60 qrels / 30 release / 45 docs | `packages/evals/fixtures/ops/rag_eval_maturity_backlog.v1.json` |
 | Backlog case types | `program_title_exact_match`, `program_variant_disambiguation`, `strong_base_minzu_experimental_class_negative`, `academic_years_and_credit_fact`, `semester_course_table`, `course_family_query`, `program_family_disambiguation`, `soft_personalization_negative`, `unsupported_course_map_no_hit` | maturity backlog |
 | Coverage gaps | `none` | coverage report |
 | Maturity gaps | `none` | coverage report |
@@ -126,13 +126,13 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 | --------- | ------------- | ------ |
 | Profile | `official-web-stable-reference-release` | profile registry |
 | Artifact kind | `release_acceptance_result` | profile registry |
-| Qrels cases | 4 | `packages/evals/fixtures/official_web_stable_reference_retrieval_qrels.json` |
+| Qrels cases | 4 | `packages/evals/fixtures/rag/official_web_stable_reference/retrieval_qrels.json` |
 | Unique expected docs | 3 | qrels expected sources |
-| Release acceptance cases | 5 | `packages/evals/fixtures/official_web_stable_reference_release_acceptance.v1.json` |
+| Release acceptance cases | 5 | `packages/evals/fixtures/rag/official_web_stable_reference/release_acceptance.v1.json` |
 | Release baseline gate | `no` | profile policy |
 | Answer quality cases | 0 | answer-quality fixture set |
 | Golden qrels cases | 0 | golden qrels fixture set |
-| Known-gap cases | 0 | `packages/evals/fixtures/rag_known_gap_cases.v1.json` |
+| Known-gap cases | 0 | `packages/evals/fixtures/ops/rag_known_gap_cases.v1.json` |
 | Maturity target | 4 qrels / 4 release / 3 docs | `` |
 | Backlog case types | `none` | maturity backlog |
 | Coverage gaps | `none` | coverage report |

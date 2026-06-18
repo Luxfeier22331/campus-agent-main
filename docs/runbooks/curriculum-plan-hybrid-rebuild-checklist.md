@@ -32,8 +32,8 @@ updated: 2026-04-23
 
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/reference/curriculum-plan-eval-metrics.md`
-- `packages/evals/fixtures/curriculum_plan_hybrid_queries.json`
-- `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
+- `packages/evals/fixtures/rag/curriculum_plan/hybrid_queries.json`
+- `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`
 
@@ -94,7 +94,7 @@ updated: 2026-04-23
 
 ## Query 抽样验收
 
-至少覆盖 `curriculum_plan_hybrid_queries.json` 中的以下主题：
+至少覆盖 `rag/curriculum_plan/hybrid_queries.json` 中的以下主题：
 
 - `policy_title_exact_match` 培养方案标题 exact-match 必须稳定命中目标方案
 - `short_fact_section` 学制、总学分等短事实问题必须回到正确方案
@@ -108,8 +108,8 @@ updated: 2026-04-23
 
 当前 curriculum gate 建议按三类 evidence 一起交付：
 
-- retrieval benchmark 使用 `curriculum_plan_retrieval_qrels.json`
-- live hybrid query acceptance 使用 `curriculum_plan_hybrid_queries.json`
+- retrieval benchmark 使用 `rag/curriculum_plan/retrieval_qrels.json`
+- live hybrid query acceptance 使用 `rag/curriculum_plan/hybrid_queries.json`
 - workflow/status deterministic gate 使用 `curriculum_release_gate_cases()` 与
   `curriculum_error_gate_cases()`
 
@@ -143,7 +143,7 @@ repo 内自动化前置检查：
 retrieval benchmark：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
-  packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
+  packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json --results
   <run-results.json>`
 
 workflow/status deterministic gate：

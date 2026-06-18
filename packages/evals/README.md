@@ -3,12 +3,18 @@
 Evaluation helpers for campus-agent v2.
 
 `fixtures/` 用于保存 repo-tracked 的 live 验收查询样本、retrieval qrels 和 golden-style 输入集。
+生产 runtime schema 不放在 eval fixtures；model-visible tool argument schema 位于
+`configs/runtime/tool-function-schemas.v1.json`。
+
+fixture 默认访问入口是 `fixtures/registry.v1.json` 和
+`campus_evals.fixture_registry.fixture_path(...)`。新增 eval dataset 必须先登记 logical
+fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目录结构。
 
 当前约束：
 
-- `student_handbook_hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担
+- `rag/student_rules/hybrid_queries.json` 负责 live hybrid rebuild/query 验收样本，不承担
   canonical retrieval qrels
-- `curriculum_plan_hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live
+- `rag/curriculum_plan/hybrid_queries.json` 负责 `curriculum/curriculum_plan` 的 live
   hybrid/query 验收样本，不承担 canonical retrieval qrels
 - retrieval 数值指标所需的 ground truth 应独立维护为专用 qrels fixture，避免与 live 抽样验收样本混用
 - handbook live fixture 必须跟随当前 `regulations/student_rules` 的真实 collection
@@ -69,7 +75,7 @@ Evaluation helpers for campus-agent v2.
   锚定 42 条 current document/version truth；其中 12 条 selected school-level
   re-admission 保持 Phase 42 v9 chunk-preparation semantic `version_id`，院级
   `scoped_rules` 不得作为 institutional qrels truth 或默认消费来源
-- `institutional_rules_golden_retrieval_qrels.v1.json` 是 released 校级制度的
+- `rag/institutional_rules/golden_retrieval_qrels.v1.json` 是 released 校级制度的
   golden retrieval baseline：当前覆盖 89 个 regression-locked case，其中 84 个 positive
   consumption case 覆盖 42 条 admitted title，5 个 no-hit / hard-negative guard 保护未发布
   校级制度、年度/届次 scoped-rule、院级 scoped-rule decoy 和虚构制度不被误命中
@@ -95,13 +101,13 @@ Evaluation helpers for campus-agent v2.
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental
   adapter，不得改写 canonical deterministic gate
 - `student_rules` formal benchmark 的 policy / rubric fixture 分别固定在
-  `student_handbook_judge_gate_policy.json` 与
-  `student_handbook_judge_rubrics.json`
+  `rag/student_rules/judge_gate_policy.json` 与
+  `rag/student_rules/judge_rubrics.json`
 - intent eval 现在把 `release_gate`、`context_follow_up`、`version_compat`、
   `observed_regression` 与 `synthetic_regression` 作为默认 gate suites；observed
-  regression truth 固定在 `intent_observed_regression.json`，只接受 review decision 为
-  `accepted` 且带 request / trace / sampled_at correlation 的 case；synthetic truth
-  固定在 `intent_synthetic_cases.v1.json`，只允许 `label_source=human_policy_matrix`
+  regression truth 固定在 `ops/intent_observed_regression.json`，只接受 review
+  decision 为 `accepted` 且带 request / trace / sampled_at correlation 的 case；synthetic
+  truth 固定在 `ops/intent_synthetic_cases.v1.json`，只允许 `label_source=human_policy_matrix`
   的受控模板矩阵进入 gate，`synthetic_exploratory` 只用于报告与人工晋升，不属于默认 gate
 - intent gate 报告现在携带 `case_set_version` 与 `policy_artifact` 摘要，来源为
   `configs/runtime/intent-policy.v1.json`；gate 结果必须绑定到具体 policy /
@@ -116,13 +122,13 @@ Evaluation helpers for campus-agent v2.
   repo-owned review decision 合并，输出 reviewed manifest 与 accepted observed regression
   fixture；`accept` 必须提供 reviewer / reason / target suite / correlation 和重写后的
   eval-owned case payload，不能把 app-api candidate JSON 原样晋升
-- `eval_denominator_registry.v1.json` 是 shared denominator registry scaffold，只表达每个
+- `ops/eval_denominator_registry.v1.json` 是 shared denominator registry scaffold，只表达每个
   admitted surface / tool / intake 当前应由哪些 eval family 覆盖，不 author domain truth
 - formal benchmark case-results artifact 现在同时允许 `observed_trace`、
   `workflow_trace_summary` 与 `orchestration_case_results`；后两者是 workflow trace gate
   的 sanitized artifact surface，不保存 raw transcript、auth material 或 provider raw response
 - workflow trace runtime gate 现在固定在
-  `packages/evals/fixtures/workflow_trace_gate_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/workflow_trace/gate_cases.v1.json` 与
   `campus_evals.workflow_trace_gate`；它按 case expectation 确定性评估
   direct/delegate/clarification/fail-close branch、handoff target、selected tool、tool
   argument summary、tool call order、tool result status、fail-close provenance、evidence/source
@@ -130,31 +136,36 @@ Evaluation helpers for campus-agent v2.
   `attach_workflow_trace_gate(...)` 把 verdict 写入 formal benchmark 的
   `orchestration_case_results`
 - public chat product-path eval 固定在
-  `packages/evals/fixtures/public_chat_product_path_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/public_chat/product_path_cases.v1.json` 与
   `campus_evals.public_chat_product_path_eval`；它只评估 sanitized request / trace
   correlation、selected capability、terminal outcome、response contract 与
   operator backflow summary，不保存 raw transcript 或 provider raw response
 - public chat entry E2E eval 固定在
-  `packages/evals/fixtures/public_chat_entry_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/public_chat/entry_cases.v1.json` 与
   `campus_evals.public_chat_entry_e2e`；它验证 public chat 入口 request path、
   request / trace correlation、terminal outcome、response card/source contract，以及已开放
   入口问法的最小 answer-text semantic contract，不把 browser transcript 或 provider raw
   response 写入 artifact
+- public chat main-path eval 固定在
+  `packages/evals/fixtures/e2e/public_chat/main_path_cases.v1.json` 与
+  `campus_evals.public_chat_main_path_cases`；它维护产品级主链路问题集，覆盖 admission、
+  memory recall、routing、capability execution、source-truth grounding 与 finalization
+  contract，不把 RAG qrels 当成完整 E2E truth
 - tool-routing product-path eval 固定在
-  `packages/evals/fixtures/tool_routing_cases.v1.json` 与
+  `packages/evals/fixtures/tools/routing/product_path_cases.v1.json` 与
   `campus_evals.tool_routing_product_path`；它用自然语言 user goal 评估 selected tool、
   terminal outcome、argument summary 与 response contract，和 tool-family denominator
   的读模型/工具结果覆盖保持分离
 - answer-quality contract eval 固定在
-  `packages/evals/fixtures/answer_quality_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/answer_quality_cases.v1.json` 与
   `campus_evals.answer_quality_contract`；它作为 answer contract 的确定性外壳，检查
   required facts、forbidden claims 与 title/source URL，不替代后续 domain golden dataset；
   institutional regulation consumption 使用
-  `institutional_rules_answer_quality_cases.v1.json` 额外检查 required / forbidden
+  `rag/institutional_rules/answer_quality_cases.v1.json` 额外检查 required / forbidden
   source title and URL identity；该 fixture 当前覆盖 42 条 admitted 校级 title，确保校级制度回答
   不能由 `scoped_rules` 路径或 scoped-rule promotion URL 满足
 - campus-services / notice tool-family denominator 固定在
-  `packages/evals/fixtures/tool_family_denominators.v1.json` 与
+  `packages/evals/fixtures/tools/family_denominators.v1.json` 与
   `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
   `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`、
   `campus_notice_discover` 与 internal selected notice resolve 的 `campus_notice_get`。
@@ -162,22 +173,22 @@ Evaluation helpers for campus-agent v2.
   bounded-summary / authorization fail-close posture；failure class 固定为 routing error、
   read-model gap、authorization fail-close 或 missing observation
 - multimodal / OCR document quality eval 固定在
-  `packages/evals/fixtures/document_quality_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/document_quality_cases.v1.json` 与
   `campus_evals.document_quality_eval`；它覆盖 required span、table header、confidence、
   projection target 与 forbidden claim，防止 OCR/视觉输出冒充 owner-authored regulation
   truth
 - restricted/authz/privacy eval 固定在
-  `packages/evals/fixtures/authz_privacy_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/authz_privacy_cases.v1.json` 与
   `campus_evals.authz_privacy_eval`；它覆盖 restricted deny、policy unavailable、
   capability closed 与 artifact minimization，forbidden raw key guard 也覆盖 restricted/raw
   payload keys
 - agentic retrieval plan / freshness eval 固定在
-  `packages/evals/fixtures/agentic_retrieval_plan_cases.v1.json` 与
+  `packages/evals/fixtures/e2e/agentic_retrieval_plan_cases.v1.json` 与
   `campus_evals.agentic_retrieval_plan_eval`；它把 query decomposition、step plan、
   freshness/current/historical/as-of/compare branch、live fail-close、supporting evidence
   与 final answer status 分开归因
 - eval operations governance 固定在
-  `packages/evals/fixtures/eval_operations_profile_policy.v1.json`、
+  `packages/evals/fixtures/ops/eval_operations_profile_policy.v1.json`、
   `campus_evals.eval_operations_governance` 与
   `docs/runbooks/eval-operations-governance.md`；它评估 profile budget、timeout、retry、
   retention、failure disposition、quarantine readmission 与 version drift
@@ -194,7 +205,7 @@ Evaluation helpers for campus-agent v2.
 - `hindsight-memory-product-path` 是 Hindsight-native personal memory 的产品链路
   profile gate，
   case fixture 固定在
-  `packages/evals/fixtures/hindsight_memory_product_path_cases.v1.json`。它验证 completed
+  `packages/evals/fixtures/memory/hindsight_product_path_cases.v1.json`。它验证 completed
   turn append、跨 thread recall、explicit profile memory upsert / disable、owner
   delete / RTBF 与 user isolation；不再评估 repo-owned LLM extraction prompt/schema，
   因为 personal memory extraction 已由 Hindsight 承担。离线 gate 消费已采集的
@@ -495,7 +506,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   tests.supervisor.test_supervisor_core tests.agent.test_knowledge_capability
   tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
-  `packages/evals/fixtures/curriculum_plan_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`
 - `uv run --all-packages python -m unittest tests.evals.test_intent_eval`
 - `uv run --all-packages python -m scripts.intent_gate`
 - `uv run --all-packages python -m scripts.intent_gate --suite synthetic_exploratory
@@ -548,13 +559,13 @@ observation-backed profile gate CLI：
 retrieval benchmark CLI：
 
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
-  packages/evals/fixtures/student_handbook_retrieval_qrels.json --results
+  packages/evals/fixtures/rag/student_rules/retrieval_qrels.json --results
   <run-results.json>`
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
-  packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
+  packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json --results
   <run-results.json>`
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
-  packages/evals/fixtures/institutional_rules_retrieval_qrels.json --results
+  packages/evals/fixtures/rag/institutional_rules/retrieval_qrels.json --results
   <run-results.json> --format json`
 - `run-results.json` 输入形状为 `{"schema_version": 1, "cases": [{"case_id": "...",
   "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id":
@@ -573,15 +584,15 @@ retrieval benchmark CLI：
   该 manifest 只服务 qrels anchoring，不替代 registry / release manifest truth
 - release publish acceptance 与 formal qrels 分开维护：例如
   `regulations/student_rules` 发布 alias 时使用
-  `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
-  作为 doc-level hard gate；`student_handbook_retrieval_qrels.json` 继续服务
+  `packages/evals/fixtures/rag/student_rules/release_acceptance.v1.json`
+  作为 doc-level hard gate；`rag/student_rules/retrieval_qrels.json` 继续服务
   formal benchmark、no-hit、forbidden hit、version-locked recall 与 tuning，不直接作为
   alias publish gate
 
 retrieval tuning CLI：
 
 - `uv run --all-packages python -m campus_evals.retrieval_tuning --qrels
-  packages/evals/fixtures/student_handbook_retrieval_qrels.json --candidate
+  packages/evals/fixtures/rag/student_rules/retrieval_qrels.json --candidate
   <candidate-run.json> --candidate <candidate-run.json> --runtime-profile
   configs/ingestion/regulations/student_rules/runtime-profile.json --output
   <tuning-report.json>`

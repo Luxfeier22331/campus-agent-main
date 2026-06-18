@@ -15,11 +15,10 @@ from campus_contracts import (
     VersionQuery,
 )
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.intent_models import IntentCase
 
-DEFAULT_INTENT_OBSERVED_REGRESSION_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "intent_observed_regression.json"
-)
+DEFAULT_INTENT_OBSERVED_REGRESSION_PATH = fixture_path("ops.intent_observed_regression")
 
 
 def load_intent_observed_regression_cases(path: str | Path | None = None) -> tuple[IntentCase, ...]:

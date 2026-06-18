@@ -8,6 +8,7 @@ from pathlib import Path
 from campus_evals.answer_quality_contract import load_answer_quality_cases
 from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 from campus_evals.case_governance import load_denominator_registry
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.rag_known_gap import case_count_by_surface, load_rag_known_gap_cases
 from campus_evals.retrieval_qrels_policy import (
     default_query_enabled_retrieval_qrels_paths,
@@ -41,20 +42,20 @@ _DETERMINISTIC_GATE_BY_SURFACE = {
     ),
 }
 _RELEASE_ACCEPTANCE_FIXTURE_BY_SURFACE = {
-    "regulations/student_rules": "student_rules_release_acceptance.v1.json",
-    "regulations/institutional_rules": "institutional_rules_release_acceptance.v1.json",
-    "curriculum/curriculum_plan": "curriculum_plan_release_acceptance.v1.json",
-    "official_web/stable_reference": "official_web_stable_reference_release_acceptance.v1.json",
+    "regulations/student_rules": "rag.student_rules.release_acceptance",
+    "regulations/institutional_rules": "rag.institutional_rules.release_acceptance",
+    "curriculum/curriculum_plan": "rag.curriculum_plan.release_acceptance",
+    "official_web/stable_reference": "rag.official_web_stable_reference.release_acceptance",
 }
 _ANSWER_QUALITY_FIXTURE_BY_SURFACE = {
-    "regulations/student_rules": "student_rules_answer_quality_cases.v1.json",
-    "regulations/institutional_rules": "institutional_rules_answer_quality_cases.v1.json",
-    "curriculum/curriculum_plan": "curriculum_plan_answer_quality_cases.v1.json",
+    "regulations/student_rules": "rag.student_rules.answer_quality",
+    "regulations/institutional_rules": "rag.institutional_rules.answer_quality",
+    "curriculum/curriculum_plan": "rag.curriculum_plan.answer_quality",
 }
 _GOLDEN_QRELS_FIXTURE_BY_SURFACE = {
-    "regulations/institutional_rules": "institutional_rules_golden_retrieval_qrels.v1.json",
+    "regulations/institutional_rules": "rag.institutional_rules.golden_retrieval_qrels",
 }
-_KNOWN_GAP_FIXTURE = "rag_known_gap_cases.v1.json"
+_KNOWN_GAP_FIXTURE = "ops.rag_known_gap_cases"
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,9 +108,7 @@ def build_rag_eval_coverage_report(
     policy = load_retrieval_qrels_denominator_policy()
     maturity_policy = _load_maturity_policy(root)
     maturity_backlog = _load_maturity_backlog(root)
-    known_gap_case_set = load_rag_known_gap_cases(
-        root / "packages" / "evals" / "fixtures" / _KNOWN_GAP_FIXTURE
-    )
+    known_gap_case_set = load_rag_known_gap_cases(fixture_path(_KNOWN_GAP_FIXTURE))
     known_gap_counts = case_count_by_surface(known_gap_case_set.cases)
     policy_scope_keys = tuple(policy.scopes)
     surfaces: list[RagEvalSurfaceCoverage] = []
@@ -202,7 +201,6 @@ def _build_surface_coverage(
     maturity_backlog: dict[str, dict[str, object]],
     known_gap_counts: dict[str, int],
 ) -> RagEvalSurfaceCoverage:
-    fixture_root = root / "packages" / "evals" / "fixtures"
     profile_id, profile_artifact_kind = _DETERMINISTIC_GATE_BY_SURFACE[surface_key]
     gaps: list[str] = []
     maturity_gaps: list[str] = []
@@ -223,7 +221,7 @@ def _build_surface_coverage(
         )
 
     release_acceptance_fixture = _RELEASE_ACCEPTANCE_FIXTURE_BY_SURFACE[surface_key]
-    release_acceptance_path = fixture_root / release_acceptance_fixture
+    release_acceptance_path = fixture_path(release_acceptance_fixture)
     release_acceptance_case_count = _case_count_from_json_fixture(release_acceptance_path)
     if release_acceptance_case_count < 1:
         gaps.append("missing_release_acceptance_cases")
@@ -232,16 +230,16 @@ def _build_surface_coverage(
     answer_quality_fixture = _ANSWER_QUALITY_FIXTURE_BY_SURFACE.get(surface_key)
     if answer_quality_fixture:
         answer_quality_case_count = len(
-            load_answer_quality_cases(fixture_root / answer_quality_fixture).cases
+            load_answer_quality_cases(fixture_path(answer_quality_fixture)).cases
         )
 
     golden_qrels_case_count = 0
     golden_qrels_fixture = _GOLDEN_QRELS_FIXTURE_BY_SURFACE.get(surface_key)
     if golden_qrels_fixture:
         golden_qrels_case_count = len(
-            load_retrieval_qrels_dataset(fixture_root / golden_qrels_fixture).cases
+            load_retrieval_qrels_dataset(fixture_path(golden_qrels_fixture)).cases
         )
-    known_gap_path = fixture_root / _KNOWN_GAP_FIXTURE
+    known_gap_path = fixture_path(_KNOWN_GAP_FIXTURE)
     known_gap_case_count = known_gap_counts.get(surface_key, 0)
 
     has_release_baseline_gate = surface_key == "regulations/institutional_rules"
@@ -296,7 +294,7 @@ def _case_count_from_json_fixture(path: Path) -> int:
 
 
 def _load_maturity_policy(root: Path) -> dict[str, dict[str, object]]:
-    path = root / "packages" / "evals" / "fixtures" / "rag_eval_maturity_policy.v1.json"
+    path = fixture_path("ops.rag_eval_maturity_policy")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != RAG_EVAL_MATURITY_POLICY_SCHEMA_VERSION:
         raise ValueError("unsupported RAG eval maturity policy schema_version")
@@ -310,7 +308,7 @@ def _load_maturity_policy(root: Path) -> dict[str, dict[str, object]]:
 
 
 def _load_maturity_backlog(root: Path) -> dict[str, dict[str, object]]:
-    path = root / "packages" / "evals" / "fixtures" / "rag_eval_maturity_backlog.v1.json"
+    path = fixture_path("ops.rag_eval_maturity_backlog")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if payload.get("schema_version") != RAG_EVAL_MATURITY_BACKLOG_SCHEMA_VERSION:
         raise ValueError("unsupported RAG eval maturity backlog schema_version")
@@ -324,7 +322,7 @@ def _backlog_fixture_path(policy: dict[str, object], root: Path) -> str:
     fixture = str(policy.get("backlog_fixture") or "")
     if not fixture:
         return ""
-    return _repo_relative(root / "packages" / "evals" / "fixtures" / fixture, root)
+    return _repo_relative(fixture_path(fixture), root)
 
 
 def _repo_relative(path: Path, root: Path) -> str:

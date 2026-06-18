@@ -4,9 +4,9 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-EVAL_OPERATIONS_PROFILE_POLICY_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "eval_operations_profile_policy.v1.json"
-)
+from campus_evals.fixture_registry import fixture_path
+
+EVAL_OPERATIONS_PROFILE_POLICY_PATH = fixture_path("ops.eval_operations_profile_policy")
 
 
 @dataclass(frozen=True, slots=True)

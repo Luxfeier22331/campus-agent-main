@@ -286,7 +286,7 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 	}
 	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
 	if (parsed.schema_version !== "tool-function-schemas-v1" || !Array.isArray(parsed.tools)) {
-		throw new Error("tool function schema fixture must use tool-function-schemas-v1");
+		throw new Error("tool function schema config must use tool-function-schemas-v1");
 	}
 	const result = new Map<string, JsonObjectSchema>();
 	for (const rawTool of parsed.tools) {
@@ -315,7 +315,7 @@ function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObje
 
 function defaultToolFunctionSchemaPath(toolCatalogPath: string): string | undefined {
 	for (let dir = dirname(toolCatalogPath); ; dir = dirname(dir)) {
-		const candidate = join(dir, "packages", "evals", "fixtures", "tool_function_schemas.v1.json");
+		const candidate = join(dir, "configs", "runtime", "tool-function-schemas.v1.json");
 		if (existsSync(candidate)) {
 			return candidate;
 		}

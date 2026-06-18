@@ -27,84 +27,31 @@ from campus_evals import (
     summarize_retrieval_metrics,
     validate_retrieval_qrels_fixture,
 )
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.retrieval_benchmark import main as benchmark_main
 
-FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "student_handbook_retrieval_qrels.json"
+FIXTURE_PATH = fixture_path("rag.student_rules.retrieval_qrels")
+HYBRID_FIXTURE_PATH = fixture_path("rag.student_rules.hybrid_queries")
+STUDENT_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH = fixture_path("rag.student_rules.release_acceptance")
+CURRICULUM_QRELS_FIXTURE_PATH = fixture_path("rag.curriculum_plan.retrieval_qrels")
+CURRICULUM_HYBRID_FIXTURE_PATH = fixture_path("rag.curriculum_plan.hybrid_queries")
+CURRICULUM_ANNOTATION_TEMPLATE_PATH = fixture_path(
+    "rag.curriculum_plan.retrieval_annotation_template"
 )
-HYBRID_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "student_handbook_hybrid_queries.json"
+CURRICULUM_RELEASE_ACCEPTANCE_FIXTURE_PATH = fixture_path("rag.curriculum_plan.release_acceptance")
+OFFICIAL_WEB_QRELS_FIXTURE_PATH = fixture_path("rag.official_web_muc_public_pages.retrieval_qrels")
+OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH = fixture_path(
+    "rag.official_web_stable_reference.retrieval_qrels"
 )
-CURRICULUM_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "curriculum_plan_retrieval_qrels.json"
+INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH = fixture_path("rag.institutional_rules.retrieval_qrels")
+INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH = fixture_path(
+    "rag.institutional_rules.golden_retrieval_qrels"
 )
-CURRICULUM_HYBRID_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "curriculum_plan_hybrid_queries.json"
+INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH = fixture_path(
+    "rag.institutional_rules.release_acceptance"
 )
-CURRICULUM_ANNOTATION_TEMPLATE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "curriculum_plan_retrieval_annotation_template.json"
-)
-OFFICIAL_WEB_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "official_web_muc_public_pages_retrieval_qrels.json"
-)
-OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "official_web_stable_reference_retrieval_qrels.json"
-)
-INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "institutional_rules_retrieval_qrels.json"
-)
-INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "institutional_rules_golden_retrieval_qrels.v1.json"
-)
-INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "institutional_rules_release_acceptance.v1.json"
-)
-OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "official_web_fresh_news_retrieval_qrels.json"
+OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = fixture_path(
+    "rag.official_web_fresh_news.retrieval_qrels"
 )
 OFFICIAL_WEB_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
@@ -138,13 +85,7 @@ OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH = (
     / "fresh_news"
     / "split-manifest.v1.json"
 )
-ANNOTATION_TEMPLATE_PATH = (
-    Path(__file__).resolve().parents[2]
-    / "packages"
-    / "evals"
-    / "fixtures"
-    / "student_handbook_retrieval_annotation_template.json"
-)
+ANNOTATION_TEMPLATE_PATH = fixture_path("rag.student_rules.retrieval_annotation_template")
 HANDBOOK_MANIFEST_PATH = (
     Path(__file__).resolve().parents[2]
     / "configs"
@@ -191,6 +132,7 @@ __all__ = (
     "CURRICULUM_HYBRID_FIXTURE_PATH",
     "CURRICULUM_MANIFEST_PATH",
     "CURRICULUM_QRELS_FIXTURE_PATH",
+    "CURRICULUM_RELEASE_ACCEPTANCE_FIXTURE_PATH",
     "FIXTURE_PATH",
     "HANDBOOK_MANIFEST_PATH",
     "HYBRID_FIXTURE_PATH",
@@ -203,6 +145,7 @@ __all__ = (
     "OFFICIAL_WEB_QRELS_FIXTURE_PATH",
     "OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH",
     "OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH",
+    "STUDENT_RULES_RELEASE_ACCEPTANCE_FIXTURE_PATH",
     "EvidenceBundle",
     "EvidenceSource",
     "KnowledgeScope",

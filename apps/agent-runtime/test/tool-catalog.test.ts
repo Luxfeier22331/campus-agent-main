@@ -122,7 +122,7 @@ describe("tool catalog", () => {
 		}
 	});
 
-	it("uses the canonical tool function schema fixture for model-visible tools", () => {
+	it("uses the canonical tool function schema config for model-visible tools", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
 		const tools = buildVisibleToolDefinitions(catalog);
 

@@ -24,21 +24,14 @@ artifact 解释规则。
 
 repo-tracked policy fixture：
 
-- [`packages/evals/fixtures/student_handbook_judge_gate_policy.json`](/home/rept
-  ilian/code/campus-agent/packages/evals/fixtures/student_handbook_judge_gate_po
-  licy.json)
-- [`packages/evals/fixtures/student_handbook_judge_rubrics.json`](/home/reptilia
-  n/code/campus-agent/packages/evals/fixtures/student_handbook_judge_rubrics.jso
-  n)
+- [`packages/evals/fixtures/rag/student_rules/judge_gate_policy.json`](../../packages/evals/fixtures/rag/student_rules/judge_gate_policy.json)
+- [`packages/evals/fixtures/rag/student_rules/judge_rubrics.json`](../../packages/evals/fixtures/rag/student_rules/judge_rubrics.json)
 
 代码读取入口：
 
-- [`packages/evals/src/campus_evals/judge_gate.py`](/home/reptilian/code/campus-
-  agent/packages/evals/src/campus_evals/judge_gate.py)
-- [`packages/evals/src/campus_evals/judge_adapters.py`](/home/reptilian/code/cam
-  pus-agent/packages/evals/src/campus_evals/judge_adapters.py)
-- [`packages/evals/src/campus_evals/formal_benchmark.py`](/home/reptilian/code/c
-  ampus-agent/packages/evals/src/campus_evals/formal_benchmark.py)
+- [`packages/evals/src/campus_evals/judge_gate.py`](../../packages/evals/src/campus_evals/judge_gate.py)
+- [`packages/evals/src/campus_evals/judge_adapters.py`](../../packages/evals/src/campus_evals/judge_adapters.py)
+- [`packages/evals/src/campus_evals/formal_benchmark.py`](../../packages/evals/src/campus_evals/formal_benchmark.py)
 
 ## Policy Shape
 
@@ -215,9 +208,7 @@ repair rerun 只允许针对 transient infra failure：
 
 ## Relation To Other Docs
 
-- deterministic retrieval / workflow / error gate 指标见 [`student-handbook-eval-me
-  trics.md`](/home/reptilian/code/campus-agent/docs/reference/student-handbook-e
-  val-metrics.md)
-- live rebuild 与 handbook serving collection 验收见 [`student-handbook-hybrid-rebui
-  ld-checklist.md`](/home/reptilian/code/campus-agent/docs/runbooks/student-hand
-  book-hybrid-rebuild-checklist.md)
+- deterministic retrieval / workflow / error gate 指标见
+  [`student-handbook-eval-metrics.md`](../reference/student-handbook-eval-metrics.md)
+- live rebuild 与 handbook serving collection 验收见
+  [`student-handbook-hybrid-rebuild-checklist.md`](../runbooks/student-handbook-hybrid-rebuild-checklist.md)

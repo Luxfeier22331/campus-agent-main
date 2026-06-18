@@ -9,6 +9,7 @@ import httpx
 from campus_contracts import CapabilityResponse, ExecutionResponse, RagResultPayload
 
 from campus_evals._advisory_suppression import suppress_transformers_missing_torch_advisory
+from campus_evals.fixture_registry import fixture_path
 
 with suppress_transformers_missing_torch_advisory():
     from langchain_core.prompt_values import StringPromptValue
@@ -30,9 +31,7 @@ from campus_evals.supplemental_http import (
 )
 
 JudgeFn = Callable[[str], dict[str, object]]
-DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "student_handbook_judge_rubrics.json"
-)
+DEFAULT_STUDENT_HANDBOOK_JUDGE_RUBRICS_PATH = fixture_path("rag.student_rules.judge_rubrics")
 _JSON_BLOCK_RE = re.compile(r"```(?:json)?\s*(\{.*\})\s*```", re.DOTALL)
 
 

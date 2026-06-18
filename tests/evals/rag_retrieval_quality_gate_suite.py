@@ -8,6 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from campus_evals.benchmark import load_retrieval_qrels_dataset
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.rag_retrieval_quality_gate import (
     CORE_RAG_RETRIEVAL_QUALITY_SURFACES,
     build_rag_retrieval_quality_gate_report,
@@ -186,13 +187,11 @@ def _perfect_run_for_qrels(qrels_path: Path) -> dict[str, object]:
 
 
 def _fixture_path(surface_key: str) -> Path:
-    fixture_root = Path(__file__).resolve().parents[2] / "packages" / "evals" / "fixtures"
-    return (
-        fixture_root
-        / {
-            "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-            "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-            "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
+    return fixture_path(
+        {
+            "regulations/student_rules": "rag.student_rules.retrieval_qrels",
+            "regulations/institutional_rules": "rag.institutional_rules.retrieval_qrels",
+            "curriculum/curriculum_plan": "rag.curriculum_plan.retrieval_qrels",
         }[surface_key]
     )
 

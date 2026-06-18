@@ -27,7 +27,7 @@ Current runtime truth:
 - repo-tracked split manifest:
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
 - repo-tracked retrieval qrels:
-  `packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json`
+  `packages/evals/fixtures/rag/official_web_fresh_news/retrieval_qrels.json`
 
 Boundary notes:
 

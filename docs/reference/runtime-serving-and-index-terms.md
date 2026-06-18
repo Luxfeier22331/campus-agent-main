@@ -147,8 +147,8 @@ updated: 2026-06-12
 
 定义：
 
-- `packages/evals/fixtures/*_retrieval_qrels.json` 中的 deterministic retrieval truth
-  denominator
+- `packages/evals/fixtures/registry.v1.json` 登记的 `rag.*.retrieval_qrels` deterministic
+  retrieval truth denominator；物理文件位于 `packages/evals/fixtures/rag/<surface>/`
 
 说明：
 

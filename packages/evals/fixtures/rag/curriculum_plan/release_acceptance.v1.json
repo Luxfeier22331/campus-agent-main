@@ -1,9 +1,9 @@
 {
 	"schema_version": "curriculum_plan_release_acceptance_v1",
-	"source_fixture": "curriculum_plan_retrieval_qrels.json",
+	"source_fixture": "rag/curriculum_plan/retrieval_qrels.json",
 	"corpus": "curriculum",
 	"collection": "curriculum_plan",
-	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in curriculum_plan_retrieval_qrels.json",
+	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in rag/curriculum_plan/retrieval_qrels.json",
 	"cases": [
 		{
 			"case_id": "ethnology-plan-title",

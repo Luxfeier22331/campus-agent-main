@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+from campus_evals.fixture_registry import fixture_path
+
 CASE_LIFECYCLE_STATUSES = (
     "candidate",
     "pending_review",
@@ -34,9 +36,7 @@ CaseLifecycleStatus = Literal[
 REVIEW_DECISIONS = ("accept", "reject", "duplicate", "needs_info", "retire", "defer")
 ReviewDecision = Literal["accept", "reject", "duplicate", "needs_info", "retire", "defer"]
 
-DENOMINATOR_REGISTRY_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "eval_denominator_registry.v1.json"
-)
+DENOMINATOR_REGISTRY_PATH = fixture_path("ops.eval_denominator_registry")
 _FORBIDDEN_DENOMINATOR_TRUTH_KEYS = {
     "accepted_cases",
     "expected_truth",

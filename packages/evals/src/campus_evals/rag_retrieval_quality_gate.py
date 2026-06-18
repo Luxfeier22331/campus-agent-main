@@ -221,9 +221,9 @@ def _qrels_path(*, surface_key: str, root: Path) -> Path:
     return (
         fixture_root
         / {
-            "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-            "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-            "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
+            "regulations/student_rules": "rag/student_rules/retrieval_qrels.json",
+            "regulations/institutional_rules": "rag/institutional_rules/retrieval_qrels.json",
+            "curriculum/curriculum_plan": "rag/curriculum_plan/retrieval_qrels.json",
         }[surface_key]
     )
 

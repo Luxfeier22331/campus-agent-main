@@ -4,9 +4,9 @@ import json
 from dataclasses import dataclass, field
 from pathlib import Path
 
-TOOL_FAMILY_DENOMINATOR_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "tool_family_denominators.v1.json"
-)
+from campus_evals.fixture_registry import fixture_path
+
+TOOL_FAMILY_DENOMINATOR_PATH = fixture_path("tools.family_denominators")
 TOOL_SPEC_REGISTRY_PATH = (
     Path(__file__).resolve().parents[4] / "configs" / "runtime" / "tools.v3.json"
 )

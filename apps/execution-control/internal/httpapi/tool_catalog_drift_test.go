@@ -109,10 +109,9 @@ func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) 
 		"..",
 		"..",
 		"..",
-		"packages",
-		"evals",
-		"fixtures",
-		"tool_function_schemas.v1.json",
+		"configs",
+		"runtime",
+		"tool-function-schemas.v1.json",
 	))
 	if err != nil {
 		t.Fatalf("read tool function schemas: %v", err)

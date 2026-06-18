@@ -1,9 +1,9 @@
 {
 	"schema_version": "official_web_stable_reference_release_acceptance_v1",
-	"source_fixture": "official_web_stable_reference_retrieval_qrels.json",
+	"source_fixture": "rag/official_web_stable_reference/retrieval_qrels.json",
 	"corpus": "official_web",
 	"collection": "stable_reference",
-	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in official_web_stable_reference_retrieval_qrels.json",
+	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in rag/official_web_stable_reference/retrieval_qrels.json",
 	"cases": [
 		{
 			"case_id": "stable-reference-school-profile",

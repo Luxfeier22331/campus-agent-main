@@ -121,9 +121,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!apps/agent-runtime/",
                 "!apps/agent-runtime/**",
                 "!configs/runtime/tool-catalog.v1.json",
-                "!packages/evals/",
-                "!packages/evals/fixtures/",
-                "!packages/evals/fixtures/tool_function_schemas.v1.json",
+                "!configs/runtime/tool-function-schemas.v1.json",
             }.issubset(patterns)
         )
 
@@ -167,6 +165,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!configs/runtime/intent-policy.v1.json",
                 "!configs/runtime/provider-pricing.v1.json",
                 "!configs/runtime/query-serving-scopes.v1.json",
+                "!configs/runtime/tool-function-schemas.v1.json",
                 "!configs/runtime/tools.v3.json",
                 "!configs/runtime/workflow-artifacts.v2.json",
                 "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
@@ -200,8 +199,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             "COPY configs/runtime/tool-catalog.v1.json /src/configs/runtime/tool-catalog.v1.json"
         )
         tool_schema_copy = (
-            "COPY packages/evals/fixtures/tool_function_schemas.v1.json "
-            "/src/packages/evals/fixtures/tool_function_schemas.v1.json"
+            "COPY configs/runtime/tool-function-schemas.v1.json "
+            "/src/configs/runtime/tool-function-schemas.v1.json"
         )
 
         self.assertIn(tool_catalog_copy, dockerfile)

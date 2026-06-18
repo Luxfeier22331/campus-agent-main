@@ -1,9 +1,9 @@
 {
 	"schema_version": "student_rules_release_acceptance_v1",
-	"source_fixture": "student_handbook_retrieval_qrels.json",
+	"source_fixture": "rag/student_rules/retrieval_qrels.json",
 	"corpus": "regulations",
 	"collection": "student_rules",
-	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in student_handbook_retrieval_qrels.json",
+	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in rag/student_rules/retrieval_qrels.json",
 	"cases": [
 		{
 			"case_id": "article-number-degree-procedure",

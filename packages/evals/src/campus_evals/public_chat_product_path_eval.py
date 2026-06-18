@@ -4,11 +4,10 @@ import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH = (
-    Path(__file__).resolve().parents[2] / "fixtures" / "public_chat_product_path_cases.v1.json"
-)
+PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH = fixture_path("e2e.public_chat.product_path")
 
 
 @dataclass(frozen=True, slots=True)
