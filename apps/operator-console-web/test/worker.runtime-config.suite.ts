@@ -12,7 +12,9 @@ import {
 
 export function registerWorkerRuntimeConfigSuite() {
 	it("declares the staging custom domain, app-api staging binding, and deploy gates", () => {
-		expect(packageManifest.dependencies?.["@mui/x-charts"]).toBeTruthy();
+		expect(packageManifest.dependencies?.["react-admin"]).toBeUndefined();
+		expect(packageManifest.dependencies?.["@mui/x-charts"]).toBeUndefined();
+		expect(packageManifest.dependencies?.["@radix-ui/react-slot"]).toBeTruthy();
 		expect(wranglerConfig).toContain("workers_dev = false");
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');

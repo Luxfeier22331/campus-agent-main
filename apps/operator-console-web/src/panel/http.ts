@@ -1,16 +1,11 @@
-import { HttpError } from "react-admin";
-
 import { translateRuntimeErrorMessage } from "./panel-copy";
+import { PanelHttpError } from "./panel-error";
 
 interface HttpRequestOptions {
 	json?: unknown;
 	method?: string;
 	signal?: AbortSignal;
 }
-
-type RedirectingHttpError = HttpError & {
-	redirectTo?: string;
-};
 
 function parseMessage(payload: unknown, statusText: string): string {
 	if (
@@ -38,16 +33,18 @@ function parseMessage(payload: unknown, statusText: string): string {
 	return statusText || "请求失败。";
 }
 
-function createAccessReentryRequiredError(): RedirectingHttpError {
-	const error = new HttpError("当前受保护访问会话已失效，请重新进入面板。", 401, {
-		error: {
-			code: "access_reentry_required",
-			message: "当前受保护访问会话已失效，请重新进入面板。",
+function createAccessReentryRequiredError(): PanelHttpError {
+	return new PanelHttpError(
+		"当前受保护访问会话已失效，请重新进入面板。",
+		401,
+		{
+			error: {
+				code: "access_reentry_required",
+				message: "当前受保护访问会话已失效，请重新进入面板。",
+			},
 		},
-	}) as RedirectingHttpError;
-
-	error.redirectTo = "/login";
-	return error;
+		"/login",
+	);
 }
 
 function isCloudflareAccessLoginResponse(response: Response, contentType: string): boolean {
@@ -83,7 +80,7 @@ export async function fetchJson<T>(path: string, options: HttpRequestOptions = {
 	}
 
 	if (response.ok && !contentType.includes("application/json")) {
-		throw new HttpError("面板运行时返回了非 JSON 的成功响应。", 502, {
+		throw new PanelHttpError("面板运行时返回了非 JSON 的成功响应。", 502, {
 			error: {
 				code: "invalid_runtime_payload",
 				details: {
@@ -97,7 +94,7 @@ export async function fetchJson<T>(path: string, options: HttpRequestOptions = {
 
 	const payload = contentType.includes("application/json")
 		? await response.json().catch(() => {
-				throw new HttpError("面板运行时返回了无效的 JSON。", 502, {
+				throw new PanelHttpError("面板运行时返回了无效的 JSON。", 502, {
 					error: {
 						code: "invalid_runtime_payload",
 						details: {
@@ -111,7 +108,7 @@ export async function fetchJson<T>(path: string, options: HttpRequestOptions = {
 		: await response.text();
 
 	if (!response.ok) {
-		throw new HttpError(parseMessage(payload, response.statusText), response.status, payload);
+		throw new PanelHttpError(parseMessage(payload, response.statusText), response.status, payload);
 	}
 
 	return payload as T;

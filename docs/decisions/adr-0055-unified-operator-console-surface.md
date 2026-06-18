@@ -43,11 +43,18 @@ Operator Console 承载：
 owner。Operator Console 只能通过 app-api 暴露的 runtime-owned APIs 工作，不直连数据库、对象存储、
 ingestion worker、execution-control、Temporal history、Qdrant 或 telemetry sink。
 
-当前实现已收口到一个 Worker surface：
+当前实现已收口到一个 Worker surface，但当前上线面是最小 Operator Console：
 
-- `apps/operator-console-web` 当前承载 observability / read-only operator domains。
-- `apps/operator-console-web` 同时承载 dining operations workspace 与 `/api/ops/dining/*`
-  受控转发路由清单。
+- `apps/operator-console-web` 当前只承载请求与运行值班台和 provider / model / API key
+  配置。
+- 请求与运行值班台只消费 `/api/overview`、`/api/operator/overview`、
+  `/api/operator/runtime/health` 与 `/api/requests`。
+- 模型服务配置只消费 `/api/operator/provider-config/*`。
+- Official Web、authenticated notice processing、quality、safety、cost、standalone audit
+  与 dining operations 都是长期 Operator Console domains，不是当前导航、路由或 Worker proxy
+  暴露面。
+- 当前 Worker 不 proxy `/api/ops/dining/*`、`/api/official-web/*`、standalone
+  `/api/operator/audit*` 或 `/api/requests/*` 详情/observability prefix。
 
 `apps/protected-panel-web` 与 `apps/campus-ops-web` 已从 active workspace 退役。包名和部署面不再定义两个长期产品后台。
 
@@ -55,9 +62,11 @@ ingestion worker、execution-control、Temporal history、Qdrant 或 telemetry s
 
 长期 operator API namespace 优先使用 `/api/operator/*`。
 
-`/api/ops/dining/*` 是当前 accepted dining operations route inventory。它可以继续作为当前实现
-contract 存在，直到存在单独迁移计划；文档不得把该 namespace 解释成第二套长期 ops product
-backend，也不得引入隐式双写、fallback 或 silent route alias。
+`/api/ops/dining/*` 是 app-api dining operations contract family，不是当前最小
+`operator-console-web` Worker proxy surface。它只有在 dining workspace 重新进入 release scope、
+具备明确 operator workflow、app-api contract 和验收测试后，才可以重新加入 Operator Console
+导航与 Worker allowlist。文档不得把该 namespace 解释成第二套长期 ops product backend，也不得引入
+隐式双写、fallback 或 silent route alias。
 
 ## Supersession
 

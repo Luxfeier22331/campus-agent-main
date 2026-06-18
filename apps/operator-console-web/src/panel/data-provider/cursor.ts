@@ -1,6 +1,5 @@
-import { type GetListParams, HttpError } from "react-admin";
-
 import { fetchJson } from "../http";
+import { PanelHttpError } from "../panel-error";
 
 const MAX_SEQUENTIAL_CURSOR_KEYS = 64;
 const sequentialPageCursors = new Map<string, Map<number, string | null>>();
@@ -20,7 +19,7 @@ export function normalizeFilterValue(value: unknown): string | null {
 
 function buildCursorKey(input: {
 	resource: string;
-	filter: GetListParams["filter"];
+	filter: Record<string, unknown> | undefined;
 	perPage: number;
 }) {
 	const entries = Object.entries(input.filter ?? {})
@@ -73,7 +72,7 @@ export async function getSequentialCursorList<
 	RecordType,
 >(input: {
 	buildQuery(query: URLSearchParams): void;
-	cursorFilter: GetListParams["filter"];
+	cursorFilter?: Record<string, unknown>;
 	normalizeRecord(record: RawRecord): RecordType;
 	page?: number;
 	perPage?: number;
@@ -93,7 +92,7 @@ export async function getSequentialCursorList<
 	const cursorHistory = getCursorHistory(cursorKey);
 
 	if (page > 1 && !cursorHistory.has(page)) {
-		throw new HttpError(
+		throw new PanelHttpError(
 			`Operator Console ${input.resourceLabel} pagination currently supports sequential next-page navigation only.`,
 			400,
 			{

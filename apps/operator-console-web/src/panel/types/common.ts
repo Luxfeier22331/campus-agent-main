@@ -11,7 +11,6 @@ export interface PanelOverviewRecord {
 	id: "overview";
 	appName: string;
 	operatorContext: OperatorContext | null;
-	panelDomains: Record<string, string>;
 	protectedHostname: string;
 	protectionEnvelope: string;
 	runtime: string;
@@ -23,7 +22,6 @@ export interface PanelOverviewRecord {
 export interface RawPanelOverviewResponse {
 	app_name: string;
 	operator_context?: RawOperatorContext;
-	panel_domains: Record<string, string>;
 	protected_hostname: string;
 	protection_envelope: string;
 	runtime: string;
@@ -63,7 +61,6 @@ export function normalizeOverviewRecord(input: RawPanelOverviewResponse): PanelO
 		appName: input.app_name,
 		id: "overview",
 		operatorContext: normalizeOperatorContext(input.operator_context),
-		panelDomains: input.panel_domains,
 		protectedHostname: input.protected_hostname,
 		protectionEnvelope: input.protection_envelope,
 		runtime: input.runtime,

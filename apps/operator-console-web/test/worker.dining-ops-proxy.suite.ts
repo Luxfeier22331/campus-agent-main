@@ -3,7 +3,7 @@ import { expect, it } from "vitest";
 import { withAccessAssertion, worker } from "./worker.test-support";
 
 export function registerWorkerDiningOpsProxySuite() {
-	it("proxies only allowlisted dining ops routes to app-api with trusted operator headers", async () => {
+	it("does not expose dining ops routes from the minimal launch shell", async () => {
 		await withAccessAssertion(
 			{
 				accessTeamDomain: "https://team-dining-ops.cloudflareaccess.com",
@@ -15,29 +15,22 @@ export function registerWorkerDiningOpsProxySuite() {
 				},
 			},
 			async (token) => {
-				const forwarded: Array<{ method: string; path: string; operatorEmail: string | null }> = [];
+				const forwarded: string[] = [];
 				const env = {
 					ACCESS_POLICY_AUD: "operator-console-test-audience",
 					ACCESS_TEAM_DOMAIN: "https://team-dining-ops.cloudflareaccess.com",
 					APP_API: {
 						fetch: async (request: Request) => {
 							const url = new URL(request.url);
-							forwarded.push({
-								method: request.method,
-								operatorEmail: request.headers.get("x-app-operator-email"),
-								path: `${url.pathname}${url.search}`,
-							});
-							return new Response(JSON.stringify({ ok: true }), {
-								headers: { "content-type": "application/json; charset=utf-8" },
-								status: 200,
-							});
+							forwarded.push(`${request.method} ${url.pathname}${url.search}`);
+							return new Response("unexpected dining proxy", { status: 500 });
 						},
 					},
 					OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
 					OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 					OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 				};
-				const allowed = [
+				const removedRoutes = [
 					{ method: "GET", path: "/api/ops/dining/halls?campus=haidian" },
 					{ method: "GET", path: "/api/ops/dining/halls/haidian-canteen-1/floors/1f" },
 					{ method: "PATCH", path: "/api/ops/dining/windows/haidian-canteen-1:1f:window-01" },
@@ -82,7 +75,7 @@ export function registerWorkerDiningOpsProxySuite() {
 					{ method: "GET", path: "/api/ops/dining/audit-events" },
 				];
 
-				for (const route of allowed) {
+				for (const route of removedRoutes) {
 					const response = await worker.fetch(
 						new Request(`https://operator-console.example.com${route.path}`, {
 							headers: {
@@ -92,7 +85,7 @@ export function registerWorkerDiningOpsProxySuite() {
 						}),
 						env,
 					);
-					expect(response.status).toBe(200);
+					expect(response.status, `${route.method} ${route.path}`).toBe(404);
 				}
 
 				for (const blocked of [
@@ -114,13 +107,7 @@ export function registerWorkerDiningOpsProxySuite() {
 					expect(response.status).toBe(404);
 				}
 
-				expect(forwarded).toEqual(
-					allowed.map((route) => ({
-						method: route.method,
-						operatorEmail: "ops@example.com",
-						path: route.path,
-					})),
-				);
+				expect(forwarded).toEqual([]);
 			},
 		);
 	});

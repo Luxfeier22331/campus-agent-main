@@ -87,77 +87,52 @@ export function registerWorkerRequestProxySuite() {
 		);
 	});
 
-	it("proxies request detail queries to app-api and fails closed without an app-api binding", async () => {
+	it("does not expose request detail or observability proxy routes from the minimal panel", async () => {
 		await withAccessAssertion(
 			{
 				accessTeamDomain: "https://team-request-detail.cloudflareaccess.com",
 			},
 			async (token) => {
-				const ok = await worker.fetch(
-					new Request("https://operator-console.example.com/api/requests/req_01HQ", {
-						headers: {
-							"cf-access-jwt-assertion": token,
+				const forwarded: string[] = [];
+				const workerEnv = {
+					ACCESS_POLICY_AUD: "operator-console-test-audience",
+					ACCESS_TEAM_DOMAIN: "https://team-request-detail.cloudflareaccess.com",
+					APP_API: {
+						fetch: async (request: Request) => {
+							forwarded.push(request.url);
+							return new Response("unexpected request detail proxy", { status: 500 });
 						},
-					}),
-					{
-						ACCESS_POLICY_AUD: "operator-console-test-audience",
-						ACCESS_TEAM_DOMAIN: "https://team-request-detail.cloudflareaccess.com",
-						APP_API: {
-							fetch: async () =>
-								new Response(JSON.stringify({ request: { requestId: "req_01HQ" } }), {
-									headers: {
-										"content-type": "application/json; charset=utf-8",
-									},
-									status: 200,
-								}),
-						},
-						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
-						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
-						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 					},
-				);
+					OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+					OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
+					OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
+				};
 
-				expect(ok.status).toBe(200);
-				await expect(ok.json()).resolves.toEqual({
-					request: {
-						requestId: "req_01HQ",
-					},
-				});
+				for (const path of ["/api/requests/req_01HQ", "/api/requests/req_01HQ/observability"]) {
+					const response = await worker.fetch(
+						new Request(`https://operator-console.example.com${path}`, {
+							headers: {
+								"cf-access-jwt-assertion": token,
+							},
+						}),
+						workerEnv,
+					);
 
-				const missingBinding = await worker.fetch(
-					new Request("https://operator-console.example.com/api/requests/req_01HQ", {
-						headers: {
-							"cf-access-jwt-assertion": token,
-						},
-					}),
-					{
-						ACCESS_POLICY_AUD: "operator-console-test-audience",
-						ACCESS_TEAM_DOMAIN: "https://team-request-detail.cloudflareaccess.com",
-						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
-						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
-						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
-					},
-				);
-
-				expect(missingBinding.status).toBe(503);
-				await expect(missingBinding.json()).resolves.toEqual({
-					error: {
-						code: "dependency_not_ready",
-						message: "App API binding is not configured.",
-					},
-				});
+					expect(response.status, path).toBe(404);
+				}
+				expect(forwarded).toEqual([]);
 			},
 		);
 	});
 
-	it("returns a contract-shaped dependency error when the app-api binding throws", async () => {
+	it("returns a contract-shaped dependency error when the request list app-api binding throws", async () => {
 		await withAccessAssertion(
 			{
 				accessTeamDomain: "https://team-request-throw.cloudflareaccess.com",
 			},
 			async (token) => {
 				const response = await worker.fetch(
-					new Request("https://operator-console.example.com/api/requests/req_01HQ", {
+					new Request("https://operator-console.example.com/api/requests?limit=20", {
 						headers: {
 							"cf-access-jwt-assertion": token,
 						},
@@ -187,59 +162,6 @@ export function registerWorkerRequestProxySuite() {
 						traceId: null,
 					},
 				});
-			},
-		);
-	});
-
-	it("proxies request observability detail queries to the app-api observability seam", async () => {
-		await withAccessAssertion(
-			{
-				accessTeamDomain: "https://team-observability.cloudflareaccess.com",
-			},
-			async (token) => {
-				let forwardedUrl: string | null = null;
-				const response = await worker.fetch(
-					new Request("https://operator-console.example.com/api/requests/req_01HQ/observability", {
-						headers: {
-							"cf-access-jwt-assertion": token,
-						},
-					}),
-					{
-						ACCESS_POLICY_AUD: "operator-console-test-audience",
-						ACCESS_TEAM_DOMAIN: "https://team-observability.cloudflareaccess.com",
-						APP_API: {
-							fetch: async (request: Request) => {
-								forwardedUrl = request.url;
-								return new Response(
-									JSON.stringify({
-										request: {
-											requestId: "req_01HQ",
-										},
-									}),
-									{
-										headers: {
-											"content-type": "application/json; charset=utf-8",
-										},
-										status: 200,
-									},
-								);
-							},
-						},
-						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
-						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
-						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
-					},
-				);
-
-				expect(response.status).toBe(200);
-				await expect(response.json()).resolves.toEqual({
-					request: {
-						requestId: "req_01HQ",
-					},
-				});
-				expect(forwardedUrl).toBe(
-					"https://app-api.internal/api/operator/requests/req_01HQ/observability",
-				);
 			},
 		);
 	});

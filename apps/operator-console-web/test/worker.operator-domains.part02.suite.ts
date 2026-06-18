@@ -99,10 +99,10 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 		);
 	});
 
-	it("proxies official web site queries to app-api with the same trusted operator bridge", async () => {
+	it("does not proxy non-minimal operator domains", async () => {
 		await withAccessAssertion(
 			{
-				accessTeamDomain: "https://team-official-web-sites.cloudflareaccess.com",
+				accessTeamDomain: "https://team-retired-ops.cloudflareaccess.com",
 				claims: {
 					email: "ops@example.com",
 					groups: ["panel", "ops"],
@@ -111,101 +111,14 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 				},
 			},
 			async (token) => {
-				let forwardedUrl: string | null = null;
-
-				const response = await worker.fetch(
-					new Request("https://operator-console.example.com/api/official-web/sites", {
-						headers: {
-							"cf-access-jwt-assertion": token,
-						},
-					}),
-					{
-						ACCESS_POLICY_AUD: "operator-console-test-audience",
-						ACCESS_TEAM_DOMAIN: "https://team-official-web-sites.cloudflareaccess.com",
-						APP_API: {
-							fetch: async (request: Request) => {
-								forwardedUrl = request.url;
-
-								return new Response(
-									JSON.stringify({
-										sites: [{ siteId: "www_muc_edu_cn" }],
-									}),
-									{
-										headers: {
-											"content-type": "application/json; charset=utf-8",
-										},
-										status: 200,
-									},
-								);
-							},
-						},
-						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
-						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
-						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
-					},
-				);
-
-				expect(response.status).toBe(200);
-				await expect(response.json()).resolves.toEqual({
-					sites: [{ siteId: "www_muc_edu_cn" }],
-				});
-				expect(forwardedUrl).toBe("https://app-api.internal/api/operator/official-web/sites");
-			},
-		);
-	});
-
-	it("proxies official web target job queries to app-api with the same trusted operator bridge", async () => {
-		await withAccessAssertion(
-			{
-				accessTeamDomain: "https://team-official-web-targets.cloudflareaccess.com",
-				claims: {
-					email: "ops@example.com",
-					groups: ["panel", "ops"],
-					name: "Ops Team",
-					sub: "operator-001",
-				},
-			},
-			async (token) => {
-				const forwardedUrls: string[] = [];
-
+				const forwarded: string[] = [];
 				const workerEnv = {
 					ACCESS_POLICY_AUD: "operator-console-test-audience",
-					ACCESS_TEAM_DOMAIN: "https://team-official-web-targets.cloudflareaccess.com",
+					ACCESS_TEAM_DOMAIN: "https://team-retired-ops.cloudflareaccess.com",
 					APP_API: {
 						fetch: async (request: Request) => {
-							forwardedUrls.push(request.url);
-							const pathname = new URL(request.url).pathname;
-							if (pathname.endsWith("/owtarget_muc_public_contact")) {
-								return new Response(
-									JSON.stringify({
-										targetJob: {
-											job: {
-												id: "owtarget_muc_public_contact",
-												targetId: "campus-services-contact-directory",
-											},
-										},
-									}),
-									{
-										headers: {
-											"content-type": "application/json; charset=utf-8",
-										},
-										status: 200,
-									},
-								);
-							}
-
-							return new Response(
-								JSON.stringify({
-									jobs: [{ id: "owtarget_muc_public_contact" }],
-									page: { nextCursor: null },
-								}),
-								{
-									headers: {
-										"content-type": "application/json; charset=utf-8",
-									},
-									status: 200,
-								},
-							);
+							forwarded.push(request.url);
+							return new Response("unexpected proxy", { status: 500 });
 						},
 					},
 					OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
@@ -213,47 +126,33 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 					OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				};
 
-				const listResponse = await worker.fetch(
-					new Request(
-						"https://operator-console.example.com/api/official-web/target-jobs?siteId=muc_public",
-						{
-							headers: {
-								"cf-access-jwt-assertion": token,
-							},
-						},
-					),
-					workerEnv,
-				);
-				expect(listResponse.status).toBe(200);
-				await expect(listResponse.json()).resolves.toEqual({
-					jobs: [{ id: "owtarget_muc_public_contact" }],
-					page: { nextCursor: null },
-				});
-
-				const detailResponse = await worker.fetch(
-					new Request(
-						"https://operator-console.example.com/api/official-web/target-jobs/owtarget_muc_public_contact",
-						{
-							headers: {
-								"cf-access-jwt-assertion": token,
-							},
-						},
-					),
-					workerEnv,
-				);
-				expect(detailResponse.status).toBe(200);
-				await expect(detailResponse.json()).resolves.toEqual({
-					targetJob: {
-						job: {
-							id: "owtarget_muc_public_contact",
-							targetId: "campus-services-contact-directory",
-						},
-					},
-				});
-				expect(forwardedUrls).toEqual([
-					"https://app-api.internal/api/operator/official-web/target-jobs?siteId=muc_public",
-					"https://app-api.internal/api/operator/official-web/target-jobs/owtarget_muc_public_contact",
-				]);
+				for (const path of [
+					"/api/official-web/sites",
+					"/api/official-web/sites/www_muc_edu_cn",
+					"/api/official-web/runs?siteId=muc_public",
+					"/api/official-web/runs/owrun_contact",
+					"/api/official-web/target-jobs",
+					"/api/official-web/target-inventory",
+					"/api/official-web/release-tasks",
+					"/api/operator/audit",
+					"/api/operator/audit/audit_01HQ",
+					"/api/authenticated-notices/processing",
+					"/api/authenticated-notices/run-processing",
+					"/api/operator/evals/coverage",
+					"/api/operator/quality/summary",
+					"/api/operator/cost/timeseries",
+					"/api/operator/intent/summary",
+					"/api/operator/safety/summary",
+				]) {
+					const response = await worker.fetch(
+						new Request(`https://operator-console.example.com${path}`, {
+							headers: { "cf-access-jwt-assertion": token },
+						}),
+						workerEnv,
+					);
+					expect(response.status, path).toBe(404);
+				}
+				expect(forwarded).toEqual([]);
 			},
 		);
 	});

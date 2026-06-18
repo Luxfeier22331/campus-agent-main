@@ -77,14 +77,6 @@ export function registerWorkerOverviewAdmissionSuite() {
 					protected_hostname: "operator-console.example.com",
 					protection_envelope: "cloudflare-access",
 					runtime_api_base_url: "https://app-api.internal",
-					operator_console_domains: {
-						overview: "ready",
-						requests: "ready",
-						official_web: "ready",
-						authenticated_notices: "ready",
-						operations: "ready",
-						audit: "ready",
-					},
 					operator_context: {
 						display_name: null,
 						email: "ops@example.com",

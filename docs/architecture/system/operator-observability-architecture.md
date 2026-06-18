@@ -40,6 +40,17 @@ monitoring、cost monitoring 与 observability sink participation 的 supporting
 - Operator Console 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
   `apps/execution-control`
 
+当前 `apps/operator-console-web` 上线面不是这个长期 domain model 的全量实现。当前最小
+Operator Console 只暴露：
+
+- `请求与运行`：请求列表、运行状态、明确阻塞项
+- `模型服务配置`：prompt / embedding provider profile 配置
+
+Quality、Safety、Cost、standalone Audit、Official Web、Authenticated Notice 与 Dining
+Operations 只有在具备明确 operator workflow、app-api contract、Worker allowlist 和验收测试后，
+才可以重新进入当前导航与路由表。离线 eval / grading / release evidence 不属于在线 Ops Panel
+导航。
+
 因此长期主链路固定为：
 
 `operator browser -> operator console surface -> app-api operator read surfaces`
@@ -76,7 +87,8 @@ debugging / analysis / grading`
 - `Official Web`
   - `official_web` control plane；它仍是独立 operator domain，不退化成通用 infra console
 
-这些域都属于 operator-facing read model，不等于 raw sink explorer。
+这些域都属于 operator-facing read model，不等于 raw sink explorer。上述列表是长期 domain
+model，不是当前 `operator-console-web` nav list。
 
 `Runtime Health` 的固定路径是：
 

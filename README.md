@@ -54,7 +54,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`
   仍是 auth/session/identity/federation truth owner
 - Operator Console 是长期受控运维后台概念；当前 implementation surface 是
-  `operator-console-web`，承载 read-only operator domains 与 dining operations workspace
+  `operator-console-web`，仅承载请求与运行值班台和模型服务配置
 
 ## Status
 

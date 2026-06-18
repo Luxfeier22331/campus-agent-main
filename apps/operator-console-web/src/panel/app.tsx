@@ -1,145 +1,352 @@
-import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
-import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
-import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
-import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
-import MarkEmailReadOutlinedIcon from "@mui/icons-material/MarkEmailReadOutlined";
-import PendingActionsOutlinedIcon from "@mui/icons-material/PendingActionsOutlined";
-import RuleFolderOutlinedIcon from "@mui/icons-material/RuleFolderOutlined";
-import TravelExploreOutlinedIcon from "@mui/icons-material/TravelExploreOutlined";
-import { Admin, CustomRoutes, Resource } from "react-admin";
-import { Navigate, Route } from "react-router-dom";
-
-import { operatorConsoleAuthProvider } from "./auth-provider";
-import { AuthenticatedNoticeProcessingListPage } from "./authenticated-notices/processing-list";
-import { AuthenticatedNoticeProcessingShowPage } from "./authenticated-notices/processing-show";
-import { AuthenticatedNoticeRunProcessingListPage } from "./authenticated-notices/run-processing-list";
-import { AuthenticatedNoticeRunProcessingShowPage } from "./authenticated-notices/run-processing-show";
-import { operatorConsoleDataProvider } from "./data-provider";
-import { OfficialWebReleaseTaskShowPage } from "./official-web/release-task-show";
-import { OfficialWebReleaseTasksListPage } from "./official-web/release-tasks-list";
-import { OfficialWebRunShowPage } from "./official-web/run-show";
-import { OfficialWebRunsListPage } from "./official-web/runs-list";
-import { OfficialWebSiteShowPage } from "./official-web/site-show";
-import { OfficialWebSitesListPage } from "./official-web/sites-list";
-import { OfficialWebTargetInventoryListPage } from "./official-web/target-inventory-list";
-import { OfficialWebTargetJobShowPage } from "./official-web/target-job-show";
-import { OfficialWebTargetJobsListPage } from "./official-web/target-jobs-list";
-import { AuditPage as DiningAuditPage } from "./operations/dining/audit-page";
-import { DiningWorkspacePage } from "./operations/dining/dining-workspace-page";
-import { ReleasesPage as DiningReleasesPage } from "./operations/dining/releases-page";
+import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
+import { ClipboardList, KeyRound, LogOut, Menu, RefreshCw, X } from "lucide-react";
+import { type ReactNode, useState } from "react";
+import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
+import { getRequestList } from "./data-provider/requests";
+import { fetchJson } from "./http";
 import { ProviderConfigPage } from "./operations/provider-config/page";
-import { AccessRequiredPage } from "./pages/access-required-page";
-import { AuditPage } from "./pages/audit-page";
-import { CostPage } from "./pages/cost-page";
-import { EvalCoveragePage } from "./pages/eval-coverage-page";
-import { IntentPage } from "./pages/intent-page";
-import { OverviewPage } from "./pages/overview-page";
-import { QualityPage } from "./pages/quality-page";
-import { SafetyPage } from "./pages/safety-page";
-import { PANEL_COPY } from "./panel-copy";
-import { OperatorConsoleLayout } from "./panel-layout";
-import { operatorConsoleTheme } from "./panel-theme";
-import { RequestListPage } from "./requests/request-list";
-import { RequestShowPage } from "./requests/request-show";
+import { formatPanelTimestamp } from "./panel-copy";
+import { getPanelErrorMessage } from "./panel-error";
+import {
+	normalizeOverviewRecord,
+	type PanelOverviewRecord,
+	type RawPanelOverviewResponse,
+} from "./types";
+import { Alert } from "./ui/alert";
+import { Badge } from "./ui/badge";
+import { Button } from "./ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
+import { Table, TableWrap, Td, Th } from "./ui/table";
 
-function OverviewLandingRedirect() {
-	return <Navigate replace to="/observability/overview" />;
-}
+const queryClient = new QueryClient({
+	defaultOptions: {
+		queries: {
+			refetchOnWindowFocus: false,
+			retry: false,
+			staleTime: 30_000,
+		},
+	},
+});
+
+const navItems = [
+	{ icon: ClipboardList, label: "请求与运行", to: "/requests" },
+	{ icon: KeyRound, label: "模型服务配置", to: "/operations/provider-config" },
+] as const;
 
 export function OperatorConsoleAdminApp() {
 	return (
-		<Admin
-			authProvider={operatorConsoleAuthProvider}
-			dashboard={OverviewLandingRedirect}
-			dataProvider={operatorConsoleDataProvider}
-			disableTelemetry
-			layout={OperatorConsoleLayout}
-			loginPage={AccessRequiredPage}
-			theme={operatorConsoleTheme}
-			title={PANEL_COPY.appTitle}
-		>
-			<Resource
-				icon={FindInPageOutlinedIcon}
-				list={RequestListPage}
-				name="requests"
-				options={{ label: PANEL_COPY.menu.requests }}
-				recordRepresentation="requestId"
-				show={RequestShowPage}
-			/>
-			<Resource
-				icon={MarkEmailReadOutlinedIcon}
-				list={AuthenticatedNoticeProcessingListPage}
-				name="authenticatedNoticeProcessing"
-				options={{ label: PANEL_COPY.menu.authenticatedNoticeProcessing }}
-				recordRepresentation="noticeId"
-				show={AuthenticatedNoticeProcessingShowPage}
-			/>
-			<Resource
-				icon={PendingActionsOutlinedIcon}
-				list={AuthenticatedNoticeRunProcessingListPage}
-				name="authenticatedNoticeRunProcessing"
-				options={{ label: PANEL_COPY.menu.authenticatedNoticeRunProcessing }}
-				recordRepresentation="collectorRunToken"
-				show={AuthenticatedNoticeRunProcessingShowPage}
-			/>
-			<Resource
-				icon={LanguageOutlinedIcon}
-				list={OfficialWebSitesListPage}
-				name="officialWebSites"
-				options={{ label: PANEL_COPY.menu.officialWebSites }}
-				recordRepresentation="siteId"
-				show={OfficialWebSiteShowPage}
-			/>
-			<Resource
-				icon={RuleFolderOutlinedIcon}
-				list={OfficialWebTargetJobsListPage}
-				name="officialWebTargetJobs"
-				options={{ label: PANEL_COPY.menu.officialWebTargetJobs }}
-				recordRepresentation="targetId"
-				show={OfficialWebTargetJobShowPage}
-			/>
-			<Resource
-				icon={Inventory2OutlinedIcon}
-				list={OfficialWebTargetInventoryListPage}
-				name="officialWebTargetInventory"
-				options={{ label: PANEL_COPY.menu.officialWebTargetInventory }}
-				recordRepresentation="inventoryId"
-			/>
-			<Resource
-				icon={AssignmentTurnedInOutlinedIcon}
-				list={OfficialWebReleaseTasksListPage}
-				name="officialWebReleaseTasks"
-				options={{ label: PANEL_COPY.menu.officialWebReleaseTasks }}
-				recordRepresentation="taskId"
-				show={OfficialWebReleaseTaskShowPage}
-			/>
-			<Resource
-				icon={TravelExploreOutlinedIcon}
-				list={OfficialWebRunsListPage}
-				name="officialWebRuns"
-				options={{ label: PANEL_COPY.menu.officialWebRuns }}
-				recordRepresentation="runId"
-				show={OfficialWebRunShowPage}
-			/>
-			<CustomRoutes>
-				<Route element={<OverviewPage />} path="/observability/overview" />
-				<Route element={<QualityPage />} path="/observability/quality" />
-				<Route element={<EvalCoveragePage />} path="/observability/eval-coverage" />
-				<Route element={<IntentPage />} path="/observability/intent" />
-				<Route element={<SafetyPage />} path="/observability/safety" />
-				<Route element={<CostPage />} path="/observability/cost" />
-				<Route element={<AuditPage />} path="/observability/audit" />
-				<Route element={<Navigate replace to="/operations/dining" />} path="/operations" />
-				<Route element={<DiningWorkspacePage />} path="/operations/dining" />
-				<Route element={<DiningWorkspacePage />} path="/operations/dining/:hallId/:floorId" />
-				<Route element={<DiningReleasesPage />} path="/operations/dining/candidates" />
-				<Route element={<DiningReleasesPage />} path="/operations/dining/candidates/:candidateId" />
-				<Route element={<DiningReleasesPage />} path="/operations/dining/releases" />
-				<Route element={<DiningReleasesPage />} path="/operations/dining/releases/:releaseId" />
-				<Route element={<DiningAuditPage />} path="/operations/dining/audit" />
-				<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
-				<Route element={<Navigate replace to="/observability/audit" />} path="/audit" />
-			</CustomRoutes>
-		</Admin>
+		<QueryClientProvider client={queryClient}>
+			<OperatorConsoleShell>
+				<Routes>
+					<Route element={<Navigate replace to="/requests" />} path="/" />
+					<Route element={<RequestsPage />} path="/requests" />
+					<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
+					<Route element={<Navigate replace to="/requests" />} path="*" />
+				</Routes>
+			</OperatorConsoleShell>
+		</QueryClientProvider>
 	);
+}
+
+function OperatorConsoleShell({ children }: { children: ReactNode }) {
+	const [navOpen, setNavOpen] = useState(false);
+	const overviewQuery = useQuery({
+		queryFn: ({ signal }) => getPanelOverview({ signal }),
+		queryKey: ["panel-overview"],
+		staleTime: 60_000,
+	});
+	const operator = overviewQuery.data?.operatorContext;
+	const operatorLabel = operator?.displayName || operator?.email || "运维人员";
+
+	return (
+		<div className="min-h-dvh bg-slate-100 text-slate-950">
+			<header className="sticky top-0 z-30 border-slate-200 border-b bg-white">
+				<div className="flex min-h-14 items-center gap-3 px-4">
+					<Button
+						aria-label={navOpen ? "关闭导航" : "打开导航"}
+						className="lg:hidden"
+						onClick={() => setNavOpen((current) => !current)}
+						size="icon"
+						variant="ghost"
+					>
+						{navOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+					</Button>
+					<div className="min-w-0 flex-1">
+						<p className="truncate font-semibold">校园助理运维工作台</p>
+					</div>
+					<Button
+						aria-label="刷新页面"
+						onClick={() => queryClient.invalidateQueries()}
+						size="icon"
+						variant="ghost"
+					>
+						<RefreshCw className="size-5" />
+					</Button>
+					<div className="hidden text-right text-sm sm:block">
+						<p className="font-medium">{operatorLabel}</p>
+						<p className="text-slate-500 text-xs">
+							{overviewQuery.data?.protectionEnvelope || "受保护访问"}
+						</p>
+					</div>
+					<Button asChild aria-label="退出" size="icon" variant="ghost">
+						<a href="/logout">
+							<LogOut className="size-5" />
+						</a>
+					</Button>
+				</div>
+			</header>
+			<div className="flex">
+				<aside
+					className={[
+						"fixed inset-y-14 left-0 z-20 w-64 border-slate-200 border-r bg-white p-3 transition-transform lg:sticky lg:top-14 lg:block lg:h-[calc(100dvh-3.5rem)] lg:translate-x-0",
+						navOpen ? "translate-x-0" : "-translate-x-full",
+					].join(" ")}
+				>
+					<OperatorNav onNavigate={() => setNavOpen(false)} />
+				</aside>
+				<main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
+			</div>
+		</div>
+	);
+}
+
+function OperatorNav({ onNavigate }: { onNavigate(): void }) {
+	const location = useLocation();
+	return (
+		<nav aria-label="运维导航" className="grid gap-1">
+			{navItems.map((item) => {
+				const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
+				const Icon = item.icon;
+				return (
+					<Link
+						className={[
+							"flex min-h-11 items-center gap-3 rounded-md px-3 text-sm",
+							active
+								? "bg-slate-950 font-semibold text-white"
+								: "text-slate-700 hover:bg-slate-100",
+						].join(" ")}
+						key={item.to}
+						onClick={onNavigate}
+						to={item.to}
+					>
+						<Icon aria-hidden="true" className="size-4" />
+						<span>{item.label}</span>
+					</Link>
+				);
+			})}
+		</nav>
+	);
+}
+
+async function getPanelOverview(input: { signal?: AbortSignal } = {}) {
+	return normalizeOverviewRecord(await fetchJson<RawPanelOverviewResponse>("/api/overview", input));
+}
+
+function PageHeader({ description, title }: { description?: string; title: string }) {
+	return (
+		<div className="mb-5 space-y-1">
+			<h1 className="font-semibold text-2xl">{title}</h1>
+			{description ? <p className="text-slate-500 text-sm">{description}</p> : null}
+		</div>
+	);
+}
+
+function QueryError({ error }: { error: unknown }) {
+	return <Alert tone="danger">{getPanelErrorMessage(error, "页面数据读取失败。")}</Alert>;
+}
+
+function RequestsPage() {
+	const overview = useQuery({
+		queryFn: ({ signal }) => getOperatorOverview({ signal, window: "24h" }),
+		queryKey: ["operator-overview"],
+	});
+	const runtime = useQuery({
+		queryFn: ({ signal }) => getOperatorRuntimeHealth({ signal }),
+		queryKey: ["runtime-health"],
+	});
+	const panel = useQuery({
+		queryFn: ({ signal }) => getPanelOverview({ signal }),
+		queryKey: ["panel-overview"],
+	});
+	const requests = useQuery({
+		queryFn: ({ signal }) => getRequestList({ pagination: { page: 1, perPage: 20 }, signal }),
+		queryKey: ["requests"],
+	});
+	const alerts = overview.data?.data.alerts ?? [];
+
+	return (
+		<section>
+			<PageHeader description="查看在线问答请求、运行状态和明确阻塞项。" title="请求与运行" />
+			<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
+				<div className="grid gap-4 md:grid-cols-3">
+					<MetricCard
+						detail="最近 24 小时"
+						label="受理请求"
+						value={String(overview.data?.data.overview.requestVolume.accepted ?? "-")}
+					/>
+					<MetricCard
+						detail="最近 24 小时"
+						label="完成请求"
+						value={String(overview.data?.data.overview.requestVolume.completed ?? "-")}
+					/>
+					<MetricCard
+						detail="最近 24 小时"
+						label="错误请求"
+						value={String(overview.data?.data.overview.requestVolume.errored ?? "-")}
+					/>
+				</div>
+				<Card>
+					<CardHeader>
+						<CardTitle>服务状态</CardTitle>
+						<CardDescription>只展示在线问答链路需要的运行状态。</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-3">
+						{runtime.error ? <QueryError error={runtime.error} /> : null}
+						{runtime.data ? (
+							<>
+								<StatusRow label="执行服务" status={runtime.data.data.executionRuntime.status} />
+								<StatusRow
+									label="状态同步"
+									status={runtime.data.data.executionRuntime.checks.runProjectionStore}
+								/>
+								<StatusRow
+									label="任务队列"
+									status={runtime.data.data.executionRuntime.checks.temporalRuntime}
+								/>
+								{Object.values(runtime.data.data.executionRuntime.blockers).length > 0 ? (
+									<Alert tone="warning">
+										{Object.values(runtime.data.data.executionRuntime.blockers).join("; ")}
+									</Alert>
+								) : null}
+							</>
+						) : null}
+						{panel.data ? <OperatorSummary overview={panel.data} /> : null}
+					</CardContent>
+				</Card>
+				<Card className="md:col-span-3">
+					<CardHeader>
+						<CardTitle>告警摘要</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{overview.error ? <QueryError error={overview.error} /> : null}
+						{alerts.length > 0 ? (
+							<div className="grid gap-2">
+								{alerts.map((alert) => (
+									<div className="rounded-md border border-slate-200 p-3" key={alert.alertId}>
+										<p className="font-medium text-sm">{alert.code}</p>
+										<p className="text-slate-500 text-xs">
+											{alert.requestCount} 个请求 · {formatPanelTimestamp(alert.startedAt)}
+										</p>
+									</div>
+								))}
+							</div>
+						) : (
+							<p className="text-slate-500 text-sm">当前没有需要处理的告警。</p>
+						)}
+					</CardContent>
+				</Card>
+				<Card className="md:col-span-3 xl:col-span-2">
+					<CardHeader>
+						<CardTitle>最近请求</CardTitle>
+						<CardDescription>读取 app-api 维护的请求投影；读取失败会直接显示错误。</CardDescription>
+					</CardHeader>
+					<CardContent>
+						{requests.error ? <QueryError error={requests.error} /> : null}
+						<TableWrap>
+							<Table>
+								<thead>
+									<tr>
+										<Th>问题</Th>
+										<Th>状态</Th>
+										<Th>接入面</Th>
+										<Th>目标</Th>
+										<Th>更新时间</Th>
+									</tr>
+								</thead>
+								<tbody>
+									{requests.data?.data.map((request) => (
+										<tr key={request.requestId}>
+											<Td className="max-w-[420px]">
+												<p className="line-clamp-2 font-medium">{request.questionPreview}</p>
+												<p className="text-slate-500 text-xs">{request.requestId}</p>
+											</Td>
+											<Td>
+												<Badge tone={request.status === "completed" ? "success" : "warning"}>
+													{request.status}
+												</Badge>
+											</Td>
+											<Td>{request.surface}</Td>
+											<Td>
+												{request.selectedCapability || request.requestedCapability || "未指定"}
+											</Td>
+											<Td>{formatPanelTimestamp(request.projectedAt)}</Td>
+										</tr>
+									))}
+									{requests.data?.data.length === 0 ? (
+										<tr>
+											<Td className="text-slate-500" colSpan={5}>
+												当前没有请求记录。
+											</Td>
+										</tr>
+									) : null}
+								</tbody>
+							</Table>
+						</TableWrap>
+					</CardContent>
+				</Card>
+			</div>
+		</section>
+	);
+}
+
+function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
+	return (
+		<Card>
+			<CardContent className="pt-5">
+				<p className="text-slate-500 text-sm">{label}</p>
+				<p className="mt-2 font-semibold text-3xl tabular-nums">{value}</p>
+				<p className="mt-1 text-slate-500 text-xs">{detail}</p>
+			</CardContent>
+		</Card>
+	);
+}
+
+function StatusRow({ label, status }: { label: string; status: string }) {
+	const tone = status === "ready" ? "success" : status === "not_reported" ? "muted" : "warning";
+	return (
+		<div className="flex items-center justify-between gap-3">
+			<span className="text-sm">{label}</span>
+			<Badge tone={tone}>{formatStatus(status)}</Badge>
+		</div>
+	);
+}
+
+function OperatorSummary({ overview }: { overview: PanelOverviewRecord }) {
+	const operator = overview.operatorContext;
+	return (
+		<div className="border-slate-200 border-t pt-3">
+			<p className="font-medium text-sm">当前运维主体</p>
+			<p className="text-slate-500 text-sm">
+				{operator?.displayName || operator?.email || operator?.operatorId || "未知"}
+			</p>
+		</div>
+	);
+}
+
+function formatStatus(status: string) {
+	switch (status) {
+		case "ready":
+			return "正常";
+		case "blocked":
+			return "阻塞";
+		case "degraded":
+			return "降级";
+		case "not_ready":
+			return "未就绪";
+		case "not_reported":
+			return "未上报";
+		default:
+			return status;
+	}
 }

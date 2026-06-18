@@ -70,7 +70,7 @@ describe("Operator Console http copy", () => {
 			),
 		);
 
-		await expect(fetchJson("/api/official-web/sites")).rejects.toMatchObject({
+		await expect(fetchJson("/api/requests")).rejects.toMatchObject({
 			message: "服务暂时不可用，请稍后重试。",
 			status: 500,
 		});
