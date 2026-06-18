@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -16,14 +17,16 @@ type fakeTemporalStarter struct {
 	cancelRunID  string
 	cancelReason string
 	cancelErr    error
+	ctx          context.Context
 	input        temporalruntime.CapabilityExecutionWorkflowInput
 	err          error
 }
 
 func (f *fakeTemporalStarter) StartCapabilityExecutionWorkflow(
-	_ context.Context,
+	ctx context.Context,
 	input temporalruntime.CapabilityExecutionWorkflowInput,
 ) error {
+	f.ctx = ctx
 	f.input = input
 	return f.err
 }
@@ -146,6 +149,37 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	}
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
+	}
+}
+
+func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/execution/runs",
+		strings.NewReader(durableRunCreateBodyForTest("run-traceparent-001", "conv-traceparent-001")),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+	request.Header.Set("traceparent", "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01")
+	request.Header.Set("baggage", "release=2026.06.18")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	traceHeaders := telemetry.InjectBridgeTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
+	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
+	}
+	if traceHeaders["baggage"] != "release=2026.06.18" {
+		t.Fatalf("Temporal starter context baggage = %q", traceHeaders["baggage"])
 	}
 }
 
