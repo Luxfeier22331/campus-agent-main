@@ -66,7 +66,7 @@ class EvalGateTest(unittest.TestCase):
 
         with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
             summary = run_eval_acceptance(
-                profile="public-chat-product-path",
+                profile="online-answer-path",
                 output_dir=Path("/tmp/eval-artifacts"),
                 reruns=1,
                 verbose=True,
@@ -107,7 +107,7 @@ class EvalGateTest(unittest.TestCase):
 
         with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
             summary = run_eval_acceptance(
-                profile="public-chat-product-path",
+                profile="online-answer-path",
                 output_dir=Path("/tmp/eval-artifacts"),
                 reruns=1,
                 cases_path=Path("/tmp/cases.json"),
@@ -172,13 +172,12 @@ class EvalGateTest(unittest.TestCase):
 
     def test_all_observation_profiles_are_registered(self) -> None:
         profiles = (
-            "public-chat-product-path",
+            "online-answer-path",
             "tool-family-denominator",
             "tool-routing-product-path",
             "document-quality",
             "authz-privacy",
             "agentic-retrieval-plan",
-            "public-chat-entry-e2e",
             "answer-quality-contract",
             "hindsight-memory-product-path",
             "eval-operations-governance",
@@ -269,7 +268,7 @@ class EvalGateTest(unittest.TestCase):
                     "skipped": [
                         {
                             "case_id": "case-2",
-                            "metric_key": "profile.public_chat_product_path",
+                            "metric_key": "profile.online_answer_path",
                             "reason": "missing_request_correlation",
                         }
                     ],

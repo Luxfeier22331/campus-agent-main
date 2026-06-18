@@ -1,8 +1,8 @@
 {
 	"schema_version": 1,
-	"case_family": "public_chat_main_path.v1",
+	"case_family": "online_answer_main_path.v1",
 	"updated_at": "2026-06-18",
-	"description": "Product-level public chat main-path regression set. Cases pin admission, memory recall, routing, capability execution, source-truth grounding, and finalization contracts without binding to retrieval internals.",
+	"description": "Product-level online answer main-path regression set. Cases pin admission, memory recall, routing, capability execution, source-truth grounding, and finalization contracts without binding to retrieval internals.",
 	"cases": [
 		{
 			"case_id": "main-student-rules-transfer-policy",

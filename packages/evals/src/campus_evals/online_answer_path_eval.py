@@ -7,11 +7,11 @@ from pathlib import Path
 from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH = fixture_path("e2e.public_chat.product_path")
+ONLINE_ANSWER_PATH_CASES_PATH = fixture_path("e2e.online_answer_path.product_path")
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathExpected:
+class OnlineAnswerPathExpected:
     selected_capability: str
     terminal_outcome: str
     fail_close_reason: str = ""
@@ -20,22 +20,22 @@ class PublicChatProductPathExpected:
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathCase:
+class OnlineAnswerPathCase:
     case_id: str
     user_goal: str
     split: str
-    expected: PublicChatProductPathExpected
+    expected: OnlineAnswerPathExpected
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathCaseSet:
+class OnlineAnswerPathCaseSet:
     schema_version: int
     case_family: str
-    cases: tuple[PublicChatProductPathCase, ...]
+    cases: tuple[OnlineAnswerPathCase, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathObservation:
+class OnlineAnswerPathObservation:
     case_id: str
     request_id: str
     trace_id: str
@@ -58,7 +58,7 @@ class PublicChatProductPathObservation:
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathResult:
+class OnlineAnswerPathResult:
     case_id: str
     passed: bool
     reason: str
@@ -67,43 +67,43 @@ class PublicChatProductPathResult:
 
 
 @dataclass(frozen=True, slots=True)
-class PublicChatProductPathReport:
+class OnlineAnswerPathReport:
     passed: bool
     total: int
     passed_count: int
     failed_count: int
-    results: tuple[PublicChatProductPathResult, ...]
+    results: tuple[OnlineAnswerPathResult, ...]
 
 
-def load_public_chat_product_path_cases(
+def load_online_answer_path_cases(
     path: str | Path | None = None,
-) -> PublicChatProductPathCaseSet:
-    payload = _load_json(Path(path) if path is not None else PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH)
+) -> OnlineAnswerPathCaseSet:
+    payload = _load_json(Path(path) if path is not None else ONLINE_ANSWER_PATH_CASES_PATH)
     if int(payload.get("schema_version") or 0) != 1:
-        raise ValueError("public chat product path schema_version must be 1")
-    if _required_string(payload.get("case_family"), "case_family") != "public_chat_product_path.v1":
-        raise ValueError("unsupported public chat product path case_family")
+        raise ValueError("online answer path schema_version must be 1")
+    if _required_string(payload.get("case_family"), "case_family") != "online_answer_path.v1":
+        raise ValueError("unsupported online answer path case_family")
     raw_cases = payload.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
-        raise ValueError("public chat product path cases must be a non-empty list")
+        raise ValueError("online answer path cases must be a non-empty list")
     cases = tuple(_parse_case(item) for item in raw_cases)
     _reject_duplicate_case_ids(case.case_id for case in cases)
-    return PublicChatProductPathCaseSet(
+    return OnlineAnswerPathCaseSet(
         schema_version=1,
-        case_family="public_chat_product_path.v1",
+        case_family="online_answer_path.v1",
         cases=cases,
     )
 
 
-def build_public_chat_product_path_report(
-    cases: tuple[PublicChatProductPathCase, ...],
-    observations: dict[str, PublicChatProductPathObservation],
+def build_online_answer_path_report(
+    cases: tuple[OnlineAnswerPathCase, ...],
+    observations: dict[str, OnlineAnswerPathObservation],
     *,
     output_path: Path | None = None,
-) -> PublicChatProductPathReport:
+) -> OnlineAnswerPathReport:
     results = tuple(_evaluate_case(case, observations.get(case.case_id)) for case in cases)
     passed_count = sum(1 for result in results if result.passed)
-    report = PublicChatProductPathReport(
+    report = OnlineAnswerPathReport(
         passed=passed_count == len(results),
         total=len(results),
         passed_count=passed_count,
@@ -116,7 +116,7 @@ def build_public_chat_product_path_report(
             json.dumps(
                 {
                     "schema_version": 1,
-                    "case_family": "public_chat_product_path.v1",
+                    "case_family": "online_answer_path.v1",
                     "summary": {
                         "total": report.total,
                         "passed": report.passed_count,
@@ -135,11 +135,11 @@ def build_public_chat_product_path_report(
 
 
 def _evaluate_case(
-    case: PublicChatProductPathCase,
-    observation: PublicChatProductPathObservation | None,
-) -> PublicChatProductPathResult:
+    case: OnlineAnswerPathCase,
+    observation: OnlineAnswerPathObservation | None,
+) -> OnlineAnswerPathResult:
     if observation is None:
-        return PublicChatProductPathResult(case.case_id, False, "missing observation")
+        return OnlineAnswerPathResult(case.case_id, False, "missing observation")
     failures: list[str] = []
     if not observation.request_id.strip():
         failures.append("request_id missing")
@@ -175,7 +175,7 @@ def _evaluate_case(
         )
     )
     failures.extend(_workflow_trace_mismatch_reasons(case, observation))
-    return PublicChatProductPathResult(
+    return OnlineAnswerPathResult(
         case_id=case.case_id,
         passed=not failures,
         reason="ok" if not failures else "; ".join(failures),
@@ -184,14 +184,14 @@ def _evaluate_case(
     )
 
 
-def _parse_case(payload: object) -> PublicChatProductPathCase:
+def _parse_case(payload: object) -> OnlineAnswerPathCase:
     item = _mapping(payload, "case")
     expected = _mapping(item.get("expected"), "case.expected")
-    return PublicChatProductPathCase(
+    return OnlineAnswerPathCase(
         case_id=_required_string(item.get("case_id"), "case_id"),
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
         split=_required_string(item.get("split"), "split"),
-        expected=PublicChatProductPathExpected(
+        expected=OnlineAnswerPathExpected(
             selected_capability=_required_string(
                 expected.get("selected_capability"), "selected_capability"
             ),
@@ -225,8 +225,8 @@ def _subset_mismatch_reasons(
 
 
 def _workflow_trace_mismatch_reasons(
-    case: PublicChatProductPathCase,
-    observation: PublicChatProductPathObservation,
+    case: OnlineAnswerPathCase,
+    observation: OnlineAnswerPathObservation,
 ) -> list[str]:
     trace = observation.workflow_trace_summary
     if not trace:
@@ -296,18 +296,18 @@ def _reject_duplicate_case_ids(case_ids) -> None:
     seen: set[str] = set()
     for case_id in case_ids:
         if case_id in seen:
-            raise ValueError(f"duplicate public chat product path case_id: {case_id}")
+            raise ValueError(f"duplicate online answer path case_id: {case_id}")
         seen.add(case_id)
 
 
 __all__ = [
-    "PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH",
-    "PublicChatProductPathCase",
-    "PublicChatProductPathCaseSet",
-    "PublicChatProductPathExpected",
-    "PublicChatProductPathObservation",
-    "PublicChatProductPathReport",
-    "PublicChatProductPathResult",
-    "build_public_chat_product_path_report",
-    "load_public_chat_product_path_cases",
+    "ONLINE_ANSWER_PATH_CASES_PATH",
+    "OnlineAnswerPathCase",
+    "OnlineAnswerPathCaseSet",
+    "OnlineAnswerPathExpected",
+    "OnlineAnswerPathObservation",
+    "OnlineAnswerPathReport",
+    "OnlineAnswerPathResult",
+    "build_online_answer_path_report",
+    "load_online_answer_path_cases",
 ]

@@ -39,7 +39,7 @@ from campus_evals.eval_profile_gate_loading import (
     _load_document_quality_observations,
     _load_eval_operations_observations,
     _load_json,
-    _load_public_chat_observations,
+    _load_online_answer_observations,
     _load_tool_observations,
     _mapping,
     _request_correlation_mapping,
@@ -61,11 +61,11 @@ from campus_evals.eval_profile_gate_reporting import (
     _version_summary,
     _write_profile_report,
 )
-from campus_evals.public_chat_product_path_eval import (
-    PublicChatProductPathCaseSet,
-    PublicChatProductPathObservation,
-    build_public_chat_product_path_report,
-    load_public_chat_product_path_cases,
+from campus_evals.online_answer_path_eval import (
+    OnlineAnswerPathCaseSet,
+    OnlineAnswerPathObservation,
+    build_online_answer_path_report,
+    load_online_answer_path_cases,
 )
 from campus_evals.tool_family_denominator import (
     ToolObservation,
@@ -74,7 +74,7 @@ from campus_evals.tool_family_denominator import (
 )
 
 
-def run_public_chat_product_path_profile_gate(
+def run_online_answer_path_profile_gate(
     *,
     output_dir: Path,
     cases_path: Path | None = None,
@@ -82,26 +82,26 @@ def run_public_chat_product_path_profile_gate(
     collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
-    case_set = load_public_chat_product_path_cases(cases_path)
+    case_set = load_online_answer_path_cases(cases_path)
     runtime_metrics = None
     if collect_runtime:
         observations, runtime_metrics = _collect_with_runtime_metrics(
-            profile_id="public_chat_product_path",
+            profile_id="online_answer_path",
             case_count=len(case_set.cases),
-            collector=lambda: collect_public_chat_product_path_runtime_observations(case_set),
+            collector=lambda: collect_online_answer_path_runtime_observations(case_set),
         )
     else:
-        observations = _load_public_chat_observations(observations_path)
-    report = build_public_chat_product_path_report(case_set.cases, observations)
+        observations = _load_online_answer_observations(observations_path)
+    report = build_online_answer_path_report(case_set.cases, observations)
     return _write_profile_report(
         output_dir=output_dir,
-        profile_id="public_chat_product_path",
+        profile_id="online_answer_path",
         case_family=case_set.case_family,
         report_passed=report.passed,
         total=report.total,
         passed_count=report.passed_count,
         failed_count=report.failed_count,
-        results=_attach_public_chat_request_correlations(report.results, observations),
+        results=_attach_online_answer_request_correlations(report.results, observations),
         version_summary=_version_summary(
             case_set_version=case_set.case_family,
             git_head_resolver=git_head_resolver,
@@ -308,21 +308,21 @@ def run_eval_operations_governance_profile_gate(
     )
 
 
-def collect_public_chat_product_path_runtime_observations(
-    case_set: PublicChatProductPathCaseSet,
+def collect_online_answer_path_runtime_observations(
+    case_set: OnlineAnswerPathCaseSet,
     *,
     settings: AppApiEvalClientSettings | None = None,
     client: httpx.Client | None = None,
-) -> dict[str, PublicChatProductPathObservation]:
+) -> dict[str, OnlineAnswerPathObservation]:
     resolved_settings = settings or AppApiEvalClientSettings.from_env()
     api_client = AppApiEvalClient(settings=resolved_settings, client=client)
-    observations: dict[str, PublicChatProductPathObservation] = {}
+    observations: dict[str, OnlineAnswerPathObservation] = {}
     for case in case_set.cases:
         execution = api_client.execute_chat_request(
             case_id=case.case_id,
             prompt=case.user_goal,
         )
-        observations[case.case_id] = _public_chat_observation_from_execution(
+        observations[case.case_id] = _online_answer_observation_from_execution(
             case_id=case.case_id,
             execution=execution,
         )
@@ -488,15 +488,15 @@ def _collect_with_runtime_metrics(
     )
 
 
-def _public_chat_observation_from_execution(
+def _online_answer_observation_from_execution(
     *,
     case_id: str,
     execution,
-) -> PublicChatProductPathObservation:
+) -> OnlineAnswerPathObservation:
     response = execution.response
     observability = response.observability
     result_payload = asdict(response.result) if response.result is not None else {}
-    return PublicChatProductPathObservation(
+    return OnlineAnswerPathObservation(
         case_id=case_id,
         request_id=execution.request_correlation.request_id,
         trace_id=execution.request_correlation.trace_id,
@@ -528,9 +528,9 @@ def _public_chat_observation_from_execution(
     )
 
 
-def _attach_public_chat_request_correlations(
+def _attach_online_answer_request_correlations(
     results,
-    observations: dict[str, PublicChatProductPathObservation],
+    observations: dict[str, OnlineAnswerPathObservation],
 ) -> tuple[dict[str, object], ...]:
     enriched: list[dict[str, object]] = []
     for result in results:
@@ -623,8 +623,8 @@ def _workflow_source_ids(summary) -> set[str]:
     return source_ids
 
 
-def public_chat_product_path_main(argv: Sequence[str] | None = None) -> int:
-    return _profile_main("public_chat_product_path", argv)
+def online_answer_path_main(argv: Sequence[str] | None = None) -> int:
+    return _profile_main("online_answer_path", argv)
 
 
 def tool_family_denominator_main(argv: Sequence[str] | None = None) -> int:
@@ -671,8 +671,8 @@ def _run_profile_from_args(profile_id: str, args: argparse.Namespace) -> EvalPro
     observations_path = Path(args.observations_path) if args.observations_path else None
     artifact_paths = tuple(Path(item) for item in args.artifact_path)
     manifest_path = artifact_paths[0] if artifact_paths else None
-    if profile_id == "public_chat_product_path":
-        return run_public_chat_product_path_profile_gate(
+    if profile_id == "online_answer_path":
+        return run_online_answer_path_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
@@ -742,17 +742,17 @@ __all__ = [
     "collect_agentic_retrieval_plan_runtime_observations",
     "collect_authz_privacy_runtime_observations",
     "collect_document_quality_runtime_observations",
-    "collect_public_chat_product_path_runtime_observations",
+    "collect_online_answer_path_runtime_observations",
     "collect_tool_family_denominator_runtime_observations",
     "derive_eval_operations_observations_from_artifacts",
     "document_quality_main",
     "eval_operations_governance_main",
-    "public_chat_product_path_main",
+    "online_answer_path_main",
     "run_agentic_retrieval_plan_profile_gate",
     "run_authz_privacy_profile_gate",
     "run_document_quality_profile_gate",
     "run_eval_operations_governance_profile_gate",
-    "run_public_chat_product_path_profile_gate",
+    "run_online_answer_path_profile_gate",
     "run_tool_family_denominator_profile_gate",
     "tool_family_denominator_main",
 ]

@@ -1,17 +1,17 @@
 import unittest
 
-from campus_evals.public_chat_main_path_cases import (
-    PUBLIC_CHAT_MAIN_PATH_CASES_PATH,
-    load_public_chat_main_path_cases,
+from campus_evals.online_answer_main_path_cases import (
+    ONLINE_ANSWER_MAIN_PATH_CASES_PATH,
+    load_online_answer_main_path_cases,
 )
 
 
-class PublicChatMainPathCasesTest(unittest.TestCase):
+class OnlineAnswerMainPathCasesTest(unittest.TestCase):
     def test_main_path_cases_are_a_release_sized_product_dataset(self) -> None:
-        case_set = load_public_chat_main_path_cases()
+        case_set = load_online_answer_main_path_cases()
 
-        self.assertTrue(PUBLIC_CHAT_MAIN_PATH_CASES_PATH.exists())
-        self.assertEqual("public_chat_main_path.v1", case_set.case_family)
+        self.assertTrue(ONLINE_ANSWER_MAIN_PATH_CASES_PATH.exists())
+        self.assertEqual("online_answer_main_path.v1", case_set.case_family)
         self.assertEqual(50, len(case_set.cases))
         self.assertEqual(
             len(case_set.cases),
@@ -19,7 +19,7 @@ class PublicChatMainPathCasesTest(unittest.TestCase):
         )
 
     def test_main_path_cases_cover_required_domains_and_outcomes(self) -> None:
-        case_set = load_public_chat_main_path_cases()
+        case_set = load_online_answer_main_path_cases()
 
         domains = {case.domain for case in case_set.cases}
         outcomes = {case.expected.terminal_outcome for case in case_set.cases}
@@ -38,7 +38,7 @@ class PublicChatMainPathCasesTest(unittest.TestCase):
         self.assertTrue({"completed", "clarification", "fail_closed"}.issubset(outcomes))
 
     def test_main_path_cases_pin_runtime_trace_contract(self) -> None:
-        case_set = load_public_chat_main_path_cases()
+        case_set = load_online_answer_main_path_cases()
 
         for case in case_set.cases:
             with self.subTest(case_id=case.case_id):

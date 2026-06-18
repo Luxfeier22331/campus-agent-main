@@ -27,7 +27,7 @@ def _pending_manifest() -> dict[str, object]:
                     "observed_failure_class": "wrong_intent",
                     "sampled_at": "2026-04-29T08:11:00.000Z",
                     "source_request_id": "req_feedback_01",
-                    "source_surface": "public_chat_web",
+                    "source_surface": "campus_web",
                     "source_type": "negative_feedback",
                     "trace_id": "trace_feedback_01",
                 },
@@ -47,7 +47,7 @@ def _pending_manifest() -> dict[str, object]:
                     "observed_failure_class": "unsupported_by_evidence",
                     "sampled_at": "2026-04-29T08:20:00.000Z",
                     "source_request_id": "req_badcase_02",
-                    "source_surface": "public_chat_web",
+                    "source_surface": "campus_web",
                     "source_type": "operator_badcase",
                     "trace_id": "trace_badcase_02",
                 },
@@ -219,7 +219,7 @@ class EvalAdmissionRawPayloadGuardTest(unittest.TestCase):
             },
             "rawTranscript": "do not store",
             "requestId": "req_feedback_01",
-            "surface": "public_chat_web",
+            "surface": "campus_web",
             "traceId": "trace_feedback_01",
         }
 

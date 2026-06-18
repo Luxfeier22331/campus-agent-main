@@ -132,8 +132,8 @@
 			]
 		},
 		{
-			"surface_id": "public_chat_product_path",
-			"domain_owner": "app-api/public-chat-web/execution-control",
+			"surface_id": "online_answer_path",
+			"domain_owner": "app-api/campus-web/execution-control",
 			"capability_family": "none",
 			"admission_state": "product_path_eval",
 			"truth_scope": "denominator_expectation",
@@ -189,7 +189,7 @@
 			]
 		},
 		{
-			"surface_id": "public_chat_feedback/operator_quality_intake",
+			"surface_id": "online_answer_feedback/operator_quality_intake",
 			"domain_owner": "app-api/operator_quality",
 			"capability_family": "none",
 			"admission_state": "intake_only",

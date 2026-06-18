@@ -29,7 +29,6 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
 
         self.assertIn("multi-agent-runtime-contract", profile_ids)
         self.assertIn("tool-routing-product-path", profile_ids)
-        self.assertIn("public-chat-entry-e2e", profile_ids)
         self.assertIn("online-answer-path", profile_ids)
         self.assertIn("answer-quality-contract", profile_ids)
         self.assertIn("hindsight-memory-product-path", profile_ids)

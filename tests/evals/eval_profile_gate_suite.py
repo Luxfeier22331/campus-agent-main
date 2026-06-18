@@ -13,14 +13,14 @@ from campus_evals.eval_operations_governance import (
 from campus_evals.eval_profile_gate import (
     collect_document_quality_runtime_observations,
     derive_eval_operations_observations_from_artifacts,
-    run_public_chat_product_path_profile_gate,
+    run_online_answer_path_profile_gate,
 )
-from campus_evals.public_chat_product_path_eval import load_public_chat_product_path_cases
+from campus_evals.online_answer_path_eval import load_online_answer_path_cases
 
 
 class EvalProfileGateSuite(unittest.TestCase):
-    def test_public_chat_profile_gate_writes_unified_artifact(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+    def test_online_answer_profile_gate_writes_unified_artifact(self) -> None:
+        case_set = load_online_answer_path_cases()
         observations = {
             case.case_id: {
                 "case_id": case.case_id,
@@ -42,7 +42,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 json.dumps({"observations": list(observations.values())}),
                 encoding="utf-8",
             )
-            report = run_public_chat_product_path_profile_gate(
+            report = run_online_answer_path_profile_gate(
                 output_dir=root / "out",
                 observations_path=observations_path,
                 git_head_resolver=lambda: "abc123",
@@ -52,11 +52,11 @@ class EvalProfileGateSuite(unittest.TestCase):
 
         self.assertTrue(report.passed)
         self.assertEqual(payload["schema_version"], "eval_profile_gate.v1")
-        self.assertEqual(payload["profile_id"], "public_chat_product_path")
-        self.assertEqual(payload["case_family"], "public_chat_product_path.v1")
+        self.assertEqual(payload["profile_id"], "online_answer_path")
+        self.assertEqual(payload["case_family"], "online_answer_path.v1")
         self.assertEqual(payload["version_summary"]["git_head"], "abc123")
         self.assertEqual(
-            payload["version_summary"]["case_set_version"], "public_chat_product_path.v1"
+            payload["version_summary"]["case_set_version"], "online_answer_path.v1"
         )
         self.assertIn("sanitized_results", payload)
 
@@ -67,7 +67,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "eval_profile_gate.v1",
-                        "profile_id": "public_chat_product_path",
+                        "profile_id": "online_answer_path",
                         "summary": {
                             "total": 2,
                             "failed": 1,
@@ -77,7 +77,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                             "started_at": "2026-05-01T00:00:00+00:00",
                             "finished_at": "2026-05-01T00:00:07+00:00",
                             "collector_version": "eval_profile_gate.v1",
-                            "runtime_profile": "public_chat_product_path",
+                            "runtime_profile": "online_answer_path",
                         },
                         "sanitized_results": [
                             {"case_id": "case-a", "passed": True},
@@ -88,7 +88,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                             },
                         ],
                         "version_summary": {
-                            "case_set_version": "public_chat_product_path.v1",
+                            "case_set_version": "online_answer_path.v1",
                             "policy_artifact": "eval_operations_profile_policy.v1",
                             "runtime_version": "eval_profile_gate.v1",
                         },
@@ -102,7 +102,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 gate_mode="release_gate",
             )
 
-        observation = observations["public_chat_product_path"]
+        observation = observations["online_answer_path"]
         self.assertEqual(observation.cases_run, 2)
         self.assertEqual(observation.failed_cases, ("case-b",))
         self.assertEqual(observation.case_dispositions["case-b"], "missing_observation")
@@ -118,7 +118,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "eval_profile_gate.v1",
-                        "profile_id": "public_chat_product_path",
+                        "profile_id": "online_answer_path",
                         "summary": {
                             "total": 1,
                             "failed": 0,
@@ -128,7 +128,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                         },
                         "sanitized_results": [{"case_id": "case-a", "passed": True}],
                         "version_summary": {
-                            "case_set_version": "public_chat_product_path.v1",
+                            "case_set_version": "online_answer_path.v1",
                             "policy_artifact": "eval_operations_profile_policy.v1",
                             "runtime_version": "eval_profile_gate.v1",
                         },
@@ -142,10 +142,10 @@ class EvalProfileGateSuite(unittest.TestCase):
                 gate_mode="release_gate",
             )
 
-        self.assertTrue(observations["public_chat_product_path"].metrics_missing)
+        self.assertTrue(observations["online_answer_path"].metrics_missing)
 
     def test_profile_report_preserves_safe_request_correlation_for_runtime_backflow(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
         case = case_set.cases[0]
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -178,9 +178,9 @@ class EvalProfileGateSuite(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            report = run_public_chat_product_path_profile_gate(
+            report = run_online_answer_path_profile_gate(
                 output_dir=root / "out",
-                cases_path=_single_public_chat_case_path(root, case),
+                cases_path=_single_online_answer_case_path(root, case),
                 observations_path=observations_path,
                 git_head_resolver=lambda: "abc123",
             )
@@ -200,8 +200,8 @@ class EvalProfileGateSuite(unittest.TestCase):
             },
         )
 
-    def test_public_chat_profile_replays_workflow_trace_summary_consistency(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+    def test_online_answer_profile_replays_workflow_trace_summary_consistency(self) -> None:
+        case_set = load_online_answer_path_cases()
         case = next(
             item
             for item in case_set.cases
@@ -238,9 +238,9 @@ class EvalProfileGateSuite(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            report = run_public_chat_product_path_profile_gate(
+            report = run_online_answer_path_profile_gate(
                 output_dir=root / "out",
-                cases_path=_single_public_chat_case_path(root, case),
+                cases_path=_single_online_answer_case_path(root, case),
                 observations_path=observations_path,
                 git_head_resolver=lambda: "abc123",
             )
@@ -261,7 +261,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 "policy_id": "eval_operations_profile_policy.v1",
                 "profiles": [
                     {
-                        "profile_id": "public_chat_product_path",
+                        "profile_id": "online_answer_path",
                         "budget": {
                             "max_cases_per_run": 20,
                             "max_provider_calls_per_run": 20,
@@ -297,7 +297,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "eval_profile_gate.v1",
-                        "profile_id": "public_chat_product_path",
+                        "profile_id": "online_answer_path",
                         "summary": {
                             "total": 1,
                             "passed": 1,
@@ -306,7 +306,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                         },
                         "sanitized_results": [{"case_id": "case-a", "passed": True}],
                         "version_summary": {
-                            "case_set_version": "public_chat_product_path.v1",
+                            "case_set_version": "online_answer_path.v1",
                             "policy_artifact": "eval_operations_profile_policy.v1",
                             "runtime_version": "eval_profile_gate.v1",
                         },
@@ -320,7 +320,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 gate_mode="release_gate",
             )
 
-        self.assertTrue(observations["public_chat_product_path"].metrics_missing)
+        self.assertTrue(observations["online_answer_path"].metrics_missing)
         report = evaluate_eval_operations_governance(policy, observations)
         self.assertFalse(report.passed)
         self.assertIn("runtime_metrics_missing", report.results[0].failure_classes)
@@ -463,13 +463,13 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         )
 
 
-def _single_public_chat_case_path(root: Path, case) -> Path:
-    path = root / "single-public-chat-case.json"
+def _single_online_answer_case_path(root: Path, case) -> Path:
+    path = root / "single-online-answer-case.json"
     path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "case_family": "public_chat_product_path.v1",
+                "case_family": "online_answer_path.v1",
                 "cases": [
                     {
                         "case_id": case.case_id,

@@ -273,7 +273,7 @@ class OperatorObservabilityCliTest(unittest.TestCase):
     def test_build_profile_report_publish_batch_skips_uncorrelated_results(self) -> None:
         profile_report_payload = {
             "schema_version": "eval_profile_gate.v1",
-            "profile_id": "public_chat_product_path",
+            "profile_id": "online_answer_path",
             "sanitized_results": [
                 {
                     "case_id": "case-1",

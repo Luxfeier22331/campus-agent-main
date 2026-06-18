@@ -135,20 +135,14 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   selection、guardrail outcome 与 trace projection completeness，并通过
   `attach_workflow_trace_gate(...)` 把 verdict 写入 formal benchmark 的
   `orchestration_case_results`
-- public chat product-path eval 固定在
-  `packages/evals/fixtures/e2e/public_chat/product_path_cases.v1.json` 与
-  `campus_evals.public_chat_product_path_eval`；它只评估 sanitized request / trace
+- online answer product-path eval 固定在
+  `packages/evals/fixtures/e2e/online_answer_path/product_path_cases.v1.json` 与
+  `campus_evals.online_answer_path_eval`；它只评估 sanitized request / trace
   correlation、selected capability、terminal outcome、response contract 与
   operator backflow summary，不保存 raw transcript 或 provider raw response
-- public chat entry E2E eval 固定在
-  `packages/evals/fixtures/e2e/public_chat/entry_cases.v1.json` 与
-  `campus_evals.public_chat_entry_e2e`；它验证 public chat 入口 request path、
-  request / trace correlation、terminal outcome、response card/source contract，以及已开放
-  入口问法的最小 answer-text semantic contract，不把 browser transcript 或 provider raw
-  response 写入 artifact
-- public chat main-path eval 固定在
-  `packages/evals/fixtures/e2e/public_chat/main_path_cases.v1.json` 与
-  `campus_evals.public_chat_main_path_cases`；它维护产品级主链路问题集，覆盖 admission、
+- online answer main-path eval 固定在
+  `packages/evals/fixtures/e2e/online_answer_path/main_path_cases.v1.json` 与
+  `campus_evals.online_answer_main_path_cases`；它维护产品级主链路问题集，覆盖 admission、
   memory recall、routing、capability execution、source-truth grounding 与 finalization
   contract，不把 RAG qrels 当成完整 E2E truth
 - tool-routing product-path eval 固定在
@@ -223,7 +217,7 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   缺 observation 都是 gate failure。
 - `quality-calibration` 是 report-only profile，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile quality-calibration
-  --observations-path <observations.json>`；它只汇总 public chat usefulness、OCR semantic
+  --observations-path <observations.json>`；它只汇总 online answer usefulness、OCR semantic
   quality 与 agentic plan quality 的 calibration 观察和 pending review candidates，不参与
   deterministic pass/fail canonical truth。
 - service-guide 与 contact-directory 不再作为独立 `scripts.eval_gate`
@@ -240,12 +234,12 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
 - `multi-agent-runtime-contract` gate 是 capability execution runtime contract
   的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
   accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
-  tool-family denominator、public-chat product-path eval、capability execution
+  tool-family denominator、online-answer product-path eval、capability execution
   schema/generated artifact 同步检查，以及 execution-control / app-api / panel
   targeted test lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
-  dry-run artifact。`multi-agent-product-path` 暂保留为 deprecated alias；真实产品路径 E2E 使用
-  `public-chat-product-path --collect-runtime` 和后续 public chat acceptance lane。
+  dry-run artifact。真实产品路径 E2E 使用
+  `online-answer-path --collect-runtime` 和后续 online answer acceptance lane。
 - `multi-agent-live-smoke` 是历史 direct-process live gate alias。Python
   supervisor worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
   当前 runtime smoke 应以 `execution-control` / `agent-runtime` / typed activity
@@ -260,13 +254,13 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
   验证 `snake_case` strict wire、execution contract version、enum、extra-field rejection、
   cancel / timeout / execution unavailable terminal semantics。
-- public-chat product-path eval 会 replay `workflow_trace_summary`，检查 first decision
+- online-answer product-path eval 会 replay `workflow_trace_summary`，检查 first decision
   的 direct/no-tool、capability-required、clarification、reject 与 fail-close branch，
   selected capability / tool 以及 fail-close reason 是否和产品路径 observation 一致；
   panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
   provider / prompt key 做非暴露断言。
 - `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
-  tool-family case 与 10 条 public-chat product-path case。知识类 student_rules /
+  tool-family case 与 16 条 online-answer product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
   可直接调用的 flat tool。
 - `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
@@ -523,7 +517,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   --write docs/reference/golden-dataset-case-matrix.md`
 - `uv run --all-packages python -m scripts.eval_gate audit --json`
 - `uv run --all-packages python -m unittest
-  tests.evals.public_chat_product_path_eval_suite
+  tests.evals.online_answer_path_eval_suite
   tests.evals.tool_family_denominator_suite
   tests.evals.document_quality_eval_suite
   tests.evals.authz_privacy_eval_suite`
@@ -538,7 +532,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 observation-backed profile gate CLI：
 
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  public-chat-product-path --observations-path <observations.json> --json`
+  online-answer-path --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   tool-family-denominator --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
@@ -551,8 +545,6 @@ observation-backed profile gate CLI：
   eval-operations-governance --artifact-path <profile-report.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   tool-routing-product-path --observations-path <observations.json> --json`
-- `uv run --all-packages python -m scripts.eval_gate accept --profile
-  public-chat-entry-e2e --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   answer-quality-contract --observations-path <observations.json> --json`
 

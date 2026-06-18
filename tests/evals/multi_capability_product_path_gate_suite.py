@@ -12,7 +12,7 @@ from campus_evals.multi_capability_runtime_contract_gate import (
     CommandResult,
     run_multi_capability_product_path_gate,
 )
-from campus_evals.public_chat_product_path_eval import load_public_chat_product_path_cases
+from campus_evals.online_answer_path_eval import load_online_answer_path_cases
 from campus_evals.tool_family_denominator import load_tool_family_denominator
 from campus_evals.workflow_trace_gate import load_workflow_trace_cases
 
@@ -31,7 +31,7 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
 
         workflow_cases = load_workflow_trace_cases()
         tool_denominator = load_tool_family_denominator()
-        public_chat_cases = load_public_chat_product_path_cases()
+        online_answer_cases = load_online_answer_path_cases()
 
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir) / "gate"
@@ -53,7 +53,7 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
                 "capability_execution_contract_generation_check",
                 "workflow_trace_eval_tests",
                 "tool_family_denominator_tests",
-                "public_chat_product_path_eval_tests",
+                "online_answer_path_eval_tests",
                 "capability_execution_runtime_tests",
                 "domain_capability_adapter_tests",
                 "app_api_multi_capability_observability_tests",
@@ -78,10 +78,10 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
             },
         )
         self.assertEqual(
-            artifact["public_chat_product_path_summary"],
+            artifact["online_answer_path_summary"],
             {
-                "case_family": public_chat_cases.case_family,
-                "case_count": len(public_chat_cases.cases),
+                "case_family": online_answer_cases.case_family,
+                "case_count": len(online_answer_cases.cases),
             },
         )
         self.assertEqual(artifact["version_summary"]["git_head"], "abc123")
@@ -141,9 +141,9 @@ class MultiCapabilityProductPathGateTest(unittest.TestCase):
                     "run",
                     "-c",
                     "vitest.node.config.mts",
-                    "test/data-provider.test.ts",
-                    "test/panel-shell-copy-regression.test.ts",
-                    "test/request-formatters.test.ts",
+                    "test/data-clients.test.ts",
+                    "test/panel-copy.test.ts",
+                    "test/worker.test.ts",
                 ),
                 gate.REPO_ROOT,
             ),

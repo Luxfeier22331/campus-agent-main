@@ -31,7 +31,7 @@ from scripts.eval_gate_langfuse import (
 
 DEFAULT_WORKER_APPS = (
     "apps/app-api",
-    "apps/public-chat-web",
+    "apps/campus-web",
     "apps/operator-console-web",
 )
 
@@ -65,7 +65,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--worker-app",
         action="append",
         default=[],
-        help="Worker app path to audit. Defaults to the three canonical worker surfaces.",
+        help="Worker app path to audit. Defaults to the canonical Worker surfaces.",
     )
     doctor_parser.add_argument(
         "--json",
@@ -436,12 +436,8 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.multi_capability_live_smoke_gate import main as runner
 
         return runner
-    if normalized == "public-chat-entry-e2e":
-        from campus_evals.public_chat_entry_e2e import main as runner
-
-        return runner
-    if normalized == "public-chat-product-path":
-        from campus_evals.eval_profile_gate import public_chat_product_path_main as runner
+    if normalized == "online-answer-path":
+        from campus_evals.eval_profile_gate import online_answer_path_main as runner
 
         return runner
     if normalized == "tool-family-denominator":
@@ -545,7 +541,7 @@ def _audit_denominator_registry_coverage() -> dict[str, object]:
     registry = load_denominator_registry()
     surface_ids = {entry.surface_id for entry in registry.entries}
     required = {
-        "public_chat_product_path",
+        "online_answer_path",
         "multimodal_ocr_document_quality",
         "restricted_authz_privacy",
         "agentic_retrieval_plan",

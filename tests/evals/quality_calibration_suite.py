@@ -18,8 +18,8 @@ class QualityCalibrationSuite(unittest.TestCase):
                     {
                         "observations": [
                             {
-                                "case_id": "public-chat-usefulness-1",
-                                "rubric": "public_chat_usefulness",
+                                "case_id": "online-answer-usefulness-1",
+                                "rubric": "online_answer_usefulness",
                                 "score": 0.72,
                                 "verdict": "needs_review",
                                 "rationale": "answer is useful but citation clarity is weak",
@@ -51,8 +51,8 @@ class QualityCalibrationSuite(unittest.TestCase):
             payload["pending_review_candidates"],
             [
                 {
-                    "case_id": "public-chat-usefulness-1",
-                    "rubric": "public_chat_usefulness",
+                    "case_id": "online-answer-usefulness-1",
+                    "rubric": "online_answer_usefulness",
                     "score": 0.72,
                     "rationale": "answer is useful but citation clarity is weak",
                 }
@@ -68,10 +68,10 @@ class QualityCalibrationSuite(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "eval_profile_gate.v1",
-                        "profile_id": "public_chat_product_path",
+                        "profile_id": "online_answer_path",
                         "sanitized_results": [
                             {
-                                "case_id": "public-chat-service-guide-happy-path",
+                                "case_id": "online-answer-service-guide-happy-path",
                                 "passed": False,
                                 "reason": "source_url_present expected true, got false",
                             }
@@ -89,7 +89,7 @@ class QualityCalibrationSuite(unittest.TestCase):
             payload = json.loads(report.output_path.read_text(encoding="utf-8"))
 
         self.assertEqual(payload["summary"]["total"], 1)
-        self.assertEqual(payload["observations"][0]["rubric"], "public_chat_usefulness")
+        self.assertEqual(payload["observations"][0]["rubric"], "online_answer_usefulness")
         self.assertEqual(payload["observations"][0]["verdict"], "needs_review")
 
 

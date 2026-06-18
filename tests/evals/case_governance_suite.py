@@ -45,7 +45,7 @@ class EvalCaseGovernanceTest(unittest.TestCase):
                 "transport_schedule_lookup",
                 "service_guide_lookup",
                 "contact_directory_lookup",
-                "public_chat_feedback/operator_quality_intake",
+                "online_answer_feedback/operator_quality_intake",
             }.issubset(surface_ids)
         )
         for entry in registry.entries:

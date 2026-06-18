@@ -16,9 +16,9 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
 
         self.assertTrue(EVAL_OPERATIONS_PROFILE_POLICY_PATH.exists())
         self.assertEqual(policy.schema_version, 1)
-        self.assertIn("public_chat_product_path", policy.profiles)
+        self.assertIn("online_answer_path", policy.profiles)
         self.assertNotIn("official_web_fresh_news", policy.profiles)
-        profile = policy.profiles["public_chat_product_path"]
+        profile = policy.profiles["online_answer_path"]
         self.assertGreater(profile.budget.max_cases_per_run, 0)
         self.assertGreater(profile.runtime_timeout_seconds, 0)
         self.assertGreater(profile.retention.artifact_days, 0)
@@ -52,13 +52,13 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
 
     def test_detects_budget_quarantine_retention_and_drift_violations(self) -> None:
         policy = load_eval_operations_profile_policy()
-        profile = policy.profiles["public_chat_product_path"]
+        profile = policy.profiles["online_answer_path"]
 
         report = evaluate_eval_operations_governance(
             policy,
             {
-                "public_chat_product_path": EvalOperationsObservation(
-                    profile_id="public_chat_product_path",
+                "online_answer_path": EvalOperationsObservation(
+                    profile_id="online_answer_path",
                     gate_mode="pr_hard_gate",
                     cases_run=profile.budget.max_cases_per_run + 1,
                     runtime_seconds=profile.runtime_timeout_seconds + 1,
@@ -75,7 +75,7 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
 
         self.assertFalse(report.passed)
         result = next(
-            item for item in report.results if item.profile_id == "public_chat_product_path"
+            item for item in report.results if item.profile_id == "online_answer_path"
         )
         self.assertIn("budget_exceeded", result.failure_classes)
         self.assertIn("runtime_policy_violation", result.failure_classes)
@@ -87,13 +87,13 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
 
     def test_detects_provider_call_budget_violation(self) -> None:
         policy = load_eval_operations_profile_policy()
-        profile = policy.profiles["public_chat_product_path"]
+        profile = policy.profiles["online_answer_path"]
 
         report = evaluate_eval_operations_governance(
             policy,
             {
-                "public_chat_product_path": EvalOperationsObservation(
-                    profile_id="public_chat_product_path",
+                "online_answer_path": EvalOperationsObservation(
+                    profile_id="online_answer_path",
                     gate_mode="manual",
                     cases_run=1,
                     provider_calls=profile.budget.max_provider_calls_per_run + 1,
@@ -110,7 +110,7 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
 
         self.assertFalse(report.passed)
         result = next(
-            item for item in report.results if item.profile_id == "public_chat_product_path"
+            item for item in report.results if item.profile_id == "online_answer_path"
         )
         self.assertEqual(result.failure_classes, ("budget_exceeded",))
 

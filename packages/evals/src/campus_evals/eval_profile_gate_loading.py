@@ -9,7 +9,7 @@ from campus_evals.agentic_retrieval_plan_eval import AgenticRetrievalPlanObserva
 from campus_evals.authz_privacy_eval import AuthzPrivacyObservation
 from campus_evals.document_quality_eval import DocumentQualityObservation
 from campus_evals.eval_operations_governance import EvalOperationsObservation
-from campus_evals.public_chat_product_path_eval import PublicChatProductPathObservation
+from campus_evals.online_answer_path_eval import OnlineAnswerPathObservation
 from campus_evals.tool_family_denominator import ToolObservation
 
 
@@ -26,11 +26,11 @@ def _request_correlation_mapping(value: object) -> dict[str, object]:
     }
 
 
-def _load_public_chat_observations(
+def _load_online_answer_observations(
     path: Path | None,
-) -> dict[str, PublicChatProductPathObservation]:
+) -> dict[str, OnlineAnswerPathObservation]:
     return {
-        item["case_id"]: PublicChatProductPathObservation(
+        item["case_id"]: OnlineAnswerPathObservation(
             case_id=_required_string(item.get("case_id"), "case_id"),
             request_id=_required_string(item.get("request_id"), "request_id"),
             trace_id=_required_string(item.get("trace_id"), "trace_id"),
@@ -165,11 +165,11 @@ def _load_observation_items(path: Path | None) -> tuple[dict[str, object], ...]:
     )
 
 
-def _public_chat_observation_from_response(
+def _online_answer_observation_from_response(
     *,
     case_id: str,
     response: httpx.Response,
-) -> PublicChatProductPathObservation:
+) -> OnlineAnswerPathObservation:
     payload = response.json()
     answer = _mapping(payload.get("answer") or {}, "answer")
     result = _mapping(answer.get("result") or {}, "answer.result")
@@ -191,7 +191,7 @@ def _public_chat_observation_from_response(
         or result.get("fail_close_reason")
         or ""
     )
-    return PublicChatProductPathObservation(
+    return OnlineAnswerPathObservation(
         case_id=case_id,
         request_id=request_id,
         trace_id=trace_id,
@@ -342,7 +342,7 @@ __all__ = [
     "_load_document_quality_observations",
     "_load_eval_operations_observations",
     "_load_json",
-    "_load_public_chat_observations",
+    "_load_online_answer_observations",
     "_load_tool_observations",
     "_mapping",
     "_optional_string_value",

@@ -71,9 +71,9 @@ _SHARED_OPENING_CHECKS = (
     "supervisor_go_structured_runtime_tests",
     "campus_services_capability_adapter_tests",
     "app_api_campus_services_runtime_tests",
-    "public_chat_worker_e2e_tests",
+    "campus_web_worker_e2e_tests",
     "app_api_typecheck",
-    "public_chat_typecheck",
+    "campus_web_typecheck",
 )
 
 _TOOL_OPENING_PROFILES = (
@@ -177,11 +177,11 @@ def _app_api_runtime_command() -> tuple[str, ...]:
     )
 
 
-def _public_chat_worker_e2e_command() -> tuple[str, ...]:
+def _campus_web_worker_e2e_command() -> tuple[str, ...]:
     return (
         "pnpm",
         "--dir",
-        "apps/public-chat-web",
+        "apps/campus-web",
         "test:worker",
         "--",
         "--runInBand",
@@ -198,11 +198,11 @@ def _app_api_typecheck_command() -> tuple[str, ...]:
     )
 
 
-def _public_chat_typecheck_command() -> tuple[str, ...]:
+def _campus_web_typecheck_command() -> tuple[str, ...]:
     return (
         "pnpm",
         "--dir",
-        "apps/public-chat-web",
+        "apps/campus-web",
         "typecheck",
     )
 
@@ -237,8 +237,8 @@ def run_campus_services_product_path_opening_gate(
             cwd=REPO_ROOT,
         ),
         _run_command_check(
-            check_id="public_chat_worker_e2e_tests",
-            command=_public_chat_worker_e2e_command(),
+            check_id="campus_web_worker_e2e_tests",
+            command=_campus_web_worker_e2e_command(),
             command_runner=command,
             cwd=REPO_ROOT,
         ),
@@ -249,8 +249,8 @@ def run_campus_services_product_path_opening_gate(
             cwd=REPO_ROOT,
         ),
         _run_command_check(
-            check_id="public_chat_typecheck",
-            command=_public_chat_typecheck_command(),
+            check_id="campus_web_typecheck",
+            command=_campus_web_typecheck_command(),
             command_runner=command,
             cwd=REPO_ROOT,
         ),

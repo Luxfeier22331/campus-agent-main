@@ -33,7 +33,7 @@ class EvalAdmissionTest(unittest.TestCase):
                     "observed_failure_class": "unexpected_handoff_target",
                     "sampled_at": "2026-04-25T00:00:00.000Z",
                     "source_request_id": "req_observed_navigation_001",
-                    "source_surface": "public_chat_web",
+                    "source_surface": "campus_web",
                     "trace_id": "trace_observed_navigation_001",
                     "tags": ["mined", "closed"],
                     "user_goal": "图书馆在哪里",
@@ -98,7 +98,7 @@ class EvalAdmissionTest(unittest.TestCase):
                     "review": {"suggestedLabels": ["wrong_intent"]},
                     "selectedCapability": "knowledge",
                     "summary": "Negative answer feedback for answer: wrong_intent.",
-                    "surface": "public_chat_web",
+                    "surface": "campus_web",
                     "traceId": "trace_feedback_01",
                 }
             ],
@@ -208,7 +208,7 @@ class EvalAdmissionTest(unittest.TestCase):
             "observed_failure_class": "unexpected_handoff_target",
             "sampled_at": "2026-04-25T00:00:00.000Z",
             "source_request_id": "req_observed_navigation_001",
-            "source_surface": "public_chat_web",
+            "source_surface": "campus_web",
             "trace_id": "trace_observed_navigation_001",
             "tags": ["mined", "closed"],
             "user_goal": "图书馆在哪里",
@@ -263,7 +263,7 @@ class EvalAdmissionTest(unittest.TestCase):
             "requestId": "req_01HQ",
             "selectedCapability": "knowledge",
             "summary": "semanticOutcome=unsupported_by_evidence",
-            "surface": "public_chat_web",
+            "surface": "campus_web",
             "traceId": "trace_01HQ",
         }
 

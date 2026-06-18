@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol
 
-from campus_evals.public_chat_product_path_eval import load_public_chat_product_path_cases
+from campus_evals.online_answer_path_eval import load_online_answer_path_cases
 from campus_evals.tool_family_denominator import load_tool_family_denominator
 from campus_evals.workflow_trace_gate import (
     load_workflow_trace_cases,
@@ -68,7 +68,7 @@ def run_multi_capability_product_path_gate(
 
     workflow_trace_summary = _build_workflow_trace_summary()
     tool_family_summary = _build_tool_family_summary()
-    public_chat_product_path_summary = _build_public_chat_product_path_summary()
+    online_answer_path_summary = _build_online_answer_path_summary()
 
     checks = (
         _run_command_check(
@@ -90,8 +90,8 @@ def run_multi_capability_product_path_gate(
             cwd=REPO_ROOT,
         ),
         _run_command_check(
-            check_id="public_chat_product_path_eval_tests",
-            command=_public_chat_product_path_eval_command(),
+            check_id="online_answer_path_eval_tests",
+            command=_online_answer_path_eval_command(),
             command_runner=command,
             cwd=REPO_ROOT,
         ),
@@ -129,7 +129,7 @@ def run_multi_capability_product_path_gate(
         report=report,
         workflow_trace_summary=workflow_trace_summary,
         tool_family_summary=tool_family_summary,
-        public_chat_product_path_summary=public_chat_product_path_summary,
+        online_answer_path_summary=online_answer_path_summary,
         git_head=resolve_git_head(),
     )
     report.output_path.write_text(
@@ -156,8 +156,8 @@ def _build_tool_family_summary() -> dict[str, object]:
     }
 
 
-def _build_public_chat_product_path_summary() -> dict[str, object]:
-    case_set = load_public_chat_product_path_cases()
+def _build_online_answer_path_summary() -> dict[str, object]:
+    case_set = load_online_answer_path_cases()
     return {
         "case_family": case_set.case_family,
         "case_count": len(case_set.cases),
@@ -200,7 +200,7 @@ def _tool_family_denominator_command() -> tuple[str, ...]:
     )
 
 
-def _public_chat_product_path_eval_command() -> tuple[str, ...]:
+def _online_answer_path_eval_command() -> tuple[str, ...]:
     return (
         "uv",
         "run",
@@ -208,7 +208,7 @@ def _public_chat_product_path_eval_command() -> tuple[str, ...]:
         "python",
         "-m",
         "unittest",
-        "tests.evals.test_public_chat_product_path_eval",
+        "tests.evals.test_online_answer_path_eval",
     )
 
 
@@ -256,15 +256,15 @@ def _panel_multi_capability_observability_command() -> tuple[str, ...]:
     return (
         "pnpm",
         "--dir",
-        "apps/protected-panel-web",
+        "apps/operator-console-web",
         "exec",
         "vitest",
         "run",
         "-c",
         "vitest.node.config.mts",
-        "test/data-provider.test.ts",
-        "test/panel-shell-copy-regression.test.ts",
-        "test/request-formatters.test.ts",
+        "test/data-clients.test.ts",
+        "test/panel-copy.test.ts",
+        "test/worker.test.ts",
     )
 
 
@@ -294,7 +294,7 @@ def _report_payload(
     report: MultiCapabilityProductPathGateReport,
     workflow_trace_summary: dict[str, object],
     tool_family_summary: dict[str, object],
-    public_chat_product_path_summary: dict[str, object],
+    online_answer_path_summary: dict[str, object],
     git_head: str | None,
 ) -> dict[str, object]:
     checks = tuple(asdict(check) for check in report.checks)
@@ -311,7 +311,7 @@ def _report_payload(
         },
         "workflow_trace_summary": workflow_trace_summary,
         "tool_family_summary": tool_family_summary,
-        "public_chat_product_path_summary": public_chat_product_path_summary,
+        "online_answer_path_summary": online_answer_path_summary,
         "checks": checks,
         "version_summary": {
             "generated_at": datetime.now(UTC).isoformat(),
@@ -323,7 +323,7 @@ def _report_payload(
                 "schema-first capability execution contract generation check",
                 "workflow trace fixture and evaluator coverage",
                 "tool-family denominator fixture and evaluator coverage",
-                "public-chat product-path fixture and evaluator coverage",
+                "online-answer product-path fixture and evaluator coverage",
                 "targeted execution-control/app-api/panel test lanes",
             ],
             "excluded_scope": [

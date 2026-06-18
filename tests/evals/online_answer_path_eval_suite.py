@@ -5,58 +5,58 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from campus_evals.public_chat_product_path_eval import (
-    PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH,
-    PublicChatProductPathObservation,
-    build_public_chat_product_path_report,
-    load_public_chat_product_path_cases,
+from campus_evals.online_answer_path_eval import (
+    ONLINE_ANSWER_PATH_CASES_PATH,
+    OnlineAnswerPathObservation,
+    build_online_answer_path_report,
+    load_online_answer_path_cases,
 )
 
 
-class PublicChatProductPathEvalTest(unittest.TestCase):
-    def test_loads_public_chat_product_path_fixture_with_happy_and_fail_close_cases(self) -> None:
-        self.assertTrue(PUBLIC_CHAT_PRODUCT_PATH_CASES_PATH.exists())
+class OnlineAnswerPathEvalTest(unittest.TestCase):
+    def test_loads_online_answer_path_fixture_with_happy_and_fail_close_cases(self) -> None:
+        self.assertTrue(ONLINE_ANSWER_PATH_CASES_PATH.exists())
 
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
 
         self.assertEqual(case_set.schema_version, 1)
-        self.assertEqual(case_set.case_family, "public_chat_product_path.v1")
+        self.assertEqual(case_set.case_family, "online_answer_path.v1")
         case_ids = {case.case_id for case in case_set.cases}
-        self.assertIn("public-chat-service-guide-happy-path", case_ids)
-        self.assertIn("public-chat-policy-unavailable-fail-close", case_ids)
-        self.assertIn("public-chat-transport-schedule-routing", case_ids)
-        self.assertIn("public-chat-notice-title-url-card", case_ids)
+        self.assertIn("online-answer-service-guide-happy-path", case_ids)
+        self.assertIn("online-answer-policy-unavailable-fail-close", case_ids)
+        self.assertIn("online-answer-transport-schedule-routing", case_ids)
+        self.assertIn("online-answer-notice-title-url-card", case_ids)
 
     def test_fixture_covers_user_journey_and_boundary_denominator(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
         case_ids = {case.case_id for case in case_set.cases}
 
         self.assertTrue(
             {
-                "public-chat-service-guide-happy-path",
-                "public-chat-medical-reimbursement-service-guide",
-                "public-chat-transport-schedule-routing",
-                "public-chat-academic-calendar-date-week",
-                "public-chat-academic-calendar-named-event",
-                "public-chat-academic-calendar-spring-break-colloquial",
-                "public-chat-academic-calendar-course-suspension",
-                "public-chat-academic-calendar-notice-rest-day-override",
-                "public-chat-notice-spring-break-original",
-                "public-chat-notice-title-url-card",
-                "public-chat-notice-detail-summary",
-                "public-chat-contextual-follow-up-materials",
-                "public-chat-transactional-service-fail-close",
-                "public-chat-no-hit-safe-response",
-                "public-chat-policy-unavailable-fail-close",
+                "online-answer-service-guide-happy-path",
+                "online-answer-medical-reimbursement-service-guide",
+                "online-answer-transport-schedule-routing",
+                "online-answer-academic-calendar-date-week",
+                "online-answer-academic-calendar-named-event",
+                "online-answer-academic-calendar-spring-break-colloquial",
+                "online-answer-academic-calendar-course-suspension",
+                "online-answer-academic-calendar-notice-rest-day-override",
+                "online-answer-notice-spring-break-original",
+                "online-answer-notice-title-url-card",
+                "online-answer-notice-detail-summary",
+                "online-answer-contextual-follow-up-materials",
+                "online-answer-transactional-service-fail-close",
+                "online-answer-no-hit-safe-response",
+                "online-answer-policy-unavailable-fail-close",
             }.issubset(case_ids)
         )
         outcomes = {case.expected.terminal_outcome for case in case_set.cases}
         self.assertTrue({"completed", "clarification", "fail_close", "no_hit"}.issubset(outcomes))
 
     def test_report_requires_request_trace_target_and_terminal_outcome(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
         observations = {
-            case.case_id: PublicChatProductPathObservation(
+            case.case_id: OnlineAnswerPathObservation(
                 case_id=case.case_id,
                 request_id=f"req_{index}",
                 trace_id=f"trace_{index}",
@@ -69,7 +69,7 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
             for index, case in enumerate(case_set.cases, start=1)
         }
 
-        report = build_public_chat_product_path_report(case_set.cases, observations)
+        report = build_online_answer_path_report(case_set.cases, observations)
 
         self.assertTrue(report.passed)
         self.assertEqual(report.total, len(case_set.cases))
@@ -78,10 +78,10 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
         self.assertEqual(report.results[0].trace_id, "trace_1")
 
     def test_report_fails_missing_source_url_for_happy_path_contract(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
         observations = {
-            "public-chat-service-guide-happy-path": PublicChatProductPathObservation(
-                case_id="public-chat-service-guide-happy-path",
+            "online-answer-service-guide-happy-path": OnlineAnswerPathObservation(
+                case_id="online-answer-service-guide-happy-path",
                 request_id="req_service_guide_001",
                 trace_id="trace_service_guide_001",
                 selected_capability="campus_services",
@@ -99,23 +99,23 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
             )
         }
 
-        report = build_public_chat_product_path_report(case_set.cases, observations)
+        report = build_online_answer_path_report(case_set.cases, observations)
 
         self.assertFalse(report.passed)
         failing = {result.case_id: result for result in report.results}
-        self.assertFalse(failing["public-chat-service-guide-happy-path"].passed)
+        self.assertFalse(failing["online-answer-service-guide-happy-path"].passed)
         self.assertIn(
             "response_contract.source_url_present",
-            failing["public-chat-service-guide-happy-path"].reason,
+            failing["online-answer-service-guide-happy-path"].reason,
         )
         self.assertIn(
-            "missing observation", failing["public-chat-policy-unavailable-fail-close"].reason
+            "missing observation", failing["online-answer-policy-unavailable-fail-close"].reason
         )
 
     def test_report_rejects_raw_payload_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            PublicChatProductPathObservation(
-                case_id="public-chat-service-guide-happy-path",
+            OnlineAnswerPathObservation(
+                case_id="online-answer-service-guide-happy-path",
                 request_id="req_service_guide_001",
                 trace_id="trace_service_guide_001",
                 selected_capability="campus_services",
@@ -124,9 +124,9 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
             )
 
     def test_report_writes_machine_readable_artifact(self) -> None:
-        case_set = load_public_chat_product_path_cases()
+        case_set = load_online_answer_path_cases()
         observations = {
-            case.case_id: PublicChatProductPathObservation(
+            case.case_id: OnlineAnswerPathObservation(
                 case_id=case.case_id,
                 request_id=f"req_{index}",
                 trace_id=f"trace_{index}",
@@ -140,8 +140,8 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
         }
 
         with TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "public-chat-product-path-e2e.json"
-            report = build_public_chat_product_path_report(
+            output_path = Path(tmpdir) / "online-answer-path-e2e.json"
+            report = build_online_answer_path_report(
                 case_set.cases,
                 observations,
                 output_path=output_path,
@@ -150,7 +150,7 @@ class PublicChatProductPathEvalTest(unittest.TestCase):
 
         self.assertTrue(report.passed)
         self.assertEqual(payload["schema_version"], 1)
-        self.assertEqual(payload["case_family"], "public_chat_product_path.v1")
+        self.assertEqual(payload["case_family"], "online_answer_path.v1")
         self.assertEqual(payload["summary"]["passed"], len(case_set.cases))
 
 

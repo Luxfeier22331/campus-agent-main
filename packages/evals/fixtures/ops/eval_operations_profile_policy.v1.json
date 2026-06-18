@@ -56,7 +56,7 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "public_chat_product_path",
+			"profile_id": "online_answer_path",
 			"budget": {
 				"max_cases_per_run": 20,
 				"max_provider_calls_per_run": 20
@@ -78,32 +78,6 @@
 				"allowed": true,
 				"max_days": 14,
 				"readmission_rule": "requires owner review, fixed evidence and one clean scheduled run"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
-			"profile_id": "public_chat_entry_e2e",
-			"budget": {
-				"max_cases_per_run": 20,
-				"max_provider_calls_per_run": 20
-			},
-			"runtime_timeout_seconds": 300,
-			"max_retries": 0,
-			"pacing_seconds": 0.0,
-			"breaker": {
-				"failure_threshold": 1,
-				"cooldown_seconds": 60
-			},
-			"retention": {
-				"artifact_days": 30,
-				"promoted_artifact_days": 180
-			},
-			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 14,
-				"readmission_rule": "requires public-chat owner review and clean entry E2E run"
 			},
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},

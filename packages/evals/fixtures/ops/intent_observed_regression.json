@@ -10,7 +10,7 @@
 				"observed_failure_class": "unexpected_handoff_target",
 				"sampled_at": "2026-04-25T00:00:00.000Z",
 				"source_request_id": "req_observed_navigation_001",
-				"source_surface": "public_chat_web",
+				"source_surface": "campus_web",
 				"trace_id": "trace_observed_navigation_001"
 			},
 			"review": {

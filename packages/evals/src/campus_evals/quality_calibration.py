@@ -14,15 +14,15 @@ from campus_evals.models import reject_forbidden_workflow_trace_keys
 DEFAULT_SCHEMA_VERSION = "quality_calibration.v1"
 DEFAULT_REPORT_NAME = "quality-calibration-report.json"
 DEFAULT_RUBRICS = (
-    "public_chat_usefulness",
+    "online_answer_usefulness",
     "ocr_semantic_quality",
     "agentic_plan_quality",
 )
 QUALITY_CALIBRATION_RUBRICS: dict[str, dict[str, object]] = {
-    "public_chat_usefulness": {
-        "metric_name": "public_chat_usefulness",
+    "online_answer_usefulness": {
+        "metric_name": "online_answer_usefulness",
         "applies_to_statuses": ["completed", "needs_clarification", "no_answer", "fail_close"],
-        "system_prompt": "Grade public chat answer usefulness using only the supplied case and response.",
+        "system_prompt": "Grade online answer usefulness using only the supplied case and response.",
         "criteria": [
             "Answers the user-facing task directly when the task is supported.",
             "Keeps refusal or clarification behavior appropriate for unsupported or ambiguous tasks.",
@@ -247,7 +247,7 @@ def _rubric_for_profile(profile_id: str) -> str:
         return "ocr_semantic_quality"
     if profile_id in {"agentic_retrieval_plan", "agentic-retrieval-plan"}:
         return "agentic_plan_quality"
-    return "public_chat_usefulness"
+    return "online_answer_usefulness"
 
 
 def _parse_observation(payload: object) -> QualityCalibrationObservation:

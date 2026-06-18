@@ -52,9 +52,9 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                 "supervisor_go_structured_runtime_tests",
                 "campus_services_capability_adapter_tests",
                 "app_api_campus_services_runtime_tests",
-                "public_chat_worker_e2e_tests",
+                "campus_web_worker_e2e_tests",
                 "app_api_typecheck",
-                "public_chat_typecheck",
+                "campus_web_typecheck",
             ],
         )
         self.assertEqual(
