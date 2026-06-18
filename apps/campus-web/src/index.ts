@@ -34,9 +34,12 @@ const SECURITY_HEADERS = {
 
 const FORWARDED_HEADERS = [
 	"accept",
+	"baggage",
 	"content-type",
 	"cookie",
 	"idempotency-key",
+	"sentry-trace",
+	"traceparent",
 	"x-trace-id",
 ] as const;
 const AUTH_FORWARDED_HEADERS = [

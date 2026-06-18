@@ -70,4 +70,70 @@ describe("campus-web vite local dev proxy", () => {
 			}),
 		);
 	});
+
+	it("forwards trace context headers to the local app-api ChatKit endpoint", async () => {
+		const plugin = createChatKitDevProxyPlugin();
+		const middlewareHandlers: Array<{
+			handler: (request: unknown, response: unknown, next: () => void) => void;
+			route: string;
+		}> = [];
+		const server = {
+			middlewares: {
+				use(
+					route: string,
+					handler: (request: unknown, response: unknown, next: () => void) => void,
+				) {
+					middlewareHandlers.push({ handler, route });
+				},
+			},
+		} as unknown as ViteDevServer;
+		(plugin.configureServer as (server: ViteDevServer) => void)(server);
+		const proxy = middlewareHandlers.find((entry) => entry.route === "/api/chatkit");
+		if (!proxy) {
+			throw new Error("ChatKit proxy middleware was not registered.");
+		}
+		const fetchMock = vi.fn().mockResolvedValue(
+			new Response(JSON.stringify({ ok: true }), {
+				headers: { "content-type": "application/json" },
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const response = {
+			end: vi.fn(),
+			setHeader: vi.fn(),
+			statusCode: 200,
+			statusMessage: "",
+		};
+		const request = new EventEmitter() as EventEmitter & {
+			headers: Record<string, string>;
+			method: string;
+			url: string;
+		};
+		request.headers = {
+			baggage: "sentry-environment=local",
+			"content-type": "application/json",
+			"sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+			traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+			"x-trace-id": "trace_local_01",
+		};
+		request.method = "POST";
+		request.url = "/api/chatkit";
+
+		proxy.handler(request, response, vi.fn());
+		request.emit("data", Buffer.from('{"type":"threads.list"}'));
+		request.emit("end");
+		await vi.waitFor(() => expect(response.end).toHaveBeenCalled());
+
+		expect(fetchMock).toHaveBeenCalledOnce();
+		const init = fetchMock.mock.calls[0][1] as RequestInit;
+		const headers = init.headers as Headers;
+		expect(headers.get("traceparent")).toBe(
+			"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+		);
+		expect(headers.get("sentry-trace")).toBe(
+			"0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+		);
+		expect(headers.get("baggage")).toBe("sentry-environment=local");
+		expect(headers.get("x-trace-id")).toBe("trace_local_01");
+	});
 });

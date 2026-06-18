@@ -175,6 +175,45 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.toContain("服务暂不可用，请稍后再试。");
 	});
 
+	it("forwards browser trace context headers into app-api chat requests", async () => {
+		const forwardedRequests: Request[] = [];
+		const env = createEnv({
+			fetch(request) {
+				forwardedRequests.push(request);
+				return new Response(JSON.stringify({ ok: true }), {
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/chatkit", {
+				body: JSON.stringify({ type: "threads.create" }),
+				headers: {
+					baggage: "sentry-environment=staging",
+					"content-type": "application/json",
+					"sentry-trace": "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+					traceparent: "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+					"x-trace-id": "trace_01HQ",
+				},
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		expect(forwardedRequests).toHaveLength(1);
+		const [forwarded] = forwardedRequests;
+		expect(forwarded.headers.get("traceparent")).toBe(
+			"00-0123456789abcdef0123456789abcdef-0123456789abcdef-01",
+		);
+		expect(forwarded.headers.get("sentry-trace")).toBe(
+			"0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+		);
+		expect(forwarded.headers.get("baggage")).toBe("sentry-environment=staging");
+		expect(forwarded.headers.get("x-trace-id")).toBe("trace_01HQ");
+	});
+
 	it("uses the configured loopback app-api URL as local dev proxy transport", async () => {
 		const appApiBinding = {
 			fetch() {

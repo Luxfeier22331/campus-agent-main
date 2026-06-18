@@ -48,7 +48,16 @@ async function proxyChatKitDevRequest(
 
 function createForwardedHeaders(request: IncomingMessage): Headers {
 	const headers = new Headers();
-	for (const name of ["accept", "content-type", "cookie", "idempotency-key", "x-trace-id"]) {
+	for (const name of [
+		"accept",
+		"baggage",
+		"content-type",
+		"cookie",
+		"idempotency-key",
+		"sentry-trace",
+		"traceparent",
+		"x-trace-id",
+	]) {
 		const value = request.headers[name];
 		if (Array.isArray(value)) {
 			headers.set(name, value.join(", "));
