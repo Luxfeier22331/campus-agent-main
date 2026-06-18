@@ -153,6 +153,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     }
   }
 }`)
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@runtime-profile-test")
 
 	cfg, err := LoadFromEnv()
 	if err != nil {

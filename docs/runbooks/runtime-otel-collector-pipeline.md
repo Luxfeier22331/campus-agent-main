@@ -80,6 +80,7 @@ Populate the staging template from deployment secrets, not from tracked files:
 
 ```bash
 DEPLOYMENT_ENVIRONMENT=staging
+EXECUTION_CONTROL_RUNTIME_RELEASE=execution-control@<git-sha>
 OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT=0.0.0.0:4317
 OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT=0.0.0.0:4318
 OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT=0.0.0.0:13133
@@ -96,6 +97,12 @@ OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel
 OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=<secret-managed Basic header>
 OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4
 ```
+
+Canonical execution-control staging derives `EXECUTION_CONTROL_RUNTIME_RELEASE`
+as `execution-control@<deploy git sha>` in the lifecycle loader. Set it
+explicitly only for non-canonical deployment shells. When the execution-control
+runtime profile enables OTel, runtime startup fails closed if this release
+identity is missing.
 
 For Sentry, use the combined OTLP endpoint from **Client Keys (DSN) > OpenTelemetry
 (OTLP)** and configure `OTEL_COLLECTOR_SENTRY_AUTH_VALUE` as

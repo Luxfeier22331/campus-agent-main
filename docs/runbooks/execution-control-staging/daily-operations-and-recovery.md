@@ -88,6 +88,10 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
 - staging profile 必须设置 `EXECUTION_CONTROL_METRICS_BEARER_TOKEN`；
   `status-execution-control-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
   raw token 写入日志
+- staging lifecycle 会投影 `DEPLOYMENT_ENVIRONMENT=staging`，并把
+  `EXECUTION_CONTROL_RUNTIME_RELEASE` 派生为 `execution-control@<deploy git sha>`。
+  execution-control runtime profile 启用 OTel 时，缺少该 release identity 必须
+  fail closed；canonical staging 不要求开发者在 `runtime.env` 手写它。
 - staging profile 下，execution-control full `/readyz` 是 trusted machine probe；
   local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
   `x-worker-origin-auth`。release QA 不把 execution-control host 列为 public surface；

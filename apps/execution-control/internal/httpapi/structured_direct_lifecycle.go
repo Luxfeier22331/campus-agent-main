@@ -72,7 +72,7 @@ func (s *Server) beginDirectStructuredExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 			Name:                "answer.admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -188,7 +188,7 @@ func (s *Server) beginDirectStructuredStreamExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 			Name:                "answer_stream.admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,

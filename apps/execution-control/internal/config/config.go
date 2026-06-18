@@ -10,9 +10,11 @@ import (
 
 type Config struct {
 	AppName                             string
+	DeploymentEnvironment               string
 	Host                                string
 	Port                                int
 	RuntimeProfile                      string
+	RuntimeRelease                      string
 	AuthMode                            string
 	BearerToken                         string
 	WorkerSharedSecret                  string
@@ -132,9 +134,11 @@ var laneNames = []string{"rag", "navigation", "campus_services", "notice", "defa
 
 type envValues struct {
 	AppName                             string `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
+	DeploymentEnvironment               string `env:"DEPLOYMENT_ENVIRONMENT"`
 	Host                                string `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
 	Port                                int    `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
 	RuntimeProfile                      string `env:"EXECUTION_CONTROL_RUNTIME_PROFILE" envDefault:"local"`
+	RuntimeRelease                      string `env:"EXECUTION_CONTROL_RUNTIME_RELEASE"`
 	AuthMode                            string `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                         string `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                  string `env:"API_WORKER_SHARED_SECRET"`
@@ -256,7 +260,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := validateEnvValues(values, runtimeProfile); err != nil {
+	if err := validateEnvValues(values, runtimeProfile, otelEnabled); err != nil {
 		return Config{}, err
 	}
 	laneBudgets := defaultLaneBudgets(values.MaxConcurrentAnswers, values.QueueCapacity, values.QueueTimeoutMS)
@@ -328,9 +332,11 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 
 	return Config{
 		AppName:                             defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
+		DeploymentEnvironment:               defaultString(strings.TrimSpace(values.DeploymentEnvironment), runtimeProfile),
 		Host:                                defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
 		Port:                                values.Port,
 		RuntimeProfile:                      runtimeProfile,
+		RuntimeRelease:                      strings.TrimSpace(values.RuntimeRelease),
 		AuthMode:                            defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
 		BearerToken:                         strings.TrimSpace(values.BearerToken),
 		WorkerSharedSecret:                  strings.TrimSpace(values.WorkerSharedSecret),
@@ -433,7 +439,7 @@ func parseEnvValues() (envValues, error) {
 	return values, nil
 }
 
-func validateEnvValues(values envValues, runtimeProfile string) error {
+func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool) error {
 	checks := []struct {
 		name  string
 		value int
@@ -486,6 +492,9 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("runtime profile otel.sample_ratio must be a number between 0 and 1")
+	}
+	if otelEnabled && strings.TrimSpace(values.RuntimeRelease) == "" {
+		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime profile otel.enabled=true")
 	}
 	if runtimeProfile != "local" && strings.TrimSpace(values.MetricsBearerToken) == "" {
 		return fmt.Errorf(

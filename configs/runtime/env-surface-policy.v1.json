@@ -260,6 +260,16 @@
 			"scopes": [],
 			"secret": false,
 			"retired": true
+		},
+		"DEPLOYMENT_ENVIRONMENT": {
+			"owner": "runtime-observability",
+			"scopes": ["infra", "staging-local"],
+			"secret": false
+		},
+		"EXECUTION_CONTROL_RUNTIME_RELEASE": {
+			"owner": "runtime-observability",
+			"scopes": ["root", "command", "staging-local"],
+			"secret": false
 		}
 	},
 	"allowed_prefixes": {

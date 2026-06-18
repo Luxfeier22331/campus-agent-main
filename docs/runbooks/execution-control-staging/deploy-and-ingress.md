@@ -183,6 +183,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` 与
   `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 不需要手写；lifecycle 首次生成并
   持久化到 runtime secrets file。
+- `DEPLOYMENT_ENVIRONMENT=staging` 与
+  `EXECUTION_CONTROL_RUNTIME_RELEASE=execution-control@<deploy git sha>` 由 lifecycle
+  投影；runtime profile 启用 OTel 时缺少 release identity 会 fail closed。
 - canonical self-host run projection store 默认投影为
   `postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable`。
   只有外接 Postgres 时才填写 `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`。

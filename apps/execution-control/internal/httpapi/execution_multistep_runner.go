@@ -95,7 +95,7 @@ func (s *Server) runMultiStepBridgeExecution(
 	}
 	workflowRun = createdRun
 
-	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,

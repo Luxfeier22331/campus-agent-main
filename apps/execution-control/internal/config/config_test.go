@@ -539,6 +539,8 @@ func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
 func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_PROFILE", "staging")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@staging-test")
+	t.Setenv("DEPLOYMENT_ENVIRONMENT", "staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:gateway:001")
@@ -551,6 +553,12 @@ func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
 	}
 	if cfg.RuntimeProfile != "staging" {
 		t.Fatalf("runtime profile = %q, want staging", cfg.RuntimeProfile)
+	}
+	if cfg.RuntimeRelease != "execution-control@staging-test" {
+		t.Fatalf("runtime release = %q, want execution-control@staging-test", cfg.RuntimeRelease)
+	}
+	if cfg.DeploymentEnvironment != "staging" {
+		t.Fatalf("deployment environment = %q, want staging", cfg.DeploymentEnvironment)
 	}
 }
 
@@ -619,6 +627,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
   "open_capabilities": ["campus_services", "notice"],
   "multi_step_workflow_enabled": true
 }`)
+	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")

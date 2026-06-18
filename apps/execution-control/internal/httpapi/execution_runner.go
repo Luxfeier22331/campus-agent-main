@@ -134,7 +134,7 @@ func (s *Server) runBridgeExecution(
 		}
 	}
 
-	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -177,7 +177,7 @@ func (s *Server) runBridgeExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 			Name:                string(mode) + ".admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -229,7 +229,7 @@ func (s *Server) runBridgeExecution(
 	}
 	if !s.bridgeBreaker.Allow() {
 		s.metrics.RecordBridgeFailure("circuit_open")
-		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 			Name:                string(mode) + ".failed",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -334,7 +334,7 @@ func (s *Server) runBridgeExecution(
 			s.metrics.RecordBridgeFailure(failureKind)
 		}
 		if state != lifecycle.StateClientCanceled {
-			if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 				Name:                terminalTelemetryEventName(mode, state),
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -404,7 +404,7 @@ func (s *Server) executeBridgeWithRetry(
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		runState.AttemptCount = attempt
 		attemptStartedAt := time.Now()
-		if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if emitErr := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 			Name:                "agent.bridge.started",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -418,7 +418,7 @@ func (s *Server) executeBridgeWithRetry(
 		attemptDuration := time.Since(attemptStartedAt)
 		s.metrics.RecordBridgeDuration(attemptDuration)
 		if err == nil {
-			if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if emitErr := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 				Name:                "agent.bridge.completed",
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -439,7 +439,7 @@ func (s *Server) executeBridgeWithRetry(
 			executionRequest.RequestID,
 		)
 		if !retryable || attempt >= maxAttempts {
-			if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if emitErr := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 				Name:                "agent.bridge.failed",
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -534,7 +534,7 @@ func (s *Server) recordBridgeWriteOutcome(
 	} else if writeOutcome.CircuitSuccess {
 		s.bridgeBreaker.RecordSuccess()
 	}
-	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                terminalTelemetryEventName(mode, writeOutcome.State),
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,

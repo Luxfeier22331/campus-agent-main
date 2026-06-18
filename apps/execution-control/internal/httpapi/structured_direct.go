@@ -91,7 +91,7 @@ func (s *Server) handleDirectStructuredAnswer(
 		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "execution_response")
-	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -191,7 +191,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "execution_response")
-	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,

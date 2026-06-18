@@ -26,7 +26,7 @@ func (s *Server) handleDirectTerminalAnswer(
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "execution_response")
-	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(request.Context(), s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -58,7 +58,7 @@ func (s *Server) handleDirectTerminalAnswerStream(
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "execution_response")
-	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(request.Context(), s.runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,

@@ -1,6 +1,8 @@
 package httpapi
 
 import (
+	"strings"
+
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
@@ -38,6 +40,20 @@ func runtimeTelemetryEvent(
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason
 	event.UserID = request.OwnerUserID
+	return event
+}
+
+func (s *Server) runtimeTelemetryEvent(
+	event telemetry.Event,
+	request execution.AnswerExecutionRequest,
+) telemetry.Event {
+	event = runtimeTelemetryEvent(event, request)
+	if strings.TrimSpace(event.Release) == "" {
+		event.Release = strings.TrimSpace(s.config.RuntimeRelease)
+	}
+	if strings.TrimSpace(event.DeploymentEnvironment) == "" {
+		event.DeploymentEnvironment = strings.TrimSpace(s.config.DeploymentEnvironment)
+	}
 	return event
 }
 

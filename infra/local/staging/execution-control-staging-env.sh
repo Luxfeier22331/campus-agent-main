@@ -4,6 +4,7 @@
 
 execution_control_staging_load_env() {
   local node_bin
+  local runtime_release_sha
   local runtime_env_path="${execution_control_staging_env_file}"
   local runtime_secrets_env_path="${execution_control_staging_runtime_secrets_env_file}"
   local export_script
@@ -878,6 +879,13 @@ NODE
   fi
   export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH="${EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:-/etc/campus-agent/runtime-profile.staging.json}"
   export DEPLOYMENT_ENVIRONMENT="${DEPLOYMENT_ENVIRONMENT:-staging}"
+  if [[ -z "${EXECUTION_CONTROL_RUNTIME_RELEASE:-}" ]]; then
+    runtime_release_sha="${EXECUTION_CONTROL_STAGING_EXPECTED_SHA:-}"
+    if [[ -z "${runtime_release_sha}" ]]; then
+      runtime_release_sha="$(git -C "${execution_control_staging_repo_root}" rev-parse HEAD)"
+    fi
+    export EXECUTION_CONTROL_RUNTIME_RELEASE="execution-control@${runtime_release_sha}"
+  fi
   export OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT="${OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}"
   export OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT="${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-0.0.0.0:4318}"
   export OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT="${OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT:-0.0.0.0:13133}"
@@ -999,6 +1007,11 @@ execution_control_staging_require_runtime_env_core() {
 
   if [[ -z "${EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL:-}" ]]; then
     echo "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL is required for execution-control staging run projection store." >&2
+    return 1
+  fi
+
+  if [[ -z "${EXECUTION_CONTROL_RUNTIME_RELEASE:-}" ]]; then
+    echo "EXECUTION_CONTROL_RUNTIME_RELEASE is required for execution-control staging observability." >&2
     return 1
   fi
 
