@@ -40,16 +40,20 @@ through the same base URL and OTLP endpoint configuration.
 
 ## Consequences
 
-The runtime integration starts as a disabled skeleton:
+The runtime integration is enabled through explicit configuration:
 
 - Collector config declares `otlphttp/langfuse`, with secret-bearing values
   supplied by deployment secret management.
 - execution-control runtime profile owns whether Temporal tracing is enabled.
 - app-api propagates W3C `traceparent` in addition to current Sentry trace
   headers.
-- evals expose a disabled Langfuse adapter until a later goal implements real
-  dataset / experiment / score publishing.
+- execution-control attaches the Temporal Go SDK OpenTelemetry interceptor to
+  configured Temporal clients and workers.
+- evals expose a Langfuse score adapter for sanitized profile reports and keep
+  the adapter disabled unless base URL, public key and secret key are all
+  present.
+- local/staging runtime compose fails closed when the Langfuse Collector
+  endpoint, Basic auth header or ingestion version is missing.
 
-The follow-up implementation must connect the Temporal Go SDK OpenTelemetry
-tracing interceptor to the existing tracing seam and validate a real
-chat-request trace in Langfuse before claiming runtime completion.
+Runtime completion still requires release evidence from a real deployed
+chat-request trace reaching Langfuse through the Collector.

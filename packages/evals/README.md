@@ -813,3 +813,17 @@ runtime observability artifact：
   `<base>.repair.jsonl`
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail
   等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试
+
+Langfuse eval score publish：
+
+- `campus_evals.langfuse_adapter` 负责把 sanitized `profile-report.json` 中带
+  `request_correlation.trace_id` 的 case result 发布为 Langfuse score。
+- 命令入口是 `uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile
+  --profile-report <path>`。
+- 当前发布入口使用 Langfuse Public API `POST /api/public/scores` 与 Basic Auth。
+- `base_url`、`public_key`、`secret_key` 必须同时存在；缺任一项时 adapter 保持 disabled 或
+  fail closed。
+- 发布 payload 只包含 `traceId`、boolean pass/fail score、environment 与 profile/case/request
+  metadata；不得带 raw prompt、raw answer、raw transcript、retrieved snippet 或 source body。
+- 未携带 request correlation 的 profile result 会被跳过，不做 trace 猜测。
+- Langfuse request 返回非 2xx/3xx 时发布命令失败，不降级为 warning。

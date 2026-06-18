@@ -109,12 +109,38 @@ write `pk` or `sk` values directly into tracked config.
 Keep `collector.env.example` blank. Real values belong in the deployment secret manager or local
 ignored environment file.
 
+The runtime compose file treats the Langfuse exporter as part of the staging
+fan-out contract. `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`,
+`OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER` and
+`OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` are required when using
+`infra/local/docker-compose.execution-control-runtime.yml`.
+
 ## Validation
 
 Structural repo test:
 
 ```bash
 uv run --all-packages python -m unittest tests.infra.runtime_otel_collector_config_suite -q
+```
+
+Fail-closed Langfuse env check:
+
+```bash
+OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel \
+OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER="Basic <base64-public-secret-pair>" \
+OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4 \
+uv run --all-packages python scripts/check_runtime_otel_collector_config.py
+```
+
+Langfuse eval score publish smoke:
+
+```bash
+LANGFUSE_BASE_URL=https://langfuse.internal \
+LANGFUSE_PUBLIC_KEY=<project-public-key> \
+LANGFUSE_SECRET_KEY=<project-secret-key> \
+LANGFUSE_ENVIRONMENT=staging \
+uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
+  --profile-report .tmp/evals/online-answer-path/profile-report.json
 ```
 
 Collector binary validation:
@@ -188,14 +214,16 @@ If the Collector receives telemetry but no sink records appear:
 2. Check `telemetry.drop=true`; the filter processor intentionally drops those records.
 3. Check sampling percentages.
 4. Confirm Sentry and Axiom endpoint/header values were injected by the runtime secret manager.
-   Sentry uses `x-sentry-auth`, not `Authorization`.
-5. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
+5. Confirm Langfuse endpoint, Basic auth header and ingestion version passed
+   `scripts/check_runtime_otel_collector_config.py`.
+6. Confirm Sentry uses `x-sentry-auth`, not `Authorization`.
+7. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
    for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,
    or `/v1/metrics` in the Collector exporter config because `otlphttp` appends the signal path
    automatically.
-6. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` matches `AXIOM_ENDPOINT`, so Worker-local and
+8. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` matches `AXIOM_ENDPOINT`, so Worker-local and
    Collector-based exports land in the same Axiom edge deployment.
-7. Confirm Axiom traces/logs use `x-axiom-dataset=campus-agent-runtime`.
+9. Confirm Axiom traces/logs use `x-axiom-dataset=campus-agent-runtime`.
    Metrics stay on the Collector debug pipeline and are not exported to a
    separate Axiom metrics dataset.
 

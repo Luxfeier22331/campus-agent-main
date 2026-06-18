@@ -14,15 +14,15 @@ Langfuse is the LLM observability and eval platform for the online answer path.
 It is not an execution runtime, product data store, operator query backend or
 contract owner.
 
-The target runtime chain is:
+The runtime chain is:
 
 `app-api -> execution-control -> Temporal workflow/activity workers -> OTel
 Collector -> Langfuse`
 
-The target eval chain is:
+The eval publishing chain is:
 
-`packages/evals -> app-api internal eval ingress -> deterministic scorer ->
-Langfuse dataset / experiment / score`
+`packages/evals -> deterministic scorer / sanitized profile report -> Langfuse
+score API`
 
 ## Runtime Mapping
 
@@ -63,19 +63,25 @@ database URLs and object-store/provider secrets.
 Temporal owns workflow history, retry, timeout, heartbeat, signal, cancel and
 task queue dispatch. Langfuse consumes OTel spans emitted at runtime boundaries.
 
-The skeleton exposes a Temporal tracing configuration seam. The production
-implementation should attach the Temporal Go SDK OpenTelemetry tracing
-interceptor through that seam, then continue emitting repo-owned step projection
-and safe attributes for product diagnostics.
+`execution-control` attaches the Temporal Go SDK OpenTelemetry tracing
+interceptor to both Temporal clients and workers when
+`otel.temporal_tracing_enabled=true`. The interceptor uses the repo-owned OTel
+provider and Collector endpoint configured by the execution-control runtime
+profile.
+
+The Collector remains the fan-out boundary. Runtime code emits sanitized OTel
+data to the Collector; it does not write Langfuse directly.
 
 ## Eval Platform Boundary
 
 Langfuse datasets and experiments help run and compare evals. They do not own
 the repo's eval truth.
 
-- `packages/evals` owns case schema, fixture loading, deterministic scoring and
-  release verdicts.
-- Langfuse stores experiment runs, item scores and review workflow artifacts.
+- `packages/evals` owns case schema, fixture loading, deterministic scoring,
+  sanitized profile reports and release verdicts.
+- `packages/evals` may publish `online-answer-path` profile results to
+  Langfuse via `/api/public/scores` using Basic Auth.
+- Langfuse stores score/review workflow artifacts.
 - CI gates may use Langfuse experiment output, but must fail closed when the
   repo-owned scorer or adapter reports missing configuration or incomplete
   results.

@@ -3,12 +3,14 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import os
 import re
 from collections.abc import Callable
 from contextlib import redirect_stdout
 from datetime import datetime
 from pathlib import Path
 
+from campus_evals.langfuse_adapter import LangfuseAdapterSettings
 from campus_evals.profile_registry import (
     EvalProfileDefinition,
     accepted_profile_ids,
@@ -201,6 +203,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_profile_parser.add_argument("--json", action="store_true")
 
+    publish_langfuse_profile_parser = subparsers.add_parser(
+        "publish-langfuse-profile",
+        help="Publish sanitized profile-report.json scores to Langfuse.",
+    )
+    publish_langfuse_profile_parser.add_argument(
+        "--profile-report",
+        required=True,
+        help="profile-report.json path produced by an eval profile gate.",
+    )
+    publish_langfuse_profile_parser.add_argument("--json", action="store_true")
+
     audit_parser = subparsers.add_parser(
         "audit",
         help="Audit eval profile registry, workflow, policy, and fixture coverage.",
@@ -355,6 +368,30 @@ def publish_profile_report_artifact(
         grade_source=grade_source,
         grader_version=grader_version,
         dry_run=dry_run,
+    )
+
+
+def publish_langfuse_profile_report_artifact(
+    *,
+    profile_report_path: Path,
+    settings: LangfuseAdapterSettings | None = None,
+) -> dict[str, object]:
+    from campus_evals.langfuse_adapter import create_langfuse_adapter
+
+    profile_report_payload = json.loads(profile_report_path.read_text(encoding="utf-8"))
+    resolved_settings = settings or _langfuse_settings_from_env()
+    adapter = create_langfuse_adapter(resolved_settings)
+    return adapter.publish_profile_report(profile_report_payload)
+
+
+def _langfuse_settings_from_env() -> LangfuseAdapterSettings:
+    timeout_raw = str(os.environ.get("LANGFUSE_TIMEOUT_SECONDS") or "").strip()
+    return LangfuseAdapterSettings(
+        base_url=str(os.environ.get("LANGFUSE_BASE_URL") or "").strip(),
+        public_key=str(os.environ.get("LANGFUSE_PUBLIC_KEY") or "").strip(),
+        secret_key=str(os.environ.get("LANGFUSE_SECRET_KEY") or "").strip(),
+        environment=str(os.environ.get("LANGFUSE_ENVIRONMENT") or "").strip(),
+        timeout_seconds=float(timeout_raw) if timeout_raw else 10.0,
     )
 
 
@@ -735,6 +772,17 @@ def main(argv: list[str] | None = None) -> int:
             grade_source=args.grade_source,
             grader_version=args.grader_version,
             dry_run=bool(args.dry_run),
+        )
+        if args.json:
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "publish-langfuse-profile":
+        summary = publish_langfuse_profile_report_artifact(
+            profile_report_path=Path(args.profile_report),
+            settings=_langfuse_settings_from_env(),
         )
         if args.json:
             print(json.dumps(summary, ensure_ascii=False, indent=2))

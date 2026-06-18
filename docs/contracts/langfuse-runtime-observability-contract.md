@@ -14,6 +14,10 @@ This contract defines the sanitized OTel attributes that may be exported to
 Langfuse. It does not define app-api public HTTP shape, Temporal history shape
 or `packages/contracts` DTOs.
 
+Eval score publishing uses the same boundary: `packages/evals` may write
+sanitized score payloads to Langfuse, but Langfuse score schemas do not become
+repo DTOs and must not leak into `packages/contracts`.
+
 ## Trace Attributes
 
 Every Langfuse-bound online answer trace should provide:
@@ -47,6 +51,30 @@ Every Langfuse-bound workflow/activity observation should provide:
 
 RAG observations may additionally provide safe summary counts and categorical
 states. They must not include source body text or retrieved snippets.
+
+## Score Payloads
+
+`online-answer-path` profile publishing sends one boolean Langfuse score per
+correlated sanitized case result.
+
+Allowed score fields:
+
+- `traceId`
+- `name`: `<profile_id>.profile`
+- `value`: `1` for pass, `0` for fail
+- `dataType`: `BOOLEAN`
+- `source`: `API`
+- `environment`
+- `metadata.profile_id`
+- `metadata.case_id`
+- `metadata.request_id`
+- `metadata.case_family`
+- `metadata.schema_version`
+- `metadata.grader_version`
+- `metadata.failure_class`
+
+Uncorrelated profile results are skipped rather than guessed. Langfuse request
+failures fail the publish command; they are not downgraded to warnings.
 
 ## Forbidden Payloads
 

@@ -6,10 +6,13 @@ from pathlib import Path
 
 import yaml
 
+from scripts.check_runtime_otel_collector_config import validate_langfuse_collector_env
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_CONFIG = REPO_ROOT / "infra/otel/collector-local-debug.yaml"
 STAGING_CONFIG = REPO_ROOT / "infra/otel/collector-staging-template.yaml"
 ENV_EXAMPLE = REPO_ROOT / "infra/otel/collector.env.example"
+RUNTIME_COMPOSE = REPO_ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
 
 COMMON_PROCESSORS = [
     "memory_limiter",
@@ -194,6 +197,59 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         )
         self.assertEqual(exporter["compression"], "gzip")
         self.assertEqual(exporter["encoding"], "proto")
+
+    def test_runtime_compose_requires_langfuse_fanout_endpoint_and_auth(self) -> None:
+        compose = RUNTIME_COMPOSE.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "
+            "${OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT:?set "
+            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}",
+            compose,
+        )
+        self.assertIn(
+            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "
+            "${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:?set "
+            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}",
+            compose,
+        )
+        self.assertIn(
+            "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "
+            "${OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION:?set "
+            "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}",
+            compose,
+        )
+
+    def test_langfuse_collector_env_validator_fails_closed_for_missing_values(self) -> None:
+        result = validate_langfuse_collector_env(
+            {
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT": "",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": "",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION": "",
+            }
+        )
+
+        self.assertFalse(result.passed)
+        self.assertEqual(
+            result.errors,
+            (
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT is required",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER is required",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION is required",
+            ),
+        )
+
+    def test_langfuse_collector_env_validator_accepts_official_otlp_contract(self) -> None:
+        result = validate_langfuse_collector_env(
+            {
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT": "https://langfuse.internal/api/public/otel",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": "Basic cGstbGY6c2stbGY=",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION": "4",
+            }
+        )
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.errors, ())
 
 
 def _load_yaml(path: Path) -> dict[str, object]:

@@ -37,6 +37,9 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
 - Langfuse OTLP endpoint should be the `/api/public/otel` endpoint. Use
   `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` unless the Langfuse deployment
   contract changes.
+- The staging runtime compose requires Langfuse endpoint, Basic auth header and
+  ingestion version to be populated. Missing values fail startup instead of
+  allowing a broken exporter.
 
 ## Validation
 
@@ -57,4 +60,10 @@ Without a local Collector binary, run the repo structural guard:
 ```bash
 uv run --all-packages python -m unittest \
   tests.infra.runtime_otel_collector_config_suite -q
+```
+
+To check a populated staging shell before starting compose:
+
+```bash
+uv run --all-packages python scripts/check_runtime_otel_collector_config.py
 ```
