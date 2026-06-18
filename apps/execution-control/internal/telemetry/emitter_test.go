@@ -199,6 +199,8 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		CandidateCount:        3,
 		Collection:            "student_rules",
 		Decision:              "admitted_immediate",
+		ActivityAttempt:       2,
+		ActivityType:          "WriteFinalization",
 		Duration:              50 * time.Millisecond,
 		FailureCode:           "timeout",
 		BridgeCancelStatus:    "accepted",
@@ -208,7 +210,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		PlanID:                "rag:regulations:student_rules:historical",
 		PlanningOutcome:       "not_preplanned",
 		PolicyGateDecision:    "out_of_scope",
+		ProjectionRef:         "projection://runs/run-attrs/finalization/write",
 		QueueWait:             5 * time.Millisecond,
+		ScheduleToStart:       7 * time.Millisecond,
 		QueryMode:             "historical",
 		ReferenceCount:        2,
 		RetrievalMode:         "indexed",
@@ -218,13 +222,17 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		RoutingNextAction:     "out_of_scope",
 		ScopeGateDecision:     "out_of_scope",
 		Corpus:                "regulations",
+		Status:                "completed",
 		StepID:                "retrieval.indexed_lookup",
+		StepKind:              "retrieval",
+		TaskQueue:             "campus.execution.activity.finalization",
 		TerminalOutcome:       "no_answer",
 		TerminalState:         "failed_closed",
 		FailCloseReason:       "product_scope_boundary",
 		StatusCode:            504,
 		TargetVersionIDsCount: 1,
 		TraceID:               "trace-attrs",
+		WorkflowID:            "campus-agent.chat.run-attrs",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
 	}
@@ -243,6 +251,8 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"scope.collection":                     true,
 		"scope.corpus":                         true,
 		"decision":                             true,
+		"activity_attempt":                     true,
+		"activity_type":                        true,
 		"duration_ms":                          true,
 		"failure_code":                         true,
 		"failure_kind":                         true,
@@ -257,7 +267,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"plan_id":                              true,
 		"planning_outcome":                     true,
 		"policy_gate_decision":                 true,
+		"projection_ref":                       true,
 		"queue_wait_ms":                        true,
+		"schedule_to_start_ms":                 true,
 		"latency_ms":                           true,
 		"query_sha256":                         true,
 		"query_mode":                           true,
@@ -270,7 +282,10 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"selected_capability":                  true,
 		"selected_tool":                        true,
 		"scope_gate_decision":                  true,
+		"status":                               true,
 		"step_id":                              true,
+		"step_kind":                            true,
+		"task_queue":                           true,
 		"terminal_outcome":                     true,
 		"terminal_state":                       true,
 		"fail_close_reason":                    true,
@@ -279,6 +294,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"target_document_ids_count":            true,
 		"telemetry.allowed_attributes_version": true,
 		"trace_id":                             true,
+		"workflow_id":                          true,
 	}
 	found := map[string]string{}
 	for _, attr := range attrs {
@@ -300,6 +316,12 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"step_id":                 "retrieval.indexed_lookup",
 		"fail_close_reason":       "product_scope_boundary",
 		"bridge_cancel_status":    "accepted",
+		"activity_type":           "WriteFinalization",
+		"projection_ref":          "projection://runs/run-attrs/finalization/write",
+		"status":                  "completed",
+		"step_kind":               "retrieval",
+		"task_queue":              "campus.execution.activity.finalization",
+		"workflow_id":             "campus-agent.chat.run-attrs",
 	}
 	for key, want := range expectedValues {
 		if found[key] != want {

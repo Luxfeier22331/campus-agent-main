@@ -8,6 +8,7 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 	"go.temporal.io/sdk/activity"
 )
@@ -137,27 +138,86 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 	}); err != nil {
 		return err
 	}
+	if completionErr == nil && strings.TrimSpace(projection.ResultKind) != "" {
+		if _, err := s.runProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
+			ResultID:             temporalStepResultID(projection.Run.RunID, projection.StepID, attempt),
+			StepID:               projection.StepID,
+			RunID:                projection.Run.RunID,
+			AttemptID:            attemptID,
+			Status:               projection.Status,
+			ResultKind:           projection.ResultKind,
+			ProjectionRef:        projection.ProjectionRef,
+			CreatedAt:            updatedAt,
+			PayloadSchemaVersion: "step-result-projection-v1",
+			SanitizedPayload:     projection.Payload,
+		}); err != nil {
+			return err
+		}
+	}
+	if err := s.emitTemporalStepObservation(ctx, projection); err != nil {
+		return err
+	}
 	if completionErr != nil {
 		return completionErr
 	}
-	if strings.TrimSpace(projection.ResultKind) == "" {
+	return nil
+}
+
+func (s *Server) emitTemporalStepObservation(ctx context.Context, projection temporalStepProjection) error {
+	if s == nil || s.telemetry == nil {
 		return nil
 	}
-	if _, err := s.runProjectionStore.UpsertStepResult(ctx, execution.StepResultProjection{
-		ResultID:             temporalStepResultID(projection.Run.RunID, projection.StepID, attempt),
-		StepID:               projection.StepID,
-		RunID:                projection.Run.RunID,
-		AttemptID:            attemptID,
-		Status:               projection.Status,
-		ResultKind:           projection.ResultKind,
-		ProjectionRef:        projection.ProjectionRef,
-		CreatedAt:            updatedAt,
-		PayloadSchemaVersion: "step-result-projection-v1",
-		SanitizedPayload:     projection.Payload,
-	}); err != nil {
-		return err
+	if err := s.telemetry.Emit(ctx, s.temporalStepObservationEvent(projection)); err != nil {
+		return fmt.Errorf("temporal step observation telemetry delivery failed: %w", err)
 	}
 	return nil
+}
+
+func (s *Server) temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
+	event := temporalStepObservationEvent(projection)
+	if strings.TrimSpace(event.Release) == "" {
+		event.Release = strings.TrimSpace(s.config.RuntimeRelease)
+	}
+	if strings.TrimSpace(event.DeploymentEnvironment) == "" {
+		event.DeploymentEnvironment = strings.TrimSpace(s.config.DeploymentEnvironment)
+	}
+	return event
+}
+
+func temporalStepObservationEvent(projection temporalStepProjection) telemetry.Event {
+	return telemetry.Event{
+		ActivityAttempt:       projection.ActivityAttempt,
+		ActivityType:          strings.TrimSpace(projection.ActivityType),
+		ConversationID:        strings.TrimSpace(projection.Run.ConversationID),
+		DeploymentEnvironment: "",
+		Duration:              time.Duration(projection.DurationMS) * time.Millisecond,
+		FailCloseReason:       strings.TrimSpace(projection.FailCloseReason),
+		Name:                  "temporal.step_observation",
+		ProjectionRef:         strings.TrimSpace(projection.ProjectionRef),
+		RequestID:             strings.TrimSpace(projection.Run.RequestID),
+		RunID:                 strings.TrimSpace(projection.Run.RunID),
+		ScheduleToStart:       time.Duration(projection.ScheduleToStartMS) * time.Millisecond,
+		SelectedCapability:    firstNonEmptyText(projection.Capability, projection.Run.SelectedCapability),
+		SelectedTool:          temporalStepSelectedTool(projection),
+		Status:                strings.TrimSpace(projection.Status),
+		StepID:                strings.TrimSpace(projection.StepID),
+		StepKind:              strings.TrimSpace(projection.StepKind),
+		TaskQueue:             strings.TrimSpace(projection.TaskQueue),
+		TraceID:               strings.TrimSpace(projection.Run.TraceID),
+		UserID:                strings.TrimSpace(projection.Run.OwnerUserID),
+		WorkflowID:            strings.TrimSpace(projection.WorkflowID),
+	}
+}
+
+func temporalStepSelectedTool(projection temporalStepProjection) string {
+	if projection.Payload == nil {
+		return ""
+	}
+	tool, ok := projection.Payload["selected_tool"].(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(tool)
 }
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {

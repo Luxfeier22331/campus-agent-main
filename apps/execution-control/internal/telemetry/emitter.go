@@ -43,10 +43,16 @@ type Event struct {
 	Decision               string
 	FailureCode            string
 	FailureKind            string
+	ActivityType           string
+	TaskQueue              string
+	ActivityAttempt        int
+	WorkflowID             string
+	StepKind               string
 	PlanID                 string
 	StatusCode             int
 	Duration               time.Duration
 	QueueWait              time.Duration
+	ScheduleToStart        time.Duration
 	ScopeGateDecision      string
 	PolicyGateDecision     string
 	RoutingNextAction      string
@@ -62,6 +68,8 @@ type Event struct {
 	TerminalOutcome        string
 	TerminalState          string
 	FailCloseReason        string
+	Status                 string
+	ProjectionRef          string
 	TargetDocumentIDsCount int
 	TargetVersionIDsCount  int
 	Latency                time.Duration
@@ -247,7 +255,13 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("decision", event.Decision),
 		attribute.String("failure_code", event.FailureCode),
 		attribute.String("failure_kind", event.FailureKind),
+		attribute.String("activity_type", event.ActivityType),
+		attribute.String("task_queue", event.TaskQueue),
+		attribute.Int("activity_attempt", event.ActivityAttempt),
+		attribute.String("workflow_id", event.WorkflowID),
+		attribute.String("step_kind", event.StepKind),
 		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
+		attribute.Int64("schedule_to_start_ms", event.ScheduleToStart.Milliseconds()),
 		attribute.String("routing_next_action", event.RoutingNextAction),
 		attribute.String("selected_capability", event.SelectedCapability),
 		attribute.String("selected_tool", event.SelectedTool),
@@ -256,6 +270,8 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("terminal_outcome", event.TerminalOutcome),
 		attribute.String("terminal_state", event.TerminalState),
 		attribute.String("fail_close_reason", event.FailCloseReason),
+		attribute.String("status", event.Status),
+		attribute.String("projection_ref", event.ProjectionRef),
 		attribute.Int("status_code", event.StatusCode),
 		attribute.Int64("duration_ms", event.Duration.Milliseconds()),
 		attribute.Int64("latency_ms", event.Latency.Milliseconds()),
