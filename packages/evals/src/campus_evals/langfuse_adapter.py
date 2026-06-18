@@ -103,6 +103,68 @@ class ConfiguredLangfuseEvalAdapter:
         )
 
 
+def verify_langfuse_online_trace_evidence(
+    *,
+    settings: LangfuseAdapterSettings,
+    trace_id: str,
+    expected_session_id: str,
+    expected_user_id: str,
+    expected_release: str,
+    expected_tags: tuple[str, ...],
+    client: httpx.Client | None = None,
+) -> dict[str, object]:
+    adapter = create_langfuse_adapter(settings)
+    if isinstance(adapter, DisabledLangfuseEvalAdapter):
+        raise LangfuseAdapterDisabled("Langfuse adapter is disabled")
+    normalized_trace_id = _required_string(trace_id, "trace_id")
+    trace_url = f"{settings.base_url.strip().rstrip('/')}/api/public/traces/{normalized_trace_id}"
+    if client is not None:
+        response = client.get(
+            trace_url,
+            params={"fields": "core,observations"},
+            auth=(settings.public_key.strip(), settings.secret_key.strip()),
+        )
+    else:
+        with httpx.Client(timeout=settings.timeout_seconds) as live_client:
+            response = live_client.get(
+                trace_url,
+                params={"fields": "core,observations"},
+                auth=(settings.public_key.strip(), settings.secret_key.strip()),
+            )
+    if response.status_code >= 400:
+        raise LangfuseAdapterRequestError(
+            status_code=response.status_code,
+            message=_extract_error_message(response),
+        )
+    trace = dict(response.json() or {})
+    _assert_trace_field(trace, "id", normalized_trace_id)
+    _assert_trace_field(trace, "name", "online-answer")
+    _assert_trace_field(trace, "sessionId", expected_session_id)
+    _assert_trace_field(trace, "userId", expected_user_id)
+    _assert_trace_field(trace, "release", expected_release)
+    tags = tuple(str(value) for value in trace.get("tags") or ())
+    missing_tags = tuple(tag for tag in expected_tags if tag not in tags)
+    if missing_tags:
+        raise LangfuseAdapterRequestError(
+            status_code=200,
+            message=f"trace evidence missing tags: {', '.join(missing_tags)}",
+        )
+    observations = trace.get("observations")
+    if not isinstance(observations, list) or not observations:
+        raise LangfuseAdapterRequestError(
+            status_code=200,
+            message="trace evidence missing observations",
+        )
+    return {
+        "trace_id": normalized_trace_id,
+        "session_id": expected_session_id,
+        "user_id": expected_user_id,
+        "release": expected_release,
+        "tags": tags,
+        "observation_count": len(observations),
+    }
+
+
 def create_langfuse_adapter(
     settings: LangfuseAdapterSettings,
     *,
@@ -190,6 +252,15 @@ def _extract_error_message(response: httpx.Response) -> str:
     return str(payload.get("message") or payload.get("error") or response.text or "request failed")
 
 
+def _assert_trace_field(trace: dict[str, object], field: str, expected: str) -> None:
+    actual = _optional_string(trace.get(field))
+    if actual != expected:
+        raise LangfuseAdapterRequestError(
+            status_code=200,
+            message=f"trace evidence field {field} = {actual or '<missing>'}, want {expected}",
+        )
+
+
 __all__ = [
     "ConfiguredLangfuseEvalAdapter",
     "DisabledLangfuseEvalAdapter",
@@ -198,4 +269,5 @@ __all__ = [
     "LangfuseAdapterSettings",
     "LangfuseEvalAdapter",
     "create_langfuse_adapter",
+    "verify_langfuse_online_trace_evidence",
 ]

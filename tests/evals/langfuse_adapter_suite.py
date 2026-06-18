@@ -13,6 +13,7 @@ from campus_evals.langfuse_adapter import (
     LangfuseAdapterRequestError,
     LangfuseAdapterSettings,
     create_langfuse_adapter,
+    verify_langfuse_online_trace_evidence,
 )
 
 from scripts.eval_gate import main as eval_gate_main
@@ -157,6 +158,83 @@ class LangfuseAdapterSuite(unittest.TestCase):
                 )
             )
 
+    def test_online_trace_evidence_verifier_reads_trace_core_and_observations(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            return httpx.Response(
+                200,
+                json={
+                    "id": "trace-online-001",
+                    "name": "online-answer",
+                    "sessionId": "conv-online-001",
+                    "userId": "user-online-001",
+                    "release": "release-2026-06-18",
+                    "tags": ["surface:execution-control", "capability:knowledge", "env:staging"],
+                    "observations": [
+                        {"id": "obs-001", "name": "retrieval.runtime_observation"},
+                    ],
+                },
+            )
+
+        evidence = verify_langfuse_online_trace_evidence(
+            settings=LangfuseAdapterSettings(
+                base_url="http://langfuse.internal:3000",
+                public_key="pk-lf-test",
+                secret_key="sk-lf-test",
+            ),
+            trace_id="trace-online-001",
+            expected_session_id="conv-online-001",
+            expected_user_id="user-online-001",
+            expected_release="release-2026-06-18",
+            expected_tags=("surface:execution-control", "capability:knowledge"),
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+        )
+
+        self.assertEqual(evidence["trace_id"], "trace-online-001")
+        self.assertEqual(evidence["observation_count"], 1)
+        request = requests[0]
+        self.assertEqual(
+            str(request.url),
+            "http://langfuse.internal:3000/api/public/traces/trace-online-001?fields=core%2Cobservations",
+        )
+        expected_auth = base64.b64encode(b"pk-lf-test:sk-lf-test").decode("ascii")
+        self.assertEqual(request.headers["authorization"], f"Basic {expected_auth}")
+
+    def test_online_trace_evidence_verifier_fails_closed_on_missing_observations(self) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "observations": [],
+                    },
+                )
+            )
+        )
+
+        with self.assertRaisesRegex(LangfuseAdapterRequestError, "missing observations"):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
+            )
+
     def test_eval_gate_publishes_profile_report_to_langfuse_from_env(self) -> None:
         with TemporaryDirectory() as tmpdir:
             profile_report_path = Path(tmpdir) / "profile-report.json"
@@ -211,6 +289,63 @@ class LangfuseAdapterSuite(unittest.TestCase):
         self.assertEqual(settings.secret_key, "sk-lf-test")
         self.assertEqual(settings.environment, "staging")
         self.assertEqual(json.loads(print_mock.call_args.args[0]), {"published": 1, "skipped": 0})
+
+    def test_eval_gate_verifies_langfuse_trace_evidence_from_env(self) -> None:
+        with (
+            patch.dict(
+                "os.environ",
+                {
+                    "LANGFUSE_BASE_URL": "http://langfuse.internal:3000",
+                    "LANGFUSE_PUBLIC_KEY": "pk-lf-test",
+                    "LANGFUSE_SECRET_KEY": "sk-lf-test",
+                },
+                clear=False,
+            ),
+            patch("scripts.eval_gate.verify_langfuse_online_trace_evidence_artifact") as verify,
+            patch("builtins.print") as print_mock,
+        ):
+            verify.return_value = {
+                "trace_id": "trace-online-001",
+                "observation_count": 2,
+            }
+
+            exit_code = eval_gate_main(
+                [
+                    "verify-langfuse-trace",
+                    "--trace-id",
+                    "trace-online-001",
+                    "--session-id",
+                    "conv-online-001",
+                    "--user-id",
+                    "user-online-001",
+                    "--release",
+                    "release-2026-06-18",
+                    "--tag",
+                    "surface:execution-control",
+                    "--tag",
+                    "capability:knowledge",
+                    "--json",
+                ]
+            )
+
+        self.assertEqual(exit_code, 0)
+        verify.assert_called_once()
+        call = verify.call_args.kwargs
+        self.assertEqual(call["trace_id"], "trace-online-001")
+        self.assertEqual(call["expected_session_id"], "conv-online-001")
+        self.assertEqual(call["expected_user_id"], "user-online-001")
+        self.assertEqual(call["expected_release"], "release-2026-06-18")
+        self.assertEqual(
+            call["expected_tags"], ("surface:execution-control", "capability:knowledge")
+        )
+        settings = call["settings"]
+        self.assertEqual(settings.base_url, "http://langfuse.internal:3000")
+        self.assertEqual(settings.public_key, "pk-lf-test")
+        self.assertEqual(settings.secret_key, "sk-lf-test")
+        self.assertEqual(
+            json.loads(print_mock.call_args.args[0]),
+            {"trace_id": "trace-online-001", "observation_count": 2},
+        )
 
 
 def _profile_report_payload(result: dict[str, object]) -> dict[str, object]:

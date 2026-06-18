@@ -214,6 +214,17 @@ def build_parser() -> argparse.ArgumentParser:
     )
     publish_langfuse_profile_parser.add_argument("--json", action="store_true")
 
+    verify_langfuse_trace_parser = subparsers.add_parser(
+        "verify-langfuse-trace",
+        help="Verify a real online answer trace reached Langfuse.",
+    )
+    verify_langfuse_trace_parser.add_argument("--trace-id", required=True)
+    verify_langfuse_trace_parser.add_argument("--session-id", required=True)
+    verify_langfuse_trace_parser.add_argument("--user-id", required=True)
+    verify_langfuse_trace_parser.add_argument("--release", required=True)
+    verify_langfuse_trace_parser.add_argument("--tag", action="append", default=[])
+    verify_langfuse_trace_parser.add_argument("--json", action="store_true")
+
     audit_parser = subparsers.add_parser(
         "audit",
         help="Audit eval profile registry, workflow, policy, and fixture coverage.",
@@ -382,6 +393,28 @@ def publish_langfuse_profile_report_artifact(
     resolved_settings = settings or _langfuse_settings_from_env()
     adapter = create_langfuse_adapter(resolved_settings)
     return adapter.publish_profile_report(profile_report_payload)
+
+
+def verify_langfuse_online_trace_evidence_artifact(
+    *,
+    trace_id: str,
+    expected_session_id: str,
+    expected_user_id: str,
+    expected_release: str,
+    expected_tags: tuple[str, ...],
+    settings: LangfuseAdapterSettings | None = None,
+) -> dict[str, object]:
+    from campus_evals.langfuse_adapter import verify_langfuse_online_trace_evidence
+
+    resolved_settings = settings or _langfuse_settings_from_env()
+    return verify_langfuse_online_trace_evidence(
+        settings=resolved_settings,
+        trace_id=trace_id,
+        expected_session_id=expected_session_id,
+        expected_user_id=expected_user_id,
+        expected_release=expected_release,
+        expected_tags=expected_tags,
+    )
 
 
 def _langfuse_settings_from_env() -> LangfuseAdapterSettings:
@@ -782,6 +815,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "publish-langfuse-profile":
         summary = publish_langfuse_profile_report_artifact(
             profile_report_path=Path(args.profile_report),
+            settings=_langfuse_settings_from_env(),
+        )
+        if args.json:
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        else:
+            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
+
+    if args.command == "verify-langfuse-trace":
+        summary = verify_langfuse_online_trace_evidence_artifact(
+            trace_id=args.trace_id,
+            expected_session_id=args.session_id,
+            expected_user_id=args.user_id,
+            expected_release=args.release,
+            expected_tags=tuple(args.tag or ()),
             settings=_langfuse_settings_from_env(),
         )
         if args.json:

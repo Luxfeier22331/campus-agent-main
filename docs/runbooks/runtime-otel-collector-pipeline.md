@@ -143,6 +143,27 @@ uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
   --profile-report .tmp/evals/online-answer-path/profile-report.json
 ```
 
+Langfuse real trace evidence smoke:
+
+```bash
+LANGFUSE_BASE_URL=https://langfuse.internal \
+LANGFUSE_PUBLIC_KEY=<project-public-key> \
+LANGFUSE_SECRET_KEY=<project-secret-key> \
+uv run --all-packages python -m scripts.eval_gate verify-langfuse-trace \
+  --trace-id <langfuse-trace-id-from-chat-request> \
+  --session-id <conversation-id> \
+  --user-id <stable-non-pii-user-id> \
+  --release <runtime-release-id> \
+  --tag surface:execution-control \
+  --tag capability:knowledge
+```
+
+This command queries Langfuse `GET /api/public/traces/{traceId}` with
+`fields=core,observations` and fails closed when the trace is missing, the
+session / user / release / required tags drift, or the trace has no
+observations. It is release evidence only; Langfuse remains a sink and does not
+become product truth.
+
 Collector binary validation:
 
 ```bash
@@ -191,6 +212,9 @@ Expected evidence:
   forbidden field names.
 - `TestRuntimeOtelUnavailableCollectorFailsClosedForAnswerPath` returns
   `telemetry_delivery_failed` when a configured Collector endpoint is unavailable.
+- `uv run --all-packages python -m scripts.eval_gate verify-langfuse-trace ...`
+  passes for the real deployed chat request trace after the Collector fans out
+  to Langfuse.
 
 Retrieval runtime event smoke:
 
