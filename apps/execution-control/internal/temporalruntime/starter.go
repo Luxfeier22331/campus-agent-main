@@ -64,14 +64,15 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 	if address == "" || namespace == "" {
 		return nil, ErrTemporalStarterNotConfigured
 	}
-	_, err := NewTracingInterceptors(options.Tracing)
+	tracing, err := NewTracingInterceptors(options.Tracing)
 	if err != nil {
 		return nil, err
 	}
-	temporalClient, err := client.DialContext(ctx, client.Options{
+	clientOptions := ApplyTracingToClientOptions(client.Options{
 		HostPort:  address,
 		Namespace: namespace,
-	})
+	}, tracing)
+	temporalClient, err := client.DialContext(ctx, clientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -332,15 +333,16 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
 	}
-	_, err := NewTracingInterceptors(options.Tracing)
+	tracing, err := NewTracingInterceptors(options.Tracing)
 	if err != nil {
 		return nil, err
 	}
-	temporalClient, err := client.DialContext(ctx, client.Options{
+	clientOptions := ApplyTracingToClientOptions(client.Options{
 		HostPort:  address,
 		Namespace: namespace,
 		Identity:  strings.TrimSpace(options.WorkerID),
-	})
+	}, tracing)
+	temporalClient, err := client.DialContext(ctx, clientOptions)
 	if err != nil {
 		return nil, err
 	}
@@ -368,31 +370,43 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if finalizationQueue == "" {
 		finalizationQueue = ActivityTaskQueueFinalization
 	}
-	workflowWorker := NewWorkflowWorker(temporalClient, workflowQueue)
-	contextWorker := NewContextActivityWorker(temporalClient, contextQueue, options.ContextActivities)
-	agentWorker := NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, options.AgentActivities)
+	tracingWorkerOptions := ApplyTracingToWorkerOptions(worker.Options{}, tracing)
+	workflowWorker := NewWorkflowWorkerWithOptions(temporalClient, workflowQueue, tracingWorkerOptions)
+	contextWorker := NewContextActivityWorkerWithOptions(
+		temporalClient,
+		contextQueue,
+		options.ContextActivities,
+		tracingWorkerOptions,
+	)
+	agentWorker := NewAgentActivityWorkerWithOptions(
+		temporalClient,
+		ActivityTaskQueueAgent,
+		options.AgentActivities,
+		tracingWorkerOptions,
+	)
 	knowledgePlanWorker := NewKnowledgePlanActivityWorker(
 		temporalClient,
 		knowledgePlanQueue,
 		options.KnowledgeActivities,
-		worker.Options{},
+		tracingWorkerOptions,
 	)
 	knowledgeRetrievalWorker := NewKnowledgeRetrievalActivityWorker(
 		temporalClient,
 		knowledgeRetrievalQueue,
 		options.KnowledgeActivities,
-		worker.Options{},
+		tracingWorkerOptions,
 	)
 	knowledgeSynthesisWorker := NewKnowledgeSynthesisActivityWorker(
 		temporalClient,
 		knowledgeSynthesisQueue,
 		options.KnowledgeActivities,
-		worker.Options{},
+		tracingWorkerOptions,
 	)
 	finalizationWorker := NewFinalizationActivityWorker(
 		temporalClient,
 		finalizationQueue,
 		options.FinalizationActivities,
+		tracingWorkerOptions,
 	)
 	return &WorkerRuntime{
 		client: temporalClient,
@@ -462,11 +476,19 @@ func NewTemporalClient(ctx context.Context, address string, namespace string, wo
 }
 
 func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker {
+	return NewWorkflowWorkerWithOptions(temporalClient, queue, worker.Options{})
+}
+
+func NewWorkflowWorkerWithOptions(
+	temporalClient client.Client,
+	queue string,
+	options worker.Options,
+) worker.Worker {
 	workflowQueue := strings.TrimSpace(queue)
 	if workflowQueue == "" {
 		workflowQueue = WorkflowTaskQueue
 	}
-	workflowWorker := worker.New(temporalClient, workflowQueue, worker.Options{})
+	workflowWorker := worker.New(temporalClient, workflowQueue, options)
 	workflowWorker.RegisterWorkflowWithOptions(CapabilityExecutionWorkflow, workflow.RegisterOptions{
 		Name: CapabilityExecutionWorkflowType,
 	})
@@ -474,11 +496,20 @@ func NewWorkflowWorker(temporalClient client.Client, queue string) worker.Worker
 }
 
 func NewContextActivityWorker(temporalClient client.Client, queue string, activities ContextActivities) worker.Worker {
+	return NewContextActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
+}
+
+func NewContextActivityWorkerWithOptions(
+	temporalClient client.Client,
+	queue string,
+	activities ContextActivities,
+	options worker.Options,
+) worker.Worker {
 	contextQueue := strings.TrimSpace(queue)
 	if contextQueue == "" {
 		contextQueue = ActivityTaskQueueContext
 	}
-	contextWorker := worker.New(temporalClient, contextQueue, worker.Options{})
+	contextWorker := worker.New(temporalClient, contextQueue, options)
 	contextWorker.RegisterActivityWithOptions(
 		activities.MemoryRecallActivity,
 		activityRegisterOptions(MemoryRecallActivityName),
@@ -499,11 +530,20 @@ func NewContextActivityWorker(temporalClient client.Client, queue string, activi
 }
 
 func NewAgentActivityWorker(temporalClient client.Client, queue string, activities AgentActivities) worker.Worker {
+	return NewAgentActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
+}
+
+func NewAgentActivityWorkerWithOptions(
+	temporalClient client.Client,
+	queue string,
+	activities AgentActivities,
+	options worker.Options,
+) worker.Worker {
 	agentQueue := strings.TrimSpace(queue)
 	if agentQueue == "" {
 		agentQueue = ActivityTaskQueueAgent
 	}
-	agentWorker := worker.New(temporalClient, agentQueue, worker.Options{})
+	agentWorker := worker.New(temporalClient, agentQueue, options)
 	agentWorker.RegisterActivityWithOptions(
 		activities.ExecutePrimaryAgentActivity,
 		activityRegisterOptions(ExecutePrimaryAgentActivityName),
@@ -582,11 +622,20 @@ func NewTypedToolActivityWorker(
 	queue string,
 	activities TypedToolActivities,
 ) worker.Worker {
+	return NewTypedToolActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
+}
+
+func NewTypedToolActivityWorkerWithOptions(
+	temporalClient client.Client,
+	queue string,
+	activities TypedToolActivities,
+	options worker.Options,
+) worker.Worker {
 	typedToolQueue := strings.TrimSpace(queue)
 	if typedToolQueue == "" {
 		typedToolQueue = ActivityTaskQueueStructured
 	}
-	typedToolWorker := worker.New(temporalClient, typedToolQueue, worker.Options{})
+	typedToolWorker := worker.New(temporalClient, typedToolQueue, options)
 	typedToolWorker.RegisterActivityWithOptions(
 		activities.ExecuteTypedToolActivity,
 		activityRegisterOptions(ExecuteTypedToolActivityName),
@@ -602,12 +651,17 @@ func NewFinalizationActivityWorker(
 	temporalClient client.Client,
 	queue string,
 	activities FinalizationActivities,
+	options ...worker.Options,
 ) worker.Worker {
 	finalizationQueue := strings.TrimSpace(queue)
 	if finalizationQueue == "" {
 		finalizationQueue = ActivityTaskQueueFinalization
 	}
-	finalizationWorker := worker.New(temporalClient, finalizationQueue, worker.Options{})
+	workerOptions := worker.Options{}
+	if len(options) > 0 {
+		workerOptions = options[0]
+	}
+	finalizationWorker := worker.New(temporalClient, finalizationQueue, workerOptions)
 	finalizationWorker.RegisterActivityWithOptions(
 		activities.WriteFinalizationActivity,
 		activityRegisterOptions(WriteFinalizationActivityName),
