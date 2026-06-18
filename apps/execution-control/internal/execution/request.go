@@ -25,6 +25,8 @@ type HTTPError struct {
 
 type AnswerExecutionRequest struct {
 	Payload             json.RawMessage
+	ConversationID      string
+	OwnerUserID         string
 	RequestID           string
 	TraceID             string
 	RequestedCapability string
@@ -374,6 +376,8 @@ func ParseAnswerRequestWithIntentPolicy(
 
 	return AnswerExecutionRequest{
 		Payload:             bridgeJSON,
+		ConversationID:      conversationID,
+		OwnerUserID:         actor.UserID,
 		RequestID:           requestID,
 		TraceID:             traceID,
 		RequestedCapability: effectiveRequestedCapability,

@@ -26,9 +26,12 @@ func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *test
 			},
 			ReferenceCount: 2,
 			Run: execution.DurableRun{
-				RequestID: "req-observation",
-				RunID:     "run-observation",
-				TraceID:   "trace-run",
+				ConversationID:     "conv-observation",
+				OwnerUserID:        "user-observation",
+				RequestID:          "req-observation",
+				RunID:              "run-observation",
+				SelectedCapability: "knowledge",
+				TraceID:            "trace-run",
 			},
 			TerminalState: "completed",
 			TraceID:       "trace-activity",
@@ -50,5 +53,11 @@ func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *test
 	}
 	if event.RequestID != "req-observation" || event.TraceID != "trace-activity" {
 		t.Fatalf("correlation = request %q trace %q", event.RequestID, event.TraceID)
+	}
+	if event.ConversationID != "conv-observation" || event.UserID != "user-observation" {
+		t.Fatalf("langfuse identity = conversation %q user %q", event.ConversationID, event.UserID)
+	}
+	if event.SelectedCapability != "knowledge" {
+		t.Fatalf("selected capability = %q, want knowledge", event.SelectedCapability)
 	}
 }

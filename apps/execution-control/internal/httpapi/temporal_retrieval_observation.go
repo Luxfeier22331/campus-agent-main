@@ -49,6 +49,7 @@ func retrievalRuntimeObservationEvent(
 		CanonicalIndexTruth:   "true",
 		CandidateCount:        input.CandidateCount,
 		Collection:            input.Plan.Collection,
+		ConversationID:        input.Run.ConversationID,
 		Corpus:                input.Plan.Corpus,
 		FailureCode:           input.FailureKind,
 		FailureKind:           input.FailureKind,
@@ -63,10 +64,12 @@ func retrievalRuntimeObservationEvent(
 		RequestedCapability:   "knowledge",
 		RetrievalMode:         retrievalModeForRAGPlan(input.Plan),
 		RunID:                 input.Run.RunID,
+		SelectedCapability:    firstNonEmptyText(input.Run.SelectedCapability, "knowledge"),
 		StepID:                "retrieval.indexed_lookup",
 		TerminalState:         input.TerminalState,
 		TargetVersionIDsCount: versionIDCountForRAGPlan(input.Plan),
 		TraceID:               firstNonEmptyText(input.TraceID, input.Run.TraceID),
+		UserID:                input.Run.OwnerUserID,
 	}
 }
 

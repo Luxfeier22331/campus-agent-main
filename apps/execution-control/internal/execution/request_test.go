@@ -45,6 +45,12 @@ func TestParseAnswerRequestProjectsBearerRequestIntoBridgePayload(t *testing.T) 
 	if payload["conversation_id"] != "conv-001" {
 		t.Fatalf("conversation_id = %v, want conv-001", payload["conversation_id"])
 	}
+	if request.ConversationID != "conv-001" {
+		t.Fatalf("request conversation id = %q, want conv-001", request.ConversationID)
+	}
+	if request.OwnerUserID != "api-bearer-user" {
+		t.Fatalf("request owner user id = %q, want api-bearer-user", request.OwnerUserID)
+	}
 	contextRecord := expectExecutionRecord(t, payload["context"], "context")
 	actorRecord := expectExecutionRecord(t, contextRecord["actor"], "context.actor")
 	if actorRecord["user_id"] != "api-bearer-user" {

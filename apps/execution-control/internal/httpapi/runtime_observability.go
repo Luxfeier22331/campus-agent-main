@@ -27,6 +27,7 @@ func runtimeTelemetryEvent(
 	event telemetry.Event,
 	request execution.AnswerExecutionRequest,
 ) telemetry.Event {
+	event.ConversationID = request.ConversationID
 	event.ContextPreflightState = request.RuntimeDecisions.ContextPreflightState
 	event.PlanningOutcome = request.RuntimeDecisions.PlanningOutcome
 	event.PolicyGateDecision = request.RuntimeDecisions.PolicyGateDecision
@@ -36,6 +37,7 @@ func runtimeTelemetryEvent(
 	event.SelectedTool = request.RuntimeDecisions.SelectedTool
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason
+	event.UserID = request.OwnerUserID
 	return event
 }
 
