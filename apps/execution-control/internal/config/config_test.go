@@ -30,7 +30,8 @@ const testDefaultRuntimeConfigProfile = `{
     "export_timeout_ms": 1000,
     "export_interval_ms": 15000,
     "sample_ratio": 1,
-    "allowed_attributes_version": "execution-control-otel-attrs-v1"
+    "allowed_attributes_version": "execution-control-otel-attrs-v1",
+    "temporal_tracing_enabled": false
   },
   "execution_audit": {
     "enabled": false,
@@ -606,7 +607,8 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
     "metrics_enabled": true,
     "metrics_endpoint": "http://collector:4318/v1/metrics",
     "sample_ratio": 0.25,
-    "allowed_attributes_version": "custom-attrs-v1"
+    "allowed_attributes_version": "custom-attrs-v1",
+    "temporal_tracing_enabled": true
   },
   "execution_audit": {
     "enabled": true,
@@ -652,6 +654,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		!cfg.OTelMetricsEnabled ||
 		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
 		!cfg.ExecutionAuditEnabled ||
+		!cfg.TemporalTracingEnabled ||
 		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 250 ||

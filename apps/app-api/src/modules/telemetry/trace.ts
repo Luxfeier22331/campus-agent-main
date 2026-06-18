@@ -1,11 +1,13 @@
 export interface TracePropagationHeaders {
 	baggage?: string | null;
 	sentryTrace?: string | null;
+	traceParent?: string | null;
 }
 
 export interface TraceDataLike {
 	baggage?: unknown;
 	"sentry-trace"?: unknown;
+	traceparent?: unknown;
 }
 
 function toHeaders(input?: Headers | Request | null): Headers | null {
@@ -33,10 +35,13 @@ export function resolveTracePropagationHeaders(
 		toTrimmedString(input.traceData?.["sentry-trace"]);
 	const baggage =
 		toTrimmedString(headers?.get("baggage")) ?? toTrimmedString(input.traceData?.baggage);
+	const traceParent =
+		toTrimmedString(headers?.get("traceparent")) ?? toTrimmedString(input.traceData?.traceparent);
 
 	return {
 		baggage,
 		sentryTrace,
+		traceParent,
 	};
 }
 
@@ -46,6 +51,10 @@ export function applyTracePropagationHeaders(
 ): void {
 	if (traceHeaders.sentryTrace) {
 		headers.set("sentry-trace", traceHeaders.sentryTrace);
+	}
+
+	if (traceHeaders.traceParent) {
+		headers.set("traceparent", traceHeaders.traceParent);
 	}
 
 	if (traceHeaders.baggage) {

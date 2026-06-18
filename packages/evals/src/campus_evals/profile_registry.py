@@ -66,6 +66,16 @@ _PROFILE_DEFINITIONS = (
         operations_profile_id="public_chat_product_path",
     ),
     EvalProfileDefinition(
+        "online-answer-path",
+        "profile_gate",
+        1,
+        "online-answer-path-gate-accept",
+        "profile_report",
+        supports_collect_runtime=True,
+        supports_profile_publish=True,
+        operations_profile_id="online_answer_path",
+    ),
+    EvalProfileDefinition(
         "public-chat-entry-e2e",
         "profile_gate",
         1,

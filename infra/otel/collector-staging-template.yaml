@@ -113,6 +113,22 @@ exporters:
       initial_interval: 1s
       max_interval: 30s
       max_elapsed_time: 300s
+  otlphttp/langfuse:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+    headers:
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}"
+    compression: gzip
+    encoding: proto
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
   debug:
     verbosity: basic
 
@@ -133,6 +149,7 @@ service:
       exporters:
         - otlphttp/sentry
         - otlphttp/axiom
+        - otlphttp/langfuse
         - debug
     metrics:
       receivers:

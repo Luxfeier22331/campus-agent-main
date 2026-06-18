@@ -119,7 +119,8 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "export_timeout_ms": 800,
     "export_interval_ms": 16000,
     "sample_ratio": 0.5,
-    "allowed_attributes_version": "custom-attrs-v1"
+    "allowed_attributes_version": "custom-attrs-v1",
+    "temporal_tracing_enabled": true
   },
   "execution_audit": {
     "enabled": true,
@@ -177,6 +178,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.OTelExportIntervalMS != 16000 ||
 		cfg.OTelSampleRatio != 0.5 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
+		!cfg.TemporalTracingEnabled ||
 		!cfg.ExecutionAuditEnabled ||
 		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||

@@ -44,6 +44,8 @@ capability-local readiness.
   - `data-plane-architecture.md`
 - Operator/eval/badcase/release diagnostic projection:
   - `operator-observability-architecture.md`
+- Langfuse LLM observability / eval platform boundary:
+  - `langfuse-observability-and-eval-architecture.md`
 - Code organization, decomposition and package ownership:
   - `code-organization-and-decomposition-architecture.md`
 - Runtime delivery, readiness and release hardening architecture:

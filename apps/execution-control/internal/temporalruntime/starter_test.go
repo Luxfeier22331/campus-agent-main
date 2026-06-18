@@ -66,3 +66,20 @@ func TestWorkerOptionsForProfileMapsActivityConcurrency(t *testing.T) {
 		t.Fatalf("worker rate = %v, want 4", options.WorkerActivitiesPerSecond)
 	}
 }
+
+func TestTracingInterceptorsAreDisabledByDefault(t *testing.T) {
+	interceptors, err := NewTracingInterceptors(TracingOptions{})
+	if err != nil {
+		t.Fatalf("NewTracingInterceptors returned error: %v", err)
+	}
+	if len(interceptors) != 0 {
+		t.Fatalf("interceptors = %#v, want empty when tracing is disabled", interceptors)
+	}
+}
+
+func TestTracingInterceptorsRequireOTelEndpointWhenEnabled(t *testing.T) {
+	_, err := NewTracingInterceptors(TracingOptions{Enabled: true})
+	if err == nil {
+		t.Fatal("NewTracingInterceptors returned nil error, want endpoint validation failure")
+	}
+}

@@ -42,6 +42,7 @@ type runtimeConfigProfileOTel struct {
 	ExportIntervalMS         *int     `json:"export_interval_ms,omitempty"`
 	SampleRatio              *float64 `json:"sample_ratio,omitempty"`
 	AllowedAttributesVersion *string  `json:"allowed_attributes_version,omitempty"`
+	TemporalTracingEnabled   *bool    `json:"temporal_tracing_enabled,omitempty"`
 }
 
 type runtimeConfigProfileAudit struct {
@@ -178,6 +179,7 @@ func validateRuntimeConfigProfileOTelCompleteness(value *runtimeConfigProfileOTe
 	}{
 		{"otel.enabled", value.Enabled},
 		{"otel.metrics_enabled", value.MetricsEnabled},
+		{"otel.temporal_tracing_enabled", value.TemporalTracingEnabled},
 	}
 	for _, item := range requiredBools {
 		if item.value == nil {
@@ -331,6 +333,10 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		applyInt(&values.OTelExportIntervalMS, profile.OTel.ExportIntervalMS)
 		applyFloat64(&values.OTelSampleRatio, profile.OTel.SampleRatio)
 		applyString(&values.OTelAllowedAttributesVersion, profile.OTel.AllowedAttributesVersion)
+		values.TemporalTracingEnabled = boolFromRuntimeProfile(
+			profile.OTel.TemporalTracingEnabled,
+			values.TemporalTracingEnabled,
+		)
 	}
 	if profile.ExecutionAudit != nil {
 		applyString(&values.ExecutionAuditURL, profile.ExecutionAudit.URL)

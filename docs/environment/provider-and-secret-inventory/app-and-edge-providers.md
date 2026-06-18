@@ -372,7 +372,39 @@ root convenience keys：
 - 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
 - 当前 `.dev.vars.example` 已明确要求使用 ingest API token，不要把 PAT 当成长期 ingest token
 
-## 10. Cloudflare Workers / Wrangler
+## 10. Langfuse
+
+当前 owner：
+
+- `infra/otel`
+- `packages/evals`
+
+默认放置位置：
+
+- OTel Collector deployment secret store
+- ignored local runtime env
+
+相关键：
+
+- `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`
+- `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
+- `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
+
+获取方式：
+
+1. 在 self-hosted Langfuse 中创建 project API keys。
+1. 用 `pk:sk` 生成 Basic authorization header。
+1. 把 OTLP endpoint 配置为 `<base-url>/api/public/otel`。
+1. `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` 固定为 `4`，除非 Langfuse
+   官方文档要求升级。
+
+说明：
+
+- Langfuse 是 observability / eval platform，不是 Operator Console query backend。
+- repo-tracked env example 必须保持 secret-bearing values 为空。
+- Cloud Langfuse 使用同一 key / endpoint contract。
+
+## 11. Cloudflare Workers / Wrangler
 
 这不是业务 provider，但它是当前三个 Worker app 的 deploy control plane。
 

@@ -31,6 +31,9 @@ class owns a fact.
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
   - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
+- Langfuse LLM observability and eval platform:
+  - [architecture/system/langfuse-observability-and-eval-architecture.md](./architecture/system/langfuse-observability-and-eval-architecture.md)
+  - [contracts/langfuse-runtime-observability-contract.md](./contracts/langfuse-runtime-observability-contract.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
   - [architecture/system/kubernetes-execution-runtime-architecture.md](./architecture/system/kubernetes-execution-runtime-architecture.md)
 - Tool or capability readiness:

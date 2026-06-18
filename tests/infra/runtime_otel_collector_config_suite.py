@@ -71,6 +71,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         exporters = set(config["exporters"])
         self.assertIn("otlphttp/sentry", exporters)
         self.assertIn("otlphttp/axiom", exporters)
+        self.assertIn("otlphttp/langfuse", exporters)
         self.assertNotIn("otlphttp/axiom_metrics", exporters)
         self.assertIn("debug", exporters)
         self.assertIn("health_check", config["extensions"])
@@ -86,7 +87,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
                 "probabilistic_sampler/traces",
                 "batch",
             ],
-            exporters={"otlphttp/sentry", "otlphttp/axiom", "debug"},
+            exporters={"otlphttp/sentry", "otlphttp/axiom", "otlphttp/langfuse", "debug"},
         )
         self.assert_pipeline(
             config,
@@ -123,6 +124,8 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
             "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
             "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
         ):
             self.assertIsNotNone(
                 re.search(rf"^{name}=$", content, re.MULTILINE),
@@ -163,6 +166,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         self.assertIn("${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}", rendered)
+        self.assertIn("${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}", rendered)
         self.assertNotIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", rendered)
 
     def test_sentry_exporter_uses_official_otlp_auth_header(self) -> None:
@@ -175,6 +179,21 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         )
         self.assertEqual(sentry_exporter["compression"], "gzip")
         self.assertEqual(sentry_exporter["encoding"], "proto")
+
+    def test_langfuse_exporter_uses_otlp_http_with_ingestion_v4_header(self) -> None:
+        config = _load_yaml(STAGING_CONFIG)
+        exporter = config["exporters"]["otlphttp/langfuse"]
+
+        self.assertEqual(exporter["endpoint"], "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}")
+        self.assertEqual(
+            exporter["headers"],
+            {
+                "authorization": "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}",
+                "x-langfuse-ingestion-version": "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}",
+            },
+        )
+        self.assertEqual(exporter["compression"], "gzip")
+        self.assertEqual(exporter["encoding"], "proto")
 
 
 def _load_yaml(path: Path) -> dict[str, object]:

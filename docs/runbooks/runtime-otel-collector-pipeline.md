@@ -20,7 +20,7 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
 - Collector config lives under `infra/otel/`.
 - The Collector performs resource enrichment, forbidden-field deletion, explicit drop filtering,
   sampling, batching, retry and sink fan-out.
-- Sentry and Axiom are sinks. They do not define repo telemetry semantics.
+- Sentry, Axiom and Langfuse are sinks. They do not define repo telemetry semantics.
 - Core packages must not import OTel, Sentry, Axiom or Collector-specific types.
 
 ## Config Files
@@ -31,7 +31,7 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
   - exports only to the Collector `debug` exporter
 - `infra/otel/collector-staging-template.yaml`
   - receives OTLP traces, metrics and logs
-  - exports traces to Sentry and Axiom
+  - exports traces to Sentry, Axiom and Langfuse
   - exports logs to Axiom
   - keeps metrics on the Collector debug pipeline; Axiom does not receive a
     separate metrics dataset
@@ -92,12 +92,19 @@ OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel
+OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER=<secret-managed Basic header>
+OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4
 ```
 
 For Sentry, use the combined OTLP endpoint from **Client Keys (DSN) > OpenTelemetry
 (OTLP)** and configure `OTEL_COLLECTOR_SENTRY_AUTH_VALUE` as
 `sentry sentry_key=<public key>`. The Collector template sends this value using the
 official `x-sentry-auth` header.
+
+For Langfuse, configure the OTLP HTTP endpoint at `/api/public/otel` and use
+Basic auth derived from the Langfuse project public / secret key pair. Do not
+write `pk` or `sk` values directly into tracked config.
 
 Keep `collector.env.example` blank. Real values belong in the deployment secret manager or local
 ignored environment file.

@@ -76,6 +76,24 @@ describe("app telemetry", () => {
 		expect(telemetry.getTraceHeaders()).toEqual({
 			baggage: null,
 			sentryTrace: null,
+			traceParent: null,
+		});
+	});
+
+	it("prefers W3C traceparent while preserving Sentry propagation headers", () => {
+		const telemetry = createAppTelemetry({}, { axiomSink: { emit: vi.fn() } });
+		const request = new Request("https://app-api.internal/api/chat", {
+			headers: {
+				baggage: "session=conv_01",
+				"sentry-trace": "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
+				traceparent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+			},
+		});
+
+		expect(telemetry.getTraceHeaders({ request })).toEqual({
+			baggage: "session=conv_01",
+			sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
+			traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
 		});
 	});
 

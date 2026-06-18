@@ -44,6 +44,7 @@ type StarterOptions struct {
 	Address            string
 	Namespace          string
 	TaskQueue          string
+	Tracing            TracingOptions
 	WorkerID           string
 	StartTimeout       time.Duration
 }
@@ -62,6 +63,10 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 	namespace := strings.TrimSpace(options.Namespace)
 	if address == "" || namespace == "" {
 		return nil, ErrTemporalStarterNotConfigured
+	}
+	_, err := NewTracingInterceptors(options.Tracing)
+	if err != nil {
+		return nil, err
 	}
 	temporalClient, err := client.DialContext(ctx, client.Options{
 		HostPort:  address,
@@ -230,6 +235,7 @@ type WorkerOptions struct {
 	KnowledgeRetrievalQueue string
 	KnowledgeSynthesisQueue string
 	FinalizationQueue       string
+	Tracing                 TracingOptions
 	WorkerID                string
 	ContextActivities       ContextActivities
 	AgentActivities         AgentActivities
@@ -325,6 +331,10 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	}
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
+	}
+	_, err := NewTracingInterceptors(options.Tracing)
+	if err != nil {
+		return nil, err
 	}
 	temporalClient, err := client.DialContext(ctx, client.Options{
 		HostPort:  address,

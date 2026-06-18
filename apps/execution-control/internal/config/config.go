@@ -44,6 +44,7 @@ type Config struct {
 	OTelExportIntervalMS                int
 	OTelSampleRatio                     float64
 	OTelAllowedAttributesVersion        string
+	TemporalTracingEnabled              bool
 	ExecutionAuditEnabled               bool
 	ExecutionAuditURL                   string
 	ExecutionAuditSharedSecret          string
@@ -154,6 +155,7 @@ type envValues struct {
 	OTelExportIntervalMS                int
 	OTelSampleRatio                     float64
 	OTelAllowedAttributesVersion        string
+	TemporalTracingEnabled              bool
 	ExecutionAuditURL                   string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_URL"`
 	ExecutionAuditSharedSecret          string `env:"EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET"`
 	ExecutionAuditTimeoutMS             int
@@ -353,6 +355,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		OTelExportIntervalMS:                values.OTelExportIntervalMS,
 		OTelSampleRatio:                     values.OTelSampleRatio,
 		OTelAllowedAttributesVersion:        defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "execution-control-otel-attrs-v1"),
+		TemporalTracingEnabled:              values.TemporalTracingEnabled,
 		ExecutionAuditEnabled:               executionAuditEnabled,
 		ExecutionAuditURL:                   strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:          strings.TrimSpace(values.ExecutionAuditSharedSecret),

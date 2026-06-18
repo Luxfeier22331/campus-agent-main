@@ -35,8 +35,8 @@ monitoring、cost monitoring 与 observability sink participation 的 supporting
   surface 是 `operator-console-web`
 - `apps/app-api` 是 operator-facing audit / quality / safety / cost read-model
   owner
-- `Sentry`、`Axiom`、OpenAI trace / eval tooling 是 observability / debugging /
-  grading sinks
+- `Sentry`、`Axiom`、Langfuse、OpenAI trace / eval tooling 是 observability /
+  debugging / grading sinks
 - Operator Console 只能消费 runtime-owned APIs，不直接读取 raw audit log、telemetry sink 或
   `apps/execution-control`
 

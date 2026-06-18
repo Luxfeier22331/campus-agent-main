@@ -201,6 +201,15 @@ combinations live in split environment references.
   中打开 request/error query，则把 `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` 配置为 safe
   query URL 模板，panel 不直接查询 Axiom API
 
+- Provider / system: Langfuse
+  作用: LLM observability、eval datasets、experiments、scores 与 annotation workflow
+  主要 env keys: `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`
+  `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER` `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
+  放置位置: OTel Collector deploy secret store 或 ignored local runtime env
+  何时必需: 启用 Langfuse runtime trace fan-out 时必需；本地骨架默认可为空
+  获取方式: self-hosted Langfuse project 中生成 public / secret key，把 `pk:sk`
+  base64 后写入 Basic authorization header；Cloud Langfuse 使用同一接口
+
 - Provider / system: Cloudflare Workers / Wrangler
   作用: `app-api`、`campus-web`、legacy `public-chat-web`、`operator-console-web` 与
   `operator-console-web` deploy 与 secret store

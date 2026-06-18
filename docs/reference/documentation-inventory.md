@@ -35,18 +35,18 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 298
+- Current-worktree docs Markdown files: 301
 - Git tracked docs Markdown files: 298
-- Untracked docs Markdown files included: 0
-- Generated on: 2026-06-17
+- Untracked docs Markdown files included: 3
+- Generated on: 2026-06-18
 
 ### By Directory Area
 
 - `reference`: 60
 - `runbooks`: 55
-- `decisions`: 54
-- `contracts`: 43
-- `architecture`: 39
+- `decisions`: 55
+- `contracts`: 44
+- `architecture`: 40
 - `data`: 21
 - `domains`: 8
 - `environment`: 7
@@ -58,10 +58,10 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 53
 - `runbook`: 48
-- `decision`: 49
-- `contract`: 35
+- `decision`: 50
+- `contract`: 36
 - `index`: 32
-- `architecture`: 32
+- `architecture`: 33
 - `data`: 18
 - `policy`: 4
 - `documentation_architecture`: 1
@@ -69,8 +69,8 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `truth_scope`
 
-- `ops`: 88
-- `repository`: 70
+- `ops`: 90
+- `repository`: 71
 - `data`: 50
 - `product`: 21
 - `capability`: 15
@@ -81,10 +81,10 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 57
 - `operational_truth`: 49
-- `decision_record`: 49
-- `contract_truth`: 35
+- `decision_record`: 50
+- `contract_truth`: 36
 - `reference_index`: 32
-- `supporting_architecture`: 23
+- `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
 - `current_truth`: 1
@@ -94,10 +94,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Governance Action
 
-- `keep_executable_truth`: 52
+- `keep_executable_truth`: 53
 - `keep_ops_procedure`: 48
-- `preserve_adr`: 48
-- `keep_owner_truth`: 30
+- `preserve_adr`: 49
+- `keep_owner_truth`: 31
 - `keep_reference_truth`: 28
 - `keep_archive_historical`: 28
 - `keep_thin_index`: 26
@@ -109,7 +109,7 @@ class defined by `docs/documentation-architecture.md`.
 - `official-web`: 31
 - `authenticated-notice`: 27
 - `runtime`: 22
-- `operator-observability`: 11
+- `operator-observability`: 14
 - `app-api`: 10
 - `campus-services`: 9
 - `retrieval`: 8
@@ -350,6 +350,14 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=architecture`, `cluster=operator-observability`, `state=tracked`, `lines=708`
   - Governance action: `keep_large_owner_truth`
   - Drift signal: `large_owner_clean`
+- `docs/architecture/system/langfuse-observability-and-eval-architecture.md`
+  - Title: Langfuse Observability And Eval Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=operator-observability`, `state=untracked`, `lines=81`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
 - `docs/architecture/system/product-runtime-architecture.md`
   - Title: Product Runtime Architecture
   - Owner class: `supporting_architecture`
@@ -615,6 +623,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/app-api`
   - Ledger: `area=contracts`, `cluster=operator-observability`, `state=tracked`, `lines=148`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/langfuse-runtime-observability-contract.md`
+  - Title: Langfuse Runtime Observability Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=64`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/app-api-request-lifecycle.md`
@@ -1277,6 +1293,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=122`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0059-langfuse-observability-and-eval-platform.md`
+  - Title: ADR-0059 Langfuse Observability And Eval Platform
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-observability`, `state=untracked`, `lines=55`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 

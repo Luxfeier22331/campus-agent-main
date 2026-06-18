@@ -10,8 +10,8 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   policy and exports to the Collector `debug` exporter.
 - `collector-staging-template.yaml`: staging/prod template. It receives OTLP,
   applies the same redaction chain, samples traces/logs, exports traces to
-  Sentry and Axiom, exports logs to Axiom, and keeps metrics on the local debug
-  pipeline.
+  Sentry, Axiom and Langfuse, exports logs to Axiom, and keeps metrics on the
+  local debug pipeline.
 - `collector.env.example`: required environment variables. Secret-bearing
   values are intentionally blank and must be supplied by the deployment secret
   manager.
@@ -20,17 +20,23 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
 
 - Runtime apps send OTLP to this Collector, not directly to vendor sinks.
 - The Collector deletes the repo forbidden fields before any exporter runs.
-- Sentry receives traces only. Axiom receives traces/logs through
-  `x-axiom-dataset` in the project-level `campus-agent-runtime` dataset.
+- Sentry receives traces only. Langfuse receives traces only. Axiom receives
+  traces/logs through `x-axiom-dataset` in the project-level
+  `campus-agent-runtime` dataset.
   Metrics stay in the Collector debug pipeline and do not consume a separate
   Axiom dataset quota.
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must be the base domain, for example
   `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`,
   `/v1/logs`, or `/v1/metrics` because the Collector `otlphttp` exporter
   appends the signal path.
-- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must match `AXIOM_ENDPOINT` so Worker-local
-  and Collector-based exports land in the same Axiom edge deployment.
-- Local debug uses only the `debug` exporter and does not require Sentry/Axiom credentials.
+- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must match `AXIOM_ENDPOINT` so
+  Worker-local and Collector-based exports land in the same Axiom edge
+  deployment.
+- Local debug uses only the `debug` exporter and does not require Sentry/Axiom
+  credentials.
+- Langfuse OTLP endpoint should be the `/api/public/otel` endpoint. Use
+  `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` unless the Langfuse deployment
+  contract changes.
 
 ## Validation
 

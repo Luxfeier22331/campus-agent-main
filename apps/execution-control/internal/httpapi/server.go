@@ -329,8 +329,13 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 		Address:            cfg.TemporalAddress,
 		Namespace:          cfg.TemporalNamespace,
 		TaskQueue:          cfg.TemporalTaskQueue,
-		WorkerID:           cfg.TemporalWorkerIdentity,
-		StartTimeout:       time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
+		Tracing: temporalruntime.TracingOptions{
+			Enabled:      cfg.TemporalTracingEnabled,
+			OTelEndpoint: cfg.OTelEndpoint,
+			ServiceName:  cfg.OTelServiceName,
+		},
+		WorkerID:     cfg.TemporalWorkerIdentity,
+		StartTimeout: time.Duration(cfg.TemporalStartTimeoutMS) * time.Millisecond,
 	})
 }
 

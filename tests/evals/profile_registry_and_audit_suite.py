@@ -30,11 +30,20 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertIn("multi-agent-runtime-contract", profile_ids)
         self.assertIn("tool-routing-product-path", profile_ids)
         self.assertIn("public-chat-entry-e2e", profile_ids)
+        self.assertIn("online-answer-path", profile_ids)
         self.assertIn("answer-quality-contract", profile_ids)
         self.assertIn("hindsight-memory-product-path", profile_ids)
         self.assertNotIn("personal-memory-extraction", profile_ids)
         self.assertNotIn("multi-agent-product-path", profile_ids)
         self.assertEqual(len(profile_ids), len(set(profile_ids)))
+
+    def test_online_answer_path_profile_is_canonical_runtime_profile(self) -> None:
+        definition = get_profile_definition("online-answer-path")
+
+        self.assertEqual(definition.profile_id, "online-answer-path")
+        self.assertTrue(definition.supports_collect_runtime)
+        self.assertTrue(definition.supports_profile_publish)
+        self.assertEqual(definition.operations_profile_id, "online_answer_path")
 
     def test_old_python_live_eval_profiles_are_removed_from_active_registry(self) -> None:
         removed_profile_ids = (
