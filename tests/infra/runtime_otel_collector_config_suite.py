@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+import json
 import unittest
 from pathlib import Path
 
@@ -13,6 +14,9 @@ LOCAL_CONFIG = REPO_ROOT / "infra/otel/collector-local-debug.yaml"
 STAGING_CONFIG = REPO_ROOT / "infra/otel/collector-staging-template.yaml"
 ENV_EXAMPLE = REPO_ROOT / "infra/otel/collector.env.example"
 RUNTIME_COMPOSE = REPO_ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+STAGING_RUNTIME_PROFILE = (
+    REPO_ROOT / "configs/runtime/execution-control/runtime-profile.staging.json"
+)
 
 COMMON_PROCESSORS = [
     "memory_limiter",
@@ -219,6 +223,12 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}",
             compose,
         )
+
+    def test_staging_runtime_profile_enables_temporal_sdk_tracing(self) -> None:
+        profile = json.loads(STAGING_RUNTIME_PROFILE.read_text(encoding="utf-8"))
+
+        self.assertTrue(profile["otel"]["enabled"])
+        self.assertTrue(profile["otel"]["temporal_tracing_enabled"])
 
     def test_langfuse_collector_env_validator_fails_closed_for_missing_values(self) -> None:
         result = validate_langfuse_collector_env(

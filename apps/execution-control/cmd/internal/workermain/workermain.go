@@ -40,18 +40,22 @@ func Run(role Role) {
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	temporalClient, err := temporalruntime.NewTemporalClient(
-		ctx,
-		cfg.TemporalAddress,
-		cfg.TemporalNamespace,
-		cfg.TemporalWorkerIdentity,
-	)
+	tracing, err := temporalruntime.NewTracingInterceptors(temporalruntime.TracingOptions{
+		Enabled:      cfg.TemporalTracingEnabled,
+		OTelEndpoint: cfg.OTelEndpoint,
+		ServiceName:  cfg.OTelServiceName,
+	})
+	if err != nil {
+		logger.Error("campus execution worker tracing invalid", "role", string(role), "error", err.Error())
+		os.Exit(1)
+	}
+	temporalClient, err := client.DialContext(ctx, temporalClientOptions(cfg, tracing))
 	if err != nil {
 		logger.Error("campus execution worker temporal client failed", "role", string(role), "error", err.Error())
 		os.Exit(1)
 	}
 	defer temporalClient.Close()
-	runtimeWorker, err := buildWorker(role, cfg, temporalClient)
+	runtimeWorker, err := buildWorker(role, cfg, temporalClient, tracing)
 	if err != nil {
 		logger.Error("campus execution worker invalid", "role", string(role), "error", err.Error())
 		os.Exit(1)
@@ -69,30 +73,41 @@ func Run(role Role) {
 	cancel()
 }
 
-func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (worker.Worker, error) {
+func buildWorker(
+	role Role,
+	cfg config.Config,
+	temporalClient client.Client,
+	tracing temporalruntime.TracingInterceptors,
+) (worker.Worker, error) {
+	options, err := workerOptionsForRole(cfg, role, tracing)
+	if err != nil {
+		return nil, err
+	}
 	switch role {
 	case RoleWorkflow:
-		return temporalruntime.NewWorkflowWorker(temporalClient, cfg.TemporalTaskQueue), nil
+		return temporalruntime.NewWorkflowWorkerWithOptions(
+			temporalClient,
+			cfg.TemporalTaskQueue,
+			options,
+		), nil
 	case RoleContext:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewContextActivityWorker(
+		return temporalruntime.NewContextActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueContext,
 			server.TemporalContextActivities(),
+			options,
 		), nil
 	case RoleAgent:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewAgentActivityWorker(
+		return temporalruntime.NewAgentActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueAgent,
 			server.TemporalAgentActivities(),
+			options,
 		), nil
 	case RoleKnowledgePlan:
 		server := newActivityServer(cfg)
-		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgePlan)))
-		if err != nil {
-			return nil, err
-		}
 		return temporalruntime.NewKnowledgePlanActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgePlan,
@@ -101,10 +116,6 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 		), nil
 	case RoleKnowledgeRetrieval:
 		server := newActivityServer(cfg)
-		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgeRetrieval)))
-		if err != nil {
-			return nil, err
-		}
 		return temporalruntime.NewKnowledgeRetrievalActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
@@ -113,10 +124,6 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 		), nil
 	case RoleKnowledgeSynthesis:
 		server := newActivityServer(cfg)
-		options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(RoleKnowledgeSynthesis)))
-		if err != nil {
-			return nil, err
-		}
 		return temporalruntime.NewKnowledgeSynthesisActivityWorker(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
@@ -125,24 +132,27 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 		), nil
 	case RoleCampusServices:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewTypedToolActivityWorker(
+		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueCampusService,
 			server.TemporalTypedToolActivities(),
+			options,
 		), nil
 	case RoleNotice:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewTypedToolActivityWorker(
+		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueNotice,
 			server.TemporalTypedToolActivities(),
+			options,
 		), nil
 	case RoleNavigation:
 		server := newActivityServer(cfg)
-		return temporalruntime.NewTypedToolActivityWorker(
+		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
 			temporalClient,
 			temporalruntime.ActivityTaskQueueNavigation,
 			server.TemporalTypedToolActivities(),
+			options,
 		), nil
 	case RoleFinalization:
 		server := newActivityServer(cfg)
@@ -150,10 +160,34 @@ func buildWorker(role Role, cfg config.Config, temporalClient client.Client) (wo
 			temporalClient,
 			temporalruntime.ActivityTaskQueueFinalization,
 			server.TemporalFinalizationActivities(),
+			options,
 		), nil
 	default:
 		return nil, fmt.Errorf("unsupported worker role %q", role)
 	}
+}
+
+func temporalClientOptions(
+	cfg config.Config,
+	tracing temporalruntime.TracingInterceptors,
+) client.Options {
+	return temporalruntime.ApplyTracingToClientOptions(client.Options{
+		HostPort:  cfg.TemporalAddress,
+		Namespace: cfg.TemporalNamespace,
+		Identity:  cfg.TemporalWorkerIdentity,
+	}, tracing)
+}
+
+func workerOptionsForRole(
+	cfg config.Config,
+	role Role,
+	tracing temporalruntime.TracingInterceptors,
+) (worker.Options, error) {
+	options, err := temporalruntime.WorkerOptionsForProfile(temporalWorkerProfile(cfg, string(role)))
+	if err != nil {
+		return worker.Options{}, err
+	}
+	return temporalruntime.ApplyTracingToWorkerOptions(options, tracing), nil
 }
 
 func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {

@@ -75,6 +75,8 @@ worker process readiness；它不等于 worker autoscaler 已完成。上线证�
   budget 与 lease timeout。上述 process-local 三元组只保留为当前 staging process protection，
   不得作为 worker autoscaling 或 production queue truth。
 - staging 默认通过 runtime profile 启用 OTel traces / metrics
+- staging runtime profile 同时启用 Temporal Go SDK tracing interceptor，workflow / activity
+  worker span 必须随 online answer trace 发往本地 Collector
 - `execution-control` traces / metrics 都应发往本地 `otel-collector`
 - OTel attribute allowlist、forbidden fields 与 sink ownership 以
   `docs/reference/runtime-otel-telemetry-taxonomy.md` 为准；staging 不应把 raw prompt、

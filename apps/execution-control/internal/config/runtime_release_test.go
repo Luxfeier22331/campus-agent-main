@@ -22,3 +22,21 @@ func TestLoadFromEnvFailsClosedWhenOTelEnabledWithoutRuntimeRelease(t *testing.T
 		t.Fatalf("error = %q, want runtime release diagnostic", err.Error())
 	}
 }
+
+func TestLoadFromEnvFailsClosedWhenTemporalTracingEnabledWithoutOTel(t *testing.T) {
+	setRuntimeConfigProfile(t, `{
+  "schema_version": "campus_execution_control_runtime_profile.v1",
+  "otel": {
+    "enabled": false,
+    "temporal_tracing_enabled": true
+  }
+}`)
+
+	_, err := LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected Temporal tracing without OTel runtime to fail")
+	}
+	if !strings.Contains(err.Error(), "runtime profile otel.enabled=true is required when otel.temporal_tracing_enabled=true") {
+		t.Fatalf("error = %q, want Temporal tracing diagnostic", err.Error())
+	}
+}

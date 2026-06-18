@@ -493,6 +493,9 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("runtime profile otel.sample_ratio must be a number between 0 and 1")
 	}
+	if values.TemporalTracingEnabled && !otelEnabled {
+		return fmt.Errorf("runtime profile otel.enabled=true is required when otel.temporal_tracing_enabled=true")
+	}
 	if otelEnabled && strings.TrimSpace(values.RuntimeRelease) == "" {
 		return fmt.Errorf("EXECUTION_CONTROL_RUNTIME_RELEASE is required when runtime profile otel.enabled=true")
 	}

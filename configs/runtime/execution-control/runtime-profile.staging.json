@@ -22,7 +22,7 @@
 		"export_interval_ms": 15000,
 		"sample_ratio": 1,
 		"allowed_attributes_version": "execution-control-otel-attrs-v1",
-		"temporal_tracing_enabled": false
+		"temporal_tracing_enabled": true
 	},
 	"execution_audit": {
 		"enabled": true,
