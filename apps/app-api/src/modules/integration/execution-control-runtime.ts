@@ -401,6 +401,8 @@ export function createExecutionControlRequester(
 		traceId?: string | null;
 	},
 ) => Promise<JsonRecord> {
+	const fetchImplementation = input.fetchImplementation;
+	const traceDataProvider = input.traceDataProvider;
 	return async function requestExecutionControl(
 		path: string,
 		options: {
@@ -442,21 +444,20 @@ export function createExecutionControlRequester(
 					);
 				}, timeoutMs);
 
-				input
-					.fetchImplementation(`${baseUrl}${path}`, {
-						body: options.body ? JSON.stringify(options.body) : undefined,
-						headers: createExecutionControlRequestHeaders({
-							env,
-							payload: {
-								traceHeaders: options.traceHeaders,
-								traceId: options.traceId?.trim() || "",
-							},
-							sharedSecret,
-							traceDataProvider: input.traceDataProvider,
-						}),
-						method: options.method,
-						signal: controller.signal,
-					})
+				fetchImplementation(`${baseUrl}${path}`, {
+					body: options.body ? JSON.stringify(options.body) : undefined,
+					headers: createExecutionControlRequestHeaders({
+						env,
+						payload: {
+							traceHeaders: options.traceHeaders,
+							traceId: options.traceId?.trim() || "",
+						},
+						sharedSecret,
+						traceDataProvider,
+					}),
+					method: options.method,
+					signal: controller.signal,
+				})
 					.then(resolve)
 					.catch((error) => {
 						if (error instanceof Error && error.name === "AbortError") {

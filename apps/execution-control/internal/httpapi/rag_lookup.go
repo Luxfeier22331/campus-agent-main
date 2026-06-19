@@ -51,7 +51,10 @@ func newQdrantRAGLookupExecutor(
 	if err != nil {
 		return nil, fmt.Errorf("QDRANT_URL must be a valid http(s) URL: %w", err)
 	}
-	if parsedQdrantURL.Scheme != "https" {
+	if parsedQdrantURL.Scheme != "http" && parsedQdrantURL.Scheme != "https" {
+		return nil, errors.New("QDRANT_URL must use http or https")
+	}
+	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeProfile) != "local" {
 		return nil, errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")
 	}
 	if strings.TrimSpace(cfg.QdrantQueryAPIKey) == "" {
@@ -68,7 +71,7 @@ func newQdrantRAGLookupExecutor(
 	if embeddingTimeout <= 0 {
 		embeddingTimeout = qdrantTimeout
 	}
-	httpClient, err := qdrantTLSHTTPClient(qdrantTimeout, cfg.QdrantTLSCACertPath)
+	httpClient, err := qdrantHTTPClient(parsedQdrantURL.Scheme, qdrantTimeout, cfg.QdrantTLSCACertPath)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +88,10 @@ func newQdrantRAGLookupExecutor(
 	}, nil
 }
 
-func qdrantTLSHTTPClient(timeout time.Duration, caCertPath string) (*http.Client, error) {
+func qdrantHTTPClient(scheme string, timeout time.Duration, caCertPath string) (*http.Client, error) {
+	if scheme == "http" {
+		return &http.Client{Timeout: timeout}, nil
+	}
 	trimmedCAPath := strings.TrimSpace(caCertPath)
 	if trimmedCAPath == "" {
 		return nil, errors.New("QDRANT_TLS_CA_CERT_PATH is required for HTTPS Qdrant data-plane")

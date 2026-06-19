@@ -39,7 +39,17 @@ func newQdrantMetadataVersionResolver(cfg config.Config) ragVersionResolver {
 	if timeout <= 0 {
 		timeout = 10 * time.Second
 	}
-	httpClient, err := qdrantTLSHTTPClient(timeout, cfg.QdrantTLSCACertPath)
+	parsedQdrantURL, err := url.ParseRequestURI(qdrantURL)
+	if err != nil {
+		return qdrantMetadataVersionResolver{initErr: fmt.Errorf("QDRANT_URL must be a valid http(s) URL: %w", err)}
+	}
+	if parsedQdrantURL.Scheme != "http" && parsedQdrantURL.Scheme != "https" {
+		return qdrantMetadataVersionResolver{initErr: errors.New("QDRANT_URL must use http or https")}
+	}
+	if parsedQdrantURL.Scheme == "http" && strings.TrimSpace(cfg.RuntimeProfile) != "local" {
+		return qdrantMetadataVersionResolver{initErr: errors.New("QDRANT_URL must use https for authenticated Qdrant data-plane")}
+	}
+	httpClient, err := qdrantHTTPClient(parsedQdrantURL.Scheme, timeout, cfg.QdrantTLSCACertPath)
 	if err != nil {
 		return qdrantMetadataVersionResolver{initErr: err}
 	}

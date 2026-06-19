@@ -452,15 +452,15 @@ export function createRequestScopeFactory(input: {
 					encryptionKey: input.env.APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY,
 					store: createPgProviderConfigStore(input.env, { getDb: runtime.getFreshDb }),
 					validators: {
-						checkEmbeddingCompatibility: async ({ profile, provider }) =>
+						checkEmbeddingCompatibility: async (compatibilityInput) =>
 							createExecutionControlProviderConfigClient(input.env).checkEmbeddingCompatibility({
-								baseUrl: profile.baseUrl ?? "",
-								dimensions: profile.dimensions ?? 0,
-								model: profile.model,
-								provider,
-								role: profile.role,
-								timeoutMs: profile.timeoutMs,
-								transport: profile.transport,
+								baseUrl: compatibilityInput.baseUrl,
+								dimensions: compatibilityInput.dimensions ?? 0,
+								model: compatibilityInput.model,
+								provider: compatibilityInput.provider,
+								role: compatibilityInput.role,
+								timeoutMs: compatibilityInput.timeoutMs,
+								transport: compatibilityInput.transport,
 							}),
 					},
 				});

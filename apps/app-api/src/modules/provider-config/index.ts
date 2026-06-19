@@ -14,7 +14,6 @@ export type {
 	ProviderConfigConnectionSummary,
 	ProviderConfigConnectionUpdatePayload,
 	ProviderConfigCreatePayload,
-	ProviderConfigEmbeddingCompatibilityInput,
 	ProviderConfigKind,
 	ProviderConfigProfile,
 	ProviderConfigProfileSummary,

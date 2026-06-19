@@ -150,12 +150,6 @@ export interface ProviderConfigValidatorInput {
 	transport: string;
 }
 
-export interface ProviderConfigEmbeddingCompatibilityInput {
-	profile: ProviderConfigProfile;
-	provider: string;
-	rawApiKey: string;
-}
-
 export interface ProviderConfigCompatibilityResult {
 	ok: boolean;
 	reason?: string;
@@ -163,7 +157,7 @@ export interface ProviderConfigCompatibilityResult {
 
 export interface ProviderConfigValidators {
 	checkEmbeddingCompatibility(
-		input: ProviderConfigEmbeddingCompatibilityInput,
+		input: ProviderConfigValidatorInput,
 	): Promise<ProviderConfigCompatibilityResult>;
 	validateEmbedding(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
 	validatePrompt(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;

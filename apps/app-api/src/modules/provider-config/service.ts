@@ -106,9 +106,15 @@ export function buildProviderConfigService(
 			if (profile.kind === "embedding") {
 				const rawApiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 				const compatibility = await validators.checkEmbeddingCompatibility({
-					profile,
+					apiKey: rawApiKey,
+					baseUrl: connection.baseUrl,
+					capabilityConfig: connection.capabilityConfig,
+					dimensions: profile.dimensions,
+					model: profile.model,
 					provider: connection.provider,
-					rawApiKey,
+					role: profile.role,
+					timeoutMs: profile.timeoutMs,
+					transport: profile.transport,
 				});
 				if (!compatibility.ok) {
 					throw routeError({

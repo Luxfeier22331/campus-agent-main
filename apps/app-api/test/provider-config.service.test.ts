@@ -9,6 +9,73 @@ import {
 import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
 describe("provider config service", () => {
+	it("passes connection and profile fields to embedding compatibility checks", async () => {
+		let compatibilityInput: unknown = null;
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_embedding`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async checkEmbeddingCompatibility(input) {
+					compatibilityInput = input;
+					return { ok: true };
+				},
+				async validateEmbedding() {
+					return {
+						message: "embedding provider validated",
+						ok: true,
+						observedDimensions: 2560,
+						status: "passed",
+					};
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "gitee-secret-1234",
+				baseUrl: "https://ai.gitee.com/v1",
+				capabilities: ["embedding"],
+				capabilityConfig: {},
+				provider: "gitee",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				dimensions: 2560,
+				kind: "embedding",
+				model: "Qwen3-Embedding-4B",
+				role: "rag_query_embedding",
+				timeoutMs: 30000,
+				transport: "embeddings",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const profileId = createdProfile.profile.profileId;
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId,
+		});
+		await service.activateProfile({
+			principal: createOperatorPrincipal(),
+			profileId,
+		});
+
+		expect(compatibilityInput).toMatchObject({
+			apiKey: "gitee-secret-1234",
+			baseUrl: "https://ai.gitee.com/v1",
+			dimensions: 2560,
+			model: "Qwen3-Embedding-4B",
+			provider: "gitee",
+			role: "rag_query_embedding",
+			timeoutMs: 30000,
+			transport: "embeddings",
+		});
+	});
+
 	it("resolves rerank runtime snapshots through reusable provider connections", async () => {
 		const service = buildProviderConfigService({
 			decryptSecret: (value) => value,
