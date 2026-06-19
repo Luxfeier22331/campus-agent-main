@@ -4,7 +4,6 @@ set -euo pipefail
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 start_script="${repo_root}/infra/local/start-execution-control-runtime.sh"
-compose_file="${EXECUTION_CONTROL_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.execution-control-runtime.yml}"
 compose_project_name="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PROJECT_NAME:-campus-execution-control-runtime-local}"
 api_host_port="${EXECUTION_CONTROL_HOST_PORT:-27051}"
 api_base_url="${EXECUTION_CONTROL_RUNTIME_SMOKE_BASE_URL:-http://127.0.0.1:${api_host_port}}"
@@ -39,12 +38,9 @@ cleanup() {
   capture_artifacts || true
   write_summary || true
   if [[ "${started_compose}" == "true" && "${keep_running}" != "true" ]]; then
-    (
-      cd "${repo_root}" || exit
-      COMPOSE_PROJECT_NAME="${compose_project_name}" \
-        EXECUTION_CONTROL_HOST_PORT="${api_host_port}" \
-        docker compose -f "${compose_file}" down --remove-orphans
-    )
+    EXECUTION_CONTROL_RUNTIME_COMPOSE_PROJECT_NAME="${compose_project_name}" \
+      EXECUTION_CONTROL_HOST_PORT="${api_host_port}" \
+      "${start_script}" down --remove-orphans
   fi
 }
 

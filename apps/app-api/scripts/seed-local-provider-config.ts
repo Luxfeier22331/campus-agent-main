@@ -3,6 +3,7 @@ import process from "node:process";
 type PromptRole = "primary_agent" | "rag_synthesis";
 type EmbeddingRole = "rag_query_embedding";
 type RerankRole = "rag_reranker";
+type SeedStage = "all" | "embedding" | "prompt" | "rerank";
 
 interface Args {
 	apiKey: string;
@@ -10,6 +11,7 @@ interface Args {
 	authHeader: string;
 	baseUrl: string;
 	cookie: string;
+	internalSharedSecret: string;
 	embedding: {
 		apiKey: string;
 		baseUrl: string;
@@ -20,6 +22,7 @@ interface Args {
 		transport: string;
 	} | null;
 	models: Record<PromptRole, string>;
+	operatorEmail: string;
 	provider: string;
 	rerank: {
 		apiKey: string;
@@ -30,6 +33,7 @@ interface Args {
 		timeoutMs: number;
 		transport: string;
 	} | null;
+	stage: SeedStage;
 	timeoutMs: number;
 	transport: string;
 }
@@ -43,38 +47,40 @@ main().catch((error) => {
 
 async function main() {
 	const args = parseArgs(process.argv.slice(2), process.env);
-	const promptConnection = await createConnection(args, {
-		apiKey: args.apiKey,
-		baseUrl: args.baseUrl,
-		capabilities: ["prompt"],
-		capabilityConfig: {},
-		provider: args.provider,
-	});
-	for (const role of PROMPT_ROLES) {
-		const created = await requestJson<{ profile: { profileId: string } }>(args, {
-			body: {
-				connectionId: promptConnection.connection.connectionId,
-				kind: "prompt",
-				model: args.models[role],
-				role,
-				timeoutMs: args.timeoutMs,
-				transport: args.transport,
-			},
-			method: "POST",
-			path: "/api/operator/provider-config/profiles",
+	if (shouldRunStage(args.stage, "prompt")) {
+		const promptConnection = await createConnection(args, {
+			apiKey: args.apiKey,
+			baseUrl: args.baseUrl,
+			capabilities: ["prompt"],
+			capabilityConfig: {},
+			provider: args.provider,
 		});
-		const profileId = created.profile.profileId;
-		await requestJson(args, {
-			method: "POST",
-			path: `/api/operator/provider-config/profiles/${encodeURIComponent(profileId)}/validate`,
-		});
-		await requestJson(args, {
-			method: "POST",
-			path: `/api/operator/provider-config/profiles/${encodeURIComponent(profileId)}/activate`,
-		});
-		console.log(`${role}: activated ${profileId} (${args.models[role]})`);
+		for (const role of PROMPT_ROLES) {
+			const created = await requestJson<{ profile: { profileId: string } }>(args, {
+				body: {
+					connectionId: promptConnection.connection.connectionId,
+					kind: "prompt",
+					model: args.models[role],
+					role,
+					timeoutMs: args.timeoutMs,
+					transport: args.transport,
+				},
+				method: "POST",
+				path: "/api/operator/provider-config/profiles",
+			});
+			const profileId = created.profile.profileId;
+			await requestJson(args, {
+				method: "POST",
+				path: `/api/operator/provider-config/profiles/${encodeURIComponent(profileId)}/validate`,
+			});
+			await requestJson(args, {
+				method: "POST",
+				path: `/api/operator/provider-config/profiles/${encodeURIComponent(profileId)}/activate`,
+			});
+			console.log(`${role}: activated ${profileId} (${args.models[role]})`);
+		}
 	}
-	if (args.embedding) {
+	if (args.embedding && shouldRunStage(args.stage, "embedding")) {
 		await createAndActivateProfile(args, {
 			connection: await createConnection(args, {
 				apiKey: args.embedding.apiKey,
@@ -91,7 +97,7 @@ async function main() {
 			transport: args.embedding.transport,
 		});
 	}
-	if (args.rerank) {
+	if (args.rerank && shouldRunStage(args.stage, "rerank")) {
 		await createAndActivateProfile(args, {
 			connection: await createConnection(args, {
 				apiKey: args.rerank.apiKey,
@@ -125,18 +131,19 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		index += 1;
 	}
 
+	const stage = parseStage(readCli(values, "stage") || "all");
 	const sharedModel = readCli(values, "model") || readEnv(env, "LLM_MODEL");
 	const primaryAgentModel = readCli(values, "primary-agent-model") || sharedModel;
 	const ragSynthesisModel =
 		readCli(values, "rag-synthesis-model") || readEnv(env, "RAG_SYNTHESIS_MODEL") || sharedModel;
-	if (!(primaryAgentModel && ragSynthesisModel)) {
+	if (shouldRunStage(stage, "prompt") && !(primaryAgentModel && ragSynthesisModel)) {
 		throw new Error(
 			"--model, LLM_MODEL, or both --primary-agent-model and --rag-synthesis-model are required",
 		);
 	}
 
 	const apiKey = readCli(values, "api-key") || readEnv(env, "LLM_API_KEY");
-	if (!apiKey) {
+	if (shouldRunStage(stage, "prompt") && !apiKey) {
 		throw new Error("--api-key or LLM_API_KEY is required");
 	}
 
@@ -145,9 +152,15 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		readEnv(env, "APP_API_OPERATOR_AUTH_HEADER") ||
 		bearerHeader(readEnv(env, "APP_API_OPERATOR_BEARER_TOKEN"));
 	const cookie = readCli(values, "cookie") || readEnv(env, "APP_API_OPERATOR_COOKIE");
-	if (!(authHeader || cookie)) {
+	const internalSharedSecret =
+		readCli(values, "internal-shared-secret") || readEnv(env, "APP_API_INTERNAL_SHARED_SECRET");
+	const operatorEmail =
+		readCli(values, "operator-email") ||
+		readEnv(env, "APP_API_OPERATOR_EMAIL") ||
+		firstCsvValue(readEnv(env, "APP_API_OPERATOR_EMAIL_ALLOWLIST"));
+	if (!(authHeader || cookie || (internalSharedSecret && operatorEmail))) {
 		throw new Error(
-			"--auth-header, --cookie, APP_API_OPERATOR_AUTH_HEADER, APP_API_OPERATOR_BEARER_TOKEN, or APP_API_OPERATOR_COOKIE is required",
+			"--auth-header, --cookie, or APP_API_INTERNAL_SHARED_SECRET plus APP_API_OPERATOR_EMAIL_ALLOWLIST is required",
 		);
 	}
 
@@ -161,13 +174,16 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		baseUrl:
 			readCli(values, "base-url") || readEnv(env, "LLM_BASE_URL") || "https://api.openai.com/v1",
 		cookie,
-		embedding: parseEmbeddingArgs(values, env),
+		internalSharedSecret,
+		embedding: parseEmbeddingArgs(values, env, stage),
 		models: {
 			primary_agent: primaryAgentModel,
 			rag_synthesis: ragSynthesisModel,
 		},
+		operatorEmail,
 		provider: readCli(values, "provider") || "openai",
-		rerank: parseRerankArgs(values, env),
+		rerank: parseRerankArgs(values, env, stage),
+		stage,
 		timeoutMs: parsePositiveInteger(readCli(values, "timeout-ms") || "30000", "--timeout-ms"),
 		transport: readCli(values, "transport") || "responses",
 	};
@@ -176,9 +192,13 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 function parseEmbeddingArgs(
 	values: Map<string, string>,
 	env: NodeJS.ProcessEnv,
+	stage: SeedStage,
 ): Args["embedding"] {
 	const model = readCli(values, "embedding-model") || readEnv(env, "EMBEDDING_MODEL");
 	const apiKey = readCli(values, "embedding-api-key") || readEnv(env, "EMBEDDING_API_KEY");
+	if (!(apiKey || shouldRunStage(stage, "embedding"))) {
+		return null;
+	}
 	if (!apiKey) {
 		throw new Error("--embedding-api-key or EMBEDDING_API_KEY is required");
 	}
@@ -203,11 +223,18 @@ function parseEmbeddingArgs(
 	};
 }
 
-function parseRerankArgs(values: Map<string, string>, env: NodeJS.ProcessEnv): Args["rerank"] {
+function parseRerankArgs(
+	values: Map<string, string>,
+	env: NodeJS.ProcessEnv,
+	stage: SeedStage,
+): Args["rerank"] {
 	const model = readCli(values, "rerank-model") || readEnv(env, "RERANK_MODEL");
 	const apiKey = readCli(values, "rerank-api-key") || readEnv(env, "RERANK_API_KEY");
 	const configuredPath = readCli(values, "rerank-path") || readEnv(env, "RERANK_PATH");
-	if (!(model || apiKey || configuredPath)) {
+	if (!shouldRunStage(stage, "rerank")) {
+		return null;
+	}
+	if (!(model || apiKey)) {
 		return null;
 	}
 	if (!(model && apiKey)) {
@@ -300,6 +327,10 @@ async function requestJson<T>(
 	if (args.cookie) {
 		headers.cookie = args.cookie;
 	}
+	if (args.internalSharedSecret && args.operatorEmail) {
+		headers["x-app-internal-auth"] = args.internalSharedSecret;
+		headers["x-app-operator-email"] = args.operatorEmail;
+	}
 	const response = await fetch(`${args.appApiBaseUrl.replace(/\/+$/, "")}${input.path}`, {
 		body: input.body === undefined ? undefined : JSON.stringify(input.body),
 		headers,
@@ -322,6 +353,26 @@ function readEnv(env: NodeJS.ProcessEnv, key: string): string {
 
 function bearerHeader(token: string): string {
 	return token ? `Bearer ${token}` : "";
+}
+
+function firstCsvValue(value: string): string {
+	return (
+		value
+			.split(",")
+			.map((item) => item.trim())
+			.find(Boolean) ?? ""
+	);
+}
+
+function parseStage(value: string): SeedStage {
+	if (value === "all" || value === "prompt" || value === "embedding" || value === "rerank") {
+		return value;
+	}
+	throw new Error("--stage must be one of all, prompt, embedding, rerank");
+}
+
+function shouldRunStage(configured: SeedStage, candidate: Exclude<SeedStage, "all">): boolean {
+	return configured === "all" || configured === candidate;
 }
 
 function parsePositiveInteger(raw: string, label: string): number {

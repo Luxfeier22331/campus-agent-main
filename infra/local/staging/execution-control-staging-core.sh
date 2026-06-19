@@ -352,8 +352,17 @@ execution_control_staging_print_process_status() {
 }
 
 execution_control_staging_compose() {
+  local compose_args=()
+  local compose_file
+  local compose_files=()
   local docker_bin
   local worker_shared_secret
+
+  IFS=':' read -r -a compose_files <<<"${execution_control_staging_compose_files}"
+  for compose_file in "${compose_files[@]}"; do
+    compose_args+=(-f "${compose_file}")
+  done
+
   docker_bin="$(execution_control_staging_require_command docker)"
   worker_shared_secret="${EXECUTION_CONTROL_SHARED_SECRET:?EXECUTION_CONTROL_SHARED_SECRET is required}"
 
@@ -401,7 +410,7 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}" \
     TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:?TEMPORAL_POSTGRES_PASSWORD is required}" \
-    "${docker_bin}" compose --env-file "${execution_control_staging_env_file}" -f "${execution_control_staging_compose_file}" "$@"
+    "${docker_bin}" compose --env-file "${execution_control_staging_env_file}" "${compose_args[@]}" "$@"
   )
 }
 

@@ -124,9 +124,15 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("RERANK_API_KEY");
 		expect(scriptSource).toContain("RERANK_MODEL");
 		expect(scriptSource).toContain("/rerank");
+		expect(scriptSource).toContain("x-app-internal-auth");
+		expect(scriptSource).toContain("x-app-operator-email");
+		expect(scriptSource).toContain("--stage");
+		expect(scriptSource).toContain("prompt");
+		expect(scriptSource).toContain("embedding");
+		expect(scriptSource).toContain("rerank");
 		expect(runWithLocalEnvSource).toContain("repoEnvPath");
 		expect(runWithLocalEnvSource).toContain("generatedRuntimeEnvPath");
-		expect(runWithLocalEnvSource).toContain("ensure-runtime-secrets.mjs");
+		expect(runWithLocalEnvSource).toContain("project-local-runtime-env.mjs");
 		expect(scriptSource).not.toContain("PROMPT_RUNTIME");
 		expect(scriptSource).not.toContain("EXECUTION_PROMPT_MODEL");
 	});

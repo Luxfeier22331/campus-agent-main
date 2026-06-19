@@ -58,38 +58,31 @@ activity worker 同时存在。
 Docker runtime smoke entry：
 
 - [`infra/local/docker-compose.execution-control-runtime.yml`](../../infra/local/docker-compose.execution-control-runtime.yml)
+- [`infra/local/docker-compose.execution-control-runtime.local.yml`](../../infra/local/docker-compose.execution-control-runtime.local.yml)
 - [`infra/local/start-execution-control-runtime.sh`](../../infra/local/start-execution-control-runtime.sh)
+- [`infra/local/docker-compose.qdrant-local.yml`](../../infra/local/docker-compose.qdrant-local.yml)
 
 ## Required Env
 
-手动绕过启动脚本时，最小必填：
+本地真实 provider 验证只需要先在 root `.env` 填外部 provider seed 输入：
 
 ```bash
-export API_WORKER_SHARED_SECRET=worker-secret
-export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
-export EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE=true
-export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
-export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-staging
-export EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=local:execution-control:001
-export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=local-workflow-salt
+LLM_BASE_URL=
+LLM_API_KEY=
+LLM_MODEL=
+EMBEDDING_BASE_URL=
+EMBEDDING_API_KEY=
+EMBEDDING_MODEL=Qwen3-Embedding-4B
+EMBEDDING_DIMENSIONS=2560
 ```
 
-推荐本地 smoke 默认值：
+可选 rerank 只在 runtime profile 启用 reranker 时填写：
 
 ```bash
-export EXECUTION_CONTROL_DOCKER_GOPROXY=https://goproxy.cn,direct
-export EXECUTION_CONTROL_DOCKER_GOSUMDB=sum.golang.org
-export API_AUTH_MODE=trusted-worker
-export EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062
-export EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
-export EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=structured-query-secret
-export AGENT_RUNTIME_PORT=27062
-export AGENT_RUNTIME_SHARED_SECRET=agent-runtime-secret
-export AGENT_RUNTIME_TOOL_CATALOG_PATH=configs/runtime/tool-catalog.v1.json
-export AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL=http://127.0.0.1:27051
-export AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET=structured-query-secret
-export PROMPT_STRICT_STRUCTURED_OUTPUTS=true
-export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.local.json
+RERANK_BASE_URL=https://ai.gitee.com/v1
+RERANK_API_KEY=
+RERANK_MODEL=
+RERANK_PATH=/rerank
 ```
 
 说明：
@@ -97,6 +90,11 @@ export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.l
 - 本地 smoke 必须配置 Temporal、projection store、agent-runtime、Qdrant、
   embedding provider 与 prompt provider；缺任一时 `/readyz` 或对应 activity
   应 fail closed
+- 内部 secret、Hindsight secret、Qdrant admin/read-only key、Temporal password 与
+  `EXECUTION_CONTROL_RUNTIME_RELEASE` 由 local lifecycle 生成/投影。不要把这些值手填到
+  root `.env`
+- `pnpm local:runtime:env` 只打印非敏感摘要，用于确认 root provider 输入和 generated
+  runtime projection 是否可用
 - admission budget、lane budget、OTel 开关、request timeout、artifact path 与
   open capability 都由 `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH` 指向的 runtime
   profile 管理，不再通过单项 env override
@@ -109,21 +107,46 @@ export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.l
 
 ## Step 1. Docker Runtime Smoke
 
-需要验证 Docker-first deploy substrate 时，先跑 deploy-side doctor gate：
+推荐按固定顺序启动本地真实链路：
 
 ```bash
-uv run --all-packages python -m scripts.doctor_env execution-control --json
+pnpm local:runtime:env
+pnpm local:infra:up
+pnpm local:app-api:prepare
 ```
 
-再启动本地 compose runtime：
+另开一个终端启动 app-api：
 
 ```bash
-infra/local/start-execution-control-runtime.sh
+pnpm --dir apps/app-api dev
+```
+
+写入 app-api provider-config active profiles：
+
+```bash
+pnpm local:providers:seed -- --stage prompt
+pnpm local:qdrant:check
+pnpm local:providers:seed -- --stage embedding
+```
+
+如果启用 rerank：
+
+```bash
+pnpm local:providers:seed -- --stage rerank
+```
+
+启动 execution-control runtime：
+
+```bash
+pnpm local:execution-control:up
+pnpm local:runtime:check
 ```
 
 默认公开端口：
 
 - `execution-control` -> `http://127.0.0.1:27051`
+- `app-api` -> `http://127.0.0.1:27031`
+- `qdrant` -> `http://127.0.0.1:6333`
 
 ## Step 2. Probe Health And Readiness
 

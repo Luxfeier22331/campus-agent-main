@@ -46,10 +46,13 @@ elif ! "${docker_bin}" compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-if [[ ! -f "${execution_control_staging_compose_file}" ]]; then
-  echo "Missing execution runtime compose file: ${execution_control_staging_compose_file}" >&2
-  exit 1
-fi
+IFS=':' read -r -a execution_control_staging_preflight_compose_files <<<"${execution_control_staging_compose_files}"
+for compose_file in "${execution_control_staging_preflight_compose_files[@]}"; do
+  if [[ ! -f "${compose_file}" ]]; then
+    echo "Missing execution runtime compose file: ${compose_file}" >&2
+    exit 1
+  fi
+done
 
 if execution_control_staging_preflight_bool_enabled "${EXECUTION_CONTROL_STAGING_PREFLIGHT_SKIP_REGISTRY:-}"; then
   echo "Skipping Docker registry preflight because EXECUTION_CONTROL_STAGING_PREFLIGHT_SKIP_REGISTRY is enabled."

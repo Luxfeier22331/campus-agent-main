@@ -12,7 +12,7 @@ const localEnvPath = resolve(appDir, ".env");
 const localDevVarsPath = resolve(appDir, ".dev.vars");
 const generatedRuntimeEnvPath = resolve(repoRoot, "infra/local/.generated/runtime.env");
 
-await ensureGeneratedRuntimeEnv();
+await projectLocalRuntimeEnv();
 for (const path of [repoEnvPath, localEnvPath, localDevVarsPath, generatedRuntimeEnvPath]) {
 	loadEnvFileIfPresent(path);
 }
@@ -48,11 +48,18 @@ child.on("error", (error) => {
 	process.exit(1);
 });
 
-async function ensureGeneratedRuntimeEnv() {
+async function projectLocalRuntimeEnv() {
 	const { spawnSync } = await import("node:child_process");
 	const result = spawnSync(
 		process.execPath,
-		[resolve(repoRoot, "infra/local/scripts/ensure-runtime-secrets.mjs")],
+		[
+			resolve(repoRoot, "infra/local/scripts/project-local-runtime-env.mjs"),
+			"--repo-root",
+			repoRoot,
+			"--sync-app-api-dev-vars",
+			"--format",
+			"env",
+		],
 		{
 			cwd: repoRoot,
 			env: process.env,
@@ -60,7 +67,7 @@ async function ensureGeneratedRuntimeEnv() {
 		},
 	);
 	if (result.status !== 0) {
-		throw new Error("failed to ensure local runtime secrets");
+		throw new Error("failed to project local runtime env");
 	}
 }
 
