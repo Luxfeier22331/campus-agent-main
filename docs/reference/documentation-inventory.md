@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-19
 ---
 # Documentation Inventory
 
@@ -35,7 +35,7 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 294
+- Current-worktree docs Markdown files: 296
 - Git tracked docs Markdown files: 289
 - Untracked docs Markdown files included: 5
 - Generated on: 2026-06-18
@@ -51,7 +51,7 @@ class defined by `docs/documentation-architecture.md`.
 - `domains`: 8
 - `environment`: 7
 - `policies`: 5
-- `product`: 2
+- `product`: 4
 - `README.md`: 1
 - `documentation-architecture.md`: 1
 
@@ -64,7 +64,7 @@ class defined by `docs/documentation-architecture.md`.
 - `index`: 32
 - `architecture`: 33
 - `data`: 18
-- `product_requirement`: 1
+- `product_requirement`: 3
 - `policy`: 4
 - `documentation_architecture`: 1
 - `template`: 1
@@ -74,7 +74,7 @@ class defined by `docs/documentation-architecture.md`.
 - `ops`: 88
 - `repository`: 71
 - `data`: 50
-- `product`: 17
+- `product`: 19
 - `capability`: 15
 - `execution`: 16
 - `eval`: 13
@@ -89,7 +89,7 @@ class defined by `docs/documentation-architecture.md`.
 - `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
-- `product_requirement`: 1
+- `product_requirement`: 3
 - `current_truth`: 1
 - `product_truth`: 1
 - `target_invariant`: 1
@@ -100,7 +100,7 @@ class defined by `docs/documentation-architecture.md`.
 - `keep_executable_truth`: 53
 - `keep_ops_procedure`: 47
 - `preserve_adr`: 49
-- `keep_owner_truth`: 32
+- `keep_owner_truth`: 34
 - `keep_reference_truth`: 26
 - `keep_archive_historical`: 23
 - `keep_thin_index`: 26
@@ -154,7 +154,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `reference_index`
   - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
   - Owner boundary: `docs`
-  - Ledger: `area=README.md`, `cluster=general`, `state=tracked`, `lines=129`
+  - Ledger: `area=README.md`, `cluster=general`, `state=tracked`, `lines=130`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
 
@@ -1485,7 +1485,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `reference_index`
   - Frontmatter: `doc_type=index`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
-  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=31`
+  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=33`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
 - `docs/product/account-registration-legal-consent-prd.md`
@@ -1494,6 +1494,22 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
   - Ledger: `area=product`, `cluster=account`, `state=untracked`, `lines=150`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/chatkit-runtime-self-host-prd.md`
+  - Title: ChatKit Runtime Self-host PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=chatkit`, `state=untracked`, `lines=207`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/langfuse-eval-platform-completion-prd.md`
+  - Title: Langfuse Eval Platform Completion PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=langfuse`, `state=untracked`, `lines=300`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 

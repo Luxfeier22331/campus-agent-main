@@ -430,9 +430,9 @@ pnpm web:build:affected
 - `apps/ingestion-worker`: Python extraction adapter island；当前只保留 env
   bootstrap 与 legacy Office normalization，不拥有 collection lifecycle、task
   executor、release 或 alias publish truth
-- `packages/prompt-runtime`: provider-facing prompt runtime；负责 prompt contract
-  validation、Responses structured output execution、provider response
-  normalization 与 prompt trace construction；不得通过 `packages/shared` 重新导出
+- provider-facing online model execution 由 app/runtime boundary 通过 app-api
+  provider-config active profiles 与 Go-owned execution path 承接；不得通过
+  `packages/shared` 重新导出 provider transport code
 - `packages/ingestion-kernels-rs`: deterministic ingestion file kernels；负责
   document-units validation、chunk preparation、release manifest validation 等可证明的
   file-level work，不连接 PG / Qdrant / S3 / provider

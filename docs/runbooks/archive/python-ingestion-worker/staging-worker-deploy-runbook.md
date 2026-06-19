@@ -18,7 +18,6 @@ updated: 2026-06-15
 - `apps/app-api`: Worker `app-api-staging`；optional machine / ops ingress
   `https://api-staging.mucwiki-edge.link`
 - `apps/campus-web`: `https://campus-staging.mucwiki-edge.link`
-- `apps/public-chat-web`: `https://chat-staging.mucwiki-edge.link`
 - `apps/operator-console-web`: `https://operator-console-staging.mucwiki-edge.link`
 - `apps/public-docs`: removed; docs deploy and smoke run through `apps/campus-web`
   `/docs/*`
@@ -61,9 +60,9 @@ updated: 2026-06-15
 - `mucwiki-edge.link` 是当前 repo-owned staging zone；`ayafeed.com` 不再视为本 repo
   可占用的 deploy truth
 - staging browser forward truth 必须统一使用 `mucwiki-edge.link` 下的项目隔离一级子域：
-  `campus-staging.mucwiki-edge.link`、`chat-staging.mucwiki-edge.link`、
-  `operator-console-staging.mucwiki-edge.link`；docs 作为 `campus-staging.mucwiki-edge.link/docs/*`
-  的内部支撑面验收
+  `campus-staging.mucwiki-edge.link` 与
+  `operator-console-staging.mucwiki-edge.link`；docs 作为
+  `campus-staging.mucwiki-edge.link/docs/*` 的内部支撑面验收
 - `api-staging.mucwiki-edge.link` 如保留，只作为 `app-api-staging` 的 machine /
   ops ingress；web surfaces 不把它当成 upstream
 - repo 中若再次出现 `ayafeed.com` 或 `*.rag.ayafeed.com` staging 配置、脚本断言或测试断言，只能视为待迁移实现残留，不能继续作为新资源
@@ -82,7 +81,6 @@ updated: 2026-06-15
     ops ingress
   - `env.staging.hyperdrive` 持有 `APP_API_DB`（cached/read-mostly）与
     `APP_API_DB_FRESH`（no-cache/auth-sensitive）两条 staging binding
-  - `env.staging.vars.PUBLIC_CHAT_WEB_ORIGIN=https://chat-staging.mucwiki-edge.link`
   - `env.staging.vars.AUTH_SHELL_ORIGIN=https://campus-staging.mucwiki-edge.link`
 - `apps/app-api/package.json`
   - `pnpm deploy:staging` 要求显式注入 `STAGING_EXECUTION_CONTROL_BASE_URL`
@@ -116,25 +114,6 @@ updated: 2026-06-15
   - campus auth Turnstile posture 由 publish-time vars 注入：
     `STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY` 必填，且必须是 admitted for
     `campus-staging.mucwiki-edge.link` 的真实 sitekey；测试 sitekey 只允许 local smoke
-- `apps/public-chat-web/wrangler.toml`
-  - `env.staging` 应收敛到 `chat-staging.mucwiki-edge.link`
-  - `env.staging.services.APP_API -> app-api-staging`
-  - `env.staging.vars.APP_API_BASE_URL=https://app-api.internal`
-  - `env.staging.vars.AUTH_SHELL_ORIGIN=https://campus-staging.mucwiki-edge.link`
-- `apps/public-chat-web/package.json`
-  - `pnpm build:staging` 使用 `CLOUDFLARE_ENV=staging`
-  - staging build 会通过 repo-owned `scripts/run-worker-staging-build.mjs`
-    为缺失的 runtime-only Worker secrets 注入构建期占位值；wrapper 会在 build
-    后删除生成的 `dist/**/.dev.vars`，并拒绝任何占位值进入其余 build artifact
-  - `pnpm deploy:preflight:staging` 是 canonical preflight：固定执行 `doctor_env
-    worker-staging-public-chat-web`、Cloudflare secret presence、staging build 与
-    built config verification
-  - `pnpm deploy:staging` 发布 staging build artifact，并在 publish 时自动注入
-    `SENTRY_RELEASE=public-chat-web@staging-<sha>`
-  - public auth Turnstile posture 由 publish-time vars
-    注入：`AUTH_TURNSTILE_SITE_KEY` 必填，`AUTH_TURNSTILE_APPEARANCE` /
-    `AUTH_TURNSTILE_EXECUTION` 可选；未显式覆写时默认 `interaction-only` / `render`
-  - deploy 使用当前 shell 的 `wrangler` 登录态，不再强绑 repo-local `.wrangler-home`
 - `apps/operator-console-web/wrangler.toml`
   - `env.staging` 应收敛到 `operator-console-staging.mucwiki-edge.link`
   - `env.staging.services.APP_API -> app-api-staging`
@@ -171,15 +150,11 @@ updated: 2026-06-15
 - 如需要 machine / ops ingress，创建 `api-staging.mucwiki-edge.link` custom domain，
   绑定到 `app-api-staging`，并使用 Cloudflare Access service token 或等价机器保护
 - 创建 `campus-staging.mucwiki-edge.link` custom domain，绑定到 `campus-web-staging`
-- 创建 `chat-staging.mucwiki-edge.link` custom domain，绑定到
-  `public-chat-web-staging`
 - 创建 `operator-console-staging.mucwiki-edge.link` custom domain，绑定到
   `operator-console-web-staging`
 
 ### 2. Internal service bindings
 
-- `public-chat-web-staging`
-  - `APP_API -> app-api-staging`
 - `operator-console-web-staging`
   - `APP_API -> app-api-staging`
 
@@ -336,30 +311,8 @@ supervisor staging lifecycle 只把这些 `STAGING_INGESTION_*` 投影进 Docker
   Worker secret store 中的同名 secret 一致，不进入浏览器、supervisor 或 retrieval path
 - `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET` 只属于 app-api operator provision
   命令；它不进入 Worker vars、browser shell vars、文档示例真实值或 MediaWiki repo 文件
-- `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging chat/panel/app-api
+- `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 不属于当前最小 staging answer/panel/app-api
   闭环的必填项；它只在你准备同时验收 official-web live control-plane 时才应视为当前环境 gate
-
-### `apps/public-chat-web`
-
-在 `apps/public-chat-web` 目录执行：
-
-```bash
-wrangler secret put SENTRY_DSN --env staging
-```
-
-并补齐：
-
-- `SENTRY_ENVIRONMENT=staging`
-- deploy shell env `STAGING_AUTH_TURNSTILE_SITE_KEY=<real admitted sitekey for
-  chat-staging.mucwiki-edge.link>`
-- 可选 deploy shell env
-  `STAGING_AUTH_TURNSTILE_APPEARANCE=<always|execute|interaction-only>`；默认
-  `interaction-only`
-- 可选 deploy shell env `STAGING_AUTH_TURNSTILE_EXECUTION=<render|execute>`；默认
-  `render`
-- `SENTRY_RELEASE` 不作为 dashboard 静态 var 保存；`pnpm --dir apps/public-chat-web
-  deploy:staging` 会在 publish 时自动注入 `public-chat-web@staging-<sha>`，只有需要固定
-  release 名时才用 `STAGING_SENTRY_RELEASE`
 
 ### `apps/campus-web`
 
@@ -424,18 +377,15 @@ wrangler secret put SENTRY_DSN --env staging
 
 ## Cross-App Invariants
 
-- `PUBLIC_CHAT_WEB_ORIGIN` 必须精确等于
-  `https://chat-staging.mucwiki-edge.link`
 - `AUTH_SHELL_ORIGIN` 必须精确等于
   `https://campus-staging.mucwiki-edge.link`
-- `AUTH_TURNSTILE_SITE_KEY` 必须是 `chat-staging.mucwiki-edge.link` admitted
-  widget 的真实 sitekey；testing sitekey 只允许 local smoke
 - `STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY` 必须是
   `campus-staging.mucwiki-edge.link` admitted widget 的真实 sitekey；testing
   sitekey 只允许 local smoke
-- `AUTH_TURNSTILE_APPEARANCE` / `AUTH_TURNSTILE_EXECUTION` 当前默认应分别收口到
-  `interaction-only` / `render`；如 staging 需要临时不同姿态，也只能通过 deploy shell env
-  override，不写回 repo 固定值
+- `STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE` /
+  `STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION` 当前默认应分别收口到
+  `interaction-only` / `render`；如 staging 需要临时不同姿态，也只能通过 deploy
+  shell env override，不写回 repo 固定值
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST` 当前应配置为
   `muc.edu.cn`；`APP_API_END_USER_EMAIL_ALLOWLIST` 当前应配置为 `help_bot@outlook.com`
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` 必须覆盖当前真实 panel operator email；缺失时
@@ -451,12 +401,12 @@ wrangler secret put SENTRY_DSN --env staging
 - `STAGING_ACCESS_TEAM_DOMAIN` / `STAGING_ACCESS_POLICY_AUD` 必须都是真实 Access
   值，不能使用 repo 占位默认值
 - `app-api /readyz` 必须先 ready，再允许 web surfaces 对外 smoke
-- `public-chat-web /readyz` 与 `operator-console-web /readyz` 会继续探测 shared
-  `app-api /readyz`；如果 shared runtime 未 ready，web surfaces 不得标记 green
+- browser web surfaces 会继续探测 shared `app-api /readyz`；如果 shared runtime
+  未 ready，web surfaces 不得标记 green
 - `operator-console-web` 只有在真实浏览器入口已经被 Cloudflare Access 接管时，才能视为 staging deploy
   完成；worker 侧的 `Missing Access JWT.` 只代表入口仍未完成真实保护
 - `app-api` 的 shared Postgres schema 必须先与 repo 当前 Drizzle snapshot 以及
-  shared-product `app_auth/chat` schema 对齐；`official_web` 或 chat surface 如果在
+  shared-product `app_auth/chat` schema 对齐；`official_web` 或 answer surface 如果在
   staging 同时返回 `internal_error`，优先先检查 `db:bootstrap:staging` /
   `db:reconcile-shared-drift:staging` / `db:migrate:staging`
 
@@ -472,7 +422,6 @@ wrangler secret put SENTRY_DSN --env staging
 
 ```bash
 pnpm --dir apps/app-api exec wrangler login
-pnpm --dir apps/public-chat-web exec wrangler login
 pnpm --dir apps/operator-console-web exec wrangler login
 ```
 
@@ -505,8 +454,7 @@ pnpm --dir apps/campus-web account:smoke:staging
   如果该 collection 只有 gated entry，匿名 navigation 应为 `404`
 - 这些命令会在 shell 内生成临时随机密码，通过部署态 `app-api-staging`
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
-  staging session cookie，然后真实请求 `chat-staging.mucwiki-edge.link`、
-  `campus-staging.mucwiki-edge.link`
+  staging session cookie，然后真实请求 `campus-staging.mucwiki-edge.link`
 - `chat:e2e:staging` 默认走 `/api/chat/requests/stream` lifecycle stream；
   旧同步 `/api/chat/requests` 只保留为显式 `--transport sync` 诊断，不作为
   release / staging closeout gate。
@@ -573,7 +521,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 - 该命令会先清理该邮箱名下旧 `chat` 数据与旧 `app_auth.user` 记录，再通过真实 `/api/auth/sign-up/email`
   路由重建 canonical Better Auth 账号，并清掉脚本执行过程中创建的 session
 - browser smoke 只使用这个固定 identity 登录；不要在 staging 页面继续创建 ad-hoc end-user 账号
-- 如果未来 staging admit 了专用 `public-chat smoke` 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
+- 如果未来 staging admit 了专用 online answer smoke 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
 - 只有在明确做同步 transport 调试时，才允许临时执行
   `pnpm --dir apps/app-api chat:e2e:staging -- --transport sync`；同步 transport
   与 `--expect-result-kind any` 都不作为 release / staging closeout gate
@@ -586,15 +534,12 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose test/worker.test.ts
-pnpm --dir apps/public-chat-web exec vitest run test/worker.test.ts \
-  --reporter=verbose
 pnpm --dir apps/operator-console-web exec vitest run test/worker.test.ts \
   --reporter=verbose
 ```
 
 ```bash
 pnpm --dir apps/app-api deploy:preflight:staging
-pnpm --dir apps/public-chat-web deploy:preflight:staging
 pnpm --dir apps/operator-console-web deploy:preflight:staging
 ```
 
@@ -604,8 +549,6 @@ pnpm --dir apps/operator-console-web deploy:preflight:staging
 env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
   scripts.check_worker_observability_env --json
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
-pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
-  "smokes a chat request through public-chat-web into app-api"
 pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
   "smokes request queries through operator-console-web into app-api with \
   internal caller admission"
@@ -617,7 +560,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 node scripts/run-wrangler-command.mjs --cwd apps/app-api whoami
 ```
 
-三个 Worker 的 canonical `pnpm deploy:staging` 入口都会先执行 `deploy:preflight:staging`。
+两个 Worker 的 canonical `pnpm deploy:staging` 入口都会先执行 `deploy:preflight:staging`。
 如果 `doctor_env`、`scripts.check_worker_secret_presence`、built config verification
 或 `app-api` shared DB drift gate 失败，发布会在真正 `wrangler deploy` 前失败。 repo-owned
 Wrangler 入口默认会剥离继承来的代理 env，再直连 Cloudflare API；如果本机存在全局 WSL/Windows
@@ -695,18 +638,7 @@ pnpm --dir apps/app-api federation:smoke:staging
 discovery response issuer 必须是 `https://campus-staging.mucwiki-edge.link`，且
 advertised federation endpoints 必须在同一 origin 下。
 
-### 2. `apps/public-chat-web`
-
-```bash
-pnpm --dir apps/public-chat-web deploy:staging
-```
-
-确认：
-
-- `https://chat-staging.mucwiki-edge.link/healthz`
-- `https://chat-staging.mucwiki-edge.link/readyz`
-
-### 3. `apps/operator-console-web`
+### 2. `apps/operator-console-web`
 
 ```bash
 STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain> \
@@ -794,7 +726,6 @@ Smoke flow:
 
 部署完成后，按 `docs/runbooks/worker-observability-smoke-runbook.md` 执行：
 
-- `public-chat-web -> app-api`
 - `operator-console-web -> app-api`
 - `app-api` controlled error
 - `app-api` scheduled / projection drain
@@ -808,7 +739,6 @@ Smoke flow:
 这轮 staging 的 `SUMMARY.md` 至少应写明：
 
 - Environment: `staging`
-- `public-chat-web` hostname: `chat-staging.mucwiki-edge.link`
 - `operator-console-web` hostname: `operator-console-staging.mucwiki-edge.link`
 - `app-api` hostname: `api-staging.mucwiki-edge.link`
 - Worker release: `<release>`
@@ -823,7 +753,7 @@ Smoke flow:
 - repo 内 `staging` deploy config、脚本和测试全部落地
 - Cloudflare custom domains / service bindings / Hyperdrive / Access 全部
   provision 完成
-- 三个 Worker 已成功 deploy 到 staging
-- 三个 `/readyz` 均为 ready
+- 两个 Worker 已成功 deploy 到 staging
+- 两个 `/readyz` 均为 ready
 - post-deploy observability smoke 已落盘，并在 Sentry/Axiom 中确认真实 trace / runtime
   event 已进入 sink

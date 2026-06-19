@@ -20,7 +20,7 @@ updated: 2026-04-12
 
 本文不负责：
 
-- 充当当前 `public-chat-web` strict parity 证据
+- 充当当前 browser surface parity 证据
 - 充当当前 transport/runtime smoke 文档
 - 继续维护逐次测试命令和 worktree-local 执行细节
 
@@ -34,7 +34,7 @@ updated: 2026-04-12
 历史定位结论固定为：
 
 - 根因在 `packages/retrieval-core/src/campus_retrieval_core/backend_qdrant.py`
-- 主问题不在 `public-chat-web`
+- 主问题不在 browser surface
 - 主问题不在 `app-api` timeout 截断逻辑本身
 - 主问题也不在 prompt-model 生成
 

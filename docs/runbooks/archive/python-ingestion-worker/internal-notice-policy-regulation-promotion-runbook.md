@@ -304,7 +304,7 @@ uv run --package campus-ingestion-worker python -m \
 - app-api docs read-model importer 继续按 manifest scopes replace；安全前提是
   manifest 是 scope snapshot，而不是 selected-only artifact
 - 这条链路只更新 document storage / reader assets / docs read model；不触发
-  embedding、RAG release、query-serving alias 或 public-chat 入口打开
+  embedding、RAG release、query-serving alias 或在线问答入口打开
 
 如果要把 reader manifest 正式导入 app-api docs PG：
 

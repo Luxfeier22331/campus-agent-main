@@ -23,6 +23,7 @@ class owns a fact.
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
   - [product/chatkit-runtime-self-host-prd.md](./product/chatkit-runtime-self-host-prd.md)
+  - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
 - Current accepted merged truth:
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Long-term architecture invariants:
@@ -36,6 +37,7 @@ class owns a fact.
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
   - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
 - Langfuse LLM observability and eval platform:
+  - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
   - [architecture/system/langfuse-observability-and-eval-architecture.md](./architecture/system/langfuse-observability-and-eval-architecture.md)
   - [contracts/langfuse-runtime-observability-contract.md](./contracts/langfuse-runtime-observability-contract.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:

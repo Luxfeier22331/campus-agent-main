@@ -33,6 +33,7 @@ updated: 2026-04-27
 - `authz-privacy`
 - `agentic-retrieval-plan`
 - `answer-quality-contract`
+- `hindsight-memory-product-path`
 - `eval-operations-governance`
 - `quality-calibration`
 
@@ -148,6 +149,22 @@ repo 级 manual workflow 使用：
 - env doctor
 - shared acceptance
 - optional publish dry-run
+- optional `online-answer-path` Langfuse score publish
 - artifact upload
 
 它不是 PR 必过检查。
+
+`publish_langfuse_scores` 只对 `online-answer-path` 生效。启用后，workflow 会在
+acceptance 完成后执行：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
+  --profile-report <artifact_dir>/profile-report.json \
+  --json
+```
+
+该兼容入口会先把 `profile-report.json` 转为
+`langfuse_score_report.v1`，再发布到 Langfuse score API。该步骤读取
+`LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、
+`LANGFUSE_SECRET_KEY` 与 `LANGFUSE_ENVIRONMENT`。配置缺失或 Langfuse
+request 失败会让步骤失败；Langfuse 只作为 eval score sink，不成为产品真相源。

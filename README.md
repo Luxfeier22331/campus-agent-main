@@ -81,7 +81,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
     `ingestion-worker`
 - [`packages/`](./packages/)
   - 稳定能力边界，例如
-    `ingestion-core`、`contracts`、`prompt-runtime`、`campus-services-capability`
+    `ingestion-core`、`contracts`、`regulation-semantics`、`campus-services-capability`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -98,7 +98,6 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 - [`apps/app-api`](./apps/app-api/)
 - [`apps/execution-control`](./apps/execution-control/)
 - [`apps/agent-runtime`](./apps/agent-runtime/)
-- [`packages/prompt-runtime`](./packages/prompt-runtime/)
 - [`packages/ingestion-core`](./packages/ingestion-core/)
 
 ## Documentation

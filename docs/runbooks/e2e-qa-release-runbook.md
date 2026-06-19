@@ -145,12 +145,16 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 - 每条命令 exit code 为 `0`
 - `request.resultKind=answer`
 - `request.transport=stream`
-- 输出包含 `requestId`、`traceId`、`conversationId`
+- 输出包含 `requestId`、`traceId`、`runId`、`conversationId`
 - `historyHasConversation=true`
 - durable reconnect 输出 `passed=true`
 - durable reconnect 输出 `submitStreamAbortedAfterAccepted=true`
 - durable reconnect 输出包含同一个 `submit.runId`、`run.runId`、`run.requestId` 与
   `run.traceId`
+- durable reconnect 输出 `workflow.workflowId` 与 `workflow.attemptCount > 0`
+- durable reconnect 输出 `langfuseCloseout.productTraceId`、`requestId`、`runId`、
+  `workflowId`、`sessionId` 与 `userId`，这些字段作为 Langfuse release closeout
+  的产品侧身份来源
 - durable reconnect 的 `resume.terminalEvent.eventType=finalization.completed`
 - durable reconnect 的 conversation summary
   `hasAssistantMessageForRequest=true`
@@ -390,6 +394,12 @@ E2E QA 通过必须同时满足：
 - browser QA 没有阻断性 console / network / auth 问题
 - Sentry 有真实 staging span 或等价 trace evidence
 - Axiom 有真实 runtime event evidence
+- Langfuse real trace evidence 通过 `verify-langfuse-trace`，并带 request / run /
+  workflow identity 比对
+- `online-answer-path` Langfuse eval score publish evidence 已落盘，且仅作为 eval
+  sink evidence
+- Langfuse closeout 通过 `pnpm langfuse:release-closeout:staging` 生成并校验
+  `langfuse-release-evidence.json`
 - operator runtime task queue / autoscaler projection evidence 完整
 - eval diagnostic badcase projection 使用 operator step trajectory 且无 missing attribution
 - evidence 完整落盘到本轮目录

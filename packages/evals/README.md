@@ -652,11 +652,9 @@ ragas runtime：
 - low-level helper 仍保留
   `SupplementalHTTPSettings.from_env(...)`，仅用于显式本地实验或测试，不再作为长期 benchmark
   ownership
-- ragas model 现在只接受 `EVAL_RAGAS_MODEL`
-- judge model 现在只接受 `EVAL_JUDGE_MODEL`，未单独配置时回退到 `EVAL_RAGAS_MODEL`
-- eval LLM transport 现在显式由 `EVAL_LLM_TRANSPORT` 持有，并允许
-  `EVAL_RAGAS_LLM_TRANSPORT` / `EVAL_JUDGE_LLM_TRANSPORT` 做 surface
-  override；允许值固定为 `responses` 或 `chat_completions`
+- ragas / judge model、embedding model、eval LLM transport、reasoning 与 token 配置由
+  `fixtures/ops/eval_runtime_profiles.v1.json` 持有；env 不再是这些 profile 值的入口
+- eval LLM transport profile 允许值固定为 `responses` 或 `chat_completions`
 - 默认运行面仍走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`；LLM
   transport 会按当前 env 对 OpenAI-compatible `/responses` 或 `/chat/completions` 发原生
   HTTP 请求，embeddings 固定走 `/embeddings`，实现边界固定在 `campus_evals.supplemental_http`
@@ -679,10 +677,10 @@ ragas runtime：
   structured `json_schema` 探针失败误判成 ragas runtime 整体不可用
 - preflight 失败现在会写出 `failure_disposition` 与 `run_action`，并同步把 runtime breaker /
   preflight cache 置入 fast-fail 状态
-- judge/ragas LLM payload 都支持独立低延迟 profile：`RAGAS_REASONING_EFFORT`、`RAGAS_TEXT_
-  VERBOSITY`、`RAGAS_MAX_OUTPUT_TOKENS`
+- judge/ragas LLM payload 都支持独立低延迟 profile；reasoning、verbosity 与 max output
+  tokens 写入 eval runtime profile，不再写入 root env
 - `n>1` 的 ragas judge 调用现在会在同一 async transport 上并发发出，不再串行放大单 metric 延迟
-- `Qwen3-Embedding-4B` 未显式配置 `EMBEDDING_DIMENSIONS` 时，eval 侧默认补成 `2560`
+- `Qwen3-Embedding-4B` 的 eval dimensions 由 eval runtime profile 显式声明为 `2560`
 - pinned `ragas==0.4.3` 当前通过 `ragas.evaluate(...)` + legacy metric objects
   执行真实评分；默认 scorer 现在直接接 `BaseRagasLLM` / `BaseRagasEmbeddings` 的原生 HTTP 实现
 - repo-shipped eval CLI 会在本地自动 bootstrap 当前 worktree `.env`
@@ -812,9 +810,14 @@ Langfuse eval score publish：
   `request_correlation.trace_id` 的 case result 发布为 Langfuse score。
 - 命令入口是 `uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile
   --profile-report <path>`。
+- `.github/workflows/eval-release-gate.yml` 的 `publish_langfuse_scores` manual
+  dispatch input 只对 `online-answer-path` 生效，并发布该 run 的
+  `profile-report.json`。
 - 当前发布入口使用 Langfuse Public API `POST /api/public/scores` 与 Basic Auth。
 - `base_url`、`public_key`、`secret_key` 必须同时存在；缺任一项时 adapter 保持 disabled 或
   fail closed。
+- `profile-report.json` 必须包含非空 `sanitized_results`；缺失、空数组或结构错误会 fail
+  closed，不会发布空成功摘要。
 - 发布 payload 只包含 `traceId`、boolean pass/fail score、environment 与 profile/case/request
   metadata；不得带 raw prompt、raw answer、raw transcript、retrieved snippet 或 source body。
 - 未携带 request correlation 的 profile result 会被跳过，不做 trace 猜测。

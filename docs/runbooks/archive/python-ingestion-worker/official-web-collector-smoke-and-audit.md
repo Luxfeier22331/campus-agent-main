@@ -60,9 +60,8 @@ updated: 2026-05-01
 
 如果要做真实 control-plane smoke，而不是 artifact-only smoke，额外确认：
 
-- `apps/app-api/.dev.vars` 已填入 `BETTER_AUTH_SECRET`、`PUBLIC_CHAT_WEB_ORIGIN`、`SU
-  PERVISOR_API_*`、`APP_API_OPERATOR_EMAIL_ALLOWLIST`、`APP_API_INTERNAL_SHARED_SE
-  CRET`
+- `apps/app-api/.dev.vars` 已填入 `BETTER_AUTH_SECRET`、`AUTH_SHELL_ORIGIN`、
+  `APP_API_OPERATOR_EMAIL_ALLOWLIST`、`APP_API_INTERNAL_SHARED_SECRET`
 - `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 非空
 - `apps/app-api/.env` 已提供
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与

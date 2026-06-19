@@ -21,6 +21,9 @@ HTTP contracts, data schemas, operational procedures or active work status.
   - registration terms/privacy consent, legal pages and sign-up admission
 - [chatkit-runtime-self-host-prd.md](./chatkit-runtime-self-host-prd.md)
   - self-hosted ChatKit runtime assets for campus-web Q&A loading
+- [langfuse-eval-platform-completion-prd.md](./langfuse-eval-platform-completion-prd.md)
+  - Langfuse eval platform completion for trace evidence, score publishing,
+    datasets, experiments and RAG parameter evals
 
 ## Use Rules
 
