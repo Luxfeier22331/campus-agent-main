@@ -25,7 +25,7 @@
 		"chat:e2e:dev": "pnpm exec tsx ./scripts/chat-e2e-local-dev.ts",
 		"chat:e2e:local-real-provider": "pnpm exec tsx ./scripts/chat-e2e-local-real-provider.ts",
 		"chat:e2e:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/chat-e2e.ts --profile staging",
-		"chat:durable:e2e:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/chat-durable-e2e-staging.ts",
+		"chat:durable:e2e:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/chat-durable-e2e-staging.ts --chat-base-url https://api-staging.mucwiki-edge.link",
 		"chat:memory:e2e:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/chat-memory-e2e-staging.ts",
 		"docs:gated:smoke:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/staging-docs-gated-smoke.ts",
 		"official-web:drain-projection": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/drain-official-web-projection.ts",

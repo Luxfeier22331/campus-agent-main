@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"strings"
 	"time"
 
@@ -27,18 +28,19 @@ type retrievalRuntimeObservationInput struct {
 func (s *Server) emitRetrievalRuntimeObservation(
 	ctx context.Context,
 	input retrievalRuntimeObservationInput,
-) {
+) error {
 	if s == nil || s.telemetry == nil {
-		return
+		return nil
 	}
 	latency := time.Since(input.StartedAt)
 	if input.QueryLatencyMS > 0 {
 		latency = time.Duration(input.QueryLatencyMS) * time.Millisecond
 	}
 	event := retrievalRuntimeObservationEvent(input, latency)
-	if err := s.telemetry.Emit(ctx, event); err != nil && s.logger != nil {
-		s.logger.Warn("execution_control.retrieval_runtime_observation_unavailable", "error", err.Error())
+	if err := s.telemetry.Emit(ctx, event); err != nil {
+		return fmt.Errorf("retrieval runtime observation telemetry delivery failed: %w", err)
 	}
+	return nil
 }
 
 func retrievalRuntimeObservationEvent(

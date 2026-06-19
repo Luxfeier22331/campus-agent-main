@@ -58,8 +58,7 @@ binary.
 Without a local Collector binary, run the repo structural guard:
 
 ```bash
-uv run --all-packages python -m unittest \
-  tests.infra.runtime_otel_collector_config_suite -q
+pnpm langfuse:check
 ```
 
 To check a populated staging shell before starting compose:
@@ -67,3 +66,14 @@ To check a populated staging shell before starting compose:
 ```bash
 uv run --all-packages python scripts/check_runtime_otel_collector_config.py
 ```
+
+To prove the staging template Langfuse fan-out path with the real Collector
+container and local fake Sentry / Axiom / Langfuse OTLP endpoints:
+
+```bash
+pnpm langfuse:fanout:proof
+```
+
+The proof requires the fake Langfuse sink to receive `/api/public/otel/v1/traces`
+with Basic auth, ingestion version `4` and sanitized Langfuse / runtime
+attributes in the decoded OTLP protobuf body.

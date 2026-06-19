@@ -87,6 +87,26 @@ describe("chat durable staging e2e runner", () => {
 							},
 						} as T);
 					}
+					if (input.url.endsWith("/api/chat/runs/run_01HQ/steps")) {
+						return jsonResult({
+							attempts: [
+								{
+									runId: "run_01HQ",
+									workflowId: "campus-agent.chat.run_01HQ",
+								},
+							],
+							results: [],
+							run: {
+								conversationId: "conv_01HQ",
+								phase: "completed",
+								requestId: "req_01HQ",
+								runId: "run_01HQ",
+								status: "completed",
+								traceId: "trace_01HQ",
+							},
+							steps: [],
+						} as T);
+					}
 					if (input.url.endsWith("/api/chat/conversations/conv_01HQ")) {
 						return jsonResult({
 							conversation: {
@@ -128,8 +148,8 @@ describe("chat durable staging e2e runner", () => {
 						url: input.url,
 					});
 					return sseResponse([
-						'event: run.started\ndata: {"eventId":"event-started","eventType":"run.started","occurredAt":"2026-06-04T00:00:01.000Z","payload":{"status":"running"},"runId":"run_01HQ","sequence":2,"visibility":"browser"}\n\n',
-						'event: finalization.completed\ndata: {"eventId":"event-final","eventType":"finalization.completed","occurredAt":"2026-06-04T00:00:02.000Z","payload":{"request_id":"req_01HQ","trace_id":"trace_01HQ"},"runId":"run_01HQ","sequence":3,"visibility":"browser"}\n\n',
+						'event: execution.running\ndata: {"occurredAt":"2026-06-04T00:00:01.000Z","requestId":"req_01HQ","runId":"run_01HQ","sequence":2,"status":"running","traceId":"trace_01HQ"}\n\n',
+						'event: request.completed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_01HQ","runId":"run_01HQ","sequence":3,"status":"completed","traceId":"trace_01HQ"}\n\n',
 					]);
 				},
 				async openSubmitStream(input) {
@@ -156,6 +176,20 @@ describe("chat durable staging e2e runner", () => {
 			status: "completed",
 			traceId: "trace_01HQ",
 		});
+		expect(result).toMatchObject({
+			langfuseCloseout: {
+				productTraceId: "trace_01HQ",
+				requestId: "req_01HQ",
+				runId: "run_01HQ",
+				sessionId: "conv_01HQ",
+				userId: "user_staging",
+				workflowId: "campus-agent.chat.run_01HQ",
+			},
+			workflow: {
+				attemptCount: 1,
+				workflowId: "campus-agent.chat.run_01HQ",
+			},
+		});
 		expect(result.resume.events.map((event) => event.sequence)).toEqual([2, 3]);
 		expect(result.conversation?.hasAssistantMessageForRequest).toBe(true);
 		expect(calls).toEqual(
@@ -176,6 +210,10 @@ describe("chat durable staging e2e runner", () => {
 				{
 					method: "GET",
 					url: "https://campus.example.com/api/chat/runs/run_01HQ",
+				},
+				{
+					method: "GET",
+					url: "https://campus.example.com/api/chat/runs/run_01HQ/steps",
 				},
 				{
 					method: "GET",

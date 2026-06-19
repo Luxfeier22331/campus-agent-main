@@ -29,13 +29,13 @@ interface ProductStreamEvent {
 }
 
 interface DurableRunEventProjection {
-	eventId: string;
-	eventType: string;
+	event: string;
 	occurredAt: string;
-	payload: Record<string, unknown>;
+	requestId: string;
 	runId: string;
 	sequence: number;
-	visibility: "browser";
+	status: string;
+	traceId: string;
 }
 
 interface RuntimeRunSummary {
@@ -63,6 +63,25 @@ interface AcceptedRunIdentity {
 	traceId: string;
 }
 
+interface RuntimeStepTrajectory {
+	attempts: Array<{ runId: string; workflowId: string }>;
+	run: RuntimeRunSummary;
+}
+
+interface WorkflowIdentity {
+	attemptCount: number;
+	workflowId: string;
+}
+
+interface LangfuseCloseoutIdentity {
+	productTraceId: string;
+	requestId: string;
+	runId: string;
+	sessionId: string;
+	userId: string;
+	workflowId: string;
+}
+
 export interface ChatDurableE2eResult {
 	conversation: {
 		assistantMessageCount: number;
@@ -74,6 +93,7 @@ export interface ChatDurableE2eResult {
 		email: string;
 		resetViaDeployedRuntime: true;
 	};
+	langfuseCloseout: LangfuseCloseoutIdentity | null;
 	passed: boolean;
 	principal: unknown | null;
 	readyz: {
@@ -90,6 +110,7 @@ export interface ChatDurableE2eResult {
 	sessionMintAttempted: boolean;
 	submit: AcceptedRunIdentity | null;
 	submitStreamAbortedAfterAccepted: boolean;
+	workflow: WorkflowIdentity | null;
 }
 
 export interface ChatDurableE2eDependencies {
@@ -367,6 +388,13 @@ function requireStringField(value: Record<string, unknown>, field: string): stri
 	return raw;
 }
 
+function readPrincipalId(principal: unknown): string {
+	if (!principal || typeof principal !== "object" || Array.isArray(principal)) {
+		throw new Error("staging smoke principal must be an object.");
+	}
+	return requireStringField(principal as Record<string, unknown>, "principalId");
+}
+
 function readAcceptedRunIdentity(event: ProductStreamEvent): AcceptedRunIdentity {
 	if (event.event !== "request.accepted") {
 		throw new Error(
@@ -406,37 +434,30 @@ function summarizeAcceptedEventForDiagnostic(
 }
 
 function readRunEvent(event: ProductStreamEvent): DurableRunEventProjection {
-	const eventId = requireStringField(event.data, "eventId");
-	const eventType = requireStringField(event.data, "eventType");
 	const occurredAt = requireStringField(event.data, "occurredAt");
+	const requestId = requireStringField(event.data, "requestId");
 	const runId = requireStringField(event.data, "runId");
+	const status = requireStringField(event.data, "status");
+	const traceId = requireStringField(event.data, "traceId");
 	const sequenceValue = event.data.sequence;
-	const visibility = event.data.visibility;
-	const payload = event.data.payload;
 
 	if (typeof sequenceValue !== "number" || !Number.isInteger(sequenceValue) || sequenceValue < 1) {
 		throw new Error("durable run event sequence must be a positive integer.");
 	}
-	if (visibility !== "browser") {
-		throw new Error("durable staging e2e only accepts browser-visible run events.");
-	}
-	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
-		throw new Error("durable run event payload must be an object.");
-	}
 
 	return {
-		eventId,
-		eventType,
+		event: event.event,
 		occurredAt,
-		payload: payload as Record<string, unknown>,
+		requestId,
 		runId,
 		sequence: sequenceValue,
-		visibility,
+		status,
+		traceId,
 	};
 }
 
 function isFinalizationCompleted(event: DurableRunEventProjection): boolean {
-	return event.eventType === "finalization.completed";
+	return event.event === "request.completed" && event.status === "completed";
 }
 
 function assertRunMatchesAccepted(run: RuntimeRunSummary, accepted: AcceptedRunIdentity): void {
@@ -455,6 +476,45 @@ function assertRunMatchesAccepted(run: RuntimeRunSummary, accepted: AcceptedRunI
 	}
 }
 
+function readWorkflowIdentity(
+	trajectory: RuntimeStepTrajectory,
+	accepted: AcceptedRunIdentity,
+): WorkflowIdentity {
+	if (
+		trajectory.run.runId !== accepted.runId ||
+		trajectory.run.requestId !== accepted.requestId ||
+		trajectory.run.traceId !== accepted.traceId
+	) {
+		throw new Error("durable run steps identity does not match request.accepted.");
+	}
+	if (!Array.isArray(trajectory.attempts) || trajectory.attempts.length === 0) {
+		throw new Error("durable run steps must include at least one Temporal attempt.");
+	}
+
+	const workflowIds = new Set<string>();
+	for (const [index, attempt] of trajectory.attempts.entries()) {
+		if (attempt.runId !== accepted.runId) {
+			throw new Error(`durable run step attempt ${index} runId does not match request.accepted.`);
+		}
+		if (typeof attempt.workflowId !== "string" || !attempt.workflowId.trim()) {
+			throw new Error(`durable run step attempt ${index} must include workflowId.`);
+		}
+		workflowIds.add(attempt.workflowId);
+	}
+	if (workflowIds.size !== 1) {
+		throw new Error("durable run step attempts must reference one workflowId.");
+	}
+
+	const workflowId = [...workflowIds][0];
+	if (!workflowId) {
+		throw new Error("durable run step attempts must include workflowId.");
+	}
+	return {
+		attemptCount: trajectory.attempts.length,
+		workflowId,
+	};
+}
+
 function assertFinalEventMatchesAccepted(
 	event: DurableRunEventProjection,
 	accepted: AcceptedRunIdentity,
@@ -462,11 +522,11 @@ function assertFinalEventMatchesAccepted(
 	if (event.runId !== accepted.runId) {
 		throw new Error("durable run event runId does not match request.accepted.");
 	}
-	if (event.payload.request_id !== accepted.requestId) {
-		throw new Error("finalization.completed request_id does not match request.accepted.");
+	if (event.requestId !== accepted.requestId) {
+		throw new Error("request.completed requestId does not match request.accepted.");
 	}
-	if (event.payload.trace_id !== accepted.traceId) {
-		throw new Error("finalization.completed trace_id does not match request.accepted.");
+	if (event.traceId !== accepted.traceId) {
+		throw new Error("request.completed traceId does not match request.accepted.");
 	}
 }
 
@@ -531,7 +591,7 @@ async function readRunEventsUntilFinalization(input: {
 		}
 	}
 
-	throw new Error("Run event stream ended before finalization.completed.");
+	throw new Error("Run event stream ended before request.completed.");
 }
 
 function summarizeConversation(
@@ -584,6 +644,7 @@ export async function runChatDurableE2eStaging(
 			email: args.email,
 			resetViaDeployedRuntime: true,
 		},
+		langfuseCloseout: null,
 		passed: false,
 		principal: null,
 		readyz: {
@@ -600,6 +661,7 @@ export async function runChatDurableE2eStaging(
 		sessionMintAttempted: false,
 		submit: null,
 		submitStreamAbortedAfterAccepted: false,
+		workflow: null,
 	};
 
 	result.readyz.appApi = await resolvedDeps.fetchReadyz(args.appApiReadyzUrl);
@@ -632,6 +694,7 @@ export async function runChatDurableE2eStaging(
 	});
 	result.principal = meResult.payload.principal;
 	result.session = meResult.payload.session;
+	const principalId = readPrincipalId(meResult.payload.principal);
 	if (!meResult.payload.permissions.chat) {
 		throw new Error("staging smoke identity does not have chat permission.");
 	}
@@ -674,6 +737,25 @@ export async function runChatDurableE2eStaging(
 	});
 	assertRunMatchesAccepted(runResult.payload.run, submit.accepted);
 	result.run = runResult.payload.run;
+
+	const stepsResult = await resolvedDeps.fetchJsonWithCookie<RuntimeStepTrajectory>({
+		cookieHeader,
+		expectedStatus: 200,
+		method: "GET",
+		url: new URL(
+			`/api/chat/runs/${encodeURIComponent(submit.accepted.runId)}/steps`,
+			args.chatBaseUrl,
+		).toString(),
+	});
+	result.workflow = readWorkflowIdentity(stepsResult.payload, submit.accepted);
+	result.langfuseCloseout = {
+		productTraceId: runResult.payload.run.traceId,
+		requestId: runResult.payload.run.requestId,
+		runId: runResult.payload.run.runId,
+		sessionId: runResult.payload.run.conversationId,
+		userId: principalId,
+		workflowId: result.workflow.workflowId,
+	};
 
 	const conversationResult = await resolvedDeps.fetchJsonWithCookie<{
 		conversation: ConversationDetail;

@@ -1,11 +1,15 @@
 package httpapi
 
 import (
+	"context"
+	"errors"
 	"testing"
 	"time"
 
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 )
 
 func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *testing.T) {
@@ -59,5 +63,43 @@ func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *test
 	}
 	if event.SelectedCapability != "knowledge" {
 		t.Fatalf("selected capability = %q, want knowledge", event.SelectedCapability)
+	}
+}
+
+func TestEmitRetrievalRuntimeObservationFailsClosedWhenTelemetryUnavailable(t *testing.T) {
+	server := NewServer(config.Config{
+		OTelEnabled: true,
+	})
+	t.Cleanup(func() {
+		if err := server.Shutdown(context.Background()); err != nil {
+			t.Fatalf("shutdown server: %v", err)
+		}
+	})
+
+	err := server.emitRetrievalRuntimeObservation(
+		context.Background(),
+		retrievalRuntimeObservationInput{
+			Plan: ragruntime.PlanProjection{
+				Collection: "student_rules",
+				Corpus:     "regulations",
+				PlanID:     "rag:regulations:student_rules:current",
+				QueryMode:  "current",
+				QueryText:  "学生请假手续",
+			},
+			Run: execution.DurableRun{
+				ConversationID:     "conv-observation",
+				OwnerUserID:        "user-observation",
+				RequestID:          "req-observation",
+				RunID:              "run-observation",
+				SelectedCapability: "knowledge",
+				TraceID:            "trace-run",
+			},
+			StartedAt:     time.Now().UTC(),
+			TerminalState: "completed",
+		},
+	)
+
+	if !errors.Is(err, telemetry.ErrTelemetryUnavailable) {
+		t.Fatalf("error = %v, want ErrTelemetryUnavailable", err)
 	}
 }

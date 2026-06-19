@@ -89,6 +89,7 @@ updated: 2026-06-09
   - Prompt: default script prompt
   - Result kind:
   - Request ID:
+  - Run ID:
   - Trace ID:
   - Evidence file:
   - Verdict:
@@ -96,6 +97,7 @@ updated: 2026-06-09
   - Prompt: 民族学本科人才培养方案总学分要求是多少？
   - Result kind:
   - Request ID:
+  - Run ID:
   - Trace ID:
   - Evidence file:
   - Verdict:
@@ -103,6 +105,7 @@ updated: 2026-06-09
   - Prompt: 校园网密码怎么改？
   - Result kind:
   - Request ID:
+  - Run ID:
   - Trace ID:
   - Evidence file:
   - Verdict:
@@ -110,8 +113,19 @@ updated: 2026-06-09
   - Prompt: 中央民族大学本科学生国家奖学金评审办法
   - Result kind:
   - Request ID:
+  - Run ID:
   - Trace ID:
   - Evidence file:
+  - Verdict:
+- Durable reconnect
+  - Evidence file: `chat-durable-reconnect.json`
+  - Submit run ID:
+  - Run request ID:
+  - Run trace ID:
+  - Temporal workflow ID:
+  - Langfuse closeout product trace ID:
+  - Langfuse closeout session ID:
+  - Langfuse closeout user ID:
   - Verdict:
 
 ## Docs QA
@@ -163,6 +177,23 @@ updated: 2026-06-09
 - Axiom dataset: `campus-agent-runtime`
 - Axiom query:
 - Axiom matched events:
+- Langfuse trace evidence:
+  - Release evidence JSON: `langfuse-release-evidence.json`
+  - Product identity source: `chat-durable-reconnect.json.langfuseCloseout`
+  - Checker command: see `runtime-otel-collector-pipeline.md`
+  - Checker result:
+  - Product trace ID:
+  - Langfuse trace ID:
+  - Session ID:
+  - User ID:
+  - Release:
+  - Request ID:
+  - Run ID:
+  - Temporal workflow ID:
+  - `verify-langfuse-trace` output:
+- Langfuse eval score publish:
+  - Profile report:
+  - `publish-langfuse-profile` output:
 - Redaction check:
 
 ## Data Plane Sanity

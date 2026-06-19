@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-import re
 import json
+import re
 import unittest
 from pathlib import Path
 
@@ -13,6 +13,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_CONFIG = REPO_ROOT / "infra/otel/collector-local-debug.yaml"
 STAGING_CONFIG = REPO_ROOT / "infra/otel/collector-staging-template.yaml"
 ENV_EXAMPLE = REPO_ROOT / "infra/otel/collector.env.example"
+RUNBOOK = REPO_ROOT / "docs/runbooks/runtime-otel-collector-pipeline.md"
 RUNTIME_COMPOSE = REPO_ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
 STAGING_RUNTIME_PROFILE = (
     REPO_ROOT / "configs/runtime/execution-control/runtime-profile.staging.json"
@@ -141,6 +142,40 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         self.assertNotIn("Bearer ", content)
         self.assertNotIn("dsn=", content.lower())
 
+    def test_env_example_documents_langfuse_ingestion_version_constant(self) -> None:
+        content = ENV_EXAMPLE.read_text(encoding="utf-8")
+
+        self.assertIsNotNone(
+            re.search(
+                r"^OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4$",
+                content,
+                re.MULTILINE,
+            )
+        )
+
+    def test_runbook_distinguishes_secret_values_from_langfuse_protocol_constant(self) -> None:
+        content = RUNBOOK.read_text(encoding="utf-8")
+
+        self.assertIn("Secret-bearing `collector.env.example` values stay blank.", content)
+        self.assertIn(
+            "`OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` is a non-secret protocol constant.",
+            content,
+        )
+        self.assertNotIn("Keep `collector.env.example` blank.", content)
+
+    def test_runbook_closeout_smoke_uses_current_temporal_runtime_tests(self) -> None:
+        content = RUNBOOK.read_text(encoding="utf-8")
+
+        self.assertIn(
+            "./internal/telemetry ./internal/temporalruntime ./cmd/internal/workermain ./internal/httpapi",
+            content,
+        )
+        self.assertIn("TestProjectTemporalStepEmitsLangfuseObservationTelemetry", content)
+        self.assertIn("TestTracingInterceptorsProduceTemporalSDKInterceptorsWhenEnabled", content)
+        self.assertIn("TestEmitterPreservesIncomingTraceParent", content)
+        self.assertNotIn("TestRuntimeOtel", content)
+        self.assertNotIn("tests.supervisor", content)
+
     def assert_processor_chain(
         self,
         config: dict[str, object],
@@ -260,6 +295,25 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
 
         self.assertTrue(result.passed)
         self.assertEqual(result.errors, ())
+
+    def test_langfuse_collector_env_validator_rejects_invalid_values(self) -> None:
+        result = validate_langfuse_collector_env(
+            {
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT": "https://langfuse.internal/api/public/otel/v1/traces",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER": "Bearer token",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION": "3",
+            }
+        )
+
+        self.assertFalse(result.passed)
+        self.assertEqual(
+            result.errors,
+            (
+                "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT must end with /api/public/otel",
+                "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER must use Basic auth",
+                "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION must be 4",
+            ),
+        )
 
 
 def _load_yaml(path: Path) -> dict[str, object]:

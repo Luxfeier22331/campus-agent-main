@@ -531,7 +531,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 	}
 	result, err := s.ragIndexedLookup(ctx, run, plan)
 	if err != nil {
-		s.emitRetrievalRuntimeObservation(ctx, retrievalRuntimeObservationInput{
+		if emitErr := s.emitRetrievalRuntimeObservation(ctx, retrievalRuntimeObservationInput{
 			CandidateCount: 0,
 			FailureKind:    "retrieval_lookup_failed",
 			Plan:           plan,
@@ -540,7 +540,9 @@ func (s *Server) RetrieveIndexedLookupActivity(
 			StartedAt:      startedAt,
 			TerminalState:  "failed_closed",
 			TraceID:        input.TraceID,
-		})
+		}); emitErr != nil {
+			return temporalruntime.RetrieveIndexedLookupActivityOutput{}, emitErr
+		}
 		return s.failRetrieveIndexedLookupActivity(ctx, run, "retrieval_lookup_failed", err)
 	}
 	lookupRef := temporalProjectionRef(run.RunID, "retrieval/indexed-lookup")
@@ -590,7 +592,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 	}); err != nil {
 		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
 	}
-	s.emitRetrievalRuntimeObservation(ctx, retrievalRuntimeObservationInput{
+	if err := s.emitRetrievalRuntimeObservation(ctx, retrievalRuntimeObservationInput{
 		CandidateCount: result.CandidateCount,
 		FailureKind:    "",
 		Plan:           plan,
@@ -600,7 +602,9 @@ func (s *Server) RetrieveIndexedLookupActivity(
 		TerminalState:  "completed",
 		TraceID:        input.TraceID,
 		QueryLatencyMS: result.QueryLatencyMS,
-	})
+	}); err != nil {
+		return temporalruntime.RetrieveIndexedLookupActivityOutput{}, err
+	}
 	return temporalruntime.RetrieveIndexedLookupActivityOutput{
 		LookupRef: lookupRef,
 		RunID:     run.RunID,
