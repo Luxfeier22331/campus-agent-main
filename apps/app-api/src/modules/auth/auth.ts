@@ -43,6 +43,8 @@ const APP_PASSWORD_PBKDF2_ITERATIONS = 100_000;
 const APP_PASSWORD_PBKDF2_MAX_ITERATIONS = 100_000;
 const APP_PASSWORD_SALT_BYTES = 16;
 const APP_PASSWORD_KEY_BYTES = 32;
+export const SIGNUP_LEGAL_CONSENT_HEADER_NAME = "x-campus-legal-accepted";
+export const SIGNUP_LEGAL_CONSENT_HEADER_VALUE = "terms-and-privacy";
 const appAuthCache = new WeakMap<Env, Promise<AppAuth>>();
 const passwordTextEncoder = new TextEncoder();
 
@@ -193,6 +195,25 @@ export function enforceEndUserEmailAdmission(input: {
 	});
 }
 
+export function enforceSignupLegalConsent(input: {
+	path: string | undefined;
+	headers: Headers | undefined;
+}): void {
+	if (input.path !== "/sign-up/email") {
+		return;
+	}
+
+	const accepted = input.headers?.get(SIGNUP_LEGAL_CONSENT_HEADER_NAME)?.trim();
+	if (accepted === SIGNUP_LEGAL_CONSENT_HEADER_VALUE) {
+		return;
+	}
+
+	throw APIError.from("BAD_REQUEST", {
+		code: "legal_consent_required",
+		message: "legal_consent_required",
+	});
+}
+
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 	const appOrigin = new URL(input.authShellOrigin).origin;
 	const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
@@ -294,6 +315,10 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		},
 		hooks: {
 			before: createAuthMiddleware(async (ctx) => {
+				enforceSignupLegalConsent({
+					headers: ctx.headers,
+					path: ctx.path,
+				});
 				enforceEndUserEmailAdmission({
 					email: extractAuthRequestEmail(ctx.body),
 					path: ctx.path,

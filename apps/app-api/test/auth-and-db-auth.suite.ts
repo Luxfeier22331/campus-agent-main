@@ -4,6 +4,7 @@ import {
 	buildBetterAuthConfig,
 	buildEndUserEmailAdmissionPolicy,
 	enforceEndUserEmailAdmission,
+	enforceSignupLegalConsent,
 	hashAppPassword,
 	isEndUserEmailAllowedForAuth,
 	migration0000,
@@ -393,6 +394,43 @@ export function registerAppApiAuthConfigSuite() {
 					email: "outsider@example.com",
 					path: "/get-session",
 					policy,
+				}),
+			).not.toThrow();
+		});
+
+		it("requires explicit legal consent only for email sign-up", () => {
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/sign-up/email",
+				}),
+			).toThrowError(/legal_consent_required/i);
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers({
+						"x-campus-legal-accepted": "wrong",
+					}),
+					path: "/sign-up/email",
+				}),
+			).toThrowError(/legal_consent_required/i);
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers({
+						"x-campus-legal-accepted": "terms-and-privacy",
+					}),
+					path: "/sign-up/email",
+				}),
+			).not.toThrow();
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/sign-in/email",
+				}),
+			).not.toThrow();
+			expect(() =>
+				enforceSignupLegalConsent({
+					headers: new Headers(),
+					path: "/request-password-reset",
 				}),
 			).not.toThrow();
 		});

@@ -156,6 +156,9 @@ describe("app-api smoke identity provisioning", () => {
 		expect((signUpRequest as Request).headers.get("x-captcha-response")).toBe(
 			"XXXX.DUMMY.TOKEN.XXXX",
 		);
+		expect((signUpRequest as Request).headers.get("x-campus-legal-accepted")).toBe(
+			"terms-and-privacy",
+		);
 		expect(executeSql).toHaveBeenNthCalledWith(
 			3,
 			'delete from "app_auth"."session" where "userId" = $1',

@@ -19,6 +19,9 @@ class owns a fact.
 
 - Product boundary, users and non-promises:
   - [architecture/product-positioning.md](./architecture/product-positioning.md)
+- Feature-level product requirements:
+  - [product/README.md](./product/README.md)
+  - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
 - Current accepted merged truth:
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Long-term architecture invariants:
@@ -78,6 +81,8 @@ class owns a fact.
 
 - [architecture/README.md](./architecture/README.md)
   - product, current, target and supporting architecture entry
+- [product/README.md](./product/README.md)
+  - feature-level PRDs and launch-facing user experience requirements
 - [architecture/system/README.md](./architecture/system/README.md)
   - cross-domain runtime, execution, retrieval, data and observability boundaries
 - [architecture/domains/README.md](./architecture/domains/README.md)

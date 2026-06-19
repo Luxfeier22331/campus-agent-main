@@ -8,6 +8,7 @@ import { defineConfig, type Plugin } from "vite";
 import { createChatKitDevProxyPlugin } from "./scripts/chatkit-dev-proxy-plugin";
 
 const require = createRequire(import.meta.url);
+const sharedFaviconPath = path.resolve(__dirname, "../../configs/branding/web-public/favicon.ico");
 
 export default defineConfig({
 	publicDir: path.resolve(__dirname, "public"),
@@ -15,6 +16,7 @@ export default defineConfig({
 		tailwindcss(),
 		react(),
 		createChatKitDevProxyPlugin(),
+		copySharedFavicon(),
 		copyMapLibreVendor(),
 		cloudflare({
 			inspectorPort: false,
@@ -26,6 +28,23 @@ export default defineConfig({
 		},
 	},
 });
+
+function copySharedFavicon(): Plugin {
+	return {
+		closeBundle() {
+			const targetPath = path.resolve(__dirname, "dist/client/favicon.ico");
+			fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+			fs.copyFileSync(sharedFaviconPath, targetPath);
+		},
+		configureServer(server) {
+			server.middlewares.use("/favicon.ico", (_request, response, next) => {
+				response.setHeader("content-type", "image/x-icon");
+				fs.createReadStream(sharedFaviconPath).on("error", next).pipe(response);
+			});
+		},
+		name: "campus-web:copy-shared-favicon",
+	};
+}
 
 function copyMapLibreVendor(): Plugin {
 	const vendorFiles = new Map([

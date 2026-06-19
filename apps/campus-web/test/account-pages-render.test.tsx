@@ -9,6 +9,7 @@ import {
 import accountActionPageSource from "../src/app/routes/account-action-page.tsx?raw";
 import { AccountPage } from "../src/app/routes/account-page";
 import accountPageSource from "../src/app/routes/account-page.tsx?raw";
+import { LegalPrivacyPage, LegalTermsPage } from "../src/app/routes/legal-page";
 import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
 
 const accountSessionMock = vi.hoisted(() => ({
@@ -35,6 +36,30 @@ const authClientMock = vi.hoisted(() => ({
 	signUpWithEmail: vi.fn(),
 }));
 
+function installTurnstileRuntimeConfig() {
+	document.body.insertAdjacentHTML(
+		"beforeend",
+		`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
+	);
+}
+
+function installAutoResolvingTurnstile() {
+	window.turnstile = {
+		render(container, options) {
+			const target = typeof container === "string" ? document.getElementById(container) : container;
+			if (target) {
+				target.innerHTML = "<div>安全验证</div>";
+			}
+			const callback = options.callback;
+			if (typeof callback === "function") {
+				setTimeout(() => callback("captcha-token"), 0);
+			}
+			return "widget-01";
+		},
+		reset: vi.fn(),
+	};
+}
+
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
 		await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
@@ -43,17 +68,22 @@ vi.mock("@tanstack/react-router", async () => {
 		Link: ({
 			children,
 			href,
+			search,
 			to,
 			...props
 		}: {
 			children: React.ReactNode;
 			href?: string;
+			search?: Record<string, string>;
 			to?: string;
-		}) => (
-			<a href={href ?? to ?? "/"} {...props}>
-				{children}
-			</a>
-		),
+		}) => {
+			const query = search ? `?${new URLSearchParams(search).toString()}` : "";
+			return (
+				<a href={href ?? `${to ?? "/"}${query}`} {...props}>
+					{children}
+				</a>
+			);
+		},
 	};
 });
 
@@ -69,6 +99,8 @@ vi.mock("../src/platform/auth/client", () => ({
 			this.code = code;
 		}
 	},
+	SIGNUP_LEGAL_CONSENT_HEADER_VALUE: "terms-and-privacy",
+	SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE: "请先阅读并同意用户服务协议和隐私政策。",
 	requestAccountPasswordReset: authClientMock.requestAccountPasswordReset,
 	resetAccountPassword: authClientMock.resetAccountPassword,
 	signInWithEmail: authClientMock.signInWithEmail,
@@ -140,12 +172,16 @@ describe("campus account pages", () => {
 	});
 
 	it("renders login and register as same-origin campus account pages", () => {
+		installTurnstileRuntimeConfig();
 		const { unmount } = render(<AccountActionPage kind="login" />);
 
-		expect(screen.getByRole("heading", { name: "欢迎登录" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "登录校园问答" })).toBeInTheDocument();
 		expect(screen.getByText("登录后继续使用校园问答与账号服务。")).toBeInTheDocument();
 		expect(screen.getByLabelText("邮箱地址")).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("请输入邮箱地址")).toBeInTheDocument();
 		expect(screen.getByLabelText("密码")).toBeInTheDocument();
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
+		expect(screen.queryByText("账号安全验证暂不可用，无法提交。")).toBeNull();
 		expect(screen.getByRole("link", { name: "注册账号" })).toHaveAttribute(
 			"href",
 			"/account/register",
@@ -160,13 +196,111 @@ describe("campus account pages", () => {
 		render(<AccountActionPage kind="register" />);
 
 		expect(screen.getByRole("heading", { name: "创建账号" })).toBeInTheDocument();
-		expect(screen.getByText("创建账号后继续使用校园问答与账号服务。")).toBeInTheDocument();
+		expect(screen.getByText("创建账号后可继续提问、保留聊天记录并管理账号。")).toBeInTheDocument();
 		expect(screen.getByLabelText("确认密码")).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("请输入邮箱地址")).toBeInTheDocument();
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
 		expect(screen.queryByText("使用统一账号访问校园应用")).toBeNull();
+	});
+
+	it("requires legal consent before the register form starts verification", () => {
+		installTurnstileRuntimeConfig();
+		render(<AccountActionPage kind="register" />);
+
+		fireEvent.change(screen.getByLabelText("邮箱地址"), {
+			target: { value: "student@muc.edu.cn" },
+		});
+		fireEvent.change(screen.getByLabelText("密码"), {
+			target: { value: "password1234" },
+		});
+		fireEvent.change(screen.getByLabelText("确认密码"), {
+			target: { value: "password1234" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "注册" }));
+
+		expect(screen.getByText("请先阅读并同意用户服务协议和隐私政策。")).toBeInTheDocument();
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
+		expect(authClientMock.signUpWithEmail).not.toHaveBeenCalled();
+	});
+
+	it("submits register with legal consent after Turnstile resolves", async () => {
+		authClientMock.signUpWithEmail.mockResolvedValue({ redirectedByProvider: false });
+		installTurnstileRuntimeConfig();
+		installAutoResolvingTurnstile();
+		render(<AccountActionPage kind="register" />);
+
+		fireEvent.change(screen.getByLabelText("邮箱地址"), {
+			target: { value: "student@muc.edu.cn" },
+		});
+		fireEvent.change(screen.getByLabelText("密码"), {
+			target: { value: "password1234" },
+		});
+		fireEvent.change(screen.getByLabelText("确认密码"), {
+			target: { value: "password1234" },
+		});
+		fireEvent.click(screen.getByLabelText("我已阅读并同意用户服务协议和隐私政策。"));
+		fireEvent.click(screen.getByRole("button", { name: "注册" }));
+
+		expect(screen.getByText("正在进行安全验证。")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(authClientMock.signUpWithEmail).toHaveBeenCalledWith({
+				captchaToken: "captcha-token",
+				email: "student@muc.edu.cn",
+				legalAccepted: true,
+				name: "student@muc.edu.cn",
+				password: "password1234",
+				returnTo: "/account",
+			});
+		});
+	});
+
+	it("renders legal pages without internal architecture copy", () => {
+		const { unmount } = render(<LegalTermsPage />);
+
+		expect(screen.getByRole("heading", { name: "用户服务协议" })).toBeInTheDocument();
+		expect(screen.getByText("生效日期：2026-06-18")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "隐私政策" })).toHaveAttribute(
+			"href",
+			"/legal/privacy",
+		);
+		expect(screen.getByRole("link", { name: "反馈" })).toHaveAttribute(
+			"href",
+			"/feedback?source=legal",
+		);
+		expect(screen.queryByText(/app-api|execution-control|provider-config/)).toBeNull();
+
+		unmount();
+		render(<LegalPrivacyPage />);
+
+		expect(screen.getByRole("heading", { name: "隐私政策" })).toBeInTheDocument();
+		expect(screen.getByText("生效日期：2026-06-18")).toBeInTheDocument();
+		expect(screen.getByText(/Cloudflare Turnstile/)).toBeInTheDocument();
+		expect(screen.getByText(/AI 模型服务/)).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "用户服务协议" })).toHaveAttribute(
+			"href",
+			"/legal/terms",
+		);
+		expect(screen.queryByText(/app-api|execution-control|provider-config/)).toBeNull();
+	});
+
+	it("shows account auth unavailable instead of a dead form when Turnstile is not configured", () => {
+		const { unmount } = render(<AccountActionPage kind="login" />);
+
+		expect(screen.getByText("账号登录暂不可用，请稍后再试。")).toBeInTheDocument();
+		expect(screen.queryByLabelText("邮箱地址")).toBeNull();
+		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
+
+		unmount();
+		render(<AccountLoginDialog onClose={vi.fn()} />);
+
+		expect(screen.getByText("账号登录暂不可用，请稍后再试。")).toBeInTheDocument();
+		expect(screen.queryByLabelText("邮箱地址")).toBeNull();
+		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 	});
 
 	it("renders the Q&A login dialog as a single-step sign-in gate", () => {
 		const closeDialog = vi.fn();
+		installTurnstileRuntimeConfig();
 		render(<AccountLoginDialog onClose={closeDialog} />);
 
 		expect(screen.getByRole("dialog", { name: "登录" })).toBeInTheDocument();
@@ -175,7 +309,8 @@ describe("campus account pages", () => {
 		expect(screen.getByLabelText("邮箱地址")).toHaveFocus();
 		expect(screen.getByLabelText("密码")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "登录" })).toBeInTheDocument();
-		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
+		expect(screen.queryByText("正在准备安全验证。")).toBeNull();
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
 		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
 			"href",
 			"/account/forgot-password",
@@ -197,10 +332,7 @@ describe("campus account pages", () => {
 
 	it("keeps invalid Q&A login submissions in the same single-step dialog", () => {
 		const closeDialog = vi.fn();
-		document.body.insertAdjacentHTML(
-			"beforeend",
-			`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
-		);
+		installTurnstileRuntimeConfig();
 		render(<AccountLoginDialog onClose={closeDialog} />);
 
 		fireEvent.change(screen.getByLabelText("邮箱地址"), {
@@ -222,25 +354,8 @@ describe("campus account pages", () => {
 		const closeDialog = vi.fn();
 		const onAuthenticated = vi.fn();
 		authClientMock.signInWithEmail.mockResolvedValue({ redirectedByProvider: false });
-		document.body.insertAdjacentHTML(
-			"beforeend",
-			`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
-		);
-		window.turnstile = {
-			render(container, options) {
-				const target =
-					typeof container === "string" ? document.getElementById(container) : container;
-				if (target) {
-					target.innerHTML = "<div>安全验证</div>";
-				}
-				const callback = options.callback;
-				if (typeof callback === "function") {
-					setTimeout(() => callback("captcha-token"), 0);
-				}
-				return "widget-01";
-			},
-			reset: vi.fn(),
-		};
+		installTurnstileRuntimeConfig();
+		installAutoResolvingTurnstile();
 		render(<AccountLoginDialog onAuthenticated={onAuthenticated} onClose={closeDialog} />);
 
 		fireEvent.change(screen.getByLabelText("邮箱地址"), {
@@ -250,6 +365,8 @@ describe("campus account pages", () => {
 			target: { value: "password1234" },
 		});
 		fireEvent.click(screen.getByRole("button", { name: "登录" }));
+
+		expect(screen.getByText("正在进行安全验证。")).toBeInTheDocument();
 
 		await waitFor(() => {
 			expect(authClientMock.signInWithEmail).toHaveBeenCalledWith({
@@ -261,6 +378,28 @@ describe("campus account pages", () => {
 		});
 		expect(onAuthenticated).toHaveBeenCalledTimes(1);
 		expect(closeDialog).not.toHaveBeenCalled();
+	});
+
+	it("shows page form security verification only after submit", async () => {
+		authClientMock.requestAccountPasswordReset.mockResolvedValue(undefined);
+		installTurnstileRuntimeConfig();
+		installAutoResolvingTurnstile();
+		render(<AccountActionPage kind="forgot-password" />);
+
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
+		fireEvent.change(screen.getByLabelText("邮箱地址"), {
+			target: { value: "student@muc.edu.cn" },
+		});
+		fireEvent.click(screen.getByRole("button", { name: "发送重置链接" }));
+
+		expect(screen.getByText("正在进行安全验证。")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(authClientMock.requestAccountPasswordReset).toHaveBeenCalledWith({
+				captchaToken: "captcha-token",
+				email: "student@muc.edu.cn",
+			});
+		});
+		expect(await screen.findByText("重置链接已发送，请查看邮箱。")).toBeInTheDocument();
 	});
 
 	it("renders federation consent and error pages with neutral campus account copy", () => {

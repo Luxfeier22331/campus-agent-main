@@ -5,6 +5,10 @@ export const campusAuthClient = createAuthClient({
 	plugins: [oauthProviderClient()],
 });
 
+export const SIGNUP_LEGAL_CONSENT_HEADER_NAME = "x-campus-legal-accepted";
+export const SIGNUP_LEGAL_CONSENT_HEADER_VALUE = "terms-and-privacy";
+export const SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE = "请先阅读并同意用户服务协议和隐私政策。";
+
 export type AccountAuthActionState =
 	| "idle"
 	| "success"
@@ -12,11 +16,13 @@ export type AccountAuthActionState =
 	| "invalid_data"
 	| "captcha_required"
 	| "user_exists"
-	| "invalid_token";
+	| "invalid_token"
+	| "legal_consent_required";
 
 export interface AccountEmailPasswordSubmission {
 	captchaToken?: string;
 	email: string;
+	legalAccepted?: boolean;
 	name?: string;
 	password: string;
 	returnTo?: string;
@@ -59,6 +65,14 @@ function classifyAuthError(
 	mode: "sign-in" | "sign-up",
 	message: string,
 ): Exclude<AccountAuthActionState, "idle" | "success"> {
+	if (
+		/legal_consent_required|legal consent|terms-and-privacy|privacy policy|服务协议|隐私政策/i.test(
+			message,
+		)
+	) {
+		return "legal_consent_required";
+	}
+
 	if (/captcha|verification failed|challenge/i.test(message)) {
 		return "captcha_required";
 	}
@@ -113,6 +127,20 @@ function hasProviderRedirect(response: unknown): boolean {
 	);
 }
 
+function buildCaptchaHeaders(captchaToken: string | undefined): Record<string, string> | undefined {
+	if (!captchaToken) {
+		return;
+	}
+	return { "x-captcha-response": captchaToken };
+}
+
+function buildSignupHeaders(input: AccountEmailPasswordSubmission): Record<string, string> {
+	return {
+		...(buildCaptchaHeaders(input.captchaToken) ?? {}),
+		[SIGNUP_LEGAL_CONSENT_HEADER_NAME]: SIGNUP_LEGAL_CONSENT_HEADER_VALUE,
+	};
+}
+
 export async function signInWithEmail(
 	input: AccountEmailPasswordSubmission,
 ): Promise<AccountAuthSubmissionResult> {
@@ -120,7 +148,7 @@ export async function signInWithEmail(
 		callbackURL: input.returnTo || "/account",
 		email: input.email,
 		fetchOptions: input.captchaToken
-			? { headers: { "x-captcha-response": input.captchaToken } }
+			? { headers: buildCaptchaHeaders(input.captchaToken) }
 			: undefined,
 		password: input.password,
 		rememberMe: true,
@@ -137,12 +165,17 @@ export async function signInWithEmail(
 export async function signUpWithEmail(
 	input: AccountEmailPasswordSubmission,
 ): Promise<AccountAuthSubmissionResult> {
+	if (!input.legalAccepted) {
+		throw new AccountAuthSubmissionError(
+			"legal_consent_required",
+			SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
+		);
+	}
+
 	const response = await campusAuthClient.signUp.email({
 		callbackURL: input.returnTo || "/account",
 		email: input.email,
-		fetchOptions: input.captchaToken
-			? { headers: { "x-captcha-response": input.captchaToken } }
-			: undefined,
+		fetchOptions: { headers: buildSignupHeaders(input) },
 		name: input.name || input.email,
 		password: input.password,
 	});
@@ -161,7 +194,7 @@ export async function requestAccountPasswordReset(
 	const response = await campusAuthClient.requestPasswordReset({
 		email: input.email,
 		fetchOptions: input.captchaToken
-			? { headers: { "x-captcha-response": input.captchaToken } }
+			? { headers: buildCaptchaHeaders(input.captchaToken) }
 			: undefined,
 		redirectTo: "/account/reset-password",
 	});

@@ -50,6 +50,13 @@ const FederationConsentPage = lazy(() =>
 const FederationErrorPage = lazy(() =>
 	AccountActionModule().then((module) => ({ default: module.FederationErrorPage })),
 );
+const LegalPageModule = () => import("./routes/legal-page");
+const LegalTermsPage = lazy(() =>
+	LegalPageModule().then((module) => ({ default: module.LegalTermsPage })),
+);
+const LegalPrivacyPage = lazy(() =>
+	LegalPageModule().then((module) => ({ default: module.LegalPrivacyPage })),
+);
 
 const rootRoute = createRootRoute({
 	component: RootLayout,
@@ -134,6 +141,18 @@ const accountFederationErrorRoute = createRoute({
 	path: "/account/federation/error",
 });
 
+const legalTermsRoute = createRoute({
+	component: LegalTermsPage,
+	getParentRoute: () => rootRoute,
+	path: "/legal/terms",
+});
+
+const legalPrivacyRoute = createRoute({
+	component: LegalPrivacyPage,
+	getParentRoute: () => rootRoute,
+	path: "/legal/privacy",
+});
+
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	conversationRoute,
@@ -148,6 +167,8 @@ const routeTree = rootRoute.addChildren([
 	accountResetPasswordRoute,
 	accountFederationConsentRoute,
 	accountFederationErrorRoute,
+	legalTermsRoute,
+	legalPrivacyRoute,
 ]);
 
 const router = createRouter({

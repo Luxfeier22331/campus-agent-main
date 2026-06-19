@@ -125,6 +125,8 @@ describe("campus worker boundary", () => {
 			"/account/reset-password",
 			"/account/federation/consent",
 			"/account/federation/error",
+			"/legal/terms",
+			"/legal/privacy",
 		]) {
 			const response = await worker.fetch(
 				new Request(`https://campus.muc.wiki${path}`, {
@@ -137,7 +139,7 @@ describe("campus worker boundary", () => {
 		}
 	});
 
-	it("allows the ChatKit runtime required by the Q&A shell CSP", async () => {
+	it("allows the on-demand ChatKit runtime required by the Q&A shell CSP", async () => {
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
 				headers: { accept: "text/html" },
@@ -212,6 +214,34 @@ describe("campus worker boundary", () => {
 		);
 		expect(forwarded.headers.get("baggage")).toBe("sentry-environment=staging");
 		expect(forwarded.headers.get("x-trace-id")).toBe("trace_01HQ");
+	});
+
+	it("forwards sign-up legal consent only on auth requests", async () => {
+		const forwardedRequests: Request[] = [];
+		const env = createEnv({
+			fetch(request) {
+				forwardedRequests.push(request);
+				return new Response(JSON.stringify({ ok: true }), {
+					headers: { "content-type": "application/json" },
+				});
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/auth/sign-up/email", {
+				body: JSON.stringify({ email: "student@muc.edu.cn" }),
+				headers: {
+					"content-type": "application/json",
+					"x-campus-legal-accepted": "terms-and-privacy",
+				},
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(200);
+		expect(forwardedRequests).toHaveLength(1);
+		expect(forwardedRequests[0]?.headers.get("x-campus-legal-accepted")).toBe("terms-and-privacy");
 	});
 
 	it("uses the configured loopback app-api URL as local dev proxy transport", async () => {

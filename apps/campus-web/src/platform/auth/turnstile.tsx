@@ -267,8 +267,10 @@ export function AuthTurnstileField(props: {
 		};
 	}, [onController]);
 
+	const shouldShowChallenge = isPrimed || Boolean(errorMessage);
+
 	return (
-		<div className="flex flex-col gap-2">
+		<div className={shouldShowChallenge ? "flex flex-col gap-2" : "contents"}>
 			<input
 				id="captchaToken"
 				name="captchaToken"
@@ -277,11 +279,12 @@ export function AuthTurnstileField(props: {
 				type="hidden"
 				value={token}
 			/>
-			{siteKey ? (
+			{siteKey && shouldShowChallenge ? (
 				<div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
-			) : (
+			) : null}
+			{!siteKey && shouldShowChallenge ? (
 				<p className="text-sm text-destructive">账号安全验证暂不可用，无法提交。</p>
-			)}
+			) : null}
 			{errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 		</div>
 	);

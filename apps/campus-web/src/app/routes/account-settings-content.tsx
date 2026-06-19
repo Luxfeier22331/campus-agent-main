@@ -248,6 +248,7 @@ function AccountLoggedOutCard() {
 					</Button>
 				</div>
 			</div>
+			<AccountLegalLinks />
 		</AccountPanel>
 	);
 }
@@ -528,6 +529,7 @@ function renderAccountSettingsSection({
 						</Button>
 					</div>
 				</div>
+				<AccountLegalLinks className="mt-6 border-t border-border pt-4" />
 			</AccountPanel>
 			<AccountFactSection
 				icon={<ShieldCheck aria-hidden="true" className="size-5" />}
@@ -542,6 +544,20 @@ function renderAccountSettingsSection({
 				title="账号信息"
 			/>
 		</div>
+	);
+}
+
+function AccountLegalLinks({ className }: { className?: string }) {
+	return (
+		<p className={cn("text-sm leading-6 text-muted-foreground", className)}>
+			<Link className="font-medium text-primary hover:text-primary/80" to="/legal/terms">
+				用户服务协议
+			</Link>
+			<span className="px-2 text-muted-foreground">/</span>
+			<Link className="font-medium text-primary hover:text-primary/80" to="/legal/privacy">
+				隐私政策
+			</Link>
+		</p>
 	);
 }
 

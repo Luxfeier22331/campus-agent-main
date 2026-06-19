@@ -91,6 +91,7 @@ export const probeRuntimeDatabase = runtimeDbModule.probeRuntimeDatabase;
 export const buildBetterAuthConfig = authModule.buildBetterAuthConfig;
 export const buildEndUserEmailAdmissionPolicy = authModule.buildEndUserEmailAdmissionPolicy;
 export const enforceEndUserEmailAdmission = authModule.enforceEndUserEmailAdmission;
+export const enforceSignupLegalConsent = authModule.enforceSignupLegalConsent;
 export const getAppAuth = authModule.getAppAuth;
 export const hashAppPassword = authModule.hashAppPassword;
 export const isEndUserEmailAllowedForAuth = authModule.isEndUserEmailAllowedForAuth;

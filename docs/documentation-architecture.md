@@ -52,6 +52,14 @@ staging proof and active planning into the same paragraph.
 - Must not own: runtime progress, release evidence or capability implementation
   status.
 
+### `product_requirement`
+
+- Owns: feature-level PRDs, launch-facing user experience requirements and
+  acceptance criteria.
+- Default location: `docs/product/`.
+- Must not own: product positioning, current merged truth, target architecture,
+  wire contracts, data schemas, operational run steps or active work status.
+
 ### `current_truth`
 
 - Owns: current accepted merged topology and serving surfaces.
@@ -133,16 +141,18 @@ When documents appear to disagree, apply this order before changing code or
 implementing a plan:
 
 1. `product_truth` defines what the product is and is not.
-2. `target_invariant` defines long-term boundaries that must not regress.
-3. `current_truth` defines what is already accepted at the branch tip.
-4. `supporting_architecture` defines cross-domain system ownership.
-5. `domain_architecture` defines capability-local boundaries.
-6. `contract_truth` and `data_truth` define executable wire/schema truth.
-7. `decision_record` explains why a decision was accepted and how it was
+2. `product_requirement` defines feature-level user experience requirements and
+   acceptance criteria.
+3. `target_invariant` defines long-term boundaries that must not regress.
+4. `current_truth` defines what is already accepted at the branch tip.
+5. `supporting_architecture` defines cross-domain system ownership.
+6. `domain_architecture` defines capability-local boundaries.
+7. `contract_truth` and `data_truth` define executable wire/schema truth.
+8. `decision_record` explains why a decision was accepted and how it was
    superseded.
-8. `operational_truth` defines how to operate or verify a system.
-9. `planning_work_map` defines what work is currently queued or signaled.
-10. `reference` provides stable lookup material but does not override the owner
+9. `operational_truth` defines how to operate or verify a system.
+10. `planning_work_map` defines what work is currently queued or signaled.
+11. `reference` provides stable lookup material but does not override the owner
     classes above.
 
 If the document with lower precedence is more recent, do not silently treat it
@@ -154,6 +164,9 @@ new ADR.
 - What is this product and what does it not promise?
   - Owning class: `product_truth`
   - First place: `docs/architecture/product-positioning.md`
+- What should a feature deliver for users?
+  - Owning class: `product_requirement`
+  - First place: `docs/product/`
 - What is currently merged and accepted?
   - Owning class: `current_truth`
   - First place: `docs/architecture/current-architecture.md`

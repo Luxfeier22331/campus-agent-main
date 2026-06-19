@@ -2,6 +2,7 @@ import { ChatKit, useChatKit } from "@openai/chatkit-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { CHATKIT_API_URL, CHATKIT_DOMAIN_KEY } from "@/features/conversation/chatkit-integration";
+import { loadChatKitRuntime } from "@/features/conversation/chatkit-runtime";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_CHATKIT_REQUEST_TYPES = new Set([
@@ -21,6 +22,7 @@ const HOME_COPY = {
 } as const;
 
 type ChatKitSurfaceStatus = "ready" | "runtime_unavailable" | "service_unavailable";
+type ChatKitRuntimeStatus = "loading" | "ready" | "runtime_unavailable";
 
 function getChatKitRequestType(init?: RequestInit): string | null {
 	if (typeof init?.body !== "string") {
@@ -40,6 +42,62 @@ function isActiveChatKitRequest(init?: RequestInit): boolean {
 }
 
 export function ChatKitConversationSurface({
+	initialThread,
+	onLoginRequired,
+}: {
+	initialThread: string | null;
+	onLoginRequired?: () => void;
+}) {
+	const [runtimeStatus, setRuntimeStatus] = useState<ChatKitRuntimeStatus>("loading");
+
+	useEffect(() => {
+		let cancelled = false;
+		const timeout = window.setTimeout(() => {
+			if (!cancelled) {
+				setRuntimeStatus("runtime_unavailable");
+			}
+		}, CHATKIT_READY_TIMEOUT_MS);
+
+		void loadChatKitRuntime()
+			.then(() => {
+				if (!cancelled) {
+					window.clearTimeout(timeout);
+					setRuntimeStatus("ready");
+				}
+			})
+			.catch(() => {
+				if (!cancelled) {
+					window.clearTimeout(timeout);
+					setRuntimeStatus("runtime_unavailable");
+				}
+			});
+
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timeout);
+		};
+	}, []);
+
+	if (runtimeStatus === "runtime_unavailable") {
+		return (
+			<ChatKitStatusPanel
+				actionLabel="重新加载"
+				message="对话界面暂时无法加载。"
+				onAction={() => window.location.reload()}
+			/>
+		);
+	}
+
+	if (runtimeStatus !== "ready") {
+		return <div aria-hidden="true" className="flex min-h-0 flex-1" />;
+	}
+
+	return (
+		<ChatKitConversationInner initialThread={initialThread} onLoginRequired={onLoginRequired} />
+	);
+}
+
+function ChatKitConversationInner({
 	initialThread,
 	onLoginRequired,
 }: {
@@ -89,10 +147,14 @@ export function ChatKitConversationSurface({
 		initialThread,
 		locale: "zh-CN",
 		onError: ({ error }) => {
-			console.error("Chat surface error", error);
+			if (import.meta.env.DEV) {
+				console.error("Chat surface error", error);
+			}
 		},
 		onLog: ({ data, name }) => {
-			console.info("Chat surface log", { data, name });
+			if (import.meta.env.DEV) {
+				console.info("Chat surface log", { data, name });
+			}
 		},
 		onReady: () => {
 			setReady(true);

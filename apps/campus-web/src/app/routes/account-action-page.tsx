@@ -1,13 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import {
-	ArrowLeft,
-	ArrowRight,
-	Check,
-	KeyRound,
-	LockKeyhole,
-	ShieldCheck,
-	TriangleAlert,
-} from "lucide-react";
+import { ArrowLeft, Check, KeyRound, LockKeyhole, ShieldCheck, TriangleAlert } from "lucide-react";
 import { type FormEvent, type ReactNode, useMemo, useRef, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
@@ -18,11 +10,8 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import {
 	type AccountAuthActionState,
-	AccountAuthSubmissionError,
 	requestAccountPasswordReset,
 	resetAccountPassword,
-	signInWithEmail,
-	signUpWithEmail,
 } from "../../platform/auth/client";
 import {
 	type CampusOAuthContext,
@@ -31,6 +20,16 @@ import {
 import { resolveAccountAuthReturnTarget } from "../../platform/auth/return-target";
 import { type AuthTurnstileController, AuthTurnstileField } from "../../platform/auth/turnstile";
 import { ShellSection } from "../root-layout";
+import {
+	AccountAuthStatus,
+	AccountAuthUnavailableState,
+	AccountEmailPasswordForm,
+	AuthVerificationStatus,
+	isAccountAuthTurnstileConfigured,
+	isValidEmail,
+	mapAuthError,
+	readFormString,
+} from "./account-auth-form";
 
 export { AccountLoginDialog } from "./account-login-dialog";
 
@@ -38,11 +37,12 @@ type AccountActionKind = "forgot-password" | "login" | "register" | "reset-passw
 
 export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 	const oauthContext = useMemo(readOAuthContext, []);
+	const returnTo = useMemo(readReturnTo, []);
 	const title =
 		kind === "login"
 			? oauthContext
 				? `登录 ${oauthContext.client.productLabel}`
-				: "欢迎登录"
+				: "登录校园问答"
 			: kind === "register"
 				? "创建账号"
 				: kind === "forgot-password"
@@ -54,7 +54,7 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 				? `继续访问 ${oauthContext.client.displayName}`
 				: "登录后继续使用校园问答与账号服务。"
 			: kind === "register"
-				? "创建账号后继续使用校园问答与账号服务。"
+				? "创建账号后可继续提问、保留聊天记录并管理账号。"
 				: kind === "forgot-password"
 					? "输入您的邮箱地址，我们将向您发送重置密码的链接。"
 					: "请为您的账号输入并确认新的安全密码。";
@@ -64,7 +64,7 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 		) : kind === "reset-password" ? (
 			<AccountPasswordRecoveryResetForm />
 		) : (
-			<AccountEmailPasswordForm mode={kind} oauthContext={oauthContext} />
+			<AccountEmailPasswordForm mode={kind} oauthContext={oauthContext} returnTo={returnTo} />
 		);
 
 	return (
@@ -90,6 +90,7 @@ export function AccountActionPage({ kind }: { kind: AccountActionKind }) {
 			{oauthContext && kind === "login" ? <OAuthClientPanel oauthContext={oauthContext} /> : null}
 			{form}
 			<AuthAuxiliaryLinks kind={kind} oauthContext={oauthContext} />
+			<AuthLegalLinks />
 		</AuthPageShell>
 	);
 }
@@ -190,137 +191,6 @@ function readResetToken(): string | null {
 	return new URLSearchParams(window.location.search).get("token")?.trim() || null;
 }
 
-function readFormString(form: HTMLFormElement, name: string): string {
-	const value = new FormData(form).get(name);
-	return typeof value === "string" ? value.trim() : "";
-}
-
-function isValidEmail(value: string): boolean {
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function mapAuthError(error: unknown): Exclude<AccountAuthActionState, "idle" | "success"> {
-	if (error instanceof AccountAuthSubmissionError) {
-		return error.code;
-	}
-	return "failed";
-}
-
-function AccountEmailPasswordForm(props: {
-	mode: "login" | "register";
-	onSuccess?: () => Promise<void> | void;
-	oauthContext: CampusOAuthContext | null;
-}) {
-	const { mode, oauthContext, onSuccess } = props;
-	const [status, setStatus] = useState<AccountAuthActionState>("idle");
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
-	const turnstileControllerRef = useRef<AuthTurnstileController | null>(null);
-	const returnTo = useMemo(readReturnTo, []);
-
-	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (isSubmitting) {
-			return;
-		}
-		const form = event.currentTarget;
-		const email = readFormString(form, "email");
-		const password = readFormString(form, "password");
-		const confirmPassword = readFormString(form, "confirmPassword");
-		if (!isValidEmail(email) || password.length < 10) {
-			setStatus("invalid_data");
-			return;
-		}
-		if (mode === "register" && password !== confirmPassword) {
-			setStatus("invalid_data");
-			return;
-		}
-		const didResolve = await turnstileControllerRef.current?.ensureToken?.();
-		if (!didResolve) {
-			setStatus("captcha_required");
-			return;
-		}
-		setIsSubmitting(true);
-		setStatus("idle");
-		try {
-			const captchaToken = readFormString(form, "captchaToken");
-			const result =
-				mode === "register"
-					? await signUpWithEmail({ captchaToken, email, name: email, password, returnTo })
-					: await signInWithEmail({ captchaToken, email, password, returnTo });
-			setStatus("success");
-			if (!result.redirectedByProvider) {
-				if (onSuccess) {
-					await onSuccess();
-				} else {
-					window.location.assign(returnTo);
-				}
-			}
-		} catch (error) {
-			setStatus(mapAuthError(error));
-			turnstileControllerRef.current?.resetToken();
-		} finally {
-			setIsSubmitting(false);
-		}
-	}
-
-	const submitText = isSubmitting
-		? "提交中"
-		: mode === "login"
-			? oauthContext
-				? `继续访问 ${oauthContext.client.displayName}`
-				: "登录"
-			: "注册";
-
-	return (
-		<form className="flex w-full flex-col gap-4" noValidate onSubmit={handleSubmit}>
-			<FormField>
-				<Label htmlFor="email">邮箱地址</Label>
-				<Input
-					autoComplete="email"
-					id="email"
-					name="email"
-					placeholder="name@muc.edu.cn"
-					required
-					type="email"
-				/>
-			</FormField>
-			<FormField>
-				<Label htmlFor="password">密码</Label>
-				<Input
-					autoComplete={mode === "login" ? "current-password" : "new-password"}
-					id="password"
-					minLength={10}
-					name="password"
-					placeholder={mode === "login" ? "请输入密码" : "至少 10 位"}
-					required
-					type="password"
-				/>
-			</FormField>
-			{mode === "register" ? <ConfirmPasswordField /> : null}
-			<AuthTurnstileBox>
-				<AuthTurnstileField
-					action={mode === "login" ? "sign-in" : "sign-up"}
-					onController={(controller) => {
-						turnstileControllerRef.current = controller;
-					}}
-					onStateChange={(state) => setIsTurnstileConfigured(state.isConfigured)}
-				/>
-			</AuthTurnstileBox>
-			<AccountAuthStatus
-				invalidDataMessage={
-					mode === "register" ? "请检查邮箱、密码长度和确认密码。" : "请检查邮箱和密码格式。"
-				}
-				status={status}
-			/>
-			<Button disabled={isSubmitting || !isTurnstileConfigured} type="submit">
-				{submitText}
-				<ArrowRight aria-hidden="true" />
-			</Button>
-		</form>
-	);
-}
-
 function ConfirmPasswordField() {
 	return (
 		<FormField>
@@ -341,12 +211,19 @@ function ConfirmPasswordField() {
 function AccountPasswordRecoveryRequestForm() {
 	const [status, setStatus] = useState<AccountAuthActionState>("idle");
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(false);
+	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(
+		isAccountAuthTurnstileConfigured,
+	);
+	const [isVerifying, setIsVerifying] = useState(false);
 	const turnstileControllerRef = useRef<AuthTurnstileController | null>(null);
+
+	if (!isTurnstileConfigured) {
+		return <AccountAuthUnavailableState />;
+	}
 
 	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (isSubmitting) {
+		if (isSubmitting || isVerifying) {
 			return;
 		}
 		const form = event.currentTarget;
@@ -355,13 +232,15 @@ function AccountPasswordRecoveryRequestForm() {
 			setStatus("invalid_data");
 			return;
 		}
+		setIsVerifying(true);
+		setStatus("idle");
 		const didResolve = await turnstileControllerRef.current?.ensureToken?.();
 		if (!didResolve) {
+			setIsVerifying(false);
 			setStatus("captcha_required");
 			return;
 		}
 		setIsSubmitting(true);
-		setStatus("idle");
 		try {
 			await requestAccountPasswordReset({
 				captchaToken: readFormString(form, "captchaToken"),
@@ -373,6 +252,7 @@ function AccountPasswordRecoveryRequestForm() {
 			turnstileControllerRef.current?.resetToken();
 		} finally {
 			setIsSubmitting(false);
+			setIsVerifying(false);
 		}
 	}
 
@@ -384,23 +264,29 @@ function AccountPasswordRecoveryRequestForm() {
 					autoComplete="email"
 					id="email"
 					name="email"
-					placeholder="name@muc.edu.cn"
+					placeholder="请输入邮箱地址"
 					required
 					type="email"
 				/>
 			</FormField>
-			<AuthTurnstileBox>
-				<AuthTurnstileField
-					action="request-password-reset"
-					onController={(controller) => {
-						turnstileControllerRef.current = controller;
-					}}
-					onStateChange={(state) => setIsTurnstileConfigured(state.isConfigured)}
-				/>
-			</AuthTurnstileBox>
-			<AccountAuthStatus invalidDataMessage="请输入有效的邮箱地址。" status={status} />
-			<Button disabled={isSubmitting || !isTurnstileConfigured} type="submit">
-				{isSubmitting ? "发送中" : "发送重置链接"}
+			<AuthVerificationStatus active={isVerifying || isSubmitting} />
+			<AuthTurnstileField
+				action="request-password-reset"
+				onController={(controller) => {
+					turnstileControllerRef.current = controller;
+				}}
+				onStateChange={(state) => setIsTurnstileConfigured(state.isConfigured)}
+			/>
+			<AccountAuthStatus
+				invalidDataMessage="请输入有效的邮箱地址。"
+				messages={{
+					failed: "重置链接发送未完成，请稍后重试。",
+					success: "重置链接已发送，请查看邮箱。",
+				}}
+				status={status}
+			/>
+			<Button disabled={isSubmitting || isVerifying} type="submit">
+				{isVerifying ? "验证中" : isSubmitting ? "发送中" : "发送重置链接"}
 			</Button>
 		</form>
 	);
@@ -462,6 +348,10 @@ function AccountPasswordRecoveryResetForm() {
 			<ConfirmPasswordField />
 			<AccountAuthStatus
 				invalidDataMessage="新密码至少 10 位，且两次输入需要一致。"
+				messages={{
+					failed: "密码更新未完成，请重新打开邮件链接。",
+					success: "密码已更新，请重新登录。",
+				}}
 				status={status}
 			/>
 			<Button disabled={isSubmitting} type="submit">
@@ -482,37 +372,6 @@ function ResetTokenMissingState() {
 				<Link to="/account/forgot-password">重新发送重置链接</Link>
 			</Button>
 		</div>
-	);
-}
-
-function AccountAuthStatus({
-	invalidDataMessage = "请检查邮箱和密码格式。",
-	status,
-}: {
-	invalidDataMessage?: string;
-	status: AccountAuthActionState;
-}) {
-	const message = {
-		captcha_required: "请先完成安全验证。",
-		failed: "请求暂时未完成，请稍后重试。",
-		idle: "",
-		invalid_data: invalidDataMessage,
-		invalid_token: "当前链接已失效，请重新申请。",
-		success: "操作已提交。",
-		user_exists: "该邮箱已注册，请直接登录。",
-	}[status];
-
-	if (!message) {
-		return null;
-	}
-
-	return (
-		<p
-			aria-live="polite"
-			className={cn("text-sm", status === "success" ? "text-primary" : "text-destructive")}
-		>
-			{message}
-		</p>
 	);
 }
 
@@ -592,6 +451,22 @@ function AuthAuxiliaryLinks({
 	);
 }
 
+function AuthLegalLinks() {
+	return (
+		<p className="mt-4 text-center text-xs leading-5 text-muted-foreground">
+			继续使用即表示你了解
+			<Link className="font-medium text-primary hover:text-primary/80" to="/legal/terms">
+				用户服务协议
+			</Link>
+			和
+			<Link className="font-medium text-primary hover:text-primary/80" to="/legal/privacy">
+				隐私政策
+			</Link>
+			。
+		</p>
+	);
+}
+
 function AuthPageShell({
 	children,
 	isFederationFlow = false,
@@ -653,10 +528,4 @@ function OAuthClientPanel({ oauthContext }: { oauthContext: CampusOAuthContext }
 
 function FormField({ children }: { children: ReactNode }) {
 	return <div className="flex flex-col gap-2">{children}</div>;
-}
-
-function AuthTurnstileBox({ children }: { children: ReactNode }) {
-	return (
-		<div className="min-h-16 rounded-md border border-border bg-accent/50 p-3">{children}</div>
-	);
 }

@@ -154,6 +154,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 					"content-type": "application/json",
 					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
 					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
+					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({
@@ -226,6 +227,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 					"content-type": "application/json",
 					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
 					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
+					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
 				body: JSON.stringify({

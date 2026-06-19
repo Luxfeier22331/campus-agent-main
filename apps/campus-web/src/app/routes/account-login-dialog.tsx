@@ -1,22 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import { X } from "lucide-react";
-import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { cn } from "@/lib/utils";
-import {
-	type AccountAuthActionState,
-	AccountAuthSubmissionError,
-	signInWithEmail,
-} from "@/platform/auth/client";
 import { resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
-import { type AuthTurnstileController, AuthTurnstileField } from "@/platform/auth/turnstile";
-import {
-	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
-	parseTurnstileRuntimeConfigSource,
-} from "@/platform/auth/turnstile-runtime-config";
+import { AccountEmailPasswordForm } from "./account-auth-form";
 
 const dialogControlClass = "h-[52px] min-h-[52px] rounded-xl px-4 text-[15px] leading-5";
 const dialogPrimaryButtonClass =
@@ -31,17 +18,11 @@ export function AccountLoginDialog({
 	onClose: () => void;
 	returnFocusElement?: HTMLElement | null;
 }) {
-	const [isSubmitting, setIsSubmitting] = useState(false);
-	const [isTurnstileConfigured, setIsTurnstileConfigured] = useState(() =>
-		readDialogTurnstileConfigured(),
-	);
 	const [postLoginError, setPostLoginError] = useState<string | null>(null);
-	const [status, setStatus] = useState<AccountAuthActionState>("idle");
 	const dialogRef = useRef<HTMLElement | null>(null);
 	const returnFocusElementRef = useRef<HTMLElement | null>(
 		returnFocusElement ?? getActiveHtmlElement(),
 	);
-	const turnstileControllerRef = useRef<AuthTurnstileController | null>(null);
 	const autoFocusEmail = useMemo(shouldAutoFocusDialogEmail, []);
 	const returnTo = useMemo(readReturnTo, []);
 
@@ -103,58 +84,6 @@ export function AccountLoginDialog({
 		};
 	}, [autoFocusEmail]);
 
-	async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-		event.preventDefault();
-		if (isSubmitting) {
-			return;
-		}
-		const form = event.currentTarget;
-		const email = readFormString(form, "email");
-		const password = readFormString(form, "password");
-		if (!isValidEmail(email) || password.length < 10) {
-			setStatus("invalid_data");
-			return;
-		}
-		if (!isTurnstileConfigured) {
-			setStatus("captcha_required");
-			return;
-		}
-		const didResolve = await turnstileControllerRef.current?.ensureToken?.();
-		if (!didResolve) {
-			setStatus("captcha_required");
-			return;
-		}
-		setIsSubmitting(true);
-		setPostLoginError(null);
-		setStatus("idle");
-		try {
-			const result = await signInWithEmail({
-				captchaToken: readFormString(form, "captchaToken"),
-				email,
-				password,
-				returnTo,
-			});
-			setStatus("success");
-			if (!result.redirectedByProvider) {
-				if (onAuthenticated) {
-					try {
-						await onAuthenticated();
-					} catch {
-						setStatus("idle");
-						setPostLoginError("登录状态刷新失败，请稍后再试。");
-					}
-				} else {
-					onClose();
-				}
-			}
-		} catch (error) {
-			setStatus(mapAuthError(error));
-			turnstileControllerRef.current?.resetToken();
-		} finally {
-			setIsSubmitting(false);
-		}
-	}
-
 	return (
 		<div
 			className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:py-6"
@@ -194,72 +123,53 @@ export function AccountLoginDialog({
 						登录后可继续提问，并保留聊天记录。
 					</p>
 				</div>
-				<form className="flex flex-col gap-4" noValidate onSubmit={handleSubmit}>
-					<div className="flex flex-col gap-2">
-						<Label className="sr-only" htmlFor="login-dialog-email">
-							邮箱地址
-						</Label>
-						<Input
-							autoComplete="email"
-							autoFocus={autoFocusEmail}
-							className={dialogControlClass}
-							id="login-dialog-email"
-							name="email"
-							placeholder="邮箱地址"
-							required
-							type="email"
-						/>
-					</div>
-					<div className="flex flex-col gap-2">
-						<Label className="sr-only" htmlFor="login-dialog-password">
-							密码
-						</Label>
-						<Input
-							autoComplete="current-password"
-							className={dialogControlClass}
-							id="login-dialog-password"
-							minLength={10}
-							name="password"
-							placeholder="密码"
-							required
-							type="password"
-						/>
-					</div>
-					{isTurnstileConfigured ? (
-						<AuthTurnstileField
-							action="sign-in"
-							onController={(controller) => {
-								turnstileControllerRef.current = controller;
-							}}
-							onStateChange={(state) => setIsTurnstileConfigured(state.isConfigured)}
-						/>
-					) : (
-						<p className="text-sm text-[var(--sys-text-muted)]">正在准备安全验证。</p>
-					)}
-					<AccountDialogAuthStatus invalidDataMessage="请检查邮箱和密码格式。" status={status} />
-					<Button
-						className={dialogPrimaryButtonClass}
-						disabled={isSubmitting || !isTurnstileConfigured}
-						type="submit"
-					>
-						{isSubmitting ? "登录中" : "登录"}
-					</Button>
+				<AccountEmailPasswordForm
+					autoFocusEmail={autoFocusEmail}
+					controlClassName={dialogControlClass}
+					mode="login"
+					onPostSuccessError={() => setPostLoginError("登录状态刷新失败，请稍后再试。")}
+					onSuccess={async () => {
+						setPostLoginError(null);
+						if (onAuthenticated) {
+							await onAuthenticated();
+						} else {
+							onClose();
+						}
+					}}
+					primaryButtonClassName={dialogPrimaryButtonClass}
+					returnTo={returnTo}
+					surface="dialog"
+				/>
+				<Link
+					className="mx-auto mt-4 inline-flex min-h-9 items-center justify-center rounded-full px-2 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
+					to="/account/forgot-password"
+				>
+					忘记密码
+				</Link>
+				<p className="mt-2 text-center text-sm text-[var(--sys-text-muted)]">
+					没有账号？{" "}
 					<Link
-						className="mx-auto inline-flex min-h-9 items-center justify-center rounded-full px-2 text-sm font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
-						to="/account/forgot-password"
+						className="inline-flex min-h-9 items-center justify-center rounded-full px-1 font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
+						to="/account/register"
 					>
-						忘记密码
+						创建账号
 					</Link>
-					<p className="text-center text-sm text-[var(--sys-text-muted)]">
-						没有账号？{" "}
-						<Link
-							className="inline-flex min-h-9 items-center justify-center rounded-full px-1 font-medium text-[var(--sys-text-strong)] hover:bg-[var(--sys-bg-muted)]"
-							to="/account/register"
-						>
-							创建账号
-						</Link>
-					</p>
-				</form>
+				</p>
+				<p className="mt-3 text-center text-xs leading-5 text-[var(--sys-text-muted)]">
+					<Link
+						className="font-medium text-[var(--sys-text-strong)] hover:text-[var(--sys-text-default)]"
+						to="/legal/terms"
+					>
+						用户服务协议
+					</Link>
+					<span className="px-2">/</span>
+					<Link
+						className="font-medium text-[var(--sys-text-strong)] hover:text-[var(--sys-text-default)]"
+						to="/legal/privacy"
+					>
+						隐私政策
+					</Link>
+				</p>
 				{postLoginError ? (
 					<p className="mt-3 rounded-lg border border-[var(--sys-status-danger)]/20 bg-[var(--sys-status-danger)]/5 px-3 py-2 text-sm text-[var(--sys-status-danger)]">
 						{postLoginError}
@@ -267,42 +177,6 @@ export function AccountLoginDialog({
 				) : null}
 			</section>
 		</div>
-	);
-}
-
-function AccountDialogAuthStatus({
-	invalidDataMessage,
-	status,
-}: {
-	invalidDataMessage: string;
-	status: AccountAuthActionState;
-}) {
-	const message = {
-		captcha_required: "请先完成安全验证。",
-		failed: "请求暂时未完成，请稍后重试。",
-		idle: "",
-		invalid_data: invalidDataMessage,
-		invalid_token: "当前链接已失效，请重新申请。",
-		success: "操作已提交。",
-		user_exists: "该邮箱已注册，请直接登录。",
-	}[status];
-
-	if (!message) {
-		return null;
-	}
-
-	return (
-		<p
-			aria-live="polite"
-			className={cn(
-				"text-sm",
-				status === "success"
-					? "text-[var(--sys-brand-interactive)]"
-					: "text-[var(--sys-status-danger)]",
-			)}
-		>
-			{message}
-		</p>
 	);
 }
 
@@ -320,30 +194,6 @@ function getFocusableDialogElements(container: HTMLElement): HTMLElement[] {
 			'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
 		),
 	).filter((element) => element.getAttribute("aria-hidden") !== "true");
-}
-
-function isValidEmail(value: string): boolean {
-	return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
-function mapAuthError(error: unknown): Exclude<AccountAuthActionState, "idle" | "success"> {
-	if (error instanceof AccountAuthSubmissionError) {
-		return error.code;
-	}
-	return "failed";
-}
-
-function readDialogTurnstileConfigured(): boolean {
-	if (typeof document === "undefined") {
-		return false;
-	}
-	const script = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID);
-	return Boolean(parseTurnstileRuntimeConfigSource(script?.textContent).turnstileSiteKey);
-}
-
-function readFormString(form: HTMLFormElement, name: string): string {
-	const value = new FormData(form).get(name);
-	return typeof value === "string" ? value.trim() : "";
 }
 
 function readReturnTo(): string {

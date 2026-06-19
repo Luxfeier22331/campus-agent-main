@@ -212,6 +212,7 @@ export async function provisionSmokeIdentity(input, deps) {
 				"content-type": "application/json",
 				origin: input.authShellOrigin,
 				referer: `${input.authShellOrigin.replace(/\/$/, "")}/login`,
+				"x-campus-legal-accepted": "terms-and-privacy",
 				"x-captcha-response": input.captchaToken,
 			},
 			method: "POST",

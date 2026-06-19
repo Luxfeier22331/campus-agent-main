@@ -1,0 +1,31 @@
+---
+doc_type: index
+truth_scope: product
+owner_boundary: docs/product
+status: active
+created: 2026-06-18
+updated: 2026-06-18
+---
+
+# Product Requirements
+
+`docs/product/` owns feature-level product requirements and launch-facing user
+experience requirements.
+
+It does not own product positioning, current merged truth, target architecture,
+HTTP contracts, data schemas, operational procedures or active work status.
+
+## Active PRDs
+
+- [account-registration-legal-consent-prd.md](./account-registration-legal-consent-prd.md)
+  - registration terms/privacy consent, legal pages and sign-up admission
+
+## Use Rules
+
+- Product boundary and non-promises remain in
+  [`docs/architecture/product-positioning.md`](../architecture/product-positioning.md).
+- Current accepted implementation truth remains in
+  [`docs/architecture/current-architecture.md`](../architecture/current-architecture.md).
+- Runtime/API wire shape remains in [`docs/contracts/`](../contracts/).
+- A PRD may state user-facing behavior and acceptance criteria, but it must not
+  redefine architecture owners, data schemas or deployment runbooks.

@@ -15,6 +15,7 @@ import qaAccountEntrySource from "../src/components/conversation/qa-account-entr
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import { UnauthorizedError } from "../src/platform/api/client";
+import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 
@@ -35,13 +36,26 @@ const conversationApiMock = vi.hoisted(() => ({
 const useChatKitMock = vi.hoisted(() =>
 	vi.fn((_: UseChatKitOptions) => ({ control: { id: "control" }, showHistory: vi.fn() })),
 );
+const loadChatKitRuntimeMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const navigateMock = vi.hoisted(() => vi.fn());
+
+function installTurnstileRuntimeConfig() {
+	document.body.insertAdjacentHTML(
+		"beforeend",
+		`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
+	);
+}
 
 vi.mock("@openai/chatkit-react", () => ({
 	ChatKit: ({ className, control }: { className?: string; control: unknown }) => (
 		<div className={className} data-control={JSON.stringify(control)} data-testid="chatkit" />
 	),
 	useChatKit: useChatKitMock,
+}));
+
+vi.mock("../src/features/conversation/chatkit-runtime", () => ({
+	CHATKIT_RUNTIME_SCRIPT_URL: "https://cdn.platform.openai.com/deployments/chatkit/chatkit.js",
+	loadChatKitRuntime: loadChatKitRuntimeMock,
 }));
 
 function getLastChatKitOptions(): UseChatKitOptions {
@@ -93,6 +107,7 @@ vi.mock("../src/features/dining/api", () => diningApiMock);
 
 describe("campus routes", () => {
 	beforeEach(() => {
+		document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID)?.remove();
 		conversationApiMock.getSessionPrincipal.mockReset();
 		conversationApiMock.getSessionPrincipal.mockResolvedValue({
 			permissions: {
@@ -168,6 +183,8 @@ describe("campus routes", () => {
 		});
 		navigateMock.mockReset();
 		useChatKitMock.mockClear();
+		loadChatKitRuntimeMock.mockReset();
+		loadChatKitRuntimeMock.mockResolvedValue(undefined);
 	});
 
 	it("renders the v1.3 Q&A home shell without app launcher debt", async () => {
@@ -183,7 +200,7 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
-		expect(screen.getByTestId("chatkit")).toBeInTheDocument();
+		expect(await screen.findByTestId("chatkit")).toBeInTheDocument();
 		expect(useChatKitMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				api: expect.objectContaining({ url: "/api/chatkit" }),
@@ -291,6 +308,7 @@ describe("campus routes", () => {
 
 	it("opens the same inline login dialog from the signed-out account menu", async () => {
 		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
+		installTurnstileRuntimeConfig();
 		render(<HomePage />);
 
 		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
@@ -307,7 +325,8 @@ describe("campus routes", () => {
 			"/account/forgot-password",
 		);
 		expect(screen.getByText("没有账号？")).toBeInTheDocument();
-		expect(screen.getByText("正在准备安全验证。")).toBeInTheDocument();
+		expect(screen.queryByText("正在准备安全验证。")).toBeNull();
+		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
 		expect(screen.queryByText("登录后可以继续提问，并保留聊天记录。")).toBeNull();
 		expect(within(dialog).queryByRole("button", { name: "继续" })).toBeNull();
 		expect(within(dialog).queryByRole("button", { name: "登录并继续" })).toBeNull();
@@ -566,7 +585,7 @@ describe("campus routes", () => {
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-		expect(screen.getByTestId("chatkit")).toBeInTheDocument();
+		expect(await screen.findByTestId("chatkit")).toBeInTheDocument();
 		expect(useChatKitMock).toHaveBeenLastCalledWith(
 			expect.objectContaining({
 				api: expect.objectContaining({ url: "/api/chatkit" }),

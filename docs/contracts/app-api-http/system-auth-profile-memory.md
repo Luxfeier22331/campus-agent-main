@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-13
-updated: 2026-06-17
+updated: 2026-06-18
 ---
 
 # App API HTTP System Auth Profile Memory
@@ -97,6 +97,11 @@ owns this section group; the original path remains the stable index.
 - 由 Better Auth handler 挂载
 - `campus-web` 通过 same-site route 暴露给浏览器
 - `operator-console-web` 不在 v1 上复用这一套 end-user 登录流程
+- `POST /api/auth/sign-up/email` 必须携带
+  `x-campus-legal-accepted: terms-and-privacy`；缺失或值不正确时返回
+  `legal_consent_required`
+- 该 legal consent marker 只作为注册准入信号，不持久化为 consent ledger、
+  consent version、IP、时间或账号级审计记录
 
 ### `GET /api/me`
 

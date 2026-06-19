@@ -3,12 +3,15 @@ export {
 	buildBetterAuthConfig,
 	buildEndUserEmailAdmissionPolicy,
 	createAppAuth,
+	enforceSignupLegalConsent,
 	getAppAuth,
 	handleAuthRequest,
 	hashAppPassword,
 	isEndUserEmailAllowedForAuth,
 	probeAppAuthRuntime,
 	resolvePasswordResetRedirectTarget,
+	SIGNUP_LEGAL_CONSENT_HEADER_NAME,
+	SIGNUP_LEGAL_CONSENT_HEADER_VALUE,
 	verifyAppPassword,
 } from "./auth";
 export type {

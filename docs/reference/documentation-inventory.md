@@ -35,9 +35,9 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 292
+- Current-worktree docs Markdown files: 294
 - Git tracked docs Markdown files: 289
-- Untracked docs Markdown files included: 3
+- Untracked docs Markdown files included: 5
 - Generated on: 2026-06-18
 
 ### By Directory Area
@@ -51,6 +51,7 @@ class defined by `docs/documentation-architecture.md`.
 - `domains`: 8
 - `environment`: 7
 - `policies`: 5
+- `product`: 2
 - `README.md`: 1
 - `documentation-architecture.md`: 1
 
@@ -60,9 +61,10 @@ class defined by `docs/documentation-architecture.md`.
 - `runbook`: 46
 - `decision`: 50
 - `contract`: 36
-- `index`: 31
+- `index`: 32
 - `architecture`: 33
 - `data`: 18
+- `product_requirement`: 1
 - `policy`: 4
 - `documentation_architecture`: 1
 - `template`: 1
@@ -72,7 +74,7 @@ class defined by `docs/documentation-architecture.md`.
 - `ops`: 88
 - `repository`: 71
 - `data`: 50
-- `product`: 15
+- `product`: 17
 - `capability`: 15
 - `execution`: 16
 - `eval`: 13
@@ -83,10 +85,11 @@ class defined by `docs/documentation-architecture.md`.
 - `operational_truth`: 48
 - `decision_record`: 50
 - `contract_truth`: 36
-- `reference_index`: 31
+- `reference_index`: 32
 - `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
+- `product_requirement`: 1
 - `current_truth`: 1
 - `product_truth`: 1
 - `target_invariant`: 1
@@ -97,10 +100,10 @@ class defined by `docs/documentation-architecture.md`.
 - `keep_executable_truth`: 53
 - `keep_ops_procedure`: 47
 - `preserve_adr`: 49
-- `keep_owner_truth`: 31
+- `keep_owner_truth`: 32
 - `keep_reference_truth`: 26
 - `keep_archive_historical`: 23
-- `keep_thin_index`: 25
+- `keep_thin_index`: 26
 - `keep_large_owner_truth`: 6
 - `keep_thin_domain_hub`: 6
 
@@ -125,7 +128,7 @@ class defined by `docs/documentation-architecture.md`.
 
 ### Largest Documents
 
-- `docs/reference/documentation-inventory.md`: 2298 lines, action `keep_large_owner_truth`
+- `docs/reference/documentation-inventory.md`: 2539 lines, action `keep_large_owner_truth`
 - `docs/architecture/target-architecture.md`: 857 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/operator-observability-architecture.md`: 708 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`: 707 lines, action `keep_large_owner_truth`
@@ -151,7 +154,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `reference_index`
   - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
   - Owner boundary: `docs`
-  - Ledger: `area=README.md`, `cluster=general`, `state=tracked`, `lines=94`
+  - Ledger: `area=README.md`, `cluster=general`, `state=tracked`, `lines=129`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
 
@@ -369,7 +372,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Prompt And Instruction Architecture
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `prompt-runtime`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
   - Ledger: `area=architecture`, `cluster=prompt`, `state=tracked`, `lines=47`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -377,7 +380,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Prompt And Instruction Assembly And Assets
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `prompt-runtime`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
   - Ledger: `area=architecture`, `cluster=prompt`, `state=untracked`, `lines=301`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -385,7 +388,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Prompt And Instruction Current Runtime Baseline
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `prompt-runtime`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
   - Ledger: `area=architecture`, `cluster=runtime`, `state=untracked`, `lines=342`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -393,7 +396,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Prompt And Instruction Safety Observability And Rollout
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `prompt-runtime`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
   - Ledger: `area=architecture`, `cluster=prompt`, `state=untracked`, `lines=364`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
@@ -1310,7 +1313,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `documentation_governance`
   - Frontmatter: `doc_type=documentation_architecture`, `truth_scope=repository`, `status=active`
   - Owner boundary: `docs`
-  - Ledger: `area=documentation-architecture.md`, `cluster=general`, `state=untracked`, `lines=329`
+  - Ledger: `area=documentation-architecture.md`, `cluster=general`, `state=untracked`, `lines=361`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 
@@ -1473,6 +1476,25 @@ class defined by `docs/documentation-architecture.md`.
   - Owner boundary: `domains/regulations`
   - Ledger: `area=policies`, `cluster=student-handbook`, `state=tracked`, `lines=223`
   - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+
+### `product`
+
+- `docs/product/README.md`
+  - Title: Product Requirements
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=31`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/product/account-registration-legal-consent-prd.md`
+  - Title: Account Registration Legal Consent PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=account`, `state=untracked`, `lines=150`
+  - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 
 ### `reference`
@@ -1706,7 +1728,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
   - Owner boundary: `docs`
-  - Ledger: `area=reference`, `cluster=general`, `state=untracked`, `lines=2298`
+  - Ledger: `area=reference`, `cluster=general`, `state=untracked`, `lines=2539`
   - Governance action: `keep_large_owner_truth`
   - Drift signal: `large_owner_clean`
 - `docs/reference/eval-benchmark-artifact-contract.md`

@@ -46,6 +46,7 @@ const AUTH_FORWARDED_HEADERS = [
 	...FORWARDED_HEADERS,
 	"origin",
 	"referer",
+	"x-campus-legal-accepted",
 	"x-captcha-response",
 ] as const;
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
@@ -77,6 +78,8 @@ const SHELL_EXACT_PATHS = new Set([
 	"/account/reset-password",
 	"/account/federation/consent",
 	"/account/federation/error",
+	"/legal/terms",
+	"/legal/privacy",
 ]);
 
 const worker = {

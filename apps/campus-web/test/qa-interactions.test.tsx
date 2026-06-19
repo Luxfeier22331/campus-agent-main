@@ -20,12 +20,18 @@ const useChatKitMock = vi.hoisted(() =>
 		showHistory: showHistoryMock,
 	})),
 );
+const loadChatKitRuntimeMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 
 vi.mock("@openai/chatkit-react", () => ({
 	ChatKit: ({ className, control }: { className?: string; control: unknown }) => (
 		<div className={className} data-control={JSON.stringify(control)} data-testid="chatkit" />
 	),
 	useChatKit: useChatKitMock,
+}));
+
+vi.mock("../src/features/conversation/chatkit-runtime", () => ({
+	CHATKIT_RUNTIME_SCRIPT_URL: "https://cdn.platform.openai.com/deployments/chatkit/chatkit.js",
+	loadChatKitRuntime: loadChatKitRuntimeMock,
 }));
 
 vi.mock("@/app/routes/account-action-page", () => ({
@@ -91,6 +97,8 @@ describe("Q&A product interactions", () => {
 		navigateMock.mockReset();
 		showHistoryMock.mockReset();
 		useChatKitMock.mockClear();
+		loadChatKitRuntimeMock.mockReset();
+		loadChatKitRuntimeMock.mockResolvedValue(undefined);
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(() =>
@@ -121,6 +129,7 @@ describe("Q&A product interactions", () => {
 	it("opens ChatKit history from the sidebar search action and keyboard shortcut", async () => {
 		render(<HomePage />);
 
+		await screen.findByTestId("chatkit");
 		fireEvent.click(await screen.findByRole("button", { name: "搜索聊天" }));
 		expect(showHistoryMock).toHaveBeenCalledOnce();
 
@@ -191,6 +200,7 @@ describe("Q&A product interactions", () => {
 			});
 		render(<HomePage />);
 
+		await screen.findByTestId("chatkit");
 		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
 
 		const options = useChatKitMock.mock.calls.at(-1)?.[0] as UseChatKitOptions;
