@@ -2,25 +2,20 @@ package httpapi
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-type promptConfigGate struct {
-	Admitted                bool   `json:"admitted"`
-	Reason                  string `json:"reason"`
-	Provider                string `json:"provider"`
-	PricingProvider         string `json:"pricing_provider"`
-	PricingVersion          string `json:"pricing_version"`
-	Transport               string `json:"transport"`
-	ExecutionModel          string `json:"execution_model"`
-	StrictStructuredOutputs bool   `json:"strict_structured_outputs"`
+type providerConfigGate struct {
+	Configured bool   `json:"configured"`
+	Reason     string `json:"reason"`
+	Source     string `json:"source"`
 }
 
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
@@ -39,7 +34,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	defer structuredQueryCancel()
 	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
-	promptGate := evaluatePromptConfigGate(s.config)
+	providerConfigGate := s.evaluateProviderConfigGate()
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
@@ -54,7 +49,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		temporalRuntimeStatus["healthy"] == true &&
 		personalMemoryStatus["healthy"] == true &&
 		ragRuntimeStatus["healthy"] == true &&
-		promptGate.Admitted
+		providerConfigGate.Configured
 	statusCode := http.StatusOK
 	statusText := "ready"
 	if !ready {
@@ -74,7 +69,7 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 		"personal_memory_runtime":  personalMemoryStatus,
 		"rag_runtime":              ragRuntimeStatus,
 		"capability_gates":         s.capabilityGateStatus(),
-		"prompt_config_gate":       promptGate,
+		"provider_config_gate":     providerConfigGate,
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -250,62 +245,30 @@ func containsRequiredTemporalTaskQueues(
 	return true
 }
 
-func evaluatePromptConfigGate(cfg config.Config) promptConfigGate {
-	providerName := strings.TrimSpace(cfg.PromptRuntimeProvider)
-	pricingProviderName := promptPricingProviderName(providerName)
-	transport := defaultString(strings.TrimSpace(cfg.PromptRuntimeTransport), "responses")
-	baseURL := strings.TrimSpace(cfg.PromptRuntimeBaseURL)
-	executionModel := strings.TrimSpace(cfg.ExecutionPromptModel)
-	apiKey := strings.TrimSpace(cfg.PromptRuntimeAPIKey)
-	reason := ""
-	pricingVersion := ""
-	switch {
-	case providerName == "":
-		reason = "prompt_provider_not_configured"
-	case !cfg.PromptStrictStructuredOutputs:
-		reason = "strict_structured_outputs_disabled"
-	case apiKey == "":
-		reason = "prompt_api_key_not_configured"
-	case transport != "responses":
-		reason = "prompt_transport_unsupported"
-	case baseURL == "":
-		reason = "prompt_base_url_not_configured"
-	}
-	if reason == "" {
-		catalog, err := provider.LoadPricingCatalog(cfg.ProviderPricingPath)
-		switch {
-		case err != nil:
-			reason = "provider_pricing_not_configured"
-		case executionModel != "" && !promptModelHasPricing(catalog, pricingProviderName, executionModel):
-			reason = "execution_model_pricing_missing"
-		default:
-			pricingVersion = catalog.SchemaVersion
+func (s *Server) evaluateProviderConfigGate() providerConfigGate {
+	if s.providerConfigErr != nil {
+		reason := "provider_config_resolver_not_configured"
+		if !errors.Is(s.providerConfigErr, errProviderConfigResolverNotConfigured) {
+			reason = "provider_config_resolver_invalid"
+		}
+		return providerConfigGate{
+			Configured: false,
+			Reason:     reason,
+			Source:     "app-api-provider-config",
 		}
 	}
-	return promptConfigGate{
-		Admitted:                reason == "",
-		Reason:                  reason,
-		Provider:                providerName,
-		PricingProvider:         pricingProviderName,
-		PricingVersion:          pricingVersion,
-		Transport:               transport,
-		ExecutionModel:          executionModel,
-		StrictStructuredOutputs: cfg.PromptStrictStructuredOutputs,
+	if s.providerConfigResolver == nil {
+		return providerConfigGate{
+			Configured: false,
+			Reason:     "provider_config_resolver_not_configured",
+			Source:     "app-api-provider-config",
+		}
 	}
-}
-
-func promptPricingProviderName(providerName string) string {
-	switch strings.TrimSpace(providerName) {
-	case "openai-responses":
-		return "openai"
-	default:
-		return strings.TrimSpace(providerName)
+	return providerConfigGate{
+		Configured: true,
+		Reason:     "",
+		Source:     "app-api-provider-config",
 	}
-}
-
-func promptModelHasPricing(catalog provider.PricingCatalog, providerName string, modelName string) bool {
-	_, ok := catalog.Lookup(providerName, modelName)
-	return ok
 }
 
 func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {

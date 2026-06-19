@@ -47,7 +47,7 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         result = run_local_runtime_script_with_env(
             repo_env="\n".join(
                 (
-                    "PROMPT_RUNTIME_API_KEY=prompt-key",
+                    "HINDSIGHT_API_LLM_API_KEY=hindsight-llm-key",
                     "EMBEDDING_API_KEY=embedding-key",
                     "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                     "EMBEDDING_DIMENSIONS=2560",

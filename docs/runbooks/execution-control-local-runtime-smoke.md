@@ -104,7 +104,7 @@ export EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=/etc/campus-agent/runtime-profile.l
   `goproxy.cn` 缓解 `proxy.golang.org` TLS handshake timeout
 - 不要把 `EXECUTION_CONTROL_DOCKER_GOSUMDB` 设为 `off`；保持 `sum.golang.org` 继续校验
   `go.sum`
-- 如果没有配置真实 prompt runtime，`/readyz` 可能返回 `503 degraded`
+- 如果没有配置 app-api provider-config resolver，`/readyz` 可能返回 `503 degraded`
 - `503 degraded` 不阻塞 transport smoke，但必须在记录中解释原因
 
 ## Step 1. Docker Runtime Smoke

@@ -266,16 +266,13 @@ func providerPricingCatalogForTest(t *testing.T) string {
 func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) config.Config {
 	t.Helper()
 	cfg := config.Config{
-		AppName:                       "campus-agent",
-		MaxConcurrentAnswers:          8,
-		PromptRuntimeProvider:         "openai",
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeTransport:        "responses",
-		PromptRuntimeBaseURL:          "https://api.openai.com/v1",
-		ProviderPricingPath:           providerPricingCatalogForTest(t),
-		PromptStrictStructuredOutputs: true,
-		RAGSelectedEvidenceMax:        8,
-		RAGTopKMax:                    8,
+		AppName:                    "campus-agent",
+		AppAPIInternalBaseURL:      "https://app-api.internal",
+		AppAPIInternalSharedSecret: "provider-config-secret",
+		MaxConcurrentAnswers:       8,
+		ProviderPricingPath:        providerPricingCatalogForTest(t),
+		RAGSelectedEvidenceMax:     8,
+		RAGTopKMax:                 8,
 	}
 	for _, mutate := range mutators {
 		mutate(&cfg)

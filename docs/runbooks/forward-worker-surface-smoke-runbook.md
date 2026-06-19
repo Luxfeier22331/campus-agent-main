@@ -146,11 +146,21 @@ profile 语义：
   `api-staging`；execution-control 只作为 app-api trusted machine upstream，不作为
   public smoke surface
 - `local-real-provider`：复用 `dev` 的 online answer 产品路径编排，但强制启用
-  Temporal execution-control runtime 并默认使用真实
-  `PROMPT_RUNTIME_PROVIDER=openai-responses`。它用于验证
+  Temporal execution-control runtime，并要求 app-api provider-config 已激活真实
+  `primary_agent` / `rag_synthesis` profile。它用于验证
   `campus-web -> app-api -> execution-control -> Temporal memory + RAG
   graph -> Go activity workers -> Go finalizer`，不是 deployed staging smoke，
   也不是 notice discover 专用 smoke
+
+本地激活真实模型 profile：
+
+```bash
+pnpm local:providers:seed
+```
+
+该命令读取 root `.env` 的 `LLM_*`、`EMBEDDING_*` 与可选 `RERANK_*`，并把它们写入
+app-api provider-config active profiles。root env 不是 online runtime fallback；
+execution-control 仍通过 app-api internal provider-config snapshot 消费 active profile。
 
 retired / offline RAG SDK candidate 的定位层 smoke 可以不经过前端直接执行。它只用于
 offline / eval / historical bridge behavior 复核，不作为 online RAG serving acceptance：

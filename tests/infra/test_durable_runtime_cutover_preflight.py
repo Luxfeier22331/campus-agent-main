@@ -25,19 +25,8 @@ VALID_STAGING_ENV = textwrap.dedent(
     STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=access
     STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=secret
 
-    STAGING_INGESTION_QDRANT_URL=https://127.0.0.1:6333
-    STAGING_INGESTION_QDRANT_API_KEY=qdrant-key
-    STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-read
-    STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
-    STAGING_INGESTION_EMBEDDING_PROVIDER=gitee
     STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1
     STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key
-    STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B
-    STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560
-    STAGING_INGESTION_SPARSE_PROVIDER=qdrant
-    STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25
-    STAGING_INGESTION_SPARSE_TOKENIZER=multilingual
-    STAGING_INGESTION_SPARSE_LANGUAGE=none
     AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co
     OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=https://o4511127794155520.ingest.us.sentry.io/api/4511351503454208/integration/otlp
     OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=03ac022c1d762aa1882d3fdbc27915f9
@@ -172,8 +161,8 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("CLOUDFLARE_API_TOKEN", payload["blockers"])
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_ENDPOINT", payload["blockers"])
-        self.assertIn("STAGING_INGESTION_QDRANT_URL", payload["blockers"])
-        self.assertIn("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", payload["blockers"])
+        self.assertNotIn("STAGING_INGESTION_QDRANT_URL", payload["blockers"])
+        self.assertNotIn("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", payload["blockers"])
         self.assertIn("STAGING_INGESTION_EMBEDDING_API_KEY", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", payload["blockers"])
         self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", payload["blockers"])
@@ -230,18 +219,9 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
             VALID_STAGING_ENV.replace(
                 "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
                 "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=worker-1",
-            )
-            .replace(
-                "STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25",
-                "STAGING_INGESTION_SPARSE_MODEL=fastembed/bm25",
-            )
-            .replace(
+            ).replace(
                 "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
                 "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived",
-            )
-            .replace(
-                "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
-                "STAGING_INGESTION_EMBEDDING_DIMENSIONS=1536",
             )
             + "\nEXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://127.0.0.1:27062\n"
         )
@@ -256,8 +236,6 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         payload = json.loads(result.stdout)
         self.assertEqual(payload["status"], "blocked")
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_PROFILE", payload["blockers"])
-        self.assertIn("STAGING_INGESTION_EMBEDDING_DIMENSIONS", payload["blockers"])
-        self.assertIn("STAGING_INGESTION_SPARSE_MODEL", payload["blockers"])
         self.assertIn("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", payload["blockers"])
         self.assertIn("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", payload["blockers"])
 

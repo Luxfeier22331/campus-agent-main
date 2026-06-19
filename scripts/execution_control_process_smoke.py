@@ -69,12 +69,6 @@ def build_process_smoke_plan(
         "execution-control-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
-    common_env = {
-        "PROMPT_RUNTIME_PROVIDER": "mock-runtime",
-        "PROMPT_RUNTIME_MODEL": "gpt-5.5",
-        "PROMPT_RUNTIME_API_KEY": "process-smoke-prompt-key",
-        "PROMPT_STRICT_STRUCTURED_OUTPUTS": "true",
-    }
     object_store_base_url = f"http://{object_store_host}:{object_store_port}"
     output_dir.mkdir(parents=True, exist_ok=True)
     runtime_config_path = _write_process_smoke_runtime_profile(
@@ -88,7 +82,6 @@ def build_process_smoke_plan(
         structured_query_secret=structured_query_secret,
     )
     api_env = {
-        **common_env,
         "API_AUTH_MODE": "trusted-worker",
         "API_WORKER_SHARED_SECRET": api_secret,
         "CAMPUS_AGENT_HTTP_HOST": api_host,

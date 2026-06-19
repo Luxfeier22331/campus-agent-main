@@ -15,6 +15,13 @@ _PROFILE_OWNED_ENV_KEYS = {
     "EXECUTION_CONTROL_OTEL_ENABLED",
     "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED",
 }
+_RETIRED_PROMPT_ENV_KEYS = {
+    "PROMPT_RUNTIME_PROVIDER",
+    "PROMPT_RUNTIME_MODEL",
+    "PROMPT_RUNTIME_API_KEY",
+    "PROMPT_STRICT_STRUCTURED_OUTPUTS",
+    "EXECUTION_PROMPT_MODEL",
+}
 
 
 class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
@@ -30,6 +37,7 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
                 )
             env = _execution_control_env(plan)
             self.assertTrue(_PROFILE_OWNED_ENV_KEYS.isdisjoint(env))
+            self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
             profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
             runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
             self.assertEqual(runtime_profile["open_capabilities"], ["notice"])
@@ -48,6 +56,7 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
                 )
             env = _execution_control_env(plan)
             self.assertTrue(_PROFILE_OWNED_ENV_KEYS.isdisjoint(env))
+            self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
             profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
             runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
             self.assertEqual(runtime_profile["open_capabilities"], ["campus_services"])

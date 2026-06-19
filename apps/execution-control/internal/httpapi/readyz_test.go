@@ -107,9 +107,12 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	if ragRuntime["healthy"] != true {
 		t.Fatalf("rag_runtime = %#v, want healthy", ragRuntime)
 	}
-	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
-	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
-		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	if _, ok := body["prompt_config_gate"]; ok {
+		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
+	}
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["configured"] != true || providerConfigGate["reason"] != "" {
+		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
 	}
 }
 
@@ -266,9 +269,10 @@ func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) 
 	}
 }
 
-func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
+func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 	server := NewServer(readyServerConfigForTest(t, func(cfg *config.Config) {
-		cfg.PromptRuntimeAPIKey = ""
+		cfg.AppAPIInternalBaseURL = ""
+		cfg.AppAPIInternalSharedSecret = ""
 	}))
 	markTemporalReadyForTest(server)
 	markRAGRuntimeReadyForTest(server)
@@ -280,19 +284,20 @@ func TestReadyzPublishesGoOwnedPromptConfigGateReason(t *testing.T) {
 		t.Fatalf("status = %d, want 503; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
-	if promptConfigGate["admitted"] != false {
-		t.Fatalf("prompt_config_gate.admitted = %v, want false", promptConfigGate["admitted"])
+	if _, ok := body["prompt_config_gate"]; ok {
+		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
 	}
-	if promptConfigGate["reason"] != "prompt_api_key_not_configured" {
-		t.Fatalf("prompt_config_gate.reason = %v", promptConfigGate["reason"])
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["configured"] != false {
+		t.Fatalf("provider_config_gate.configured = %v, want false", providerConfigGate["configured"])
+	}
+	if providerConfigGate["reason"] != "provider_config_resolver_not_configured" {
+		t.Fatalf("provider_config_gate.reason = %v", providerConfigGate["reason"])
 	}
 }
 
-func TestReadyzPromptConfigGateDoesNotRequireExecutionTerminalModel(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.ExecutionPromptModel = ""
-	})
+func TestReadyzProviderConfigGateUsesAppAPIInternalResolver(t *testing.T) {
+	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
@@ -301,38 +306,12 @@ func TestReadyzPromptConfigGateDoesNotRequireExecutionTerminalModel(t *testing.T
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
-	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
-		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
+	if _, ok := body["prompt_config_gate"]; ok {
+		t.Fatalf("readyz must not publish retired prompt_config_gate: %#v", body["prompt_config_gate"])
 	}
-	if promptConfigGate["execution_model"] != "" {
-		t.Fatalf("prompt_config_gate.execution_model = %v, want empty", promptConfigGate["execution_model"])
-	}
-}
-
-func TestReadyzPromptConfigGateUsesBillingProviderForResponsesTransport(t *testing.T) {
-	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.ExecutionPromptModel = "gpt-5-mini"
-		cfg.PromptRuntimeProvider = "openai-responses"
-		cfg.PromptRuntimeTransport = "responses"
-	})
-	response := httptest.NewRecorder()
-
-	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	promptConfigGate := expectRecord(t, body["prompt_config_gate"], "prompt_config_gate")
-	if promptConfigGate["admitted"] != true || promptConfigGate["reason"] != "" {
-		t.Fatalf("prompt_config_gate = %#v, want admitted", promptConfigGate)
-	}
-	if promptConfigGate["provider"] != "openai-responses" {
-		t.Fatalf("prompt_config_gate.provider = %v, want runtime provider", promptConfigGate["provider"])
-	}
-	if promptConfigGate["pricing_provider"] != "openai" {
-		t.Fatalf("prompt_config_gate.pricing_provider = %v, want openai", promptConfigGate["pricing_provider"])
+	providerConfigGate := expectRecord(t, body["provider_config_gate"], "provider_config_gate")
+	if providerConfigGate["configured"] != true || providerConfigGate["reason"] != "" {
+		t.Fatalf("provider_config_gate = %#v, want configured", providerConfigGate)
 	}
 }
 

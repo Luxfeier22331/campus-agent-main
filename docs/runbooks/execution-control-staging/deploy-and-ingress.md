@@ -167,17 +167,11 @@ staging 不应依赖 repo-root `.env.staging.local`。
   staging runtime generated secrets file；Hindsight LLM、embedding 与 reranker provider
   secret 仍是 deployment input，不经过 app-api provider-config，也不使用 retired
   `memory_graph_llm` role。
-- `STAGING_INGESTION_EMBEDDING_*` 与 `STAGING_INGESTION_SPARSE_*`，必须与当前
-  query-serving index release metadata 匹配。当前 staging baseline 固定为：
-  - `STAGING_INGESTION_EMBEDDING_PROVIDER=gitee`
-  - `STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1`
-  - `STAGING_INGESTION_EMBEDDING_API_KEY=<secret>`
-  - `STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B`
-  - `STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560`
-  - `STAGING_INGESTION_SPARSE_PROVIDER=qdrant`
-  - `STAGING_INGESTION_SPARSE_MODEL=qdrant/bm25`
-  - `STAGING_INGESTION_SPARSE_TOKENIZER=multilingual`
-  - `STAGING_INGESTION_SPARSE_LANGUAGE=none`
+- `STAGING_INGESTION_EMBEDDING_BASE_URL` 与
+  `STAGING_INGESTION_EMBEDDING_API_KEY` 只提供 indexing provider endpoint/key。
+  embedding model、dimensions、sparse profile 与 vector binding 由
+  `configs/ingestion/<corpus>/<collection>/runtime-profile.json` 持有，并必须与当前
+  query-serving index release metadata 匹配。
 - `STAGING_ACCESS_TEAM_DOMAIN=https://<current-access-team-domain>.cloudflareaccess.com`
 - `STAGING_ACCESS_POLICY_AUD=<operator-console-staging Access aud>`
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` 与
@@ -239,8 +233,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
 execution-control lifecycle 不会从 root `.env`、`apps/app-api/.dev.vars` 或
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 猜测 retrieval runtime 数据面。缺任一
 `STAGING_INGESTION_*` 必填项时，`start-execution-control-staging.sh` 会 fail closed。
-generic `EMBEDDING_*` / `SPARSE_*` 不能替代 staging 的
-`STAGING_INGESTION_EMBEDDING_*` / `STAGING_INGESTION_SPARSE_*`。
+generic `EMBEDDING_*` 不能替代 staging 的
+`STAGING_INGESTION_EMBEDDING_BASE_URL` / `STAGING_INGESTION_EMBEDDING_API_KEY`。
+模型、维度与 sparse runtime profile 不能通过 env 覆盖。
 generic `CAMPUS_SHARED_POSTGRES_URL` 也不能替代
 `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`；run projection store 必须有自己的
 显式配置入口。

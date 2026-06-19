@@ -17,19 +17,8 @@ REQUIRED_STAGING_ENV_KEYS = [
     "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
     "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED",
     "STAGING_INGESTION_OBJECT_STORE_REGION",
-    "STAGING_INGESTION_QDRANT_URL",
-    "STAGING_INGESTION_QDRANT_API_KEY",
-    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY",
-    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH",
-    "STAGING_INGESTION_EMBEDDING_PROVIDER",
     "STAGING_INGESTION_EMBEDDING_BASE_URL",
     "STAGING_INGESTION_EMBEDDING_API_KEY",
-    "STAGING_INGESTION_EMBEDDING_MODEL",
-    "STAGING_INGESTION_EMBEDDING_DIMENSIONS",
-    "STAGING_INGESTION_SPARSE_PROVIDER",
-    "STAGING_INGESTION_SPARSE_MODEL",
-    "STAGING_INGESTION_SPARSE_TOKENIZER",
-    "STAGING_INGESTION_SPARSE_LANGUAGE",
     "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
@@ -71,14 +60,7 @@ DEFAULT_STAGING_ENV_FILE = "/srv/docker/campus-agent/staging/env/runtime.env"
 
 EXPECTED_STAGING_VALUES = {
     "STAGING_EXECUTION_CONTROL_BASE_URL": "https://execution-control-staging.mucwiki-edge.link",
-    "STAGING_INGESTION_EMBEDDING_PROVIDER": "gitee",
     "STAGING_INGESTION_EMBEDDING_BASE_URL": "https://ai.gitee.com/v1",
-    "STAGING_INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-    "STAGING_INGESTION_EMBEDDING_DIMENSIONS": "2560",
-    "STAGING_INGESTION_SPARSE_PROVIDER": "qdrant",
-    "STAGING_INGESTION_SPARSE_MODEL": "qdrant/bm25",
-    "STAGING_INGESTION_SPARSE_TOKENIZER": "multilingual",
-    "STAGING_INGESTION_SPARSE_LANGUAGE": "none",
     "EXECUTION_CONTROL_TEMPORAL_ADDRESS": "temporal:7233",
     "EXECUTION_CONTROL_TEMPORAL_NAMESPACE": "campus-agent-staging",
     "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE": "campus-agent.workflow",
@@ -86,7 +68,6 @@ EXPECTED_STAGING_VALUES = {
 }
 
 POSITIVE_INTEGER_KEYS = [
-    "STAGING_INGESTION_EMBEDDING_DIMENSIONS",
     "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
 ]
 
@@ -198,6 +179,38 @@ def valid_object_store_profile(values: dict[str, str]) -> bool:
     )
 
 
+def invalid_qdrant_override_keys(values: dict[str, str]) -> list[str]:
+    qdrant_keys = (
+        "STAGING_INGESTION_QDRANT_URL",
+        "STAGING_INGESTION_QDRANT_API_KEY",
+        "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY",
+        "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH",
+    )
+    if not any(values.get(key) for key in qdrant_keys):
+        return []
+
+    invalid: list[str] = []
+    required_override_keys = (
+        "STAGING_INGESTION_QDRANT_URL",
+        "STAGING_INGESTION_QDRANT_API_KEY",
+        "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY",
+    )
+    invalid.extend(key for key in required_override_keys if not values.get(key))
+
+    qdrant_url = values.get("STAGING_INGESTION_QDRANT_URL", "")
+    parsed = urlparse(qdrant_url)
+    if not parsed.scheme:
+        return invalid
+    if parsed.scheme == "https":
+        if not values.get("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH"):
+            invalid.append("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH")
+        return invalid
+    if parsed.scheme == "http" and (parsed.hostname or "") in {"qdrant", "127.0.0.1", "localhost"}:
+        return invalid
+    invalid.append("STAGING_INGESTION_QDRANT_URL")
+    return invalid
+
+
 def invalid_observability_keys(values: dict[str, str]) -> list[str]:
     invalid: list[str] = []
     axiom_endpoint = values.get("AXIOM_ENDPOINT", "").rstrip("/")
@@ -262,9 +275,7 @@ def invalid_contract_keys(values: dict[str, str]) -> list[str]:
     for key in RETIRED_STAGING_ENV_KEYS:
         if values.get(key):
             invalid.append(key)
-    qdrant_url = values.get("STAGING_INGESTION_QDRANT_URL", "")
-    if qdrant_url and urlparse(qdrant_url).scheme != "https":
-        invalid.append("STAGING_INGESTION_QDRANT_URL")
+    invalid.extend(invalid_qdrant_override_keys(values))
     object_store_fields = (
         "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
         "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED",
