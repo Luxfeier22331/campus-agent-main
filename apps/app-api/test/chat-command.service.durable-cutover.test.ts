@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ExecutionControlRuntimeClient } from "../src/modules/integration/execution-control";
 import { ExecutionControlTransportError } from "../src/modules/integration/execution-control";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
+import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	answerResponsePayload,
 	durableEvent,
@@ -20,6 +21,8 @@ import {
 	createPrincipal,
 	createTelemetryMock,
 } from "./chat-command.service.test-support";
+
+const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
 
 describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
@@ -250,7 +253,7 @@ describe("chat command durable runtime cutover", () => {
 			traceHeaders: {
 				baggage: "release=2026.06.18",
 				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
-				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 		});
 
@@ -333,7 +336,7 @@ describe("chat command durable runtime cutover", () => {
 			traceHeaders: {
 				baggage: "release=2026.06.18",
 				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
-				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
 			turnId: "turn_0001",
@@ -360,7 +363,7 @@ describe("chat command durable runtime cutover", () => {
 			traceHeaders: {
 				baggage: "release=2026.06.18",
 				sentryTrace: "fedcba9876543210fedcba9876543210-0123456789abcdef-1",
-				traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
@@ -375,6 +378,87 @@ describe("chat command durable runtime cutover", () => {
 			requestId: "req_0001",
 			traceId: "trace_0001",
 		});
+	});
+
+	it("injects deterministic W3C traceparent into durable runtime calls when inbound traceparent is absent", async () => {
+		const { store } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue({
+				admittedAt: "",
+				completedAt: "",
+				conversationId: "conv_01HQ",
+				createdAt: "2026-06-04T01:02:03Z",
+				failCloseReason: "",
+				finalResponseRef: "",
+				lane: "rag",
+				ownerUserId: "user_01HQ",
+				requestId: "req_0001",
+				requestedCapability: "knowledge",
+				runId: "run_0001",
+				selectedCapability: "knowledge",
+				startedAt: "",
+				status: "queued",
+				streamingStartedAt: "",
+				surface: "campus_web",
+				terminalReason: "",
+				traceId: "trace_0001",
+				turnId: "turn_0001",
+				updatedAt: "2026-06-04T01:02:04Z",
+				workflowPlanRef: "",
+			}),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventType: "finalization.completed",
+					sequence: 1,
+					payload: {
+						request_id: "req_0001",
+						trace_id: "trace_0001",
+						response: answerResponsePayload("国家奖学金每学年评审一次。"),
+					},
+				}),
+			]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+			telemetry,
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				requestedCapability: "knowledge",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		});
+
+		const langfuseTraceId = deriveLangfuseTraceId("trace_0001");
+		const expectedTraceParent = `00-${langfuseTraceId}-0000000000000001-01`;
+		expect(executionRuntime.createRun).toHaveBeenCalledWith(
+			expect.objectContaining({
+				traceHeaders: expect.objectContaining({
+					traceParent: expectedTraceParent,
+				}),
+			}),
+		);
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith(
+			expect.objectContaining({
+				traceHeaders: expect.objectContaining({
+					traceParent: expectedTraceParent,
+				}),
+			}),
+		);
 	});
 
 	it("admits campus services requests into durable execution without local tool preplanning", async () => {
@@ -594,6 +678,7 @@ describe("chat command durable runtime cutover", () => {
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,
@@ -604,6 +689,7 @@ describe("chat command durable runtime cutover", () => {
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,

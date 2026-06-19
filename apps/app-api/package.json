@@ -39,6 +39,7 @@
 		"docs:export-public-sync-manifest": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/export-public-docs-sync-manifest.ts",
 		"docs:export-public-sync-manifest:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/export-public-docs-sync-manifest.ts",
 		"federation:verify-runtime": "pnpm exec tsx ./scripts/verify-federation-runtime-readiness.ts",
+		"langfuse:trace-vectors:check": "pnpm exec tsx ./scripts/check-langfuse-trace-id-vectors.ts",
 		"db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
 		"projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",
 		"provider-config:seed-local-model": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts",

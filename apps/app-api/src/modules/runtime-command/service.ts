@@ -6,6 +6,7 @@ import {
 } from "../integration";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
 import { type RuntimeRunPhase, runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
+import { ensureLangfuseTraceParent } from "../telemetry/trace";
 
 import {
 	startDurableFinalizationCloseout,
@@ -330,6 +331,10 @@ export function buildChatCommandService(
 						return null;
 					})
 			: null;
+		const traceHeaders = ensureLangfuseTraceParent(
+			context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+			context.traceId,
+		);
 		return {
 			context: buildCapabilityExecutionContextProjection({
 				actor: context.input.principal.actor,
@@ -346,7 +351,7 @@ export function buildChatCommandService(
 			safetyIdentifier: context.safetyIdentifier,
 			surface: context.surface,
 			tenantId: DEFAULT_PERSONAL_MEMORY_TENANT_ID,
-			traceHeaders: context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+			traceHeaders,
 			traceId: context.traceId,
 			userGoal: context.validatedPayload.prompt,
 		};
@@ -600,7 +605,10 @@ export function buildChatCommandService(
 					input.executionRuntime.listRunEvents({
 						afterSequence,
 						runId: input.context.runId ?? "",
-						traceHeaders: input.context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+						traceHeaders: ensureLangfuseTraceParent(
+							input.context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+							input.context.traceId,
+						),
 						traceId: input.context.traceId,
 						waitMs,
 					}),
@@ -716,7 +724,10 @@ export function buildChatCommandService(
 						executionRuntime.listRunEvents({
 							afterSequence,
 							runId: context.runId ?? "",
-							traceHeaders: context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+							traceHeaders: ensureLangfuseTraceParent(
+								context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
+								context.traceId,
+							),
 							traceId: context.traceId,
 							waitMs,
 						}),

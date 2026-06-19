@@ -1,0 +1,20 @@
+{
+	"schema_version": "langfuse_trace_id_vectors.v1",
+	"vectors": [
+		{
+			"product_trace_id": "trace_0001",
+			"langfuse_trace_id": "c15de12f2781a232359741c047caac1d",
+			"traceparent": "00-c15de12f2781a232359741c047caac1d-0000000000000001-01"
+		},
+		{
+			"product_trace_id": "trace_001",
+			"langfuse_trace_id": "f84bd4d78bb492c58782c22fdfa5071d",
+			"traceparent": "00-f84bd4d78bb492c58782c22fdfa5071d-0000000000000001-01"
+		},
+		{
+			"product_trace_id": "app-api:chat:conv_001:req_001",
+			"langfuse_trace_id": "cddb51a6a07eef27aa22ded0a9be98b9",
+			"traceparent": "00-cddb51a6a07eef27aa22ded0a9be98b9-0000000000000001-01"
+		}
+	]
+}

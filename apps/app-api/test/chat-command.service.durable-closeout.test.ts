@@ -8,6 +8,7 @@ import type {
 	ExecutionControlRuntimeClient,
 } from "../src/modules/integration/execution-control";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
+import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	buildChatCommandService,
 	type CapabilityExecutionClient,
@@ -17,6 +18,8 @@ import {
 	createPrincipal,
 	createTelemetryMock,
 } from "./chat-command.service.test-support";
+
+const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
 
 function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionControlRun {
 	return {
@@ -183,6 +186,7 @@ describe("chat command durable stream closeout", () => {
 			traceHeaders: {
 				baggage: "sentry-environment=test",
 				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				traceParent: EXPECTED_LANGFUSE_TRACE_PARENT,
 			},
 			traceId: "trace_0001",
 			waitMs: DEFAULT_DURABLE_EVENT_POLLING_POLICY.waitMs,

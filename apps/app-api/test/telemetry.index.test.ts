@@ -1,5 +1,7 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sentryMocks = vi.hoisted(() => ({
@@ -20,6 +22,25 @@ const sentryMocks = vi.hoisted(() => ({
 vi.mock("@sentry/cloudflare", () => sentryMocks);
 
 import { createAppTelemetry } from "../src/modules/telemetry";
+import {
+	deriveLangfuseTraceId,
+	ensureLangfuseTraceParent,
+	traceParentForLangfuseTraceId,
+} from "../src/modules/telemetry/trace";
+
+interface LangfuseTraceIdVector {
+	langfuse_trace_id: string;
+	product_trace_id: string;
+	traceparent: string;
+}
+
+function langfuseTraceIdVectors(): LangfuseTraceIdVector[] {
+	const fixturePath = resolve(process.cwd(), "../../tests/fixtures/langfuse_trace_id_vectors.json");
+	const payload = JSON.parse(readFileSync(fixturePath, "utf-8")) as {
+		vectors: LangfuseTraceIdVector[];
+	};
+	return payload.vectors;
+}
 
 describe("app telemetry", () => {
 	beforeEach(() => {
@@ -94,6 +115,40 @@ describe("app telemetry", () => {
 			baggage: "session=conv_01",
 			sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
 			traceParent: "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+		});
+	});
+
+	it("derives deterministic Langfuse-compatible trace ids from product trace ids", () => {
+		const traceId = deriveLangfuseTraceId("trace_0001");
+
+		expect(traceId).toMatch(/^[0-9a-f]{32}$/u);
+		expect(traceId).toBe(deriveLangfuseTraceId("trace_0001"));
+		expect(traceId).not.toBe(deriveLangfuseTraceId("trace_0002"));
+		expect(traceParentForLangfuseTraceId(traceId)).toBe(`00-${traceId}-0000000000000001-01`);
+	});
+
+	it("matches shared Langfuse trace id derivation vectors used by eval publishing", () => {
+		for (const vector of langfuseTraceIdVectors()) {
+			expect(deriveLangfuseTraceId(vector.product_trace_id)).toBe(vector.langfuse_trace_id);
+			expect(traceParentForLangfuseTraceId(vector.langfuse_trace_id)).toBe(vector.traceparent);
+		}
+	});
+
+	it("pins execution-control traceparent to the product-derived Langfuse trace id", () => {
+		const traceHeaders = ensureLangfuseTraceParent(
+			{
+				baggage: "session=conv_01",
+				sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
+				traceParent: "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-bbbbbbbbbbbbbbbb-01",
+			},
+			"trace_0001",
+		);
+		const langfuseTraceId = deriveLangfuseTraceId("trace_0001");
+
+		expect(traceHeaders).toEqual({
+			baggage: "session=conv_01",
+			sentryTrace: "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1",
+			traceParent: `00-${langfuseTraceId}-0000000000000001-01`,
 		});
 	});
 
