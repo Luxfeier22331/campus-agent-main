@@ -193,7 +193,8 @@ updated: 2026-06-09
   - `verify-langfuse-trace` output:
 - Langfuse eval score publish:
   - Profile report:
-  - `publish-langfuse-profile` output:
+  - Score report:
+  - `publish-langfuse-score-report` output:
 - Redaction check:
 
 ## Data Plane Sanity

@@ -386,7 +386,7 @@ class EvalGateTest(unittest.TestCase):
 
         self.assertFalse(missing_check["passed"])
         self.assertIn("publish_langfuse_scores:", missing_check["missing"])
-        self.assertIn("publish-langfuse-profile", missing_check["missing"])
+        self.assertIn("publish-langfuse-score-report", missing_check["missing"])
 
         with tempfile.TemporaryDirectory() as tmp_dir:
             workflow_path = Path(tmp_dir) / "eval-release-gate.yml"
@@ -400,8 +400,11 @@ class EvalGateTest(unittest.TestCase):
                         "LANGFUSE_ENVIRONMENT: ${{ vars.LANGFUSE_ENVIRONMENT }}",
                         "inputs.profile == 'online-answer-path'",
                         "inputs.publish_langfuse_scores == true",
-                        "publish-langfuse-profile",
-                        "--profile-report",
+                        "build-langfuse-score-report-from-profile",
+                        "--output",
+                        "langfuse-score-report.json",
+                        "publish-langfuse-score-report",
+                        "--score-report",
                         "${{ steps.accept.outputs.artifact_dir }}/profile-report.json",
                     )
                 ),

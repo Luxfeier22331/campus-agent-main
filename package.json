@@ -54,7 +54,7 @@
 		"eval:intent:release": "uv run --all-packages python -m scripts.intent_release_gate",
 		"eval:service-guide:release": "uv run --all-packages python -m scripts.eval_gate accept --profile service-guide-lookup --json",
 		"langfuse:trace-vectors:check": "pnpm --filter app-api langfuse:trace-vectors:check",
-		"langfuse:check": "uv run --all-packages python -m unittest tests.evals.langfuse_adapter_suite tests.evals.langfuse_eval_gate_cli_suite tests.evals.langfuse_score_report_suite tests.evals.langfuse_trace_evidence_contract_suite tests.evals.retrieval_tuning_suite tests.infra.runtime_otel_collector_config_suite tests.infra.runtime_otel_langfuse_fanout_proof_suite tests.infra.langfuse_release_evidence_suite tests.infra.langfuse_release_closeout_suite -q",
+		"langfuse:check": "uv run --all-packages python -m unittest tests.evals.langfuse_adapter_suite tests.evals.langfuse_eval_gate_cli_suite tests.evals.langfuse_platform_suite tests.evals.langfuse_score_report_suite tests.evals.langfuse_trace_evidence_contract_suite tests.evals.rag_first_stage_sweep_suite tests.evals.retrieval_tuning_suite tests.infra.runtime_otel_collector_config_suite tests.infra.runtime_otel_langfuse_fanout_proof_suite tests.infra.langfuse_release_evidence_suite tests.infra.langfuse_release_closeout_suite -q",
 		"langfuse:fanout:proof": "uv run --all-packages python -m scripts.proof_runtime_otel_langfuse_fanout",
 		"langfuse:release-closeout:staging": "node ./scripts/run-langfuse-release-closeout-staging.mjs",
 		"local:runtime:env": "node infra/local/scripts/project-local-runtime-env.mjs --sync-app-api-dev-vars --format summary",

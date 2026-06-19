@@ -74,9 +74,7 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
         )
 
         self.assertFalse(report.passed)
-        result = next(
-            item for item in report.results if item.profile_id == "online_answer_path"
-        )
+        result = next(item for item in report.results if item.profile_id == "online_answer_path")
         self.assertIn("budget_exceeded", result.failure_classes)
         self.assertIn("runtime_policy_violation", result.failure_classes)
         self.assertIn("unsupported_gate_mode", result.failure_classes)
@@ -109,9 +107,7 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
         )
 
         self.assertFalse(report.passed)
-        result = next(
-            item for item in report.results if item.profile_id == "online_answer_path"
-        )
+        result = next(item for item in report.results if item.profile_id == "online_answer_path")
         self.assertEqual(result.failure_classes, ("budget_exceeded",))
 
     def test_requires_quarantine_readmission_rule(self) -> None:

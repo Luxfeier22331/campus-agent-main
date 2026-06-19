@@ -4,7 +4,7 @@ truth_scope: eval
 owner_boundary: packages/evals
 status: active
 created: 2026-04-23
-updated: 2026-04-27
+updated: 2026-06-19
 ---
 # Eval Release Gate Automation
 
@@ -158,13 +158,216 @@ repo 级 manual workflow 使用：
 acceptance 完成后执行：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
+uv run --all-packages python -m scripts.eval_gate \
+  build-langfuse-score-report-from-profile \
   --profile-report <artifact_dir>/profile-report.json \
+  --output <artifact_dir>/langfuse-score-report.json \
+  --json
+
+uv run --all-packages python -m scripts.eval_gate \
+  publish-langfuse-score-report \
+  --score-report <artifact_dir>/langfuse-score-report.json \
   --json
 ```
 
-该兼容入口会先把 `profile-report.json` 转为
-`langfuse_score_report.v1`，再发布到 Langfuse score API。该步骤读取
+第一步把 `profile-report.json` 转为 `langfuse_score_report.v1`；第二步发布
+generic score report 到 Langfuse score API。该步骤读取
 `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、
 `LANGFUSE_SECRET_KEY` 与 `LANGFUSE_ENVIRONMENT`。配置缺失或 Langfuse
 request 失败会让步骤失败；Langfuse 只作为 eval score sink，不成为产品真相源。
+
+## Langfuse Eval Platform Lane
+
+`pnpm ci:langfuse` 固定覆盖 Langfuse trace id vector、adapter / score report
+validation、score registry、dataset sync dry-run、experiment artifact validator、
+RAG first-stage sweep artifact validator、Collector fan-out contract、release
+evidence checker 与 release closeout checker。
+
+本 lane 的事实边界：
+
+- `packages/evals` 拥有 case schema、qrels、deterministic scorer、score
+  registry、score report 与 release verdict。
+- Langfuse 只接收 sanitized dataset、experiment、score、annotation 与 trace
+  drill-down 投影。
+- 缺 Langfuse 配置、缺 dataset version、缺 trace correlation、score denominator
+  不完整或 payload 含禁用字段时，eval / release lane fail closed。
+
+### Score Config Sync
+
+score name 必须先进入
+`packages/evals/fixtures/ops/langfuse_score_registry.v1.json`，再允许发布。
+同步到 Langfuse score configs：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  sync-langfuse-score-configs \
+  --registry packages/evals/fixtures/ops/langfuse_score_registry.v1.json \
+  --dry-run \
+  --json
+```
+
+真实同步时去掉 `--dry-run`。registry 仍是 source of truth，Langfuse score
+config 只是平台侧校验副本。
+
+### Dataset Sync
+
+dataset manifest 使用 repo fixture path 和稳定 dataset slug，不把 fixture hash
+写入 item id。dry-run：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  sync-langfuse-datasets \
+  --dataset-manifest <langfuse-dataset-manifest.json> \
+  --dry-run \
+  --json
+```
+
+manifest 中每个 item 必须能追溯 `source_fixture_path`、`source_git_head`、
+`fixture_hash`、`surface_key` 与 `case_id`。删除 fixture case 时默认输出
+tombstone / archive plan，不做 irreversible delete。
+
+当前支持的 dataset `kind`：
+
+- `rag_qrels`
+- `answer_quality`
+- `release_acceptance`
+- `online_answer_path`
+- `known_gap_review_seed`
+
+query / user goal 只以 hash 进入 dataset input；expected output 使用 repo fixture
+中的 sanitized contract projection。
+
+### RAG First-stage Parameter Sweep
+
+Go runner 只负责用真实 execution-control RAG runtime 产出 per-surface candidate
+result。它不发布 Langfuse score，也不写产品 projection。
+
+```bash
+cd apps/execution-control
+
+go run ./cmd/rag-first-stage-eval-runner \
+  --qrels ../../packages/evals/fixtures/<surface>/retrieval_qrels.json \
+  --output ../../.tmp/rag-eval/student-rules-topk3-d20-s20.json \
+  --variant-id topk3-d20-s20 \
+  --top-k 3 \
+  --dense-prefetch-limit 20 \
+  --sparse-prefetch-limit 20 \
+  --rrf-k 60 \
+  --rrf-dense-weight 1 \
+  --rrf-sparse-weight 1 \
+  --json
+```
+
+运行该命令需要真实 Qdrant query env 与 app-api provider config resolver：
+
+- `QDRANT_URL`
+- `QDRANT_QUERY_API_KEY`
+- `QDRANT_TLS_CA_CERT_PATH`（非 local http Qdrant）
+- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
+- `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
+
+runner 对每个 case 执行 dense prefetch、sparse prefetch 与 hybrid RRF final
+查询，并写出 `rag_first_stage_candidate_result.v1`。它只记录 doc/version/chunk/score
+等 sanitized evidence identity，不记录 query body、snippet 或 source body。
+
+Python 聚合多个 candidate result，计算 deterministic metrics 并产出 sweep report
+与 generic Langfuse score report：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  run-rag-first-stage-parameter-sweep \
+  --qrels packages/evals/fixtures/<surface-a>/retrieval_qrels.json \
+  --qrels packages/evals/fixtures/<surface-b>/retrieval_qrels.json \
+  --candidate-result .tmp/rag-eval/student-rules-topk3-d20-s20.json \
+  --candidate-result .tmp/rag-eval/curriculum-topk3-d20-s20.json \
+  --output-dir .tmp/rag-eval/sweep \
+  --environment staging \
+  --release <release-id> \
+  --source-git-head <git-sha> \
+  --dataset-run-id <dataset-run-id> \
+  --json
+```
+
+输出：
+
+- `.tmp/rag-eval/sweep/rag-first-stage-parameter-sweep.json`
+- `.tmp/rag-eval/sweep/langfuse-score-report.json`
+- `.tmp/rag-eval/sweep/<surface>/<variant>.json`
+
+发布 score report：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  publish-langfuse-score-report \
+  --score-report .tmp/rag-eval/sweep/langfuse-score-report.json \
+  --dry-run \
+  --json
+```
+
+release closeout 真实发布时去掉 `--dry-run`。发布输出必须满足
+`published == expected_publish_denominator`、`failed == 0`。
+
+### Experiments
+
+Langfuse-hosted dataset experiment runner 必须先写 repo artifact，再发布 score：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  run-langfuse-experiment \
+  --experiment-manifest <langfuse-experiment-manifest.json> \
+  --json
+```
+
+runner 会写：
+
+- `langfuse_experiment_result.v1` artifact
+- `langfuse_score_report.v1` artifact
+- Langfuse dataset run item evidence（仅当 `dataset_source=langfuse`）
+- local fixture experiment 不声称存在 Langfuse dataset run；缺少真实 trace /
+  session / dataset run identity 的 score 会进入 `omitted_items[]`
+- 如 manifest 提供 `baseline_artifact_path`，artifact 会写入 aggregate score delta
+  comparison，用于 accepted baseline / historical comparison
+
+CI / release verdict 只信 repo artifact 的 deterministic verdict，不直接信
+Langfuse UI 状态。
+
+### Annotation Review
+
+low-score、failed 或 known-gap case 可以进入 Langfuse annotation queue：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  sync-langfuse-annotation-queue \
+  --review-manifest <langfuse-review-manifest.json> \
+  --dry-run \
+  --json
+```
+
+完成 review 后导出 repo artifact：
+
+```bash
+uv run --all-packages python -m scripts.eval_gate \
+  export-langfuse-review-results \
+  --review-manifest <langfuse-review-manifest.json> \
+  --output .tmp/langfuse-review-export.json \
+  --json
+```
+
+人工 review 只能生成 backlog / fixture candidate，不能直接覆盖 deterministic
+release verdict。
+
+review export artifact 会包含 queue id、case id、score config id 列表、
+reviewer score summary、comment hash 与 repo backlog candidate id。
+
+### Operator-safe Backlink
+
+Operator Console 不直接查 Langfuse。eval lane 如需展示 Langfuse drill-down，只能
+把 sanitized backlink 写入 app-api internal projection：
+
+- API endpoint: `POST /api/internal/operator/langfuse/eval-backlinks`
+- Python client: `OperatorObservabilityClient.ingest_langfuse_eval_backlinks(...)`
+- query endpoint: `GET /api/operator/langfuse/eval-backlinks?traceId=<trace_id>`
+
+backlink payload 只允许 request / trace identity、`eval_run_id`、`score_name`、
+`score_value`、`release`、`environment` 与 `langfuse_url`。不得包含 raw prompt、
+raw answer、retrieved snippet、source body、provider response 或 secret。

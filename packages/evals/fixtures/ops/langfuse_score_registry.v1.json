@@ -1,131 +1,131 @@
 {
-  "schema_version": "langfuse_score_registry.v1",
-  "scores": [
-    {
-      "name": "online-answer-path.profile",
-      "data_type": "BOOLEAN",
-      "owner": "packages/evals",
-      "eval_kinds": ["profile"],
-      "value_range": [0, 1],
-      "description": "Boolean profile gate pass score for online answer path release evidence.",
-      "release_gate": true
-    },
-    {
-      "name": "retrieval.doc_hit_at_1",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Positive qrels cases where final top-1 hits an expected document.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.doc_hit_at_3",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Positive qrels cases where final top-3 hits an expected document.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.doc_recall_at_k",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Average expected document recall within the evaluated final top-k.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.forbidden_hit_rate",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Share of cases whose final sources include forbidden evidence.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.no_hit_false_positive_rate",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "No-hit qrels cases where retrieval returned non-empty final sources.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.wrong_version_hit_rate",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Version-locked cases that hit the document but miss the expected version.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.p95_latency_ms",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, null],
-      "description": "P95 retrieval latency for the candidate in milliseconds.",
-      "release_gate": false
-    },
-    {
-      "name": "retrieval.pass",
-      "data_type": "BOOLEAN",
-      "owner": "packages/evals",
-      "eval_kinds": ["rag_first_stage_parameter_sweep"],
-      "value_range": [0, 1],
-      "description": "Candidate pass verdict against repo-owned retrieval thresholds.",
-      "release_gate": true
-    },
-    {
-      "name": "release.pass",
-      "data_type": "BOOLEAN",
-      "owner": "packages/evals",
-      "eval_kinds": ["release_closeout"],
-      "value_range": [0, 1],
-      "description": "Overall release closeout verdict.",
-      "release_gate": true
-    },
-    {
-      "name": "runtime.trace_contract_pass",
-      "data_type": "BOOLEAN",
-      "owner": "packages/evals",
-      "eval_kinds": ["release_closeout"],
-      "value_range": [0, 1],
-      "description": "Runtime trace contract evidence passed closeout validation.",
-      "release_gate": true
-    },
-    {
-      "name": "quality.groundedness",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["answer_quality"],
-      "value_range": [0, 1],
-      "description": "Answer quality groundedness score from repo-owned evaluator.",
-      "release_gate": false
-    },
-    {
-      "name": "capacity.p95_latency_ms",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["runtime_capacity"],
-      "value_range": [0, null],
-      "description": "Runtime capacity P95 latency in milliseconds.",
-      "release_gate": false
-    },
-    {
-      "name": "runtime_capacity.p95_latency_ms",
-      "data_type": "NUMERIC",
-      "owner": "packages/evals",
-      "eval_kinds": ["runtime_capacity"],
-      "value_range": [0, null],
-      "description": "Legacy runtime capacity P95 latency score name kept out of release gate.",
-      "release_gate": false
-    }
-  ]
+	"schema_version": "langfuse_score_registry.v1",
+	"scores": [
+		{
+			"name": "online-answer-path.profile",
+			"data_type": "BOOLEAN",
+			"owner": "packages/evals",
+			"eval_kinds": ["profile"],
+			"value_range": [0, 1],
+			"description": "Boolean profile gate pass score for online answer path release evidence.",
+			"release_gate": true
+		},
+		{
+			"name": "retrieval.doc_hit_at_1",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Positive qrels cases where final top-1 hits an expected document.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.doc_hit_at_3",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Positive qrels cases where final top-3 hits an expected document.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.doc_recall_at_k",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Average expected document recall within the evaluated final top-k.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.forbidden_hit_rate",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Share of cases whose final sources include forbidden evidence.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.no_hit_false_positive_rate",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "No-hit qrels cases where retrieval returned non-empty final sources.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.wrong_version_hit_rate",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Version-locked cases that hit the document but miss the expected version.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.p95_latency_ms",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, null],
+			"description": "P95 retrieval latency for the candidate in milliseconds.",
+			"release_gate": false
+		},
+		{
+			"name": "retrieval.pass",
+			"data_type": "BOOLEAN",
+			"owner": "packages/evals",
+			"eval_kinds": ["rag_first_stage_parameter_sweep"],
+			"value_range": [0, 1],
+			"description": "Candidate pass verdict against repo-owned retrieval thresholds.",
+			"release_gate": true
+		},
+		{
+			"name": "release.pass",
+			"data_type": "BOOLEAN",
+			"owner": "packages/evals",
+			"eval_kinds": ["release_closeout"],
+			"value_range": [0, 1],
+			"description": "Overall release closeout verdict.",
+			"release_gate": true
+		},
+		{
+			"name": "runtime.trace_contract_pass",
+			"data_type": "BOOLEAN",
+			"owner": "packages/evals",
+			"eval_kinds": ["release_closeout"],
+			"value_range": [0, 1],
+			"description": "Runtime trace contract evidence passed closeout validation.",
+			"release_gate": true
+		},
+		{
+			"name": "quality.groundedness",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["answer_quality"],
+			"value_range": [0, 1],
+			"description": "Answer quality groundedness score from repo-owned evaluator.",
+			"release_gate": false
+		},
+		{
+			"name": "capacity.p95_latency_ms",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["runtime_capacity"],
+			"value_range": [0, null],
+			"description": "Runtime capacity P95 latency in milliseconds.",
+			"release_gate": false
+		},
+		{
+			"name": "runtime_capacity.p95_latency_ms",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["runtime_capacity"],
+			"value_range": [0, null],
+			"description": "Legacy runtime capacity P95 latency score name kept out of release gate.",
+			"release_gate": false
+		}
+	]
 }

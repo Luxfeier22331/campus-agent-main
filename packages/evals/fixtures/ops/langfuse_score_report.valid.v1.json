@@ -1,39 +1,39 @@
 {
-  "schema_version": "langfuse_score_report.v1",
-  "eval_kind": "profile",
-  "eval_run_id": "eval-run-001",
-  "profile_id": "online-answer-path",
-  "surface_key": "app-api.chat",
-  "variant_id": "baseline",
-  "environment": "staging",
-  "release": "eval_profile_gate.v1",
-  "source_git_head": "git-head-001",
-  "source_artifact_path": "profile-report.json",
-  "source_result_denominator": 1,
-  "expected_publish_denominator": 1,
-  "score_items": [
-    {
-      "idempotency_key": "lfscore:eval-run-001:case-001:profile",
-      "name": "online-answer-path.profile",
-      "data_type": "BOOLEAN",
-      "value": 1,
-      "case_id": "case-001",
-      "trace_id": "langfuse-trace-001",
-      "observation_id": null,
-      "session_id": null,
-      "dataset_run_id": null,
-      "dataset_item_id": null,
-      "metadata": {
-        "profile_id": "online-answer-path",
-        "case_id": "case-001",
-        "request_id": "req-001",
-        "case_family": "online_answer_path.v1",
-        "schema_version": "eval_profile_gate.v1",
-        "grader_version": "eval_profile_gate.v1",
-        "failure_class": null
-      },
-      "comment": "profile result passed"
-    }
-  ],
-  "omitted_items": []
+	"schema_version": "langfuse_score_report.v1",
+	"eval_kind": "profile",
+	"eval_run_id": "eval-run-001",
+	"profile_id": "online-answer-path",
+	"surface_key": "app-api.chat",
+	"variant_id": "baseline",
+	"environment": "staging",
+	"release": "eval_profile_gate.v1",
+	"source_git_head": "git-head-001",
+	"source_artifact_path": "profile-report.json",
+	"source_result_denominator": 1,
+	"expected_publish_denominator": 1,
+	"score_items": [
+		{
+			"idempotency_key": "lfscore:eval-run-001:case-001:profile",
+			"name": "online-answer-path.profile",
+			"data_type": "BOOLEAN",
+			"value": 1,
+			"case_id": "case-001",
+			"trace_id": "langfuse-trace-001",
+			"observation_id": null,
+			"session_id": null,
+			"dataset_run_id": null,
+			"dataset_item_id": null,
+			"metadata": {
+				"profile_id": "online-answer-path",
+				"case_id": "case-001",
+				"request_id": "req-001",
+				"case_family": "online_answer_path.v1",
+				"schema_version": "eval_profile_gate.v1",
+				"grader_version": "eval_profile_gate.v1",
+				"failure_class": null
+			},
+			"comment": "profile result passed"
+		}
+	],
+	"omitted_items": []
 }

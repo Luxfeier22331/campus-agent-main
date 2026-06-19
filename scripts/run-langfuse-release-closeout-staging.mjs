@@ -71,7 +71,11 @@ function parseArgs(argv) {
 	}
 
 	if (parsed.tags.length === 0 && parsed.environment) {
-		parsed.tags = ["surface:execution-control", "capability:knowledge", `env:${parsed.environment}`];
+		parsed.tags = [
+			"surface:execution-control",
+			"capability:knowledge",
+			`env:${parsed.environment}`,
+		];
 	}
 
 	return parsed;

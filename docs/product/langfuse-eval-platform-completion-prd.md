@@ -90,14 +90,23 @@ score configs 与 release evidence。
   rerank branch evaluator；retrieval tuning report 已可产出 Langfuse score report，
   但尚未形成 Langfuse dataset sync 或 experiment runner。
 
-当前确认未实现能力：
+本 PRD 补全范围：
 
 - score naming registry / score config sync
 - Langfuse dataset sync
 - Langfuse experiment runner
 - dataset run / experiment result 回写 repo artifact
+- RAG first-stage candidate runner、parameter sweep 与 score report
 - annotation queue 自动入队 / review 回流
 - operator-safe Langfuse backlink projection
+
+实现 closeout 要求：
+
+- 新增能力必须继续以 `packages/evals` 为 eval truth owner。
+- Langfuse-bound 操作必须通过 sanitized REST adapter 或 Collector fan-out。
+- operator surface 只能读取 app-api sanitized projection，不直接查询 Langfuse。
+- RAG first-stage candidate runner 必须由 Go execution-control runtime 产出真实
+  dense / sparse prefetch 与 final candidate evidence。
 
 ## 6. 功能需求
 

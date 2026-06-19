@@ -180,8 +180,17 @@ LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
 LANGFUSE_ENVIRONMENT=staging \
-uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
+uv run --all-packages python -m scripts.eval_gate build-langfuse-score-report-from-profile \
   --profile-report .tmp/evals/online-answer-path/profile-report.json \
+  --output .tmp/evals/online-answer-path/langfuse-score-report.json \
+  --json
+
+LANGFUSE_BASE_URL=https://langfuse.internal \
+LANGFUSE_PUBLIC_KEY=<project-public-key> \
+LANGFUSE_SECRET_KEY=<project-secret-key> \
+LANGFUSE_ENVIRONMENT=staging \
+uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report \
+  --score-report .tmp/evals/online-answer-path/langfuse-score-report.json \
   --json
 ```
 
@@ -357,8 +366,8 @@ Expected evidence:
   passes for the real deployed chat request trace after the Collector fans out
   to Langfuse.
 - `uv run --all-packages python -m scripts.run_langfuse_release_evidence_closeout ...`
-  runs trace verification, eval score publish and artifact validation in one
-  closeout command.
+  runs trace verification, generic eval score report publish and artifact
+  validation in one closeout command.
 - `uv run --all-packages python -m scripts.build_langfuse_release_evidence ...`
   writes the `langfuse-release-evidence.json` closeout artifact from verifier
   and score-publish JSON outputs.
@@ -371,6 +380,11 @@ Collector config structural smoke:
 pnpm langfuse:check
 pnpm langfuse:fanout:proof
 ```
+
+`pnpm langfuse:check` also covers the Langfuse dataset sync dry-run,
+experiment artifact validator and RAG first-stage sweep validator. These checks
+prove the eval platform management plane can create sanitized artifacts; they do
+not replace the real staging trace and score publish closeout.
 
 ## Drop Diagnosis
 

@@ -25,10 +25,10 @@ from scripts.eval_gate_fixture_smoke import profile_fixture_smoke_loaders
 from scripts.eval_gate_langfuse import (
     add_langfuse_eval_gate_parsers,
     audit_workflow_langfuse_publish_contract,
+    handle_langfuse_eval_gate_command,
     langfuse_settings_from_env,
     publish_langfuse_profile_report_artifact,
     publish_langfuse_score_report_artifact,
-    resolve_langfuse_trace_id,
     verify_langfuse_online_trace_evidence_artifact,
 )
 
@@ -746,39 +746,15 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
-    if args.command == "publish-langfuse-profile":
-        summary = publish_langfuse_profile_report_artifact(
-            profile_report_path=Path(args.profile_report),
-            settings=langfuse_settings_from_env(),
-        )
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
-        return 0
-
-    if args.command == "publish-langfuse-score-report":
-        summary = publish_langfuse_score_report_artifact(
-            score_report_path=Path(args.score_report),
-            settings=langfuse_settings_from_env(),
-            dry_run=bool(args.dry_run),
-            validate_only=bool(args.validate_only),
-        )
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
-        return 0
-    if args.command == "verify-langfuse-trace":
-        summary = verify_langfuse_online_trace_evidence_artifact(
-            trace_id=resolve_langfuse_trace_id(
-                trace_id=args.trace_id,
-                product_trace_id=args.product_trace_id,
-            ),
-            expected_session_id=args.session_id,
-            expected_user_id=args.user_id,
-            expected_release=args.release,
-            expected_tags=tuple(args.tag or ()),
-            expected_request_id=args.request_id,
-            expected_run_id=args.run_id,
-            expected_workflow_id=args.workflow_id,
-            settings=langfuse_settings_from_env(),
-        )
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    langfuse_summary = handle_langfuse_eval_gate_command(
+        args,
+        settings_factory=langfuse_settings_from_env,
+        publish_profile=publish_langfuse_profile_report_artifact,
+        publish_score_report=publish_langfuse_score_report_artifact,
+        verify_trace=verify_langfuse_online_trace_evidence_artifact,
+    )
+    if langfuse_summary is not None:
+        print(json.dumps(langfuse_summary, ensure_ascii=False, indent=2))
         return 0
 
     metric_domain_overrides = _parse_metric_domain_overrides(args.metric_domain_override)

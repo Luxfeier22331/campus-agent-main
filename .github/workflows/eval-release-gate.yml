@@ -171,11 +171,19 @@ jobs:
           PY
           cat .github-output >> "$GITHUB_OUTPUT"
 
+      - name: Build online answer Langfuse score report
+        if: ${{ inputs.profile == 'online-answer-path' && inputs.publish_langfuse_scores == true }}
+        run: |
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate build-langfuse-score-report-from-profile \
+            --profile-report "${{ steps.accept.outputs.artifact_dir }}/profile-report.json" \
+            --output "${{ steps.accept.outputs.artifact_dir }}/langfuse-score-report.json" \
+            --json | tee langfuse-score-report-build.json
+
       - name: Publish online answer Langfuse scores
         if: ${{ inputs.profile == 'online-answer-path' && inputs.publish_langfuse_scores == true }}
         run: |
-          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
-            --profile-report "${{ steps.accept.outputs.artifact_dir }}/profile-report.json" \
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report \
+            --score-report "${{ steps.accept.outputs.artifact_dir }}/langfuse-score-report.json" \
             --json | tee langfuse-publish.json
 
       - name: Upload eval artifacts
@@ -186,5 +194,6 @@ jobs:
             eval-gate-doctor.json
             eval-gate-audit.json
             eval-gate-accept.json
+            langfuse-score-report-build.json
             langfuse-publish.json
             ${{ steps.accept.outputs.artifact_dir }}

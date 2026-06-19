@@ -804,21 +804,45 @@ runtime observability artifact：
 - `--verbose` 现在会直接打印 preflight、retrying、recovered、breaker opened / fast-fail
   等高信号事件，便于 live 验收时确认瞬时 provider 错误是否已经被自动重试
 
-Langfuse eval score publish：
+Langfuse eval platform：
 
-- `campus_evals.langfuse_adapter` 负责把 sanitized `profile-report.json` 中带
-  `request_correlation.trace_id` 的 case result 发布为 Langfuse score。
-- 命令入口是 `uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile
-  --profile-report <path>`。
-- `.github/workflows/eval-release-gate.yml` 的 `publish_langfuse_scores` manual
-  dispatch input 只对 `online-answer-path` 生效，并发布该 run 的
-  `profile-report.json`。
-- 当前发布入口使用 Langfuse Public API `POST /api/public/scores` 与 Basic Auth。
-- `base_url`、`public_key`、`secret_key` 必须同时存在；缺任一项时 adapter 保持 disabled 或
-  fail closed。
-- `profile-report.json` 必须包含非空 `sanitized_results`；缺失、空数组或结构错误会 fail
-  closed，不会发布空成功摘要。
-- 发布 payload 只包含 `traceId`、boolean pass/fail score、environment 与 profile/case/request
-  metadata；不得带 raw prompt、raw answer、raw transcript、retrieved snippet 或 source body。
-- 未携带 request correlation 的 profile result 会被跳过，不做 trace 猜测。
+- `campus_evals.langfuse_score_report` 拥有 sanitized
+  `langfuse_score_report.v1` schema、validator、registry check 与 publisher。
+- `publish-langfuse-profile` 仍保留为兼容入口，但内部先把
+  `profile-report.json` 转为 generic score report，再调用
+  `publish-langfuse-score-report`。
+- generic publish 入口：
+  `uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report
+  --score-report <langfuse-score-report.json> --dry-run --json`。
+- dataset / experiment / review automation 入口：
+  `sync-langfuse-score-configs`、`sync-langfuse-datasets`、
+  `run-langfuse-experiment`、`sync-langfuse-annotation-queue` 与
+  `export-langfuse-review-results`。
+- dataset sync 支持 `rag_qrels`、`answer_quality`、`release_acceptance`、
+  `online_answer_path` 与 `known_gap_review_seed`，其中 query / user goal 只写 hash。
+- experiment runner 支持 Langfuse-hosted dataset run item evidence，也支持 local fixture
+  experiment；local 模式不会伪造 `dataset_run_id`，无真实 publish identity 的 aggregate
+  score 会进入 `omitted_items[]`。manifest 提供 `baseline_artifact_path` 时会写 accepted
+  baseline / historical aggregate comparison。
+- review export artifact 包含 queue id、case id、score config ids、reviewer score summary、
+  comment hash 与 repo backlog candidate id。
+- RAG first-stage sweep 由 Go
+  `apps/execution-control/cmd/rag-first-stage-eval-runner` 生成 candidate result，
+  再由 `run-rag-first-stage-parameter-sweep` 聚合为
+  `rag-first-stage-parameter-sweep.json` 与 `langfuse-score-report.json`。
+- 当前发布入口使用 Langfuse Public API `POST /api/public/scores` 与 Basic Auth；
+  dataset / experiment / score-config / annotation automation 也只使用薄 REST adapter。
+- `base_url`、`public_key`、`secret_key` 必须同时存在；缺任一项时 adapter 保持 disabled
+  或 fail closed。
+- score report 必须满足 denominator 完整性：
+  `source_result_denominator == len(score_items) + len(omitted_items)` 且
+  `expected_publish_denominator == len(score_items)`。
+- 发布 payload 只包含 trace/session/dataset identity、score value、environment、release
+  与 allowlisted metadata；不得带 raw prompt、raw answer、raw transcript、retrieved
+  snippet 或 source body。
+- 未携带真实 trace / session / dataset run identity 的 offline result 进入
+  `omitted_items[]`，不做 trace 猜测。
 - Langfuse request 返回非 2xx/3xx 时发布命令失败，不降级为 warning。
+- Operator Console 不直接查询 Langfuse；需要 drill-down 时由
+  `OperatorObservabilityClient.ingest_langfuse_eval_backlinks(...)` 写入
+  app-api sanitized backlink projection。
