@@ -35,16 +35,16 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 296
+- Current-worktree docs Markdown files: 297
 - Git tracked docs Markdown files: 289
-- Untracked docs Markdown files included: 5
+- Untracked docs Markdown files included: 6
 - Generated on: 2026-06-18
 
 ### By Directory Area
 
 - `reference`: 53
 - `runbooks`: 53
-- `decisions`: 55
+- `decisions`: 56
 - `contracts`: 44
 - `architecture`: 40
 - `data`: 21
@@ -59,7 +59,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 47
 - `runbook`: 46
-- `decision`: 50
+- `decision`: 51
 - `contract`: 36
 - `index`: 32
 - `architecture`: 33
@@ -83,7 +83,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `reference`: 50
 - `operational_truth`: 48
-- `decision_record`: 50
+- `decision_record`: 51
 - `contract_truth`: 36
 - `reference_index`: 32
 - `supporting_architecture`: 24
@@ -1303,6 +1303,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
   - Ledger: `area=decisions`, `cluster=operator-observability`, `state=untracked`, `lines=55`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0060-prompt-design-runtime-contract.md`
+  - Title: ADR-0060 Prompt Design Runtime Contract
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=prompt-runtime`, `state=tracked`, `lines=199`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 
