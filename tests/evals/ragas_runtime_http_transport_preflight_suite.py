@@ -288,18 +288,17 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
-            {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
-                "RAGAS_REASONING_EFFORT": "none",
-                "RAGAS_TEXT_VERBOSITY": "low",
-                "RAGAS_MAX_OUTPUT_TOKENS": "128",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-            }
+        settings = RagasSettings(
+            llm_base_url="https://llm.example/v1",
+            llm_api_key="llm-key",
+            llm_model="gpt-5.4",
+            llm_transport="chat_completions",
+            embedding_api_key="embed-key",
+            embedding_model="Qwen3-Embedding-4B",
+            embedding_dimensions=2560,
+            reasoning_effort="none",
+            text_verbosity="low",
+            max_output_tokens=128,
         )
         async_client = httpx.AsyncClient(
             base_url="https://llm.example/v1",
@@ -342,16 +341,14 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
-            {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "SUPPLEMENTAL_HTTP_RETRY_ATTEMPTS": "1",
-            }
+        settings = RagasSettings(
+            llm_base_url="https://llm.example/v1",
+            llm_api_key="llm-key",
+            llm_model="gpt-5.4",
+            llm_transport="chat_completions",
+            embedding_api_key="embed-key",
+            embedding_model="Qwen3-Embedding-4B",
+            embedding_dimensions=2560,
         )
         sync_client = httpx.Client(
             base_url="https://llm.example/v1",

@@ -96,7 +96,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
         self.assertEqual(text_format["name"], "StructuredAnswer")
         self.assertTrue(text_format["strict"])
         self.assertEqual(body["reasoning"], {"effort": "none"})
-        self.assertEqual(body["max_output_tokens"], 128)
+        self.assertEqual(body["max_output_tokens"], 256)
         self.assertEqual(result.question, "奖学金怎么申请？")
         self.assertEqual(result.noncommittal, 0)
 
@@ -194,7 +194,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 "temperature": 0.01,
                 "reasoning": {"effort": "none"},
                 "text": {"format": {"type": "text"}, "verbosity": "low"},
-                "max_output_tokens": 128,
+                "max_output_tokens": 256,
             },
         )
 

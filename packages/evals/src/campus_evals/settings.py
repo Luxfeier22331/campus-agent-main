@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass, replace
+from functools import cache
+from pathlib import Path
 
 from campus_shared import resolve_embedding_provider_config, resolve_llm_provider_config
 
@@ -23,6 +26,75 @@ DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE = 4
 ALLOWED_EVAL_LLM_TRANSPORTS = frozenset({"responses", "chat_completions"})
 ALLOWED_RAGAS_REASONING_EFFORTS = frozenset({"minimal", "low", "medium", "high", "none"})
 ALLOWED_RAGAS_TEXT_VERBOSITIES = frozenset({"low", "medium", "high"})
+DEFAULT_EVAL_RUNTIME_PROFILES_PATH = (
+    Path(__file__).resolve().parents[2] / "fixtures" / "ops" / "eval_runtime_profiles.v1.json"
+)
+
+
+@dataclass(frozen=True, slots=True)
+class EvalRuntimeProfile:
+    profile_id: str
+    ragas_model: str
+    judge_model: str
+    llm_transport: str
+    embedding_model: str
+    embedding_dimensions: int | None
+    reasoning_effort: str | None
+    text_verbosity: str | None
+    max_output_tokens: int | None
+    target_language: str | None
+    adapt_instruction: bool
+
+    def __post_init__(self) -> None:
+        if not self.profile_id.strip():
+            raise ValueError("eval runtime profile_id is required")
+        if not self.ragas_model.strip():
+            raise ValueError("eval runtime ragas_model is required")
+        if not self.judge_model.strip():
+            raise ValueError("eval runtime judge_model is required")
+        if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
+            raise ValueError("eval runtime llm_transport must be responses or chat_completions")
+        if not self.embedding_model.strip():
+            raise ValueError("eval runtime embedding_model is required")
+        if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
+            raise ValueError("eval runtime embedding_dimensions must be greater than zero")
+        if (
+            self.reasoning_effort is not None
+            and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS
+        ):
+            raise ValueError("eval runtime reasoning_effort is unsupported")
+        if (
+            self.text_verbosity is not None
+            and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES
+        ):
+            raise ValueError("eval runtime text_verbosity is unsupported")
+        if self.max_output_tokens is not None and self.max_output_tokens <= 0:
+            raise ValueError("eval runtime max_output_tokens must be greater than zero")
+
+
+@cache
+def load_default_eval_runtime_profile() -> EvalRuntimeProfile:
+    payload = json.loads(DEFAULT_EVAL_RUNTIME_PROFILES_PATH.read_text(encoding="utf-8"))
+    if payload.get("schema_version") != "eval_runtime_profiles.v1":
+        raise ValueError("unsupported eval runtime profile schema_version")
+    default_profile_id = str(payload.get("default_profile_id") or "")
+    profiles = dict(payload.get("profiles") or {})
+    raw_profile = profiles.get(default_profile_id)
+    if not isinstance(raw_profile, dict):
+        raise ValueError("default eval runtime profile is missing")
+    return EvalRuntimeProfile(
+        profile_id=default_profile_id,
+        ragas_model=str(raw_profile.get("ragas_model") or ""),
+        judge_model=str(raw_profile.get("judge_model") or ""),
+        llm_transport=str(raw_profile.get("llm_transport") or ""),
+        embedding_model=str(raw_profile.get("embedding_model") or ""),
+        embedding_dimensions=_read_optional_int_value(raw_profile.get("embedding_dimensions")),
+        reasoning_effort=_read_optional_profile_str(raw_profile.get("reasoning_effort")),
+        text_verbosity=_read_optional_profile_str(raw_profile.get("text_verbosity")),
+        max_output_tokens=_read_optional_int_value(raw_profile.get("max_output_tokens")),
+        target_language=_read_optional_profile_str(raw_profile.get("target_language")),
+        adapt_instruction=bool(raw_profile.get("adapt_instruction", False)),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -263,43 +335,25 @@ class RagasSettings:
         faithfulness_nli_batch_size: int = DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE,
     ) -> RagasSettings:
         source = env if env is not None else os.environ
+        runtime_profile = load_default_eval_runtime_profile()
         llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
         embedding_provider = resolve_embedding_provider_config("eval.ragas", env=source)
-        embedding_model = (
-            _read_first_non_empty(
-                source,
-                "EVAL_EMBEDDING_MODEL",
-                "EMBEDDING_MODEL",
-            )
-            or ""
-        )
-        raw_embedding_dimensions = (
-            _read_first_non_empty(
-                source,
-                "EVAL_EMBEDDING_DIMENSIONS",
-                "EMBEDDING_DIMENSIONS",
-            )
-            or ""
-        )
         return cls(
             llm_api_key=llm_provider.api_key,
-            llm_model=_resolve_ragas_model(source),
-            llm_transport=_resolve_eval_llm_transport(source, "EVAL_RAGAS_LLM_TRANSPORT"),
+            llm_model=runtime_profile.ragas_model,
+            llm_transport=runtime_profile.llm_transport,
             embedding_api_key=embedding_provider.api_key,
-            embedding_model=embedding_model,
+            embedding_model=runtime_profile.embedding_model,
             llm_base_url=llm_provider.base_url,
             embedding_base_url=embedding_provider.base_url,
-            embedding_dimensions=_resolve_embedding_dimensions(
-                model=embedding_model,
-                raw_dimensions=raw_embedding_dimensions,
-            ),
+            embedding_dimensions=runtime_profile.embedding_dimensions,
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
-            reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
-            text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
-            max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
+            reasoning_effort=runtime_profile.reasoning_effort,
+            text_verbosity=runtime_profile.text_verbosity,
+            max_output_tokens=runtime_profile.max_output_tokens,
             max_workers=_read_optional_int(source.get("RAGAS_MAX_WORKERS")) or 1,
-            target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE"),
-            adapt_instruction=_read_bool(source.get("RAGAS_ADAPT_INSTRUCTION"), default=False),
+            target_language=runtime_profile.target_language,
+            adapt_instruction=runtime_profile.adapt_instruction,
             faithfulness_nli_batch_size=faithfulness_nli_batch_size,
         )
 
@@ -376,16 +430,17 @@ class JudgeLLMSettings:
         http_settings: SupplementalHTTPSettings | None = None,
     ) -> JudgeLLMSettings:
         source = env if env is not None else os.environ
+        runtime_profile = load_default_eval_runtime_profile()
         llm_provider = resolve_llm_provider_config("eval.judge", env=source)
         return cls(
             llm_api_key=llm_provider.api_key,
-            llm_model=_resolve_judge_model(source),
-            llm_transport=_resolve_eval_llm_transport(source, "EVAL_JUDGE_LLM_TRANSPORT"),
+            llm_model=runtime_profile.judge_model,
+            llm_transport=runtime_profile.llm_transport,
             llm_base_url=llm_provider.base_url,
             http_settings=http_settings or SupplementalHTTPSettings.from_env(source),
-            reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
-            text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
-            max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
+            reasoning_effort=runtime_profile.reasoning_effort,
+            text_verbosity=runtime_profile.text_verbosity,
+            max_output_tokens=runtime_profile.max_output_tokens,
         )
 
     def as_runtime_options(self) -> dict[str, object]:
@@ -449,6 +504,19 @@ def _read_optional_float(value: str | None) -> float | None:
     if normalized is None:
         return None
     return float(normalized)
+
+
+def _read_optional_profile_str(value: object) -> str | None:
+    if value is None:
+        return None
+    normalized = str(value).strip()
+    return normalized or None
+
+
+def _read_optional_int_value(value: object) -> int | None:
+    if value is None:
+        return None
+    return int(value)
 
 
 def _read_first_non_empty(source: dict[str, str], *keys: str) -> str | None:

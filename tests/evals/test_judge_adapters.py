@@ -128,12 +128,8 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "EVAL_LLM_BASE_URL": "https://llm.example/v1",
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "120",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
-                "RAGAS_REASONING_EFFORT": "none",
-                "RAGAS_TEXT_VERBOSITY": "low",
-                "RAGAS_MAX_OUTPUT_TOKENS": "256",
             }
         )
 
@@ -145,12 +141,12 @@ class JudgeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
 
-    def test_judge_settings_from_env_prefers_eval_scoped_keys(self) -> None:
+    def test_judge_settings_from_env_prefers_eval_scoped_keys_for_provider_handles(self) -> None:
         settings = JudgeLLMSettings.from_env(
             {
                 "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
                 "EVAL_LLM_API_KEY": "eval-llm-key",
-                "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
+                "EVAL_JUDGE_MODEL": "wrong-env-model",
                 "LLM_BASE_URL": "https://shared-llm.example/v1",
                 "LLM_API_KEY": "shared-llm-key",
             }
@@ -158,60 +154,48 @@ class JudgeSettingsTest(unittest.TestCase):
 
         self.assertEqual(settings.llm_base_url, "https://eval-llm.example/v1")
         self.assertEqual(settings.llm_api_key, "eval-llm-key")
-        self.assertEqual(settings.llm_model, "gpt-5.4-judge")
+        self.assertEqual(settings.llm_model, "gpt-5.4")
 
-    def test_judge_settings_from_env_reads_eval_llm_transport_with_surface_override(self) -> None:
+    def test_judge_settings_from_env_ignores_eval_llm_transport_env_override(self) -> None:
         default_settings = JudgeLLMSettings.from_env(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
             }
         )
         shared_override = JudgeLLMSettings.from_env(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_LLM_TRANSPORT": "chat_completions",
             }
         )
         surface_override = JudgeLLMSettings.from_env(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_LLM_TRANSPORT": "responses",
                 "EVAL_JUDGE_LLM_TRANSPORT": "chat_completions",
             }
         )
 
         self.assertEqual(default_settings.llm_transport, "responses")
-        self.assertEqual(shared_override.llm_transport, "chat_completions")
-        self.assertEqual(surface_override.llm_transport, "chat_completions")
+        self.assertEqual(shared_override.llm_transport, "responses")
+        self.assertEqual(surface_override.llm_transport, "responses")
 
-    def test_judge_settings_from_env_rejects_unknown_eval_llm_transport(self) -> None:
+    def test_judge_settings_constructor_rejects_unknown_eval_llm_transport(self) -> None:
         with self.assertRaisesRegex(ValueError, "EVAL_LLM_TRANSPORT must be one of"):
-            JudgeLLMSettings.from_env(
-                {
-                    "EVAL_LLM_API_KEY": "llm-key",
-                    "EVAL_RAGAS_MODEL": "gpt-5.4",
-                    "EVAL_LLM_TRANSPORT": "legacy_sdk",
-                }
+            JudgeLLMSettings(
+                llm_api_key="llm-key",
+                llm_model="gpt-5.4",
+                llm_transport="legacy_sdk",
             )
 
-    def test_judge_settings_from_env_requires_eval_judge_or_ragas_model(self) -> None:
-        with self.assertRaisesRegex(ValueError, "EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required"):
-            JudgeLLMSettings.from_env(
-                {
-                    "EVAL_LLM_API_KEY": "llm-key",
-                }
-            )
+    def test_judge_settings_from_env_uses_profile_without_model_env(self) -> None:
+        settings = JudgeLLMSettings.from_env({"EVAL_LLM_API_KEY": "llm-key"})
+
+        self.assertEqual(settings.llm_model, "gpt-5.4")
 
     def test_judge_settings_from_env_requires_provider_key_with_surface_aware_error(self) -> None:
         with self.assertRaises(ProviderConfigResolutionError) as raised:
-            JudgeLLMSettings.from_env(
-                {
-                    "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
-                }
-            )
+            JudgeLLMSettings.from_env({})
 
         self.assertEqual(raised.exception.surface_name, "eval.judge")
         self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
@@ -223,7 +207,6 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
                 "EVAL_LLM_API_KEY": "eval-llm-key",
-                "EVAL_JUDGE_MODEL": "gpt-5.4-judge",
             },
             http_settings=SupplementalHTTPSettings(read_timeout_seconds=45.0),
         )
@@ -234,7 +217,6 @@ class JudgeSettingsTest(unittest.TestCase):
         settings = JudgeLLMSettings.from_env(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "15",
             }
         )
@@ -246,7 +228,6 @@ class JudgeSettingsTest(unittest.TestCase):
             {
                 "EVAL_LLM_BASE_URL": "https://llm.example/v1",
                 "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
@@ -299,16 +280,14 @@ class JudgeSettingsTest(unittest.TestCase):
 
         import httpx
 
-        settings = JudgeLLMSettings.from_env(
-            {
-                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
-                "EVAL_LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EVAL_JUDGE_LLM_TRANSPORT": "chat_completions",
-                "RAGAS_REASONING_EFFORT": "none",
-                "RAGAS_TEXT_VERBOSITY": "low",
-                "RAGAS_MAX_OUTPUT_TOKENS": "256",
-            }
+        settings = JudgeLLMSettings(
+            llm_base_url="https://llm.example/v1",
+            llm_api_key="llm-key",
+            llm_model="gpt-5.4",
+            llm_transport="chat_completions",
+            reasoning_effort="none",
+            text_verbosity="low",
+            max_output_tokens=256,
         )
         sync_client = httpx.Client(
             base_url="https://llm.example/v1",

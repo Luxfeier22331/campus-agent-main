@@ -7,6 +7,7 @@ from tests.evals.ragas_runtime_test_support import (
     RagasSettings,
     StatementFaithfulnessAnswer,
     StatementGeneratorOutput,
+    SupplementalHTTPSettings,
     TemporaryDirectory,
     bind_faithfulness_artifact_context,
     build_default_ragas_metric_names,
@@ -197,15 +198,13 @@ class RagasScorerDefaultsTest(unittest.TestCase):
     ) -> None:
         llm = object()
         embeddings = object()
-        settings = RagasSettings.from_env(
-            {
-                "LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "EVAL_RAGAS_TARGET_LANGUAGE": "chinese",
-                "RAGAS_ADAPT_INSTRUCTION": "true",
-            }
+        settings = RagasSettings(
+            llm_api_key="llm-key",
+            llm_model="gpt-5.4",
+            embedding_api_key="embed-key",
+            embedding_model="Qwen3-Embedding-4B",
+            target_language="chinese",
+            adapt_instruction=True,
         )
         answer_calls: list[tuple[str, object, bool]] = []
         faithfulness_calls: list[tuple[str, object, bool]] = []
@@ -265,17 +264,15 @@ class RagasScorerDefaultsTest(unittest.TestCase):
             )
             return FakeEvaluationResult(metrics[0].name)
 
-        settings = RagasSettings.from_env(
-            {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
-                "EVAL_RAGAS_MODEL": "qwen-reasoning",
-                "EMBEDDING_BASE_URL": "https://embed.example/v1",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "45",
-                "RAGAS_MAX_WORKERS": "2",
-            }
+        settings = RagasSettings(
+            llm_base_url="https://llm.example/v1",
+            llm_api_key="llm-key",
+            llm_model="qwen-reasoning",
+            embedding_base_url="https://embed.example/v1",
+            embedding_api_key="embed-key",
+            embedding_model="Qwen3-Embedding-4B",
+            http_settings=SupplementalHTTPSettings(read_timeout_seconds=45),
+            max_workers=2,
         )
 
         scorer = build_ragas_scorer(

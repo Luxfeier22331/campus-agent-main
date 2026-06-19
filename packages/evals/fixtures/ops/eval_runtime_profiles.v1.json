@@ -1,0 +1,18 @@
+{
+	"schema_version": "eval_runtime_profiles.v1",
+	"default_profile_id": "ragas_default",
+	"profiles": {
+		"ragas_default": {
+			"ragas_model": "gpt-5.4",
+			"judge_model": "gpt-5.4",
+			"llm_transport": "responses",
+			"embedding_model": "Qwen3-Embedding-4B",
+			"embedding_dimensions": 2560,
+			"reasoning_effort": "none",
+			"text_verbosity": "low",
+			"max_output_tokens": 256,
+			"target_language": null,
+			"adapt_instruction": false
+		}
+	}
+}
