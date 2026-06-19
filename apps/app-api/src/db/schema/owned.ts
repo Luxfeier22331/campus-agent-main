@@ -77,7 +77,7 @@ export {
 	workerAutoscalerDecision,
 } from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
-export { providerConfigProfiles } from "./provider-config";
+export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 export { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 export {
 	wechatOfficialAccountCaptureRuns,
@@ -164,7 +164,7 @@ import {
 	workerAutoscalerDecision,
 } from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
-import { providerConfigProfiles } from "./provider-config";
+import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
 import { projectionOutbox, requestExecution, requestObservabilityFact } from "./runtime";
 import {
 	wechatOfficialAccountCaptureRuns,
@@ -220,6 +220,7 @@ export const appApiOwnedSchema = {
 	identityFederationUserGrants,
 	profileMemorySettings,
 	profileMemoryItems,
+	providerConfigConnections,
 	providerConfigProfiles,
 	requestExecution,
 	projectionOutbox,

@@ -20,19 +20,22 @@ const (
 	providerConfigRolePrimaryAgent      providerConfigRole = "primary_agent"
 	providerConfigRoleRAGSynthesis      providerConfigRole = "rag_synthesis"
 	providerConfigRoleRAGQueryEmbedding providerConfigRole = "rag_query_embedding"
+	providerConfigRoleRAGReranker       providerConfigRole = "rag_reranker"
 )
 
 type providerConfigSnapshot struct {
-	APIKey     string `json:"api_key"`
-	BaseURL    string `json:"base_url"`
-	Dimensions int    `json:"dimensions,omitempty"`
-	Model      string `json:"model"`
-	ProfileID  string `json:"profile_id"`
-	Provider   string `json:"provider"`
-	Revision   int    `json:"revision"`
-	Role       string `json:"role"`
-	TimeoutMS  int    `json:"timeout_ms"`
-	Transport  string `json:"transport"`
+	APIKey           string         `json:"api_key"`
+	BaseURL          string         `json:"base_url"`
+	CapabilityConfig map[string]any `json:"capability_config,omitempty"`
+	Dimensions       int            `json:"dimensions,omitempty"`
+	Kind             string         `json:"kind"`
+	Model            string         `json:"model"`
+	ProfileID        string         `json:"profile_id"`
+	Provider         string         `json:"provider"`
+	Revision         int            `json:"revision"`
+	Role             string         `json:"role"`
+	TimeoutMS        int            `json:"timeout_ms"`
+	Transport        string         `json:"transport"`
 }
 
 type providerConfigResolver interface {
@@ -89,6 +92,7 @@ func newStaticEmbeddingProviderConfigResolver(
 		APIKey:     strings.TrimSpace(cfg.EmbeddingAPIKey),
 		BaseURL:    staticEmbeddingBaseURL(cfg),
 		Dimensions: cfg.EmbeddingDimensions,
+		Kind:       "embedding",
 		Model:      strings.TrimSpace(cfg.EmbeddingModel),
 		ProfileID:  "static_embedding_config",
 		Provider:   firstNonEmptyText(cfg.EmbeddingProvider, "openai-compatible"),
@@ -124,7 +128,7 @@ func staticEmbeddingBaseURL(cfg config.Config) string {
 	if embeddingBaseURL != "" {
 		return embeddingBaseURL
 	}
-	return strings.TrimRight(strings.TrimSpace(cfg.PromptRuntimeBaseURL), "/")
+	return ""
 }
 
 func (resolver appAPIProviderConfigResolver) ResolveActiveProviderConfig(
@@ -210,6 +214,9 @@ func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role provid
 	if isEmbeddingProviderConfigRole(role) && snapshot.Dimensions <= 0 {
 		return errors.New("embedding provider config snapshot dimensions is required")
 	}
+	if isRerankProviderConfigRole(role) && strings.TrimSpace(snapshot.Kind) != "rerank" {
+		return errors.New("rerank provider config snapshot kind must be rerank")
+	}
 	return nil
 }
 
@@ -220,6 +227,10 @@ func isEmbeddingProviderConfigRole(role providerConfigRole) bool {
 	default:
 		return false
 	}
+}
+
+func isRerankProviderConfigRole(role providerConfigRole) bool {
+	return role == providerConfigRoleRAGReranker
 }
 
 func (s *Server) resolveProviderConfigSnapshot(

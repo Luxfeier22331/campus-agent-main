@@ -1,10 +1,14 @@
 import type { ResolvedAppPrincipal } from "../auth";
 
-export type ProviderConfigKind = "embedding" | "prompt";
+export type ProviderConfigKind = "embedding" | "prompt" | "rerank";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type PromptProviderRole = "primary_agent" | "rag_synthesis";
 export type EmbeddingProviderRole = "index_embedding" | "rag_query_embedding";
-export type ProviderConfigRole = EmbeddingProviderRole | PromptProviderRole;
+export type RerankProviderRole = "rag_reranker";
+export type ProviderConfigRole = EmbeddingProviderRole | PromptProviderRole | RerankProviderRole;
+export type ProviderConfigCapability = "embedding" | "prompt" | "rerank";
+
+export type ProviderConfigCapabilityConfig = Record<string, unknown>;
 
 export interface ProviderConfigSecretRef {
 	ciphertext: string;
@@ -14,15 +18,16 @@ export interface ProviderConfigSecretRef {
 
 export interface ProviderConfigProfile {
 	active: boolean;
-	apiKeySecret: ProviderConfigSecretRef;
-	baseUrl: string;
+	apiKeySecret?: ProviderConfigSecretRef;
+	baseUrl?: string;
+	connectionId: string;
 	createdAt: string;
 	createdBy: ProviderConfigActor;
 	dimensions: number | null;
 	kind: ProviderConfigKind;
 	model: string;
 	profileId: string;
-	provider: string;
+	provider?: string;
 	revision: number;
 	role: ProviderConfigRole;
 	status: ProviderConfigStatus;
@@ -38,9 +43,38 @@ export interface ProviderConfigActor {
 	principalId: string;
 }
 
+export interface ProviderConfigConnection {
+	apiKeySecret: ProviderConfigSecretRef;
+	baseUrl: string;
+	capabilities: ProviderConfigCapability[];
+	capabilityConfig: ProviderConfigCapabilityConfig;
+	connectionId: string;
+	createdAt: string;
+	createdBy: ProviderConfigActor;
+	provider: string;
+	revision: number;
+	updatedAt: string;
+	updatedBy: ProviderConfigActor;
+}
+
+export interface ProviderConfigConnectionSummary {
+	baseUrl: string;
+	capabilities: ProviderConfigCapability[];
+	capabilityConfig: ProviderConfigCapabilityConfig;
+	connectionId: string;
+	createdAt: string;
+	provider: string;
+	revision: number;
+	secretConfigured: boolean;
+	secretFingerprint: string;
+	secretLast4: string;
+	updatedAt: string;
+}
+
 export interface ProviderConfigProfileSummary {
 	active: boolean;
 	baseUrl: string;
+	connectionId: string;
 	createdAt: string;
 	dimensions: number | null;
 	kind: ProviderConfigKind;
@@ -62,7 +96,9 @@ export interface ProviderConfigProfileSummary {
 export interface ProviderConfigRuntimeSnapshot {
 	api_key: string;
 	base_url: string;
+	capability_config?: ProviderConfigCapabilityConfig;
 	dimensions?: number;
+	kind: ProviderConfigKind;
 	model: string;
 	profile_id: string;
 	provider: string;
@@ -84,6 +120,7 @@ export interface ProviderConfigValidationResult {
 export interface ProviderConfigCreatePayload {
 	apiKey?: unknown;
 	baseUrl?: unknown;
+	connectionId?: unknown;
 	dimensions?: unknown;
 	kind?: unknown;
 	model?: unknown;
@@ -94,8 +131,7 @@ export interface ProviderConfigCreatePayload {
 }
 
 export interface ProviderConfigUpdatePayload {
-	apiKey?: unknown;
-	baseUrl?: unknown;
+	connectionId?: unknown;
 	dimensions?: unknown;
 	model?: unknown;
 	timeoutMs?: unknown;
@@ -105,6 +141,7 @@ export interface ProviderConfigUpdatePayload {
 export interface ProviderConfigValidatorInput {
 	apiKey: string;
 	baseUrl: string;
+	capabilityConfig: ProviderConfigCapabilityConfig;
 	dimensions: number | null;
 	model: string;
 	provider: string;
@@ -115,6 +152,7 @@ export interface ProviderConfigValidatorInput {
 
 export interface ProviderConfigEmbeddingCompatibilityInput {
 	profile: ProviderConfigProfile;
+	provider: string;
 	rawApiKey: string;
 }
 
@@ -129,9 +167,38 @@ export interface ProviderConfigValidators {
 	): Promise<ProviderConfigCompatibilityResult>;
 	validateEmbedding(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
 	validatePrompt(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
+	validateRerank(input: ProviderConfigValidatorInput): Promise<ProviderConfigValidationResult>;
+}
+
+export interface ProviderConfigConnectionCreatePayload {
+	apiKey?: unknown;
+	baseUrl?: unknown;
+	capabilities?: unknown;
+	capabilityConfig?: unknown;
+	provider?: unknown;
+}
+
+export interface ProviderConfigConnectionUpdatePayload {
+	apiKey?: unknown;
+	baseUrl?: unknown;
+	capabilities?: unknown;
+	capabilityConfig?: unknown;
+	provider?: unknown;
 }
 
 export interface ProviderConfigService {
+	createConnection(input: {
+		payload: ProviderConfigConnectionCreatePayload;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ connection: ProviderConfigConnectionSummary }>;
+	listConnections(input: {
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ connections: ProviderConfigConnectionSummary[] }>;
+	updateConnection(input: {
+		connectionId: string;
+		payload: ProviderConfigConnectionUpdatePayload;
+		principal: ResolvedAppPrincipal;
+	}): Promise<{ connection: ProviderConfigConnectionSummary }>;
 	activateProfile(input: {
 		principal: ResolvedAppPrincipal;
 		profileId: string;

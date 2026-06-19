@@ -407,7 +407,11 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
 	if err := json.Unmarshal(responseBody, &payload); err != nil {
 		return nil, fmt.Errorf("parse qdrant query response: %w", err)
 	}
-	return payload.Result.Points, nil
+	points := payload.Result.Points
+	if profile.RerankerEnabledByDefault {
+		return e.rerankPoints(ctx, plan.QueryText, points)
+	}
+	return points, nil
 }
 
 func validateRAGLookupQueryShape(

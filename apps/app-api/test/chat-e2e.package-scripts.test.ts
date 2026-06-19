@@ -80,4 +80,24 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain("agents_sdk_notice_discover_e2e_smoke");
 		expect(scriptSource).not.toContain("notice_discover");
 	});
+
+	it("exposes local provider-config seeding without prompt runtime env", () => {
+		const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
+			scripts: Record<string, string>;
+		};
+		const scriptSource = readFileSync(
+			resolve(__dirname, "../scripts/seed-local-provider-config.ts"),
+			"utf8",
+		);
+
+		expect(packageJson.scripts["provider-config:seed-local-model"]).toContain(
+			"seed-local-provider-config.ts",
+		);
+		expect(scriptSource).toContain("primary_agent");
+		expect(scriptSource).toContain("rag_synthesis");
+		expect(scriptSource).toContain("LLM_API_KEY");
+		expect(scriptSource).toContain("--model");
+		expect(scriptSource).not.toContain("PROMPT_RUNTIME");
+		expect(scriptSource).not.toContain("EXECUTION_PROMPT_MODEL");
+	});
 });

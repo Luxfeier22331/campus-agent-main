@@ -207,6 +207,12 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/provider-config/connections",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/provider-config/profiles",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -443,6 +449,18 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "PATCH",
 		path: "/api/operator/campus-services/transport-overrides/:overrideId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/provider-config/connections",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "PATCH",
+		path: "/api/operator/provider-config/connections/:connectionId",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},

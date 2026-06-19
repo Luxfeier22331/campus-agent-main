@@ -7,6 +7,12 @@ import type {
 	EmbeddingProviderRole,
 	PromptProviderRole,
 	ProviderConfigActor,
+	ProviderConfigCapability,
+	ProviderConfigCapabilityConfig,
+	ProviderConfigConnection,
+	ProviderConfigConnectionCreatePayload,
+	ProviderConfigConnectionSummary,
+	ProviderConfigConnectionUpdatePayload,
 	ProviderConfigCreatePayload,
 	ProviderConfigKind,
 	ProviderConfigProfile,
@@ -18,7 +24,15 @@ import type {
 	ProviderConfigUpdatePayload,
 	ProviderConfigValidationResult,
 	ProviderConfigValidators,
+	RerankProviderRole,
 } from "./types";
+import {
+	defaultEmbeddingCompatibilityCheck,
+	defaultValidateEmbeddingProvider,
+	defaultValidatePromptProvider,
+	defaultValidateRerankProvider,
+	validateByKind,
+} from "./validators";
 
 export interface ProviderConfigServiceDependencies {
 	decryptSecret?: (ciphertext: string) => Promise<string> | string;
@@ -32,6 +46,8 @@ export interface ProviderConfigServiceDependencies {
 
 const PROMPT_ROLES = new Set<PromptProviderRole>(["primary_agent", "rag_synthesis"]);
 const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>(["index_embedding", "rag_query_embedding"]);
+const RERANK_ROLES = new Set<RerankProviderRole>(["rag_reranker"]);
+const CAPABILITIES = new Set<ProviderConfigCapability>(["embedding", "prompt", "rerank"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function buildProviderConfigService(
@@ -52,12 +68,34 @@ export function buildProviderConfigService(
 		validateEmbedding:
 			dependencies.validators?.validateEmbedding ?? defaultValidateEmbeddingProvider,
 		validatePrompt: dependencies.validators?.validatePrompt ?? defaultValidatePromptProvider,
+		validateRerank: dependencies.validators?.validateRerank ?? defaultValidateRerankProvider,
 	};
 
 	return {
+		async createConnection(input) {
+			const actor = ensureOperatorPrincipal(input.principal);
+			const normalized = normalizeConnectionCreatePayload(input.payload);
+			const createdAt = now().toISOString();
+			const connection: ProviderConfigConnection = {
+				apiKeySecret: await secretRefFromPlaintext(normalized.apiKey, encryptSecret),
+				baseUrl: normalized.baseUrl,
+				capabilities: normalized.capabilities,
+				capabilityConfig: normalized.capabilityConfig,
+				connectionId: generateId("provider_connection"),
+				createdAt,
+				createdBy: actor,
+				provider: normalized.provider,
+				revision: 1,
+				updatedAt: createdAt,
+				updatedBy: actor,
+			};
+			await dependencies.store.saveConnection(connection);
+			return { connection: summarizeConnection(connection) };
+		},
 		async activateProfile(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
 			const profile = await requireProfile(dependencies.store, input.profileId);
+			const connection = await requireConnection(dependencies.store, profile.connectionId);
 			if (!profile.validation?.ok) {
 				throw routeError({
 					code: "provider_profile_not_validated",
@@ -66,9 +104,10 @@ export function buildProviderConfigService(
 				});
 			}
 			if (profile.kind === "embedding") {
-				const rawApiKey = await decryptSecret(profile.apiKeySecret.ciphertext);
+				const rawApiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 				const compatibility = await validators.checkEmbeddingCompatibility({
 					profile,
+					provider: connection.provider,
 					rawApiKey,
 				});
 				if (!compatibility.ok) {
@@ -90,24 +129,23 @@ export function buildProviderConfigService(
 				updatedBy: actor,
 			};
 			await dependencies.store.setActive(activated);
-			return { profile: summarizeProfile(activated) };
+			return { profile: summarizeProfile(activated, connection) };
 		},
 		async createProfile(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
 			const normalized = normalizeCreatePayload(input.payload);
+			const connection = await requireConnection(dependencies.store, normalized.connectionId);
+			requireConnectionCapability(connection, normalized.kind);
 			const createdAt = now().toISOString();
-			const apiKeySecret = await secretRefFromPlaintext(normalized.apiKey, encryptSecret);
 			const profile: ProviderConfigProfile = {
 				active: false,
-				apiKeySecret,
-				baseUrl: normalized.baseUrl,
+				connectionId: connection.connectionId,
 				createdAt,
 				createdBy: actor,
 				dimensions: normalized.dimensions,
 				kind: normalized.kind,
 				model: normalized.model,
 				profileId: generateId("provider_profile"),
-				provider: normalized.provider,
 				revision: 1,
 				role: normalized.role,
 				status: "draft",
@@ -118,7 +156,7 @@ export function buildProviderConfigService(
 				validation: null,
 			};
 			await dependencies.store.save(profile);
-			return { profile: summarizeProfile(profile) };
+			return { profile: summarizeProfile(profile, connection) };
 		},
 		async getActiveRuntimeSnapshot(input) {
 			const role = normalizeRuntimeRole(input.role);
@@ -130,16 +168,26 @@ export function buildProviderConfigService(
 					status: 404,
 				});
 			}
+			const connection = await requireConnection(dependencies.store, profile.connectionId);
 			return {
 				profile: runtimeSnapshotFromProfile(
 					profile,
-					await decryptSecret(profile.apiKeySecret.ciphertext),
+					connection,
+					await decryptSecret(connection.apiKeySecret.ciphertext),
 				),
+			};
+		},
+		async listConnections(input) {
+			ensureOperatorPrincipal(input.principal);
+			return {
+				connections: (await dependencies.store.listConnections()).map(summarizeConnection),
 			};
 		},
 		async listProfiles(input) {
 			ensureOperatorPrincipal(input.principal);
-			return { profiles: (await dependencies.store.list()).map(summarizeProfile) };
+			return {
+				profiles: await summarizeProfiles(dependencies.store, await dependencies.store.list()),
+			};
 		},
 		async updateProfile(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
@@ -151,12 +199,12 @@ export function buildProviderConfigService(
 					status: 409,
 				});
 			}
-			const normalized = await normalizeUpdatePayload(
-				current,
-				input.payload,
-				decryptSecret,
-				encryptSecret,
-			);
+			const normalized = await normalizeUpdatePayload(current, input.payload);
+			let connection = await requireConnection(dependencies.store, current.connectionId);
+			if (normalized.connectionId) {
+				connection = await requireConnection(dependencies.store, normalized.connectionId);
+				requireConnectionCapability(connection, current.kind);
+			}
 			const updated: ProviderConfigProfile = {
 				...current,
 				...normalized,
@@ -167,26 +215,44 @@ export function buildProviderConfigService(
 				validation: null,
 			};
 			await dependencies.store.save(updated);
-			return { profile: summarizeProfile(updated) };
+			return { profile: summarizeProfile(updated, connection) };
+		},
+		async updateConnection(input) {
+			const actor = ensureOperatorPrincipal(input.principal);
+			const current = await requireConnection(dependencies.store, input.connectionId);
+			const normalized = await normalizeConnectionUpdatePayload(
+				current,
+				input.payload,
+				encryptSecret,
+			);
+			const updated: ProviderConfigConnection = {
+				...current,
+				...normalized,
+				revision: current.revision + 1,
+				updatedAt: now().toISOString(),
+				updatedBy: actor,
+			};
+			await dependencies.store.saveConnection(updated);
+			return { connection: summarizeConnection(updated) };
 		},
 		async validateProfile(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
 			const current = await requireProfile(dependencies.store, input.profileId);
-			const apiKey = await decryptSecret(current.apiKeySecret.ciphertext);
+			const connection = await requireConnection(dependencies.store, current.connectionId);
+			requireConnectionCapability(connection, current.kind);
+			const apiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 			const validatorInput = {
 				apiKey,
-				baseUrl: current.baseUrl,
+				baseUrl: connection.baseUrl,
+				capabilityConfig: connection.capabilityConfig,
 				dimensions: current.dimensions,
 				model: current.model,
-				provider: current.provider,
+				provider: connection.provider,
 				role: current.role,
 				timeoutMs: current.timeoutMs,
 				transport: current.transport,
 			};
-			const validation =
-				current.kind === "embedding"
-					? await validators.validateEmbedding(validatorInput)
-					: await validators.validatePrompt(validatorInput);
+			const validation = await validateByKind(current.kind, validatorInput, validators);
 			const withTimestamp: ProviderConfigValidationResult = {
 				...validation,
 				validatedAt: validation.validatedAt ?? now().toISOString(),
@@ -200,7 +266,7 @@ export function buildProviderConfigService(
 				validation: withTimestamp,
 			};
 			await dependencies.store.save(next);
-			return { profile: summarizeProfile(next), validation: withTimestamp };
+			return { profile: summarizeProfile(next, connection), validation: withTimestamp };
 		},
 	};
 }
@@ -266,21 +332,69 @@ async function requireProfile(
 	return profile;
 }
 
-function summarizeProfile(profile: ProviderConfigProfile): ProviderConfigProfileSummary {
+async function requireConnection(
+	store: ProviderConfigStore,
+	connectionId: string,
+): Promise<ProviderConfigConnection> {
+	const connection = await store.getConnectionById(connectionId);
+	if (connection === null) {
+		throw routeError({
+			code: "provider_connection_not_found",
+			message: "Provider connection was not found.",
+			status: 404,
+		});
+	}
+	return connection;
+}
+
+function summarizeConnection(
+	connection: ProviderConfigConnection,
+): ProviderConfigConnectionSummary {
+	return {
+		baseUrl: connection.baseUrl,
+		capabilities: [...connection.capabilities],
+		capabilityConfig: structuredClone(connection.capabilityConfig),
+		connectionId: connection.connectionId,
+		createdAt: connection.createdAt,
+		provider: connection.provider,
+		revision: connection.revision,
+		secretConfigured: true,
+		secretFingerprint: connection.apiKeySecret.fingerprint,
+		secretLast4: connection.apiKeySecret.last4,
+		updatedAt: connection.updatedAt,
+	};
+}
+
+async function summarizeProfiles(
+	store: ProviderConfigStore,
+	profiles: ProviderConfigProfile[],
+): Promise<ProviderConfigProfileSummary[]> {
+	const summaries: ProviderConfigProfileSummary[] = [];
+	for (const profile of profiles) {
+		summaries.push(summarizeProfile(profile, await requireConnection(store, profile.connectionId)));
+	}
+	return summaries;
+}
+
+function summarizeProfile(
+	profile: ProviderConfigProfile,
+	connection: ProviderConfigConnection,
+): ProviderConfigProfileSummary {
 	return {
 		active: profile.active,
-		baseUrl: profile.baseUrl,
+		baseUrl: connection.baseUrl,
+		connectionId: profile.connectionId,
 		createdAt: profile.createdAt,
 		dimensions: profile.dimensions,
 		kind: profile.kind,
 		model: profile.model,
 		profileId: profile.profileId,
-		provider: profile.provider,
+		provider: connection.provider,
 		revision: profile.revision,
 		role: profile.role,
 		secretConfigured: true,
-		secretFingerprint: profile.apiKeySecret.fingerprint,
-		secretLast4: profile.apiKeySecret.last4,
+		secretFingerprint: connection.apiKeySecret.fingerprint,
+		secretLast4: connection.apiKeySecret.last4,
 		status: profile.status,
 		timeoutMs: profile.timeoutMs,
 		transport: profile.transport,
@@ -291,14 +405,17 @@ function summarizeProfile(profile: ProviderConfigProfile): ProviderConfigProfile
 
 function runtimeSnapshotFromProfile(
 	profile: ProviderConfigProfile,
+	connection: ProviderConfigConnection,
 	apiKey: string,
 ): ProviderConfigRuntimeSnapshot {
 	const snapshot: ProviderConfigRuntimeSnapshot = {
 		api_key: apiKey,
-		base_url: profile.baseUrl,
+		base_url: connection.baseUrl,
+		capability_config: structuredClone(connection.capabilityConfig),
+		kind: profile.kind,
 		model: profile.model,
 		profile_id: profile.profileId,
-		provider: profile.provider,
+		provider: connection.provider,
 		revision: profile.revision,
 		role: profile.role,
 		timeout_ms: profile.timeoutMs,
@@ -311,12 +428,10 @@ function runtimeSnapshotFromProfile(
 }
 
 function normalizeCreatePayload(payload: ProviderConfigCreatePayload): {
-	apiKey: string;
-	baseUrl: string;
+	connectionId: string;
 	dimensions: number | null;
 	kind: ProviderConfigKind;
 	model: string;
-	provider: string;
 	role: ProviderConfigRole;
 	timeoutMs: number;
 	transport: string;
@@ -326,12 +441,10 @@ function normalizeCreatePayload(payload: ProviderConfigCreatePayload): {
 	const transport = normalizeTransport(payload.transport, kind);
 	const dimensions = normalizeDimensions(payload.dimensions, kind);
 	return {
-		apiKey: normalizeRequiredString(payload.apiKey, "apiKey"),
-		baseUrl: normalizeBaseUrl(payload.baseUrl),
+		connectionId: normalizeRequiredString(payload.connectionId, "connectionId"),
 		dimensions,
 		kind,
 		model: normalizeRequiredString(payload.model, "model"),
-		provider: normalizeProvider(payload.provider),
 		role,
 		timeoutMs: normalizeTimeoutMs(payload.timeoutMs),
 		transport,
@@ -341,18 +454,10 @@ function normalizeCreatePayload(payload: ProviderConfigCreatePayload): {
 async function normalizeUpdatePayload(
 	current: ProviderConfigProfile,
 	payload: ProviderConfigUpdatePayload,
-	decryptSecret: (ciphertext: string) => Promise<string> | string,
-	encryptSecret: (plaintext: string) => Promise<string> | string,
 ): Promise<Partial<ProviderConfigProfile>> {
 	const updated: Partial<ProviderConfigProfile> = {};
-	if ("apiKey" in payload) {
-		updated.apiKeySecret = await secretRefFromPlaintext(
-			normalizeRequiredString(payload.apiKey, "apiKey"),
-			encryptSecret,
-		);
-	}
-	if ("baseUrl" in payload) {
-		updated.baseUrl = normalizeBaseUrl(payload.baseUrl);
+	if ("connectionId" in payload) {
+		updated.connectionId = normalizeRequiredString(payload.connectionId, "connectionId");
 	}
 	if ("dimensions" in payload) {
 		updated.dimensions = normalizeDimensions(payload.dimensions, current.kind);
@@ -366,16 +471,12 @@ async function normalizeUpdatePayload(
 	if ("transport" in payload) {
 		updated.transport = normalizeTransport(payload.transport, current.kind);
 	}
-	if (updated.apiKeySecret === undefined && current.apiKeySecret.ciphertext.trim() === "") {
-		const apiKey = await decryptSecret(current.apiKeySecret.ciphertext);
-		updated.apiKeySecret = await secretRefFromPlaintext(apiKey, encryptSecret);
-	}
 	return updated;
 }
 
 function normalizeKind(value: unknown): ProviderConfigKind {
 	const normalized = normalizeRequiredString(value, "kind");
-	if (normalized !== "prompt" && normalized !== "embedding") {
+	if (normalized !== "prompt" && normalized !== "embedding" && normalized !== "rerank") {
 		throw validationError("kind is not supported.", { field: "kind" });
 	}
 	return normalized;
@@ -389,6 +490,9 @@ function normalizeRole(value: unknown, kind: ProviderConfigKind): ProviderConfig
 	if (kind === "embedding" && EMBEDDING_ROLES.has(normalized as EmbeddingProviderRole)) {
 		return normalized as EmbeddingProviderRole;
 	}
+	if (kind === "rerank" && RERANK_ROLES.has(normalized as RerankProviderRole)) {
+		return normalized as RerankProviderRole;
+	}
 	throw validationError("role is not supported for provider kind.", { field: "role", kind });
 }
 
@@ -396,7 +500,8 @@ function normalizeRuntimeRole(value: string): ProviderConfigRole {
 	const normalized = value.trim();
 	if (
 		PROMPT_ROLES.has(normalized as PromptProviderRole) ||
-		EMBEDDING_ROLES.has(normalized as EmbeddingProviderRole)
+		EMBEDDING_ROLES.has(normalized as EmbeddingProviderRole) ||
+		RERANK_ROLES.has(normalized as RerankProviderRole)
 	) {
 		return normalized as ProviderConfigRole;
 	}
@@ -405,29 +510,127 @@ function normalizeRuntimeRole(value: string): ProviderConfigRole {
 
 function normalizeProvider(value: unknown): string {
 	const provider = normalizeRequiredString(value, "provider");
-	if (provider !== "openai") {
-		throw validationError("provider is not supported.", { field: "provider" });
+	if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(provider)) {
+		throw validationError("provider must be a lowercase provider slug.", { field: "provider" });
 	}
 	return provider;
 }
 
 function normalizeTransport(value: unknown, kind: ProviderConfigKind): string {
 	const transport = normalizeRequiredString(value, "transport");
-	const expected = kind === "embedding" ? "embeddings" : "responses";
-	if (transport !== expected) {
-		throw validationError(`transport must be ${expected}.`, { field: "transport" });
+	if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(transport)) {
+		throw validationError("transport must be a lowercase transport slug.", { field: "transport" });
+	}
+	if (kind === "prompt" && transport !== "responses") {
+		throw validationError("transport must be responses.", { field: "transport" });
+	}
+	if (kind === "embedding" && transport !== "embeddings" && transport !== "openai_embeddings") {
+		throw validationError("transport must be embeddings.", { field: "transport" });
 	}
 	return transport;
 }
 
 function normalizeDimensions(value: unknown, kind: ProviderConfigKind): number | null {
-	if (kind === "prompt") {
+	if (kind === "prompt" || kind === "rerank") {
 		return null;
 	}
 	if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
 		throw validationError("dimensions must be a positive integer.", { field: "dimensions" });
 	}
 	return value;
+}
+
+function normalizeConnectionCreatePayload(payload: ProviderConfigConnectionCreatePayload): {
+	apiKey: string;
+	baseUrl: string;
+	capabilities: ProviderConfigCapability[];
+	capabilityConfig: ProviderConfigCapabilityConfig;
+	provider: string;
+} {
+	return {
+		apiKey: normalizeRequiredString(payload.apiKey, "apiKey"),
+		baseUrl: normalizeBaseUrl(payload.baseUrl),
+		capabilities: normalizeCapabilities(payload.capabilities),
+		capabilityConfig: normalizeCapabilityConfig(payload.capabilityConfig),
+		provider: normalizeProvider(payload.provider),
+	};
+}
+
+async function normalizeConnectionUpdatePayload(
+	current: ProviderConfigConnection,
+	payload: ProviderConfigConnectionUpdatePayload,
+	encryptSecret: (plaintext: string) => Promise<string> | string,
+): Promise<Partial<ProviderConfigConnection>> {
+	const updated: Partial<ProviderConfigConnection> = {};
+	if ("apiKey" in payload) {
+		updated.apiKeySecret = await secretRefFromPlaintext(
+			normalizeRequiredString(payload.apiKey, "apiKey"),
+			encryptSecret,
+		);
+	}
+	if ("baseUrl" in payload) {
+		updated.baseUrl = normalizeBaseUrl(payload.baseUrl);
+	}
+	if ("capabilities" in payload) {
+		updated.capabilities = normalizeCapabilities(payload.capabilities);
+	}
+	if ("capabilityConfig" in payload) {
+		updated.capabilityConfig = normalizeCapabilityConfig(payload.capabilityConfig);
+	}
+	if ("provider" in payload) {
+		updated.provider = normalizeProvider(payload.provider);
+	}
+	if (updated.capabilities) {
+		for (const capability of current.capabilities) {
+			if (!updated.capabilities.includes(capability)) {
+				throw validationError("connection capabilities cannot be removed in place.", {
+					field: "capabilities",
+				});
+			}
+		}
+	}
+	return updated;
+}
+
+function normalizeCapabilities(value: unknown): ProviderConfigCapability[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		throw validationError("capabilities must be a non-empty array.", { field: "capabilities" });
+	}
+	const normalized: ProviderConfigCapability[] = [];
+	for (const capability of value) {
+		const capabilitySlug = normalizeRequiredString(capability, "capabilities");
+		if (!CAPABILITIES.has(capabilitySlug as ProviderConfigCapability)) {
+			throw validationError("capability is not supported.", { field: "capabilities" });
+		}
+		if (!normalized.includes(capabilitySlug as ProviderConfigCapability)) {
+			normalized.push(capabilitySlug as ProviderConfigCapability);
+		}
+	}
+	return normalized;
+}
+
+function normalizeCapabilityConfig(value: unknown): ProviderConfigCapabilityConfig {
+	if (value === undefined || value === null) {
+		return {};
+	}
+	if (typeof value !== "object" || Array.isArray(value)) {
+		throw validationError("capabilityConfig must be a JSON object.", {
+			field: "capabilityConfig",
+		});
+	}
+	return structuredClone(value as ProviderConfigCapabilityConfig);
+}
+
+function requireConnectionCapability(
+	connection: ProviderConfigConnection,
+	kind: ProviderConfigKind,
+): void {
+	if (!connection.capabilities.includes(kind)) {
+		throw validationError("connection does not support provider profile kind.", {
+			connectionId: connection.connectionId,
+			kind,
+		});
+	}
 }
 
 function normalizeTimeoutMs(value: unknown): number {
@@ -476,111 +679,6 @@ async function secretRefFromPlaintext(
 		ciphertext: await encryptSecret(trimmed),
 		fingerprint: createHash("sha256").update(trimmed).digest("hex"),
 		last4: trimmed.slice(-4),
-	};
-}
-
-async function defaultValidatePromptProvider(
-	input: Parameters<ProviderConfigValidators["validatePrompt"]>[0],
-): Promise<ProviderConfigValidationResult> {
-	try {
-		const response = await fetch(`${input.baseUrl}/responses`, {
-			body: JSON.stringify({
-				input: "provider config validation",
-				max_output_tokens: 8,
-				model: input.model,
-			}),
-			headers: {
-				authorization: `Bearer ${input.apiKey}`,
-				"content-type": "application/json",
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(input.timeoutMs),
-		});
-		if (!response.ok) {
-			return {
-				errorCode: "provider_http_error",
-				message: `prompt provider validation returned HTTP ${response.status}`,
-				ok: false,
-				status: "failed",
-			};
-		}
-		return { message: "prompt provider validated", ok: true, status: "passed" };
-	} catch (error) {
-		return {
-			errorCode: "provider_request_failed",
-			message: error instanceof Error ? error.message : String(error),
-			ok: false,
-			status: "failed",
-		};
-	}
-}
-
-async function defaultValidateEmbeddingProvider(
-	input: Parameters<ProviderConfigValidators["validateEmbedding"]>[0],
-): Promise<ProviderConfigValidationResult> {
-	try {
-		const response = await fetch(`${input.baseUrl}/embeddings`, {
-			body: JSON.stringify({
-				dimensions: input.dimensions,
-				input: "provider config validation",
-				model: input.model,
-			}),
-			headers: {
-				authorization: `Bearer ${input.apiKey}`,
-				"content-type": "application/json",
-			},
-			method: "POST",
-			signal: AbortSignal.timeout(input.timeoutMs),
-		});
-		if (!response.ok) {
-			return {
-				errorCode: "provider_http_error",
-				message: `embedding provider validation returned HTTP ${response.status}`,
-				ok: false,
-				status: "failed",
-			};
-		}
-		const payload = (await response.json()) as {
-			data?: Array<{ embedding?: unknown[] }>;
-		};
-		const observedDimensions = payload.data?.[0]?.embedding?.length ?? 0;
-		if (observedDimensions <= 0) {
-			return {
-				errorCode: "embedding_response_empty",
-				message: "embedding provider response did not include an embedding.",
-				ok: false,
-				status: "failed",
-			};
-		}
-		if (input.dimensions !== null && observedDimensions !== input.dimensions) {
-			return {
-				errorCode: "embedding_dimensions_mismatch",
-				message: `embedding dimensions mismatch: expected ${input.dimensions}, got ${observedDimensions}`,
-				observedDimensions,
-				ok: false,
-				status: "failed",
-			};
-		}
-		return {
-			message: "embedding provider validated",
-			observedDimensions,
-			ok: true,
-			status: "passed",
-		};
-	} catch (error) {
-		return {
-			errorCode: "provider_request_failed",
-			message: error instanceof Error ? error.message : String(error),
-			ok: false,
-			status: "failed",
-		};
-	}
-}
-
-async function defaultEmbeddingCompatibilityCheck() {
-	return {
-		ok: false,
-		reason: "Embedding compatibility checker is not configured.",
 	};
 }
 

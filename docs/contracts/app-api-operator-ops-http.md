@@ -44,6 +44,9 @@ operator browser -> operator console operations surface -> app-api /api/ops/*
 
 Provider configuration routes：
 
+- `GET /api/operator/provider-config/connections`
+- `POST /api/operator/provider-config/connections`
+- `PATCH /api/operator/provider-config/connections/:connectionId`
 - `GET /api/operator/provider-config/profiles`
 - `POST /api/operator/provider-config/profiles`
 - `PATCH /api/operator/provider-config/profiles/:profileId`
@@ -194,16 +197,40 @@ pagination shape。新增大列表时必须先在本 contract 中冻结 `limit`�
 
 ## Provider Config Envelope
 
-Profile list / command responses returned to Operator Console must not include
-raw API keys.
+Connection / profile list and command responses returned to Operator Console must
+not include raw API keys.
 
-Summary shape:
+Connection summary shape:
+
+```json
+{
+  "connection": {
+    "baseUrl": "https://provider.example/v1",
+    "capabilities": ["embedding", "rerank"],
+    "capabilityConfig": {
+      "rerank": {
+        "path": "/configured-rerank"
+      }
+    },
+    "connectionId": "provider_connection_...",
+    "provider": "gitee",
+    "revision": 1,
+    "secretConfigured": true,
+    "secretFingerprint": "sha256:...",
+    "secretLast4": "1234",
+    "updatedAt": "2026-06-16T00:00:00.000Z"
+  }
+}
+```
+
+Profile summary shape:
 
 ```json
 {
   "profile": {
     "active": true,
     "baseUrl": "https://provider.example/v1",
+    "connectionId": "provider_connection_...",
     "dimensions": 2560,
     "kind": "embedding",
     "model": "Qwen3-Embedding-4B",
@@ -232,9 +259,14 @@ Accepted roles:
 
 - prompt: `primary_agent`, `rag_synthesis`
 - embedding: `rag_query_embedding`, `index_embedding`
+- rerank: `rag_reranker`
 
 Rules:
 
+- provider, base URL, capability-specific transport settings and raw API key are
+  owned by provider connections
+- profiles bind an active role to one connection plus model, kind, transport,
+  timeout and kind-specific dimensions
 - active profiles are immutable; replace by creating a new inactive profile
   revision, validating it and activating it
 - activation requires a passing validation result
@@ -242,7 +274,11 @@ Rules:
   calling execution-control internal
   `POST /internal/provider-config/embedding:check-compatibility`
 - raw API keys may appear only in create/update command bodies and app-api
-  encrypted persistence; they must never appear in operator list responses
+  encrypted connection persistence; they must never appear in operator list
+  responses
+- `rag_reranker` is consumed only when a collection runtime profile explicitly
+  opts in to reranking; missing provider config, missing configured rerank path,
+  provider error or incomplete score response fails closed
 
 Internal runtime snapshot:
 
@@ -250,8 +286,10 @@ Internal runtime snapshot:
 GET /api/internal/provider-config/active?role=primary_agent
 ```
 
-Requires `x-app-internal-auth`. Response includes raw `api_key` and is only for
-machine-internal consumers such as `execution-control`; it is not browser-facing.
+Requires `x-app-internal-auth`. Response resolves the active profile through its
+provider connection, includes raw `api_key`, `base_url`, `kind` and optional
+`capability_config`, and is only for machine-internal consumers such as
+`execution-control`; it is not browser-facing.
 
 Internal OpenAI-compatible proxy:
 

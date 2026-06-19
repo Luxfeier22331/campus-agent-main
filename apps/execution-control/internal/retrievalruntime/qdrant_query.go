@@ -17,9 +17,6 @@ type QueryRequest struct {
 }
 
 func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
-	if request.Profile.RerankerEnabledByDefault {
-		return nil, errors.New("reranker_failed: Go RAG reranker executor is unavailable")
-	}
 	if len(request.DenseEmbedding) == 0 {
 		return nil, errors.New("dense embedding is required")
 	}

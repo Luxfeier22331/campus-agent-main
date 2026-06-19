@@ -48,7 +48,7 @@ func TestBuildHybridQueryBodyUsesDenseSparsePrefetchAndRRF(t *testing.T) {
 	}
 }
 
-func TestBuildHybridQueryBodyRejectsEnabledRerankerWithoutExecutor(t *testing.T) {
+func TestBuildHybridQueryBodyAllowsProfileGatedRerankerCandidateQuery(t *testing.T) {
 	profile := RuntimeProfile{
 		Collection:               "student_rules",
 		Corpus:                   "regulations",
@@ -63,15 +63,18 @@ func TestBuildHybridQueryBodyRejectsEnabledRerankerWithoutExecutor(t *testing.T)
 		SparsePrefetchLimit:      20,
 		SparseVectorName:         "sparse",
 	}
-	_, err := BuildHybridQueryBody(QueryRequest{
+	body, err := BuildHybridQueryBody(QueryRequest{
 		DenseEmbedding: []float64{0.1, 0.2, 0.3},
 		Mode:           "current",
 		Profile:        profile,
 		QueryText:      "学生请假手续",
 		TopK:           8,
 	})
-	if err == nil {
-		t.Fatal("profile-gated reranker without Go executor must fail closed")
+	if err != nil {
+		t.Fatalf("profile-gated reranker candidate query must still build: %v", err)
+	}
+	if body["prefetch"] == nil {
+		t.Fatalf("query body = %#v, want candidate prefetch before executor rerank", body)
 	}
 }
 

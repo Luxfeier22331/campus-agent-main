@@ -20,16 +20,34 @@ const env = {
 };
 
 describe("operator provider config routes", () => {
-	it("creates prompt and embedding profiles without returning raw provider keys", async () => {
+	it("creates provider connections and profiles without returning raw provider keys", async () => {
 		const service = buildTestProviderConfigService();
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
+		const promptConnectionResponse = await createConnection(
+			app,
+			connectionPayload({ apiKey: "sk-prompt-secret-1234", capabilities: ["prompt"] }),
+		);
+		const embeddingConnectionResponse = await createConnection(
+			app,
+			connectionPayload({
+				apiKey: "emb-secret-5678",
+				baseUrl: "https://embedding.example/v1",
+				capabilities: ["embedding"],
+			}),
+		);
 
 		const promptResponse = await app.fetch(
 			new Request("https://app-api.internal/api/operator/provider-config/profiles", {
-				body: JSON.stringify(promptProfilePayload({ apiKey: "sk-prompt-secret-1234" })),
+				body: JSON.stringify(
+					promptProfilePayload({
+						connectionId: connectionIdFromCreateResponse(
+							await readConnectionJsonObject(promptConnectionResponse),
+						),
+					}),
+				),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),
@@ -37,7 +55,12 @@ describe("operator provider config routes", () => {
 		const embeddingResponse = await app.fetch(
 			new Request("https://app-api.internal/api/operator/provider-config/profiles", {
 				body: JSON.stringify(
-					embeddingProfilePayload({ apiKey: "emb-secret-5678", role: "rag_query_embedding" }),
+					embeddingProfilePayload({
+						connectionId: connectionIdFromCreateResponse(
+							await readConnectionJsonObject(embeddingConnectionResponse),
+						),
+						role: "rag_query_embedding",
+					}),
 				),
 				headers: { "content-type": "application/json" },
 				method: "POST",
@@ -55,8 +78,6 @@ describe("operator provider config routes", () => {
 				active: false,
 				kind: "prompt",
 				role: "primary_agent",
-				secretLast4: "1234",
-				secretConfigured: true,
 				status: "draft",
 			},
 		});
@@ -66,8 +87,6 @@ describe("operator provider config routes", () => {
 				dimensions: 2560,
 				kind: "embedding",
 				role: "rag_query_embedding",
-				secretLast4: "5678",
-				secretConfigured: true,
 			},
 		});
 	});
@@ -106,7 +125,7 @@ describe("operator provider config routes", () => {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
-		const createResponse = await createProfile(app, embeddingProfilePayload({ dimensions: 1536 }));
+		const createResponse = await createEmbeddingProfile(app, { dimensions: 1536 });
 		const profileId = profileIdFromCreateResponse(await readJsonObject(createResponse));
 
 		const response = await app.fetch(
@@ -150,7 +169,7 @@ describe("operator provider config routes", () => {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
-		const createResponse = await createProfile(app, embeddingProfilePayload({ dimensions: 2560 }));
+		const createResponse = await createEmbeddingProfile(app, { dimensions: 2560 });
 		const profileId = profileIdFromCreateResponse(await readJsonObject(createResponse));
 		await app.fetch(
 			new Request(
@@ -188,7 +207,7 @@ describe("operator provider config routes", () => {
 			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
 			providerConfigService: service,
 		} as Parameters<typeof createApp>[1]);
-		const promptCreateResponse = await createProfile(app, promptProfilePayload());
+		const promptCreateResponse = await createPromptProfile(app);
 		const promptId = profileIdFromCreateResponse(await readJsonObject(promptCreateResponse));
 		await app.fetch(
 			new Request(
@@ -239,10 +258,17 @@ describe("operator provider config routes", () => {
 		} as Parameters<typeof createApp>[1]);
 
 		for (const role of ["personal_memory_extraction", "memory_graph_llm"]) {
+			const connectionResponse = await createConnection(
+				app,
+				connectionPayload({ capabilities: ["prompt"] }),
+			);
 			const createResponse = await app.fetch(
 				new Request("https://app-api.internal/api/operator/provider-config/profiles", {
 					body: JSON.stringify({
 						...promptProfilePayload({ role: "primary_agent" }),
+						connectionId: connectionIdFromCreateResponse(
+							await readConnectionJsonObject(connectionResponse),
+						),
 						role,
 					}),
 					headers: { "content-type": "application/json" },
@@ -260,6 +286,64 @@ describe("operator provider config routes", () => {
 		}
 	});
 });
+
+async function createPromptProfile(
+	app: ReturnType<typeof createApp>,
+	overrides: Partial<Record<string, unknown>> = {},
+) {
+	const connectionResponse = await createConnection(
+		app,
+		connectionPayload({ capabilities: ["prompt"] }),
+	);
+	return createProfile(
+		app,
+		promptProfilePayload({
+			connectionId: connectionIdFromCreateResponse(
+				await readConnectionJsonObject(connectionResponse),
+			),
+			...overrides,
+		}),
+	);
+}
+
+async function createEmbeddingProfile(
+	app: ReturnType<typeof createApp>,
+	overrides: Partial<Record<string, unknown>> = {},
+) {
+	const connectionResponse = await createConnection(
+		app,
+		connectionPayload({
+			baseUrl: "https://embedding.example/v1",
+			capabilities: ["embedding"],
+		}),
+	);
+	return createProfile(
+		app,
+		embeddingProfilePayload({
+			connectionId: connectionIdFromCreateResponse(
+				await readConnectionJsonObject(connectionResponse),
+			),
+			...overrides,
+		}),
+	);
+}
+
+async function createConnection(
+	app: ReturnType<typeof createApp>,
+	payload: Record<string, unknown>,
+) {
+	const response = await app.fetch(
+		new Request("https://app-api.internal/api/operator/provider-config/connections", {
+			body: JSON.stringify(payload),
+			headers: { "content-type": "application/json" },
+			method: "POST",
+		}),
+	);
+	if (response.status !== 200) {
+		throw new Error(`create provider connection returned HTTP ${response.status}`);
+	}
+	return response;
+}
 
 function buildTestProviderConfigService(
 	overrides: Parameters<typeof buildProviderConfigService>[0]["validators"] = {},
@@ -324,15 +408,40 @@ function profileIdFromCreateResponse(value: Record<string, unknown>): string {
 	return profileId;
 }
 
+async function readConnectionJsonObject(response: Response): Promise<Record<string, unknown>> {
+	return readJsonObject(response);
+}
+
+function connectionIdFromCreateResponse(value: Record<string, unknown>): string {
+	const connection = value.connection;
+	if (!connection || typeof connection !== "object" || Array.isArray(connection)) {
+		throw new Error("expected connection object response");
+	}
+	const connectionId = (connection as Record<string, unknown>).connectionId;
+	if (typeof connectionId !== "string" || !connectionId.trim()) {
+		throw new Error("expected connection.connectionId response");
+	}
+	return connectionId;
+}
+
+function connectionPayload(overrides: Partial<Record<string, unknown>> = {}) {
+	return {
+		apiKey: "sk-test-provider-key",
+		baseUrl: "https://provider.example/v1",
+		capabilities: ["prompt"],
+		capabilityConfig: {},
+		provider: "openai",
+		...overrides,
+	};
+}
+
 function promptProfilePayload(overrides: Partial<Record<string, unknown>> = {}) {
 	return {
+		connectionId: "provider_connection_test",
 		kind: "prompt",
 		role: "primary_agent",
-		provider: "openai",
 		transport: "responses",
-		baseUrl: "https://provider.example/v1",
 		model: "gpt-test",
-		apiKey: "sk-test-provider-key",
 		timeoutMs: 30000,
 		...overrides,
 	};
@@ -340,14 +449,12 @@ function promptProfilePayload(overrides: Partial<Record<string, unknown>> = {}) 
 
 function embeddingProfilePayload(overrides: Partial<Record<string, unknown>> = {}) {
 	return {
+		connectionId: "provider_connection_test",
 		kind: "embedding",
 		role: "rag_query_embedding",
-		provider: "openai",
 		transport: "embeddings",
-		baseUrl: "https://embedding.example/v1",
 		model: "embedding-test",
 		dimensions: 2560,
-		apiKey: "embedding-test-provider-key",
 		timeoutMs: 30000,
 		...overrides,
 	};

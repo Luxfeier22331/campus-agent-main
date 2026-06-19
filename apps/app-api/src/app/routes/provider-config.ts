@@ -50,6 +50,73 @@ export function registerProviderConfigRoutes(input: {
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
+	input.app.get("/api/operator/provider-config/connections", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperator({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		return jsonResponse(
+			await scope.resolveProviderConfigService().listConnections({
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.post("/api/operator/provider-config/connections", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperator({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		const correlation = createRouteErrorCorrelation();
+		try {
+			return jsonResponse(
+				await scope.resolveProviderConfigService().createConnection({
+					payload: await readJsonRequestBody(c.req.raw),
+					principal: resolved.principal,
+				}),
+			);
+		} catch (error) {
+			return withRouteErrorCorrelation(error, correlation);
+		}
+	});
+
+	input.app.patch("/api/operator/provider-config/connections/:connectionId", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperator({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+		const correlation = createRouteErrorCorrelation();
+		try {
+			return jsonResponse(
+				await scope.resolveProviderConfigService().updateConnection({
+					connectionId: c.req.param("connectionId"),
+					payload: await readJsonRequestBody(c.req.raw),
+					principal: resolved.principal,
+				}),
+			);
+		} catch (error) {
+			return withRouteErrorCorrelation(error, correlation);
+		}
+	});
+
 	input.app.get("/api/operator/provider-config/profiles", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperator({
