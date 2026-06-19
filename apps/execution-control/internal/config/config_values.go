@@ -20,13 +20,6 @@ func normalizeRuntimeProfile(value string) (string, error) {
 	}
 }
 
-func promptRuntimeBaseURL(values envValues) string {
-	if baseURL := strings.TrimSpace(values.PromptRuntimeBaseURL); baseURL != "" {
-		return baseURL
-	}
-	return "https://api.openai.com/v1"
-}
-
 func defaultString(value string, defaultValue string) string {
 	if value == "" {
 		return defaultValue

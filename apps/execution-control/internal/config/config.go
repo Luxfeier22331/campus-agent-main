@@ -74,13 +74,7 @@ type Config struct {
 	StructuredQueryTrustedTimeRFC3339   string
 	StructuredQueryTimeoutMS            int
 	StructuredProjectionDatabaseURL     string
-	PromptRuntimeProvider               string
 	ProviderPricingPath                 string
-	ExecutionPromptModel                string
-	PromptRuntimeAPIKey                 string
-	PromptRuntimeTransport              string
-	PromptRuntimeBaseURL                string
-	PromptStrictStructuredOutputs       bool
 	NoticeReadModelDatabaseURL          string
 	NoticeReadModelTable                string
 	NoticeBodyObjectStoreEndpoint       string
@@ -181,10 +175,7 @@ type envValues struct {
 	InternalQuerySharedSecret           string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339   string `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS            int
-	PromptRuntimeTransport              string `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
-	PromptRuntimeBaseURL                string `env:"PROMPT_RUNTIME_BASE_URL"`
 	ProviderPricingPath                 string
-	PromptStrictStructuredOutputs       string  `env:"PROMPT_STRICT_STRUCTURED_OUTPUTS" envDefault:"true"`
 	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
 	NoticeBodyObjectStoreEndpoint       string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
 	NoticeBodyObjectStoreAccessKey      string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY"`
@@ -225,6 +216,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRuntimeProfileOwnedEnvSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredPromptRuntimeSettings(); err != nil {
+		return Config{}, err
+	}
 	values, err := parseEnvValues()
 	if err != nil {
 		return Config{}, err
@@ -248,13 +242,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 			runtimeConfigProfile.ExecutionAudit.Enabled,
 			executionAuditEnabled,
 		)
-	}
-	promptStrictStructuredOutputs, err := parseBoolStrict(
-		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
-		values.PromptStrictStructuredOutputs,
-	)
-	if err != nil {
-		return Config{}, err
 	}
 	runtimeProfile, err := normalizeRuntimeProfile(values.RuntimeProfile)
 	if err != nil {
@@ -389,13 +376,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		StructuredQueryTrustedTimeRFC3339:   strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:            values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
-		PromptRuntimeProvider:               readString("PROMPT_RUNTIME_PROVIDER", ""),
 		ProviderPricingPath:                 strings.TrimSpace(values.ProviderPricingPath),
-		ExecutionPromptModel:                readString("EXECUTION_PROMPT_MODEL", ""),
-		PromptRuntimeAPIKey:                 readString("PROMPT_RUNTIME_API_KEY", ""),
-		PromptRuntimeTransport:              defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
-		PromptRuntimeBaseURL:                promptRuntimeBaseURL(values),
-		PromptStrictStructuredOutputs:       promptStrictStructuredOutputs,
 		NoticeReadModelDatabaseURL:          readNoticeReadModelDatabaseURL(),
 		NoticeReadModelTable:                defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
 		NoticeBodyObjectStoreEndpoint:       strings.TrimSpace(values.NoticeBodyObjectStoreEndpoint),

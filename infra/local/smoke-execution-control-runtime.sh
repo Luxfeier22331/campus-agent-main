@@ -182,10 +182,6 @@ configure_common_env() {
   export AGENT_RUNTIME_TOOL_CATALOG_PATH="${AGENT_RUNTIME_TOOL_CATALOG_PATH:-configs/runtime/tool-catalog.v1.json}"
   export AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL="${AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL:-http://execution-control:8000}"
   export AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET="${AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET:-${EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET}}"
-  export PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"
-  export PROMPT_RUNTIME_API_KEY="${PROMPT_RUNTIME_API_KEY:-supervisor-runtime-smoke-key}"
-  export PROMPT_RUNTIME_BASE_URL="${PROMPT_RUNTIME_BASE_URL:-http://127.0.0.1:9/v1}"
-  export PROMPT_STRICT_STRUCTURED_OUTPUTS="${PROMPT_STRICT_STRUCTURED_OUTPUTS:-true}"
 }
 
 configure_profile_env() {
@@ -193,7 +189,6 @@ configure_profile_env() {
     closed_gate)
       ;;
     readyz_degraded)
-      export PROMPT_RUNTIME_API_KEY=""
       ;;
     *)
       echo "Unknown smoke profile: ${profile}. Expected closed_gate or readyz_degraded." >&2

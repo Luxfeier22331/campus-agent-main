@@ -33,6 +33,15 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
             process.env["EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"], "query-secret"
         )
         self.assertNotIn("EXECUTION_CONTROL_OPEN_CAPABILITIES", process.env)
+        self.assertFalse(
+            {
+                "PROMPT_RUNTIME_API_KEY",
+                "PROMPT_RUNTIME_MODEL",
+                "PROMPT_RUNTIME_PROVIDER",
+                "PROMPT_STRICT_STRUCTURED_OUTPUTS",
+                "EXECUTION_PROMPT_MODEL",
+            }.intersection(process.env)
+        )
         command_words = [word for command in plan.processes for word in command.command]
         self.assertNotIn("docker", command_words)
         self.assertNotIn("wrangler", command_words)

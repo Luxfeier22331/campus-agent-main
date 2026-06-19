@@ -18,8 +18,7 @@ class RunWithStagingIngestionEnvScriptTest(unittest.TestCase):
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", source)
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_ENDPOINT", source)
         self.assertIn("OBJECT_STORE_ENDPOINT", source)
-        self.assertIn("STAGING_INGESTION_QDRANT_URL", source)
-        self.assertIn("QDRANT_URL", source)
+        self.assertNotIn("STAGING_INGESTION_QDRANT_URL", source)
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_SOURCE_ACCESS_KEY", source)
         self.assertIn("OBJECT_STORE_SOURCE_ACCESS_KEY", source)
         self.assertIn("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY", source)
@@ -40,12 +39,12 @@ class RunWithStagingIngestionEnvScriptTest(unittest.TestCase):
             "STAGING_INGESTION_OBJECT_STORE_SOURCE_SECRET_KEY=",
             "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=",
             "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=",
-            "STAGING_INGESTION_QDRANT_URL=",
-            "STAGING_INGESTION_QDRANT_API_KEY=",
-            "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=",
-            "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=",
         ):
             self.assertIn(key, source)
+        self.assertNotIn("STAGING_INGESTION_QDRANT_URL=", source)
+        self.assertNotIn("STAGING_INGESTION_QDRANT_API_KEY=", source)
+        self.assertNotIn("STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=", source)
+        self.assertNotIn("STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=", source)
 
 
 if __name__ == "__main__":

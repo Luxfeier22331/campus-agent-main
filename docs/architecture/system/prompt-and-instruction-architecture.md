@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: prompt-runtime
+owner_boundary: docs/architecture/system/prompt-and-instruction
 status: active
 created: 2026-04-05
 updated: 2026-06-13

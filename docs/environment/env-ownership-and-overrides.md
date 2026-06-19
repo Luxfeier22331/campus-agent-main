@@ -35,14 +35,16 @@ updated: 2026-04-20
 
 ### Repo root `.env` / `.env.example`
 
-只承载 repo-root shared runtime config，例如：
+只承载 repo-root shared database handles：
 
-- shared LLM / embedding provider
-- retrieval / Qdrant
-- object store
-- OCR provider
-- eval model selection
-- 本地 dev server 监听地址
+- `CAMPUS_SHARED_POSTGRES_URL`
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
+
+repo root `.env.example` 不承载 provider profile、Qdrant、object store、OCR、eval ingress、
+execution-control runtime 或 domain multimodal registry。`internal notice`、`curriculum
+course-map`、`handbook service navigation` 等离线/领域链路只把必备 credential/model 作为领域入口配置；
+base URL、reasoning effort、max output tokens、transport 等 tuning 走代码默认、CLI 参数或领域配置，
+不回流成 root env contract。
 
 ### App-local env template
 
@@ -59,8 +61,7 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 ### Repo root shared env
 
 - [`.env.example`](/home/reptilian/code/campus-agent/.env.example)
-  - shared provider、object store、registry、eval ingress、supervisor local runtime、shared
-    HTTP listen config
+  - shared Postgres runtime / operator DSN handles only
 
 ### App-local env
 
@@ -101,6 +102,14 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 ## Override Rules
 
 - env 只承载会随 deploy 或 runtime 变化的资源句柄、密钥、provider 配置、运行时 host/base URL
+- self-hosted Qdrant 的 URL 与 key 由 local/staging lifecycle 约定、生成并投影；
+  root env 不维护 `QDRANT_*`
+- provider canonical env 优先于 sink / exporter 派生 env。典型例子是 Langfuse：
+  `LANGFUSE_BASE_URL`、`LANGFUSE_PUBLIC_KEY`、`LANGFUSE_SECRET_KEY` 与
+  `LANGFUSE_ENVIRONMENT` 是 staging closeout canonical config；
+  `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`、`OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
+  和 `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION` 是 Collector deploy/render
+  输出或 closeout 脚本派生值，不应作为手工维护的第二份 truth
 - 单次任务身份、源文档 identity、目标 scope 优先走 CLI args 或 typed request
 - repo-tracked truth 默认来自 config / manifest / source projection，而不是 env
 - `OCR_PROVIDER_MODE` 必须显式设置，不依赖 `OCR_BASE_URL` 推断 provider

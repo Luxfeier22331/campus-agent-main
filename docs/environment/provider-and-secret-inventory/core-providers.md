@@ -26,7 +26,7 @@ owns this section group; the original path remains the stable index.
 
 online serving owner：
 
-- `apps/app-api` provider-config profile
+- `apps/app-api` provider-config connection + profile
 - Operator Console `/operations/provider-config`
 - `execution-control` 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
@@ -34,22 +34,23 @@ online serving owner：
 
 默认 env 放置位置：
 
-- root `.env` 只用于 local seed / eval / command-scoped override，不再是 online
-  serving truth
+- local seed / eval 使用 command-scoped env 或 ignored local convenience env，不再是 online
+  serving truth，也不写入 root `.env.example`
+- domain multimodal lanes 不通过 `LLM_*` fallback，也不在 root `.env.example`
+  只在领域入口显式提供必备 API key 和 model；eval runtime 的 model / max token /
+  reasoning / transport tuning 由 repo-tracked eval runtime profile 持有
 
 相关键：
 
-- `LLM_BASE_URL`
-- `LLM_API_KEY`
-- `EXECUTION_PROMPT_MODEL`（仅显式 deterministic execution prompt lane 使用）
-- 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
-  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
+- command-scoped `EVAL_LLM_BASE_URL`
+- command-scoped `EVAL_LLM_API_KEY`
 
 获取方式：
 
 1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
 1. 在所选供应商控制台创建项目级或环境级 API key。
-1. 通过 Operator Console 创建 prompt profile，选择 role、base URL、model 与 API key。
+1. 通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、model
+   与 API key。
 1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
    execution-control 消费。
 1. staging / prod 必须分环境单独发 key，不要复用本地开发 key。
@@ -67,7 +68,8 @@ online serving owner：
 
 - 上述 “OpenAI 项目级 key” 是官方推荐路径；如果改用其他 OpenAI-compatible vendor，则点击路径以供应商控制台当前 UI
   为准
-- eval override 不是默认必需项。只有预算、限流或模型隔离需要时才单独配置
+- eval provider override 不是默认必需项。只有预算或限流隔离需要时才单独配置 endpoint/key；
+  模型对比走 eval runtime profile / manifest，不走 root env
 - active profile list 只返回 masked secret metadata；raw key 只通过 app-api internal
   runtime snapshot 给 execution-control，不返回浏览器
 
@@ -88,34 +90,31 @@ online serving owner：
 
 online serving owner：
 
-- `apps/app-api` provider-config profile
+- `apps/app-api` provider-config connection + `rag_query_embedding` profile
 - Operator Console `/operations/provider-config`
 - `execution-control` 通过
   `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot
 
 默认 env 放置位置：
 
-- ingestion / local seed / eval / command-scoped override 仍可用 root `.env`
-- online retrieval 不再以 root `.env` 为 truth
+- ingestion / local seed / eval / command-scoped override 只消费 endpoint/key
+- online retrieval 不再以 root `.env` 为 truth；root `.env.example` 不注册 embedding key
 
 相关键：
 
-- `EMBEDDING_PROVIDER`
 - `EMBEDDING_BASE_URL`
 - `EMBEDDING_API_KEY`
-- `EMBEDDING_MODEL`
-- `EMBEDDING_DIMENSIONS`
-- 可选 eval override：`EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`
-  `EVAL_EMBEDDING_MODEL` `EVAL_EMBEDDING_DIMENSIONS`
+- 可选 eval provider override：`EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`
 
 获取方式：
 
 1. 如果保持当前 baseline，不要擅自更换模型维度或 vendor。
-1. 在当前 embedding vendor 控制台开通 embeddings 服务，记录 `base_url`、API token 与模型名。
-1. 通过 Operator Console 创建 embedding profile，选择 role、base URL、model、API key 与
-   dimensions。
+1. 在当前 embedding vendor 控制台开通 embeddings 服务，记录 `base_url` 与 API token。
+1. 通过 Operator Console 创建 embedding connection 与 profile，选择 role、base URL、
+   model、API key 与 dimensions。
 1. validate profile；activate 前 app-api 必须检查 active retrieval vector dimensions 兼容性。
-1. 只有 ingestion、eval 或 local command 需要独立 provider 时，才额外填写 env
+1. 只有 ingestion、eval 或 local command 需要独立 provider endpoint/key 时，才额外填写 env；
+   model、dimensions 与 sparse profile 以 collection runtime profile 为准
    `EMBEDDING_*` 或 `EVAL_EMBEDDING_*`。
 
 外部参考：
@@ -128,11 +127,42 @@ online serving owner：
 - 如果要更换 retrieval baseline，不是只改 env；还要同步 ADR / policy / eval 基线
 - `index_embedding` 面向 offline indexing；online query path 消费 `rag_query_embedding`
 
-## 3. Qdrant
+## 3. Rerank provider
+
+online serving owner：
+
+- `apps/app-api` provider-config connection + `rag_reranker` profile
+- collection runtime profile 显式 `reranker_enabled_by_default=true`
+- `execution-control` 通过
+  `/api/internal/provider-config/active?role=rag_reranker` 读取 active runtime snapshot
+
+默认 env 放置位置：
+
+- local seed 可用 command-scoped `RERANK_*`
+- online retrieval 不以 root `.env` 为 truth；root `.env.example` 不注册 rerank key
+- provider path 属于 connection `capabilityConfig.rerank.path`，不在 execution-control env 中猜测
+
+相关键：
+
+- `RERANK_BASE_URL`
+- `RERANK_API_KEY`
+- `RERANK_PATH`
+- `RERANK_MODEL`
+
+获取方式：
+
+1. 在当前 rerank vendor 控制台开通 rerank 服务，记录 endpoint、API token 与实际 path。
+1. 通过 Operator Console 创建 rerank connection 与 `rag_reranker` profile。
+1. validate profile；runtime profile 未显式开启 reranker 时不会消费该 profile。
+1. 开启 reranker 后，缺 profile、缺 path、provider 失败或 score 不完整都 fail closed，不回退到
+   baseline hybrid/RRF 顺序。
+
+## 4. Qdrant
 
 默认放置位置：
 
-- root `.env`
+- self-host lifecycle generated env / runtime projection
+- external / non-canonical override 只放 ops-owned runtime env，不写 root `.env.example`
 
 相关键：
 
@@ -147,8 +177,8 @@ online serving owner：
 1. canonical self-host runtime 默认由 lifecycle 投影
    `QDRANT_URL=http://qdrant:6333`，并生成 deploy-scoped `QDRANT_API_KEY` 与
    `QDRANT_READ_ONLY_API_KEY`。
-1. 只有外接 / 非 canonical Qdrant endpoint 时才显式写入 `QDRANT_URL`；跨 substrate、
-   公网入口或 machine ingress 必须使用 HTTPS。
+1. 只有外接 / 非 canonical Qdrant endpoint 时才在 ops-owned runtime env 显式写入
+   `QDRANT_URL`；跨 substrate、公网入口或 machine ingress 必须使用 HTTPS。
 1. online execution runtime 使用 read-only key 投影出的 `QDRANT_QUERY_API_KEY`，不得用
    admin `QDRANT_API_KEY` 查询。
 1. 仅 HTTPS Qdrant endpoint 需要配置 `QDRANT_TLS_CA_CERT_PATH` 指向 ops-owned CA bundle。
@@ -166,7 +196,7 @@ online serving owner：
 - 当前不采用 Qdrant Cloud 作为 staging / early-production 默认方案；Cloud 相关旧方案已由
   ADR-0045 supersede
 
-## 4. Hindsight
+## 5. Hindsight
 
 Hindsight 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
 extraction、dedupe / merge 与 recall。Qdrant 不再承载 personal memory。
@@ -229,7 +259,7 @@ repo-owned `personal_memory_extraction` prompt。
 
 放置位置：
 
-- root `.env` / command env 仅用于 local dev 与 staging process injection
+- local/staging lifecycle generated runtime env
 - staging / production secret store 必须注入 `execution-control` 与 `activity-context`
 
 获取方式：
@@ -254,7 +284,7 @@ repo-owned `personal_memory_extraction` prompt。
 - `hindsight-memory-product-path` eval profile 验证 append、recall、explicit profile memory
   upsert / disable、owner disable 与 user isolation。
 
-## 5. Shared Postgres
+## 6. Shared Postgres
 
 当前 repo 同时存在两个姿态：
 
@@ -263,8 +293,10 @@ repo-owned `personal_memory_extraction` prompt。
 
 默认放置位置：
 
-- root `.env`
+- root `.env` only for `CAMPUS_SHARED_POSTGRES_URL` and
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
 - `apps/app-api/.env` 只保存 `app-api` 本地 Wrangler / Drizzle 进程用镜像值，不是新的 owner
+- registry/raw dedicated DSN keys are app/command overrides, not root `.env.example`
 
 相关键：
 
@@ -298,11 +330,13 @@ repo-owned `personal_memory_extraction` prompt。
 - 本地 Docker Postgres 是 `local dev / test path`，不是 deployed runtime truth
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径
 
-## 5. S3-compatible object storage
+## 7. S3-compatible object storage
 
 默认放置位置：
 
-- root `.env`
+- collector app-local env
+- ingestion command env
+- deploy secret store
 
 相关键：
 

@@ -21,10 +21,13 @@ owns this section group; the original path remains the stable index.
 至少准备：
 
 - root `.env`
-  - LLM provider
-  - embedding provider
-  - Qdrant
   - shared Postgres
+- app-api provider-config active profiles
+  - `primary_agent`
+  - `rag_synthesis`
+  - `rag_query_embedding`
+- self-host local runtime lifecycle
+  - Qdrant URL/key projection
 - `apps/app-api/.env`
   - local Hyperdrive / management DSN
 - `apps/app-api/.dev.vars`
@@ -50,8 +53,8 @@ owns this section group; the original path remains the stable index.
 
 在上面的基础上再准备：
 
-- object storage
-- OCR provider
+- collector app-local 或 ingestion command env 中的 object storage
+- command/domain runtime 中的 OCR provider
 - 需要时的 command-scoped env
 
 ## 跑 staging Worker deploy

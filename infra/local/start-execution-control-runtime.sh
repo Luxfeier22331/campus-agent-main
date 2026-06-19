@@ -92,21 +92,6 @@ const keys = [
   "AGENT_RUNTIME_TOOL_CATALOG_PATH",
   "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL",
   "AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET",
-  "PROMPT_RUNTIME_PROVIDER",
-  "PROMPT_RUNTIME_TRANSPORT",
-  "EXECUTION_PROMPT_MODEL",
-  "PROMPT_RUNTIME_API_KEY",
-  "PROMPT_RUNTIME_BASE_URL",
-  "PROMPT_RUNTIME_REASONING_EFFORT",
-  "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
-  "PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
-  "PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
-  "PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
-  "PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
-  "PROMPT_RUNTIME_MAX_CONNECTIONS",
-  "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
-  "PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
-  "PROMPT_STRICT_STRUCTURED_OUTPUTS",
   "LLM_API_KEY",
   "LLM_BASE_URL",
   "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
@@ -283,9 +268,6 @@ if (resolvedAgentRuntimeSharedSecret) {
 if (!resolved.get("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH")) {
   resolved.set("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", "/etc/campus-agent/runtime-profile.local-real-provider.json");
 }
-if (!resolved.get("EXECUTION_PROMPT_MODEL") && process.env.PROMPT_RUNTIME_MODEL?.trim()) {
-  resolved.set("EXECUTION_PROMPT_MODEL", process.env.PROMPT_RUNTIME_MODEL.trim());
-}
 resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", appApiInternalBaseUrl.replace(/\/+$/, ""));
 if (appApiInternalSharedSecret) {
   resolved.set("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET", appApiInternalSharedSecret);
@@ -383,20 +365,8 @@ if (!resolved.get("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY")) {
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
-if (!resolved.get("HINDSIGHT_API_LLM_API_KEY")) {
-  const llmApiKey = process.env.PROMPT_RUNTIME_API_KEY?.trim() || process.env.LLM_API_KEY?.trim() || "";
-  if (llmApiKey) {
-    resolved.set("HINDSIGHT_API_LLM_API_KEY", llmApiKey);
-  }
-}
-if (!resolved.get("HINDSIGHT_API_LLM_BASE_URL")) {
-  const llmBaseUrl = process.env.PROMPT_RUNTIME_BASE_URL?.trim() || process.env.LLM_BASE_URL?.trim() || "";
-  if (llmBaseUrl) {
-    resolved.set("HINDSIGHT_API_LLM_BASE_URL", llmBaseUrl);
-  }
-}
 if (!resolved.get("HINDSIGHT_API_LLM_MODEL")) {
-  resolved.set("HINDSIGHT_API_LLM_MODEL", process.env.EXECUTION_PROMPT_MODEL?.trim() || "gpt-4o-mini");
+  resolved.set("HINDSIGHT_API_LLM_MODEL", "gpt-4o-mini");
 }
 if (!resolved.get("HINDSIGHT_API_LLM_PROVIDER")) {
   resolved.set("HINDSIGHT_API_LLM_PROVIDER", "openai");
@@ -491,7 +461,7 @@ execution_control_runtime_require_runtime_env() {
     return 1
   fi
   if [[ -z "${HINDSIGHT_API_LLM_API_KEY:-}" ]]; then
-    echo "HINDSIGHT_API_LLM_API_KEY or PROMPT_RUNTIME_API_KEY is required for Hindsight retain/recall." >&2
+    echo "HINDSIGHT_API_LLM_API_KEY is required for Hindsight retain/recall." >&2
     return 1
   fi
   if [[ -z "${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:-}" ]]; then

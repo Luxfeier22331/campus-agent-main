@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: prompt-runtime
+owner_boundary: docs/architecture/system/prompt-and-instruction
 status: active
 created: 2026-06-13
 updated: 2026-06-14
@@ -27,25 +27,26 @@ code-owned runtime seam。当前接受的实现基线是：
 
 补充约束：
 
-- repo-global developer invariants 由 `packages/prompt-runtime` 持有
+- repo-global developer invariants 由 prompt/instruction architecture 与对应
+  app/runtime owner 持有
 - package-owned role prompt 当前由 Go-owned knowledge / RAG runtime 与
-  `packages/prompt-runtime` contract 持有；Python production legacy terminal prompt
+  app/runtime contracts 持有；Python production legacy terminal prompt
   family 已移除
 - prompt-facing persona / family wording 应使用 `knowledge` 或中性的 knowledge-path
   wording，不把 `knowledge` 当默认对外标签
 - retired Python bridge 的 prompt stack 已从 active workspace 删除；developer
   invariants、role prompt、trusted task packet、untrusted user/evidence packet 的
-  active owner 分别落在 `packages/prompt-runtime` 与 Go-owned execution path
-- `packages/prompt-runtime` 负责 provider-facing prompt contract validation、
+  active owner 分别落在 app/runtime owner 与 Go-owned execution path
+- Go-owned execution path 负责 RAG provider-facing prompt contract validation、
   provider-backed strict structured outputs、provider response normalization，并生成
-  validated `PromptTrace`
+  validated model execution diagnostics
 - active RAG prompt execution 不再通过 Python worker-local executor；Go-owned
-  Temporal RAG path 与 `packages/prompt-runtime` contract 承接 provider-facing
+  Temporal RAG path 承接 provider-facing
   validation / normalization / trace
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
   path fail-close，不得被当作 schema-valid success 放行
 - `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
-  version`、`template_sha256`、`prompt_runtime_state`、`prompt_runtime_detail`
+  version`、`template_sha256`、`model_execution_state`、`model_execution_detail`
 - curriculum / handbook 的 deterministic-first protected paths 继续保持
   deterministic-first，不因 prompt rollout 回退成 prompt-first
 - 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以

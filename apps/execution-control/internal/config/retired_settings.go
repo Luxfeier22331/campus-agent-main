@@ -64,7 +64,34 @@ func rejectRetiredSupervisorSettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use EXECUTION_PROMPT_MODEL", name)
+			return fmt.Errorf("%s is retired; use app-api provider-config active profiles", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredPromptRuntimeSettings() error {
+	retired := []string{
+		"PROMPT_RUNTIME_PROVIDER",
+		"PROMPT_RUNTIME_MODEL",
+		"PROMPT_RUNTIME_API_KEY",
+		"PROMPT_RUNTIME_TRANSPORT",
+		"PROMPT_RUNTIME_BASE_URL",
+		"PROMPT_RUNTIME_REASONING_EFFORT",
+		"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
+		"PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_MAX_CONNECTIONS",
+		"PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+		"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
+		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
+		"EXECUTION_PROMPT_MODEL",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; use app-api provider-config active profiles", name)
 		}
 	}
 	return nil

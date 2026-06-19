@@ -74,8 +74,8 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 默认放置位置：
 
-- root `.env`
 - 命令级 override 放在 `env/commands/*.env.example`
+- domain/runtime config 持有 lane 级模型和 tuning
 
 相关键：
 
@@ -300,7 +300,8 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 - 各 app 的 `.dev.vars`
 - deploy-side Cloudflare secret store
-- root `.env` 只允许作为本地 fan-out convenience source，不是运行面 owner
+- ignored local convenience `.env` 只允许作为 fan-out source，不是运行面 owner，
+  也不写入 root `.env.example`
 
 运行面相关键：
 

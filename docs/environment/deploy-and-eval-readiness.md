@@ -73,8 +73,8 @@ Conditional readiness:
 
 Runtime `/readyz` is stricter than liveness:
 
-- `200 ready` means prompt runtime admitted, prompt HTTP pool configured,
-  audit writer healthy, and answer admission not currently saturated
+- `200 ready` means provider-config resolver admitted, audit writer healthy,
+  and answer admission not currently saturated
 - `503 degraded` means at least one execution runtime component is not ready
 - outside the `local` runtime profile, execution-control full `/readyz` requires
   internal worker auth and must not be used as an unauthenticated public deploy
@@ -123,10 +123,10 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - deploy secret truth 继续留在 Cloudflare secret store，不写回 repo-tracked
   `.dev.vars.example`
 - Qdrant staging data-plane 是 self-hosted authenticated private service；
-  `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 缺失必须 fail closed。staging /
-  production 的 online query runtime 必须使用 HTTPS Qdrant URL、read-only
-  `QDRANT_QUERY_API_KEY` 与 `QDRANT_TLS_CA_CERT_PATH`。`api_key + http://` warning
-  不再是可接受的 staging hardening backlog，不能通过删除 API key 消除。
+  `QDRANT_API_KEY` / `QDRANT_READ_ONLY_API_KEY` 缺失必须 fail closed。canonical
+  self-host runtime 由 lifecycle 投影内网 `http://qdrant:6333` 与 read-only
+  `QDRANT_QUERY_API_KEY`；只有外接 / 非 canonical Qdrant endpoint 才要求 HTTPS URL 与
+  `QDRANT_TLS_CA_CERT_PATH`。不能通过删除 API key 消除 data-plane hardening gap。
 
 ## Staging Deploy Rules
 
@@ -153,17 +153,17 @@ online answer serving 不再以 `LLM_*` / `EMBEDDING_*` env 为 provider/model/A
 key truth；它消费 app-api provider-config active profiles。eval env contract 只描述
 eval / local automation。
 
-长期保留的 eval 链路键包括：
+eval 链路长期只保留 provider endpoint/key env：
 
-- `EVAL_RAGAS_MODEL`
-- `EVAL_JUDGE_MODEL`
-- `EVAL_LLM_TRANSPORT`
-- `EVAL_RAGAS_LLM_TRANSPORT`
-- `EVAL_JUDGE_LLM_TRANSPORT`
+- `EVAL_LLM_BASE_URL`
+- `EVAL_LLM_API_KEY`
+- `EVAL_EMBEDDING_BASE_URL`
+- `EVAL_EMBEDDING_API_KEY`
 
 固定要求：
 
-- eval transport 允许值固定为 `responses` 或 `chat_completions`
+- eval model、transport、reasoning 与 token 配置由
+  `packages/evals/fixtures/ops/eval_runtime_profiles.v1.json` 持有
 - 临时脚本 / REPL 不自动 bootstrap `.env`
 - 需要确认 eval surface 实际可见性时，优先使用：
 

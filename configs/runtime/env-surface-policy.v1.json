@@ -15,7 +15,7 @@
 		"infra/otel/collector.env.example"
 	],
 	"template_key_limits": {
-		".env.example": 106,
+		".env.example": 2,
 		"apps/authenticated-notice-collector/.env.example": 44,
 		"env/commands/execution-control-runtime.env.example": 39
 	},
@@ -268,6 +268,26 @@
 		"EXECUTION_CONTROL_RUNTIME_RELEASE": {
 			"owner": "runtime-observability",
 			"scopes": ["root", "command", "staging-local"],
+			"secret": false
+		},
+		"LANGFUSE_BASE_URL": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": false
+		},
+		"LANGFUSE_PUBLIC_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": true
+		},
+		"LANGFUSE_SECRET_KEY": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
+			"secret": true
+		},
+		"LANGFUSE_ENVIRONMENT": {
+			"owner": "runtime-observability",
+			"scopes": ["staging-local"],
 			"secret": false
 		}
 	},

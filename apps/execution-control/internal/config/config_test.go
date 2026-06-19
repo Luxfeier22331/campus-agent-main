@@ -241,14 +241,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.NoticeBodyObjectStoreBodyLimitBytes != 1_048_576 {
 		t.Fatalf("notice body limit = %d, want 1048576", cfg.NoticeBodyObjectStoreBodyLimitBytes)
 	}
-	if cfg.PromptRuntimeProvider != "" ||
-		cfg.ExecutionPromptModel != "" ||
-		cfg.PromptRuntimeAPIKey != "" ||
-		cfg.PromptRuntimeTransport != "responses" ||
-		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
-		!cfg.PromptStrictStructuredOutputs {
-		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
-	}
 	if cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryBaseURL != "" ||
 		cfg.PersonalMemoryAPISecret != "" ||
@@ -575,7 +567,6 @@ func TestLoadFromEnvRejectsInvalidPositiveIntegers(t *testing.T) {
 
 func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "   ")
-	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "   ")
 	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION", "   ")
 
 	cfg, err := LoadFromEnv()
@@ -584,9 +575,6 @@ func TestLoadFromEnvFallsBackForBlankDefaultedStrings(t *testing.T) {
 	}
 	if cfg.AuthMode != "bearer" {
 		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
-	}
-	if cfg.PromptRuntimeTransport != "responses" {
-		t.Fatalf("prompt runtime transport = %q, want responses", cfg.PromptRuntimeTransport)
 	}
 	if cfg.NoticeBodyObjectStoreRegion != "us-east-1" {
 		t.Fatalf("notice object store region = %q, want us-east-1", cfg.NoticeBodyObjectStoreRegion)
@@ -631,12 +619,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_METRICS_BEARER_TOKEN", "metrics-token")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_DATABASE_URL", "postgres://workflow.example/db")
 	t.Setenv("EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE", "true")
-	t.Setenv("PROMPT_RUNTIME_PROVIDER", "openai-responses")
-	t.Setenv("EXECUTION_PROMPT_MODEL", "gpt-execution")
-	t.Setenv("PROMPT_RUNTIME_API_KEY", "prompt-key")
-	t.Setenv("PROMPT_RUNTIME_TRANSPORT", "responses")
-	t.Setenv("PROMPT_RUNTIME_BASE_URL", "https://api.openai.com/v1")
-	t.Setenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "false")
 	t.Setenv("EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES", "4096")
 
 	cfg, err := LoadFromEnv()
@@ -675,14 +657,41 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		!cfg.MultiStepWorkflowEnabled ||
 		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
 		!cfg.WorkflowRunAutoMigrate ||
-		cfg.PromptRuntimeProvider != "openai-responses" ||
-		cfg.ExecutionPromptModel != "gpt-execution" ||
-		cfg.PromptRuntimeAPIKey != "prompt-key" ||
-		cfg.PromptRuntimeTransport != "responses" ||
-		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
-		cfg.PromptStrictStructuredOutputs ||
 		cfg.NoticeBodyObjectStoreBodyLimitBytes != 4096 {
 		t.Fatalf("unexpected config: %#v", cfg)
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredPromptRuntimeSettings(t *testing.T) {
+	for _, envVar := range []string{
+		"PROMPT_RUNTIME_PROVIDER",
+		"PROMPT_RUNTIME_MODEL",
+		"PROMPT_RUNTIME_API_KEY",
+		"PROMPT_RUNTIME_TRANSPORT",
+		"PROMPT_RUNTIME_BASE_URL",
+		"PROMPT_RUNTIME_REASONING_EFFORT",
+		"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
+		"PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
+		"PROMPT_RUNTIME_MAX_CONNECTIONS",
+		"PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
+		"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
+		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
+		"EXECUTION_PROMPT_MODEL",
+	} {
+		t.Run(envVar, func(t *testing.T) {
+			t.Setenv(envVar, "retired")
+
+			_, err := LoadFromEnv()
+			if err == nil {
+				t.Fatal("LoadFromEnv returned nil error")
+			}
+			if !strings.Contains(err.Error(), envVar+" is retired") {
+				t.Fatalf("error = %q, want retired %s", err, envVar)
+			}
+		})
 	}
 }
 
@@ -720,9 +729,7 @@ func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvIgnoresLegacyLLMPromptRuntimeAliases(t *testing.T) {
-	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
-	t.Setenv("PROMPT_RUNTIME_BASE_URL", "")
+func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "legacy-key")
 	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")
 
@@ -731,19 +738,12 @@ func TestLoadFromEnvIgnoresLegacyLLMPromptRuntimeAliases(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.PromptRuntimeAPIKey != "" {
-		t.Fatalf("prompt runtime api key = %q, want empty", cfg.PromptRuntimeAPIKey)
-	}
-	if cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" {
-		t.Fatalf(
-			"prompt runtime base url = %q, want official default",
-			cfg.PromptRuntimeBaseURL,
-		)
+	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" {
+		t.Fatalf("provider-config resolver env was inferred from LLM_*: %#v", cfg)
 	}
 }
 
-func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *testing.T) {
-	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
+func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *testing.T) {
 	t.Setenv("AGENT_RUNTIME_PROVIDER", "agent-os")
 
 	cfg, err := LoadFromEnv()
@@ -751,8 +751,8 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *t
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.PromptRuntimeProvider != "" {
-		t.Fatalf("prompt runtime provider = %q, want empty", cfg.PromptRuntimeProvider)
+	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" {
+		t.Fatalf("provider-config resolver env was inferred from agent runtime provider: %#v", cfg)
 	}
 }
 

@@ -52,51 +52,80 @@ combinations live in split environment references.
 
 ## 快速矩阵
 
-### Repo-root shared provider
+### Core provider / runtime handles
 
 - Provider / system: OpenAI-compatible LLM provider
   作用: primary agent / RAG synthesis 在线回答 provider profile、eval 默认 judge/ragas LLM
-  主要 online owner: `apps/app-api` provider-config profile；Operator Console
-  `/operations/provider-config` 创建、验证、激活
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY`；`EXECUTION_PROMPT_MODEL`
-  仅用于显式 deterministic execution prompt lane
-  放置位置: online serving 不再以 root `.env` 为真相；root `.env` 只用于 local seed /
-  eval / command-scoped override
+  主要 online owner: `apps/app-api` provider-config connection + profile；Operator
+  Console `/operations/provider-config` 创建、验证、激活
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY`，仅用于 local seed / eval command env
+  放置位置: online serving 不再以 root `.env` 为真相；local seed / eval 使用
+  command-scoped env 或 ignored local convenience env，不写入 root `.env.example`
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
   必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
   写回 docs 或 repo-tracked env
 
+本地真实模型验证先显式 seed app-api provider-config connections + profiles：
+
+```bash
+cd apps/app-api
+pnpm provider-config:seed-local-model -- --model gpt-5.5 \
+  --auth-header "Bearer <operator-token>"
+```
+
+脚本可读取 `LLM_API_KEY` / `LLM_BASE_URL` 作为本地连接创建输入；模型必须由 CLI
+显式传入。这些 env 不作为 online serving fallback；`execution-control` 只能通过
+`app-api` internal provider-config active snapshot 消费 connection 解析后的 runtime
+view。
+
+离线/领域 multimodal lane 不在 root `.env.example` 注册一组 domain env。需要真实
+模型验证时，只配置该领域必备的 `*_API_KEY` 与 `*_MODEL`；base URL、max tokens、
+reasoning effort、transport 等 tuning 保持为代码默认、CLI 参数或领域配置，不进入
+doctor/env readiness contract。
+
 - Provider / system: Embedding provider
   作用: ingestion 向量化、retrieval dense lane、eval 默认 embeddings
-  主要 online owner: `apps/app-api` provider-config profile；Operator Console
-  `/operations/provider-config` 创建、验证、激活
-  主要 env keys: `EMBEDDING_PROVIDER` `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
-  `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS`
-  放置位置: online retrieval 不再以 root `.env` 为真相；root `.env` 只用于 ingestion
-  / local seed / eval / command-scoped override
+  主要 online owner: `apps/app-api` provider-config connection + `rag_query_embedding`
+  profile；Operator Console `/operations/provider-config` 创建、验证、激活
+  主要 env keys: `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
+  放置位置: online retrieval 不再以 root `.env` 为真相；ingestion / local seed 通过
+  command/local ignored env 消费 endpoint/key；model、dimensions、sparse profile 在 collection runtime profile
   何时必需: indexing、retrieval、eval embeddings；online query path 必须存在 active
   `rag_query_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
   服务并拿到 token / endpoint；online profile 激活前必须通过维度兼容检查
 
+- Provider / system: Rerank provider
+  作用: 仅在 collection runtime profile 显式 opt-in 时，对 online RAG candidate 做
+  rerank；默认不启用
+  主要 online owner: `apps/app-api` provider-config connection + `rag_reranker`
+  profile
+  主要 env keys: 本地 seed 可用 `RERANK_BASE_URL` `RERANK_API_KEY` `RERANK_PATH`
+  `RERANK_MODEL`；不进入 root `.env.example`
+  放置位置: online retrieval 不以 root `.env` 为 truth；provider path 放在 connection
+  `capabilityConfig.rerank.path`
+  何时必需: 只有对应 runtime profile 开启 reranker 时必需；缺 profile、缺 path、provider
+  失败或 score 不完整都 fail closed，不回退到 baseline hybrid/RRF 顺序
+
 - Provider / system: Qdrant
   作用: 向量索引与 hybrid retrieval backend
   主要 env keys: `QDRANT_URL` `QDRANT_API_KEY` `QDRANT_READ_ONLY_API_KEY`
   `QDRANT_QUERY_API_KEY` `QDRANT_TLS_CA_CERT_PATH`
-  放置位置: root `.env`
+  放置位置: self-host lifecycle generated env / runtime projection；不属于 root
+  `.env.example`
   何时必需: retrieval / indexing
-  获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；按
-  historical `docs/runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md`
-  部署 container，并由 deploy
-  secret / env 提供 HTTPS URL、admin key、read-only query key 与 CA certificate path
+  获取方式: 当前 staging / early production 默认使用自托管单节点 Qdrant；local/staging
+  lifecycle 默认投影 `QDRANT_URL=http://qdrant:6333`，生成 admin/read-only key，并派生
+  `QDRANT_QUERY_API_KEY`
 
 - Provider / system: Shared Postgres
   作用: app-api shared DB、document/raw registry
   主要 env keys: `CAMPUS_SHARED_POSTGRES_URL`
   `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` `DOCUMENT_REGISTRY_DATABASE_URL`
   `RAW_ASSET_REGISTRY_DATABASE_URL`
-  放置位置: root `.env`；再 fan out 到 `apps/app-api/.env`
+  放置位置: root `.env` 只保存 `CAMPUS_SHARED_POSTGRES_*`；registry/raw 专用 DSN
+  是 app/command override，不写入 root `.env.example`
   何时必需: app-api、本地 eval ingress、registry/operator 路径
   获取方式: 如果用 Supabase，operator/runtime 默认都取 session pooler `:5432`；legacy
   `*_MANAGEMENT_*` 不再作为 runtime env path；如果本地开发，走 Docker Postgres 恢复入口
@@ -107,7 +136,7 @@ combinations live in split environment references.
   `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_SOURCE_ACCESS_KEY`
   `OBJECT_STORE_SOURCE_SECRET_KEY` `OBJECT_STORE_DERIVED_ACCESS_KEY`
   `OBJECT_STORE_DERIVED_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE` `OBJECT_STORE_BUCKET_DERIVED`
-  放置位置: root `.env`
+  放置位置: collector app-local env、ingestion command env 或 deploy secret store
   何时必需: ingestion / replay / rebuild
   获取方式: 本地开发默认用 Docker MinIO；云端可用任何 S3-compatible provider，创建 bucket 与 access
   key 即可。ingestion 支持 shared credential mode 或 source+derived bucket-scoped credential
@@ -117,7 +146,7 @@ combinations live in split environment references.
   作用: extraction adapter / source-truth materialization lane、lane-level compare
   主要 env keys: `OCR_BASE_URL` `OCR_API_KEY` `OCR_PROVIDER_MODE` `OCR_MODEL`
   `OCR_MINERU_*`
-  放置位置: root `.env` 或 command-scoped env
+  放置位置: command-scoped env 或 domain/runtime config
   何时必需: 只有 ingestion / replay / compare 需要
   获取方式: canonical lane 由 routing owner 决定；`OCR_*` 表示当前 active
   provider，`OCR_MINERU_*` 只作为 task-registry-declared source-truth
@@ -128,15 +157,14 @@ combinations live in split environment references.
 
 - Provider / system: Eval-only provider override
   作用: eval 独立预算 / 独立限流
-  主要 env keys: `EVAL_LLM_*` `EVAL_EMBEDDING_*` `EVAL_LLM_TRANSPORT`
-  `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`；personal memory extraction live compare
+  主要 env keys: `EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY`
+  `EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`；personal memory extraction live compare
   额外通过 provider profiles manifest 的 `credential_ref=llm_provider` 指向 shared /
   eval LLM provider credential
-  放置位置: root `.env`
+  放置位置: command-scoped env / CI secret / deploy secret；不属于 root `.env.example`
   何时必需: 只有 eval 不想复用 shared provider 时
-  获取方式: 在对应供应商控制台单独申请；默认不需要。manifest 只记录 credential role、
-  model、base URL 与 `required` gate 标记，不记录 raw API key，也不改变 online
-  serving active provider profile
+  获取方式: 在对应供应商控制台单独申请；默认不需要。eval runtime profile 记录 model、
+  transport、reasoning 与 token 配置；env 只提供 provider endpoint/key
 
 - Provider / system: FeedWe public WeChat article acquisition
   作用: `wechat_official_account` source channel 的公开公众号文章 acquisition
@@ -203,12 +231,18 @@ combinations live in split environment references.
 
 - Provider / system: Langfuse
   作用: LLM observability、eval datasets、experiments、scores 与 annotation workflow
-  主要 env keys: `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`
-  `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER` `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
-  放置位置: OTel Collector deploy secret store 或 ignored local runtime env
+  主要 env keys: canonical `LANGFUSE_BASE_URL` `LANGFUSE_PUBLIC_KEY`
+  `LANGFUSE_SECRET_KEY` `LANGFUSE_ENVIRONMENT`；derived
+  `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT` `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
+  `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
+  放置位置: canonical keys 放 staging ops runtime env / CI vars+secrets；derived
+  Collector keys 由 deploy renderer 或 `pnpm langfuse:release-closeout:staging`
+  派生后进入 OTel Collector process env
   何时必需: 启用 Langfuse runtime trace fan-out 时必需；本地骨架默认可为空
-  获取方式: self-hosted Langfuse project 中生成 public / secret key，把 `pk:sk`
-  base64 后写入 Basic authorization header；Cloud Langfuse 使用同一接口
+  获取方式: self-hosted Langfuse project 中生成 public / secret key；不要手写
+  Collector Basic header。`OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT` 必须等于
+  `${LANGFUSE_BASE_URL}/api/public/otel`，`OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
+  必须等于 `Basic base64(public:secret)`，ingestion version 固定为 `4`
 
 - Provider / system: Cloudflare Workers / Wrangler
   作用: `app-api`、`campus-web` 与 `operator-console-web` deploy 与 secret store

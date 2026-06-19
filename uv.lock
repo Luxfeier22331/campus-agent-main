@@ -31,7 +31,6 @@ members = [
     "campus-notice-capability",
     "campus-official-web-collector",
     "campus-official-web-core",
-    "campus-prompt-runtime",
     "campus-regulation-semantics",
     "campus-services-capability",
     "campus-shared",
@@ -335,7 +334,6 @@ source = { editable = "packages/evals" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
-    { name = "campus-prompt-runtime" },
     { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx" },
@@ -346,7 +344,6 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", specifier = ">=0.28.1" },
@@ -365,7 +362,6 @@ source = { editable = "packages/ingestion-core" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
-    { name = "campus-prompt-runtime" },
     { name = "campus-regulation-semantics" },
     { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
@@ -386,7 +382,6 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-prompt-runtime", editable = "packages/prompt-runtime" },
     { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
     { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
@@ -465,23 +460,6 @@ source = { virtual = "apps/official-web-collector" }
 name = "campus-official-web-core"
 version = "0.1.0"
 source = { virtual = "packages/official-web-core" }
-
-[[package]]
-name = "campus-prompt-runtime"
-version = "0.1.0"
-source = { editable = "packages/prompt-runtime" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "httpx" },
-    { name = "pydantic" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "pydantic", specifier = ">=2.0" },
-]
 
 [[package]]
 name = "campus-regulation-semantics"

@@ -97,16 +97,6 @@ def build_service_guide_selected_write_runtime_smoke_plan(
             "CAMPUS_AGENT_HTTP_HOST": api_host,
             "CAMPUS_AGENT_HTTP_PORT": str(resolved_api_port),
             "CAMPUS_SHARED_POSTGRES_URL": resolved_database_url,
-            "PROMPT_RUNTIME_API_KEY": os.getenv(
-                "PROMPT_RUNTIME_API_KEY",
-                "service-guide-runtime-smoke-prompt-key",
-            ),
-            "PROMPT_RUNTIME_MODEL": os.getenv("PROMPT_RUNTIME_MODEL", "gpt-5.5"),
-            "PROMPT_RUNTIME_PROVIDER": os.getenv("PROMPT_RUNTIME_PROVIDER", "mock-runtime"),
-            "PROMPT_STRICT_STRUCTURED_OUTPUTS": os.getenv(
-                "PROMPT_STRICT_STRUCTURED_OUTPUTS",
-                "true",
-            ),
             "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED": "false",
             "EXECUTION_CONTROL_OTEL_ENABLED": "false",
             "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,

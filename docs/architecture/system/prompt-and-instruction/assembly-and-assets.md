@@ -1,7 +1,7 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: prompt-runtime
+owner_boundary: docs/architecture/system/prompt-and-instruction
 status: active
 created: 2026-06-13
 updated: 2026-06-13
@@ -66,12 +66,9 @@ repo 级 instruction hierarchy 固定拆成五层：
     tool-call loop, direct/no-tool final output and SDK trace normalization
   - consumes request-scoped `provider_config` from execution-control; it does
     not select provider/model/API key from env for online serving
-- `packages/prompt-runtime`
-  - owns provider-facing prompt contract validation, structured output execution,
-    provider response normalization and prompt trace construction for
-    knowledge/RAG synthesis and other explicit provider activities
 - Go-owned knowledge / RAG runtime
-  - owns rag role prompt assets、typed task packet 与 typed evidence packet
+  - owns rag role prompt assets、typed task packet、typed evidence packet,
+    provider-facing validation/normalization and model execution diagnostics
 - `apps/app-api`
   - owns encrypted provider-config profiles and operator mutation APIs
   - exposes internal active runtime snapshots to execution-control
@@ -283,8 +280,8 @@ eval gate 与 code finalization，不得复用已删除的旧 execution prompt a
 ## Prompt Asset Placement
 
 prompt assets 长期放在各自 owner source tree 内，而不是集中堆到 repo root。当前
-knowledge/RAG prompt assets 由 Go-owned execution path 与 `packages/prompt-runtime`
-contract 管理；旧 Python `packages/knowledge-capability` prompt tree 已从 active workspace
+knowledge/RAG prompt assets 与 provider-facing contract 由 Go-owned execution path
+管理；旧 Python `packages/knowledge-capability` prompt tree 已从 active workspace
 删除。
 
 prompt-facing vocabulary 规则固定为：
