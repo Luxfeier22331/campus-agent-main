@@ -276,11 +276,11 @@ function targetExists(inventory, target) {
 	}
 	if (target.kind === "drop_column_not_null") {
 		const column = table.columns.get(target.column);
-		return Boolean(column && column.notNull);
+		return Boolean(column?.notNull);
 	}
 	if (target.kind === "set_column_not_null") {
 		const column = table.columns.get(target.column);
-		return Boolean(column && column.notNull);
+		return Boolean(column?.notNull);
 	}
 	if (target.kind === "drop_column") {
 		return !table.columns.has(target.column);

@@ -17,6 +17,7 @@
 			"configs/**",
 			"scripts/**",
 			"tests/**",
+			"!!apps/campus-web/public/vendor",
 			"!!.planning",
 			"!!.tmp",
 			"!!.worktrees",
