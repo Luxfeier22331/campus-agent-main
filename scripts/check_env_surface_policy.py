@@ -154,8 +154,6 @@ def _iter_env_keys(path: Path) -> tuple[tuple[int, str], ...]:
 def _template_scope(relative_path: str) -> str:
     if relative_path == ".env.example":
         return "root"
-    if relative_path == ".env.staging.local.example":
-        return "staging-local"
     if relative_path.startswith("env/commands/"):
         return "command"
     if relative_path.startswith("infra/"):

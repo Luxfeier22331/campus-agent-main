@@ -288,8 +288,8 @@ Deployment minimum gate:
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` is required only for staging authenticated
   smoke automation; it gates
   `POST /api/internal/staging-smoke/auth/session`, must be distinct from the
-  public auth and internal service secrets, and may be provided through ignored
-  repo-root `.env.staging.local`
+  public auth and internal service secrets, and must be provided through the
+  ops-owned staging runtime env file or `STAGING_RUNTIME_ENV_FILE`
 - `APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET`,
   `APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI` and
   `APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI` are required only when

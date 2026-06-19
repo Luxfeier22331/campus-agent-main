@@ -10,7 +10,7 @@ from tempfile import TemporaryDirectory
 
 
 class LoadRepoStagingEnvFileTest(unittest.TestCase):
-    def test_staging_env_overlays_repo_env_without_overriding_explicit_env(self) -> None:
+    def test_staging_env_loader_ignores_repo_local_staging_env(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         with TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir)
@@ -27,12 +27,13 @@ class LoadRepoStagingEnvFileTest(unittest.TestCase):
                 textwrap.dedent(
                     f"""
                     import {{ loadRepoStagingEnvFile }} from {json.dumps((repo_root / "scripts" / "load-repo-env.mjs").as_uri())};
-                    loadRepoStagingEnvFile(import.meta.url, ".");
+                    const loaded = loadRepoStagingEnvFile(import.meta.url, ".");
                     console.log(JSON.stringify({{
+                      loaded,
                       BASE_ONLY: process.env.BASE_ONLY,
                       STAGING_KEY: process.env.STAGING_KEY,
                       EXPLICIT_KEY: process.env.EXPLICIT_KEY,
-                      STAGING_ONLY: process.env.STAGING_ONLY,
+                      STAGING_ONLY: process.env.STAGING_ONLY || null,
                     }}));
                     """
                 ).strip(),
@@ -52,10 +53,15 @@ class LoadRepoStagingEnvFileTest(unittest.TestCase):
         self.assertEqual(
             json.loads(result.stdout),
             {
+                "loaded": {
+                    "repoEnvPath": str(temp_root / ".env"),
+                    "runtimeEnvPath": "/srv/docker/campus-agent/staging/env/runtime.env",
+                    "source": "environment",
+                },
                 "BASE_ONLY": "base",
-                "STAGING_KEY": "staging",
+                "STAGING_KEY": "base",
                 "EXPLICIT_KEY": "explicit",
-                "STAGING_ONLY": "staging",
+                "STAGING_ONLY": None,
             },
         )
 

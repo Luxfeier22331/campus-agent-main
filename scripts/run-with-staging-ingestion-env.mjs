@@ -1,18 +1,9 @@
 import { spawn } from "node:child_process";
-import { dirname, resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
 
-const scriptDir = dirname(fileURLToPath(import.meta.url));
-const repoRoot = resolve(scriptDir, "..");
+import { loadRepoStagingEnvFile } from "./load-repo-env.mjs";
 
-try {
-	process.loadEnvFile(resolve(repoRoot, ".env.staging.local"));
-} catch (error) {
-	if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-		throw error;
-	}
-}
+loadRepoStagingEnvFile(import.meta.url, "..");
 
 const REQUIRED_MAPPINGS = [
 	["STAGING_INGESTION_SHARED_POSTGRES_URL", "CAMPUS_SHARED_POSTGRES_URL"],

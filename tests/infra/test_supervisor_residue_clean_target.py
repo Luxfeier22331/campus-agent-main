@@ -20,7 +20,6 @@ ACTIVE_SCAN_FILES = (
     REPO_ROOT / "AGENTS.md",
     REPO_ROOT / "README.md",
     REPO_ROOT / ".env.example",
-    REPO_ROOT / ".env.staging.local.example",
 )
 TEXT_SUFFIXES = {
     ".example",

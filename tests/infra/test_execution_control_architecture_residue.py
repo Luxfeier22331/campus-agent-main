@@ -25,7 +25,6 @@ ACTIVE_TRUTH_PREFIXES = (
 ACTIVE_RUNTIME_PREFIXES = (
     "/.dockerignore",
     "/.env.example",
-    "/.env.staging.local.example",
     "/.github/",
     "/apps/",
     "/configs/",

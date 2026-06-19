@@ -2,7 +2,6 @@
 	"schema_version": "campus_env_surface_policy.v1",
 	"allowed_templates": [
 		".env.example",
-		".env.staging.local.example",
 		"apps/app-api/.dev.vars.example",
 		"apps/app-api/.env.example",
 		"apps/authenticated-notice-collector/.env.example",

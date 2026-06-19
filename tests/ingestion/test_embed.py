@@ -4,12 +4,12 @@ import unittest
 from unittest.mock import Mock, patch
 
 import httpx
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     build_embedding_model,
     validate_ingestion_retrieval_embedding_env_alignment,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):

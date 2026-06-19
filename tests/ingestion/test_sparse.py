@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
     SparseEmbeddingSettings,
     build_mock_sparse_embedding_model,
     build_sparse_embedding_model,
 )
-from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from qdrant_client.http import models as qdrant_models
 
 

@@ -23,61 +23,38 @@ export function loadRepoEnvFile(importMetaUrl, repoRootRelativePath = ".") {
 }
 
 export function loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath = ".") {
-	const scriptDir = dirname(fileURLToPath(importMetaUrl));
-	const repoRoot = resolve(scriptDir, repoRootRelativePath);
-	const originalEnvKeys = new Set(Object.keys(process.env));
-	loadRepoEnvFile(importMetaUrl, repoRootRelativePath);
-
-	const stagingEnvPath = resolve(repoRoot, ".env.staging.local");
-	let parsedStagingEnv;
-	try {
-		parsedStagingEnv = parseEnv(readFileSync(stagingEnvPath, "utf8"));
-	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
-			throw error;
-		}
-		return { repoEnvPath: resolve(repoRoot, ".env"), stagingEnvPath };
-	}
-
-	for (const [key, value] of Object.entries(parsedStagingEnv)) {
-		if (!originalEnvKeys.has(key)) {
-			process.env[key] = value;
-		}
-	}
-
-	return { repoEnvPath: resolve(repoRoot, ".env"), stagingEnvPath };
-}
-
-export function loadStagingSmokeEnvFile(importMetaUrl, repoRootRelativePath = ".") {
+	const repoEnvPath = loadRepoEnvFile(importMetaUrl, repoRootRelativePath);
 	const explicitEnvPath =
 		process.env.STAGING_RUNTIME_ENV_FILE?.trim() ||
 		process.env.EXECUTION_CONTROL_STAGING_ENV_FILE?.trim() ||
 		"";
-	if (explicitEnvPath) {
-		loadEnvFileWithoutOverridingExisting(explicitEnvPath);
-		return {
-			runtimeEnvPath: explicitEnvPath,
-			source: "ops-runtime",
-		};
-	}
+	const runtimeEnvPath = explicitEnvPath || DEFAULT_STAGING_RUNTIME_ENV_FILE;
 
 	try {
-		loadEnvFileWithoutOverridingExisting(DEFAULT_STAGING_RUNTIME_ENV_FILE);
+		loadEnvFileWithoutOverridingExisting(runtimeEnvPath);
 		return {
-			runtimeEnvPath: DEFAULT_STAGING_RUNTIME_ENV_FILE,
+			repoEnvPath,
+			runtimeEnvPath,
 			source: "ops-runtime",
 		};
 	} catch (error) {
-		if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+		if (
+			explicitEnvPath ||
+			!(error instanceof Error && "code" in error && error.code === "ENOENT")
+		) {
 			throw error;
 		}
 	}
 
 	return {
-		...loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath),
-		runtimeEnvPath: DEFAULT_STAGING_RUNTIME_ENV_FILE,
-		source: "repo-local",
+		repoEnvPath,
+		runtimeEnvPath,
+		source: "environment",
 	};
+}
+
+export function loadStagingSmokeEnvFile(importMetaUrl, repoRootRelativePath = ".") {
+	return loadRepoStagingEnvFile(importMetaUrl, repoRootRelativePath);
 }
 
 function loadEnvFileWithoutOverridingExisting(envPath) {
