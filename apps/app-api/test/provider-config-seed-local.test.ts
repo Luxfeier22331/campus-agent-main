@@ -8,110 +8,102 @@ import { describe, expect, it } from "vitest";
 const appDir = resolve(__dirname, "..");
 
 describe("local provider-config seed script", () => {
-	it(
-		"seeds prompt, embedding, and rerank profiles from local provider env",
-		async () => {
-			const server = new RecordingProviderConfigServer();
-			await server.listen();
-			try {
-				const result = await runSeedScript({
-					args: ["--app-api-base-url", server.baseUrl],
-					env: {
-						APP_API_OPERATOR_BEARER_TOKEN: "operator-token",
-						EMBEDDING_API_KEY: "embedding-key",
-						LLM_API_KEY: "llm-key",
-						LLM_MODEL: "gpt-shared",
-						RAG_SYNTHESIS_MODEL: "gpt-rag",
-						RERANK_API_KEY: "rerank-key",
-						RERANK_MODEL: "gte-reranker",
-					},
-				});
+	it("seeds prompt, embedding, and rerank profiles from local provider env", async () => {
+		const server = new RecordingProviderConfigServer();
+		await server.listen();
+		try {
+			const result = await runSeedScript({
+				args: ["--app-api-base-url", server.baseUrl],
+				env: {
+					APP_API_OPERATOR_BEARER_TOKEN: "operator-token",
+					EMBEDDING_API_KEY: "embedding-key",
+					LLM_API_KEY: "llm-key",
+					LLM_MODEL: "gpt-shared",
+					RAG_SYNTHESIS_MODEL: "gpt-rag",
+					RERANK_API_KEY: "rerank-key",
+					RERANK_MODEL: "gte-reranker",
+				},
+			});
 
-				expect(result.exitCode).toBe(0);
-				expect(result.stderr).toBe("");
-				expect(server.connectionBodies()).toEqual([
-					{
-						apiKey: "llm-key",
-						baseUrl: "https://api.openai.com/v1",
-						capabilities: ["prompt"],
-						capabilityConfig: {},
-						provider: "openai",
-					},
-					{
-						apiKey: "embedding-key",
-						baseUrl: "https://ai.gitee.com/v1",
-						capabilities: ["embedding"],
-						capabilityConfig: {},
-						provider: "gitee",
-					},
-					{
-						apiKey: "rerank-key",
-						baseUrl: "https://ai.gitee.com/v1",
-						capabilities: ["rerank"],
-						capabilityConfig: { rerank: { path: "/rerank" } },
-						provider: "gitee",
-					},
-				]);
-				expect(server.profileBodies()).toEqual([
-					expect.objectContaining({
-						kind: "prompt",
-						model: "gpt-shared",
-						role: "primary_agent",
-						transport: "responses",
-					}),
-					expect.objectContaining({
-						kind: "prompt",
-						model: "gpt-rag",
-						role: "rag_synthesis",
-						transport: "responses",
-					}),
-					expect.objectContaining({
-						dimensions: 2560,
-						kind: "embedding",
-						model: "Qwen3-Embedding-4B",
-						role: "rag_query_embedding",
-						transport: "embeddings",
-					}),
-					expect.objectContaining({
-						kind: "rerank",
-						model: "gte-reranker",
-						role: "rag_reranker",
-						transport: "gitee_rerank",
-					}),
-				]);
-				expect(server.validationPaths()).toHaveLength(4);
-				expect(server.activationPaths()).toHaveLength(4);
-			} finally {
-				await server.close();
-			}
-		},
-		20_000,
-	);
+			expect(result.exitCode).toBe(0);
+			expect(result.stderr).toBe("");
+			expect(server.connectionBodies()).toEqual([
+				{
+					apiKey: "llm-key",
+					baseUrl: "https://api.openai.com/v1",
+					capabilities: ["prompt"],
+					capabilityConfig: {},
+					provider: "openai",
+				},
+				{
+					apiKey: "embedding-key",
+					baseUrl: "https://ai.gitee.com/v1",
+					capabilities: ["embedding"],
+					capabilityConfig: {},
+					provider: "gitee",
+				},
+				{
+					apiKey: "rerank-key",
+					baseUrl: "https://ai.gitee.com/v1",
+					capabilities: ["rerank"],
+					capabilityConfig: { rerank: { path: "/rerank" } },
+					provider: "gitee",
+				},
+			]);
+			expect(server.profileBodies()).toEqual([
+				expect.objectContaining({
+					kind: "prompt",
+					model: "gpt-shared",
+					role: "primary_agent",
+					transport: "responses",
+				}),
+				expect.objectContaining({
+					kind: "prompt",
+					model: "gpt-rag",
+					role: "rag_synthesis",
+					transport: "responses",
+				}),
+				expect.objectContaining({
+					dimensions: 2560,
+					kind: "embedding",
+					model: "Qwen3-Embedding-4B",
+					role: "rag_query_embedding",
+					transport: "embeddings",
+				}),
+				expect.objectContaining({
+					kind: "rerank",
+					model: "gte-reranker",
+					role: "rag_reranker",
+					transport: "gitee_rerank",
+				}),
+			]);
+			expect(server.validationPaths()).toHaveLength(4);
+			expect(server.activationPaths()).toHaveLength(4);
+		} finally {
+			await server.close();
+		}
+	}, 20_000);
 
-	it(
-		"fails fast when the required embedding key is missing",
-		async () => {
-			const server = new RecordingProviderConfigServer();
-			await server.listen();
-			try {
-				const result = await runSeedScript({
-					args: ["--app-api-base-url", server.baseUrl],
-					env: {
-						APP_API_OPERATOR_BEARER_TOKEN: "operator-token",
-						LLM_API_KEY: "llm-key",
-						LLM_MODEL: "gpt-shared",
-					},
-				});
+	it("fails fast when the required embedding key is missing", async () => {
+		const server = new RecordingProviderConfigServer();
+		await server.listen();
+		try {
+			const result = await runSeedScript({
+				args: ["--app-api-base-url", server.baseUrl],
+				env: {
+					APP_API_OPERATOR_BEARER_TOKEN: "operator-token",
+					LLM_API_KEY: "llm-key",
+					LLM_MODEL: "gpt-shared",
+				},
+			});
 
-				expect(result.exitCode).not.toBe(0);
-				expect(result.stderr).toContain("EMBEDDING_API_KEY is required");
-				expect(server.requests).toEqual([]);
-			} finally {
-				await server.close();
-			}
-		},
-		20_000,
-	);
+			expect(result.exitCode).not.toBe(0);
+			expect(result.stderr).toContain("EMBEDDING_API_KEY is required");
+			expect(server.requests).toEqual([]);
+		} finally {
+			await server.close();
+		}
+	}, 20_000);
 });
 
 async function runSeedScript(input: {
@@ -141,11 +133,15 @@ async function runSeedScript(input: {
 	Object.assign(env, input.env);
 
 	return new Promise((resolvePromise, reject) => {
-		const child = spawn("pnpm", ["exec", "tsx", "./scripts/seed-local-provider-config.ts", ...input.args], {
-			cwd: appDir,
-			env,
-			stdio: ["ignore", "pipe", "pipe"],
-		});
+		const child = spawn(
+			"pnpm",
+			["exec", "tsx", "./scripts/seed-local-provider-config.ts", ...input.args],
+			{
+				cwd: appDir,
+				env,
+				stdio: ["ignore", "pipe", "pipe"],
+			},
+		);
 		let stdout = "";
 		let stderr = "";
 		child.stdout.on("data", (chunk) => {
@@ -164,8 +160,6 @@ async function runSeedScript(input: {
 class RecordingProviderConfigServer {
 	readonly requests: Array<{ body: unknown; method: string; path: string }> = [];
 
-	private nextConnectionId = 1;
-	private nextProfileId = 1;
 	private readonly server = createServer(async (request, response) => {
 		const body = await readJsonBody(request);
 		this.requests.push({
@@ -176,12 +170,16 @@ class RecordingProviderConfigServer {
 		response.setHeader("content-type", "application/json");
 		if (request.url === "/api/operator/provider-config/connections") {
 			response.end(
-				JSON.stringify({ connection: { connectionId: `connection-${this.nextConnectionId++}` } }),
+				JSON.stringify({
+					connection: { connectionId: `connection-${this.connectionBodies().length}` },
+				}),
 			);
 			return;
 		}
 		if (request.url === "/api/operator/provider-config/profiles") {
-			response.end(JSON.stringify({ profile: { profileId: `profile-${this.nextProfileId++}` } }));
+			response.end(
+				JSON.stringify({ profile: { profileId: `profile-${this.profileBodies().length}` } }),
+			);
 			return;
 		}
 		response.end("{}");

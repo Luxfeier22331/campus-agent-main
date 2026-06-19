@@ -211,7 +211,9 @@ function parseRerankArgs(values: Map<string, string>, env: NodeJS.ProcessEnv): A
 		return null;
 	}
 	if (!(model && apiKey)) {
-		throw new Error("--rerank-model/RERANK_MODEL and --rerank-api-key/RERANK_API_KEY are required when seeding rerank");
+		throw new Error(
+			"--rerank-model/RERANK_MODEL and --rerank-api-key/RERANK_API_KEY are required when seeding rerank",
+		);
 	}
 	return {
 		apiKey,

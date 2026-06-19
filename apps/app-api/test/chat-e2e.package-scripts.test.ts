@@ -87,7 +87,9 @@ describe("chat e2e package scripts", () => {
 		) as {
 			scripts: Record<string, string>;
 		};
-		const turboJson = JSON.parse(readFileSync(resolve(__dirname, "../../../turbo.json"), "utf8")) as {
+		const turboJson = JSON.parse(
+			readFileSync(resolve(__dirname, "../../../turbo.json"), "utf8"),
+		) as {
 			tasks: Record<string, { cache?: boolean }>;
 		};
 		const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
