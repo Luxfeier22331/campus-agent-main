@@ -3,42 +3,11 @@ from __future__ import annotations
 from campus_shared.provider_config import (
     EMBEDDING_API_KEY_PRECEDENCE,
     LLM_API_KEY_PRECEDENCE,
-    ProviderConfigResolutionError,
-    ResolvedLLMProviderConfig,
     resolve_embedding_provider_config,
     resolve_llm_provider_config,
 )
 
 from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
-
-PROMPT_RUNTIME_API_KEY_PRECEDENCE = ("PROMPT_RUNTIME_API_KEY",)
-PROMPT_RUNTIME_BASE_URL_PRECEDENCE = ("PROMPT_RUNTIME_BASE_URL",)
-
-
-def resolve_prompt_runtime_provider_config(
-    surface_name: str,
-    *,
-    env: dict[str, str],
-) -> ResolvedLLMProviderConfig:
-    normalized_surface_name = surface_name.strip()
-    if not normalized_surface_name:
-        raise ValueError("surface_name must not be empty")
-    api_key = env.get("PROMPT_RUNTIME_API_KEY", "").strip()
-    if not api_key:
-        raise ProviderConfigResolutionError(
-            surface_name=normalized_surface_name,
-            logical_name="prompt_runtime_api_key",
-            checked_keys=PROMPT_RUNTIME_API_KEY_PRECEDENCE,
-        )
-    base_url = env.get("PROMPT_RUNTIME_BASE_URL", "").strip()
-    return ResolvedLLMProviderConfig(
-        surface_name=normalized_surface_name,
-        api_key=api_key,
-        api_key_source="PROMPT_RUNTIME_API_KEY",
-        base_url=base_url or None,
-        base_url_source="PROMPT_RUNTIME_BASE_URL" if base_url else None,
-    )
-
 
 SURFACE_SPECS = {
     "evals": {
@@ -54,13 +23,8 @@ SURFACE_SPECS = {
                 "surface_name": "eval.ragas",
             },
         },
-        "required_settings": {
-            "embedding_model": ("EVAL_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
-            "ragas_model": ("EVAL_RAGAS_MODEL",),
-        },
-        "optional_settings": {
-            "judge_model": ("EVAL_JUDGE_MODEL", "EVAL_RAGAS_MODEL"),
-        },
+        "required_settings": {},
+        "optional_settings": {},
         "files": {},
     },
     "ingestion": {
@@ -72,13 +36,10 @@ SURFACE_SPECS = {
             },
         },
         "required_settings": {
-            "embedding_model": ("INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"),
             "object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
             "object_store_credentials": (),
             "ocr_base_url": ("OCR_BASE_URL",),
             "ocr_api_key": ("OCR_API_KEY",),
-            "ocr_provider_mode": ("OCR_PROVIDER_MODE",),
-            "qdrant_url": ("QDRANT_URL",),
             "registry_database_url": (
                 "RAW_ASSET_REGISTRY_DATABASE_URL",
                 "DOCUMENT_REGISTRY_DATABASE_URL",
@@ -88,7 +49,6 @@ SURFACE_SPECS = {
         "optional_settings": {
             "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
             "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
-            "ocr_model": ("OCR_MODEL",),
             "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
             "legacy_office_conversion_internal_shared_secret": (
                 "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
@@ -123,15 +83,8 @@ SURFACE_SPECS = {
                 "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
-            "multimodal_api_key": (
-                "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
-                "PROMPT_RUNTIME_API_KEY",
-                "LLM_API_KEY",
-            ),
-            "multimodal_model": (
-                "INTERNAL_NOTICE_MULTIMODAL_MODEL",
-                "PROMPT_RUNTIME_MODEL",
-            ),
+            "multimodal_api_key": ("INTERNAL_NOTICE_MULTIMODAL_API_KEY",),
+            "multimodal_model": ("INTERNAL_NOTICE_MULTIMODAL_MODEL",),
         },
         "optional_settings": {
             "projection_operator_database_url": (
@@ -145,15 +98,6 @@ SURFACE_SPECS = {
             "attempt_operator_database_url": (
                 "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-            ),
-            "multimodal_base_url": (
-                "INTERNAL_NOTICE_MULTIMODAL_BASE_URL",
-                "PROMPT_RUNTIME_BASE_URL",
-                "LLM_BASE_URL",
-            ),
-            "multimodal_max_output_tokens": (
-                "INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS",
-                "PROMPT_RUNTIME_MAX_OUTPUT_TOKENS",
             ),
         },
         "files": {},
@@ -172,8 +116,6 @@ SURFACE_SPECS = {
             },
         },
         "required_settings": {
-            "embedding_model": ("EMBEDDING_MODEL",),
-            "qdrant_url": ("QDRANT_URL",),
             "shared_postgres_url": ("CAMPUS_SHARED_POSTGRES_URL",),
         },
         "optional_settings": {
@@ -211,15 +153,8 @@ SURFACE_SPECS = {
         },
     },
     "execution-control": {
-        "providers": {
-            "llm": {
-                "checked_keys": PROMPT_RUNTIME_API_KEY_PRECEDENCE,
-                "resolver": resolve_prompt_runtime_provider_config,
-                "surface_name": "execution-control",
-            },
-        },
+        "providers": {},
         "required_settings": {
-            "execution_prompt_model": ("EXECUTION_PROMPT_MODEL",),
             "runtime_config_path": ("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",),
             "execution_control_shared_secret": ("EXECUTION_CONTROL_SHARED_SECRET",),
             "metrics_bearer_token": ("EXECUTION_CONTROL_METRICS_BEARER_TOKEN",),
@@ -257,17 +192,6 @@ SURFACE_SPECS = {
             "agent_runtime_base_url": ("EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL",),
             "agent_runtime_shared_secret": ("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET",),
             "agent_runtime_timeout_ms": ("EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",),
-            "prompt_runtime_transport": ("PROMPT_RUNTIME_TRANSPORT",),
-            "prompt_runtime_base_url": ("PROMPT_RUNTIME_BASE_URL", "LLM_BASE_URL"),
-            "prompt_runtime_connect_timeout_seconds": ("PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",),
-            "prompt_runtime_read_timeout_seconds": ("PROMPT_RUNTIME_READ_TIMEOUT_SECONDS",),
-            "prompt_runtime_write_timeout_seconds": ("PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",),
-            "prompt_runtime_pool_timeout_seconds": ("PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",),
-            "prompt_runtime_max_connections": ("PROMPT_RUNTIME_MAX_CONNECTIONS",),
-            "prompt_runtime_max_keepalive_connections": (
-                "PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS",
-            ),
-            "prompt_runtime_keepalive_expiry_seconds": ("PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",),
             "audit_log_path": ("AUDIT_LOG_PATH",),
             "audit_queue_capacity": ("AUDIT_QUEUE_CAPACITY",),
             "execution_audit_url": ("EXECUTION_CONTROL_EXECUTION_AUDIT_URL",),

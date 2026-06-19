@@ -42,6 +42,7 @@
 		"db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
 		"projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",
 		"provider-config:seed-local-model": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts",
+		"local:providers:seed": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts",
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local --name app-api-local --ip 127.0.0.1 --port 27031",
 		"deploy": "node ../../scripts/run-wrangler-command.mjs deploy",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/app-api --env staging",

@@ -125,11 +125,14 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		index += 1;
 	}
 
-	const sharedModel = readCli(values, "model");
+	const sharedModel = readCli(values, "model") || readEnv(env, "LLM_MODEL");
 	const primaryAgentModel = readCli(values, "primary-agent-model") || sharedModel;
-	const ragSynthesisModel = readCli(values, "rag-synthesis-model") || sharedModel;
+	const ragSynthesisModel =
+		readCli(values, "rag-synthesis-model") || readEnv(env, "RAG_SYNTHESIS_MODEL") || sharedModel;
 	if (!(primaryAgentModel && ragSynthesisModel)) {
-		throw new Error("--model or both --primary-agent-model and --rag-synthesis-model are required");
+		throw new Error(
+			"--model, LLM_MODEL, or both --primary-agent-model and --rag-synthesis-model are required",
+		);
 	}
 
 	const apiKey = readCli(values, "api-key") || readEnv(env, "LLM_API_KEY");
@@ -176,13 +179,8 @@ function parseEmbeddingArgs(
 ): Args["embedding"] {
 	const model = readCli(values, "embedding-model") || readEnv(env, "EMBEDDING_MODEL");
 	const apiKey = readCli(values, "embedding-api-key") || readEnv(env, "EMBEDDING_API_KEY");
-	if (!(model || apiKey)) {
-		return null;
-	}
-	if (!(model && apiKey)) {
-		throw new Error(
-			"--embedding-model/EMBEDDING_MODEL and --embedding-api-key/EMBEDDING_API_KEY are both required when seeding embedding",
-		);
+	if (!apiKey) {
+		throw new Error("--embedding-api-key or EMBEDDING_API_KEY is required");
 	}
 	return {
 		apiKey,
@@ -194,7 +192,7 @@ function parseEmbeddingArgs(
 			readCli(values, "embedding-dimensions") || readEnv(env, "EMBEDDING_DIMENSIONS") || "2560",
 			"--embedding-dimensions",
 		),
-		model,
+		model: model || "Qwen3-Embedding-4B",
 		provider:
 			readCli(values, "embedding-provider") || readEnv(env, "EMBEDDING_PROVIDER") || "gitee",
 		timeoutMs: parsePositiveInteger(
@@ -208,14 +206,12 @@ function parseEmbeddingArgs(
 function parseRerankArgs(values: Map<string, string>, env: NodeJS.ProcessEnv): Args["rerank"] {
 	const model = readCli(values, "rerank-model") || readEnv(env, "RERANK_MODEL");
 	const apiKey = readCli(values, "rerank-api-key") || readEnv(env, "RERANK_API_KEY");
-	const path = readCli(values, "rerank-path") || readEnv(env, "RERANK_PATH");
-	if (!(model || apiKey || path)) {
+	const configuredPath = readCli(values, "rerank-path") || readEnv(env, "RERANK_PATH");
+	if (!(model || apiKey || configuredPath)) {
 		return null;
 	}
-	if (!(model && apiKey && path)) {
-		throw new Error(
-			"--rerank-model, --rerank-api-key, and --rerank-path are all required when seeding rerank",
-		);
+	if (!(model && apiKey)) {
+		throw new Error("--rerank-model/RERANK_MODEL and --rerank-api-key/RERANK_API_KEY are required when seeding rerank");
 	}
 	return {
 		apiKey,
@@ -224,7 +220,7 @@ function parseRerankArgs(values: Map<string, string>, env: NodeJS.ProcessEnv): A
 			readEnv(env, "RERANK_BASE_URL") ||
 			"https://ai.gitee.com/v1",
 		model,
-		path,
+		path: configuredPath || "/rerank",
 		provider: readCli(values, "rerank-provider") || readEnv(env, "RERANK_PROVIDER") || "gitee",
 		timeoutMs: parsePositiveInteger(
 			readCli(values, "rerank-timeout-ms") || "30000",

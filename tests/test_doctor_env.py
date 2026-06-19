@@ -10,6 +10,7 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from scripts.doctor_env import collect_env_doctor_status, main
+from scripts.doctor_env_surface_specs import SURFACE_SPECS
 
 
 def _write(path: Path, content: str) -> None:
@@ -19,7 +20,6 @@ def _write(path: Path, content: str) -> None:
 
 def _execution_control_required_env() -> list[str]:
     return [
-        "EXECUTION_PROMPT_MODEL=gpt-5.4",
         "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH=configs/runtime/execution-control/runtime-profile.staging.json",
         "EXECUTION_CONTROL_SHARED_SECRET=control-secret",
         "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
@@ -145,6 +145,65 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertEqual(payload["surface"], "evals")
             self.assertTrue(payload["overall_ready"])
 
+    def test_surface_specs_do_not_expose_retired_prompt_runtime_keys(self) -> None:
+        rendered = json.dumps(SURFACE_SPECS, default=str, ensure_ascii=False)
+
+        self.assertNotIn("PROMPT_RUNTIME_", rendered)
+        self.assertNotIn("EXECUTION_PROMPT_MODEL", rendered)
+
+    def test_root_env_example_only_owns_local_provider_seed_inputs(self) -> None:
+        root_env_example = Path(__file__).resolve().parents[1] / ".env.example"
+        rendered = root_env_example.read_text(encoding="utf-8")
+
+        retired_root_profile_keys = (
+            "EMBEDDING_PROVIDER",
+            "EMBEDDING_TIMEOUT_SECONDS",
+            "EMBEDDING_BATCH_SIZE",
+            "SPARSE_PROVIDER",
+            "SPARSE_MODEL",
+            "SPARSE_TOKENIZER",
+            "SPARSE_LANGUAGE",
+            "QDRANT_TIMEOUT_SECONDS",
+            "INGESTION_QDRANT_TIMEOUT_SECONDS",
+            "QDRANT_UPSERT_BATCH_SIZE",
+            "OCR_MODEL",
+            "OCR_PROVIDER_MODE",
+            "EVAL_RAGAS_MODEL",
+            "EVAL_JUDGE_MODEL",
+            "RAGAS_REASONING_EFFORT",
+            "RAGAS_TEXT_VERBOSITY",
+            "RAGAS_MAX_OUTPUT_TOKENS",
+            "RAGAS_ADAPT_INSTRUCTION",
+        )
+        for key in retired_root_profile_keys:
+            self.assertNotIn(f"{key}=", rendered, key)
+
+    def test_doctor_specs_do_not_require_model_profile_env(self) -> None:
+        rendered = json.dumps(SURFACE_SPECS, default=str, ensure_ascii=False)
+
+        retired_doctor_keys = (
+            "EMBEDDING_MODEL",
+            "INGESTION_EMBEDDING_MODEL",
+            "OCR_MODEL",
+            "OCR_PROVIDER_MODE",
+            "EVAL_RAGAS_MODEL",
+            "EVAL_JUDGE_MODEL",
+        )
+        for key in retired_doctor_keys:
+            self.assertNotIn(key, rendered, key)
+
+    def test_internal_notice_doctor_contract_only_keeps_required_multimodal_env(self) -> None:
+        spec = SURFACE_SPECS["internal-notice-consumption"]
+        rendered_required = json.dumps(spec["required_settings"], default=str, ensure_ascii=False)
+        rendered_optional = json.dumps(spec["optional_settings"], default=str, ensure_ascii=False)
+
+        self.assertIn("INTERNAL_NOTICE_MULTIMODAL_API_KEY", rendered_required)
+        self.assertIn("INTERNAL_NOTICE_MULTIMODAL_MODEL", rendered_required)
+        self.assertNotIn("LLM_API_KEY", rendered_required)
+        self.assertNotIn("INTERNAL_NOTICE_MULTIMODAL_BASE_URL", rendered_optional)
+        self.assertNotIn("LLM_BASE_URL", rendered_optional)
+        self.assertNotIn("INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS", rendered_optional)
+
     def test_collect_env_doctor_status_reports_current_execution_control_runtime_keys(
         self,
     ) -> None:
@@ -154,7 +213,6 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "PROMPT_RUNTIME_API_KEY=prompt-runtime-secret",
                         *_execution_control_required_env(),
                         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
@@ -201,6 +259,7 @@ class DoctorEnvTest(unittest.TestCase):
                 optional["internal_query_shared_secret"]["resolved_key"],
                 "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
             )
+            self.assertEqual(status["providers"], {})
             self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
             self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
             self.assertTrue(status["conditions"]["structured_runtime_contract"]["ready"])
@@ -212,7 +271,7 @@ class DoctorEnvTest(unittest.TestCase):
                 status["conditions"]["otel_axiom_collector_endpoint_contract"]["required"]
             )
 
-    def test_collect_env_doctor_status_execution_control_uses_prompt_runtime_api_key(
+    def test_collect_env_doctor_status_execution_control_ignores_retired_prompt_runtime_api_key(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -236,14 +295,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             self.assertTrue(status["overall_ready"])
-            self.assertEqual(
-                status["providers"]["llm"]["resolved_key"],
-                "PROMPT_RUNTIME_API_KEY",
-            )
-            self.assertEqual(
-                status["providers"]["llm"]["checked_keys"],
-                ["PROMPT_RUNTIME_API_KEY"],
-            )
+            self.assertEqual(status["providers"], {})
 
     def test_collect_env_doctor_status_execution_control_requires_temporal_projection_contract(
         self,
@@ -255,7 +307,6 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
                     ]
                 )
                 + "\n",
@@ -441,9 +492,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "LLM_API_KEY=shared-llm-secret",
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
-                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                     ]
                 )
                 + "\n",
@@ -480,7 +529,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertTrue(status["providers"]["llm"]["present"])
             self.assertTrue(status["providers"]["embedding"]["present"])
-            self.assertTrue(status["settings"]["required"]["qdrant_url"]["present"])
+            self.assertNotIn("qdrant_url", status["settings"]["required"])
             self.assertTrue(status["settings"]["required"]["shared_postgres_url"]["present"])
             shared_pg = status["postgres"]["shared"]
             self.assertTrue(shared_pg["present"])
@@ -504,9 +553,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "LLM_API_KEY=shared-llm-secret",
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
-                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                     ]
                 )
                 + "\n",
@@ -519,9 +566,7 @@ class DoctorEnvTest(unittest.TestCase):
                     "LLM_API_KEY": "shared-llm-secret",
                     "EMBEDDING_API_KEY": "shared-embed-secret",
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
-                    "QDRANT_URL": "https://qdrant.example.com",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
-                    "EXECUTION_PROMPT_MODEL": "gpt-5.4",
                 },
                 clear=True,
             ):
@@ -546,9 +591,7 @@ class DoctorEnvTest(unittest.TestCase):
                         "LLM_API_KEY=shared-llm-secret",
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
-                        "EXECUTION_PROMPT_MODEL=gpt-5.4",
                     ]
                 )
                 + "\n",
@@ -588,7 +631,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "OBJECT_STORE_ENDPOINT=http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY=minioadmin",
                         "OBJECT_STORE_SECRET_KEY=minioadmin",
@@ -629,8 +671,8 @@ class DoctorEnvTest(unittest.TestCase):
                 repo_root / ".env",
                 "\n".join(
                     [
-                        "LLM_API_KEY=shared-llm-secret",
-                        "PROMPT_RUNTIME_MODEL=gpt-5.4-mini",
+                        "INTERNAL_NOTICE_MULTIMODAL_API_KEY=notice-multimodal-secret",
+                        "INTERNAL_NOTICE_MULTIMODAL_MODEL=gpt-5.4-mini",
                         "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL=postgresql://projection/postgres",
                         "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=postgresql://read-model/postgres",
                         "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL=postgresql://admission/postgres",
@@ -649,11 +691,11 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertEqual(
                 status["settings"]["required"]["multimodal_api_key"]["resolved_key"],
-                "LLM_API_KEY",
+                "INTERNAL_NOTICE_MULTIMODAL_API_KEY",
             )
             self.assertEqual(
                 status["settings"]["required"]["multimodal_model"]["resolved_key"],
-                "PROMPT_RUNTIME_MODEL",
+                "INTERNAL_NOTICE_MULTIMODAL_MODEL",
             )
             self.assertTrue(status["settings"]["required"]["admission_database_url"]["present"])
             self.assertTrue(status["settings"]["required"]["attempt_database_url"]["present"])
@@ -669,7 +711,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "OBJECT_STORE_ENDPOINT=http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY=minioadmin",
                         "OBJECT_STORE_SECRET_KEY=minioadmin",
@@ -704,7 +745,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "EMBEDDING_API_KEY=shared-embed-secret",
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
-                        "QDRANT_URL=https://qdrant.example.com",
                         "OBJECT_STORE_ENDPOINT=https://s3.cstcloud.cn",
                         "OBJECT_STORE_SOURCE_ACCESS_KEY=source-ak",
                         "OBJECT_STORE_SOURCE_SECRET_KEY=source-sk",

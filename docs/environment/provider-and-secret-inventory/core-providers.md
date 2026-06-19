@@ -34,14 +34,18 @@ online serving owner：
 
 默认 env 放置位置：
 
-- local seed / eval 使用 command-scoped env 或 ignored local convenience env，不再是 online
-  serving truth，也不写入 root `.env.example`
+- local seed 使用 root `.env` 的 provider seed 输入，不再是 online serving truth；
+  eval 使用 command-scoped `EVAL_*`
 - domain multimodal lanes 不通过 `LLM_*` fallback，也不在 root `.env.example`
   只在领域入口显式提供必备 API key 和 model；eval runtime 的 model / max token /
   reasoning / transport tuning 由 repo-tracked eval runtime profile 持有
 
 相关键：
 
+- local seed `LLM_BASE_URL`
+- local seed `LLM_API_KEY`
+- local seed `LLM_MODEL`
+- optional local seed `RAG_SYNTHESIS_MODEL`
 - command-scoped `EVAL_LLM_BASE_URL`
 - command-scoped `EVAL_LLM_API_KEY`
 
@@ -49,8 +53,9 @@ online serving owner：
 
 1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
 1. 在所选供应商控制台创建项目级或环境级 API key。
-1. 通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、model
-   与 API key。
+1. 本地开发可填 root `.env` 后执行 `pnpm local:providers:seed`；staging/prod
+   通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、
+   model 与 API key。
 1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
    execution-control 消费。
 1. staging / prod 必须分环境单独发 key，不要复用本地开发 key。
@@ -97,13 +102,16 @@ online serving owner：
 
 默认 env 放置位置：
 
-- ingestion / local seed / eval / command-scoped override 只消费 endpoint/key
-- online retrieval 不再以 root `.env` 为 truth；root `.env.example` 不注册 embedding key
+- root `.env` 的 `EMBEDDING_*` 只作为 local seed 输入
+- ingestion / eval / command-scoped override 只消费各自 endpoint/key
+- online retrieval 不以 root `.env` 为 truth
 
 相关键：
 
 - `EMBEDDING_BASE_URL`
 - `EMBEDDING_API_KEY`
+- local seed/default `EMBEDDING_MODEL`
+- local seed/default `EMBEDDING_DIMENSIONS`
 - 可选 eval provider override：`EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`
 
 获取方式：
@@ -138,8 +146,8 @@ online serving owner：
 
 默认 env 放置位置：
 
-- local seed 可用 command-scoped `RERANK_*`
-- online retrieval 不以 root `.env` 为 truth；root `.env.example` 不注册 rerank key
+- root `.env` 的 `RERANK_*` 只作为 optional local seed 输入
+- online retrieval 不以 root `.env` 为 truth
 - provider path 属于 connection `capabilityConfig.rerank.path`，不在 execution-control env 中猜测
 
 相关键：

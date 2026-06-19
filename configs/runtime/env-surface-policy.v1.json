@@ -15,7 +15,7 @@
 		"infra/otel/collector.env.example"
 	],
 	"template_key_limits": {
-		".env.example": 2,
+		".env.example": 14,
 		"apps/authenticated-notice-collector/.env.example": 44,
 		"env/commands/execution-control-runtime.env.example": 39
 	},
@@ -259,6 +259,31 @@
 			"scopes": [],
 			"secret": false,
 			"retired": true
+		},
+		"RAG_SYNTHESIS_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["root"],
+			"secret": false
+		},
+		"RERANK_BASE_URL": {
+			"owner": "local-provider-seed",
+			"scopes": ["root"],
+			"secret": false
+		},
+		"RERANK_API_KEY": {
+			"owner": "local-provider-seed",
+			"scopes": ["root"],
+			"secret": true
+		},
+		"RERANK_MODEL": {
+			"owner": "local-provider-seed",
+			"scopes": ["root"],
+			"secret": false
+		},
+		"RERANK_PATH": {
+			"owner": "local-provider-seed",
+			"scopes": ["root"],
+			"secret": false
 		},
 		"DEPLOYMENT_ENVIRONMENT": {
 			"owner": "runtime-observability",

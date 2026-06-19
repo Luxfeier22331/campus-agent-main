@@ -63,7 +63,7 @@ describe("chat e2e package scripts", () => {
 		);
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
-		expect(scriptSource).toContain("PROMPT_RUNTIME_PROVIDER");
+		expect(scriptSource).not.toContain("PROMPT_RUNTIME_PROVIDER");
 		expect(scriptSource).toContain("EXECUTION_CONTROL_TIMEOUT_MS");
 		expect(scriptSource).toContain("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH");
 		expect(scriptSource).not.toContain("EXECUTION_CONTROL_REQUEST_TIMEOUT_MS");
@@ -73,7 +73,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain('"--restart-campus-web"');
 		expect(scriptSource).toContain('"--restart-execution-control-runtime"');
 		expect(scriptSource).not.toContain('"--restart-supervisor-runtime"');
-		expect(scriptSource).toContain('"--expect-prompt-runtime-state"');
+		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"rag_sdk_completed"');
 		expect(scriptSource).toContain("中央民族大学本科学生国家奖学金评审办法");
 		expect(scriptSource).not.toContain("process.kill(process.pid, signal)");
@@ -82,6 +82,14 @@ describe("chat e2e package scripts", () => {
 	});
 
 	it("exposes local provider-config seeding without prompt runtime env", () => {
+		const rootPackageJson = JSON.parse(
+			readFileSync(resolve(__dirname, "../../../package.json"), "utf8"),
+		) as {
+			scripts: Record<string, string>;
+		};
+		const turboJson = JSON.parse(readFileSync(resolve(__dirname, "../../../turbo.json"), "utf8")) as {
+			tasks: Record<string, { cache?: boolean }>;
+		};
 		const packageJson = JSON.parse(readFileSync(resolve(__dirname, "../package.json"), "utf8")) as {
 			scripts: Record<string, string>;
 		};
@@ -89,14 +97,34 @@ describe("chat e2e package scripts", () => {
 			resolve(__dirname, "../scripts/seed-local-provider-config.ts"),
 			"utf8",
 		);
+		const runWithLocalEnvSource = readFileSync(
+			resolve(__dirname, "../scripts/run-with-local-env.mjs"),
+			"utf8",
+		);
 
+		expect(rootPackageJson.scripts["local:providers:seed"]).toBe(
+			"turbo run local:providers:seed --filter=app-api",
+		);
+		expect(turboJson.tasks["local:providers:seed"]).toMatchObject({ cache: false });
+		expect(packageJson.scripts["local:providers:seed"]).toBe(
+			packageJson.scripts["provider-config:seed-local-model"],
+		);
 		expect(packageJson.scripts["provider-config:seed-local-model"]).toContain(
 			"seed-local-provider-config.ts",
 		);
 		expect(scriptSource).toContain("primary_agent");
 		expect(scriptSource).toContain("rag_synthesis");
 		expect(scriptSource).toContain("LLM_API_KEY");
-		expect(scriptSource).toContain("--model");
+		expect(scriptSource).toContain("LLM_MODEL");
+		expect(scriptSource).toContain("RAG_SYNTHESIS_MODEL");
+		expect(scriptSource).toContain("Qwen3-Embedding-4B");
+		expect(scriptSource).toContain("EMBEDDING_API_KEY");
+		expect(scriptSource).toContain("RERANK_API_KEY");
+		expect(scriptSource).toContain("RERANK_MODEL");
+		expect(scriptSource).toContain("/rerank");
+		expect(runWithLocalEnvSource).toContain("repoEnvPath");
+		expect(runWithLocalEnvSource).toContain("generatedRuntimeEnvPath");
+		expect(runWithLocalEnvSource).toContain("ensure-runtime-secrets.mjs");
 		expect(scriptSource).not.toContain("PROMPT_RUNTIME");
 		expect(scriptSource).not.toContain("EXECUTION_PROMPT_MODEL");
 	});

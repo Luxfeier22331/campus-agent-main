@@ -25,6 +25,8 @@ test("ensureRuntimeSecrets creates missing local runtime secrets without overwri
 		const content = await readFile(envPath, "utf8");
 		assert.match(content, /^PERSONAL_MEMORY_API_SECRET=existing-api-secret$/m);
 		for (const key of [
+			"APP_API_INTERNAL_SHARED_SECRET",
+			"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
 			"PERSONAL_MEMORY_OWNER_SALT",
 			"TEMPORAL_POSTGRES_PASSWORD",
 			"EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",

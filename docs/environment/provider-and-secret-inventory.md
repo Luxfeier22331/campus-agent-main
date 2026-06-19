@@ -58,26 +58,27 @@ combinations live in split environment references.
   作用: primary agent / RAG synthesis 在线回答 provider profile、eval 默认 judge/ragas LLM
   主要 online owner: `apps/app-api` provider-config connection + profile；Operator
   Console `/operations/provider-config` 创建、验证、激活
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY`，仅用于 local seed / eval command env
-  放置位置: online serving 不再以 root `.env` 为真相；local seed / eval 使用
-  command-scoped env 或 ignored local convenience env，不写入 root `.env.example`
+  主要 env keys: root `.env` 的 `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL`
+  `RAG_SYNTHESIS_MODEL` 仅作为 local seed 输入；eval override 仍走 command-scoped
+  `EVAL_*`
+  放置位置: online serving 不以 root `.env` 为真相；root provider env 只被
+  `pnpm local:providers:seed` 显式写入 app-api provider-config
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
   必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
   写回 docs 或 repo-tracked env
 
-本地真实模型验证先显式 seed app-api provider-config connections + profiles：
+本地真实模型验证先填 root `.env`，再显式 seed app-api provider-config
+connections + profiles：
 
 ```bash
-cd apps/app-api
-pnpm provider-config:seed-local-model -- --model gpt-5.5 \
-  --auth-header "Bearer <operator-token>"
+pnpm local:providers:seed
 ```
 
-脚本可读取 `LLM_API_KEY` / `LLM_BASE_URL` 作为本地连接创建输入；模型必须由 CLI
-显式传入。这些 env 不作为 online serving fallback；`execution-control` 只能通过
-`app-api` internal provider-config active snapshot 消费 connection 解析后的 runtime
-view。
+脚本读取 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 作为本地连接创建输入；
+`RAG_SYNTHESIS_MODEL` 缺省复用 `LLM_MODEL`。这些 env 不作为 online serving
+fallback；`execution-control` 只能通过 `app-api` internal provider-config active
+snapshot 消费 connection 解析后的 runtime view。
 
 离线/领域 multimodal lane 不在 root `.env.example` 注册一组 domain env。需要真实
 模型验证时，只配置该领域必备的 `*_API_KEY` 与 `*_MODEL`；base URL、max tokens、
@@ -88,9 +89,10 @@ doctor/env readiness contract。
   作用: ingestion 向量化、retrieval dense lane、eval 默认 embeddings
   主要 online owner: `apps/app-api` provider-config connection + `rag_query_embedding`
   profile；Operator Console `/operations/provider-config` 创建、验证、激活
-  主要 env keys: `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
-  放置位置: online retrieval 不再以 root `.env` 为真相；ingestion / local seed 通过
-  command/local ignored env 消费 endpoint/key；model、dimensions、sparse profile 在 collection runtime profile
+  主要 env keys: root `.env` 的 `EMBEDDING_BASE_URL` `EMBEDDING_API_KEY`
+  `EMBEDDING_MODEL` `EMBEDDING_DIMENSIONS` 仅作为 local seed 输入
+  放置位置: online retrieval 不以 root `.env` 为真相；local seed 显式写入
+  app-api provider-config；ingestion/eval 仍使用各自 command/env profile
   何时必需: indexing、retrieval、eval embeddings；online query path 必须存在 active
   `rag_query_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
@@ -101,10 +103,10 @@ doctor/env readiness contract。
   rerank；默认不启用
   主要 online owner: `apps/app-api` provider-config connection + `rag_reranker`
   profile
-  主要 env keys: 本地 seed 可用 `RERANK_BASE_URL` `RERANK_API_KEY` `RERANK_PATH`
-  `RERANK_MODEL`；不进入 root `.env.example`
+  主要 env keys: root `.env` 的 `RERANK_BASE_URL` `RERANK_API_KEY` `RERANK_PATH`
+  `RERANK_MODEL` 仅作为 optional local seed 输入
   放置位置: online retrieval 不以 root `.env` 为 truth；provider path 放在 connection
-  `capabilityConfig.rerank.path`
+  `capabilityConfig.rerank.path`，由 seed 显式写入
   何时必需: 只有对应 runtime profile 开启 reranker 时必需；缺 profile、缺 path、provider
   失败或 score 不完整都 fail closed，不回退到 baseline hybrid/RRF 顺序
 

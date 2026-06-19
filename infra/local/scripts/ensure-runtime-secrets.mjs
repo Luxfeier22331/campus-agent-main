@@ -7,6 +7,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const defaultEnvPath = path.resolve(__dirname, "../.generated/runtime.env");
 
 const requiredSecrets = [
+	"APP_API_INTERNAL_SHARED_SECRET",
+	"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
 	"PERSONAL_MEMORY_API_SECRET",
 	"PERSONAL_MEMORY_OWNER_SALT",
 	"TEMPORAL_POSTGRES_PASSWORD",

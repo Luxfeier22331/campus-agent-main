@@ -258,7 +258,7 @@ describe("agent runtime server env contract", () => {
 		expect(source).not.toContain("process.env.EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
 	});
 
-	it("projects prompt runtime env into the OpenAI Agents SDK provider", () => {
+	it("does not project root provider env into the OpenAI Agents SDK provider", () => {
 		const source = readFileSync(
 			fileURLToPath(new URL("../src/server.ts", import.meta.url)),
 			"utf8",
