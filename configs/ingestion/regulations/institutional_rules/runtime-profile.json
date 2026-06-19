@@ -15,6 +15,19 @@
 	"qdrant_collection_prefix": "institutional_rules",
 	"qdrant_dense_vector_name": "dense",
 	"qdrant_sparse_vector_name": "sparse",
+	"embedding_profile": {
+		"provider": "openai-compatible",
+		"model": "Qwen3-Embedding-4B",
+		"dimensions": 2560,
+		"dense_vector_name": "dense"
+	},
+	"sparse_profile": {
+		"provider": "qdrant",
+		"model": "qdrant/bm25",
+		"tokenizer": "multilingual",
+		"language": "none",
+		"sparse_vector_name": "sparse"
+	},
 	"no_hit_min_top_score": 0.6,
 	"no_hit_min_score_gap": 0.1
 }

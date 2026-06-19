@@ -10,6 +10,8 @@ from llama_index.core.embeddings.mock_embed_model import MockEmbedding
 from llama_index.embeddings.openai import OpenAIEmbedding
 from openai import AsyncOpenAI, OpenAI
 
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
+
 DEFAULT_EMBEDDING_PROVIDER = "gitee"
 DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 60.0
@@ -175,6 +177,25 @@ class EmbeddingSettings:
             ),
         )
 
+    @classmethod
+    def from_collection_profile(
+        cls,
+        profile: CollectionRuntimeProfile,
+        *,
+        env: dict[str, str] | None = None,
+    ) -> EmbeddingSettings:
+        if profile.embedding_profile is None:
+            raise ValueError("embedding_profile is required")
+        source = env if env is not None else os.environ
+        embedding_profile = profile.embedding_profile
+        return cls(
+            provider=embedding_profile.provider,
+            model=embedding_profile.model,
+            api_key=(source.get("EMBEDDING_API_KEY") or "").strip(),
+            api_base=(source.get("EMBEDDING_BASE_URL") or "").strip() or None,
+            dimensions=embedding_profile.dimensions,
+        )
+
 
 @dataclass(frozen=True, slots=True)
 class MockEmbeddingSettings:
@@ -208,7 +229,7 @@ def build_embedding_model(settings: EmbeddingSettings) -> BaseEmbedding:
         return OpenAIEmbedding(
             **kwargs,
         )
-    if provider == "gitee":
+    if provider in {"gitee", "openai-compatible"}:
         return OpenAICompatibleEmbedding(
             model=settings.model,
             api_key=settings.api_key,

@@ -3,9 +3,9 @@ from __future__ import annotations
 from base64 import b64encode
 
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
+    CourseMapMultimodalTransport,
     CurriculumCourseMapRenderedRegion,
     CurriculumCourseMapRenderedSample,
-    PromptRuntimeTransport,
 )
 
 
@@ -94,13 +94,17 @@ def _png_data_url(payload: bytes) -> str:
     return f"data:image/png;base64,{b64encode(payload).decode('ascii')}"
 
 
-def _normalize_prompt_runtime_transport(raw_transport: str) -> PromptRuntimeTransport:
+def _normalize_course_map_multimodal_transport(
+    raw_transport: str,
+) -> CourseMapMultimodalTransport:
     normalized = raw_transport.strip().lower()
     if normalized in {"", "responses"}:
         return "responses"
     if normalized in {"chat_completions", "chat-completions", "chat/completions"}:
         return "chat_completions"
-    raise ValueError("PROMPT_RUNTIME_TRANSPORT must be one of responses or chat_completions")
+    raise ValueError(
+        "CURRICULUM_COURSE_MAP_MULTIMODAL_TRANSPORT must be one of responses or chat_completions"
+    )
 
 
 def _curriculum_course_map_detector_schema() -> dict[str, object]:

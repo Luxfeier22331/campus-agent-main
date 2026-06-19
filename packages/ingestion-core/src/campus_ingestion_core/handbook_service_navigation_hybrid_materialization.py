@@ -6,13 +6,6 @@ from dataclasses import asdict, dataclass
 from typing import Protocol
 
 import httpx
-from campus_prompt_runtime import (
-    DEFAULT_PROMPT_RUNTIME_BASE_URL,
-    DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
-)
 
 from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
@@ -29,6 +22,11 @@ from campus_ingestion_core.object_store import (
 FLOW_GRAPH_FILENAME = "flow-graph.json"
 HANDOOK_SERVICE_NAVIGATION_PROJECTION_SCHEMA_VERSION = "handbook_service_navigation_projection_v1"
 DEFAULT_RENDER_DPI = 180
+DEFAULT_HANDBOOK_SERVICE_NAVIGATION_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_HANDBOOK_SERVICE_NAVIGATION_CONNECT_TIMEOUT_SECONDS = 10.0
+DEFAULT_HANDBOOK_SERVICE_NAVIGATION_READ_TIMEOUT_SECONDS = 30.0
+DEFAULT_HANDBOOK_SERVICE_NAVIGATION_WRITE_TIMEOUT_SECONDS = 10.0
+DEFAULT_HANDBOOK_SERVICE_NAVIGATION_POOL_TIMEOUT_SECONDS = 3.0
 
 
 class ObjectStoreByteReader(Protocol):
@@ -365,18 +363,16 @@ def _extract_service_navigation_flow_graph(
     source_page_start: int,
     source_page_end: int,
 ) -> ServiceNavigationFlowGraph:
-    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or "").strip()
-    model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
-    base_url = (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
-    reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
-    max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()
+    api_key = (source.get("HANDBOOK_SERVICE_NAVIGATION_API_KEY") or "").strip()
+    model_name = (source.get("HANDBOOK_SERVICE_NAVIGATION_MODEL") or "").strip()
+    base_url = DEFAULT_HANDBOOK_SERVICE_NAVIGATION_BASE_URL
     if not api_key:
         raise ValueError(
-            "PROMPT_RUNTIME_API_KEY is required for service navigation hybrid extraction"
+            "HANDBOOK_SERVICE_NAVIGATION_API_KEY is required for service navigation hybrid extraction"
         )
     if not model_name:
         raise ValueError(
-            "PROMPT_RUNTIME_MODEL is required for service navigation hybrid extraction"
+            "HANDBOOK_SERVICE_NAVIGATION_MODEL is required for service navigation hybrid extraction"
         )
 
     system_text = (
@@ -422,15 +418,11 @@ def _extract_service_navigation_flow_graph(
             }
         },
     }
-    if reasoning_effort:
-        payload["reasoning"] = {"effort": reasoning_effort}
-    if max_output_tokens:
-        payload["max_output_tokens"] = int(max_output_tokens)
     timeout = httpx.Timeout(
-        connect=DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
-        read=DEFAULT_PROMPT_RUNTIME_READ_TIMEOUT_SECONDS,
-        write=DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
-        pool=DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
+        connect=DEFAULT_HANDBOOK_SERVICE_NAVIGATION_CONNECT_TIMEOUT_SECONDS,
+        read=DEFAULT_HANDBOOK_SERVICE_NAVIGATION_READ_TIMEOUT_SECONDS,
+        write=DEFAULT_HANDBOOK_SERVICE_NAVIGATION_WRITE_TIMEOUT_SECONDS,
+        pool=DEFAULT_HANDBOOK_SERVICE_NAVIGATION_POOL_TIMEOUT_SECONDS,
     )
     with httpx.Client(base_url=base_url, timeout=timeout) as client:
         response = client.post(

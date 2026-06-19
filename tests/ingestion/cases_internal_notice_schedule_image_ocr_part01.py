@@ -174,9 +174,9 @@ class InternalNoticeScheduleImageOcrTestPart01(unittest.TestCase):
         ):
             ChatCompletionsScheduleImageOcrProvider.from_env(
                 {
-                    "PROMPT_RUNTIME_API_KEY": "shared-key",
-                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
-                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                    "LLM_API_KEY": "shared-key",
+                    "LLM_MODEL": "gpt-shared",
+                    "LLM_BASE_URL": "https://shared.example/v1",
                 }
             )
 

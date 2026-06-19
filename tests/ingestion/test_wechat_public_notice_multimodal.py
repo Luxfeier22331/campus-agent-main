@@ -332,8 +332,8 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env(
                 {
                     "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY": "other-lane-key",
-                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
-                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                    "LLM_MODEL": "gpt-shared",
+                    "LLM_BASE_URL": "https://shared.example/v1",
                 }
             )
 

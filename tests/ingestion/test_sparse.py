@@ -8,10 +8,29 @@ from campus_ingestion_core.sparse import (
     build_mock_sparse_embedding_model,
     build_sparse_embedding_model,
 )
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from qdrant_client.http import models as qdrant_models
 
 
 class SparseEmbeddingModelTest(unittest.TestCase):
+    def test_sparse_settings_from_collection_profile_ignore_env_override(self) -> None:
+        profile = load_runtime_profile("regulations", "student_rules")
+
+        settings = SparseEmbeddingSettings.from_collection_profile(
+            profile,
+            env={
+                "SPARSE_PROVIDER": "wrong-provider",
+                "SPARSE_MODEL": "wrong-model",
+                "SPARSE_TOKENIZER": "word",
+                "SPARSE_LANGUAGE": "en",
+            },
+        )
+
+        self.assertEqual(settings.provider, "qdrant")
+        self.assertEqual(settings.model, "qdrant/bm25")
+        self.assertEqual(settings.tokenizer, "multilingual")
+        self.assertEqual(settings.language, "none")
+
     def test_qdrant_sparse_model_builds_server_side_bm25_document_for_live_path(
         self,
     ) -> None:

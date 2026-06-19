@@ -235,16 +235,6 @@ def _settings_from_env(env: Mapping[str, str] | None) -> dict[str, object]:
     source = env if env is not None else os.environ
     api_key = (source.get("INTERNAL_NOTICE_MULTIMODAL_API_KEY") or "").strip()
     model = (source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL") or "").strip()
-    base_url = (
-        source.get("INTERNAL_NOTICE_MULTIMODAL_BASE_URL")
-        or DEFAULT_INTERNAL_NOTICE_MULTIMODAL_BASE_URL
-    ).strip()
-    max_output_tokens = int(
-        (
-            source.get("INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS")
-            or str(DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS)
-        ).strip()
-    )
     if not api_key:
         raise ValueError("INTERNAL_NOTICE_MULTIMODAL_API_KEY is required")
     if not model:
@@ -252,8 +242,8 @@ def _settings_from_env(env: Mapping[str, str] | None) -> dict[str, object]:
     return {
         "api_key": api_key,
         "model": model,
-        "base_url": base_url,
-        "max_output_tokens": max_output_tokens,
+        "base_url": DEFAULT_INTERNAL_NOTICE_MULTIMODAL_BASE_URL,
+        "max_output_tokens": DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS,
     }
 
 

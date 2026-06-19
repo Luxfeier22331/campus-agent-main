@@ -20,7 +20,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_prompt import 
     _build_course_map_region_content,
     _curriculum_course_map_detector_schema,
     _curriculum_course_map_region_schema,
-    _normalize_prompt_runtime_transport,
+    _normalize_course_map_multimodal_transport,
     _png_data_url,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_render import (
@@ -40,26 +40,26 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_suppor
     _sample_output_dir,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
+    DEFAULT_COURSE_MAP_MULTIMODAL_CONNECT_TIMEOUT_SECONDS,
+    DEFAULT_COURSE_MAP_MULTIMODAL_POOL_TIMEOUT_SECONDS,
+    DEFAULT_COURSE_MAP_MULTIMODAL_WRITE_TIMEOUT_SECONDS,
     DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS,
     DEFAULT_MAX_REQUEST_ATTEMPTS,
-    DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
     CourseMapFinding,
+    CourseMapMultimodalTransport,
     CurriculumCourseMapPageProbe,
     CurriculumCourseMapProbeRun,
     CurriculumCourseMapRenderedRegion,
     CurriculumCourseMapRenderedSample,
     DetectedCourseMapRegion,
-    PromptRuntimeTransport,
     _write_json,
 )
 
 _DEFAULT_TIMEOUT = httpx.Timeout(
-    connect=DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
+    connect=DEFAULT_COURSE_MAP_MULTIMODAL_CONNECT_TIMEOUT_SECONDS,
     read=DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS,
-    write=DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
-    pool=DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
+    write=DEFAULT_COURSE_MAP_MULTIMODAL_WRITE_TIMEOUT_SECONDS,
+    pool=DEFAULT_COURSE_MAP_MULTIMODAL_POOL_TIMEOUT_SECONDS,
 )
 
 AttemptRecorder = Callable[[dict[str, object]], Awaitable[None]]
@@ -71,7 +71,7 @@ async def _run_curriculum_course_map_probe_runs_async(
     rendered_samples: tuple[CurriculumCourseMapRenderedSample, ...],
     output_dir: Path | None,
     prompt_runs: int,
-    prompt_transport: PromptRuntimeTransport,
+    prompt_transport: CourseMapMultimodalTransport,
     max_inflight_pages: int,
     max_request_attempts: int,
     resume: bool,
@@ -110,7 +110,7 @@ async def _run_curriculum_course_map_probe_run_async(
     source: dict[str, str],
     rendered_samples: tuple[CurriculumCourseMapRenderedSample, ...],
     output_dir: Path | None,
-    prompt_transport: PromptRuntimeTransport,
+    prompt_transport: CourseMapMultimodalTransport,
     max_inflight_pages: int,
     max_request_attempts: int,
     resume: bool,
@@ -220,7 +220,7 @@ async def _probe_curriculum_course_map_page_async(
     *,
     source: dict[str, str],
     rendered_sample: CurriculumCourseMapRenderedSample,
-    prompt_transport: PromptRuntimeTransport,
+    prompt_transport: CourseMapMultimodalTransport,
     max_request_attempts: int,
     http_client: httpx.AsyncClient | None,
     on_attempt: AttemptRecorder,
@@ -324,7 +324,7 @@ async def _detect_curriculum_course_map_regions_async(
     *,
     source: dict[str, str],
     rendered_sample: CurriculumCourseMapRenderedSample,
-    prompt_transport: PromptRuntimeTransport,
+    prompt_transport: CourseMapMultimodalTransport,
     max_request_attempts: int,
     http_client: httpx.AsyncClient | None,
     on_attempt: AttemptRecorder,
@@ -347,7 +347,7 @@ async def _extract_curriculum_course_map_region_async(
     source: dict[str, str],
     rendered_sample: CurriculumCourseMapRenderedSample,
     rendered_region: CurriculumCourseMapRenderedRegion,
-    prompt_transport: PromptRuntimeTransport,
+    prompt_transport: CourseMapMultimodalTransport,
     max_request_attempts: int,
     http_client: httpx.AsyncClient | None,
     on_attempt: AttemptRecorder,
@@ -377,7 +377,7 @@ async def _extract_curriculum_course_map_region_async(
 
 async def _request_course_map_detector_payload_async(
     *,
-    transport: PromptRuntimeTransport,
+    transport: CourseMapMultimodalTransport,
     source: dict[str, str],
     rendered_sample: CurriculumCourseMapRenderedSample,
     http_client: httpx.AsyncClient | None,
@@ -413,7 +413,7 @@ async def _request_course_map_detector_payload_async(
 
 async def _request_course_map_region_payload_async(
     *,
-    transport: PromptRuntimeTransport,
+    transport: CourseMapMultimodalTransport,
     source: dict[str, str],
     rendered_sample: CurriculumCourseMapRenderedSample,
     rendered_region: CurriculumCourseMapRenderedRegion,
@@ -455,7 +455,7 @@ async def _request_course_map_region_payload_async(
 
 async def _request_structured_multimodal_payload_async(
     *,
-    transport: PromptRuntimeTransport,
+    transport: CourseMapMultimodalTransport,
     source: dict[str, str],
     path_label: str,
     schema: dict[str, object],
@@ -468,14 +468,16 @@ async def _request_structured_multimodal_payload_async(
     run_index: int,
     map_index: int | None,
 ) -> dict[str, object]:
-    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or "").strip()
-    model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
-    reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
-    max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()
+    api_key = (source.get("CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY") or "").strip()
+    model_name = (source.get("CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL") or "").strip()
     if not api_key:
-        raise ValueError("PROMPT_RUNTIME_API_KEY is required for curriculum course-map probe")
+        raise ValueError(
+            "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY is required for curriculum course-map probe"
+        )
     if not model_name:
-        raise ValueError("PROMPT_RUNTIME_MODEL is required for curriculum course-map probe")
+        raise ValueError(
+            "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL is required for curriculum course-map probe"
+        )
     if http_client is None:
         raise ValueError("http_client is required for async probe requests")
     if transport == "responses":
@@ -495,10 +497,6 @@ async def _request_structured_multimodal_payload_async(
                 }
             },
         }
-        if reasoning_effort:
-            payload["reasoning"] = {"effort": reasoning_effort}
-        if max_output_tokens:
-            payload["max_output_tokens"] = int(max_output_tokens)
         response_json = await _post_probe_json_async(
             http_client=http_client,
             path="/responses",
@@ -534,10 +532,6 @@ async def _request_structured_multimodal_payload_async(
             },
         },
     }
-    if reasoning_effort:
-        payload["reasoning_effort"] = reasoning_effort
-    if max_output_tokens:
-        payload["max_completion_tokens"] = int(max_output_tokens)
     response_json = await _post_probe_json_async(
         http_client=http_client,
         path="/chat/completions",
@@ -692,7 +686,7 @@ __all__ = [
     "_curriculum_course_map_region_schema",
     "_detect_curriculum_course_map_regions_async",
     "_extract_curriculum_course_map_region_async",
-    "_normalize_prompt_runtime_transport",
+    "_normalize_course_map_multimodal_transport",
     "_png_data_url",
     "_post_probe_json_async",
     "_probe_curriculum_course_map_page_async",

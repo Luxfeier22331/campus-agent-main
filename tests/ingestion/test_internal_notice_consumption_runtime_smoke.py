@@ -214,18 +214,18 @@ class InternalNoticeConsumptionRuntimeSmokeTest(unittest.TestCase):
             ),
             admission_store=admission_store,
             attempt_store=InMemoryInternalNoticeMultimodalAttemptStore(),
-            env={"INTERNAL_NOTICE_MULTIMODAL_BASE_URL": "https://chat.example.test/v1"},
+            env={"INTERNAL_NOTICE_MULTIMODAL_API_KEY": "notice-multimodal-key"},
             check_multimodal_runtime=True,
             multimodal_runtime_checker=lambda env: (
                 False,
-                env["INTERNAL_NOTICE_MULTIMODAL_BASE_URL"],
+                env["INTERNAL_NOTICE_MULTIMODAL_API_KEY"],
             ),
         )
 
         self.assertFalse(report.ok)
         self.assertTrue(report.multimodal_runtime_checked)
         self.assertFalse(report.multimodal_runtime_ok)
-        self.assertEqual(report.multimodal_runtime_error, "https://chat.example.test/v1")
+        self.assertEqual(report.multimodal_runtime_error, "notice-multimodal-key")
 
 
 @dataclass(frozen=True, slots=True)

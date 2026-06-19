@@ -41,6 +41,47 @@ ALLOWED_DOCUMENT_SUPPORT_STRATEGIES = (
 DEFAULT_EMBEDDING_QUERY_INSTRUCTION = (
     "Given a campus policy or handbook question, retrieve relevant passages that answer the query."
 )
+ALLOWED_EMBEDDING_PROVIDERS = ("openai-compatible", "openai", "mock")
+ALLOWED_SPARSE_PROVIDERS = ("qdrant", "mock")
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionEmbeddingProfile:
+    provider: str
+    model: str
+    dimensions: int
+    dense_vector_name: str
+
+    def __post_init__(self) -> None:
+        if self.provider not in ALLOWED_EMBEDDING_PROVIDERS:
+            raise ValueError(f"unsupported embedding provider: {self.provider}")
+        if not self.model.strip():
+            raise ValueError("embedding model is required")
+        if self.dimensions <= 0:
+            raise ValueError("embedding dimensions must be greater than zero")
+        if not self.dense_vector_name.strip():
+            raise ValueError("embedding dense_vector_name is required")
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionSparseProfile:
+    provider: str
+    model: str
+    tokenizer: str
+    language: str
+    sparse_vector_name: str
+
+    def __post_init__(self) -> None:
+        if self.provider not in ALLOWED_SPARSE_PROVIDERS:
+            raise ValueError(f"unsupported sparse provider: {self.provider}")
+        if not self.model.strip():
+            raise ValueError("sparse model is required")
+        if not self.tokenizer.strip():
+            raise ValueError("sparse tokenizer is required")
+        if not self.language.strip():
+            raise ValueError("sparse language is required")
+        if not self.sparse_vector_name.strip():
+            raise ValueError("sparse sparse_vector_name is required")
 
 
 @dataclass(frozen=True, slots=True)
@@ -86,6 +127,8 @@ class CollectionRuntimeProfile:
     embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
     no_hit_min_top_score: float | None = None
     no_hit_min_score_gap: float | None = None
+    embedding_profile: CollectionEmbeddingProfile | None = None
+    sparse_profile: CollectionSparseProfile | None = None
     qdrant_index_binding: QdrantIndexBinding = field(
         default_factory=lambda: QdrantIndexBinding(
             alias_name="unconfigured", collection_prefix="unconfigured"
@@ -187,6 +230,21 @@ class CollectionRuntimeProfile:
         for tool_name in self.structured_query_tools:
             if not tool_name.strip():
                 raise ValueError("structured_query_tools must not contain empty values")
+        if self.retrieval_enabled:
+            if self.embedding_profile is None:
+                raise ValueError("embedding_profile is required when retrieval is enabled")
+            if self.sparse_profile is None:
+                raise ValueError("sparse_profile is required when retrieval is enabled")
+            if (
+                self.embedding_profile.dense_vector_name
+                != self.qdrant_index_binding.dense_vector_name
+            ):
+                raise ValueError("embedding_profile dense_vector_name must match qdrant binding")
+            if (
+                self.sparse_profile.sparse_vector_name
+                != self.qdrant_index_binding.sparse_vector_name
+            ):
+                raise ValueError("sparse_profile sparse_vector_name must match qdrant binding")
 
 
 @dataclass(frozen=True, slots=True)
@@ -252,6 +310,18 @@ def load_runtime_profile(
     scope = assert_known_scope(corpus, collection, config_root=root)
     path = root / scope.corpus / scope.collection / "runtime-profile.json"
     payload = json.loads(path.read_text(encoding="utf-8"))
+    qdrant_index_binding = QdrantIndexBinding(
+        alias_name=str(payload.get("qdrant_alias_name") or ""),
+        collection_prefix=str(payload.get("qdrant_collection_prefix") or ""),
+        dense_vector_name=(
+            str(payload.get("qdrant_dense_vector_name") or DEFAULT_QDRANT_DENSE_VECTOR_NAME)
+            or DEFAULT_QDRANT_DENSE_VECTOR_NAME
+        ),
+        sparse_vector_name=(
+            str(payload.get("qdrant_sparse_vector_name") or DEFAULT_QDRANT_SPARSE_VECTOR_NAME)
+            or DEFAULT_QDRANT_SPARSE_VECTOR_NAME
+        ),
+    )
     return CollectionRuntimeProfile(
         corpus=str(payload.get("corpus") or ""),
         collection=str(payload.get("collection") or ""),
@@ -320,18 +390,9 @@ def load_runtime_profile(
         ),
         no_hit_min_top_score=_optional_float(payload.get("no_hit_min_top_score")),
         no_hit_min_score_gap=_optional_float(payload.get("no_hit_min_score_gap")),
-        qdrant_index_binding=QdrantIndexBinding(
-            alias_name=str(payload.get("qdrant_alias_name") or ""),
-            collection_prefix=str(payload.get("qdrant_collection_prefix") or ""),
-            dense_vector_name=(
-                str(payload.get("qdrant_dense_vector_name") or DEFAULT_QDRANT_DENSE_VECTOR_NAME)
-                or DEFAULT_QDRANT_DENSE_VECTOR_NAME
-            ),
-            sparse_vector_name=(
-                str(payload.get("qdrant_sparse_vector_name") or DEFAULT_QDRANT_SPARSE_VECTOR_NAME)
-                or DEFAULT_QDRANT_SPARSE_VECTOR_NAME
-            ),
-        ),
+        embedding_profile=_load_embedding_profile(payload, qdrant_index_binding),
+        sparse_profile=_load_sparse_profile(payload, qdrant_index_binding),
+        qdrant_index_binding=qdrant_index_binding,
     )
 
 
@@ -431,3 +492,40 @@ def _optional_text(value: object) -> str | None:
         return None
     normalized = str(value).strip()
     return normalized or None
+
+
+def _load_embedding_profile(
+    payload: dict[str, object],
+    qdrant_index_binding: QdrantIndexBinding,
+) -> CollectionEmbeddingProfile | None:
+    raw_profile = payload.get("embedding_profile")
+    if raw_profile is None:
+        return None
+    profile = dict(raw_profile) if isinstance(raw_profile, dict) else {}
+    return CollectionEmbeddingProfile(
+        provider=str(profile.get("provider") or ""),
+        model=str(profile.get("model") or ""),
+        dimensions=int(profile.get("dimensions") or 0),
+        dense_vector_name=str(
+            profile.get("dense_vector_name") or qdrant_index_binding.dense_vector_name
+        ),
+    )
+
+
+def _load_sparse_profile(
+    payload: dict[str, object],
+    qdrant_index_binding: QdrantIndexBinding,
+) -> CollectionSparseProfile | None:
+    raw_profile = payload.get("sparse_profile")
+    if raw_profile is None:
+        return None
+    profile = dict(raw_profile) if isinstance(raw_profile, dict) else {}
+    return CollectionSparseProfile(
+        provider=str(profile.get("provider") or ""),
+        model=str(profile.get("model") or ""),
+        tokenizer=str(profile.get("tokenizer") or ""),
+        language=str(profile.get("language") or ""),
+        sparse_vector_name=str(
+            profile.get("sparse_vector_name") or qdrant_index_binding.sparse_vector_name
+        ),
+    )

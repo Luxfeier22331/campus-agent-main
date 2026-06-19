@@ -5,6 +5,7 @@ import json
 import unittest
 from unittest.mock import patch
 
+import httpx
 from campus_ingestion_core.campusrag_ingestion_artifacts import ProcessedArtifactInput
 from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
     ServiceNavigationFlow,
@@ -48,22 +49,88 @@ class _FakeReader:
         return self.payload
 
 
+class _FakeResponsesClient:
+    posts: list[dict[str, object]]
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        self.posts = []
+
+    def __enter__(self) -> _FakeResponsesClient:
+        return self
+
+    def __exit__(self, exc_type: object, exc: object, tb: object) -> bool:
+        return False
+
+    def post(
+        self,
+        path: str,
+        *,
+        json: dict[str, object],
+        headers: dict[str, str],
+    ) -> object:
+        self.posts.append({"path": path, "json": json, "headers": headers})
+        return httpx.Response(
+            200,
+            request=httpx.Request("POST", f"https://example.invalid{path}"),
+            json={
+                "output_parsed": {
+                    "document_title": "中央民族大学学生公寓管理工作流程",
+                    "page_findings": [
+                        {
+                            "source_page": 252,
+                            "page_heading": "学生公寓办理总览",
+                            "flows": [],
+                        }
+                    ],
+                    "global_manual_review_required": False,
+                }
+            },
+        )
+
+
 class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
     def test_hybrid_extraction_rejects_llm_api_key_alias(self) -> None:
         with self.assertRaisesRegex(
             ValueError,
-            "PROMPT_RUNTIME_API_KEY is required",
+            "HANDBOOK_SERVICE_NAVIGATION_API_KEY is required",
         ):
             _extract_service_navigation_flow_graph(
                 source={
                     "LLM_API_KEY": "legacy-key",
-                    "PROMPT_RUNTIME_MODEL": "gpt-test",
+                    "HANDBOOK_SERVICE_NAVIGATION_MODEL": "gpt-test",
                 },
                 target_title="学生公寓管理工作流程",
                 page_images=((252, b"PNG"),),
                 source_page_start=252,
                 source_page_end=252,
             )
+
+    def test_hybrid_extraction_ignores_optional_tuning_env(self) -> None:
+        fake_client = _FakeResponsesClient()
+        with patch(
+            "campus_ingestion_core.handbook_service_navigation_hybrid_materialization.httpx.Client",
+            return_value=fake_client,
+        ):
+            graph = _extract_service_navigation_flow_graph(
+                source={
+                    "HANDBOOK_SERVICE_NAVIGATION_API_KEY": "test-key",
+                    "HANDBOOK_SERVICE_NAVIGATION_MODEL": "gpt-test",
+                    "HANDBOOK_SERVICE_NAVIGATION_BASE_URL": "https://domain.example/v1",
+                    "HANDBOOK_SERVICE_NAVIGATION_REASONING_EFFORT": "high",
+                    "HANDBOOK_SERVICE_NAVIGATION_MAX_OUTPUT_TOKENS": "123",
+                },
+                target_title="学生公寓管理工作流程",
+                page_images=((252, b"PNG"),),
+                source_page_start=252,
+                source_page_end=252,
+            )
+
+        self.assertEqual(graph.document_title, "中央民族大学学生公寓管理工作流程")
+        self.assertEqual(len(fake_client.posts), 1)
+        payload = fake_client.posts[0]["json"]
+        self.assertIsInstance(payload, dict)
+        self.assertNotIn("reasoning", payload)
+        self.assertNotIn("max_output_tokens", payload)
 
     def test_projection_selector_matches_only_exact_bounded_service_navigation_slice(self) -> None:
         self.assertTrue(
@@ -384,7 +451,10 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                         "source_page_end": 255,
                         "target_document_id": "campus_services:service_catalog:test-001",
                         "target_title": "中央民族大学学生公寓管理工作流程",
-                        "extractor_runtime": {"kind": "prompt_runtime", "model": "gpt-test"},
+                        "extractor_runtime": {
+                            "kind": "handbook_service_navigation",
+                            "model": "gpt-test",
+                        },
                         "flow_graph": {
                             "document_title": "中央民族大学学生公寓管理工作流程",
                             "global_manual_review_required": True,
@@ -490,7 +560,10 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                         "source_page_end": 255,
                         "target_document_id": "campus_services:service_catalog:test-001",
                         "target_title": "中央民族大学学生公寓管理工作流程",
-                        "extractor_runtime": {"kind": "prompt_runtime", "mode": "captured"},
+                        "extractor_runtime": {
+                            "kind": "handbook_service_navigation",
+                            "mode": "captured",
+                        },
                         "flow_graph": {
                             "document_title": "中央民族大学学生公寓管理工作流程",
                             "global_manual_review_required": False,

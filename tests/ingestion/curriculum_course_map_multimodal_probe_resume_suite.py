@@ -163,9 +163,8 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
             ):
                 report = run_curriculum_course_map_multimodal_probe(
                     source={
-                        "PROMPT_RUNTIME_API_KEY": "test",
-                        "PROMPT_RUNTIME_MODEL": "gpt-test",
-                        "PROMPT_RUNTIME_TRANSPORT": "chat_completions",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
                     },
                     source_bucket="campus-rag-source",
                     split_manifest_path=split_manifest_path,
@@ -183,6 +182,7 @@ class CurriculumCourseMapMultimodalProbeResumeTest(unittest.TestCase):
                     layout_elements_key="layout-elements.jsonl",
                     output_dir=output_dir,
                     prompt_runs=1,
+                    prompt_transport="chat_completions",
                     resume=True,
                 )
 

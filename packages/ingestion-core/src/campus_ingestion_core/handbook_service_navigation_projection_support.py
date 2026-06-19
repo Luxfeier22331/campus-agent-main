@@ -319,20 +319,16 @@ def _validate_projection_artifact(
 
 def _resolve_projection_extractor_runtime(source: dict[str, str]) -> dict[str, str]:
     from campus_ingestion_core.handbook_service_navigation_hybrid_materialization import (
-        DEFAULT_PROMPT_RUNTIME_BASE_URL,
+        DEFAULT_HANDBOOK_SERVICE_NAVIGATION_BASE_URL,
     )
 
-    base_url = (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
-    model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
-    reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
-    runtime = {
-        "kind": "prompt_runtime",
+    base_url = DEFAULT_HANDBOOK_SERVICE_NAVIGATION_BASE_URL
+    model_name = (source.get("HANDBOOK_SERVICE_NAVIGATION_MODEL") or "").strip()
+    return {
+        "kind": "handbook_service_navigation",
         "base_url": base_url,
         "model": model_name,
     }
-    if reasoning_effort:
-        runtime["reasoning_effort"] = reasoning_effort
-    return runtime
 
 
 def _render_flow_graph_markdown(flow_graph: ServiceNavigationFlowGraph) -> str:

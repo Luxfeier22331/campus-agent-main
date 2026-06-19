@@ -9,6 +9,7 @@ from campus_ingestion_core.embed import (
     build_embedding_model,
     validate_ingestion_retrieval_embedding_env_alignment,
 )
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):
@@ -28,6 +29,30 @@ class EmbeddingProviderAliasTest(unittest.TestCase):
         )
 
         self.assertEqual(settings.dimensions, 2560)
+
+    def test_embedding_settings_from_collection_profile_ignore_model_env_override(self) -> None:
+        profile = load_runtime_profile("regulations", "student_rules")
+
+        settings = EmbeddingSettings.from_collection_profile(
+            profile,
+            env={
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_BASE_URL": "https://embed.example/v1",
+                "EMBEDDING_PROVIDER": "wrong-provider",
+                "EMBEDDING_MODEL": "wrong-model",
+                "EMBEDDING_DIMENSIONS": "1536",
+                "EMBEDDING_TIMEOUT_SECONDS": "1",
+                "EMBEDDING_BATCH_SIZE": "2",
+            },
+        )
+
+        self.assertEqual(settings.provider, "openai-compatible")
+        self.assertEqual(settings.model, "Qwen3-Embedding-4B")
+        self.assertEqual(settings.dimensions, 2560)
+        self.assertEqual(settings.api_key, "embed-key")
+        self.assertEqual(settings.api_base, "https://embed.example/v1")
+        self.assertEqual(settings.timeout_seconds, 60.0)
+        self.assertEqual(settings.embed_batch_size, 100)
 
     def test_embedding_alignment_rejects_ingestion_model_without_matching_retrieval_model(
         self,

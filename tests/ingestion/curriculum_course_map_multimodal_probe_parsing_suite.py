@@ -17,16 +17,18 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
             ),
         )
 
-    def test_normalize_prompt_runtime_transport_accepts_chat_completion_aliases(self) -> None:
-        self.assertEqual(_normalize_prompt_runtime_transport("responses"), "responses")
+    def test_normalize_course_map_multimodal_transport_accepts_chat_completion_aliases(
+        self,
+    ) -> None:
+        self.assertEqual(_normalize_course_map_multimodal_transport("responses"), "responses")
         self.assertEqual(
-            _normalize_prompt_runtime_transport("chat_completions"), "chat_completions"
+            _normalize_course_map_multimodal_transport("chat_completions"), "chat_completions"
         )
         self.assertEqual(
-            _normalize_prompt_runtime_transport("chat/completions"), "chat_completions"
+            _normalize_course_map_multimodal_transport("chat/completions"), "chat_completions"
         )
-        with self.assertRaisesRegex(ValueError, "PROMPT_RUNTIME_TRANSPORT"):
-            _normalize_prompt_runtime_transport("invalid")
+        with self.assertRaisesRegex(ValueError, "CURRICULUM_COURSE_MAP_MULTIMODAL_TRANSPORT"):
+            _normalize_course_map_multimodal_transport("invalid")
 
     def test_responses_multimodal_content_uses_responses_input_item_shape(self) -> None:
         converted = _to_responses_multimodal_content(
@@ -86,7 +88,7 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
                     transport="responses",
                     source={
                         "LLM_API_KEY": "legacy-key",
-                        "PROMPT_RUNTIME_MODEL": "gpt-test",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
                     },
                     path_label="detector",
                     schema={},
@@ -100,7 +102,10 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
                     map_index=None,
                 )
 
-        with self.assertRaisesRegex(ValueError, "PROMPT_RUNTIME_API_KEY is required"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY is required",
+        ):
             asyncio.run(run_request())
 
     def test_probe_runtime_base_url_rejects_legacy_llm_base_url_alias(self) -> None:
@@ -109,18 +114,70 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
             "https://api.openai.com/v1",
         )
 
+    def test_probe_runtime_base_url_ignores_domain_env_override(self) -> None:
+        self.assertEqual(
+            _resolve_base_url(
+                {"CURRICULUM_COURSE_MAP_MULTIMODAL_BASE_URL": "https://domain.example/v1"}
+            ),
+            "https://api.openai.com/v1",
+        )
+
+    def test_responses_request_ignores_optional_tuning_env(self) -> None:
+        requests: list[dict[str, object]] = []
+
+        async def record_attempt(_attempt: object) -> None:
+            return None
+
+        async def run_request() -> None:
+            async def handler(request: httpx.Request) -> httpx.Response:
+                requests.append(json.loads(request.content.decode("utf-8")))
+                return httpx.Response(200, json={"output_parsed": {"detected_maps": []}})
+
+            async with httpx.AsyncClient(
+                base_url="https://example.invalid",
+                transport=httpx.MockTransport(handler),
+            ) as http_client:
+                await _probe_module._request_structured_multimodal_payload_async(
+                    transport="responses",
+                    source={
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test-key",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_REASONING_EFFORT": "high",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MAX_OUTPUT_TOKENS": "123",
+                    },
+                    path_label="detector",
+                    schema={},
+                    system_prompt="system",
+                    user_content=[],
+                    rendered_sample=_rendered_sample(),
+                    http_client=http_client,
+                    max_request_attempts=1,
+                    on_attempt=record_attempt,
+                    run_index=1,
+                    map_index=None,
+                )
+
+        asyncio.run(run_request())
+
+        self.assertEqual(len(requests), 1)
+        self.assertNotIn("reasoning", requests[0])
+        self.assertNotIn("max_output_tokens", requests[0])
+
     def test_projection_extractor_runtime_rejects_legacy_llm_base_url_alias(self) -> None:
         from campus_ingestion_core.handbook_service_navigation_projection_support import (
             _resolve_projection_extractor_runtime,
         )
 
         runtime = _resolve_projection_extractor_runtime(
-            {"LLM_BASE_URL": "https://legacy.example/v1", "PROMPT_RUNTIME_MODEL": "gpt-test"}
+            {
+                "LLM_BASE_URL": "https://legacy.example/v1",
+                "HANDBOOK_SERVICE_NAVIGATION_MODEL": "gpt-test",
+            }
         )
 
         self.assertEqual(runtime["base_url"], "https://api.openai.com/v1")
 
-    def test_request_uses_explicit_prompt_runtime_api_key(self) -> None:
+    def test_request_uses_explicit_course_map_multimodal_api_key(self) -> None:
         async def record_attempt(_attempt: object) -> None:
             return None
 
@@ -133,8 +190,8 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
                     await _probe_module._request_structured_multimodal_payload_async(
                         transport="responses",
                         source={
-                            "PROMPT_RUNTIME_API_KEY": "test-key",
-                            "PROMPT_RUNTIME_MODEL": "gpt-test",
+                            "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test-key",
+                            "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
                         },
                         path_label="detector",
                         schema={},

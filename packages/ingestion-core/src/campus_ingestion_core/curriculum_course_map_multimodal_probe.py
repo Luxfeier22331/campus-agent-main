@@ -34,7 +34,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_reporting impo
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
     _build_course_map_detector_content,
     _build_course_map_region_content,
-    _normalize_prompt_runtime_transport,
+    _normalize_course_map_multimodal_transport,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime import (
     _build_responses_multimodal_input as _build_responses_multimodal_input,
@@ -80,13 +80,13 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import 
     CURRICULUM_COURSE_MAP_GOLD_MANIFEST_VERSION,
     CURRICULUM_COURSE_MAP_PROBE_SCHEMA_VERSION,
     CURRICULUM_COURSE_MAP_SAMPLE_MANIFEST_VERSION,
+    DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT,
     DEFAULT_CURRICULUM_RAW_ASSET_ID,
     DEFAULT_CURRICULUM_RAW_VERSION_ID,
     DEFAULT_GOLD_MANIFEST_PATH,
     DEFAULT_MAX_INFLIGHT_PAGES,
     DEFAULT_MAX_REQUEST_ATTEMPTS,
     DEFAULT_PROMPT_RUNS,
-    DEFAULT_PROMPT_RUNTIME_TRANSPORT,
     DEFAULT_REPEATABILITY_THRESHOLD,
     DEFAULT_SAMPLE_MANIFEST_PATH,
     DEFAULT_SPLIT_MANIFEST_PATH,
@@ -259,10 +259,8 @@ def run_curriculum_course_map_multimodal_probe(
     )
     sample_manifest = load_curriculum_course_map_sample_manifest(Path(sample_manifest_path))
     gold_manifest = load_curriculum_course_map_gold_manifest(Path(gold_manifest_path))
-    resolved_prompt_transport = _normalize_prompt_runtime_transport(
-        prompt_transport
-        or source.get("PROMPT_RUNTIME_TRANSPORT")
-        or DEFAULT_PROMPT_RUNTIME_TRANSPORT
+    resolved_prompt_transport = _normalize_course_map_multimodal_transport(
+        prompt_transport or DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT
     )
     selected_entries = select_curriculum_course_map_samples(
         inventory=inventory,

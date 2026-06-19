@@ -12,7 +12,7 @@ from campus_ingestion_core.curriculum_course_map_multimodal_probe_coercion impor
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe_shared import (
     CURRICULUM_COURSE_MAP_PROBE_SCHEMA_VERSION,
-    DEFAULT_PROMPT_RUNTIME_BASE_URL,
+    DEFAULT_COURSE_MAP_MULTIMODAL_BASE_URL,
     CurriculumCourseMapPageProbe,
     CurriculumCourseMapRenderedSample,
 )
@@ -58,7 +58,7 @@ def _validate_resume_probe_config(*, output_path: Path, expected: dict[str, obje
 
 
 def _resolve_base_url(source: dict[str, str]) -> str:
-    return (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
+    return DEFAULT_COURSE_MAP_MULTIMODAL_BASE_URL
 
 
 def _build_progress_state(

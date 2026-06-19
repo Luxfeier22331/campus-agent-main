@@ -24,6 +24,19 @@
 	"qdrant_collection_prefix": "student_rules",
 	"qdrant_dense_vector_name": "dense",
 	"qdrant_sparse_vector_name": "sparse",
+	"embedding_profile": {
+		"provider": "openai-compatible",
+		"model": "Qwen3-Embedding-4B",
+		"dimensions": 2560,
+		"dense_vector_name": "dense"
+	},
+	"sparse_profile": {
+		"provider": "qdrant",
+		"model": "qdrant/bm25",
+		"tokenizer": "multilingual",
+		"language": "none",
+		"sparse_vector_name": "sparse"
+	},
 	"current_only": true,
 	"serving_revision_tracks": ["current-effective", "source-faithful"],
 	"no_hit_min_top_score": 0.6,

@@ -12,6 +12,10 @@ from campus_evals.benchmark_tuning import (
     render_retrieval_tuning_report_text,
     retrieval_tuning_report_to_dict,
 )
+from campus_evals.langfuse_score_report import (
+    build_score_report_from_retrieval_tuning_report,
+    write_langfuse_score_report,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +41,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Optional production runtime-profile.json used as the profile patch baseline.",
     )
     parser.add_argument("--output", required=True, help="Path to write tuning report JSON.")
+    parser.add_argument(
+        "--langfuse-score-report",
+        help="Optional path to write a langfuse_score_report.v1 artifact for the tuning report.",
+    )
+    parser.add_argument("--langfuse-environment")
+    parser.add_argument("--langfuse-release")
+    parser.add_argument("--source-git-head")
+    parser.add_argument("--dataset-run-id")
     parser.add_argument(
         "--format",
         choices=("text", "json"),
@@ -67,6 +79,20 @@ def main(argv: list[str] | None = None) -> int:
         json.dumps(payload, ensure_ascii=False, indent=2),
         encoding="utf-8",
     )
+    if args.langfuse_score_report:
+        try:
+            score_report = build_score_report_from_retrieval_tuning_report(
+                tuning_report_payload=payload,
+                tuning_report_path=output_path,
+                environment=str(args.langfuse_environment or ""),
+                release=str(args.langfuse_release or ""),
+                source_git_head=str(args.source_git_head or ""),
+                dataset_run_id=str(args.dataset_run_id or ""),
+            )
+            write_langfuse_score_report(Path(args.langfuse_score_report), score_report)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            return 2
     if args.format == "json":
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:

@@ -33,18 +33,18 @@ from campus_ingestion_core.curriculum_course_map_docs_surface_runtime import (
     _resolve_curriculum_plan_document_units_keys,
 )
 from campus_ingestion_core.curriculum_course_map_multimodal_probe import (
+    DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT,
     DEFAULT_CURRICULUM_RAW_ASSET_ID,
     DEFAULT_CURRICULUM_RAW_VERSION_ID,
     DEFAULT_MAX_INFLIGHT_PAGES,
     DEFAULT_MAX_REQUEST_ATTEMPTS,
-    DEFAULT_PROMPT_RUNTIME_TRANSPORT,
     DEFAULT_SPLIT_MANIFEST_PATH,
     CourseMapFinding,
     CurriculumCourseMapPageProbe,
     CurriculumCourseMapRenderedSample,
     DetectedCourseMapRegion,
     _build_rendered_region,
-    _normalize_prompt_runtime_transport,
+    _normalize_course_map_multimodal_transport,
     _run_curriculum_course_map_probe_runs_async,
     build_curriculum_course_map_inventory,
     default_curriculum_layout_elements_key,
@@ -265,10 +265,8 @@ def materialize_curriculum_course_map_docs_surface(
             rendered_samples=tuple(rendered_samples.values()),
             output_dir=Path(output_dir) if output_dir is not None else None,
             prompt_runs=1,
-            prompt_transport=_normalize_prompt_runtime_transport(
-                prompt_transport
-                or source.get("PROMPT_RUNTIME_TRANSPORT")
-                or DEFAULT_PROMPT_RUNTIME_TRANSPORT
+            prompt_transport=_normalize_course_map_multimodal_transport(
+                prompt_transport or DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT
             ),
             max_inflight_pages=max_inflight_pages,
             max_request_attempts=max_request_attempts,

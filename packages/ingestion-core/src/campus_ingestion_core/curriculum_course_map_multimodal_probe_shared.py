@@ -6,14 +6,6 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
-from campus_prompt_runtime import (
-    DEFAULT_PROMPT_RUNTIME_BASE_URL,
-    DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS,
-    DEFAULT_PROMPT_RUNTIME_TRANSPORT,
-    DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS,
-)
-
 from campus_ingestion_core.collection_source_ocr import resolve_collection_source_ocr_runtime
 from campus_ingestion_core.object_store import (
     build_raw_asset_key,
@@ -36,7 +28,12 @@ DEFAULT_OCR_MODEL_SLUG = resolve_collection_source_ocr_runtime(
 DEFAULT_RENDER_DPI = 180
 DEFAULT_MAX_INFLIGHT_PAGES = 3
 DEFAULT_MAX_REQUEST_ATTEMPTS = 3
+DEFAULT_COURSE_MAP_MULTIMODAL_BASE_URL = "https://api.openai.com/v1"
+DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT = "responses"
+DEFAULT_COURSE_MAP_MULTIMODAL_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS = 60.0
+DEFAULT_COURSE_MAP_MULTIMODAL_WRITE_TIMEOUT_SECONDS = 10.0
+DEFAULT_COURSE_MAP_MULTIMODAL_POOL_TIMEOUT_SECONDS = 3.0
 DEFAULT_SAMPLE_MANIFEST_PATH = Path(
     "configs/ingestion/curriculum/curriculum_plan/course-map-probe-samples.v1.json"
 )
@@ -54,7 +51,7 @@ DEFAULT_REGION_TILE_ROWS = 2
 DEFAULT_REGION_TILE_COLS = 2
 DEFAULT_TILE_OVERLAP_RATIO = 0.06
 TitleConfidence = Literal["visible", "partial", "absent"]
-PromptRuntimeTransport = Literal["responses", "chat_completions"]
+CourseMapMultimodalTransport = Literal["responses", "chat_completions"]
 _WHITESPACE_RE = re.compile(r"\s+")
 _DASH_RE = re.compile(r"[—–－-]+")
 _COURSE_MAP_HINT_RE = re.compile(r"(课程地图|拓扑图|拓补图|课程结构图|结果拓扑图)")
@@ -441,6 +438,11 @@ __all__ = [
     "CURRICULUM_COURSE_MAP_GOLD_MANIFEST_VERSION",
     "CURRICULUM_COURSE_MAP_PROBE_SCHEMA_VERSION",
     "CURRICULUM_COURSE_MAP_SAMPLE_MANIFEST_VERSION",
+    "DEFAULT_COURSE_MAP_MULTIMODAL_BASE_URL",
+    "DEFAULT_COURSE_MAP_MULTIMODAL_CONNECT_TIMEOUT_SECONDS",
+    "DEFAULT_COURSE_MAP_MULTIMODAL_POOL_TIMEOUT_SECONDS",
+    "DEFAULT_COURSE_MAP_MULTIMODAL_TRANSPORT",
+    "DEFAULT_COURSE_MAP_MULTIMODAL_WRITE_TIMEOUT_SECONDS",
     "DEFAULT_CURRICULUM_COURSE_MAP_PROMPT_READ_TIMEOUT_SECONDS",
     "DEFAULT_CURRICULUM_RAW_ASSET_ID",
     "DEFAULT_CURRICULUM_RAW_VERSION_ID",
@@ -451,11 +453,6 @@ __all__ = [
     "DEFAULT_MAX_REQUEST_ATTEMPTS",
     "DEFAULT_OCR_MODEL_SLUG",
     "DEFAULT_PROMPT_RUNS",
-    "DEFAULT_PROMPT_RUNTIME_BASE_URL",
-    "DEFAULT_PROMPT_RUNTIME_CONNECT_TIMEOUT_SECONDS",
-    "DEFAULT_PROMPT_RUNTIME_POOL_TIMEOUT_SECONDS",
-    "DEFAULT_PROMPT_RUNTIME_TRANSPORT",
-    "DEFAULT_PROMPT_RUNTIME_WRITE_TIMEOUT_SECONDS",
     "DEFAULT_REGION_TILE_COLS",
     "DEFAULT_REGION_TILE_ROWS",
     "DEFAULT_RENDER_DPI",
@@ -467,6 +464,7 @@ __all__ = [
     "_COURSE_MAP_HINT_RE",
     "CourseMapEdge",
     "CourseMapFinding",
+    "CourseMapMultimodalTransport",
     "CourseMapNode",
     "CurriculumCourseMapAdmissionSummary",
     "CurriculumCourseMapGoldExpectation",
@@ -484,7 +482,6 @@ __all__ = [
     "CurriculumCourseMapSampleSelection",
     "DetectedCourseMapRegion",
     "ObjectStoreByteReader",
-    "PromptRuntimeTransport",
     "TitleConfidence",
     "_coerce_bbox",
     "_coerce_normalized_bbox",

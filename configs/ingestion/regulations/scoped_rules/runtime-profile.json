@@ -14,5 +14,18 @@
 	"qdrant_alias_name": "scoped_rules",
 	"qdrant_collection_prefix": "scoped_rules",
 	"qdrant_dense_vector_name": "dense",
-	"qdrant_sparse_vector_name": "sparse"
+	"qdrant_sparse_vector_name": "sparse",
+	"embedding_profile": {
+		"provider": "openai-compatible",
+		"model": "Qwen3-Embedding-4B",
+		"dimensions": 2560,
+		"dense_vector_name": "dense"
+	},
+	"sparse_profile": {
+		"provider": "qdrant",
+		"model": "qdrant/bm25",
+		"tokenizer": "multilingual",
+		"language": "none",
+		"sparse_vector_name": "sparse"
+	}
 }

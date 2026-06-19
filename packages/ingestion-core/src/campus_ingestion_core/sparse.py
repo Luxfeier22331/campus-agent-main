@@ -10,6 +10,8 @@ from typing import Protocol
 
 from qdrant_client.http import models as qdrant_models
 
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
+
 DEFAULT_SPARSE_PROVIDER = "qdrant"
 DEFAULT_SPARSE_MODEL = "qdrant/bm25"
 DEFAULT_SPARSE_TOKENIZER = "multilingual"
@@ -70,6 +72,24 @@ class SparseEmbeddingSettings:
             or DEFAULT_SPARSE_TOKENIZER,
             language=(source.get("SPARSE_LANGUAGE") or DEFAULT_SPARSE_LANGUAGE).strip()
             or DEFAULT_SPARSE_LANGUAGE,
+        )
+
+    @classmethod
+    def from_collection_profile(
+        cls,
+        profile: CollectionRuntimeProfile,
+        *,
+        env: dict[str, str] | None = None,
+    ) -> SparseEmbeddingSettings:
+        del env
+        if profile.sparse_profile is None:
+            raise ValueError("sparse_profile is required")
+        sparse_profile = profile.sparse_profile
+        return cls(
+            provider=sparse_profile.provider,
+            model=sparse_profile.model,
+            tokenizer=sparse_profile.tokenizer,
+            language=sparse_profile.language,
         )
 
 

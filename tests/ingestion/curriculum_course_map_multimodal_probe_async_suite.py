@@ -54,7 +54,10 @@ class CurriculumCourseMapMultimodalProbeAsyncTest(unittest.TestCase):
             run = asyncio.run(
                 _probe_module._run_curriculum_course_map_probe_run_async(
                     run_index=1,
-                    source={"PROMPT_RUNTIME_API_KEY": "test", "PROMPT_RUNTIME_MODEL": "gpt-test"},
+                    source={
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
+                    },
                     rendered_samples=(sample_one, sample_two),
                     output_dir=None,
                     prompt_transport="chat_completions",
@@ -156,7 +159,10 @@ class CurriculumCourseMapMultimodalProbeAsyncTest(unittest.TestCase):
             payload = asyncio.run(
                 _request_course_map_detector_payload_async(
                     transport="chat_completions",
-                    source={"PROMPT_RUNTIME_API_KEY": "test", "PROMPT_RUNTIME_MODEL": "gpt-test"},
+                    source={
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_API_KEY": "test",
+                        "CURRICULUM_COURSE_MAP_MULTIMODAL_MODEL": "gpt-test",
+                    },
                     rendered_sample=rendered_sample,
                     http_client=object(),
                     max_request_attempts=1,

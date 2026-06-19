@@ -89,6 +89,7 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
                 "profile_registry_runners",
                 "workflow_dispatch_choices",
                 "workflow_contract_generation_check",
+                "workflow_langfuse_publish_contract",
                 "operations_policy_coverage",
                 "denominator_registry_coverage",
                 "rag_eval_coverage",

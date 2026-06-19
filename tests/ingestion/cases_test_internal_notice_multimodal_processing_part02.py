@@ -3,6 +3,10 @@ from __future__ import annotations
 
 import unittest
 
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    _settings_from_env,
+)
+
 from tests.ingestion.test_internal_notice_multimodal_processing_support import *
 
 
@@ -34,9 +38,9 @@ class InternalNoticeMultimodalProcessingTestPart02(unittest.TestCase):
         ):
             build_internal_notice_multimodal_processor_from_env(
                 {
-                    "PROMPT_RUNTIME_API_KEY": "shared-key",
-                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
-                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                    "LLM_API_KEY": "shared-key",
+                    "LLM_MODEL": "gpt-shared",
+                    "LLM_BASE_URL": "https://shared.example/v1",
                 }
             )
 
@@ -48,9 +52,22 @@ class InternalNoticeMultimodalProcessingTestPart02(unittest.TestCase):
             build_internal_notice_multimodal_processor_from_env(
                 {
                     "INTERNAL_NOTICE_MULTIMODAL_API_KEY": "test-key",
-                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "LLM_MODEL": "gpt-shared",
                 }
             )
+
+    def test_processor_env_settings_ignore_optional_tuning_env(self) -> None:
+        settings = _settings_from_env(
+            {
+                "INTERNAL_NOTICE_MULTIMODAL_API_KEY": "test-key",
+                "INTERNAL_NOTICE_MULTIMODAL_MODEL": "gpt-4.1-mini",
+                "INTERNAL_NOTICE_MULTIMODAL_BASE_URL": "https://domain.example/v1",
+                "INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS": "123",
+            }
+        )
+
+        self.assertEqual(settings["base_url"], "https://api.openai.com/v1")
+        self.assertEqual(settings["max_output_tokens"], 900)
 
     def test_agents_sdk_processor_returns_normalized_decision_and_ignores_extra_fields(
         self,
