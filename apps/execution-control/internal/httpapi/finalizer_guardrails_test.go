@@ -202,7 +202,7 @@ func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing
 			"confidence":         "medium",
 			"result": map[string]any{
 				"diagnostics": map[string]any{
-					"prompt_runtime_state": "rag_sdk_completed",
+					"model_execution_state": "rag_sdk_completed",
 					"rag_sdk_trace_projection": map[string]any{
 						"schema_version": "rag-sdk-trace-projection-v1",
 						"rawPrompt":      "forbidden",

@@ -317,8 +317,8 @@ class ExecutionObservability:
     estimated_cost_microusd: int | None = None
     resolved_scope_corpus: str | None = None
     resolved_scope_collection: str = ""
-    prompt_runtime_state: str = ""
-    prompt_runtime_detail: str = ""
+    model_execution_state: str = ""
+    model_execution_detail: str = ""
     prompt_trace: PromptTrace | None = None
 
 

@@ -370,7 +370,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("projects prompt metadata and prompt runtime state from supervisor observability", () => {
+	it("projects prompt metadata and model execution state from supervisor observability", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-12T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -404,8 +404,8 @@ describe("request observability", () => {
 					modelProvider: "openai-responses",
 					outputTokens: 0,
 					policyReason: null,
-					promptRuntimeDetail: "content_filter",
-					promptRuntimeState: "content_filter",
+					modelExecutionDetail: "content_filter",
+					modelExecutionState: "content_filter",
 					promptTrace: {
 						modelName: "gpt-5.2-mini",
 						modelProvider: "openai-responses",
@@ -433,8 +433,8 @@ describe("request observability", () => {
 			modelName: "gpt-5.2-mini",
 			modelProvider: "openai-responses",
 			promptId: "rag_answer_v1",
-			promptRuntimeDetail: "content_filter",
-			promptRuntimeState: "content_filter",
+			modelExecutionDetail: "content_filter",
+			modelExecutionState: "content_filter",
 			promptVersion: "v1",
 			semanticOutcome: "unsupported_by_evidence",
 			templateSha256: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",

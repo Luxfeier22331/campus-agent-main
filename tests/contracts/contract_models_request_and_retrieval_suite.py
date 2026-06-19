@@ -305,8 +305,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 ),
                 "unsupported_fields": ("offering_unit",),
                 "partial_answer": True,
-                "prompt_runtime_state": "",
-                "prompt_runtime_detail": "",
+                "model_execution_state": "",
+                "model_execution_detail": "",
                 "answer_presentation_kind": "",
                 "answer_presentation_path": "",
                 "answer_diagnostic_reason": "",
@@ -339,8 +339,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertIn("grounding_verdict", field_names)
         self.assertIn("grounding_downgraded", field_names)
         self.assertIn("freshness_fail_closed", field_names)
-        self.assertIn("prompt_runtime_state", field_names)
-        self.assertIn("prompt_runtime_detail", field_names)
+        self.assertIn("model_execution_state", field_names)
+        self.assertIn("model_execution_detail", field_names)
         self.assertIn("answer_presentation_kind", field_names)
         self.assertIn("answer_presentation_path", field_names)
         self.assertIn("answer_diagnostic_reason", field_names)

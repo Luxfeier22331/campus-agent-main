@@ -208,8 +208,8 @@ owns this section group; the original path remains the stable index.
 - `prompt_id` nullable
 - `prompt_version` nullable
 - `template_sha256` nullable
-- `prompt_runtime_state` nullable
-- `prompt_runtime_detail` nullable
+- `model_execution_state` nullable
+- `model_execution_detail` nullable
 - `input_tokens` nullable
 - `output_tokens` nullable
 - `cached_input_tokens` nullable

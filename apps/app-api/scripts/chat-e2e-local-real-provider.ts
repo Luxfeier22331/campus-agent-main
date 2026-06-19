@@ -13,7 +13,7 @@ const args = [
 	"--prompt",
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() ||
 		"中央民族大学本科学生国家奖学金评审办法",
-	"--expect-prompt-runtime-state",
+	"--expect-model-execution-state",
 	"rag_sdk_completed",
 	"--restart-campus-web",
 	"--restart-execution-control-runtime",
@@ -31,7 +31,6 @@ const child = spawn("pnpm", args, {
 			process.env.AGENT_RUNTIME_SHARED_SECRET ||
 			process.env.EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET ||
 			"agent-runtime-local-placeholder",
-		PROMPT_RUNTIME_PROVIDER: process.env.PROMPT_RUNTIME_PROVIDER || "openai-responses",
 		EXECUTION_CONTROL_TIMEOUT_MS:
 			process.env.EXECUTION_CONTROL_TIMEOUT_MS || localRealProviderTimeoutMs,
 		EXECUTION_CONTROL_RUNTIME_CONFIG_PATH:

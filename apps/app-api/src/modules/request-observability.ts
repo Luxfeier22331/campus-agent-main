@@ -293,8 +293,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		modelName: null,
 		modelProvider: null,
 		promptId: null,
-		promptRuntimeDetail: null,
-		promptRuntimeState: null,
+		modelExecutionDetail: null,
+		modelExecutionState: null,
 		promptVersion: null,
 		outputTokens: null,
 		policyProjectionVersion:
@@ -427,8 +427,8 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		modelProvider:
 			observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null,
 		promptId: observability?.promptTrace?.promptId ?? null,
-		promptRuntimeDetail: observability?.promptRuntimeDetail ?? null,
-		promptRuntimeState: observability?.promptRuntimeState ?? null,
+		modelExecutionDetail: observability?.modelExecutionDetail ?? null,
+		modelExecutionState: observability?.modelExecutionState ?? null,
 		promptVersion: observability?.promptTrace?.promptVersion ?? null,
 		outputTokens: observability?.outputTokens ?? null,
 		policyProjectionVersion:

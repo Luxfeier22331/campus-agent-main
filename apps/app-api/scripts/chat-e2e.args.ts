@@ -29,7 +29,7 @@ export interface ChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string | null;
-	expectPromptRuntimeState: string | null;
+	expectModelExecutionState: string | null;
 	expectResultKind: ChatE2eExpectedResultKind;
 	name: string;
 	password: string;
@@ -74,7 +74,7 @@ export function parseChatE2eArgs(
 	let chatBaseUrl = DEFAULT_CHAT_E2E_CHAT_BASE_URL;
 	let appApiReadyzUrl: string | null = DEFAULT_CHAT_E2E_APP_API_READYZ_URL;
 	let execReadyzUrl: string | null = DEFAULT_CHAT_E2E_EXEC_READYZ_URL;
-	let expectPromptRuntimeState: string | null = null;
+	let expectModelExecutionState: string | null = null;
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
 	let transport: ChatE2eTransport = "stream";
@@ -174,12 +174,12 @@ export function parseChatE2eArgs(
 			index += 1;
 			continue;
 		}
-		if (token === "--expect-prompt-runtime-state") {
+		if (token === "--expect-model-execution-state") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
-				throw new Error("--expect-prompt-runtime-state requires a non-empty value.");
+				throw new Error("--expect-model-execution-state requires a non-empty value.");
 			}
-			expectPromptRuntimeState = value;
+			expectModelExecutionState = value;
 			index += 1;
 			continue;
 		}
@@ -273,7 +273,7 @@ export function parseChatE2eArgs(
 		chatBaseUrl,
 		email,
 		execReadyzUrl,
-		expectPromptRuntimeState,
+		expectModelExecutionState,
 		expectResultKind,
 		name,
 		password,

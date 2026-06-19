@@ -136,8 +136,8 @@ export interface RequestObservabilityFactWrite {
 	promptId: string | null;
 	promptVersion: string | null;
 	templateSha256: string | null;
-	promptRuntimeState: string | null;
-	promptRuntimeDetail: string | null;
+	modelExecutionState: string | null;
+	modelExecutionDetail: string | null;
 	inputTokens: number | null;
 	outputTokens: number | null;
 	cachedInputTokens: number | null;

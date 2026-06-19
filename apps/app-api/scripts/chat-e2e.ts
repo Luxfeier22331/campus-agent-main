@@ -30,7 +30,7 @@ export interface ChatE2eDependencies {
 		resetIdentity?: boolean;
 		smokeAuthSecret: string;
 	}) => Promise<string>;
-	readPromptRuntimeState?: (requestId: string) => Promise<string | null>;
+	readModelExecutionState?: (requestId: string) => Promise<string | null>;
 	signInSmokeIdentity?: (input: {
 		captchaToken: string;
 		chatBaseUrl: string;
@@ -56,9 +56,10 @@ interface ChatE2eSuccessSummary {
 	historyCountBefore: number;
 	historyHasConversation: boolean;
 	prompt: string;
-	promptRuntimeState: string | null;
+	modelExecutionState: string | null;
 	requestId: string;
 	resultKind: string;
+	runId: string | null;
 	traceId: string;
 	transport: ChatE2eArgs["transport"];
 }
@@ -160,16 +161,16 @@ async function expectEventStreamResponse(response: Response, label: string): Pro
 	throw new Error(`${label} failed (${response.status}): ${JSON.stringify(payload)}`);
 }
 
-async function defaultReadPromptRuntimeState(requestId: string): Promise<string | null> {
+async function defaultReadModelExecutionState(requestId: string): Promise<string | null> {
 	const client = new Client(buildOperatorDatabaseConfig(process.env) as ClientConfig);
 
 	await client.connect();
 	try {
-		const result = await client.query<{ prompt_runtime_state: string | null }>(
-			'select "prompt_runtime_state" from "runtime"."request_observability_fact" where "request_id" = $1',
+		const result = await client.query<{ model_execution_state: string | null }>(
+			'select "model_execution_state" from "runtime"."request_observability_fact" where "request_id" = $1',
 			[requestId],
 		);
-		return result.rows[0]?.prompt_runtime_state ?? null;
+		return result.rows[0]?.model_execution_state ?? null;
 	} finally {
 		await client.end();
 	}
@@ -234,6 +235,13 @@ interface StreamTerminalIdentity {
 	conversationId: string;
 	requestId: string;
 	resultKind: string;
+	runId: string | null;
+	traceId: string;
+}
+
+interface AcceptedStreamIdentity {
+	requestId: string;
+	runId: string;
 	traceId: string;
 }
 
@@ -314,7 +322,10 @@ function optionalStringField(value: Record<string, unknown>, field: string): str
 	return typeof raw === "string" && raw.trim() ? raw : null;
 }
 
-function readStreamTerminalIdentity(event: ProductStreamEvent): StreamTerminalIdentity {
+function readStreamTerminalIdentity(
+	event: ProductStreamEvent,
+	accepted: AcceptedStreamIdentity,
+): StreamTerminalIdentity {
 	if (event.event === "request.failed" || event.event === "request.cancelled") {
 		const error = event.data.error;
 		throw new Error(
@@ -340,13 +351,19 @@ function readStreamTerminalIdentity(event: ProductStreamEvent): StreamTerminalId
 		throw new Error("request.completed answer must include result.");
 	}
 	const resultRecord = result as Record<string, unknown>;
+	const requestId =
+		optionalStringField(resultRecord, "requestId") ?? requireStringField(event.data, "requestId");
+	const traceId =
+		optionalStringField(resultRecord, "traceId") ?? requireStringField(event.data, "traceId");
+	if (requestId !== accepted.requestId || traceId !== accepted.traceId) {
+		throw new Error("Stream terminal request identity does not match request.accepted.");
+	}
 	return {
 		conversationId: requireStringField(conversation as Record<string, unknown>, "id"),
-		requestId:
-			optionalStringField(resultRecord, "requestId") ?? requireStringField(event.data, "requestId"),
+		requestId,
 		resultKind: requireStringField(resultRecord, "kind"),
-		traceId:
-			optionalStringField(resultRecord, "traceId") ?? requireStringField(event.data, "traceId"),
+		runId: accepted.runId,
+		traceId,
 	};
 }
 
@@ -361,12 +378,14 @@ async function submitStreamAndReadTerminal(input: {
 		cookieHeader: input.cookieHeader,
 		url: input.url,
 	});
-	let accepted = false;
+	let accepted: AcceptedStreamIdentity | null = null;
 	for await (const event of parseSse(response)) {
 		if (event.event === "request.accepted") {
-			requireStringField(event.data, "requestId");
-			requireStringField(event.data, "traceId");
-			accepted = true;
+			accepted = {
+				requestId: requireStringField(event.data, "requestId"),
+				runId: requireStringField(event.data, "runId"),
+				traceId: requireStringField(event.data, "traceId"),
+			};
 			continue;
 		}
 		if (
@@ -377,7 +396,7 @@ async function submitStreamAndReadTerminal(input: {
 			if (!accepted) {
 				throw new Error("Stream chat request reached terminal event before request.accepted.");
 			}
-			return readStreamTerminalIdentity(event);
+			return readStreamTerminalIdentity(event, accepted);
 		}
 	}
 	throw new Error("Submit stream ended before a terminal request event.");
@@ -503,7 +522,7 @@ export async function runChatE2e(
 		fetchReadyz: deps.fetchReadyz ?? defaultFetchReadyz,
 		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
 		openSubmitStream: deps.openSubmitStream ?? openSubmitStream,
-		readPromptRuntimeState: deps.readPromptRuntimeState ?? defaultReadPromptRuntimeState,
+		readModelExecutionState: deps.readModelExecutionState ?? defaultReadModelExecutionState,
 		signInSmokeIdentity: deps.signInSmokeIdentity ?? defaultSignInSmokeIdentity,
 	};
 	const readyzResult = await runReadyzChecks(args, resolvedDeps);
@@ -567,13 +586,13 @@ export async function runChatE2e(
 		requestId,
 		traceId,
 	});
-	const promptRuntimeState = args.expectPromptRuntimeState
-		? await resolvedDeps.readPromptRuntimeState(requestId)
+	const modelExecutionState = args.expectModelExecutionState
+		? await resolvedDeps.readModelExecutionState(requestId)
 		: null;
-	if (args.expectPromptRuntimeState && promptRuntimeState !== args.expectPromptRuntimeState) {
+	if (args.expectModelExecutionState && modelExecutionState !== args.expectModelExecutionState) {
 		throw new Error(
-			`Expected prompt runtime state ${args.expectPromptRuntimeState} for request ${requestId}, received ${
-				promptRuntimeState ?? "null"
+			`Expected model execution state ${args.expectModelExecutionState} for request ${requestId}, received ${
+				modelExecutionState ?? "null"
 			}.`,
 		);
 	}
@@ -637,9 +656,10 @@ export async function runChatE2e(
 		historyCountBefore: beforeConversations.payload.conversations.length,
 		historyHasConversation,
 		prompt: args.prompt,
-		promptRuntimeState,
+		modelExecutionState,
 		requestId,
 		resultKind,
+		runId: requestIdentity.runId,
 		traceId,
 		transport: args.transport,
 	};
@@ -679,6 +699,7 @@ async function submitSync(input: {
 			requestResult.response.headers.get("x-request-id") ??
 			requestResult.payload.answer.result.requestId,
 		resultKind: requestResult.payload.answer.result.kind,
+		runId: null,
 		traceId:
 			requestResult.response.headers.get("x-trace-id") ??
 			requestResult.payload.answer.result.traceId,

@@ -530,8 +530,8 @@ class RagResultDiagnostics:
     claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
     unsupported_fields: tuple[str, ...] = field(default_factory=tuple)
     partial_answer: bool = False
-    prompt_runtime_state: str = ""
-    prompt_runtime_detail: str = ""
+    model_execution_state: str = ""
+    model_execution_detail: str = ""
     answer_presentation_kind: str = ""
     answer_presentation_path: str = ""
     answer_diagnostic_reason: str = ""

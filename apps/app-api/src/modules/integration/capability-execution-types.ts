@@ -96,8 +96,8 @@ export interface CapabilityExecutionObservability {
 	modelProvider: string | null;
 	outputTokens: number | null;
 	policyReason?: string | null;
-	promptRuntimeDetail?: string | null;
-	promptRuntimeState?: string | null;
+	modelExecutionDetail?: string | null;
+	modelExecutionState?: string | null;
 	promptTrace?: CapabilityExecutionPromptTrace | null;
 	resolvedScopeCollection?: string | null;
 	resolvedScopeCorpus?: string | null;

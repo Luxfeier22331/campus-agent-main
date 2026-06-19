@@ -654,8 +654,8 @@ function observabilityWireFromCapabilityResponse(
 		model_provider: observability.modelProvider,
 		output_tokens: observability.outputTokens,
 		policy_reason: observability.policyReason,
-		prompt_runtime_detail: observability.promptRuntimeDetail,
-		prompt_runtime_state: observability.promptRuntimeState,
+		model_execution_detail: observability.modelExecutionDetail,
+		model_execution_state: observability.modelExecutionState,
 		prompt_trace: observability.promptTrace
 			? {
 					model_name: observability.promptTrace.modelName,

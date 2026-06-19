@@ -71,8 +71,8 @@ class RuntimeObservabilityTest(unittest.TestCase):
                     preflight=False,
                     failure_reasons=["http_5xx", "timeout"],
                     failure_disposition="transient_retryable",
-                    prompt_runtime_state="provider_incomplete",
-                    prompt_runtime_detail="max_output_tokens",
+                    model_execution_state="provider_incomplete",
+                    model_execution_detail="max_output_tokens",
                 )
                 emit_runtime_event(
                     "supplemental_request_failed",
@@ -82,8 +82,8 @@ class RuntimeObservabilityTest(unittest.TestCase):
                     preflight=False,
                     failure_reasons=["content_filter"],
                     failure_disposition="non_retryable_request",
-                    prompt_runtime_state="content_filter",
-                    prompt_runtime_detail="content_filter",
+                    model_execution_state="content_filter",
+                    model_execution_detail="content_filter",
                 )
                 emit_runtime_event(
                     "supplemental_breaker_fast_failed",
@@ -105,10 +105,11 @@ class RuntimeObservabilityTest(unittest.TestCase):
         self.assertEqual(provider["timeout_count"], 1)
         self.assertEqual(provider["content_filter_count"], 1)
         self.assertEqual(
-            provider["prompt_runtime_state_counts"], {"content_filter": 1, "provider_incomplete": 1}
+            provider["model_execution_state_counts"],
+            {"content_filter": 1, "provider_incomplete": 1},
         )
         self.assertEqual(
-            provider["prompt_runtime_detail_counts"],
+            provider["model_execution_detail_counts"],
             {"content_filter": 1, "max_output_tokens": 1},
         )
         self.assertEqual(provider["circuit_open_count"], 1)

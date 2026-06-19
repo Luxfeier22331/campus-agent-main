@@ -548,16 +548,16 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
             else record.get("partialAnswer")
         )
         or False,
-        prompt_runtime_state=_optional_string(
-            record.get("prompt_runtime_state")
-            if "prompt_runtime_state" in record
-            else record.get("promptRuntimeState")
+        model_execution_state=_optional_string(
+            record.get("model_execution_state")
+            if "model_execution_state" in record
+            else record.get("modelExecutionState")
         )
         or "",
-        prompt_runtime_detail=_optional_string(
-            record.get("prompt_runtime_detail")
-            if "prompt_runtime_detail" in record
-            else record.get("promptRuntimeDetail")
+        model_execution_detail=_optional_string(
+            record.get("model_execution_detail")
+            if "model_execution_detail" in record
+            else record.get("modelExecutionDetail")
         )
         or "",
         prompt_trace=_parse_prompt_trace(

@@ -179,8 +179,8 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			const diagnostics = projection.diagnosticsJson ?? null;
 			const prompt = {
 				id: fact?.promptId ?? null,
-				runtimeDetail: fact?.promptRuntimeDetail ?? null,
-				runtimeState: fact?.promptRuntimeState ?? null,
+				runtimeDetail: fact?.modelExecutionDetail ?? null,
+				runtimeState: fact?.modelExecutionState ?? null,
 				templateSha256: fact?.templateSha256 ?? null,
 				version: fact?.promptVersion ?? null,
 			};

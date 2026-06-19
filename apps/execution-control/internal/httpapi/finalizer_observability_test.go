@@ -94,9 +94,9 @@ func TestBuildRagExecutionObservabilitySeparatesRuntimeErrorFromEvidenceUnsuppor
 				"retrieved_sources": []any{
 					map[string]any{"doc_id": "handbook:test-001"},
 				},
-				"semantic_outcome":     "runtime_error",
-				"fail_close_reason":    "rag_sdk_runtime_failed",
-				"prompt_runtime_state": "rag_sdk_runtime_failed",
+				"semantic_outcome":      "runtime_error",
+				"fail_close_reason":     "rag_sdk_runtime_failed",
+				"model_execution_state": "rag_sdk_runtime_failed",
 			},
 		},
 		"retrieval.query",

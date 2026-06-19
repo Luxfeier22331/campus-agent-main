@@ -96,8 +96,8 @@ func buildRagExecutionObservability(
 		"acl_decision":           aclDecision(denied),
 		"fail_closed":            denied || freshnessFailClosed || failCloseReason != "" || status == "error",
 		"fail_close_reason":      defaultString(failCloseReason, stringValue(diagnostics["no_answer_reason"])),
-		"prompt_runtime_state":   stringValue(diagnostics["prompt_runtime_state"]),
-		"prompt_runtime_detail":  stringValue(diagnostics["prompt_runtime_detail"]),
+		"model_execution_state":  stringValue(diagnostics["model_execution_state"]),
+		"model_execution_detail": stringValue(diagnostics["model_execution_detail"]),
 		"resolved_scope_corpus":  optionalStringValue(diagnostics["resolved_scope_corpus"]),
 		"resolved_scope_collection": stringValue(
 			diagnostics["resolved_scope_collection"],

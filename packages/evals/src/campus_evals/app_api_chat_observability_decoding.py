@@ -271,16 +271,16 @@ def _parse_execution_observability(value: object) -> ExecutionObservability | No
             else record.get("resolved_scope_collection")
         )
         or "",
-        prompt_runtime_state=_optional_string(
-            record.get("promptRuntimeState")
-            if "promptRuntimeState" in record
-            else record.get("prompt_runtime_state")
+        model_execution_state=_optional_string(
+            record.get("modelExecutionState")
+            if "modelExecutionState" in record
+            else record.get("model_execution_state")
         )
         or "",
-        prompt_runtime_detail=_optional_string(
-            record.get("promptRuntimeDetail")
-            if "promptRuntimeDetail" in record
-            else record.get("prompt_runtime_detail")
+        model_execution_detail=_optional_string(
+            record.get("modelExecutionDetail")
+            if "modelExecutionDetail" in record
+            else record.get("model_execution_detail")
         )
         or "",
         prompt_trace=_parse_prompt_trace(

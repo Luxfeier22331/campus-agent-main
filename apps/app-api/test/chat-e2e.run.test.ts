@@ -105,6 +105,7 @@ describe("chat e2e runner", () => {
 			conversationId: "conv_01HQ",
 			requestId: "req_01HQ",
 			resultKind: "answer",
+			runId: "run_01HQ",
 			traceId: "trace_01HQ",
 			transport: "stream",
 		});
@@ -367,7 +368,7 @@ describe("chat e2e runner", () => {
 		expect(signInCaptchaToken).toBe("dev-captcha-token");
 	});
 
-	it("requires the expected prompt runtime state when requested", async () => {
+	it("requires the expected model execution state when requested", async () => {
 		const observedRequestIds: string[] = [];
 		const result = await runChatE2e(
 			[
@@ -379,7 +380,7 @@ describe("chat e2e runner", () => {
 				"http://127.0.0.1:27014",
 				"--exec-readyz-url",
 				"http://127.0.0.1:27051/readyz",
-				"--expect-prompt-runtime-state",
+				"--expect-model-execution-state",
 				"rag_sdk_completed",
 			],
 			{
@@ -442,7 +443,7 @@ describe("chat e2e runner", () => {
 						}),
 					);
 				},
-				async readPromptRuntimeState(requestId) {
+				async readModelExecutionState(requestId) {
 					observedRequestIds.push(requestId);
 					return "rag_sdk_completed";
 				},
@@ -454,10 +455,10 @@ describe("chat e2e runner", () => {
 
 		expect(result.passed).toBe(true);
 		expect(observedRequestIds).toEqual(["request_dev"]);
-		expect(result.request?.promptRuntimeState).toBe("rag_sdk_completed");
+		expect(result.request?.modelExecutionState).toBe("rag_sdk_completed");
 	});
 
-	it("fails closed when the expected prompt runtime state is missing", async () => {
+	it("fails closed when the expected model execution state is missing", async () => {
 		await expect(
 			runChatE2e(
 				[
@@ -469,7 +470,7 @@ describe("chat e2e runner", () => {
 					"http://127.0.0.1:27014",
 					"--exec-readyz-url",
 					"http://127.0.0.1:27051/readyz",
-					"--expect-prompt-runtime-state",
+					"--expect-model-execution-state",
 					"rag_sdk_completed",
 				],
 				{
@@ -532,7 +533,7 @@ describe("chat e2e runner", () => {
 							}),
 						);
 					},
-					async readPromptRuntimeState() {
+					async readModelExecutionState() {
 						return null;
 					},
 					async signInSmokeIdentity() {
@@ -541,7 +542,7 @@ describe("chat e2e runner", () => {
 				},
 			),
 		).rejects.toThrow(
-			"Expected prompt runtime state rag_sdk_completed for request request_dev, received null.",
+			"Expected model execution state rag_sdk_completed for request request_dev, received null.",
 		);
 	});
 });

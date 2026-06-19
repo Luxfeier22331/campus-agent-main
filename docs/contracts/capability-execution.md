@@ -469,8 +469,8 @@ payload 或 provider raw response。
     "intent_missing_slots": [],
     "intent_ambiguity_signal": "",
     "intent_ambiguity_reason": "",
-    "prompt_runtime_state": "",
-    "prompt_runtime_detail": "",
+    "model_execution_state": "",
+    "model_execution_detail": "",
     "prompt_trace": {
       "prompt_id": "rag_answer_v1",
       "prompt_version": "v1",
@@ -563,7 +563,7 @@ approval / HITL 或 state-changing tool 作为产品目标。
   必须显式回传给 `app-api`
 - `observability.prompt_trace` 只返回 observability-safe prompt identity，不返回 raw
   prompt text
-- `observability.prompt_runtime_state` / `observability.prompt_runtime_detail`
+- `observability.model_execution_state` / `observability.model_execution_detail`
   用于区分 `provider_refusal`、`provider_incomplete`、`content_filter` 等 fail-close
   branch
 - `observability` 不返回 raw prompt、raw answer、raw transcript、raw retrieval

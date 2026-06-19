@@ -81,7 +81,7 @@ function hasRemoteContentSuspicionSignal(row: RequestObservabilityFactRow): bool
 
 function hasProviderContentFilterSignal(row: RequestObservabilityFactRow): boolean {
 	return (
-		row.promptRuntimeState === "content_filter" || row.promptRuntimeDetail === "content_filter"
+		row.modelExecutionState === "content_filter" || row.modelExecutionDetail === "content_filter"
 	);
 }
 

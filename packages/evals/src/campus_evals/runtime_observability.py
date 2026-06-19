@@ -133,15 +133,15 @@ def summarize_provider_events(
                 "content_filter_count": 0,
                 "circuit_open_count": 0,
                 "failure_disposition_counts": {},
-                "prompt_runtime_state_counts": {},
-                "prompt_runtime_detail_counts": {},
+                "model_execution_state_counts": {},
+                "model_execution_detail_counts": {},
             },
         )
         event_type = str(record.get("event_type") or "")
         failure_reasons = [str(item) for item in record.get("failure_reasons") or ()]
         failure_disposition = str(record.get("failure_disposition") or "")
-        prompt_runtime_state = str(record.get("prompt_runtime_state") or "")
-        prompt_runtime_detail = str(record.get("prompt_runtime_detail") or "")
+        model_execution_state = str(record.get("model_execution_state") or "")
+        model_execution_detail = str(record.get("model_execution_detail") or "")
         if event_type in {"supplemental_request_succeeded", "supplemental_request_failed"}:
             bucket["request_count"] = int(bucket["request_count"]) + 1
             if bool(record.get("preflight")):
@@ -156,20 +156,20 @@ def summarize_provider_events(
                 bucket["http_5xx_count"] = int(bucket["http_5xx_count"]) + 1
             if "timeout" in failure_reasons:
                 bucket["timeout_count"] = int(bucket["timeout_count"]) + 1
-            if "content_filter" in failure_reasons or prompt_runtime_state == "content_filter":
+            if "content_filter" in failure_reasons or model_execution_state == "content_filter":
                 bucket["content_filter_count"] = int(bucket["content_filter_count"]) + 1
             if failure_disposition:
                 counts = dict(bucket["failure_disposition_counts"])
                 counts[failure_disposition] = int(counts.get(failure_disposition, 0)) + 1
                 bucket["failure_disposition_counts"] = counts
-            if prompt_runtime_state:
-                counts = dict(bucket["prompt_runtime_state_counts"])
-                counts[prompt_runtime_state] = int(counts.get(prompt_runtime_state, 0)) + 1
-                bucket["prompt_runtime_state_counts"] = counts
-            if prompt_runtime_detail:
-                counts = dict(bucket["prompt_runtime_detail_counts"])
-                counts[prompt_runtime_detail] = int(counts.get(prompt_runtime_detail, 0)) + 1
-                bucket["prompt_runtime_detail_counts"] = counts
+            if model_execution_state:
+                counts = dict(bucket["model_execution_state_counts"])
+                counts[model_execution_state] = int(counts.get(model_execution_state, 0)) + 1
+                bucket["model_execution_state_counts"] = counts
+            if model_execution_detail:
+                counts = dict(bucket["model_execution_detail_counts"])
+                counts[model_execution_detail] = int(counts.get(model_execution_detail, 0)) + 1
+                bucket["model_execution_detail_counts"] = counts
         if event_type in {"supplemental_breaker_opened", "supplemental_breaker_fast_failed"}:
             bucket["circuit_open_count"] = int(bucket["circuit_open_count"]) + 1
 

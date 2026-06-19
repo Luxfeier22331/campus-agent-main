@@ -103,11 +103,6 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 
 func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
 	executor, err := newRAGSynthesisExecutor(config.Config{
-		PromptRuntimeAPIKey:           "test-key",
-		PromptRuntimeBaseURL:          "https://provider.example/v1",
-		PromptRuntimeProvider:         "openai",
-		PromptRuntimeTransport:        "responses",
-		PromptStrictStructuredOutputs: true,
 		ProviderPricingPath: writeRAGPricingCatalogForTest(t, `{
 			"schema_version":"provider-pricing-v1",
 			"currency":"USD",

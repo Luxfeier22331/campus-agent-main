@@ -32,7 +32,7 @@ interface LocalDevChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
-	expectPromptRuntimeState: string | null;
+	expectModelExecutionState: string | null;
 	expectResultKind: string;
 	name: string;
 	prompt: string;
@@ -70,7 +70,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalD
 		chatBaseUrl: readArgValue(argv, "--chat-base-url") ?? defaultChatBaseUrl,
 		email: (readArgValue(argv, "--email") ?? defaultEmail).toLowerCase(),
 		execReadyzUrl: readArgValue(argv, "--exec-readyz-url") ?? defaultExecReadyzUrl,
-		expectPromptRuntimeState: readArgValue(argv, "--expect-prompt-runtime-state"),
+		expectModelExecutionState: readArgValue(argv, "--expect-model-execution-state"),
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
 		name: readArgValue(argv, "--name") ?? defaultName,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
@@ -317,8 +317,8 @@ async function main(argv: string[]): Promise<void> {
 		"--expect-result-kind",
 		args.expectResultKind,
 	];
-	if (args.expectPromptRuntimeState) {
-		chatE2eArgs.push("--expect-prompt-runtime-state", args.expectPromptRuntimeState);
+	if (args.expectModelExecutionState) {
+		chatE2eArgs.push("--expect-model-execution-state", args.expectModelExecutionState);
 	}
 
 	const chatReadyzUrl = new URL("/readyz", args.chatBaseUrl).toString();
