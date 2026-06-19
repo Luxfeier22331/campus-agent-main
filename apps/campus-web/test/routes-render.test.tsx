@@ -54,7 +54,7 @@ vi.mock("@openai/chatkit-react", () => ({
 }));
 
 vi.mock("../src/features/conversation/chatkit-runtime", () => ({
-	CHATKIT_RUNTIME_SCRIPT_URL: "https://cdn.platform.openai.com/deployments/chatkit/chatkit.js",
+	CHATKIT_RUNTIME_SCRIPT_URL: "/vendor/openai-chatkit/2026-06-17/chatkit.js",
 	loadChatKitRuntime: loadChatKitRuntimeMock,
 }));
 

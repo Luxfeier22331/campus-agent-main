@@ -2,7 +2,10 @@ import { ChatKit, useChatKit } from "@openai/chatkit-react";
 import { useNavigate } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import { CHATKIT_API_URL, CHATKIT_DOMAIN_KEY } from "@/features/conversation/chatkit-integration";
-import { loadChatKitRuntime } from "@/features/conversation/chatkit-runtime";
+import {
+	CHATKIT_RUNTIME_SCRIPT_URL,
+	loadChatKitRuntime,
+} from "@/features/conversation/chatkit-runtime";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_CHATKIT_REQUEST_TYPES = new Set([
@@ -13,7 +16,7 @@ const ACTIVE_CHATKIT_REQUEST_TYPES = new Set([
 	"threads.sync_custom_action",
 ]);
 
-const CHATKIT_READY_TIMEOUT_MS = 8_000;
+const CHATKIT_READY_TIMEOUT_MS = 30_000;
 const CHATKIT_SURFACE_CLASS = "mx-auto h-full min-h-0 w-full max-w-[880px]";
 
 const HOME_COPY = {
@@ -65,9 +68,15 @@ export function ChatKitConversationSurface({
 					setRuntimeStatus("ready");
 				}
 			})
-			.catch(() => {
+			.catch((error: unknown) => {
 				if (!cancelled) {
 					window.clearTimeout(timeout);
+					if (import.meta.env.DEV) {
+						console.error("ChatKit runtime failed to load", {
+							error,
+							url: CHATKIT_RUNTIME_SCRIPT_URL,
+						});
+					}
 					setRuntimeStatus("runtime_unavailable");
 				}
 			});

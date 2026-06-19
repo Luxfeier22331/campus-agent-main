@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-13
+updated: 2026-06-19
 ---
 
 # Docs
@@ -22,6 +22,7 @@ class owns a fact.
 - Feature-level product requirements:
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
+  - [product/chatkit-runtime-self-host-prd.md](./product/chatkit-runtime-self-host-prd.md)
 - Current accepted merged truth:
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Long-term architecture invariants:

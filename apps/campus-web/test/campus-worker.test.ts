@@ -6,11 +6,11 @@ import worker, { type Env } from "../src/index";
 
 const appRoot = join(__dirname, "..");
 
-function createEnv(appApi?: Env["APP_API"]): Env {
+function createEnv(appApi?: Env["APP_API"], assets?: Env["ASSETS"]): Env {
 	return {
 		APP_API: appApi,
 		APP_API_BASE_URL: "https://app-api.internal",
-		ASSETS: {
+		ASSETS: assets ?? {
 			fetch: () =>
 				new Response('<!doctype html><div id="root"></div>', {
 					headers: { "content-type": "text/html" },
@@ -139,7 +139,7 @@ describe("campus worker boundary", () => {
 		}
 	});
 
-	it("allows the on-demand ChatKit runtime required by the Q&A shell CSP", async () => {
+	it("allows the self-hosted ChatKit runtime required by the Q&A shell CSP", async () => {
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
 				headers: { accept: "text/html" },
@@ -148,11 +148,28 @@ describe("campus worker boundary", () => {
 		);
 
 		const csp = response.headers.get("content-security-policy") ?? "";
-		expect(csp).toContain(
-			"script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdn.platform.openai.com",
+		expect(csp).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
+		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
+		expect(csp).not.toContain("https://cdn.platform.openai.com");
+	});
+
+	it("serves self-hosted ChatKit vendor assets through the static asset binding", async () => {
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/vendor/openai-chatkit/2026-06-17/chatkit.js", {
+				headers: { accept: "application/javascript" },
+			}),
+			createEnv(undefined, {
+				fetch(request) {
+					return new Response(`asset:${new URL(request.url).pathname}`, {
+						headers: { "content-type": "application/javascript" },
+					});
+				},
+			}),
 		);
-		expect(csp).toContain(
-			"frame-src https://challenges.cloudflare.com https://cdn.platform.openai.com",
+
+		expect(response.status).toBe(200);
+		await expect(response.text()).resolves.toBe(
+			"asset:/vendor/openai-chatkit/2026-06-17/chatkit.js",
 		);
 	});
 

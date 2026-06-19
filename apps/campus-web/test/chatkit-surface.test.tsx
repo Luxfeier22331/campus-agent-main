@@ -32,7 +32,7 @@ vi.mock("@openai/chatkit-react", () => ({
 }));
 
 vi.mock("../src/features/conversation/chatkit-runtime", () => ({
-	CHATKIT_RUNTIME_SCRIPT_URL: "https://cdn.platform.openai.com/deployments/chatkit/chatkit.js",
+	CHATKIT_RUNTIME_SCRIPT_URL: "/vendor/openai-chatkit/2026-06-17/chatkit.js",
 	loadChatKitRuntime: loadChatKitRuntimeMock,
 }));
 
@@ -169,6 +169,12 @@ describe("ChatKitConversationSurface", () => {
 
 		expect(await screen.findByText("对话界面暂时无法加载。")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "重新加载" })).toBeInTheDocument();
+		expect(console.error).toHaveBeenCalledWith(
+			"ChatKit runtime failed to load",
+			expect.objectContaining({
+				url: "/vendor/openai-chatkit/2026-06-17/chatkit.js",
+			}),
+		);
 		expect(useChatKitMock).not.toHaveBeenCalled();
 	});
 
@@ -215,7 +221,7 @@ describe("ChatKitConversationSurface", () => {
 
 		await act(async () => undefined);
 		act(() => {
-			vi.advanceTimersByTime(10_000);
+			vi.advanceTimersByTime(30_000);
 		});
 
 		expect(screen.getByText("对话界面暂时无法加载。")).toBeInTheDocument();

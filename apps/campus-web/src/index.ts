@@ -26,7 +26,7 @@ export interface Env {
 
 const SECURITY_HEADERS = {
 	"content-security-policy":
-		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com https://cdn.platform.openai.com; frame-src https://challenges.cloudflare.com https://cdn.platform.openai.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com; frame-src 'self' https://challenges.cloudflare.com; connect-src 'self' https://*.ingest.sentry.io https://*.sentry.io; worker-src 'self' blob:",
 	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
 	"referrer-policy": "strict-origin-when-cross-origin",
 	"x-content-type-options": "nosniff",
@@ -55,6 +55,7 @@ const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
 const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
+const PUBLIC_VENDOR_ASSET_PREFIX = "/vendor/";
 
 const VITE_DEV_ASSET_PREFIXES = [
 	"/@fs/",
@@ -162,6 +163,10 @@ const worker = {
 			}
 
 			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
+				return serveStaticAsset(request, env);
+			}
+
+			if (url.pathname.startsWith(PUBLIC_VENDOR_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
 			}
 

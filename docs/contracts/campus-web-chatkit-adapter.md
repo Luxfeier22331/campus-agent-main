@@ -140,17 +140,17 @@ feedback prompt, or plain hidden metadata.
 - account modal and account menu
 - support navigation
 - same-origin `/api/chatkit` route admission through the Worker allowlist
-- CSP admission for the official OpenAI ChatKit web component runtime at
-  `https://cdn.platform.openai.com`
+- CSP/static-asset admission for the self-hosted ChatKit web component runtime
+  mirror under `/vendor/openai-chatkit/<runtime-version>/`
 
 ChatKit owns the central thread UI, history panel, history search, composer,
 retry, stop, feedback controls, rename/delete actions, and thread item rendering.
 
-The browser runtime is the official ChatKit web component loaded from OpenAI's
-CDN. `@openai/chatkit-react` provides React bindings and configuration; it does
-not replace the web component runtime. The custom API config must point to the
-same-origin `/api/chatkit` endpoint and carry the registered domain key for the
-campus integration.
+The browser runtime is the OpenAI ChatKit web component mirrored as versioned
+same-origin campus-web static assets. `@openai/chatkit-react` provides React
+bindings and configuration; it does not replace the web component runtime. The
+custom API config must point to the same-origin `/api/chatkit` endpoint and carry
+the registered domain key for the campus integration.
 
 Unauthenticated ChatKit requests are handled by request intent:
 

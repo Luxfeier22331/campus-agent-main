@@ -51,8 +51,9 @@ projection / operator read model / operator-safe operations domains`
   browser route owner；它拥有 campus experience routes、账号浏览器页面、Rspress-powered
   `/docs/*` reader delivery、Q&A ChatKit browser surface 与 same-origin proxy seam，但不拥有
   backend truth
-- `campus-web` Q&A 使用 OpenAI ChatKit 官方 CDN web component runtime；CSP 显式允许
-  `https://cdn.platform.openai.com` 的 script/frame 资源
+- `campus-web` Q&A 使用 OpenAI ChatKit web component runtime 的 versioned same-origin
+  mirror；CSP / static asset routing 显式允许 `/vendor/openai-chatkit/<runtime-version>/`
+  下的 script/frame 资源
 - `apps/chatkit-adapter` 是 internal ChatKit protocol adapter；它不拥有 product backend、
   conversation truth 或 execution engine 责任
 - `apps/public-docs` 已删除；当前 docs browser surface 只由 `campus-web /docs/*`

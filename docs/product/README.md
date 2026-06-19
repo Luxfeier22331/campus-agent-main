@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-19
 ---
 
 # Product Requirements
@@ -19,6 +19,8 @@ HTTP contracts, data schemas, operational procedures or active work status.
 
 - [account-registration-legal-consent-prd.md](./account-registration-legal-consent-prd.md)
   - registration terms/privacy consent, legal pages and sign-up admission
+- [chatkit-runtime-self-host-prd.md](./chatkit-runtime-self-host-prd.md)
+  - self-hosted ChatKit runtime assets for campus-web Q&A loading
 
 ## Use Rules
 

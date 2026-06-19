@@ -1,5 +1,7 @@
+const DEFAULT_CHATKIT_RUNTIME_SCRIPT_URL = "/vendor/openai-chatkit/2026-06-17/chatkit.js";
+
 export const CHATKIT_RUNTIME_SCRIPT_URL =
-	"https://cdn.platform.openai.com/deployments/chatkit/chatkit.js";
+	import.meta.env.VITE_CHATKIT_RUNTIME_SCRIPT_URL?.trim() || DEFAULT_CHATKIT_RUNTIME_SCRIPT_URL;
 
 const CHATKIT_RUNTIME_SCRIPT_SELECTOR = 'script[data-campus-chatkit-runtime="true"]';
 const CHATKIT_RUNTIME_SCRIPT_STATE = "campusChatkitRuntimeState";
@@ -39,7 +41,7 @@ export function loadChatKitRuntime(): Promise<void> {
 			settled = true;
 			chatKitRuntimePromise = null;
 			script.remove();
-			reject(new Error("ChatKit runtime script failed to load."));
+			reject(new Error(`ChatKit runtime script failed to load: ${CHATKIT_RUNTIME_SCRIPT_URL}`));
 		}
 
 		script.addEventListener("load", resolveOnce, { once: true });
@@ -61,7 +63,6 @@ function findChatKitRuntimeScript(): HTMLScriptElement | null {
 	if (managedScript) {
 		return managedScript;
 	}
-	return (
-		Array.from(document.scripts).find((script) => script.src === CHATKIT_RUNTIME_SCRIPT_URL) ?? null
-	);
+	const resolvedScriptUrl = new URL(CHATKIT_RUNTIME_SCRIPT_URL, window.location.href).href;
+	return Array.from(document.scripts).find((script) => script.src === resolvedScriptUrl) ?? null;
 }
