@@ -556,6 +556,20 @@ export function buildOperatorQueryService(
 			return snapshot;
 		},
 
+		async getLangfuseEvalBacklinksByTraceId(input) {
+			ensureOperatorPrincipal(input.principal);
+			const traceId = normalizeOptionalString(input.traceId);
+			if (!traceId) {
+				throw new AppApiRouteError({
+					code: "invalid_trace_id",
+					message: "traceId is required.",
+					retryable: false,
+					status: 400,
+				});
+			}
+			return dependencies.store.getLangfuseEvalBacklinksByTraceId(traceId);
+		},
+
 		async getOverview(input) {
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));

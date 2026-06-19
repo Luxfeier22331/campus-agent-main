@@ -5,6 +5,7 @@ import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runt
 import {
 	evalCoverageSnapshot,
 	evalDiagnosticBadcaseProjection,
+	langfuseEvalBacklinkProjection,
 	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
@@ -67,6 +68,18 @@ export interface TraceBacklinkProjectionWrite {
 	projectedAt: string;
 }
 
+export interface LangfuseEvalBacklinkProjectionWrite {
+	evalBacklinkId: string;
+	traceId: string;
+	evalRunId: string;
+	scoreName: string;
+	scoreValue: string | number | boolean;
+	release: string;
+	environment: string;
+	langfuseUrl: string;
+	projectedAt: string;
+}
+
 export interface ExecutionAuditEventWrite {
 	eventId: string;
 	requestId: string;
@@ -93,6 +106,9 @@ export interface OperatorObservabilityCommandStore {
 	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTemporalTaskQueueRuntime(input: TemporalTaskQueueRuntimeProjectionWrite): Promise<void>;
 	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
+	upsertLangfuseEvalBacklinks?(input: {
+		backlinks: LangfuseEvalBacklinkProjectionWrite[];
+	}): Promise<void>;
 }
 
 function toStoredRequestObservabilitySeed(
@@ -422,6 +438,44 @@ export function createPgOperatorObservabilityCommandStore(
 								traceLink: backlink.traceLink,
 							},
 							target: traceBacklinkProjection.requestId,
+						});
+				}
+			});
+		},
+
+		async upsertLangfuseEvalBacklinks(input) {
+			if (input.backlinks.length === 0) {
+				return;
+			}
+
+			const db = await getDb();
+			await db.transaction(async (tx) => {
+				for (const backlink of input.backlinks) {
+					await tx
+						.insert(langfuseEvalBacklinkProjection)
+						.values({
+							environment: backlink.environment,
+							evalBacklinkId: backlink.evalBacklinkId,
+							evalRunId: backlink.evalRunId,
+							langfuseUrl: backlink.langfuseUrl,
+							projectedAt: new Date(backlink.projectedAt),
+							release: backlink.release,
+							scoreName: backlink.scoreName,
+							scoreValueJson: backlink.scoreValue,
+							traceId: backlink.traceId,
+						})
+						.onConflictDoUpdate({
+							set: {
+								environment: backlink.environment,
+								evalRunId: backlink.evalRunId,
+								langfuseUrl: backlink.langfuseUrl,
+								projectedAt: new Date(backlink.projectedAt),
+								release: backlink.release,
+								scoreName: backlink.scoreName,
+								scoreValueJson: backlink.scoreValue,
+								traceId: backlink.traceId,
+							},
+							target: langfuseEvalBacklinkProjection.evalBacklinkId,
 						});
 				}
 			});

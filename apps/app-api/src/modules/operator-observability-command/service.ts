@@ -12,6 +12,10 @@ import {
 	normalizeTemporalTaskQueueRuntimePayload,
 	type TemporalTaskQueueRuntimePayload,
 } from "../operator-runtime-observability";
+import {
+	ingestLangfuseEvalBacklinks,
+	type OperatorLangfuseEvalBacklinksPayload,
+} from "./langfuse-eval-backlinks";
 import type {
 	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
@@ -106,6 +110,9 @@ export interface OperatorObservabilityCommandService {
 		payload: OperatorExecutionAuditEventsPayload;
 	}): Promise<{ accepted: number }>;
 	ingestGrades(input: { payload: OperatorQualityGradesPayload }): Promise<{ accepted: number }>;
+	ingestLangfuseEvalBacklinks(input: {
+		payload: OperatorLangfuseEvalBacklinksPayload;
+	}): Promise<{ accepted: number }>;
 	ingestTraceBacklinks(input: {
 		payload: OperatorTraceBacklinksPayload;
 	}): Promise<{ accepted: number }>;
@@ -637,6 +644,14 @@ export function buildOperatorObservabilityCommandService(
 				});
 			}
 			return { accepted: writes.length };
+		},
+
+		async ingestLangfuseEvalBacklinks(input) {
+			return ingestLangfuseEvalBacklinks({
+				now,
+				payload: input.payload,
+				store: dependencies.store,
+			});
 		},
 
 		async ingestTraceBacklinks(input) {

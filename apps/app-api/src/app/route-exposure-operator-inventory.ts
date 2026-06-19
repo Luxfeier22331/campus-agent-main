@@ -340,6 +340,12 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/langfuse/eval-backlinks",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/quality/badcases",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",

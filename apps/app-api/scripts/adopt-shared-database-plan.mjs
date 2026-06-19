@@ -9,16 +9,20 @@ import {
 	ALTER_TABLE_ADD_COLUMN_RE,
 	ALTER_TABLE_CONSTRAINT_RE,
 	ALTER_TABLE_DROP_COLUMN_DEFAULT_RE,
+	ALTER_TABLE_DROP_COLUMN_NOT_NULL_RE,
 	ALTER_TABLE_DROP_COLUMN_RE,
 	ALTER_TABLE_RENAME_COLUMN_RE,
+	ALTER_TABLE_SET_COLUMN_NOT_NULL_RE,
 	CREATE_INDEX_RE,
 	CREATE_SCHEMA_RE,
 	CREATE_TABLE_RE,
 	compareIndexSpec,
 	DROP_INDEX_RE,
 	DROP_TABLE_RE,
+	INSERT_INTO_RE,
 	normalizePostgresIdentifier,
 	qualifyTable,
+	UPDATE_TABLE_RE,
 } from "./adopt-shared-database-shared.mjs";
 
 export function parseMigrationStatement(statement) {
@@ -70,6 +74,28 @@ export function parseMigrationStatement(statement) {
 			column: match[3],
 			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}:default_dropped`,
 			kind: "drop_column_default",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_DROP_COLUMN_NOT_NULL_RE);
+	if (match) {
+		return {
+			column: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}:not_null_dropped`,
+			kind: "drop_column_not_null",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(ALTER_TABLE_SET_COLUMN_NOT_NULL_RE);
+	if (match) {
+		return {
+			column: match[3],
+			existsKey: `${qualifyTable(match[1], match[2])}:${match[3]}:not_null_set`,
+			kind: "set_column_not_null",
 			schema: match[1],
 			statement: trimmed,
 			table: match[2],
@@ -138,6 +164,26 @@ export function parseMigrationStatement(statement) {
 			kind: "rename_index",
 			schema: match[1],
 			statement: trimmed,
+		};
+	}
+	match = trimmed.match(INSERT_INTO_RE);
+	if (match) {
+		return {
+			existsKey: `${qualifyTable(match[1], match[2])}:data_insert`,
+			kind: "data_statement",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
+		};
+	}
+	match = trimmed.match(UPDATE_TABLE_RE);
+	if (match) {
+		return {
+			existsKey: `${qualifyTable(match[1], match[2])}:data_update`,
+			kind: "data_statement",
+			schema: match[1],
+			statement: trimmed,
+			table: match[2],
 		};
 	}
 	throw new Error(`Unsupported migration statement shape: ${trimmed}`);
@@ -212,6 +258,9 @@ function targetExists(inventory, target) {
 	if (target.kind === "table") {
 		return table !== undefined;
 	}
+	if (target.kind === "data_statement") {
+		return false;
+	}
 	if (target.kind === "drop_table") {
 		return table === undefined;
 	}
@@ -224,6 +273,14 @@ function targetExists(inventory, target) {
 	if (target.kind === "drop_column_default") {
 		const column = table.columns.get(target.column);
 		return Boolean(column && column.defaultValue !== null && column.defaultValue !== undefined);
+	}
+	if (target.kind === "drop_column_not_null") {
+		const column = table.columns.get(target.column);
+		return Boolean(column && column.notNull);
+	}
+	if (target.kind === "set_column_not_null") {
+		const column = table.columns.get(target.column);
+		return Boolean(column && column.notNull);
 	}
 	if (target.kind === "drop_column") {
 		return !table.columns.has(target.column);
@@ -259,6 +316,10 @@ function latestSnapshotKeepsColumn(expectedLatestTables, target) {
 	);
 }
 
+function columnKey(schema, table, column) {
+	return `${qualifyTable(schema, table)}:${column}`;
+}
+
 function latestSnapshotKeepsIndex(expectedLatestTables, target) {
 	if (target.kind !== "index") {
 		return true;
@@ -275,6 +336,7 @@ function shouldApplyStatement(
 	target,
 	expectedTablesForMigration,
 	expectedLatestTables,
+	renameColumnSourceKeys,
 	renameIndexSourceKeys,
 ) {
 	if (target.kind === "drop_index") {
@@ -303,11 +365,26 @@ function shouldApplyStatement(
 	if (target.kind === "table" && !latestSnapshotKeepsTable(expectedLatestTables, target)) {
 		return false;
 	}
-	if (target.kind === "column" && !latestSnapshotKeepsColumn(expectedLatestTables, target)) {
+	if (
+		target.kind === "column" &&
+		!(
+			latestSnapshotKeepsColumn(expectedLatestTables, target) ||
+			renameColumnSourceKeys.has(columnKey(target.schema, target.table, target.column))
+		)
+	) {
 		return false;
 	}
 	if (target.kind === "drop_column_default") {
 		return targetExists(inventory, target);
+	}
+	if (target.kind === "drop_column_not_null") {
+		return targetExists(inventory, target);
+	}
+	if (target.kind === "set_column_not_null") {
+		return !targetExists(inventory, target);
+	}
+	if (target.kind === "data_statement") {
+		return targetExists(inventory, target.table ? { ...target, kind: "table" } : target);
 	}
 	return !targetExists(inventory, target);
 }
@@ -375,6 +452,10 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 		return;
 	}
 
+	if (target.kind === "data_statement") {
+		return;
+	}
+
 	if (target.kind === "drop_table") {
 		inventory.tables.delete(qualifiedName);
 		return;
@@ -409,6 +490,28 @@ function applyTargetToInventory(inventory, target, expectedTablesForMigration) {
 				`Missing default-drop column ${qualifiedName}.${target.column} during adoption planning`,
 			);
 		}
+		return;
+	}
+
+	if (target.kind === "drop_column_not_null") {
+		const column = table.columns.get(target.column);
+		if (!column) {
+			throw new Error(
+				`Missing not-null-drop column ${qualifiedName}.${target.column} during adoption planning`,
+			);
+		}
+		column.notNull = false;
+		return;
+	}
+
+	if (target.kind === "set_column_not_null") {
+		const column = table.columns.get(target.column);
+		if (!column) {
+			throw new Error(
+				`Missing not-null-set column ${qualifiedName}.${target.column} during adoption planning`,
+			);
+		}
+		column.notNull = true;
 		return;
 	}
 
@@ -465,6 +568,17 @@ function renameTargetExistsForSourceIndex(inventory, target, targetIndexBySource
 	return Boolean(targetIndex && inventoryHasSchemaIndex(inventory, target.schema, targetIndex));
 }
 
+function renameTargetExistsForSourceColumn(inventory, target, targetColumnBySourceKey) {
+	if (target.kind !== "column") {
+		return false;
+	}
+	const targetColumn = targetColumnBySourceKey.get(
+		columnKey(target.schema, target.table, target.column),
+	);
+	const table = inventory.tables.get(qualifyTable(target.schema, target.table));
+	return Boolean(targetColumn && table?.columns.has(targetColumn));
+}
+
 export function buildAdoptionPlan({ inventory, migrationContext }) {
 	const snapshot0000 = migrationContext.snapshots.get(migrationContext.journal.entries[0].tag);
 	if (!snapshot0000) {
@@ -489,9 +603,16 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 	);
 	const renameIndexSourceKeys = new Set();
 	const renameIndexTargetBySourceKey = new Map();
+	const renameColumnSourceKeys = new Set();
+	const renameColumnTargetBySourceKey = new Map();
 	for (const migration of migrationContext.migrations) {
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
+			if (target.kind === "rename_column") {
+				const sourceKey = columnKey(target.schema, target.table, target.fromColumn);
+				renameColumnSourceKeys.add(sourceKey);
+				renameColumnTargetBySourceKey.set(sourceKey, target.toColumn);
+			}
 			if (target.kind === "rename_index") {
 				const sourceKey = `${target.schema}@${target.fromIndex}`;
 				renameIndexSourceKeys.add(sourceKey);
@@ -511,12 +632,18 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 				target,
 				renameIndexTargetBySourceKey,
 			);
+			const renameColumnTargetAlreadyExists = renameTargetExistsForSourceColumn(
+				plannedInventory,
+				target,
+				renameColumnTargetBySourceKey,
+			);
 			if (
 				shouldApplyStatement(
 					plannedInventory,
 					target,
 					expectedTablesForMigration,
 					expectedLatestTables,
+					renameColumnTargetAlreadyExists ? new Set() : renameColumnSourceKeys,
 					renameTargetAlreadyExists ? new Set() : renameIndexSourceKeys,
 				)
 			) {

@@ -25,6 +25,8 @@ export type {
 	OperatorIntentObservabilitySummary,
 	OperatorIntentSummaryResult,
 	OperatorIntentTimeseriesResult,
+	OperatorLangfuseEvalBacklinkRecord,
+	OperatorLangfuseEvalBacklinkResult,
 	OperatorOverviewAlert,
 	OperatorOverviewFilters,
 	OperatorOverviewResult,

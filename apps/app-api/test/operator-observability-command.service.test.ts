@@ -344,6 +344,111 @@ describe("operator observability command service", () => {
 		expect(store.upsertTraceBacklinks).not.toHaveBeenCalled();
 	});
 
+	it("ingests sanitized Langfuse eval backlinks without exposing raw payload fields", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn().mockResolvedValue({
+				collection: "student_rules",
+				modelName: "gpt-5.2-mini",
+				principalType: "student",
+				requestId: "req_01HQ",
+				requestStartedAt: "2026-04-24T09:59:00.000Z",
+				requestedCapability: "knowledge",
+				requestedScopeSummary: "regulations/student_rules",
+				selectedCapability: "knowledge",
+				surface: "campus_web",
+				traceId: "trace_01HQ",
+			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertLangfuseEvalBacklinks: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-06-19T08:00:00.000Z"),
+			store,
+		});
+
+		await expect(
+			service.ingestLangfuseEvalBacklinks({
+				payload: {
+					backlinks: [
+						{
+							environment: "staging",
+							evalRunId: "rag-first-stage:release-2026-06-19",
+							langfuseUrl: "https://langfuse.example/project/traces/trace_01HQ",
+							release: "release-2026-06-19",
+							requestId: "req_01HQ",
+							scoreName: "retrieval.pass",
+							scoreValue: 1,
+							traceId: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).resolves.toEqual({ accepted: 1 });
+
+		expect(store.upsertLangfuseEvalBacklinks).toHaveBeenCalledWith({
+			backlinks: [
+				{
+					environment: "staging",
+					evalBacklinkId:
+						"trace_01HQ:rag-first-stage:release-2026-06-19:retrieval.pass:release-2026-06-19:staging",
+					evalRunId: "rag-first-stage:release-2026-06-19",
+					langfuseUrl: "https://langfuse.example/project/traces/trace_01HQ",
+					projectedAt: "2026-06-19T08:00:00.000Z",
+					release: "release-2026-06-19",
+					scoreName: "retrieval.pass",
+					scoreValue: 1,
+					traceId: "trace_01HQ",
+				},
+			],
+		});
+	});
+
+	it("rejects Langfuse eval backlinks with raw payload fields before writing summaries", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn().mockResolvedValue({
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertLangfuseEvalBacklinks: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestLangfuseEvalBacklinks({
+				payload: {
+					backlinks: [
+						{
+							environment: "staging",
+							evalRunId: "eval-run-001",
+							langfuseUrl: "https://langfuse.example/scores/score-001",
+							rawAnswer: "原始答案不能进入 operator backlink",
+							release: "release-2026-06-19",
+							requestId: "req_01HQ",
+							scoreName: "quality.groundedness",
+							scoreValue: 0.2,
+							traceId: "trace_01HQ",
+						},
+					],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertLangfuseEvalBacklinks).not.toHaveBeenCalled();
+	});
+
 	it("persists Temporal task queue snapshots and autoscaler projections with observed load and failed actuation evidence", async () => {
 		const store = {
 			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),

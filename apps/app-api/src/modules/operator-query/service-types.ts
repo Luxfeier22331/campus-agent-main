@@ -143,6 +143,20 @@ export interface OperatorQueryListResult {
 export type OperatorEvalCoverageResult = EvalCoverageSnapshot;
 export type OperatorRuntimeHealthResult = ExecutionControlOperatorRuntimeHealth;
 
+export interface OperatorLangfuseEvalBacklinkRecord {
+	traceId: string;
+	evalRunId: string;
+	scoreName: string;
+	scoreValue: string | number | boolean;
+	release: string;
+	environment: string;
+	langfuseUrl: string;
+}
+
+export interface OperatorLangfuseEvalBacklinkResult {
+	backlinks: OperatorLangfuseEvalBacklinkRecord[];
+}
+
 export interface OperatorIntentObservabilitySummary {
 	capability: string | null;
 	taskKind: string | null;

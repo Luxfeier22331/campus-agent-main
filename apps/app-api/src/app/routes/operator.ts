@@ -672,4 +672,24 @@ export function registerOperatorRoutes(input: {
 			}),
 		);
 	});
+
+	input.app.get("/api/operator/langfuse/eval-backlinks", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().getLangfuseEvalBacklinksByTraceId({
+				principal: resolved.principal,
+				traceId: c.req.query("traceId") ?? "",
+			}),
+		);
+	});
 }

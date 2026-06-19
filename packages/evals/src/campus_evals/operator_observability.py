@@ -106,6 +106,18 @@ class OperatorTraceBacklink:
 
 
 @dataclass(frozen=True, slots=True)
+class OperatorLangfuseEvalBacklink:
+    request_id: str
+    trace_id: str
+    eval_run_id: str
+    score_name: str
+    score_value: float | int | str
+    release: str
+    environment: str
+    langfuse_url: str
+
+
+@dataclass(frozen=True, slots=True)
 class OperatorSkippedPublishItem:
     case_id: str
     metric_key: str

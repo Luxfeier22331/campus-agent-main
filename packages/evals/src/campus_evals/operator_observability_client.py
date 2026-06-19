@@ -73,6 +73,17 @@ class _OperatorTraceBacklink(Protocol):
     issue_fingerprint: str | None
 
 
+class _OperatorLangfuseEvalBacklink(Protocol):
+    request_id: str
+    trace_id: str
+    eval_run_id: str
+    score_name: str
+    score_value: float | int | str
+    release: str
+    environment: str
+    langfuse_url: str
+
+
 class OperatorObservabilityClient:
     def __init__(
         self,
@@ -117,6 +128,31 @@ class OperatorObservabilityClient:
                         "traceLink": item.trace_link,
                         "issueLink": item.issue_link,
                         "issueFingerprint": item.issue_fingerprint,
+                    }
+                    for item in backlinks
+                ]
+            },
+        )
+        payload = _decode_json(response)
+        return int(payload.get("accepted") or 0)
+
+    def ingest_langfuse_eval_backlinks(
+        self,
+        backlinks: tuple[_OperatorLangfuseEvalBacklink, ...],
+    ) -> int:
+        response = self._request(
+            "/api/internal/operator/langfuse/eval-backlinks",
+            {
+                "backlinks": [
+                    {
+                        "requestId": item.request_id,
+                        "traceId": item.trace_id,
+                        "evalRunId": item.eval_run_id,
+                        "scoreName": item.score_name,
+                        "scoreValue": item.score_value,
+                        "release": item.release,
+                        "environment": item.environment,
+                        "langfuseUrl": item.langfuse_url,
                     }
                     for item in backlinks
                 ]

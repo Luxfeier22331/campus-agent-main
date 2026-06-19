@@ -78,6 +78,7 @@ describe("operator observability internal ingest routes", () => {
 		const service = {
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
+			ingestLangfuseEvalBacklinks: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
 		};
 		const app = createApp(env as never, {
@@ -120,6 +121,47 @@ describe("operator observability internal ingest routes", () => {
 				],
 			},
 		});
+	});
+
+	it("accepts sanitized Langfuse eval backlinks through the internal ingest seam", async () => {
+		const service = {
+			ingestExecutionAuditEvents: vi.fn(),
+			ingestGrades: vi.fn(),
+			ingestLangfuseEvalBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
+			ingestTraceBacklinks: vi.fn(),
+		};
+		const app = createApp(env as never, {
+			operatorObservabilityCommandService: service as never,
+		});
+
+		const payload = {
+			backlinks: [
+				{
+					environment: "staging",
+					evalRunId: "rag-first-stage:release-2026-06-19",
+					langfuseUrl: "https://langfuse.example/project/traces/trace_01HQ",
+					release: "release-2026-06-19",
+					requestId: "req_01HQ",
+					scoreName: "retrieval.pass",
+					scoreValue: 1,
+					traceId: "trace_01HQ",
+				},
+			],
+		};
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/internal/operator/langfuse/eval-backlinks", {
+				body: JSON.stringify(payload),
+				headers: {
+					"content-type": "application/json",
+					"x-app-internal-auth": "trusted-secret",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({ accepted: 1 });
+		expect(service.ingestLangfuseEvalBacklinks).toHaveBeenCalledWith({ payload });
 	});
 
 	it("accepts execution audit events through the internal ingest seam", async () => {

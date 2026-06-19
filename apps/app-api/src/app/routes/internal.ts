@@ -593,4 +593,17 @@ export function registerInternalRoutes(input: {
 			}),
 		);
 	});
+
+	input.app.post("/api/internal/operator/langfuse/eval-backlinks", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorObservabilityCommandService().ingestLangfuseEvalBacklinks({
+				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
 }

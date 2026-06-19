@@ -349,6 +349,31 @@ export const traceBacklinkProjection = operator.table(
 	}),
 );
 
+export const langfuseEvalBacklinkProjection = operator.table(
+	"langfuse_eval_backlink_projection",
+	{
+		evalBacklinkId: text("eval_backlink_id").primaryKey(),
+		traceId: text("trace_id").notNull(),
+		evalRunId: text("eval_run_id").notNull(),
+		scoreName: text("score_name").notNull(),
+		scoreValueJson: jsonb("score_value_json").$type<string | number | boolean>().notNull(),
+		release: text("release").notNull(),
+		environment: text("environment").notNull(),
+		langfuseUrl: text("langfuse_url").notNull(),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		traceProjectedAtIndex: index("operator_langfuse_eval_backlink_trace_projected_at_idx").on(
+			table.traceId,
+			table.projectedAt,
+		),
+		evalRunScoreIndex: index("operator_langfuse_eval_backlink_eval_score_idx").on(
+			table.evalRunId,
+			table.scoreName,
+		),
+	}),
+);
+
 export const officialWebRunProjection = operator.table(
 	"official_web_run_projection",
 	{

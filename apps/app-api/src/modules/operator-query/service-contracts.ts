@@ -20,6 +20,7 @@ import type {
 	OperatorEvalCoverageResult,
 	OperatorIntentSummaryResult,
 	OperatorIntentTimeseriesResult,
+	OperatorLangfuseEvalBacklinkResult,
 	OperatorOverviewFilters,
 	OperatorOverviewResult,
 	OperatorQualityBadcaseListFilters,
@@ -46,6 +47,7 @@ export interface OperatorQueryStore {
 	getById(requestId: string): Promise<RequestProjectionRecord | null>;
 	getAuditById(auditEventId: string): Promise<OperatorAuditEventDetail | null>;
 	getEvalCoverage(): Promise<OperatorEvalCoverageResult | null>;
+	getLangfuseEvalBacklinksByTraceId(traceId: string): Promise<OperatorLangfuseEvalBacklinkResult>;
 	getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
 	getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
 	getQualitySummary(
@@ -106,6 +108,10 @@ export interface OperatorQueryService {
 		auditEventId: string;
 	}): Promise<OperatorAuditEventDetail>;
 	getEvalCoverage(input: { principal: ResolvedAppPrincipal }): Promise<OperatorEvalCoverageResult>;
+	getLangfuseEvalBacklinksByTraceId(input: {
+		principal: ResolvedAppPrincipal;
+		traceId: string;
+	}): Promise<OperatorLangfuseEvalBacklinkResult>;
 	getOverview(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;

@@ -5,6 +5,7 @@ import unittest
 
 import httpx
 from campus_evals.operator_observability import (
+    OperatorLangfuseEvalBacklink,
     OperatorObservabilityClient,
     OperatorObservabilityClientError,
     OperatorObservabilityClientSettings,
@@ -123,6 +124,65 @@ class OperatorObservabilityClientTest(unittest.TestCase):
                         "traceLink": "https://sentry.example/traces/trace_01",
                         "issueLink": "https://sentry.example/issues/42",
                         "issueFingerprint": "citation-missing",
+                    }
+                ]
+            },
+        )
+
+    def test_client_posts_langfuse_eval_backlinks_with_internal_auth_header(self) -> None:
+        captured: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            captured["url"] = str(request.url)
+            captured["header"] = request.headers.get("x-app-internal-auth")
+            captured["body"] = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(200, request=request, json={"accepted": 1})
+
+        settings = OperatorObservabilityClientSettings(
+            app_api_base_url="https://app-api.internal",
+            internal_shared_secret="trusted-secret",
+        )
+        transport = httpx.MockTransport(handler)
+        client = httpx.Client(base_url="https://app-api.internal", transport=transport)
+
+        try:
+            publisher = OperatorObservabilityClient(settings=settings, client=client)
+            accepted = publisher.ingest_langfuse_eval_backlinks(
+                (
+                    OperatorLangfuseEvalBacklink(
+                        request_id="req_01",
+                        trace_id="trace_01",
+                        eval_run_id="rag-first-stage-release-1",
+                        score_name="retrieval.pass",
+                        score_value=1,
+                        release="release-2026-06-19",
+                        environment="staging",
+                        langfuse_url="https://langfuse.example/project/traces/trace_01",
+                    ),
+                )
+            )
+        finally:
+            client.close()
+
+        self.assertEqual(accepted, 1)
+        self.assertEqual(
+            captured["url"],
+            "https://app-api.internal/api/internal/operator/langfuse/eval-backlinks",
+        )
+        self.assertEqual(captured["header"], "trusted-secret")
+        self.assertEqual(
+            captured["body"],
+            {
+                "backlinks": [
+                    {
+                        "traceId": "trace_01",
+                        "requestId": "req_01",
+                        "evalRunId": "rag-first-stage-release-1",
+                        "scoreName": "retrieval.pass",
+                        "scoreValue": 1,
+                        "release": "release-2026-06-19",
+                        "environment": "staging",
+                        "langfuseUrl": "https://langfuse.example/project/traces/trace_01",
                     }
                 ]
             },

@@ -101,6 +101,22 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 		});
 		expect(
 			parseMigrationStatement(
+				'ALTER TABLE "provider_config"."profiles" ALTER COLUMN "provider" DROP NOT NULL;',
+			),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:provider:not_null_dropped",
+			kind: "drop_column_not_null",
+		});
+		expect(
+			parseMigrationStatement(
+				'ALTER TABLE "provider_config"."profiles" ALTER COLUMN "connection_id" SET NOT NULL;',
+			),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:connection_id:not_null_set",
+			kind: "set_column_not_null",
+		});
+		expect(
+			parseMigrationStatement(
 				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_capability" TO "selected_capability";',
 			),
 		).toMatchObject({
@@ -174,6 +190,18 @@ ON "official_web"."crawl_runs" USING btree (
 			fromIndex: "operator_metric_rollup_domain_target_bucket_idx",
 			index: "operator_metric_rollup_domain_capability_bucket_idx",
 			kind: "rename_index",
+		});
+		expect(
+			parseMigrationStatement('INSERT INTO "provider_config"."connections" ("connection_id")'),
+		).toMatchObject({
+			existsKey: "provider_config.connections:data_insert",
+			kind: "data_statement",
+		});
+		expect(
+			parseMigrationStatement('UPDATE "provider_config"."profiles" SET "connection_id" ='),
+		).toMatchObject({
+			existsKey: "provider_config.profiles:data_update",
+			kind: "data_statement",
 		});
 		expect(
 			parseMigrationStatement(

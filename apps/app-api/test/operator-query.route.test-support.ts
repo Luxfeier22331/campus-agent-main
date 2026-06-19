@@ -71,6 +71,7 @@ export function createOperatorQueryServiceMock(
 		getById: vi.fn(),
 		getAuditById: vi.fn(),
 		getEvalCoverage: vi.fn(),
+		getLangfuseEvalBacklinksByTraceId: vi.fn(),
 		getObservabilityById: vi.fn(),
 		getOverview: vi.fn(),
 		getRuntimeHealth: vi.fn(),

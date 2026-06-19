@@ -94,6 +94,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
+		path: "/api/internal/operator/langfuse/eval-backlinks",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
 		path: "/api/internal/operator/quality/grades",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
