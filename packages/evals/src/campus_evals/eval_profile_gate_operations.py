@@ -17,6 +17,7 @@ from campus_evals.eval_profile_gate_loading import (
     _runtime_metrics_missing,
 )
 from campus_evals.eval_profile_gate_models import DEFAULT_POLICY_ARTIFACT
+from campus_evals.profile_registry import get_profile_definition, resolve_profile_id
 
 
 def derive_eval_operations_observations_from_artifacts(
@@ -99,7 +100,7 @@ def _filter_eval_operations_policy(
 def _artifact_profile_id(payload: dict[str, object]) -> str:
     raw_profile_id = str(payload.get("profile_id") or "").strip()
     if raw_profile_id:
-        return raw_profile_id
+        return _operations_profile_id(raw_profile_id)
     gate_id = str(payload.get("gate_id") or "").strip()
     if gate_id:
         return gate_id
@@ -107,6 +108,13 @@ def _artifact_profile_id(payload: dict[str, object]) -> str:
     if benchmark_type:
         return benchmark_type
     return _required_string(payload.get("profile_id"), "profile_id")
+
+
+def _operations_profile_id(profile_id: str) -> str:
+    try:
+        return get_profile_definition(resolve_profile_id(profile_id)).policy_profile_id
+    except ValueError:
+        return profile_id
 
 
 def _artifact_version_summary(

@@ -95,7 +95,7 @@ def run_online_answer_path_profile_gate(
     report = build_online_answer_path_report(case_set.cases, observations)
     return _write_profile_report(
         output_dir=output_dir,
-        profile_id="online_answer_path",
+        profile_id="online-answer-path",
         case_family=case_set.case_family,
         report_passed=report.passed,
         total=report.total,

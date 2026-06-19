@@ -17,7 +17,7 @@ on:
           - authz-privacy
           - agentic-retrieval-plan
           - answer-quality-contract
-          - zep-memory-product-path
+          - hindsight-memory-product-path
           - eval-operations-governance
           - quality-calibration
       reruns:
@@ -55,6 +55,11 @@ on:
         required: true
         default: true
         type: boolean
+      publish_langfuse_scores:
+        description: Publish online-answer-path profile scores to Langfuse
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -67,9 +72,6 @@ jobs:
       LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
       EMBEDDING_BASE_URL: ${{ vars.EMBEDDING_BASE_URL }}
       EMBEDDING_API_KEY: ${{ secrets.EMBEDDING_API_KEY }}
-      EMBEDDING_MODEL: ${{ vars.EMBEDDING_MODEL }}
-      EVAL_RAGAS_MODEL: ${{ vars.EVAL_RAGAS_MODEL }}
-      EVAL_JUDGE_MODEL: ${{ vars.EVAL_JUDGE_MODEL }}
       APP_API_BASE_URL: ${{ vars.APP_API_BASE_URL }}
       APP_API_INTERNAL_SHARED_SECRET: ${{ secrets.APP_API_INTERNAL_SHARED_SECRET }}
       APP_API_EVAL_USER_EMAIL: ${{ vars.APP_API_EVAL_USER_EMAIL }}
@@ -81,6 +83,10 @@ jobs:
       APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE: ${{ vars.APP_API_EVAL_ISSUE_FINGERPRINT_TEMPLATE }}
       EVAL_GATE_PUBLISH_GRADE_SOURCE: ${{ vars.EVAL_GATE_PUBLISH_GRADE_SOURCE }}
       EVAL_GATE_PUBLISH_GRADER_VERSION: ${{ vars.EVAL_GATE_PUBLISH_GRADER_VERSION }}
+      LANGFUSE_BASE_URL: ${{ vars.LANGFUSE_BASE_URL }}
+      LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}
+      LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}
+      LANGFUSE_ENVIRONMENT: ${{ vars.LANGFUSE_ENVIRONMENT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -104,9 +110,6 @@ jobs:
           LLM_API_KEY=${LLM_API_KEY}
           EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL}
           EMBEDDING_API_KEY=${EMBEDDING_API_KEY}
-          EMBEDDING_MODEL=${EMBEDDING_MODEL}
-          EVAL_RAGAS_MODEL=${EVAL_RAGAS_MODEL}
-          EVAL_JUDGE_MODEL=${EVAL_JUDGE_MODEL}
           APP_API_BASE_URL=${APP_API_BASE_URL}
           APP_API_INTERNAL_SHARED_SECRET=${APP_API_INTERNAL_SHARED_SECRET}
           APP_API_EVAL_USER_EMAIL=${APP_API_EVAL_USER_EMAIL}
@@ -168,6 +171,13 @@ jobs:
           PY
           cat .github-output >> "$GITHUB_OUTPUT"
 
+      - name: Publish online answer Langfuse scores
+        if: ${{ inputs.profile == 'online-answer-path' && inputs.publish_langfuse_scores == true }}
+        run: |
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate publish-langfuse-profile \
+            --profile-report "${{ steps.accept.outputs.artifact_dir }}/profile-report.json" \
+            --json | tee langfuse-publish.json
+
       - name: Upload eval artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -176,4 +186,5 @@ jobs:
             eval-gate-doctor.json
             eval-gate-audit.json
             eval-gate-accept.json
+            langfuse-publish.json
             ${{ steps.accept.outputs.artifact_dir }}

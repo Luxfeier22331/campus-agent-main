@@ -24,16 +24,15 @@ from scripts.doctor_env import collect_env_doctor_status
 from scripts.eval_gate_fixture_smoke import profile_fixture_smoke_loaders
 from scripts.eval_gate_langfuse import (
     add_langfuse_eval_gate_parsers,
+    audit_workflow_langfuse_publish_contract,
     langfuse_settings_from_env,
     publish_langfuse_profile_report_artifact,
+    publish_langfuse_score_report_artifact,
+    resolve_langfuse_trace_id,
     verify_langfuse_online_trace_evidence_artifact,
 )
 
-DEFAULT_WORKER_APPS = (
-    "apps/app-api",
-    "apps/campus-web",
-    "apps/operator-console-web",
-)
+DEFAULT_WORKER_APPS = ("apps/app-api", "apps/campus-web", "apps/operator-console-web")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -404,6 +403,9 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_workflow_contract_generation_check(
             repo_root / ".github" / "workflows" / "eval-release-gate.yml"
         ),
+        audit_workflow_langfuse_publish_contract(
+            repo_root / ".github" / "workflows" / "eval-release-gate.yml"
+        ),
         _audit_operations_policy_coverage(),
         _audit_denominator_registry_coverage(),
         _audit_rag_eval_coverage(),
@@ -506,19 +508,24 @@ def _audit_workflow_dispatch_choices(workflow_path: Path) -> dict[str, object]:
 
 
 def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, object]:
-    text = workflow_path.read_text(encoding="utf-8")
-    required_tokens = (
-        "scripts.generate_supervisor_execution_contracts",
-        "--check",
-        "multi-agent-runtime-contract",
-        "actions/upload-artifact",
+    return _audit_workflow_tokens(
+        "workflow_contract_generation_check",
+        workflow_path,
+        (
+            "scripts.generate_supervisor_execution_contracts",
+            "--check",
+            "multi-agent-runtime-contract",
+            "actions/upload-artifact",
+        ),
     )
+
+
+def _audit_workflow_tokens(
+    check_id: str, workflow_path: Path, required_tokens: tuple[str, ...]
+) -> dict[str, object]:
+    text = workflow_path.read_text(encoding="utf-8")
     missing = [token for token in required_tokens if token not in text]
-    return {
-        "check_id": "workflow_contract_generation_check",
-        "passed": not missing,
-        "missing": missing,
-    }
+    return {"check_id": check_id, "passed": not missing, "missing": missing}
 
 
 def _audit_operations_policy_coverage() -> dict[str, object]:
@@ -638,8 +645,7 @@ def _extract_workflow_profile_choices(workflow_path: Path) -> tuple[str, ...]:
     match = re.search(r"profile:\n(?P<body>.*?)(?:\n      [a-zA-Z_]+:|\npermissions:)", text, re.S)
     if not match:
         return ()
-    body = match.group("body")
-    return tuple(re.findall(r"^\s+-\s+([a-z0-9-]+)\s*$", body, re.M))
+    return tuple(re.findall(r"^\s+-\s+([a-z0-9-]+)\s*$", match.group("body"), re.M))
 
 
 def _build_default_output_dir(prefix: str) -> Path:
@@ -680,10 +686,7 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "audit":
         report = audit_eval_gate_configuration(repo_root=Path(args.repo_root).resolve())
-        if args.json:
-            print(json.dumps(report, ensure_ascii=False, indent=2))
-        else:
-            print(json.dumps(report, ensure_ascii=False, indent=2))
+        print(json.dumps(report, ensure_ascii=False, indent=2))
         return 0 if report["passed"] else 1
 
     if args.command == "accept":
@@ -740,10 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             grader_version=args.grader_version,
             dry_run=bool(args.dry_run),
         )
-        if args.json:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
-        else:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
     if args.command == "publish-langfuse-profile":
@@ -751,25 +751,34 @@ def main(argv: list[str] | None = None) -> int:
             profile_report_path=Path(args.profile_report),
             settings=langfuse_settings_from_env(),
         )
-        if args.json:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
-        else:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
+    if args.command == "publish-langfuse-score-report":
+        summary = publish_langfuse_score_report_artifact(
+            score_report_path=Path(args.score_report),
+            settings=langfuse_settings_from_env(),
+            dry_run=bool(args.dry_run),
+            validate_only=bool(args.validate_only),
+        )
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
+        return 0
     if args.command == "verify-langfuse-trace":
         summary = verify_langfuse_online_trace_evidence_artifact(
-            trace_id=args.trace_id,
+            trace_id=resolve_langfuse_trace_id(
+                trace_id=args.trace_id,
+                product_trace_id=args.product_trace_id,
+            ),
             expected_session_id=args.session_id,
             expected_user_id=args.user_id,
             expected_release=args.release,
             expected_tags=tuple(args.tag or ()),
+            expected_request_id=args.request_id,
+            expected_run_id=args.run_id,
+            expected_workflow_id=args.workflow_id,
             settings=langfuse_settings_from_env(),
         )
-        if args.json:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
-        else:
-            print(json.dumps(summary, ensure_ascii=False, indent=2))
+        print(json.dumps(summary, ensure_ascii=False, indent=2))
         return 0
 
     metric_domain_overrides = _parse_metric_domain_overrides(args.metric_domain_override)
@@ -783,10 +792,7 @@ def main(argv: list[str] | None = None) -> int:
         metric_domain_overrides=metric_domain_overrides or None,
         dry_run=bool(args.dry_run),
     )
-    if args.json:
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
-    else:
-        print(json.dumps(summary, ensure_ascii=False, indent=2))
+    print(json.dumps(summary, ensure_ascii=False, indent=2))
     return 0
 
 

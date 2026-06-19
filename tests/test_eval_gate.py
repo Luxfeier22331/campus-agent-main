@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import json
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -311,6 +312,10 @@ class EvalGateTest(unittest.TestCase):
                 "scripts.eval_gate._audit_workflow_contract_generation_check",
                 return_value=_pass("c"),
             ),
+            patch(
+                "scripts.eval_gate.audit_workflow_langfuse_publish_contract",
+                return_value=_pass("langfuse"),
+            ),
             patch("scripts.eval_gate._audit_operations_policy_coverage", return_value=_pass("d")),
             patch(
                 "scripts.eval_gate._audit_denominator_registry_coverage", return_value=_pass("e")
@@ -336,6 +341,77 @@ class EvalGateTest(unittest.TestCase):
             checks["rag_retrieval_quality_gate"]["gaps"],
             ["regulations/student_rules:doc_recall_at_5_below_threshold"],
         )
+
+    def test_audit_reports_workflow_langfuse_publish_contract(self) -> None:
+        from scripts.eval_gate import audit_eval_gate_configuration
+
+        with (
+            patch("scripts.eval_gate._audit_profile_registry_runners", return_value=_pass("a")),
+            patch("scripts.eval_gate._audit_workflow_dispatch_choices", return_value=_pass("b")),
+            patch(
+                "scripts.eval_gate._audit_workflow_contract_generation_check",
+                return_value=_pass("c"),
+            ),
+            patch(
+                "scripts.eval_gate.audit_workflow_langfuse_publish_contract",
+                return_value=_pass("workflow_langfuse_publish_contract"),
+            ),
+            patch("scripts.eval_gate._audit_operations_policy_coverage", return_value=_pass("d")),
+            patch(
+                "scripts.eval_gate._audit_denominator_registry_coverage", return_value=_pass("e")
+            ),
+            patch("scripts.eval_gate._audit_rag_eval_coverage", return_value=_pass("f")),
+            patch("scripts.eval_gate._audit_rag_retrieval_quality_gate", return_value=_pass("g")),
+            patch("scripts.eval_gate._audit_tool_family_fixture_coverage", return_value=_pass("h")),
+            patch("scripts.eval_gate._audit_profile_fixture_smoke", return_value=_pass("i")),
+        ):
+            report = audit_eval_gate_configuration(repo_root=Path("/tmp/campus-agent"))
+
+        check_ids = {check["check_id"] for check in report["checks"]}
+        self.assertIn("workflow_langfuse_publish_contract", check_ids)
+
+    def test_langfuse_workflow_publish_contract_audits_required_tokens(self) -> None:
+        from scripts.eval_gate_langfuse import audit_workflow_langfuse_publish_contract
+
+        actual_check = audit_workflow_langfuse_publish_contract(
+            Path(".github/workflows/eval-release-gate.yml")
+        )
+        self.assertTrue(actual_check["passed"], actual_check["missing"])
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            workflow_path = Path(tmp_dir) / "eval-release-gate.yml"
+            workflow_path.write_text("name: eval-release-gate\n", encoding="utf-8")
+
+            missing_check = audit_workflow_langfuse_publish_contract(workflow_path)
+
+        self.assertFalse(missing_check["passed"])
+        self.assertIn("publish_langfuse_scores:", missing_check["missing"])
+        self.assertIn("publish-langfuse-profile", missing_check["missing"])
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            workflow_path = Path(tmp_dir) / "eval-release-gate.yml"
+            workflow_path.write_text(
+                "\n".join(
+                    (
+                        "publish_langfuse_scores:",
+                        "LANGFUSE_BASE_URL: ${{ vars.LANGFUSE_BASE_URL }}",
+                        "LANGFUSE_PUBLIC_KEY: ${{ secrets.LANGFUSE_PUBLIC_KEY }}",
+                        "LANGFUSE_SECRET_KEY: ${{ secrets.LANGFUSE_SECRET_KEY }}",
+                        "LANGFUSE_ENVIRONMENT: ${{ vars.LANGFUSE_ENVIRONMENT }}",
+                        "inputs.profile == 'online-answer-path'",
+                        "inputs.publish_langfuse_scores == true",
+                        "publish-langfuse-profile",
+                        "--profile-report",
+                        "${{ steps.accept.outputs.artifact_dir }}/profile-report.json",
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            missing_json_check = audit_workflow_langfuse_publish_contract(workflow_path)
+
+        self.assertFalse(missing_json_check["passed"])
+        self.assertIn("--json", missing_json_check["missing"])
 
 
 def _pass(check_id: str) -> dict[str, object]:

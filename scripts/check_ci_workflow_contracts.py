@@ -20,6 +20,9 @@ REQUIRED_CI_SCRIPTS = (
     "ci:web-graph:full",
     "ci:config:lint",
 )
+REQUIRED_CI_SCRIPT_VALUES = {
+    "ci:langfuse": "pnpm langfuse:trace-vectors:check && pnpm langfuse:check",
+}
 
 REQUIRED_WORKFLOW_SCRIPT_CALLS = {
     ".github/workflows/repo-guard.yml": ("pnpm ci:repo-guard",),
@@ -69,11 +72,23 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
                     message=f"missing required CI lane script: {script_name}",
                 )
             )
+    for script_name, required_value in REQUIRED_CI_SCRIPT_VALUES.items():
+        if script_name in scripts and str(scripts.get(script_name) or "").strip() != required_value:
+            issues.append(
+                CiWorkflowContractIssue(
+                    path="package.json",
+                    message=(
+                        "ci:langfuse must run pnpm langfuse:trace-vectors:check before "
+                        "pnpm langfuse:check"
+                    ),
+                )
+            )
 
     if root_pnpm_version:
         issues.extend(_audit_package_manager_versions(base, root_pnpm_version))
         issues.extend(_audit_workflow_pnpm_versions(base, root_pnpm_version))
     issues.extend(_audit_workflow_script_calls(base))
+    issues.extend(_audit_langfuse_lane_tooling(base))
     issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
 
@@ -181,6 +196,35 @@ def _audit_go_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
             CiWorkflowContractIssue(
                 path=workflow_relpath,
                 message="execution-control-go must install golangci-lint v2.11.4 before pnpm ci:go",
+            ),
+        )
+    return ()
+
+
+def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    job = jobs.get("langfuse-integration")
+    if not isinstance(job, dict):
+        return ()
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    install_step_index = _first_step_index_containing(raw_steps, "pnpm install --frozen-lockfile")
+    ci_langfuse_step_index = _first_step_index_containing(raw_steps, "pnpm ci:langfuse")
+    if ci_langfuse_step_index is None:
+        return ()
+    if install_step_index is None or install_step_index >= ci_langfuse_step_index:
+        return (
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="langfuse-integration must run pnpm install before pnpm ci:langfuse",
             ),
         )
     return ()

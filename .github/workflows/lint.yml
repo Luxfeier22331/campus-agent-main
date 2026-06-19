@@ -109,6 +109,9 @@ jobs:
         with:
           version: 10.26.1
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Sync workspace
         run: uv sync --all-packages --dev
 

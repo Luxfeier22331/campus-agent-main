@@ -52,12 +52,10 @@ class EvalProfileGateSuite(unittest.TestCase):
 
         self.assertTrue(report.passed)
         self.assertEqual(payload["schema_version"], "eval_profile_gate.v1")
-        self.assertEqual(payload["profile_id"], "online_answer_path")
+        self.assertEqual(payload["profile_id"], "online-answer-path")
         self.assertEqual(payload["case_family"], "online_answer_path.v1")
         self.assertEqual(payload["version_summary"]["git_head"], "abc123")
-        self.assertEqual(
-            payload["version_summary"]["case_set_version"], "online_answer_path.v1"
-        )
+        self.assertEqual(payload["version_summary"]["case_set_version"], "online_answer_path.v1")
         self.assertIn("sanitized_results", payload)
 
     def test_eval_operations_observation_is_derived_from_profile_artifact(self) -> None:

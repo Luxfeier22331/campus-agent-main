@@ -102,6 +102,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 root,
                 pnpm_version="10.26.1",
                 lint_run="pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+                include_langfuse_job=False,
             )
 
             issues = audit_ci_workflow_contracts(root=root)
@@ -117,6 +118,65 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             CiWorkflowContractIssue(
                 path=".github/workflows/lint.yml",
                 message="workflow does not call required script: pnpm ci:langfuse",
+            ),
+            issues,
+        )
+
+    def test_audit_requires_langfuse_lane_to_check_trace_vectors(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            scripts = _required_scripts()
+            scripts["ci:langfuse"] = "pnpm langfuse:check"
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": scripts,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1")
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path="package.json",
+                message=(
+                    "ci:langfuse must run pnpm langfuse:trace-vectors:check before "
+                    "pnpm langfuse:check"
+                ),
+            ),
+            issues,
+        )
+
+    def test_audit_requires_langfuse_job_to_install_pnpm_dependencies(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                install_langfuse_dependencies=False,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/lint.yml",
+                message="langfuse-integration must run pnpm install before pnpm ci:langfuse",
             ),
             issues,
         )
@@ -159,7 +219,7 @@ def _required_scripts() -> dict[str, str]:
         "ci:repo-guard": "pnpm repo:guard",
         "ci:repo-static": "pnpm repo:static",
         "ci:intent": "pnpm eval:intent",
-        "ci:langfuse": "pnpm langfuse:check",
+        "ci:langfuse": "pnpm langfuse:trace-vectors:check && pnpm langfuse:check",
         "ci:go": "pnpm go:check",
         "ci:web-graph:affected": "pnpm web:check:affected",
         "ci:web-graph:full": "pnpm web:check",
@@ -173,6 +233,8 @@ def _write_minimal_workflows(
     pnpm_version: str,
     lint_run: str = "pnpm ci:repo-static && pnpm ci:intent && pnpm ci:langfuse && pnpm ci:go",
     install_golangci_lint: bool = True,
+    include_langfuse_job: bool = True,
+    install_langfuse_dependencies: bool = True,
 ) -> None:
     go_lint_install_steps = (
         (
@@ -180,6 +242,22 @@ def _write_minimal_workflows(
             "        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4",
         )
         if install_golangci_lint
+        else ()
+    )
+    langfuse_install_steps = (
+        ("      - run: pnpm install --frozen-lockfile",) if install_langfuse_dependencies else ()
+    )
+    langfuse_job_steps = (
+        (
+            "  langfuse-integration:",
+            "    steps:",
+            "      - uses: pnpm/action-setup@v4",
+            "        with:",
+            f"          version: {pnpm_version}",
+            *langfuse_install_steps,
+            "      - run: pnpm ci:langfuse",
+        )
+        if include_langfuse_job
         else ()
     )
     (root / ".github/workflows/lint.yml").write_text(
@@ -199,6 +277,7 @@ def _write_minimal_workflows(
                 "        with:",
                 f"          version: {pnpm_version}",
                 "      - run: pnpm ci:intent",
+                *langfuse_job_steps,
                 "  execution-control-go:",
                 "    steps:",
                 "      - uses: pnpm/action-setup@v4",

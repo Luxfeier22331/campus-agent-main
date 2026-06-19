@@ -4,8 +4,6 @@ import base64
 import json
 import unittest
 from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 import httpx
 from campus_evals.langfuse_adapter import (
@@ -13,10 +11,13 @@ from campus_evals.langfuse_adapter import (
     LangfuseAdapterRequestError,
     LangfuseAdapterSettings,
     create_langfuse_adapter,
+    derive_langfuse_trace_id,
     verify_langfuse_online_trace_evidence,
 )
 
-from scripts.eval_gate import main as eval_gate_main
+TRACE_ID_VECTOR_FIXTURE = (
+    Path(__file__).resolve().parents[1] / "fixtures/langfuse_trace_id_vectors.json"
+)
 
 
 class LangfuseAdapterSuite(unittest.TestCase):
@@ -70,7 +71,11 @@ class LangfuseAdapterSuite(unittest.TestCase):
             )
         )
 
-        self.assertEqual(result, {"published": 1, "skipped": 0})
+        self.assertEqual(result["source_result_denominator"], 1)
+        self.assertEqual(result["expected_publish_denominator"], 1)
+        self.assertEqual(result["published"], 1)
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["omitted"], 0)
         self.assertEqual(len(requests), 1)
         request = requests[0]
         self.assertEqual(str(request.url), "http://langfuse.internal:3000/api/public/scores")
@@ -83,12 +88,13 @@ class LangfuseAdapterSuite(unittest.TestCase):
         self.assertNotIn("raw evidence", body)
 
         payload = dict(__import__("json").loads(body))
-        self.assertEqual(payload["traceId"], "trace_001")
+        self.assertEqual(payload["traceId"], derive_langfuse_trace_id("trace_001"))
+        self.assertNotEqual(payload["traceId"], "trace_001")
         self.assertEqual(payload["name"], "online-answer-path.profile")
         self.assertEqual(payload["value"], 1)
         self.assertEqual(payload["dataType"], "BOOLEAN")
         self.assertEqual(payload["source"], "API")
-        self.assertEqual(payload["environment"], "staging")
+        self.assertNotIn("environment", payload)
         self.assertEqual(
             payload["metadata"],
             {
@@ -102,6 +108,15 @@ class LangfuseAdapterSuite(unittest.TestCase):
             },
         )
 
+    def test_trace_id_derivation_matches_app_api_shared_vectors(self) -> None:
+        payload = json.loads(TRACE_ID_VECTOR_FIXTURE.read_text(encoding="utf-8"))
+
+        for vector in payload["vectors"]:
+            self.assertEqual(
+                derive_langfuse_trace_id(vector["product_trace_id"]),
+                vector["langfuse_trace_id"],
+            )
+
     def test_adapter_skips_uncorrelated_profile_results(self) -> None:
         requests: list[httpx.Request] = []
         adapter = create_langfuse_adapter(
@@ -109,6 +124,7 @@ class LangfuseAdapterSuite(unittest.TestCase):
                 base_url="http://langfuse.internal:3000",
                 public_key="pk-lf-test",
                 secret_key="sk-lf-test",
+                environment="staging",
             ),
             client=httpx.Client(
                 transport=httpx.MockTransport(
@@ -123,8 +139,42 @@ class LangfuseAdapterSuite(unittest.TestCase):
             _profile_report_payload({"case_id": "case-uncorrelated", "passed": False})
         )
 
-        self.assertEqual(result, {"published": 0, "skipped": 1})
+        self.assertEqual(result["source_result_denominator"], 1)
+        self.assertEqual(result["expected_publish_denominator"], 0)
+        self.assertEqual(result["published"], 0)
+        self.assertEqual(result["failed"], 0)
+        self.assertEqual(result["omitted"], 1)
         self.assertEqual(requests, [])
+
+    def test_adapter_fails_closed_when_profile_report_has_no_sanitized_results(self) -> None:
+        adapter = create_langfuse_adapter(
+            LangfuseAdapterSettings(
+                base_url="http://langfuse.internal:3000",
+                public_key="pk-lf-test",
+                secret_key="sk-lf-test",
+                environment="staging",
+            ),
+            client=httpx.Client(
+                transport=httpx.MockTransport(
+                    lambda request: httpx.Response(200, json={"id": "unexpected"})
+                )
+            ),
+        )
+        payload = _profile_report_payload(
+            {
+                "case_id": "case-001",
+                "passed": True,
+                "request_correlation": {
+                    "request_id": "req_001",
+                    "trace_id": "trace_001",
+                    "sampled_at": "2026-06-18T10:00:00+00:00",
+                },
+            }
+        )
+        payload.pop("sanitized_results")
+
+        with self.assertRaisesRegex(ValueError, "sanitized_results must be a non-empty list"):
+            adapter.publish_profile_report(payload)
 
     def test_adapter_fails_closed_on_langfuse_request_failure(self) -> None:
         adapter = create_langfuse_adapter(
@@ -132,6 +182,7 @@ class LangfuseAdapterSuite(unittest.TestCase):
                 base_url="http://langfuse.internal:3000",
                 public_key="pk-lf-test",
                 secret_key="sk-lf-test",
+                environment="staging",
             ),
             client=httpx.Client(
                 transport=httpx.MockTransport(
@@ -172,8 +223,31 @@ class LangfuseAdapterSuite(unittest.TestCase):
                     "userId": "user-online-001",
                     "release": "release-2026-06-18",
                     "tags": ["surface:execution-control", "capability:knowledge", "env:staging"],
+                    "metadata": {
+                        "request_id": "req-online-001",
+                        "run_id": "run-online-001",
+                        "workflow_id": "campus-agent.chat.run-online-001",
+                        "trace_id": "trace-online-001",
+                    },
                     "observations": [
-                        {"id": "obs-001", "name": "retrieval.runtime_observation"},
+                        {
+                            "id": "obs-001",
+                            "name": "retrieval.runtime_observation",
+                            "metadata": {
+                                "activity_attempt": 1,
+                                "activity_type": "RAGLookupActivity",
+                                "duration_ms": 42,
+                                "fail_close_reason": "",
+                                "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                "schedule_to_start_ms": 3,
+                                "selected_capability": "knowledge",
+                                "selected_tool": "rag.indexed_lookup",
+                                "status": "completed",
+                                "step_id": "retrieval.indexed_lookup",
+                                "step_kind": "retrieval",
+                                "task_queue": "campus.execution.activity.knowledge",
+                            },
+                        },
                     ],
                 },
             )
@@ -194,6 +268,15 @@ class LangfuseAdapterSuite(unittest.TestCase):
 
         self.assertEqual(evidence["trace_id"], "trace-online-001")
         self.assertEqual(evidence["observation_count"], 1)
+        self.assertEqual(
+            evidence["trace_identity"],
+            {
+                "request_id": "req-online-001",
+                "run_id": "run-online-001",
+                "workflow_id": "campus-agent.chat.run-online-001",
+                "trace_id": "trace-online-001",
+            },
+        )
         request = requests[0]
         self.assertEqual(
             str(request.url),
@@ -235,117 +318,449 @@ class LangfuseAdapterSuite(unittest.TestCase):
                 client=verifier_client,
             )
 
-    def test_eval_gate_publishes_profile_report_to_langfuse_from_env(self) -> None:
-        with TemporaryDirectory() as tmpdir:
-            profile_report_path = Path(tmpdir) / "profile-report.json"
-            profile_report_path.write_text(
-                json.dumps(
-                    _profile_report_payload(
-                        {
-                            "case_id": "case-001",
-                            "passed": True,
-                            "request_correlation": {
-                                "request_id": "req_001",
-                                "trace_id": "trace_001",
-                                "sampled_at": "2026-06-18T10:00:00+00:00",
-                            },
-                        }
-                    )
-                ),
-                encoding="utf-8",
-            )
-
-            with (
-                patch.dict(
-                    "os.environ",
-                    {
-                        "LANGFUSE_BASE_URL": "http://langfuse.internal:3000",
-                        "LANGFUSE_PUBLIC_KEY": "pk-lf-test",
-                        "LANGFUSE_SECRET_KEY": "sk-lf-test",
-                        "LANGFUSE_ENVIRONMENT": "staging",
+    def test_online_trace_evidence_verifier_fails_closed_on_missing_observation_attributes(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": "req-online-001",
+                            "run_id": "run-online-001",
+                            "workflow_id": "campus-agent.chat.run-online-001",
+                            "trace_id": "trace-online-001",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {"step_id": "retrieval.indexed_lookup"},
+                            }
+                        ],
                     },
-                    clear=False,
-                ),
-                patch("scripts.eval_gate.publish_langfuse_profile_report_artifact") as publish,
-                patch("builtins.print") as print_mock,
-            ):
-                publish.return_value = {"published": 1, "skipped": 0}
-
-                exit_code = eval_gate_main(
-                    [
-                        "publish-langfuse-profile",
-                        "--profile-report",
-                        str(profile_report_path),
-                        "--json",
-                    ]
                 )
+            )
+        )
 
-        self.assertEqual(exit_code, 0)
-        publish.assert_called_once()
-        self.assertEqual(publish.call_args.kwargs["profile_report_path"], profile_report_path)
-        settings = publish.call_args.kwargs["settings"]
-        self.assertEqual(settings.base_url, "http://langfuse.internal:3000")
-        self.assertEqual(settings.public_key, "pk-lf-test")
-        self.assertEqual(settings.secret_key, "sk-lf-test")
-        self.assertEqual(settings.environment, "staging")
-        self.assertEqual(json.loads(print_mock.call_args.args[0]), {"published": 1, "skipped": 0})
-
-    def test_eval_gate_verifies_langfuse_trace_evidence_from_env(self) -> None:
-        with (
-            patch.dict(
-                "os.environ",
-                {
-                    "LANGFUSE_BASE_URL": "http://langfuse.internal:3000",
-                    "LANGFUSE_PUBLIC_KEY": "pk-lf-test",
-                    "LANGFUSE_SECRET_KEY": "sk-lf-test",
-                },
-                clear=False,
-            ),
-            patch("scripts.eval_gate.verify_langfuse_online_trace_evidence_artifact") as verify,
-            patch("builtins.print") as print_mock,
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "missing observation attributes",
         ):
-            verify.return_value = {
-                "trace_id": "trace-online-001",
-                "observation_count": 2,
-            }
-
-            exit_code = eval_gate_main(
-                [
-                    "verify-langfuse-trace",
-                    "--trace-id",
-                    "trace-online-001",
-                    "--session-id",
-                    "conv-online-001",
-                    "--user-id",
-                    "user-online-001",
-                    "--release",
-                    "release-2026-06-18",
-                    "--tag",
-                    "surface:execution-control",
-                    "--tag",
-                    "capability:knowledge",
-                    "--json",
-                ]
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
             )
 
-        self.assertEqual(exit_code, 0)
-        verify.assert_called_once()
-        call = verify.call_args.kwargs
-        self.assertEqual(call["trace_id"], "trace-online-001")
-        self.assertEqual(call["expected_session_id"], "conv-online-001")
-        self.assertEqual(call["expected_user_id"], "user-online-001")
-        self.assertEqual(call["expected_release"], "release-2026-06-18")
-        self.assertEqual(
-            call["expected_tags"], ("surface:execution-control", "capability:knowledge")
+    def test_online_trace_evidence_verifier_requires_every_observation_to_match_contract(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": "req-online-001",
+                            "run_id": "run-online-001",
+                            "workflow_id": "campus-agent.chat.run-online-001",
+                            "trace_id": "trace-online-001",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-complete",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                },
+                            },
+                            {
+                                "id": "obs-incomplete",
+                                "name": "finalization.write",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "WriteFinalizationActivity",
+                                    "duration_ms": 25,
+                                    "status": "completed",
+                                },
+                            },
+                        ],
+                    },
+                )
+            )
         )
-        settings = call["settings"]
-        self.assertEqual(settings.base_url, "http://langfuse.internal:3000")
-        self.assertEqual(settings.public_key, "pk-lf-test")
-        self.assertEqual(settings.secret_key, "sk-lf-test")
-        self.assertEqual(
-            json.loads(print_mock.call_args.args[0]),
-            {"trace_id": "trace-online-001", "observation_count": 2},
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "trace evidence observation obs-incomplete missing observation attributes",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
+            )
+
+    def test_online_trace_evidence_verifier_fails_closed_on_missing_trace_identity(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                },
+                            }
+                        ],
+                    },
+                )
+            )
         )
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "missing trace identity attributes",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
+            )
+
+    def test_online_trace_evidence_verifier_fails_closed_on_blank_trace_identity(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": " ",
+                            "run_id": "",
+                            "workflow_id": " ",
+                            "trace_id": "",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                },
+                            }
+                        ],
+                    },
+                )
+            )
+        )
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "missing trace identity attributes",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
+            )
+
+    def test_online_trace_evidence_verifier_fails_closed_on_trace_identity_mismatch(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": "req-online-actual",
+                            "run_id": "run-online-001",
+                            "workflow_id": "campus-agent.chat.run-online-001",
+                            "trace_id": "trace-online-001",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                },
+                            }
+                        ],
+                    },
+                )
+            )
+        )
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "trace evidence attribute request_id = req-online-actual, want req-online-expected",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                expected_request_id="req-online-expected",
+                expected_run_id="run-online-001",
+                expected_workflow_id="campus-agent.chat.run-online-001",
+                client=verifier_client,
+            )
+
+    def test_online_trace_evidence_verifier_fails_closed_on_conflicting_trace_identity(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": "req-online-001",
+                            "run_id": "run-online-001",
+                            "workflow_id": "campus-agent.chat.run-online-001",
+                            "trace_id": "trace-online-001",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "request_id": "req-online-different",
+                                    "run_id": "run-online-001",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                    "trace_id": "trace-online-001",
+                                    "workflow_id": "campus-agent.chat.run-online-001",
+                                },
+                            }
+                        ],
+                    },
+                )
+            )
+        )
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "trace evidence has conflicting trace identity attribute request_id",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                client=verifier_client,
+            )
+
+    def test_online_trace_evidence_verifier_fails_closed_on_forbidden_runtime_payloads(
+        self,
+    ) -> None:
+        verifier_client = httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200,
+                    json={
+                        "id": "trace-online-001",
+                        "name": "online-answer",
+                        "sessionId": "conv-online-001",
+                        "userId": "user-online-001",
+                        "release": "release-2026-06-18",
+                        "tags": ["surface:execution-control", "capability:knowledge"],
+                        "metadata": {
+                            "request_id": "req-online-001",
+                            "run_id": "run-online-001",
+                            "workflow_id": "campus-agent.chat.run-online-001",
+                            "trace_id": "trace-online-001",
+                        },
+                        "observations": [
+                            {
+                                "id": "obs-001",
+                                "name": "retrieval.runtime_observation",
+                                "metadata": {
+                                    "activity_attempt": 1,
+                                    "activity_type": "RAGLookupActivity",
+                                    "authorization": "Bearer must-not-leak",
+                                    "duration_ms": 42,
+                                    "fail_close_reason": "",
+                                    "projection_ref": "projection://runs/run-001/steps/retrieval",
+                                    "raw_prompt": "用户原始问题不应进入 Langfuse",
+                                    "schedule_to_start_ms": 3,
+                                    "selected_capability": "knowledge",
+                                    "selected_tool": "rag.indexed_lookup",
+                                    "status": "completed",
+                                    "step_id": "retrieval.indexed_lookup",
+                                    "step_kind": "retrieval",
+                                    "task_queue": "campus.execution.activity.knowledge",
+                                },
+                            }
+                        ],
+                    },
+                )
+            )
+        )
+
+        with self.assertRaisesRegex(
+            LangfuseAdapterRequestError,
+            "trace evidence includes forbidden Langfuse payload fields: authorization, raw_prompt",
+        ):
+            verify_langfuse_online_trace_evidence(
+                settings=LangfuseAdapterSettings(
+                    base_url="http://langfuse.internal:3000",
+                    public_key="pk-lf-test",
+                    secret_key="sk-lf-test",
+                ),
+                trace_id="trace-online-001",
+                expected_session_id="conv-online-001",
+                expected_user_id="user-online-001",
+                expected_release="release-2026-06-18",
+                expected_tags=("surface:execution-control", "capability:knowledge"),
+                expected_request_id="req-online-001",
+                expected_run_id="run-online-001",
+                expected_workflow_id="campus-agent.chat.run-online-001",
+                client=verifier_client,
+            )
 
 
 def _profile_report_payload(result: dict[str, object]) -> dict[str, object]:
