@@ -123,6 +123,19 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         self.assertIn("condition: service_healthy", block)
         self.assertIn("condition: service_completed_successfully", block)
 
+    def test_knowledge_retrieval_worker_receives_personal_memory_runtime_env(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+        block = _compose_service_block(compose, "activity-worker-knowledge-retrieval")
+
+        self.assertIn(
+            "PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}",
+            block,
+        )
+        self.assertIn("PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}", block)
+        self.assertIn("PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}", block)
+
     def test_real_runtime_profiles_keep_qdrant_budget_aligned_with_local_convention(self) -> None:
         for profile_path in (LOCAL_REAL_PROVIDER_PROFILE, STAGING_PROFILE):
             with self.subTest(profile=profile_path.name):
