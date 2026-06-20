@@ -24,8 +24,8 @@ const primaryAgentTerminalOutputSchema = z.object({
 		"unsupported_by_evidence",
 	]),
 	answerText: z.string().min(1).optional(),
-	followUpQuestion: z.string().min(1).optional(),
-	reason: z.string().min(1).optional(),
+	followUpQuestion: z.string().optional(),
+	reason: z.string().optional(),
 });
 
 export interface OpenAIAgentsRunnerOptions {

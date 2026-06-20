@@ -150,6 +150,7 @@ const keys = [
   "LLM_API_KEY",
   "LLM_BASE_URL",
   "OTEL_INGEST_SHARED_SECRET",
+  "APP_API_OTEL_INGEST_ENDPOINT",
   "APP_API_OTEL_INGEST_SHARED_SECRET",
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
@@ -346,6 +347,7 @@ if (workerSharedSecret && internalQuerySharedSecret) {
   setDefault("OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
   setDefault("APP_API_OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
 }
+setDefault("APP_API_OTEL_INGEST_ENDPOINT", "https://otel-ingest-staging.mucwiki-edge.link");
 const stagingAppAPIBaseURL =
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
   "https://api-staging.mucwiki-edge.link";

@@ -154,6 +154,10 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["OTEL_INGEST_SHARED_SECRET"],
             projected["APP_API_OTEL_INGEST_SHARED_SECRET"],
         )
+        self.assertEqual(
+            projected["APP_API_OTEL_INGEST_ENDPOINT"],
+            "https://otel-ingest-staging.mucwiki-edge.link",
+        )
         self.assertRegex(projected["OTEL_INGEST_SHARED_SECRET"], r"^[0-9a-f]{64}$")
         self.assertEqual(projected["HINDSIGHT_API_LLM_API_KEY"], "llm-key")
         self.assertEqual(projected["HINDSIGHT_API_LLM_BASE_URL"], "https://llm.example.com/v1")
