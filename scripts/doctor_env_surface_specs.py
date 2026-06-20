@@ -171,8 +171,14 @@ SURFACE_SPECS = {
                 "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
             ),
             "temporal_agent_worker_identity": ("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",),
-            "temporal_knowledge_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+            "temporal_knowledge_plan_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY",
+            ),
+            "temporal_knowledge_retrieval_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
+            ),
+            "temporal_knowledge_synthesis_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
             ),
             "temporal_campus_services_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",

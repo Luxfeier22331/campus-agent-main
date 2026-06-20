@@ -582,7 +582,8 @@ execution_control_staging_uv_run() {
 }
 
 execution_control_staging_run_doctor() {
-  execution_control_staging_uv_run \
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH="${execution_control_staging_repo_root}/configs/runtime/execution-control/runtime-profile.staging.json" \
+    execution_control_staging_uv_run \
     --all-packages \
     python -m scripts.doctor_env execution-control --json >/dev/null
 }

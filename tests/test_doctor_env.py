@@ -31,7 +31,9 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
         "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001",
         "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001",
-        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
+        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=staging:activity-knowledge-plan:001",
+        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=staging:activity-knowledge-retrieval:001",
+        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=staging:activity-knowledge-synthesis:001",
         "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001",
         "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001",
         "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001",
@@ -252,8 +254,16 @@ class DoctorEnvTest(unittest.TestCase):
                 "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
             )
             self.assertEqual(
-                required["temporal_knowledge_worker_identity"]["resolved_key"],
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
+                required["temporal_knowledge_plan_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY",
+            )
+            self.assertEqual(
+                required["temporal_knowledge_retrieval_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
+            )
+            self.assertEqual(
+                required["temporal_knowledge_synthesis_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
@@ -324,7 +334,17 @@ class DoctorEnvTest(unittest.TestCase):
             )
             self.assertFalse(status["settings"]["required"]["temporal_address"]["present"])
             self.assertFalse(
-                status["settings"]["required"]["temporal_knowledge_worker_identity"]["present"]
+                status["settings"]["required"]["temporal_knowledge_plan_worker_identity"]["present"]
+            )
+            self.assertFalse(
+                status["settings"]["required"]["temporal_knowledge_retrieval_worker_identity"][
+                    "present"
+                ]
+            )
+            self.assertFalse(
+                status["settings"]["required"]["temporal_knowledge_synthesis_worker_identity"][
+                    "present"
+                ]
             )
 
     def test_collect_env_doctor_status_execution_control_enforces_execution_audit_when_enabled(
