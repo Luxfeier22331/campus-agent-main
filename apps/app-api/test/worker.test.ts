@@ -168,16 +168,13 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy:preflight:staging");
-		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
-			"run-worker-staging-preflight.mjs",
-		);
-		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
-			"check_worker_secret_presence.py",
-		);
+		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
+		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
 		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
 			"chat-e2e.ts --profile staging",
 		);
@@ -185,18 +182,10 @@ describe("app-api worker foundation", () => {
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"verify-staging-config.mjs",
-		);
-		expect(packageManifest.scripts?.["db:bootstrap:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
-		expect(packageManifest.scripts?.["db:migrate:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
-		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toContain(
-			"run-with-staging-db-env.mjs",
-		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:bootstrap:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:migrate:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["db:reconcile-shared-drift:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["test:all"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
@@ -227,7 +216,8 @@ describe("app-api worker foundation", () => {
 			/EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:\$\{accessClientSecret\}/,
 		);
 		expect(deployStagingSource).not.toContain("supervisor origin");
-		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
+		expect(stagingPreflightSource).toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(stagingPreflightSource).toContain("reconcile-shared-db-drift.mjs");
 	});
 
 	it("declares non-inheritable required secrets for local and staging worker environments", () => {

@@ -139,9 +139,33 @@ const APP_PREFLIGHTS = {
 				],
 			],
 			["node", ["apps/app-api/scripts/verify-staging-config.mjs"]],
-			["pnpm", ["--dir", "apps/app-api", "db:bootstrap:staging"]],
-			["pnpm", ["--dir", "apps/app-api", "db:migrate:staging"]],
-			["pnpm", ["--dir", "apps/app-api", "db:reconcile-shared-drift:staging", "--", "--json"]],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"node",
+					"./scripts/bootstrap-shared-product-with-seeds.mjs",
+				],
+			],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"pnpm",
+					"exec",
+					"drizzle-kit",
+					"migrate",
+				],
+			],
+			[
+				"node",
+				[
+					"apps/app-api/scripts/run-with-staging-db-env.mjs",
+					"node",
+					"./scripts/reconcile-shared-db-drift.mjs",
+					"--json",
+				],
+			],
 		],
 	},
 	"apps/campus-web": {
@@ -162,7 +186,7 @@ const APP_PREFLIGHTS = {
 				],
 			],
 			["pnpm", ["--dir", "apps/campus-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/campus-web", "deploy:verify-config:staging"]],
+			["node", ["apps/campus-web/scripts/verify-staging-config.mjs"]],
 		],
 	},
 	"apps/operator-console-web": {
@@ -183,7 +207,18 @@ const APP_PREFLIGHTS = {
 				],
 			],
 			["pnpm", ["--dir", "apps/operator-console-web", "build:staging"]],
-			["pnpm", ["--dir", "apps/operator-console-web", "deploy:verify-config:staging"]],
+			[
+				"node",
+				[
+					"scripts/verify-worker-deploy-config.mjs",
+					"apps/operator-console-web/dist/operator_console_web/wrangler.json",
+					"SERVICE:APP_API=app-api-staging",
+					"VAR:OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal",
+					"VAR:SENTRY_ENVIRONMENT=staging",
+					"VAR_ABSENT:SENTRY_RELEASE",
+					"ROUTE:operator-console-staging.mucwiki-edge.link",
+				],
+			],
 		],
 	},
 };

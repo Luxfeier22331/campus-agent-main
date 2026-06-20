@@ -42,8 +42,8 @@ describe("chat e2e package scripts", () => {
 
 		expect(scriptSource).toContain("infra/local/start-execution-control-runtime.sh");
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
-		expect(scriptSource).toContain("db:bootstrap");
-		expect(scriptSource).toContain("smoke-identity:provision");
+		expect(scriptSource).toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(scriptSource).toContain("provision-smoke-identity.ts");
 		expect(scriptSource).toContain("CAMPUS_WEB_LIVE_SMOKE");
 		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");
 		expect(scriptSource).toContain("waitForReadyzWhileChildAlive");
@@ -81,7 +81,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).not.toContain("notice_discover");
 	});
 
-	it("exposes local provider-config seeding without prompt runtime env", () => {
+	it("keeps local provider-config seeding as a direct script instead of package alias", () => {
 		const rootPackageJson = JSON.parse(
 			readFileSync(resolve(__dirname, "../../../package.json"), "utf8"),
 		) as {
@@ -104,16 +104,10 @@ describe("chat e2e package scripts", () => {
 			"utf8",
 		);
 
-		expect(rootPackageJson.scripts["local:providers:seed"]).toBe(
-			"turbo run local:providers:seed --filter=app-api",
-		);
-		expect(turboJson.tasks["local:providers:seed"]).toMatchObject({ cache: false });
-		expect(packageJson.scripts["local:providers:seed"]).toBe(
-			packageJson.scripts["provider-config:seed-local-model"],
-		);
-		expect(packageJson.scripts["provider-config:seed-local-model"]).toContain(
-			"seed-local-provider-config.ts",
-		);
+		expect(rootPackageJson.scripts["local:providers:seed"]).toBeUndefined();
+		expect(turboJson.tasks["local:providers:seed"]).toBeUndefined();
+		expect(packageJson.scripts["provider-config:seed-local-model"]).toBeUndefined();
+		expect(packageJson.scripts["local:providers:seed"]).toBeUndefined();
 		expect(scriptSource).toContain("primary_agent");
 		expect(scriptSource).toContain("rag_synthesis");
 		expect(scriptSource).toContain("LLM_API_KEY");

@@ -33,11 +33,11 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             lint_families_for_path(
                 "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java"
             ),
-            ("java:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path("apps/campus-web/index.html"),
-            ("html:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path("infra/local/scripts/ensure-runtime-secrets.mjs"),
@@ -45,27 +45,27 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
         )
         self.assertEqual(
             lint_families_for_path("apps/campus-web/docs/index.md"),
-            ("docs:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path("tests/test_check_xml_tracked.py"),
-            ("py:lint", "py:format:check"),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path("apps/execution-control/internal/execution/request.go"),
-            ("go:static:check",),
+            ("ci:go",),
         )
         self.assertEqual(
             lint_families_for_path(".github/workflows/lint.yml"),
-            ("yaml:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path(".editorconfig"),
-            ("editorconfig:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path(".sqlfluff"),
-            ("sql:lint",),
+            ("repo:static",),
         )
         self.assertEqual(
             lint_families_for_path(
@@ -87,6 +87,10 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
                 "apps/campus-web/docs/public/course-maps/law-ethnic-experimental-program/map-01.png"
             ),
             "binary_asset",
+        )
+        self.assertEqual(
+            lint_exclusion_reason("apps/app-api/drizzle/0044_concerned_carmella_unuscione.sql"),
+            "generated_drizzle_migration",
         )
         self.assertEqual(
             lint_exclusion_reason(

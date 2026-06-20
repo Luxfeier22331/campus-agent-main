@@ -32,6 +32,7 @@ class CheckSqlTrackedTest(unittest.TestCase):
             for item in expected.stdout.split(b"\0")
             if item
             and not (decoded := item.decode("utf-8")).startswith(".planning/")
+            and not decoded.startswith("apps/app-api/drizzle/")
             and (repo_root / decoded).exists()
         )
 
@@ -47,7 +48,7 @@ class CheckSqlTrackedTest(unittest.TestCase):
             "scripts.check_sql_tracked.tracked_sql_files",
             return_value=(
                 repo_root / "apps/app-api/db/shared-product-migrations/0001_chat_schema.sql",
-                repo_root / "apps/app-api/drizzle/0015_broken_supernaut.sql",
+                repo_root / "docs/reference/example.sql",
             ),
         ):
             run_mock.side_effect = [
@@ -74,7 +75,15 @@ class CheckSqlTrackedTest(unittest.TestCase):
                     "lint",
                     "--config",
                     ".sqlfluff",
-                    "apps/app-api/drizzle/0015_broken_supernaut.sql",
+                    "docs/reference/example.sql",
                 ],
             ],
+        )
+
+    def test_generated_drizzle_migrations_are_excluded(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        self.assertNotIn(
+            repo_root / "apps/app-api/drizzle/0044_concerned_carmella_unuscione.sql",
+            tracked_sql_files(root=repo_root),
         )

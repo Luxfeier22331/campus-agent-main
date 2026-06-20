@@ -71,7 +71,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 ),
                 encoding="utf-8",
             )
-            _write_minimal_workflows(root, pnpm_version="10.26.1", lint_run="pnpm lint")
+            _write_minimal_workflows(root, pnpm_version="10.26.1", lint_run="pnpm repo:static")
 
             issues = audit_ci_workflow_contracts(root=root)
 
@@ -145,8 +145,38 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             CiWorkflowContractIssue(
                 path="package.json",
                 message=(
-                    "ci:langfuse must run pnpm langfuse:trace-vectors:check before "
-                    "pnpm langfuse:check"
+                    "ci:langfuse must call its underlying checker directly; "
+                    "do not route CI through removable root aliases"
+                ),
+            ),
+            issues,
+        )
+
+    def test_audit_requires_intent_lane_to_call_checker_directly(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            scripts = _required_scripts()
+            scripts["ci:intent"] = "pnpm eval:intent"
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": scripts,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1")
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path="package.json",
+                message=(
+                    "ci:intent must call its underlying checker directly; "
+                    "do not route CI through removable root aliases"
                 ),
             ),
             issues,
@@ -218,10 +248,18 @@ def _required_scripts() -> dict[str, str]:
         "repo:static": "pnpm web:lint",
         "ci:repo-guard": "pnpm repo:guard",
         "ci:repo-static": "pnpm repo:static",
-        "ci:intent": "pnpm eval:intent",
-        "ci:langfuse": "pnpm langfuse:trace-vectors:check && pnpm langfuse:check",
+        "ci:intent": "uv run --all-packages python -m scripts.intent_gate",
+        "ci:langfuse": (
+            "pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts && "
+            "uv run --all-packages python -m unittest tests.evals.langfuse_adapter_suite "
+            "tests.evals.langfuse_eval_gate_cli_suite tests.evals.langfuse_platform_suite "
+            "tests.evals.langfuse_score_report_suite tests.evals.langfuse_trace_evidence_contract_suite "
+            "tests.evals.rag_first_stage_sweep_suite tests.evals.retrieval_tuning_suite "
+            "tests.infra.runtime_otel_collector_config_suite "
+            "tests.infra.runtime_otel_langfuse_fanout_proof_suite "
+            "tests.infra.langfuse_release_evidence_suite tests.infra.langfuse_release_closeout_suite -q"
+        ),
         "ci:go": "pnpm go:check",
-        "ci:web-graph:affected": "pnpm web:check:affected",
         "ci:web-graph:full": "pnpm web:check",
         "ci:config:lint": "uv run --all-packages python -m scripts.check_ci_workflow_contracts",
     }

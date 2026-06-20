@@ -130,7 +130,8 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 ## Staging Deploy Rules
 
-- 三个 Worker 的 canonical `pnpm deploy:staging` 都先执行 `deploy:preflight:staging`
+- 三个 Worker 的 canonical `pnpm deploy:staging` 都在 deploy 脚本内部先执行
+  `scripts/run-worker-staging-preflight.mjs`
 - `apps/campus-web` 与 `apps/operator-console-web` 通过 `CLOUDFLARE_ENV=staging
   vite build` 选择 deploy env
 - deploy-side `SENTRY_RELEASE` 属于 deploy-time concern，不写回 static vars

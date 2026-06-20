@@ -28,9 +28,6 @@
 		"test:shared-db-integration": {
 			"cache": false
 		},
-		"local:providers:seed": {
-			"cache": false
-		},
 		"dev": {
 			"cache": false,
 			"persistent": true

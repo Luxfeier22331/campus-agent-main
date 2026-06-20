@@ -62,7 +62,8 @@ combinations live in split environment references.
   `RAG_SYNTHESIS_MODEL` 仅作为 local seed 输入；eval override 仍走 command-scoped
   `EVAL_*`
   放置位置: online serving 不以 root `.env` 为真相；root provider env 只被
-  `pnpm local:providers:seed` 显式写入 app-api provider-config
+  `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts`
+  显式写入 app-api provider-config
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
   必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
@@ -72,7 +73,7 @@ combinations live in split environment references.
 connections + profiles：
 
 ```bash
-pnpm local:providers:seed
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts
 ```
 
 脚本读取 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 作为本地连接创建输入；
@@ -239,7 +240,7 @@ doctor/env readiness contract。
   `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT` `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
   `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
   放置位置: canonical keys 放 staging ops runtime env / CI vars+secrets；derived
-  Collector keys 由 deploy renderer 或 `pnpm langfuse:release-closeout:staging`
+  Collector keys 由 deploy renderer 或 `node ./scripts/run-langfuse-release-closeout-staging.mjs`
   派生后进入 OTel Collector process env
   何时必需: 启用 Langfuse runtime trace fan-out 时必需；本地骨架默认可为空
   获取方式: self-hosted Langfuse project 中生成 public / secret key；不要手写

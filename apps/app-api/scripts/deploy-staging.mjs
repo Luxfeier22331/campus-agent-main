@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
@@ -13,6 +14,25 @@ const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 function fail(message) {
 	console.error(message);
 	process.exit(1);
+}
+
+function runPreflight() {
+	const result = spawnSync(
+		"node",
+		["../../scripts/run-worker-staging-preflight.mjs", "--app", "apps/app-api"],
+		{
+			cwd: appDir,
+			env: process.env,
+			stdio: "inherit",
+		},
+	);
+	if (typeof result.status === "number") {
+		if (result.status !== 0) {
+			process.exit(result.status);
+		}
+		return;
+	}
+	process.exit(result.error ? 1 : 0);
 }
 
 const upstream = process.env.STAGING_EXECUTION_CONTROL_BASE_URL?.trim();
@@ -56,6 +76,8 @@ try {
 }
 
 const sentryRelease = resolveStagingSentryRelease("app-api");
+
+runPreflight();
 
 const result = runWranglerCommand(
 	[

@@ -147,14 +147,14 @@ pnpm install
 ```bash
 pnpm repo:guard
 pnpm repo:static
-pnpm lint
+pnpm go:check
 uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:test:worker
 pnpm web:test:integration
 pnpm web:build
-pnpm ci:web-graph:affected
+pnpm ci:web-graph:full
 ```
 
 ## Seed Data Handoff
@@ -184,8 +184,8 @@ canonical artifacts / reader assets in object storage
 config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked
 `.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked
 YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`、archive/historical
-文档、vendor、generated、未跟踪草稿与本地 runtime 产物。`pnpm docker:lint` 已通过
-`pnpm repo:static` 并入默认 `pnpm lint`。
+文档、vendor、generated、未跟踪草稿与本地 runtime 产物。Dockerfile checker 已通过
+`pnpm repo:static` 并入默认仓库静态 gate。
 
 更细的验证 lane 与 smoke 路径见：
 

@@ -16,12 +16,21 @@ REQUIRED_CI_SCRIPTS = (
     "ci:intent",
     "ci:langfuse",
     "ci:go",
-    "ci:web-graph:affected",
     "ci:web-graph:full",
     "ci:config:lint",
 )
 REQUIRED_CI_SCRIPT_VALUES = {
-    "ci:langfuse": "pnpm langfuse:trace-vectors:check && pnpm langfuse:check",
+    "ci:intent": "uv run --all-packages python -m scripts.intent_gate",
+    "ci:langfuse": (
+        "pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts && "
+        "uv run --all-packages python -m unittest tests.evals.langfuse_adapter_suite "
+        "tests.evals.langfuse_eval_gate_cli_suite tests.evals.langfuse_platform_suite "
+        "tests.evals.langfuse_score_report_suite tests.evals.langfuse_trace_evidence_contract_suite "
+        "tests.evals.rag_first_stage_sweep_suite tests.evals.retrieval_tuning_suite "
+        "tests.infra.runtime_otel_collector_config_suite "
+        "tests.infra.runtime_otel_langfuse_fanout_proof_suite "
+        "tests.infra.langfuse_release_evidence_suite tests.infra.langfuse_release_closeout_suite -q"
+    ),
 }
 
 REQUIRED_WORKFLOW_SCRIPT_CALLS = {
@@ -78,8 +87,8 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
                 CiWorkflowContractIssue(
                     path="package.json",
                     message=(
-                        "ci:langfuse must run pnpm langfuse:trace-vectors:check before "
-                        "pnpm langfuse:check"
+                        f"{script_name} must call its underlying checker directly; "
+                        "do not route CI through removable root aliases"
                     ),
                 )
             )

@@ -15,7 +15,7 @@ updated: 2026-06-03
 - 什么是可接受的小区块
 - 什么是可审查的目录美感
 - 哪些重复必须归并到 owner module
-- `pnpm decomposition:lint` 能证明什么，不能证明什么
+- `pnpm repo:static` 内部 decomposition checker 能证明什么，不能证明什么
 
 它不负责：
 
@@ -75,7 +75,7 @@ updated: 2026-06-03
 
 ## Gate 语义
 
-`pnpm decomposition:lint` 是基础分解 gate。它证明的是：
+`pnpm repo:static` 内部的 `scripts.check_decomposition_tracked` 是基础分解 gate。它证明的是：
 
 - tracked handwritten code/test 没有新增超预算大文件
 - 当前 decomposition baseline 没有被静默扩张
@@ -89,7 +89,7 @@ updated: 2026-06-03
 - runtime boundary 没有被穿透
 
 因此结构性改动的 review 需要同时检查本文规则、相关 architecture 文档与实际 diff。通过
-`decomposition:lint` 只能作为必要证据，不能作为充分证据。
+decomposition checker 只能作为必要证据，不能作为充分证据。
 
 ## Review Contract
 

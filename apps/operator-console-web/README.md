@@ -212,8 +212,9 @@ pnpm deploy
 Authenticated local smoke:
 
 ```bash
-pnpm --dir apps/operator-console-web dev:live-smoke:access
-pnpm --dir apps/operator-console-web dev:live-smoke
+node apps/operator-console-web/scripts/local-access-smoke-server.mjs
+cd apps/operator-console-web
+OPERATOR_CONSOLE_LIVE_SMOKE=1 pnpm dev
 ```
 
 Then enter through:
@@ -236,9 +237,9 @@ Local browser smoke preconditions:
   projection as blocked, the panel must show that diagnostic instead of
   inventing a frontend-ready state
 - migrate/bootstrap the shared local database when schema drift is possible:
-  `pnpm --dir apps/app-api db:bootstrap`
+  `node apps/app-api/scripts/run-with-local-env.mjs node ./scripts/bootstrap-shared-product-with-seeds.mjs`
 - seed dining operations before expecting the dining workspace to show editable
-  floors: `pnpm --dir apps/app-api dining:seed-initial-release`
+  floors: `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-initial-dining-release.ts`
 - publish a real eval coverage snapshot before expecting Eval Coverage to show
   the coverage matrix; if none has been published, the page shows the governed
   empty state `尚未发布评测覆盖快照。`

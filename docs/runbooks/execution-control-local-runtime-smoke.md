@@ -93,8 +93,8 @@ RERANK_PATH=/rerank
 - 内部 secret、Hindsight secret、Qdrant admin/read-only key、Temporal password 与
   `EXECUTION_CONTROL_RUNTIME_RELEASE` 由 local lifecycle 生成/投影。不要把这些值手填到
   root `.env`
-- `pnpm local:runtime:env` 只打印非敏感摘要，用于确认 root provider 输入和 generated
-  runtime projection 是否可用
+- `project-local-runtime-env.mjs --sync-app-api-dev-vars --format summary`
+  只打印非敏感摘要，用于确认 root provider 输入和 generated runtime projection 是否可用
 - admission budget、lane budget、OTel 开关、request timeout、artifact path 与
   open capability 都由 `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH` 指向的 runtime
   profile 管理，不再通过单项 env override
@@ -110,9 +110,15 @@ RERANK_PATH=/rerank
 推荐按固定顺序启动本地真实链路：
 
 ```bash
-pnpm local:runtime:env
-pnpm local:infra:up
-pnpm local:app-api:prepare
+node infra/local/scripts/project-local-runtime-env.mjs \
+  --sync-app-api-dev-vars --format summary
+docker network inspect campus-agent-data-plane >/dev/null 2>&1 || \
+  docker network create campus-agent-data-plane >/dev/null
+docker compose -f infra/local/docker-compose.postgres.yml up -d postgres
+infra/local/start-qdrant-local.sh up -d
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec drizzle-kit migrate
+node apps/app-api/scripts/run-with-local-env.mjs node \
+  ./scripts/bootstrap-shared-product-with-seeds.mjs
 ```
 
 另开一个终端启动 app-api：
@@ -124,22 +130,33 @@ pnpm --dir apps/app-api dev
 写入 app-api provider-config active profiles：
 
 ```bash
-pnpm local:providers:seed -- --stage prompt
-pnpm local:qdrant:check
-pnpm local:providers:seed -- --stage embedding
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/seed-local-provider-config.ts --stage prompt
+infra/local/check-qdrant-local.sh
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/seed-local-provider-config.ts --stage embedding
 ```
 
 如果启用 rerank：
 
 ```bash
-pnpm local:providers:seed -- --stage rerank
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/seed-local-provider-config.ts --stage rerank
 ```
 
 启动 execution-control runtime：
 
 ```bash
-pnpm local:execution-control:up
-pnpm local:runtime:check
+EXECUTION_CONTROL_RUNTIME_FLAVOR=prodlike \
+  infra/local/start-execution-control-runtime.sh up -d --build --remove-orphans
+node infra/local/scripts/project-local-runtime-env.mjs \
+  --sync-app-api-dev-vars --format summary
+infra/local/check-qdrant-local.sh
+curl -fsS http://127.0.0.1:27031/healthz >/dev/null
+curl -fsS http://127.0.0.1:27051/healthz >/dev/null
+curl -fsS http://127.0.0.1:27051/readyz >/dev/null
+langfuse_health_url="http://127.0.0.1:${LANGFUSE_HOST_PORT:-3000}/api/public/health"
+curl -fsS "${langfuse_health_url}?failIfDatabaseUnavailable=true" >/dev/null
 ```
 
 默认公开端口：

@@ -289,14 +289,23 @@ async function main(argv: string[]): Promise<void> {
 		startExecutionControlRuntime(args);
 	}
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
-	runChecked("pnpm", ["--dir", appApiDir, "db:bootstrap"], repoRoot);
 	runChecked(
-		"pnpm",
+		"node",
 		[
-			"--dir",
-			appApiDir,
-			"smoke-identity:provision",
-			"--",
+			`${appApiDir}/scripts/run-with-local-env.mjs`,
+			"node",
+			"./scripts/bootstrap-shared-product-with-seeds.mjs",
+		],
+		repoRoot,
+	);
+	runChecked(
+		"node",
+		[
+			`${appApiDir}/scripts/run-with-local-env.mjs`,
+			"pnpm",
+			"exec",
+			"tsx",
+			"./scripts/provision-smoke-identity.ts",
 			"--email",
 			args.email,
 			"--name",

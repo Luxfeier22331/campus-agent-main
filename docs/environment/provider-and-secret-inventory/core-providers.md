@@ -53,8 +53,9 @@ online serving owner：
 
 1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
 1. 在所选供应商控制台创建项目级或环境级 API key。
-1. 本地开发可填 root `.env` 后执行 `pnpm local:providers:seed`；staging/prod
-   通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、
+1. 本地开发可填 root `.env` 后执行
+   `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts`；
+   staging/prod 通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、
    model 与 API key。
 1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
    execution-control 消费。

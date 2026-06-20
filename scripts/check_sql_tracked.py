@@ -16,8 +16,12 @@ def tracked_sql_files(*, root: Path | None = None) -> tuple[Path, ...]:
     return tuple(
         path
         for path in worktree_paths("*.sql", root=base)
-        if not path.relative_to(base).as_posix().startswith(".planning/")
+        if _should_lint_sql(path.relative_to(base).as_posix())
     )
+
+
+def _should_lint_sql(relative_path: str) -> bool:
+    return not relative_path.startswith((".planning/", "apps/app-api/drizzle/"))
 
 
 def validate_sql_file(path: Path, *, root: Path | None = None) -> None:

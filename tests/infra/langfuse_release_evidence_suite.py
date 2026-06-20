@@ -376,7 +376,7 @@ class LangfuseReleaseEvidenceSuite(unittest.TestCase):
         runbook = RUNBOOK.read_text(encoding="utf-8")
         template = E2E_TEMPLATE.read_text(encoding="utf-8")
 
-        self.assertIn("tests.infra.langfuse_release_evidence_suite", scripts["langfuse:check"])
+        self.assertIn("tests.infra.langfuse_release_evidence_suite", scripts["ci:langfuse"])
         self.assertIn("scripts.build_langfuse_release_evidence", runbook)
         self.assertIn("scripts.check_langfuse_release_evidence", runbook)
         self.assertIn("langfuse-release-evidence.json", runbook)

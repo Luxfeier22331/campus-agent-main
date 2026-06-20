@@ -249,7 +249,7 @@ Local development:
 - if current staging only targets `app-api + campus-web + operator-console-web`,
   and does not yet enable official-web live control-plane,
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` is optional for that rollout
-- dining floorplan upload and `dining:seed-initial-release` use the configured
+- dining floorplan upload and `seed-initial-dining-release.ts` use the configured
   S3-compatible derived bucket. Local dev normally points `OBJECT_STORE_*` at
   MinIO; staging/prod can point the same env shape at R2/S3-compatible storage.
   Missing object-store config fails closed for dining SVG upload and seed.
@@ -304,32 +304,52 @@ Local commands:
 
 ```bash
 uv run --all-packages python -m scripts.sync_app_api_local_db_env
-pnpm db:print-auth-migration
-pnpm db:ensure-app-auth-role-search-path
-pnpm db:bootstrap
-pnpm db:adopt-shared -- --json
-pnpm db:reconcile-shared-drift -- --json
-APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/print-shared-product-auth-migration.mjs
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/ensure-app-auth-role-search-path.mjs
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/bootstrap-shared-product-with-seeds.mjs
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/adopt-shared-database.mjs --json
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/reconcile-shared-db-drift.mjs --json
+APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/provision-smoke-identity.ts \
   --email help_bot@outlook.com --name "Help Bot"
 APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
 APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:PluggableAuthLogin' \
 APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:UserLogout' \
-pnpm federation:provision-muc-wiki
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/provision-muc-wiki-federation-client.ts
 pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:e2e:local-real-provider
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:memory:e2e:staging
-pnpm docs:gated:smoke:staging
-pnpm official-web:drain-projection -- --limit 50
-pnpm collection-rename:audit
-pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
-pnpm collection-rename:replay -- --report .tmp/collection-rename-apply.json
-pnpm docs:import-read-model ../../var/docs-read-model-manifest.json
-pnpm docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
-pnpm dining:seed-initial-release
-pnpm projection:drain
+node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx \
+  ./scripts/staging-docs-gated-smoke.ts
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/drain-official-web-projection.ts --limit 50
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/collection-rename-backfill.ts audit
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/collection-rename-backfill.ts apply \
+  --write-report .tmp/collection-rename-apply.json
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/collection-rename-backfill.ts replay-projections \
+  --report .tmp/collection-rename-apply.json
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/import-docs-read-model.ts ../../var/docs-read-model-manifest.json
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/export-public-docs-sync-manifest.ts \
+  ../../var/public-docs-sync-manifest.json
+node ./scripts/run-with-local-env.mjs pnpm exec tsx \
+  ./scripts/seed-initial-dining-release.ts
+node ./scripts/run-with-local-env.mjs node \
+  ./scripts/trigger-local-scheduled-drain.mjs
 pnpm test
 pnpm test:all
 pnpm test:node
@@ -337,23 +357,31 @@ pnpm test:worker
 pnpm test:shared-db-integration
 pnpm test:official-web-shared-db-integration
 pnpm typecheck
-pnpm db:generate
-pnpm db:migrate
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  db:bootstrap:staging
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  db:migrate:staging
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  db:reconcile-shared-drift:staging
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  docs:import-read-model:staging ../../var/docs-read-model-manifest.json
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
-STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
-  dining:seed-initial-release:staging
+node ./scripts/run-with-local-env.mjs drizzle-kit generate
+node ./scripts/run-with-local-env.mjs drizzle-kit migrate
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs node \
+  ./scripts/bootstrap-shared-product-with-seeds.mjs
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs pnpm exec drizzle-kit migrate
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs node \
+  ./scripts/reconcile-shared-db-drift.mjs --json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
+  ./scripts/import-docs-read-model.ts ../../var/docs-read-model-manifest.json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
+  ./scripts/export-public-docs-sync-manifest.ts \
+  ../../var/public-docs-sync-manifest.staging.json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+  node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
+  ./scripts/seed-initial-dining-release.ts
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-  pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
+  node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
+  ./scripts/provision-smoke-identity.ts \
+  --email help_bot@outlook.com --name \
   "Help Bot"
 APP_API_FEDERATION_MUC_WIKI_CLIENT_SECRET='<secret>' \
 APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
@@ -361,31 +389,32 @@ APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
 APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:UserLogout' \
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
-pnpm federation:provision-muc-wiki:staging
+node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
+  ./scripts/provision-muc-wiki-federation-client.ts
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
-pnpm docs:gated:smoke:staging
+node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx \
+  ./scripts/staging-docs-gated-smoke.ts
 pnpm dev
 ```
 
 Deploy note:
 
 - `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
-- docs seed handoff 的 app-api 入口是 `docs:import-read-model*` 与
-  `docs:export-public-sync-manifest*`。它们消费已发布的 reader/read-model artifact，
+- docs seed handoff 的 app-api 入口是 `import-docs-read-model.ts` 与
+  `export-public-docs-sync-manifest.ts`。它们消费已发布的 reader/read-model artifact，
   不运行采集器，也不扫描对象存储决定文档范围。
 - 在任何 staging `official_web` / operator surface smoke 之前，先执行
-  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:bootstrap:staging`
-  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:migrate:staging`
-  `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm
-  db:reconcile-shared-drift:staging`
+  `run-with-staging-db-env.mjs` 包裹的 bootstrap、migrate 与
+  `reconcile-shared-db-drift.mjs --json`
 - 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
-- `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
-  staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
-- `dining:seed-initial-release*` writes the initial dining DB release and
+- `bootstrap-shared-product-with-seeds.mjs` 负责补齐 `app_auth.*` /
+  `chat.*` shared-product 面；现有 staging 若只跑 migrate，不会自动得到
+  `chat.messages.structured_parts_json`
+- `seed-initial-dining-release.ts` writes the initial dining DB release and
   materializes seed SVG objects into `OBJECT_STORE_BUCKET_DERIVED`; run it only
   with the intended dev/staging/prod DB and object-store env.
-- `federation:provision-muc-wiki:staging` 负责把 controlled `muc-wiki` client
+- `provision-muc-wiki-federation-client.ts` 负责把 controlled `muc-wiki` client
   同步到 `identity.federation_*` product policy 与 Better Auth
   `app_auth.oauthClient` runtime table。它必须在 staging DB bootstrap/migrate/drift
   之后、MediaWiki OIDC smoke 之前执行。
@@ -399,8 +428,9 @@ Deploy note:
   stream chat request, reads `/api/chat/runs/:runId/steps`, and verifies the
   sanitized `memory.recall` projection before deleting the temporary memory.
 - `chat:e2e:dev` is the local chat wrapper. It starts the local execution
-  runtime, runs `db:bootstrap`, provisions the smoke identity, starts or reuses
-  the campus-web dev surface, and then runs `chat:e2e -- --profile dev`.
+  runtime, runs shared-product bootstrap directly, provisions the smoke identity,
+  starts or reuses the campus-web dev surface, and then runs
+  `chat:e2e -- --profile dev`.
 
 Testing lanes:
 
@@ -420,9 +450,10 @@ Testing lanes:
   `official_web` collector lifecycle lane. It requires
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` and is only part of rollout/smoke when
   the official-web collector control plane is in scope.
-- When shared DB drift is detected, inspect it with `pnpm
-  db:reconcile-shared-drift -- --json` before applying cleanup with backup and
-  `--apply`.
-- `pnpm projection:drain` hits the repo-local Worker scheduled test route
-  (`/cdn-cgi/handler/scheduled`), so local dev should be running with `pnpm dev
-  - - --test-scheduled` or an equivalent Wrangler flag before using it.
+- When shared DB drift is detected, inspect it with
+  `node ./scripts/run-with-local-env.mjs node
+  ./scripts/reconcile-shared-db-drift.mjs --json`
+  before applying cleanup with backup and `--apply`.
+- `trigger-local-scheduled-drain.mjs` hits the repo-local Worker scheduled test
+  route (`/cdn-cgi/handler/scheduled`), so local dev should be running with
+  `pnpm dev - - --test-scheduled` or an equivalent Wrangler flag before using it.

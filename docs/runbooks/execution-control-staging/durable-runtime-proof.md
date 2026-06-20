@@ -22,7 +22,7 @@ owns this section group; the original path remains the stable index.
 execution-control shared secret 或 Cloudflare deploy token 时必须 fail closed：
 
 ```bash
-pnpm durable:cutover:preflight --json
+uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight --json
 ```
 
 `CLOUDFLARE_API_TOKEN` 是本次 deploy shell 的 process env，不写入 repo checkout。
@@ -32,7 +32,7 @@ pnpm durable:cutover:preflight --json
 
 ```bash
 PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin \
-  pnpm durable:cutover:preflight --json
+  uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight --json
 ```
 
 先确认 schema install/check evidence 存在，且两份 JSON 都报告 `passed=true`、

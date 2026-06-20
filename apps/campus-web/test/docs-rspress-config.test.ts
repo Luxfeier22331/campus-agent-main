@@ -17,53 +17,32 @@ describe("campus docs Rspress build boundary", () => {
 			scripts: Record<string, string>;
 		};
 		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
+		const buildDocsSource = readFileSync(
+			join(appDir, "scripts", "build-published-reader-docs.mjs"),
+			"utf8",
+		);
 
 		expect(packageJson.dependencies["@rspress/core"]).toBeTruthy();
 		expect(packageJson.devDependencies.pagefind).toBeUndefined();
-		expect(packageJson.scripts["docs:build:scaffold"]).toContain("docs:scaffold");
-		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
-			"docs:sync:published-reader",
-		);
-		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
-			"docs:sync:published-reader:staging",
-		);
+		expect(packageJson.scripts["docs:build:scaffold"]).toBeUndefined();
+		expect(packageJson.scripts["docs:scaffold"]).toBeUndefined();
+		expect(packageJson.scripts["docs:build:published-reader"]).toBeUndefined();
+		expect(packageJson.scripts["docs:build:published-reader:staging"]).toBeUndefined();
 		expect(packageJson.scripts["docs:pagefind:index"]).toBeUndefined();
-		expect(packageJson.scripts["docs:build:published-reader"]).not.toContain("docs:pagefind:index");
-		expect(packageJson.scripts["docs:build:published-reader:staging"]).not.toContain(
-			"docs:pagefind:index",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader"]).toContain("run-with-local-env.mjs");
-		expect(packageJson.scripts["docs:sync:published-reader"]).toContain(
-			"docs:sync:published-reader:raw",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader"]).toContain("--manifest-path");
-		expect(packageJson.scripts["docs:sync:published-reader"]).toContain(
-			"../../var/public-docs-sync-manifest.json",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader:raw"]).not.toContain(
-			"run-with-local-env.mjs",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain(
-			"run-with-staging-ingestion-env.mjs",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain(
-			"docs:sync:published-reader:raw",
-		);
-		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain("--manifest-path");
-		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toContain(
-			"../../var/public-docs-sync-manifest.staging.json",
-		);
-		expect(packageJson.scripts["docs:build:published-reader"]).toContain("rspress build");
-		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
-			"filter-rspress-search-index.mjs",
-		);
-		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
-			"filter-rspress-search-index.mjs",
-		);
-		expect(packageJson.scripts.build).toContain("pnpm docs:build:published-reader");
-		expect(packageJson.scripts["build:staging"]).toContain(
-			"pnpm docs:build:published-reader:staging",
-		);
+		expect(packageJson.scripts["docs:sync:published-reader"]).toBeUndefined();
+		expect(packageJson.scripts["docs:sync:published-reader:raw"]).toBeUndefined();
+		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toBeUndefined();
+		expect(buildDocsSource).toContain("run-with-local-env.mjs");
+		expect(buildDocsSource).toContain("sync-campus-published-reader.mjs");
+		expect(buildDocsSource).toContain("--manifest-path");
+		expect(buildDocsSource).toContain("../../var/public-docs-sync-manifest.json");
+		expect(buildDocsSource).toContain("run-with-staging-ingestion-env.mjs");
+		expect(buildDocsSource).toContain("../../var/public-docs-sync-manifest.staging.json");
+		expect(buildDocsSource).toContain("rspress");
+		expect(buildDocsSource).toContain("filter-rspress-search-index.mjs");
+		expect(packageJson.scripts.build).toContain("build-published-reader-docs.mjs");
+		expect(packageJson.scripts["build:staging"]).toContain("build-published-reader-docs.mjs");
+		expect(packageJson.scripts["build:staging"]).toContain("--staging");
 		expect(packageJson.scripts.build).not.toContain("docs:scaffold");
 		expect(packageJson.scripts["build:staging"]).not.toContain("docs:scaffold");
 		expect(configSource).toContain('logoText: "中央民族大学校园问答"');
@@ -144,6 +123,10 @@ describe("campus docs Rspress build boundary", () => {
 		const packageJson = JSON.parse(readFileSync(join(appDir, "package.json"), "utf8")) as {
 			scripts: Record<string, string>;
 		};
+		const buildDocsSource = readFileSync(
+			join(appDir, "scripts", "build-published-reader-docs.mjs"),
+			"utf8",
+		);
 		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
 		const syncSource = readFileSync(
 			join(appDir, "scripts", "sync-campus-published-reader.mjs"),
@@ -155,15 +138,8 @@ describe("campus docs Rspress build boundary", () => {
 		);
 		const gitignore = readFileSync(join(appDir, ".gitignore"), "utf8");
 
-		expect(packageJson.scripts["docs:build:published-reader"]).toContain(
-			"CAMPUS_WEB_RSPRESS_DOCS_ROOT=.generated/docs",
-		);
-		expect(packageJson.scripts["docs:build:published-reader:staging"]).toContain(
-			"CAMPUS_WEB_RSPRESS_DOCS_ROOT=.generated/docs",
-		);
-		expect(packageJson.scripts["docs:build:scaffold"]).not.toContain(
-			"CAMPUS_WEB_RSPRESS_DOCS_ROOT=.generated/docs",
-		);
+		expect(buildDocsSource).toContain('CAMPUS_WEB_RSPRESS_DOCS_ROOT: ".generated/docs"');
+		expect(packageJson.scripts["docs:build:scaffold"]).toBeUndefined();
 		expect(configSource).toContain("CAMPUS_WEB_RSPRESS_DOCS_ROOT");
 		expect(configSource).toContain("builderConfig");
 		expect(configSource).toContain('"@": path.resolve(__dirname, "src")');

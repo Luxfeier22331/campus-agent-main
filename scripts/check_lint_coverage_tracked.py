@@ -122,6 +122,8 @@ def lint_exclusion_reason(path: str) -> str | None:
         return "temporary_workspace_artifact"
     if path.startswith(".worktrees/"):
         return "worktree_runtime_artifact"
+    if path.startswith("apps/app-api/drizzle/") and path.endswith(".sql"):
+        return "generated_drizzle_migration"
     if path.startswith("apps/app-api/drizzle/meta/"):
         return "generated_drizzle_metadata"
     if path.startswith("docs/reference/muc-campus-qa-frontend-design/"):
@@ -155,35 +157,35 @@ def lint_families_for_path(path: str) -> tuple[str, ...]:
     if _is_biome_tracked_file(path):
         families.append("web:lint")
     if _is_markdown_tracked_file(path):
-        families.append("docs:lint")
+        families.append("repo:static")
     if _is_python_tracked_file(path):
-        families.extend(("py:lint", "py:format:check"))
+        families.append("repo:static")
     if _is_go_tracked_file(path):
-        families.append("go:static:check")
+        families.append("ci:go")
     if path.endswith((".yaml", ".yml")):
-        families.append("yaml:lint")
+        families.append("repo:static")
     if path.endswith(".toml"):
-        families.append("toml:lint")
+        families.append("repo:static")
     if path.endswith(".sh"):
-        families.append("shell:lint")
+        families.append("repo:static")
     if path.endswith(".xml"):
-        families.append("xml:lint")
+        families.append("repo:static")
     if path.endswith(".jsonl"):
-        families.append("jsonl:lint")
+        families.append("repo:static")
     if _is_legacy_office_java_tracked_file(path):
-        families.append("java:lint")
+        families.append("repo:static")
     if path.endswith(".sql") or path in _ROOT_SQL_LINT_FILES:
-        families.append("sql:lint")
+        families.append("repo:static")
     if _is_docker_tracked_file(path):
-        families.append("docker:lint")
+        families.append("repo:static")
     if _is_env_tracked_file(path):
-        families.append("env:lint")
+        families.append("repo:static")
     if _is_editorconfig_tracked_file(path):
-        families.append("editorconfig:lint")
+        families.append("repo:static")
     if path in _ROOT_LOCK_FILES or path.endswith("/pnpm-lock.yaml"):
-        families.append("lock:lint")
+        families.append("repo:static")
     if path.endswith(".html"):
-        families.append("html:lint")
+        families.append("repo:static")
     return tuple(dict.fromkeys(families))
 
 

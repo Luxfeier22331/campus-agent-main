@@ -46,8 +46,7 @@ cp docs/runbooks/templates/e2e-qa-release-artifact-template.md \
 先运行不依赖真实 staging 的仓库验证：
 
 ```bash
-pnpm docs:lint | tee "$E2E_QA_EVIDENCE_DIR/docs-lint.txt"
-pnpm decomposition:lint | tee "$E2E_QA_EVIDENCE_DIR/decomposition-lint.txt"
+pnpm repo:static | tee "$E2E_QA_EVIDENCE_DIR/repo-static.txt"
 git diff --check | tee "$E2E_QA_EVIDENCE_DIR/git-diff-check.txt"
 ```
 
@@ -178,7 +177,8 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 运行 repo-owned gated docs smoke：
 
 ```bash
-pnpm --dir apps/app-api docs:gated:smoke:staging \
+node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
+  pnpm exec tsx ./scripts/staging-docs-gated-smoke.ts \
   | tee "$E2E_QA_EVIDENCE_DIR/docs-gated-smoke.json"
 ```
 
@@ -205,7 +205,7 @@ curl --noproxy '*' -sS -i \
 运行 Access service-token smoke：
 
 ```bash
-pnpm --dir apps/operator-console-web access:smoke:staging \
+node apps/operator-console-web/scripts/staging-access-service-token-smoke.mjs \
   | tee "$E2E_QA_EVIDENCE_DIR/operator-console-access-service-token.json"
 ```
 
@@ -398,7 +398,8 @@ E2E QA 通过必须同时满足：
   workflow identity 比对
 - `online-answer-path` Langfuse eval score publish evidence 已落盘，且仅作为 eval
   sink evidence
-- Langfuse closeout 通过 `pnpm langfuse:release-closeout:staging` 生成并校验
+- Langfuse closeout 通过
+  `node ./scripts/run-langfuse-release-closeout-staging.mjs` 生成并校验
   `langfuse-release-evidence.json`
 - operator runtime task queue / autoscaler projection evidence 完整
 - eval diagnostic badcase projection 使用 operator step trajectory 且无 missing attribution

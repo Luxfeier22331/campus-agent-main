@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-04-26
+updated: 2026-06-20
 ---
 # Testing And Verification Lanes
 
@@ -54,10 +54,11 @@ pnpm repo:static
   live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth
   文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
   historical plan 文档、vendor、`node_modules` 与 scratch markdown
-- campus-web docs reader 侧通过 `pnpm --filter campus-web docs:build` 覆盖当前
-  Rspress-powered `/docs/*` reader build。
-- `pnpm coverage:lint` 继续是 tracked repo baseline 审计，用于确保 repo-owned text-like surface
-  都被某个 lint lane 接管；它不扩到未跟踪文件
+- campus-web docs reader 侧通过 `node apps/campus-web/scripts/build-published-reader-docs.mjs`
+  覆盖当前 Rspress-powered `/docs/*` reader build；完整 product build 仍走
+  `pnpm --dir apps/campus-web build`。
+- `pnpm repo:static` 内部继续运行 tracked repo baseline 审计，用于确保 repo-owned
+  text-like surface 都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
   repo-owned Python wrapper 调用 Docker `lint` target，并在容器内执行 `mvn
   spotless:check`；默认检查当前 worktree 文件，不承担 Checkstyle / PMD / SpotBugs 这类更强规则治理
@@ -67,14 +68,14 @@ pnpm repo:static
 - env example 侧使用 repo-owned Python checker，覆盖当前 worktree 的 `*.env.example` 与
   `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前要求 `KEY=VALUE` 结构、key
   命名合法且不重复，并禁止 comment / value 尾随空白或 value 前后空白；仍不做跨文件一致性治理
-- `pnpm html:lint` 使用 repo-owned Python checker，对当前 worktree 的 `*.html` 做 `html5lib`
+- `pnpm repo:static` 内部的 HTML checker 对当前 worktree 的 `*.html` 做 `html5lib`
   解析与最小文档结构校验；当前要求存在 `<!doctype html>`、单一 `html/head/body`，以及非空 `<title>`；默认排除
   `.planning/`、临时目录、vendor 与 `node_modules`
 - YAML 侧通过 repo-owned runner 调用 `pre-commit` 的 `check-yaml` hook，检查当前 worktree
   YAML files，默认排除 `.planning/`
 - TOML 侧使用 repo-owned Python checker，对当前 worktree `*.toml` 做 `tomllib` 结构校验
 - shell 侧使用 repo-owned Python checker，对当前 worktree `*.sh` 做 `bash -n` 语法校验
-- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm lint`
+- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`
 - XML 侧使用 repo-owned Python checker，对当前 worktree `*.xml` 做 well-formedness 结构校验
 - JSONL 侧使用 repo-owned Python checker，对当前 worktree `*.jsonl` 做逐行 JSON object
   校验，并对 repo 当前已承诺的 sample 形状做最小 schema
@@ -83,7 +84,7 @@ pnpm repo:static
 - SQL 侧使用 repo-owned Python wrapper 调用 `sqlfluff parse --dialect postgres`，对当前
   worktree `*.sql` 做可解析性校验；当前不承担 SQL 风格治理
 - Dockerfile 侧使用 repo-owned Python wrapper 调用 `hadolint`，覆盖当前 worktree
-  Dockerfile surface，并已并入默认 `pnpm lint`
+  Dockerfile surface，并已并入默认 `pnpm repo:static`
 - lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
   - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对当前 worktree app-local
     `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
@@ -120,17 +121,17 @@ uv run --all-packages python -m unittest discover -s tests -t .
 pnpm web:typecheck
 pnpm web:test
 pnpm web:build
-pnpm ci:web-graph:affected
 pnpm ci:web-graph:full
 ```
 
 语义：
 
 - 这是仓库级 JS/TS 默认稳定门禁
-- `pnpm ci:web-graph:affected` 是面向 CI / PR 的 affected graph 入口，等价于基于
-  `origin/develop` 的 `typecheck + test + build --affected --concurrency=2`
 - `pnpm ci:web-graph:full` 是完整 JS/TS graph 入口，等价于 `pnpm web:check`；该入口同样使用
   Turbo `--concurrency=2`
+- 面向 `develop` 的增量验证使用一次性 Turbo 命令，例如
+  `TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concurrency=2`；
+  repo root 不再维护 affected graph 的脚本别名
 - `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
 - 当前它包含：
   - `apps/app-api` 的 `test:node`
@@ -171,8 +172,8 @@ pnpm web:test:integration
   shared DB 已漂移，会 fail-close
 - 该 lane 不验证 `official_web` collector lifecycle，也不要求
   `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
-- 当前 repo 的 repair 入口是 `pnpm --dir apps/app-api db:reconcile-shared-drift --
-  --json`
+- 当前 repo 的 repair 入口是 `node apps/app-api/scripts/run-with-local-env.mjs node
+  ./scripts/reconcile-shared-db-drift.mjs --json`
 
 ### E2E QA Release Lane
 

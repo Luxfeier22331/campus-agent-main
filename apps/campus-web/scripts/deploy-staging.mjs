@@ -33,6 +33,21 @@ function fail(message) {
 	process.exit(1);
 }
 
+function run(command, args, options = {}) {
+	const result = spawnSync(command, args, {
+		cwd: options.cwd ?? appDir,
+		env: options.env ?? process.env,
+		stdio: "inherit",
+	});
+	if (typeof result.status === "number") {
+		if (result.status !== 0) {
+			process.exit(result.status);
+		}
+		return;
+	}
+	process.exit(result.error ? 1 : 0);
+}
+
 function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
 	const value = rawValue?.trim();
 	if (!value) {
@@ -57,6 +72,8 @@ if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 		"STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY must not use the Cloudflare Turnstile testing sitekey for staging deploys.",
 	);
 }
+
+run("node", ["../../scripts/run-worker-staging-preflight.mjs", "--app", "apps/campus-web"]);
 
 const result = spawnSync(
 	"pnpm",

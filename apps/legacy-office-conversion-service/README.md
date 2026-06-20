@@ -24,7 +24,7 @@ Optional env:
 Local build/test via Docker:
 
 ```bash
-pnpm java:lint
+pnpm repo:static
 docker build -f apps/legacy-office-conversion-service/Dockerfile --target lint \
   -t campus-legacy-office-conversion:lint .
 docker build -f apps/legacy-office-conversion-service/Dockerfile --target \

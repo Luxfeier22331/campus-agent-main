@@ -48,9 +48,8 @@ Runtime persistence:
   `identity.federation_claims_policies` and
   `identity.federation_user_grants`.
 - The `muc-wiki` client is materialized by
-  `pnpm --dir apps/app-api federation:provision-muc-wiki` or
-  `pnpm --dir apps/app-api federation:provision-muc-wiki:staging`, not by
-  browser UI or MediaWiki.
+  `provision-muc-wiki-federation-client.ts` through `run-with-local-env.mjs` or
+  `run-with-staging-db-env.mjs`, not by browser UI or MediaWiki.
 
 ## Discovery
 
@@ -230,7 +229,9 @@ APP_API_FEDERATION_MUC_WIKI_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:PluggableAuthLogin' \
 APP_API_FEDERATION_MUC_WIKI_POST_LOGOUT_REDIRECT_URI='https://muc.wiki/wiki/'\
 'Special:UserLogout' \
-pnpm --dir apps/app-api federation:provision-muc-wiki:staging
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
+node apps/app-api/scripts/run-with-staging-db-env.mjs \
+  pnpm exec tsx ./scripts/provision-muc-wiki-federation-client.ts
 ```
 
 ## Related Documents

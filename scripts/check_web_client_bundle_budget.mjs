@@ -67,7 +67,7 @@ function discoverBuiltApps() {
 function checkApp(app, failures) {
 	const clientDir = path.join(repoRoot, app, "dist/client");
 	if (!fs.existsSync(clientDir)) {
-		failures.push(`${app}: missing dist/client; run the app build before bundle:lint`);
+		failures.push(`${app}: missing dist/client; run the app build before checking bundle budget`);
 		return;
 	}
 

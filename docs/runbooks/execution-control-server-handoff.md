@@ -181,8 +181,7 @@ infra/local/smoke-execution-control-runtime.sh closed_gate
   - `uv run --all-packages python -m scripts.doctor_env execution-control --json`
 - static checks:
   - `pnpm go:check`
-  - `pnpm shell:lint`
-  - `pnpm yaml:lint`
+  - `pnpm repo:static`
 - runtime checks:
   - Docker build success
   - `healthz` / `readyz` / `metrics` return expected status

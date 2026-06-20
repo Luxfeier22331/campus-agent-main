@@ -61,23 +61,14 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["build:staging"]).toContain("SENTRY_DSN");
 		expect(packageManifest.scripts?.dev).toContain("CLOUDFLARE_ENV=local");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("OPERATOR_CONSOLE_LIVE_SMOKE=1");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain(
-			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
-		);
 		expect(packageManifest.scripts?.dev).toContain("--port 27021");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 27021");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).not.toContain("CLOUDFLARE_ENV=local");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toBeUndefined();
 		expect(packageManifest.scripts?.preview).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(packageManifest.scripts?.["dev:live-smoke:access"]).toContain(
-			"local-access-smoke-server.mjs",
-		);
-		expect(packageManifest.scripts?.["access:smoke:staging"]).toContain(
-			"staging-access-service-token-smoke.mjs",
-		);
+		expect(packageManifest.scripts?.["dev:live-smoke:access"]).toBeUndefined();
+		expect(packageManifest.scripts?.["access:smoke:staging"]).toBeUndefined();
 		expect(stagingAccessServiceTokenSmokeSource).toContain(
 			"STAGING_OPERATOR_CONSOLE_ACCESS_CLIENT_ID",
 		);
@@ -97,40 +88,17 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
-		expect(packageManifest.scripts?.["deploy:staging"]).toContain("pnpm deploy:preflight:staging");
-		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toContain(
-			"run-worker-staging-preflight.mjs",
-		);
-		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toContain(
-			"check_worker_secret_presence.py",
-		);
+		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain("deploy:preflight:staging");
+		expect(packageManifest.scripts?.["deploy:preflight:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["deploy:check-secrets:staging"]).toBeUndefined();
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain('loadRepoStagingEnvFile(import.meta.url, "../../..")');
+		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"verify-worker-deploy-config.mjs",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"dist/operator_console_web/wrangler.json",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"SERVICE:APP_API=app-api-staging",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"VAR:OPERATOR_CONSOLE_APP_API_BASE_URL=https://app-api.internal",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"VAR_ABSENT:SENTRY_RELEASE",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"ROUTE:operator-console-staging.mucwiki-edge.link",
-		);
-		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
-			"verify-worker-deploy-config.mjs",
-		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toBeUndefined();
 	});
 
 	it("provides an access-compatible local issuer for authenticated live smoke", () => {

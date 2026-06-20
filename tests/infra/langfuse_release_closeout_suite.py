@@ -489,7 +489,7 @@ class LangfuseReleaseCloseoutSuite(unittest.TestCase):
         scripts = json.loads(PACKAGE_JSON.read_text(encoding="utf-8"))["scripts"]
         runbook = RUNBOOK.read_text(encoding="utf-8")
 
-        self.assertIn("tests.infra.langfuse_release_closeout_suite", scripts["langfuse:check"])
+        self.assertIn("tests.infra.langfuse_release_closeout_suite", scripts["ci:langfuse"])
         self.assertIn("scripts.run_langfuse_release_evidence_closeout", runbook)
         self.assertIn("--durable-chat-artifact", runbook)
 

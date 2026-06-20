@@ -271,7 +271,6 @@ Generic local compose keeps execution audit disabled unless explicitly enabled.
 Local verification:
 
 ```bash
-pnpm go:static:check
 pnpm go:check
 ```
 

@@ -106,13 +106,11 @@ def run_preflight(
 
 
 class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
-    def test_root_package_exposes_cutover_preflight_script(self) -> None:
+    def test_root_package_does_not_expose_cutover_preflight_script(self) -> None:
         package_json = json.loads((REPO_ROOT / "package.json").read_text())
 
-        self.assertEqual(
-            package_json["scripts"]["durable:cutover:preflight"],
-            "uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight",
-        )
+        self.assertNotIn("durable:cutover:preflight", package_json["scripts"])
+        self.assertTrue(SCRIPT.exists())
 
     def test_staging_runbook_uses_current_preflight_cli_shape(self) -> None:
         runbook = (
@@ -123,8 +121,11 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
             / "durable-runtime-proof.md"
         ).read_text()
 
-        self.assertIn("pnpm durable:cutover:preflight --json", runbook)
-        self.assertNotIn("pnpm durable:cutover:preflight -- --json", runbook)
+        self.assertIn(
+            "uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight --json",
+            runbook,
+        )
+        self.assertNotIn("pnpm durable:cutover:preflight", runbook)
         self.assertIn("CLOUDFLARE_API_TOKEN", runbook)
         self.assertIn("PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin", runbook)
 

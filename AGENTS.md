@@ -108,8 +108,8 @@
   `docs/` 文档为准
 - 代码组织、目录分解、小区块、目录同构与不重复治理以
   `docs/architecture/system/code-organization-and-decomposition-architecture.md`
-  为准；`pnpm decomposition:lint` 只是基础行数 / baseline gate，不等于完整架构
-  review
+  为准；`pnpm repo:static` 内部的 decomposition checker 只是基础行数 /
+  baseline gate，不等于完整架构 review
 - 当前 repo 级范围、pending work 信号与最新长期结论以 `.planning/PROJECT.md` 和
   `.planning/WORKSTREAMS.md` 为准；本地会话状态由 GSD SDK / Codex native session
   承接，不再写回 tracked phase 目录
@@ -362,10 +362,9 @@ uv sync --all-packages --dev
 默认仓库级验证命令：
 
 ```bash
+pnpm repo:guard
+pnpm repo:static
 pnpm web:lint
-pnpm docs:lint
-pnpm yaml:lint
-pnpm decomposition:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
@@ -386,9 +385,7 @@ pnpm web:build
 面向 `develop` 的增量验证命令：
 
 ```bash
-pnpm web:typecheck:affected
-pnpm web:test:affected
-pnpm web:build:affected
+TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concurrency=2
 ```
 
 补充约束：
@@ -397,11 +394,10 @@ pnpm web:build:affected
 - 仓库级基线验证与局部测试命令默认都通过 `uv run --all-packages ...` 执行
 - JS/TS app 的共享任务编排默认通过 repo root `pnpm` + `turbo` 入口执行，不再鼓励把跨 app
   验证拆回各自目录手动串行运行
-- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown lint 通过 `pnpm
-  docs:lint` 执行；YAML 结构检查通过 `pnpm yaml:lint` 执行；Python lint/format 默认通过 `uv run
-  --all-packages ruff ...` 执行
-- repo-wide handwritten code/test 分解 gate 默认通过 `pnpm decomposition:lint`
-  执行；新增或修改
+- JS/TS lint 默认通过 root `pnpm web:lint` 执行，使用 Biome；Markdown/YAML/HTML/锁文件/
+  Dockerfile/Env/分解/ruff 等仓库静态检查统一由 `pnpm repo:static` 调度
+- repo-wide handwritten code/test 分解 gate 默认通过 `pnpm repo:static`
+  内部的 `scripts.check_decomposition_tracked` 执行；新增或修改
   tracked handwritten `py/ts/tsx/js/jsx/mjs/cjs/go` code/test 文件时，不得超过 `800`
   行，也不得通过
   `configs/lint/decomposition-baseline.json` 新增 admission 回流

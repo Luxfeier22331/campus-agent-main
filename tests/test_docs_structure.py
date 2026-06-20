@@ -199,12 +199,12 @@ class DocsStructureTest(unittest.TestCase):
             DOCS_ROOT / "reference" / "testing-and-verification-lanes.md"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("pnpm coverage:lint", verification_reference)
-        self.assertIn("pnpm html:lint", verification_reference)
+        self.assertIn("pnpm repo:static", verification_reference)
+        self.assertIn("HTML checker", verification_reference)
         self.assertIn("tracked +", verification_reference)
         self.assertIn("untracked 文件", verification_reference)
         self.assertIn("PowerShell 继续保留为 supplemental lane", verification_reference)
-        self.assertIn("不并入默认 `pnpm lint`", verification_reference)
+        self.assertIn("不并入默认 `pnpm repo:static`", verification_reference)
 
     def test_decision_ids_are_unique(self) -> None:
         decision_ids: dict[str, Path] = {}

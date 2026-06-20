@@ -50,7 +50,8 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
   `XDG_CONFIG_HOME=./.wrangler-home`
 - 做 online answer local browser smoke 前，如果本地 Postgres 可能落后于
   `apps/app-api/db/shared-product-migrations/*`，先执行
-  `pnpm --dir apps/app-api db:bootstrap`
+  `node apps/app-api/scripts/run-with-local-env.mjs node
+  ./scripts/bootstrap-shared-product-with-seeds.mjs`
 
 ## 标准命令
 
@@ -66,7 +67,7 @@ allowlist：
 ```bash
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:node -- test/campus-worker.test.ts
-pnpm --dir apps/campus-web docs:build
+node apps/campus-web/scripts/build-published-reader-docs.mjs
 ```
 
 再验证 campus-web online answer 主链路 smoke：
@@ -111,15 +112,15 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 当前 docs browser route 属于 campus-web。做本地 docs smoke 时使用：
 
 ```bash
-pnpm --dir apps/campus-web docs:build
+node apps/campus-web/scripts/build-published-reader-docs.mjs
 pnpm --dir apps/campus-web dev
 ```
 
 约束：
 
 - campus-web dev 固定监听 `http://127.0.0.1:27014`
-- `docs:build` 先生成 Rspress reader assets，再由 campus-web 静态 delivery 提供
-  `/docs/*` 与 `/static/*`
+- `build-published-reader-docs.mjs` 先生成 Rspress reader assets，再由
+  campus-web 静态 delivery 提供 `/docs/*` 与 `/static/*`
 - `/_docs/*` 是匿名 public reader asset delivery
 - `/_gated-docs/*` 必须走 Worker-first admission，并通过 same-origin
   `/api/docs/.../admission` 向 `app-api` 校验后读取静态资产
@@ -155,7 +156,7 @@ profile 语义：
 本地激活真实模型 profile：
 
 ```bash
-pnpm local:providers:seed
+node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts
 ```
 
 该命令读取 root `.env` 的 `LLM_*`、`EMBEDDING_*` 与可选 `RERANK_*`，并把它们写入

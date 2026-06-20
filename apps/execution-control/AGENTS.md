@@ -35,5 +35,5 @@
 
 ```bash
 pnpm go:check
-pnpm decomposition:lint
+pnpm repo:static
 ```

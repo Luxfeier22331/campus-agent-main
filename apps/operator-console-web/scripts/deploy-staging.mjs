@@ -80,9 +80,11 @@ const accessTeamDomain = normalizeAccessTeamDomain(process.env.STAGING_ACCESS_TE
 const accessPolicyAud = normalizeAccessPolicyAud(process.env.STAGING_ACCESS_POLICY_AUD);
 const sentryRelease = resolveStagingSentryRelease("operator-console-web");
 
-// Always rebuild before deploy so staging cannot reuse a stale dist bundle.
-run("pnpm", ["build:staging"]);
-run("pnpm", ["deploy:verify-config:staging"]);
+run("node", [
+	"../../scripts/run-worker-staging-preflight.mjs",
+	"--app",
+	"apps/operator-console-web",
+]);
 run(
 	"wrangler",
 	[

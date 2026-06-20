@@ -64,7 +64,7 @@ function collectTextFiles(root) {
 export function copyRspressDocsBuild() {
 	if (!existsSync(sourceDir)) {
 		throw new Error(
-			"Rspress docs build output is missing. Run pnpm docs:build from apps/campus-web.",
+			"Rspress docs build output is missing. Run node ./scripts/build-published-reader-docs.mjs from apps/campus-web.",
 		);
 	}
 

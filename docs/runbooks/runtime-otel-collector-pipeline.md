@@ -149,7 +149,7 @@ fan-out contract. `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT`,
 Structural repo test:
 
 ```bash
-pnpm langfuse:check
+pnpm ci:langfuse
 ```
 
 Fail-closed Langfuse env check:
@@ -164,7 +164,7 @@ uv run --all-packages python scripts/check_runtime_otel_collector_config.py
 Local Collector -> Langfuse fan-out proof:
 
 ```bash
-pnpm langfuse:fanout:proof
+uv run --all-packages python -m scripts.proof_runtime_otel_langfuse_fanout
 ```
 
 This starts the real `otel/opentelemetry-collector-contrib:0.127.0` container
@@ -239,7 +239,7 @@ product truth.
 Langfuse release evidence closeout:
 
 ```bash
-pnpm langfuse:release-closeout:staging
+node ./scripts/run-langfuse-release-closeout-staging.mjs
 ```
 
 The staging closeout command loads the repository staging env using
@@ -383,11 +383,11 @@ Expected evidence:
 Collector config structural smoke:
 
 ```bash
-pnpm langfuse:check
-pnpm langfuse:fanout:proof
+pnpm ci:langfuse
+uv run --all-packages python -m scripts.proof_runtime_otel_langfuse_fanout
 ```
 
-`pnpm langfuse:check` also covers the Langfuse dataset sync dry-run,
+`pnpm ci:langfuse` also covers the Langfuse dataset sync dry-run,
 experiment artifact validator and RAG first-stage sweep validator. These checks
 prove the eval platform management plane can create sanitized artifacts; they do
 not replace the real staging trace and score publish closeout.

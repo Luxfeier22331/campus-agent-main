@@ -15,31 +15,18 @@ function readAppFile(relativePath: string): string {
 }
 
 describe("app-api shared product bootstrap contracts", () => {
-	it("defines repeatable bootstrap and test lane commands for app_auth/chat ownership", () => {
+	it("keeps repeatable bootstrap artifacts while package scripts stay lifecycle-only", () => {
 		const packageJson = JSON.parse(readAppFile("package.json")) as {
 			scripts: Record<string, string>;
 		};
 
-		expect(packageJson.scripts["db:bootstrap"]).toBeTruthy();
-		expect(packageJson.scripts["db:bootstrap:staging"]).toBeTruthy();
-		expect(packageJson.scripts["db:bootstrap"]).toContain(
-			"bootstrap-shared-product-with-seeds.mjs",
-		);
-		expect(packageJson.scripts["db:bootstrap:staging"]).toContain(
-			"bootstrap-shared-product-with-seeds.mjs",
-		);
-		expect(packageJson.scripts["dining:seed-initial-release"]).toContain(
-			"seed-initial-dining-release.ts",
-		);
-		expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeTruthy();
-		expect(packageJson.scripts["db:print-auth-migration"]).toBeTruthy();
-		expect(packageJson.scripts["db:reconcile-shared-drift"]).toContain(
-			"reconcile-shared-db-drift.mjs",
-		);
-		expect(packageJson.scripts["official-web:drain-projection"]).toContain(
-			"drain-official-web-projection.ts",
-		);
-		expect(packageJson.scripts["official-web:drain-projection"]).toContain("tsx");
+		expect(packageJson.scripts["db:bootstrap"]).toBeUndefined();
+		expect(packageJson.scripts["db:bootstrap:staging"]).toBeUndefined();
+		expect(packageJson.scripts["dining:seed-initial-release"]).toBeUndefined();
+		expect(packageJson.scripts["db:ensure-app-auth-role-search-path"]).toBeUndefined();
+		expect(packageJson.scripts["db:print-auth-migration"]).toBeUndefined();
+		expect(packageJson.scripts["db:reconcile-shared-drift"]).toBeUndefined();
+		expect(packageJson.scripts["official-web:drain-projection"]).toBeUndefined();
 		expect(packageJson.scripts.test).toContain("run-node-tests.mjs");
 		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(true);
 		expect(packageJson.scripts["test:all"]).toContain("vitest.config.mts");
@@ -106,11 +93,10 @@ describe("app-api shared product bootstrap contracts", () => {
 	it("documents app-api as the shared product DB bootstrap owner", () => {
 		const readme = readAppFile("README.md");
 
-		expect(readme).toContain("db:bootstrap");
-		expect(readme).toContain("db:bootstrap:staging");
-		expect(readme).toContain("db:ensure-app-auth-role-search-path");
-		expect(readme).toContain("db:reconcile-shared-drift");
-		expect(readme).toContain("official-web:drain-projection");
+		expect(readme).toContain("bootstrap-shared-product-with-seeds.mjs");
+		expect(readme).toContain("ensure-app-auth-role-search-path.mjs");
+		expect(readme).toContain("reconcile-shared-db-drift.mjs");
+		expect(readme).toContain("drain-official-web-projection.ts");
 		expect(readme).toContain("test:node");
 		expect(readme).toContain("test:worker");
 		expect(readme).toContain("test:shared-db-integration");

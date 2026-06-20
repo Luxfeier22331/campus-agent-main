@@ -35,8 +35,7 @@ updated: 2026-06-09
 
 ## Repo Preflight
 
-- `pnpm docs:lint`:
-- `pnpm decomposition:lint`:
+- `pnpm repo:static`:
 - `git diff --check`:
 - Additional lanes if code changed:
 
