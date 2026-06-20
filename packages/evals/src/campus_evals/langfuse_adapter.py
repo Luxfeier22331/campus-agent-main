@@ -491,6 +491,9 @@ def _nested_attributes(value: dict[str, object]) -> dict[str, object]:
     metadata = value.get("metadata")
     if isinstance(metadata, dict):
         attributes.update(metadata)
+        nested_attributes = metadata.get("attributes")
+        if isinstance(nested_attributes, dict):
+            attributes.update(nested_attributes)
     return attributes
 
 
