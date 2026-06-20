@@ -79,9 +79,19 @@ function ensureRuntimeEnv(filePath, runtimeEnv) {
     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
     "QDRANT_API_KEY",
     "QDRANT_READ_ONLY_API_KEY",
+    "LANGFUSE_NEXTAUTH_SECRET",
+    "LANGFUSE_SALT",
+    "LANGFUSE_ENCRYPTION_KEY",
+    "LANGFUSE_POSTGRES_PASSWORD",
+    "LANGFUSE_CLICKHOUSE_PASSWORD",
+    "LANGFUSE_REDIS_AUTH",
+    "LANGFUSE_MINIO_ROOT_PASSWORD",
+    "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+    "LANGFUSE_INIT_PROJECT_SECRET_KEY",
+    "LANGFUSE_INIT_USER_PASSWORD",
   ]) {
     if (!existing.get(key)?.trim() && !runtimeEnv.get(key)?.trim() && !process.env[key]?.trim()) {
-      existing.set(key, crypto.randomBytes(32).toString("base64url"));
+      existing.set(key, randomRuntimeValueForKey(key));
       changed = true;
     }
   }
@@ -96,6 +106,27 @@ function ensureRuntimeEnv(filePath, runtimeEnv) {
   if (process.platform !== "win32") {
     fs.chmodSync(filePath, 0o600);
   }
+}
+
+function randomRuntimeSecret() {
+  return crypto.randomBytes(32).toString("base64url");
+}
+
+function randomRuntimeHexSecret() {
+  return crypto.randomBytes(32).toString("hex");
+}
+
+function randomRuntimeValueForKey(key) {
+  if (key === "LANGFUSE_ENCRYPTION_KEY") {
+    return randomRuntimeHexSecret();
+  }
+  if (key === "LANGFUSE_INIT_PROJECT_PUBLIC_KEY") {
+    return `pk-lf-local-${randomRuntimeSecret()}`;
+  }
+  if (key === "LANGFUSE_INIT_PROJECT_SECRET_KEY") {
+    return `sk-lf-local-${randomRuntimeSecret()}`;
+  }
+  return randomRuntimeSecret();
 }
 
 function sourceEnvValue(key) {
@@ -171,10 +202,48 @@ const keys = [
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   "EXECUTION_CONTROL_STAGING_UV_BIN",
+  "EXECUTION_CONTROL_STAGING_COMPOSE_FILES",
   "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
   "EXECUTION_CONTROL_STAGING_HOST",
   "EXECUTION_CONTROL_STAGING_PORT",
+  "LLM_MODEL",
+  "EMBEDDING_PROVIDER",
+  "EMBEDDING_MODEL",
+  "EMBEDDING_DIMENSIONS",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL",
+  "HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL",
+  "HINDSIGHT_API_EMBEDDINGS_PROVIDER",
+  "HINDSIGHT_API_LLM_API_KEY",
+  "HINDSIGHT_API_LLM_BASE_URL",
+  "HINDSIGHT_API_LLM_MODEL",
+  "HINDSIGHT_API_LLM_PROVIDER",
+  "HINDSIGHT_API_RERANKER_PROVIDER",
+  "LANGFUSE_HOST_PORT",
+  "LANGFUSE_MINIO_HOST_PORT",
+  "LANGFUSE_BASE_URL",
+  "LANGFUSE_NEXTAUTH_URL",
+  "LANGFUSE_MINIO_ROOT_USER",
+  "LANGFUSE_NEXTAUTH_SECRET",
+  "LANGFUSE_SALT",
+  "LANGFUSE_ENCRYPTION_KEY",
+  "LANGFUSE_POSTGRES_PASSWORD",
+  "LANGFUSE_CLICKHOUSE_PASSWORD",
+  "LANGFUSE_REDIS_AUTH",
+  "LANGFUSE_MINIO_ROOT_PASSWORD",
+  "LANGFUSE_INIT_ORG_ID",
+  "LANGFUSE_INIT_ORG_NAME",
+  "LANGFUSE_INIT_PROJECT_ID",
+  "LANGFUSE_INIT_PROJECT_NAME",
+  "LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+  "LANGFUSE_INIT_PROJECT_SECRET_KEY",
+  "LANGFUSE_INIT_USER_EMAIL",
+  "LANGFUSE_INIT_USER_NAME",
+  "LANGFUSE_INIT_USER_PASSWORD",
+  "LANGFUSE_ENVIRONMENT",
+  "LANGFUSE_PUBLIC_KEY",
+  "LANGFUSE_SECRET_KEY",
   "QDRANT_QUERY_API_KEY",
   "QDRANT_API_KEY",
   "QDRANT_READ_ONLY_API_KEY",
@@ -240,6 +309,16 @@ for (const key of keys) {
   }
 }
 
+function resolvedValue(key) {
+  return resolved.get(key)?.trim() || "";
+}
+
+function setDefault(key, value) {
+  if (!resolvedValue(key) && value) {
+    resolved.set(key, value);
+  }
+}
+
 const workerSharedSecret =
   sourceEnvValue("API_WORKER_SHARED_SECRET") ||
   sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||
@@ -248,6 +327,47 @@ resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
+setDefault("HINDSIGHT_API_LLM_API_KEY", resolvedValue("LLM_API_KEY"));
+setDefault("HINDSIGHT_API_LLM_BASE_URL", resolvedValue("LLM_BASE_URL"));
+setDefault("HINDSIGHT_API_LLM_MODEL", resolvedValue("LLM_MODEL"));
+setDefault("HINDSIGHT_API_LLM_PROVIDER", "openai");
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", resolvedValue("EMBEDDING_API_KEY"));
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", resolvedValue("EMBEDDING_BASE_URL"));
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", resolvedValue("EMBEDDING_MODEL"));
+setDefault("HINDSIGHT_API_EMBEDDINGS_PROVIDER", "openai");
+setDefault("HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+
+const explicitLangfuseBaseURL = sourceEnvValue("LANGFUSE_BASE_URL");
+setDefault("LANGFUSE_HOST_PORT", "3000");
+setDefault("LANGFUSE_MINIO_HOST_PORT", "9090");
+setDefault("LANGFUSE_BASE_URL", `http://127.0.0.1:${resolvedValue("LANGFUSE_HOST_PORT") || "3000"}`);
+setDefault("LANGFUSE_NEXTAUTH_URL", resolvedValue("LANGFUSE_BASE_URL"));
+setDefault("LANGFUSE_MINIO_ROOT_USER", "minio");
+setDefault("LANGFUSE_INIT_ORG_ID", "campus-agent-staging");
+setDefault("LANGFUSE_INIT_ORG_NAME", "campus-agent-staging");
+setDefault("LANGFUSE_INIT_PROJECT_ID", "campus-agent-staging");
+setDefault("LANGFUSE_INIT_PROJECT_NAME", "campus-agent-staging");
+setDefault("LANGFUSE_INIT_USER_EMAIL", "langfuse-staging@campus-agent.local");
+setDefault("LANGFUSE_INIT_USER_NAME", "Campus Agent Staging");
+setDefault("LANGFUSE_ENVIRONMENT", resolvedValue("DEPLOYMENT_ENVIRONMENT") || "staging");
+setDefault("LANGFUSE_PUBLIC_KEY", resolvedValue("LANGFUSE_INIT_PROJECT_PUBLIC_KEY"));
+setDefault("LANGFUSE_SECRET_KEY", resolvedValue("LANGFUSE_INIT_PROJECT_SECRET_KEY"));
+setDefault("LANGFUSE_INIT_PROJECT_PUBLIC_KEY", resolvedValue("LANGFUSE_PUBLIC_KEY"));
+setDefault("LANGFUSE_INIT_PROJECT_SECRET_KEY", resolvedValue("LANGFUSE_SECRET_KEY"));
+const langfuseCollectorBaseURL = explicitLangfuseBaseURL || "http://langfuse-web:3000";
+setDefault(
+  "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+  `${langfuseCollectorBaseURL.replace(/\/+$/, "")}/api/public/otel`,
+);
+if (resolvedValue("LANGFUSE_PUBLIC_KEY") && resolvedValue("LANGFUSE_SECRET_KEY")) {
+  setDefault(
+    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+    `Basic ${Buffer.from(
+      `${resolvedValue("LANGFUSE_PUBLIC_KEY")}:${resolvedValue("LANGFUSE_SECRET_KEY")}`,
+    ).toString("base64")}`,
+  );
+}
+setDefault("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION", "4");
 if (!resolved.get("QDRANT_API_KEY") && sourceEnvValue("QDRANT_API_KEY")) {
   resolved.set("QDRANT_API_KEY", sourceEnvValue("QDRANT_API_KEY"));
 }
@@ -292,6 +412,8 @@ const stagingRequiredMappings = [
   ["STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED", "OBJECT_STORE_BUCKET_DERIVED"],
   ["STAGING_INGESTION_EMBEDDING_BASE_URL", "EMBEDDING_BASE_URL"],
   ["STAGING_INGESTION_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"],
+  ["STAGING_INGESTION_EMBEDDING_MODEL", "EMBEDDING_MODEL"],
+  ["STAGING_INGESTION_EMBEDDING_DIMENSIONS", "EMBEDDING_DIMENSIONS"],
 ];
 const stagingOptionalMappings = [
   ["STAGING_INGESTION_SHARED_POSTGRES_OPERATOR_URL", "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"],
@@ -314,6 +436,7 @@ const stagingOptionalMappings = [
   ["STAGING_INGESTION_QDRANT_URL", "QDRANT_URL"],
   ["STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH", "QDRANT_TLS_CA_CERT_PATH"],
   ["STAGING_INGESTION_QDRANT_TIMEOUT_SECONDS", "QDRANT_TIMEOUT_SECONDS"],
+  ["STAGING_INGESTION_EMBEDDING_PROVIDER", "EMBEDDING_PROVIDER"],
 ];
 
 function envValue(key) {
@@ -607,6 +730,9 @@ resolved.set(
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   envValue("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED"),
 );
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", resolvedValue("EMBEDDING_API_KEY"));
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", resolvedValue("EMBEDDING_BASE_URL"));
+setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", resolvedValue("EMBEDDING_MODEL"));
 const localPostgresConfigs = [
   ["STAGING_INGESTION_SHARED_POSTGRES_URL", envValue("STAGING_INGESTION_SHARED_POSTGRES_URL")],
   [

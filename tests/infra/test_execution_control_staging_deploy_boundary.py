@@ -51,6 +51,13 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("--env-file", core_script)
         self.assertIn('"${execution_control_staging_env_file}"', core_script)
 
+    def test_canonical_compose_defaults_include_langfuse_runtime(self) -> None:
+        common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("docker-compose.execution-control-runtime.langfuse.yml", common_script)
+
     def test_compose_wrapper_projects_primary_agent_runtime_env(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
@@ -115,6 +122,20 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "Basic cGstbGY6c2stbGY=",
         )
         self.assertEqual(projected["OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION"], "4")
+        self.assertEqual(projected["EMBEDDING_MODEL"], "Qwen3-Embedding-4B")
+        self.assertEqual(projected["EMBEDDING_DIMENSIONS"], "2560")
+        self.assertEqual(projected["HINDSIGHT_API_LLM_API_KEY"], "llm-key")
+        self.assertEqual(projected["HINDSIGHT_API_LLM_BASE_URL"], "https://llm.example.com/v1")
+        self.assertEqual(projected["HINDSIGHT_API_LLM_MODEL"], "gpt-test")
+        self.assertEqual(projected["HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY"], "embedding-key")
+        self.assertEqual(
+            projected["HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL"],
+            "https://ai.gitee.com/v1",
+        )
+        self.assertEqual(
+            projected["HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL"],
+            "Qwen3-Embedding-4B",
+        )
 
     def test_env_loader_projects_internal_agent_runtime_bridge_without_manual_secret(self) -> None:
         result = run_common_script_with_env(
@@ -404,6 +425,8 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
                     "STAGING_INGESTION_QDRANT_URL=http://qdrant:6333",
                     "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
                     "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "STAGING_INGESTION_EMBEDDING_MODEL=Qwen3-Embedding-4B",
+                    "STAGING_INGESTION_EMBEDDING_DIMENSIONS=2560",
                     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=https://sentry.example.com",
                     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE=sentry sentry_key=key",
                     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
