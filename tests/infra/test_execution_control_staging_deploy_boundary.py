@@ -293,20 +293,47 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
         )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_personal_memory_runtime_command() {"
+            ) : core_script.index("execution_control_staging_ensure_personal_memory_runtime() {")
+        ]
 
         self.assertIn(
             '-e EXECUTION_CONTROL_RUNTIME_RELEASE="${EXECUTION_CONTROL_RUNTIME_RELEASE:?',
-            core_script,
+            command_body,
+        )
+
+    def test_run_projection_schema_uses_data_plane_network(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_run_projection_schema_command() {"
+            ) : core_script.index(
+                "execution_control_staging_ensure_run_projection_store_schema() {"
+            )
+        ]
+
+        self.assertIn(
+            '--network "${execution_control_staging_data_plane_network}"',
+            command_body,
         )
 
     def test_personal_memory_probe_uses_runtime_internal_network(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
         )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_personal_memory_runtime_command() {"
+            ) : core_script.index("execution_control_staging_ensure_personal_memory_runtime() {")
+        ]
 
         self.assertIn(
             '--network "${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}"',
-            core_script,
+            command_body,
         )
 
     def test_checkout_guard_rejects_dirty_tracked_file(self) -> None:

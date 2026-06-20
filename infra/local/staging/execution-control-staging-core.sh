@@ -455,7 +455,7 @@ execution_control_staging_run_projection_schema_command() {
   (
     cd "${execution_control_staging_repo_root}" || exit
     "${docker_bin}" run --rm \
-      --network "${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}" \
+      --network "${execution_control_staging_data_plane_network}" \
       -v "${execution_control_staging_repo_root}:/workspace" \
       -w /workspace/apps/execution-control \
       -e GOCACHE=/workspace/.tmp/go-cache \
@@ -499,7 +499,7 @@ execution_control_staging_personal_memory_runtime_command() {
   (
     cd "${execution_control_staging_repo_root}" || exit
     "${docker_bin}" run --rm \
-      --network "${execution_control_staging_data_plane_network}" \
+      --network "${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}" \
       -v "${execution_control_staging_repo_root}:/workspace" \
       -w /workspace/apps/execution-control \
       -e GOCACHE=/workspace/.tmp/go-cache \
