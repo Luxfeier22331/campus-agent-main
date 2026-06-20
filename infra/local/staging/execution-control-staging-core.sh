@@ -505,6 +505,7 @@ execution_control_staging_personal_memory_runtime_command() {
       -e GOCACHE=/workspace/.tmp/go-cache \
       -e GOMODCACHE=/workspace/.tmp/go-mod-cache \
       -e EXECUTION_CONTROL_RUNTIME_PROFILE=staging \
+      -e EXECUTION_CONTROL_RUNTIME_RELEASE="${EXECUTION_CONTROL_RUNTIME_RELEASE:?EXECUTION_CONTROL_RUNTIME_RELEASE is required}" \
       -e EXECUTION_CONTROL_RUNTIME_CONFIG_PATH="/workspace/configs/runtime/execution-control/runtime-profile.staging.json" \
       -e EXECUTION_CONTROL_METRICS_BEARER_TOKEN="${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:?EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required}" \
       -e EXECUTION_CONTROL_TEMPORAL_ADDRESS="${EXECUTION_CONTROL_TEMPORAL_ADDRESS:?EXECUTION_CONTROL_TEMPORAL_ADDRESS is required}" \

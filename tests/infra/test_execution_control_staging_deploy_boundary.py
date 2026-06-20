@@ -254,6 +254,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             script,
         )
 
+    def test_personal_memory_probe_receives_runtime_release(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            '-e EXECUTION_CONTROL_RUNTIME_RELEASE="${EXECUTION_CONTROL_RUNTIME_RELEASE:?',
+            core_script,
+        )
+
     def test_checkout_guard_rejects_dirty_tracked_file(self) -> None:
         result = _run_checkout_guard(
             mutate="""
