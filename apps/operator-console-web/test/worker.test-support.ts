@@ -33,6 +33,9 @@ export function createOperatorQueryServiceMock(
 		getIntentTimeseries: vi.fn(),
 		getQualitySummary: vi.fn(),
 		getQualityTimeseries: vi.fn(),
+		getLangfuseEvalBacklinksByTraceId: vi.fn().mockResolvedValue({
+			backlinks: [],
+		}),
 		getSafetySummary: vi.fn(),
 		listSafetyAnomalies: vi.fn(),
 		getCostSummary: vi.fn(),
