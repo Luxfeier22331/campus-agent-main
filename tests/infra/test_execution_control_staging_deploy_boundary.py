@@ -124,6 +124,33 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertEqual(projected["OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION"], "4")
         self.assertEqual(projected["EMBEDDING_MODEL"], "Qwen3-Embedding-4B")
         self.assertEqual(projected["EMBEDDING_DIMENSIONS"], "2560")
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_APP_API_BASE_URL"],
+            "https://api-staging.mucwiki-edge.link",
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"],
+            "https://api-staging.mucwiki-edge.link",
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"],
+            "app-api-secret",
+        )
+        self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "5000")
+        self.assertTrue(projected["EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"])
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_COMPOSE_PROJECT_NAME"],
+            "campus-execution-control-staging",
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY"],
+            "staging:temporal-task-queue-sampler:001",
+        )
+        self.assertEqual(
+            projected["OTEL_INGEST_SHARED_SECRET"],
+            projected["APP_API_OTEL_INGEST_SHARED_SECRET"],
+        )
+        self.assertRegex(projected["OTEL_INGEST_SHARED_SECRET"], r"^[0-9a-f]{64}$")
         self.assertEqual(projected["HINDSIGHT_API_LLM_API_KEY"], "llm-key")
         self.assertEqual(projected["HINDSIGHT_API_LLM_BASE_URL"], "https://llm.example.com/v1")
         self.assertEqual(projected["HINDSIGHT_API_LLM_MODEL"], "gpt-test")

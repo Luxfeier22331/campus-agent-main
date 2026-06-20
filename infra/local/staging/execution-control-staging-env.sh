@@ -149,9 +149,15 @@ const keys = [
   "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
   "LLM_API_KEY",
   "LLM_BASE_URL",
+  "OTEL_INGEST_SHARED_SECRET",
+  "APP_API_OTEL_INGEST_SHARED_SECRET",
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
+  "EXECUTION_CONTROL_APP_API_BASE_URL",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
   "EXECUTION_CONTROL_RUNTIME_PROFILE",
   "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
   "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
@@ -185,6 +191,7 @@ const keys = [
   "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
+  "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
   "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
@@ -324,6 +331,28 @@ const workerSharedSecret =
   sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||
   "";
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
+const internalQuerySharedSecret = resolvedValue("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
+if (workerSharedSecret && internalQuerySharedSecret) {
+  const otelIngestSharedSecret =
+    resolvedValue("OTEL_INGEST_SHARED_SECRET") ||
+    resolvedValue("APP_API_OTEL_INGEST_SHARED_SECRET") ||
+    crypto
+      .createHash("sha256")
+      .update("campus-agent:otel-ingest:v1\0")
+      .update(workerSharedSecret)
+      .update("\0")
+      .update(internalQuerySharedSecret)
+      .digest("hex");
+  setDefault("OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+  setDefault("APP_API_OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+}
+const stagingAppAPIBaseURL =
+  sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
+  "https://api-staging.mucwiki-edge.link";
+setDefault("EXECUTION_CONTROL_APP_API_BASE_URL", stagingAppAPIBaseURL);
+setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", stagingAppAPIBaseURL);
+setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET", resolvedValue("APP_API_INTERNAL_SHARED_SECRET"));
+setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "5000");
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
@@ -940,6 +969,12 @@ if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTIT
     "staging:activity-knowledge-synthesis:001",
   );
 }
+if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY")) {
+  resolved.set(
+    "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY",
+    "staging:temporal-task-queue-sampler:001",
+  );
+}
 if (!resolved.has("EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY")) {
   resolved.set(
     "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
@@ -971,6 +1006,8 @@ NODE
   export EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}"
   export EXECUTION_CONTROL_STAGING_HOST="${execution_control_staging_host}"
   export EXECUTION_CONTROL_STAGING_PORT="${execution_control_staging_port}"
+  export EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY="${EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY:-${execution_control_staging_repo_root}}"
+  export EXECUTION_CONTROL_COMPOSE_PROJECT_NAME="${EXECUTION_CONTROL_COMPOSE_PROJECT_NAME:-${execution_control_staging_compose_project_name}}"
   execution_control_staging_ensure_runtime_dirs
 
   if [[ -z "${API_WORKER_SHARED_SECRET:-}" ]]; then
