@@ -171,7 +171,7 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         projected = json.loads(result.stdout)
         self.assertEqual(projected["QDRANT_URL"], "http://qdrant:6333")
-        self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "5000")
+        self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "30000")
         self.assertEqual(projected["EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS"], "30000")
         self.assertEqual(
             projected["EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL"],

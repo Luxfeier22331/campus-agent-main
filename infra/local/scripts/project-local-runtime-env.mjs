@@ -253,7 +253,7 @@ function deriveRuntimeEnv(env, input) {
 		read(env, "APP_API_INTERNAL_BASE_URL") ||
 		"http://host.docker.internal:27031";
 	setValue(env, "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
-	setDefault(env, "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "5000");
+	setDefault(env, "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "30000");
 	setDefault(env, "EXECUTION_CONTROL_APP_API_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
 	const appApiInternalSharedSecret =
 		read(env, "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET") ||

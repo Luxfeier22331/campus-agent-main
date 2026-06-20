@@ -140,7 +140,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"],
             "app-api-secret",
         )
-        self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "5000")
+        self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "30000")
         self.assertTrue(projected["EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"])
         self.assertEqual(
             projected["EXECUTION_CONTROL_COMPOSE_PROJECT_NAME"],
