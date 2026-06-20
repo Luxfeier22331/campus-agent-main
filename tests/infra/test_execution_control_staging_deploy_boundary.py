@@ -283,6 +283,12 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             script.index("execution_control_staging_ensure_personal_memory_runtime"),
         )
 
+    def test_status_check_uses_provider_config_gate(self) -> None:
+        script = (STAGING_DIR / "status-execution-control-staging.sh").read_text(encoding="utf-8")
+
+        self.assertIn("provider_config_gate.configured", script)
+        self.assertNotIn("prompt_config_gate", script)
+
     def test_local_minio_bucket_probe_python_heredoc_starts_at_column_zero(self) -> None:
         script = (STAGING_DIR / "execution-control-staging-data-plane.sh").read_text(
             encoding="utf-8"
