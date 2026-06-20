@@ -136,6 +136,19 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         self.assertIn("PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}", block)
         self.assertIn("PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}", block)
 
+    def test_qdrant_tls_dir_is_mounted_into_qdrant_consumers(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+
+        for service in ("execution-control", "activity-worker-knowledge-retrieval"):
+            with self.subTest(service=service):
+                block = _compose_service_block(compose, service)
+                self.assertIn(
+                    "${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro",
+                    block,
+                )
+
     def test_real_runtime_profiles_keep_qdrant_budget_aligned_with_local_convention(self) -> None:
         for profile_path in (LOCAL_REAL_PROVIDER_PROFILE, STAGING_PROFILE):
             with self.subTest(profile=profile_path.name):
