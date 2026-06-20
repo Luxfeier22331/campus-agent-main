@@ -96,7 +96,7 @@ execution_control_staging_ensure_local_minio_volume() {
 execution_control_staging_ensure_local_minio_bucket() {
   execution_control_staging_wait_for_http_ok "http://127.0.0.1:9000/minio/health/ready" 45 2
   execution_control_staging_uv_run --all-packages python - <<'PY'
-	from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
+from campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 settings = ObjectStoreSettings.from_env()

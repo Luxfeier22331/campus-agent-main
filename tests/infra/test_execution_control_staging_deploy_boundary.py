@@ -244,6 +244,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("execution_control_staging_compose up -d --build --remove-orphans", script)
         self.assertNotIn("runtime already running", script)
 
+    def test_local_minio_bucket_probe_python_heredoc_starts_at_column_zero(self) -> None:
+        script = (STAGING_DIR / "execution-control-staging-data-plane.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            "<<'PY'\nfrom campus_ingestion_core.object_store_admin import S3ObjectStoreAdmin",
+            script,
+        )
+
     def test_checkout_guard_rejects_dirty_tracked_file(self) -> None:
         result = _run_checkout_guard(
             mutate="""
