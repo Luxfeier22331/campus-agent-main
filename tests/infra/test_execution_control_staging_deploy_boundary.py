@@ -244,6 +244,14 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("execution_control_staging_compose up -d --build --remove-orphans", script)
         self.assertNotIn("runtime already running", script)
 
+    def test_start_checks_personal_memory_after_compose_up(self) -> None:
+        script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")
+
+        self.assertLess(
+            script.index("execution_control_staging_compose up -d --build --remove-orphans"),
+            script.index("execution_control_staging_ensure_personal_memory_runtime"),
+        )
+
     def test_local_minio_bucket_probe_python_heredoc_starts_at_column_zero(self) -> None:
         script = (STAGING_DIR / "execution-control-staging-data-plane.sh").read_text(
             encoding="utf-8"
