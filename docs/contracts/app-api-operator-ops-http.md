@@ -213,7 +213,7 @@ Connection summary shape:
       }
     },
     "connectionId": "provider_connection_...",
-    "provider": "gitee",
+    "provider": "openai-compatible",
     "revision": 1,
     "secretConfigured": true,
     "secretFingerprint": "sha256:...",

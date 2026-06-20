@@ -13,10 +13,12 @@ from campus_ingestion_core.embed import (
 
 
 class EmbeddingProviderAliasTest(unittest.TestCase):
-    def test_embedding_settings_from_env_defaults_to_gitee_qwen_baseline(self) -> None:
+    def test_embedding_settings_from_env_defaults_to_openai_compatible_qwen_baseline(
+        self,
+    ) -> None:
         settings = EmbeddingSettings.from_env({})
 
-        self.assertEqual(settings.provider, "gitee")
+        self.assertEqual(settings.provider, "openai-compatible")
         self.assertEqual(settings.model, "Qwen3-Embedding-4B")
         self.assertEqual(settings.dimensions, 2560)
 

@@ -174,6 +174,28 @@ class CurriculumChunkingRuntimeProjectionTest(unittest.TestCase):
             )
         )
 
+    def test_curriculum_answer_facts_are_marked_answer_bearing(self) -> None:
+        _, chunks = _build_real_curriculum_projection_chunks(
+            "curriculum:国际经济与贸易本科人才培养方案"
+        )
+
+        graduation_requirement_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "section_text"
+            and "二、毕业要求" in chunk.text
+            and "(二)知识要求" in chunk.text
+        )
+        course_table_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "table_unit"
+            and "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期" in chunk.text
+        )
+
+        self.assertTrue(graduation_requirement_chunk.metadata["is_answer_bearing"])
+        self.assertTrue(course_table_chunk.metadata["is_answer_bearing"])
+
     def test_real_curriculum_projection_keeps_structural_context_on_high_token_table_chunks(
         self,
     ) -> None:

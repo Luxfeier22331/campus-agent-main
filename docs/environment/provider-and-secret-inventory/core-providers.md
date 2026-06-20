@@ -85,7 +85,8 @@ online serving owner：
 
 - `Qwen3-Embedding-4B`
 - `dimensions=2560`
-- current provider reality 为 `gitee` OpenAI-compatible embeddings
+- provider enum 为 `openai-compatible`
+- current endpoint reality 为 Gitee OpenAI-compatible embeddings API
 
 相关真相见：
 

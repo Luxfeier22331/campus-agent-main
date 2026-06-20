@@ -126,6 +126,10 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertEqual(projected["QDRANT_API_KEY"], "qdrant-key")
         self.assertEqual(projected["QDRANT_READ_ONLY_API_KEY"], "qdrant-readonly-key")
         self.assertEqual(projected["QDRANT_QUERY_API_KEY"], "qdrant-readonly-key")
+        self.assertEqual(
+            projected["QDRANT_TLS_DIR"],
+            "/srv/docker/campus-agent/staging/qdrant/tls",
+        )
         self.assertEqual(projected["EMBEDDING_MODEL"], "Qwen3-Embedding-4B")
         self.assertEqual(projected["EMBEDDING_DIMENSIONS"], "2560")
         self.assertEqual(

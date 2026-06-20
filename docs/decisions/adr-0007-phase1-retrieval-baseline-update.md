@@ -32,8 +32,8 @@ updated: 2026-06-15
 当前 `student_rules` retrieval accepted baseline 更新为：
 
 - embedding baseline 固定为 `Qwen3-Embedding-4B @ 2560`
-- embedding provider baseline 固定为 `gitee` OpenAI-compatible embeddings 接口，并显式请求
-  `dimensions=2560`
+- embedding provider enum 固定为 `openai-compatible`，endpoint baseline 当前使用 Gitee
+  OpenAI-compatible embeddings 接口，并显式请求 `dimensions=2560`
 - retrieval baseline 采用 `dense + sparse hybrid retrieval`
 - dense / sparse 两路候选默认通过 `RRF` 融合，当前 runtime 参数固定为：
   - dense prefetch limit = `20`

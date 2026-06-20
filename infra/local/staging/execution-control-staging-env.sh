@@ -25,6 +25,7 @@ const [runtimeEnvPath, runtimeSecretsEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
 const crypto = require("node:crypto");
+const path = require("node:path");
 const { parseEnv } = require("node:util");
 if (typeof parseEnv !== "function") {
   throw new Error("node:util.parseEnv is required for staging env projection");
@@ -96,7 +97,7 @@ function ensureRuntimeEnv(filePath, runtimeEnv) {
     }
   }
   if (changed || !fs.existsSync(filePath)) {
-    fs.mkdirSync(require("node:path").dirname(filePath), { recursive: true });
+    fs.mkdirSync(path.dirname(filePath), { recursive: true });
     fs.writeFileSync(
       filePath,
       `${[...existing.entries()].map(([key, value]) => `${key}=${value}`).join("\n")}\n`,
@@ -255,6 +256,7 @@ const keys = [
   "QDRANT_QUERY_API_KEY",
   "QDRANT_API_KEY",
   "QDRANT_READ_ONLY_API_KEY",
+  "QDRANT_TLS_DIR",
   "QDRANT_TLS_CA_CERT_PATH",
   "PERSONAL_MEMORY_BASE_URL",
   "PERSONAL_MEMORY_API_SECRET",
@@ -845,6 +847,9 @@ if (resolved.get("QDRANT_READ_ONLY_API_KEY")) {
   resolved.set("QDRANT_QUERY_API_KEY", resolved.get("QDRANT_READ_ONLY_API_KEY"));
 } else if (!resolved.has("QDRANT_QUERY_API_KEY")) {
   resolved.set("QDRANT_QUERY_API_KEY", "");
+}
+if (!resolved.has("QDRANT_TLS_DIR") && resolved.get("QDRANT_TLS_CA_CERT_PATH")) {
+  resolved.set("QDRANT_TLS_DIR", path.dirname(resolved.get("QDRANT_TLS_CA_CERT_PATH")));
 }
 resolved.set(
   "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",

@@ -12,7 +12,7 @@ from openai import AsyncOpenAI, OpenAI
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 
-DEFAULT_EMBEDDING_PROVIDER = "gitee"
+DEFAULT_EMBEDDING_PROVIDER = "openai-compatible"
 DEFAULT_EMBEDDING_MODEL = "Qwen3-Embedding-4B"
 DEFAULT_EMBEDDING_TIMEOUT_SECONDS = 60.0
 DEFAULT_EMBED_BATCH_SIZE = 100

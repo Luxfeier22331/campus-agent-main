@@ -40,7 +40,7 @@ describe("local provider-config seed script", () => {
 					baseUrl: "https://ai.gitee.com/v1",
 					capabilities: ["embedding"],
 					capabilityConfig: {},
-					provider: "gitee",
+					provider: "openai-compatible",
 				},
 				{
 					apiKey: "rerank-key",

@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import json
 import unittest
+from pathlib import Path
 
 from campus_ingestion_core import default_query_scopes, load_runtime_profile
 from campus_ingestion_core.corpus_profiles import (
@@ -12,6 +14,22 @@ from campus_ingestion_core.corpus_profiles import (
 
 
 class CorpusRuntimeProfileTest(unittest.TestCase):
+    def test_default_query_enabled_retrieval_profiles_declare_embedding_query_instruction(
+        self,
+    ) -> None:
+        config_root = Path("configs/ingestion")
+
+        for corpus, collection in default_query_scopes():
+            with self.subTest(scope=f"{corpus}/{collection}"):
+                payload = json.loads(
+                    (config_root / corpus / collection / "runtime-profile.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+
+                self.assertIsInstance(payload.get("embedding_query_instruction"), str)
+                self.assertTrue(payload["embedding_query_instruction"].strip())
+
     def test_load_student_handbook_runtime_profile_requires_split_manifest(self) -> None:
         profile = load_runtime_profile("regulations", "student_rules")
 

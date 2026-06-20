@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 
 from campus_ingestion_core.curriculum_chunk_units import _normalize_curriculum_structural_path
@@ -25,6 +26,8 @@ def build_collection_semantic_metadata(
     metadata: dict[str, object],
     text: str,
 ) -> dict[str, object]:
+    if record.corpus == "curriculum" and record.collection == "curriculum_plan":
+        return build_curriculum_plan_semantic_metadata(unit_type=unit_type, text=text)
     if record.corpus != "regulations":
         return {}
     semantics = derive_handbook_semantic_metadata(
@@ -67,6 +70,49 @@ def build_collection_semantic_metadata(
         **semantic_metadata,
         **release_metadata,
     }
+
+
+_CURRICULUM_HEADING_ONLY_RE = re.compile(
+    r"^(?:"
+    r".{2,80}人才培养方案|"
+    r"[一二三四五六七八九十]+、.{1,40}|"
+    r"[（(][一二三四五六七八九十]+[）)].{1,40}|"
+    r"\d+[.、]\s*.{1,40}|"
+    r".{1,40}(?:课程清单|课程设置|修读建议)[:：]?"
+    r")$"
+)
+
+
+def build_curriculum_plan_semantic_metadata(
+    *,
+    unit_type: str,
+    text: str,
+) -> dict[str, object]:
+    content_role = "curriculum_supporting_detail"
+    if unit_type == "table_unit":
+        content_role = "curriculum_course_table"
+    elif unit_type == "section_text":
+        content_role = "curriculum_section_text"
+    return {
+        "content_role": content_role,
+        "is_answer_bearing": _is_curriculum_answer_bearing_chunk(
+            unit_type=unit_type,
+            text=text,
+        ),
+        "semantic_role": content_role,
+        "semantic_policy_version": "curriculum_plan_answer_bearing_v1",
+    }
+
+
+def _is_curriculum_answer_bearing_chunk(*, unit_type: str, text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    if not lines:
+        return False
+    if unit_type == "table_unit":
+        return any("|" in line for line in lines)
+    if unit_type != "section_text":
+        return False
+    return len(lines) != 1 or _CURRICULUM_HEADING_ONLY_RE.match(lines[0]) is None
 
 
 def build_handbook_answer_role_release_metadata(

@@ -214,7 +214,9 @@ function parseEmbeddingArgs(
 		),
 		model: model || "Qwen3-Embedding-4B",
 		provider:
-			readCli(values, "embedding-provider") || readEnv(env, "EMBEDDING_PROVIDER") || "gitee",
+			readCli(values, "embedding-provider") ||
+			readEnv(env, "EMBEDDING_PROVIDER") ||
+			"openai-compatible",
 		timeoutMs: parsePositiveInteger(
 			readCli(values, "embedding-timeout-ms") || "30000",
 			"--embedding-timeout-ms",

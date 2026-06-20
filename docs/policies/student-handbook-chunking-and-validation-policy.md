@@ -50,9 +50,10 @@ updated: 2026-05-07
 
 - handbook phase-1 必须显式请求 `Qwen3-Embedding-4B` 的 native `2560` 维向量
 - 不允许依赖兼容 API 的默认维度推断；如果 provider 默认返回 `1024`，必须通过显式参数覆盖
-- 当前项目的 provider reality 固定为：通过 `gitee` 官方 OpenAI-compatible embeddings 接口请求
-  `Qwen3-Embedding-4B`
-- `gitee` 路径下显式请求 `dimensions=2560` 已在本项目中验证通过；这里不再把 `2560` 视为待 provider 核验的假设
+- 当前项目的 provider enum 固定为 `openai-compatible`；endpoint reality 为通过 Gitee
+  OpenAI-compatible embeddings 接口请求 `Qwen3-Embedding-4B`
+- Gitee endpoint 路径下显式请求 `dimensions=2560` 已在本项目中验证通过；这里不再把 `2560`
+  视为待 provider 核验的假设
 - handbook 的 token budget、Qdrant collection 规划和回放验证都以 `2560` 维运行契约为前提
 
 字段边界：
