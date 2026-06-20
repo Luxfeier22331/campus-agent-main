@@ -41,7 +41,7 @@
 		"retrieval_max_concurrent": 4,
 		"synthesis_max_concurrent": 2,
 		"embedding_timeout_ms": 10000,
-		"qdrant_timeout_ms": 10000,
+		"qdrant_timeout_ms": 60000,
 		"provider_timeout_ms": 60000
 	},
 	"personal_memory": {

@@ -337,25 +337,26 @@ root convenience keys：
 
 当前 owner：
 
-- `apps/app-api`
+- `infra/otel`
 
 默认放置位置：
 
-- `apps/app-api/.dev.vars`
-- deploy-side Cloudflare secret store
+- OTel Collector deployment secret store
+- ignored local runtime env
 
 相关键：
 
-- `AXIOM_ENDPOINT`
-- `AXIOM_DATASET`
-- `AXIOM_TOKEN`
+- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT`
+- `OTEL_COLLECTOR_AXIOM_AUTH_HEADER`
+- `OTEL_COLLECTOR_AXIOM_EVENTS_DATASET`
 
 获取方式：
 
 1. 在 Axiom 确认组织的 edge deployment。
 1. 在 **Settings > Datasets and views** 创建 dataset。
-1. 在 **Settings > API tokens** 创建 API token。
-1. 把 edge deployment 对应的 base domain 作为 `AXIOM_ENDPOINT`。
+1. 在 **Settings > API tokens** 创建 Collector exporter 使用的 API token。
+1. 把 edge deployment 对应的 base domain 作为
+   `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT`。
 
 外部参考：
 
@@ -366,12 +367,14 @@ root convenience keys：
 
 说明：
 
-- `AXIOM_ENDPOINT` 应写成类似 `<https://us-east-1.aws.edge.axiom.co`>
-- `AXIOM_DATASET` 当前按 project 命名，例如 `campus-agent-runtime`；environment、
-  service 与 signal 维度通过 `deployment.environment`、`service.name`、`signal_type`、
-  `event_type` 等低基数字段区分
+- `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` 应写成类似
+  `<https://us-east-1.aws.edge.axiom.co>`，不要附加 `/v1/traces` 或 `/v1/logs`
+- `OTEL_COLLECTOR_AXIOM_EVENTS_DATASET` 当前按 project 命名，例如
+  `campus-agent-runtime`；environment、service 与 signal 维度通过
+  `deployment.environment`、`service.name`、`signal_type`、`event_type` 等低基数字段区分
 - 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
-- 当前 `.dev.vars.example` 已明确要求使用 ingest API token，不要把 PAT 当成长期 ingest token
+- `apps/app-api` 不再配置 direct Axiom REST ingest；Worker-origin telemetry 通过
+  controlled OTLP ingest gateway 进入 Collector
 
 ## 10. Langfuse
 

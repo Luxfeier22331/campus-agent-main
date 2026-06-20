@@ -11,6 +11,7 @@ from scripts.check_runtime_otel_collector_config import validate_langfuse_collec
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LOCAL_CONFIG = REPO_ROOT / "infra/otel/collector-local-debug.yaml"
+LOCAL_PRODLIKE_CONFIG = REPO_ROOT / "infra/otel/collector-local-prodlike.yaml"
 STAGING_CONFIG = REPO_ROOT / "infra/otel/collector-staging-template.yaml"
 ENV_EXAMPLE = REPO_ROOT / "infra/otel/collector.env.example"
 RUNBOOK = REPO_ROOT / "docs/runbooks/runtime-otel-collector-pipeline.md"
@@ -73,6 +74,40 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             exporters={"debug"},
         )
 
+    def test_local_prodlike_collector_fans_out_traces_to_langfuse(self) -> None:
+        config = _load_yaml(LOCAL_PRODLIKE_CONFIG)
+
+        self.assertIn("otlphttp/langfuse", config["exporters"])
+        self.assertIn("debug", config["exporters"])
+        self.assert_processor_chain(config)
+        self.assert_pipeline(
+            config,
+            "traces",
+            processors=[*COMMON_PROCESSORS, "batch"],
+            exporters={"otlphttp/langfuse", "debug"},
+        )
+        self.assert_pipeline(
+            config,
+            "metrics",
+            processors=[*COMMON_PROCESSORS, "batch"],
+            exporters={"debug"},
+        )
+        self.assert_pipeline(
+            config,
+            "logs",
+            processors=[*COMMON_PROCESSORS, "batch"],
+            exporters={"debug"},
+        )
+        exporter = config["exporters"]["otlphttp/langfuse"]
+        self.assertEqual(exporter["endpoint"], "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}")
+        self.assertEqual(
+            exporter["headers"],
+            {
+                "authorization": "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}",
+                "x-langfuse-ingestion-version": "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}",
+            },
+        )
+
     def test_staging_collector_config_fans_out_to_sentry_axiom_and_debug(self) -> None:
         config = _load_yaml(STAGING_CONFIG)
 
@@ -116,7 +151,11 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         self.assert_env_only_secret_values(config)
 
     def test_collector_configs_delete_forbidden_attributes(self) -> None:
-        for config in (_load_yaml(LOCAL_CONFIG), _load_yaml(STAGING_CONFIG)):
+        for config in (
+            _load_yaml(LOCAL_CONFIG),
+            _load_yaml(LOCAL_PRODLIKE_CONFIG),
+            _load_yaml(STAGING_CONFIG),
+        ):
             actions = config["processors"]["attributes/drop_forbidden"]["actions"]
             delete_keys = {
                 str(action["key"]) for action in actions if action.get("action") == "delete"
@@ -246,6 +285,23 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}",
             compose,
         )
+
+    def test_runtime_compose_routes_worker_otlp_through_controlled_ingest_gateway(
+        self,
+    ) -> None:
+        compose = RUNTIME_COMPOSE.read_text(encoding="utf-8")
+
+        self.assertIn("otel-ingest-gateway:", compose)
+        self.assertIn("dockerfile: apps/otel-ingest-gateway/Dockerfile", compose)
+        self.assertIn(
+            "OTEL_INGEST_COLLECTOR_HTTP_ENDPOINT: http://otel-collector:4318",
+            compose,
+        )
+        self.assertIn(
+            "OTEL_INGEST_SHARED_SECRET: ${OTEL_INGEST_SHARED_SECRET:?set OTEL_INGEST_SHARED_SECRET}",
+            compose,
+        )
+        self.assertNotIn("${OTEL_COLLECTOR_HOST_PORT", compose)
         self.assertIn(
             "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "
             "${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:?set "

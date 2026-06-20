@@ -164,8 +164,8 @@ structured output + code-side finalization`
   `untrusted content`，不得进入 developer / trusted instruction zone
 - package-owned role prompt 可以继续使用 markdown template 资产，但进入 provider runtime
   时必须按 trusted / untrusted zone 显式拼装
-- product-path 最终必须能稳定落下
-  `prompt_id`、`prompt_version`、`template_sha256`、`model_provider`、`model_name`
+- product-path 最终必须能稳定落下 LLM I/O schema id、model provider / model name、
+  provider response id 与 sanitized runtime trace metadata
 
 因此，repo 最终不追求：
 
@@ -175,10 +175,10 @@ structured output + code-side finalization`
 
 repo 最终追求的是：
 
-- 一个极薄、稳定、可版本化的 repo-global invariants block
+- 一个极薄、稳定的 repo-global invariants block
 - 按 execution / agent / mode 拆分的 package-owned prompt family
 - 明确的 trusted task packet 与 untrusted evidence packet 分区
-- strict structured outputs、grounding validator 与 code-owned finalization
+- strict structured outputs、code-side validation 与 code-owned finalization
 
 ## Package-Owned Prompt Shape
 
@@ -291,15 +291,15 @@ prompt-facing vocabulary 规则固定为：
 - 不把 `knowledge` / `navigation` 这类 raw capability id 当作默认 prompt persona
   名称
 
-每个 prompt family 至少包含：
+每个 LLM I/O asset 至少包含：
 
-- `prompt_id`
-- `version`
 - `owner_package`
 - `runtime_target`
 - `capability_family`
 - `supported_modes`
-- `variables_schema_version`
 - `output_schema_version`
-- `template_sha256`
+- `input_packet_schema`
+- `tool_schema_refs`
+- `model_provider`
+- `model_name`
 - `eval_suite`

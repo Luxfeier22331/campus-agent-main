@@ -149,6 +149,10 @@ const AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<string>>(
 	],
 ]);
 
+export const LEGACY_AXIOM_ALLOWED_EVENT_TYPES = Array.from(
+	AXIOM_ALLOWED_FIELDS_BY_EVENT_TYPE.keys(),
+);
+
 type AxiomScalar = boolean | number | string | null;
 
 function buildAxiomIngestUrl(endpoint: string, dataset: string): string {

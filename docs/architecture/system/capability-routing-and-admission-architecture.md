@@ -391,7 +391,7 @@ first Execution Agent decision 还必须能表达 no-tool terminal intent，例�
 - `unsupported_or_not_grounded`
 
 这些 terminal intent 不等于 capability id，`selected_capability` 可以为空或 `none`，
-但必须保留 decision provenance、instructions/prompt version 与 fail-close reason。
+但必须保留 decision provenance、LLM I/O schema provenance 与 fail-close reason。
 
 补充约束：
 

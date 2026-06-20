@@ -1,8 +1,10 @@
 import { summarizeObservedSources } from "../source-trace";
 import type {
+	CapabilityExecutionModelUsageSummary,
 	CapabilityExecutionObservability,
 	CapabilityExecutionPromptTrace,
 	CapabilityExecutionResponse,
+	CapabilityExecutionUsageSummary,
 	CapabilityExecutionWorkflowTraceSummary,
 } from "./capability-execution-types";
 import {
@@ -259,6 +261,50 @@ function parsePromptTrace(value: unknown): CapabilityExecutionPromptTrace | null
 	return parsed;
 }
 
+function parseModelUsageSummary(value: unknown): CapabilityExecutionModelUsageSummary | null {
+	const record = getRecord(value);
+	if (!record) {
+		return null;
+	}
+	return {
+		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens) ?? 0,
+		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd) ?? 0,
+		inputTokens: normalizeNullableNumber(record.input_tokens) ?? 0,
+		modelName: normalizeNullableString(record.model_name),
+		modelProvider: normalizeNullableString(record.model_provider),
+		outputTokens: normalizeNullableNumber(record.output_tokens) ?? 0,
+		stepCount: normalizeNullableNumber(record.step_count) ?? 0,
+	};
+}
+
+function parseUsageSummary(value: unknown): CapabilityExecutionUsageSummary | null {
+	const record = getRecord(value);
+	if (!record) {
+		return null;
+	}
+	const modelUsageValue = record.model_usage;
+	const modelUsage = Array.isArray(modelUsageValue)
+		? modelUsageValue.flatMap((item) => {
+				const parsed = parseModelUsageSummary(item);
+				return parsed ? [parsed] : [];
+			})
+		: [];
+	const parsed: CapabilityExecutionUsageSummary = {
+		billableStepCount: normalizeNullableNumber(record.billable_step_count) ?? 0,
+		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens) ?? 0,
+		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd) ?? 0,
+		inputTokens: normalizeNullableNumber(record.input_tokens) ?? 0,
+		modelName: normalizeNullableString(record.model_name),
+		modelProvider: normalizeNullableString(record.model_provider),
+		modelUsage,
+		outputTokens: normalizeNullableNumber(record.output_tokens) ?? 0,
+	};
+	if (parsed.billableStepCount <= 0 && parsed.modelUsage.length === 0) {
+		return null;
+	}
+	return parsed;
+}
+
 function parseExecutionObservability(value: unknown): CapabilityExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
@@ -319,6 +365,7 @@ function parseExecutionObservability(value: unknown): CapabilityExecutionObserva
 		toolBusinessOutcome: normalizeNullableString(record.tool_business_outcome),
 		toolFailCloseReason: normalizeNullableString(record.tool_fail_close_reason),
 		toolHistoricalDowngradeReason: normalizeNullableString(record.tool_historical_downgrade_reason),
+		usageSummary: parseUsageSummary(record.usage_summary),
 		...(resolvedScopeCollection ? { resolvedScopeCollection } : {}),
 		...(resolvedScopeCorpus ? { resolvedScopeCorpus } : {}),
 	};

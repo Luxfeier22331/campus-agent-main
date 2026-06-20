@@ -1,10 +1,12 @@
-import { Agent, type ModelProvider, Runner, tool } from "@openai/agents";
+import { Agent, type AgentOutputType, type ModelProvider, Runner, tool } from "@openai/agents";
+import { z } from "zod";
 import type {
 	AgentRunner,
 	PromptProviderRuntimeConfig,
 	RunnerToolCall,
 	ToolExecutionResult,
 } from "./primary-agent.ts";
+import { finalOutputFromTerminalEnvelope, terminalEnvelopeFromUnknown } from "./primary-agent.ts";
 
 const emptyParametersSchema = {
 	type: "object" as const,
@@ -12,6 +14,19 @@ const emptyParametersSchema = {
 	properties: {},
 	required: [],
 };
+
+const primaryAgentTerminalOutputSchema = z.object({
+	kind: z.enum([
+		"answer",
+		"clarification_required",
+		"out_of_scope",
+		"policy_refusal",
+		"unsupported_by_evidence",
+	]),
+	answerText: z.string().min(1).optional(),
+	followUpQuestion: z.string().min(1).optional(),
+	reason: z.string().min(1).optional(),
+});
 
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
@@ -23,8 +38,8 @@ export interface OpenAIAgentsRunnerOptions {
 	) => Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">;
 }
 
-export type OpenAIAgentsRunFunction = (
-	agent: Agent,
+export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
+	agent: Agent<unknown, TOutput>,
 	input: string,
 	options: {
 		maxTurns: number;
@@ -83,6 +98,7 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			name: "Campus primary assistant",
 			instructions: input.instructions,
 			model: requestOptions.model?.trim() || undefined,
+			outputType: primaryAgentTerminalOutputSchema,
 			tools: sdkTools,
 		});
 		const result = await runSdk(agent, input.input, {
@@ -93,9 +109,14 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 			traceIncludeSensitiveData: false,
 			signal: input.signal,
 		});
+		const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
 		return {
-			finalOutput: String(result.finalOutput ?? ""),
+			finalOutput:
+				terminalEnvelope === undefined
+					? String(result.finalOutput ?? "")
+					: finalOutputFromTerminalEnvelope(terminalEnvelope),
 			providerResponseId: providerResponseIDFromResult(result),
+			terminalEnvelope,
 			toolCalls: toolCallsFromItems(result.newItems ?? []),
 			traceRef: traceRefFromResult(result),
 			usage: usageFromResult(result),

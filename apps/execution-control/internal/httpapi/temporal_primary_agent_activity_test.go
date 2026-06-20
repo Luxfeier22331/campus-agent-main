@@ -38,6 +38,9 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 			"status":               "completed",
 			"run_id":               "run-primary-agent-001",
 			"final_output":         "你好，我是校园问答助手。",
+			"model_name":           "gpt-test",
+			"model_provider":       "openai",
+			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-001",
 			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-001",
 			"selected_tools":       []string{},
@@ -96,6 +99,12 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if output.FinalOutput != "你好，我是校园问答助手。" || output.ProviderResponseID != "resp-primary-agent-001" {
 		t.Fatalf("unexpected output: %#v", output)
 	}
+	if output.ModelProvider != "openai" || output.ModelName != "gpt-test" {
+		t.Fatalf("output model = %q/%q, want openai/gpt-test", output.ModelProvider, output.ModelName)
+	}
+	if output.TerminalEnvelope["kind"] != "answer" || output.TerminalEnvelope["answer_text"] != "你好，我是校园问答助手。" {
+		t.Fatalf("terminal envelope = %#v", output.TerminalEnvelope)
+	}
 	run, err := store.GetRun(context.Background(), "run-primary-agent-001")
 	if err != nil {
 		t.Fatalf("get run: %v", err)
@@ -113,12 +122,25 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	if agentMetadata["agent_result_ref"] != output.AgentResultRef {
 		t.Fatalf("agent metadata = %#v", agentMetadata)
 	}
+	envelope, ok := agentMetadata["terminal_envelope"].(map[string]any)
+	if !ok || envelope["kind"] != "answer" {
+		t.Fatalf("agent metadata missing terminal envelope: %#v", agentMetadata)
+	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-001")
 	if err != nil {
 		t.Fatalf("list run steps: %v", err)
 	}
 	if len(steps) != 1 || steps[0].StepID != "agent.primary" || steps[0].Status != "completed" {
 		t.Fatalf("projected steps = %#v", steps)
+	}
+	attempts, err := store.ListStepAttempts(context.Background(), "run-primary-agent-001")
+	if err != nil {
+		t.Fatalf("list step attempts: %v", err)
+	}
+	if len(attempts) != 1 ||
+		attempts[0].ModelProvider != "openai" ||
+		attempts[0].ModelName != "gpt-test" {
+		t.Fatalf("projected attempts = %#v, want primary agent model", attempts)
 	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-001")
 	if err != nil {
@@ -129,6 +151,66 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		execution.DurableRunEventTypeRunStarted,
 		execution.DurableRunEventTypeAgentCompleted,
 	})
+}
+
+func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 32, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-empty-memory",
+		"conv-primary-agent-empty-memory",
+		now,
+		ragHandoffForDurableWorkerTest("hi 你是谁"),
+	)
+	var seenBody map[string]any
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
+			t.Fatalf("decode agent runtime request: %v", err)
+		}
+		writeJSON(response, http.StatusOK, map[string]any{
+			"status":               "completed",
+			"run_id":               "run-primary-agent-empty-memory",
+			"final_output":         "你好，我是校园问答助手。",
+			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
+			"provider_response_id": "resp-primary-agent-empty-memory",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-empty-memory",
+			"selected_tools":       []string{},
+			"tool_results":         []any{},
+			"terminal_reason":      "answer_completed",
+			"usage": map[string]any{
+				"input_tokens":             12,
+				"output_tokens":            8,
+				"cached_input_tokens":      0,
+				"estimated_cost_micro_usd": 42,
+			},
+		})
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:empty-memory",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		ConversationID:      "conv-primary-agent-empty-memory",
+		RequestID:           "req-primary-agent-empty-memory",
+		RunID:               "run-primary-agent-empty-memory",
+		TraceID:             "trace-executor-001",
+		TurnID:              "turn-primary-agent-empty-memory",
+		VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+	})
+	if err != nil {
+		t.Fatalf("execute primary agent: %v", err)
+	}
+	if _, ok := seenBody["memory_context"]; ok {
+		t.Fatalf("agent runtime request must omit empty memory_context: %#v", seenBody)
+	}
 }
 
 func TestExecutePrimaryAgentActivityFailsClosedWhenRuntimeNotConfigured(t *testing.T) {
@@ -362,6 +444,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 		for key, value := range map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "你好，我是校园问答助手。",
+			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
 			"provider_response_id": "resp-primary-agent-finalization",
 			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-finalization",
 			"selected_tools":       []string{"transport_schedule_lookup"},
@@ -480,96 +563,6 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 }
 
-func TestWriteFinalizationActivityKeepsDirectPrimaryAgentCapability(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	now := time.Date(2026, 6, 12, 11, 45, 0, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-primary-agent-direct-finalization",
-		"conv-primary-agent-direct-finalization",
-		now,
-		nil,
-	)
-	server := NewServer(config.Config{TemporalWorkerIdentity: "test:finalization:direct"})
-	attachRunProjectionStoreForHandlerTest(server, store)
-	agentResultRef := temporalProjectionRef("run-primary-agent-direct-finalization", "agent/primary/result")
-	run, err := store.GetRun(context.Background(), "run-primary-agent-direct-finalization")
-	if err != nil {
-		t.Fatalf("get run: %v", err)
-	}
-	if err := server.replaceTemporalAgentMetadata(context.Background(), run, func(metadata map[string]any) {
-		for key, value := range map[string]any{
-			"agent_result_ref":     agentResultRef,
-			"final_output":         "你好，我是校园问答助手。",
-			"provider_response_id": "resp-primary-agent-direct-finalization",
-			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-direct-finalization",
-			"selected_tools":       []string{},
-			"tool_results":         []map[string]any{},
-			"terminal_reason":      "answer_completed",
-		} {
-			metadata[key] = value
-		}
-	}); err != nil {
-		t.Fatalf("replace temporal agent metadata: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-direct-finalization",
-		execution.DurableRunStatusAdmitted,
-		"",
-		now.Add(2*time.Second),
-	); err != nil {
-		t.Fatalf("admit run: %v", err)
-	}
-	if _, err := store.TransitionRun(
-		context.Background(),
-		"run-primary-agent-direct-finalization",
-		execution.DurableRunStatusRunning,
-		"",
-		now.Add(3*time.Second),
-	); err != nil {
-		t.Fatalf("run run: %v", err)
-	}
-
-	_, err = server.WriteFinalizationActivity(
-		context.Background(),
-		temporalruntime.WriteFinalizationActivityInput{
-			AgentResultRef: agentResultRef,
-			RunID:          "run-primary-agent-direct-finalization",
-			TraceID:        "trace-executor-001",
-		},
-	)
-	if err != nil {
-		t.Fatalf("write finalization: %v", err)
-	}
-	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-direct-finalization")
-	if err != nil {
-		t.Fatalf("list events: %v", err)
-	}
-	var finalizationResponse map[string]any
-	for _, event := range events {
-		if event.EventType == execution.DurableRunEventTypeFinalizationCompleted {
-			var ok bool
-			finalizationResponse, ok = event.Payload["response"].(map[string]any)
-			if !ok {
-				t.Fatalf("finalization response payload = %#v", event.Payload["response"])
-			}
-		}
-	}
-	if finalizationResponse == nil {
-		t.Fatal("finalization.completed event missing")
-	}
-	if finalizationResponse["selected_capability"] != "primary_agent" {
-		t.Fatalf("selected_capability = %#v, want primary_agent for direct no-tool branch", finalizationResponse["selected_capability"])
-	}
-	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if workflowTrace["selected_capability"] != "primary_agent" ||
-		workflowTrace["direct_vs_delegate_branch"] != "direct_answer" {
-		t.Fatalf("workflow trace = %#v", workflowTrace)
-	}
-}
-
 func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 12, 0, 0, 0, time.UTC)
@@ -592,6 +585,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 		for key, value := range map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "请问你要查询哪条校车线路或哪个校区？",
+			"terminal_envelope":    map[string]any{"kind": "clarification_required", "follow_up_question": "请问你要查询哪条校车线路或哪个校区？"},
 			"provider_response_id": "resp-primary-agent-clarification",
 			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-clarification",
 			"selected_tools":       []string{},
@@ -697,6 +691,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentOutOfScopeAsRejected(t *t
 		for key, value := range map[string]any{
 			"agent_result_ref":     agentResultRef,
 			"final_output":         "这个请求不属于校园问答助手当前可处理的范围。",
+			"terminal_envelope":    map[string]any{"kind": "out_of_scope", "reason": "这个请求不属于校园问答助手当前可处理的范围。"},
 			"provider_response_id": "resp-primary-agent-out-of-scope",
 			"sdk_trace_ref":        "trace://openai-agents/trace-primary-agent-out-of-scope",
 			"selected_tools":       []string{},

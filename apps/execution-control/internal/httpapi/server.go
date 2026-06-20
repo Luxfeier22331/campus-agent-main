@@ -322,7 +322,7 @@ func newTemporalStarter(cfg config.Config) (temporalruntime.ChatWorkflowStarter,
 	if strings.TrimSpace(cfg.TemporalAddress) == "" && strings.TrimSpace(cfg.TemporalNamespace) == "" {
 		return nil, temporalruntime.ErrTemporalStarterNotConfigured
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return temporalruntime.NewStarter(ctx, temporalruntime.StarterOptions{
 		ActivityTaskQueues: requiredTemporalActivityTaskQueueNames(cfg),
@@ -343,7 +343,7 @@ func newWorkflowRunStore(cfg config.Config) (execution.WorkflowRunStore, error) 
 	if strings.TrimSpace(cfg.WorkflowRunDatabaseURL) == "" {
 		return nil, nil
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	return execution.NewPostgresWorkflowRunStore(ctx, execution.PostgresWorkflowRunStoreOptions{
 		DatabaseURL: strings.TrimSpace(cfg.WorkflowRunDatabaseURL),

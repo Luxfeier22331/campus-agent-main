@@ -112,4 +112,54 @@ describe("execution finalization canonical response fixtures", () => {
 			},
 		});
 	});
+
+	it("parses canonical usage summary from finalization observability", () => {
+		const payload = loadFixture("response_temporal_finalization.valid.json");
+		payload.observability = {
+			...(payload.observability as Record<string, unknown>),
+			usage_summary: {
+				billable_step_count: 2,
+				cached_input_tokens: 12,
+				estimated_cost_microusd: 60920,
+				input_tokens: 18550,
+				model_name: null,
+				model_provider: null,
+				model_usage: [
+					{
+						cached_input_tokens: 0,
+						estimated_cost_microusd: 0,
+						input_tokens: 11268,
+						model_name: "gpt-5.5",
+						model_provider: "openai",
+						output_tokens: 494,
+						step_count: 1,
+					},
+					{
+						cached_input_tokens: 12,
+						estimated_cost_microusd: 60920,
+						input_tokens: 7282,
+						model_name: "gpt-4.1",
+						model_provider: "openai",
+						output_tokens: 817,
+						step_count: 1,
+					},
+				],
+				output_tokens: 1311,
+			},
+		};
+
+		expect(parseExecutionFinalizationResponsePayload(payload)).toMatchObject({
+			observability: {
+				usageSummary: {
+					billableStepCount: 2,
+					cachedInputTokens: 12,
+					estimatedCostMicrousd: 60920,
+					inputTokens: 18550,
+					modelName: null,
+					modelProvider: null,
+					outputTokens: 1311,
+				},
+			},
+		});
+	});
 });

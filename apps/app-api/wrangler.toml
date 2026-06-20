@@ -19,8 +19,9 @@ APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
-EXECUTION_CONTROL_TIMEOUT_MS = "8000"
+EXECUTION_CONTROL_TIMEOUT_MS = "180000"
 CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"
+APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:27081"
 
 [env.local.secrets]
 required = [
@@ -32,6 +33,7 @@ required = [
   "APP_API_INTERNAL_SHARED_SECRET",
   "APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
   "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
+  "APP_API_OTEL_INGEST_SHARED_SECRET",
 ]
 
 [[env.staging.routes]]
@@ -47,8 +49,7 @@ APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
 EXECUTION_CONTROL_TIMEOUT_MS = "95000"
 CHATKIT_ADAPTER_BASE_URL = "https://chatkit-adapter-staging.mucwiki-edge.link"
 SENTRY_ENVIRONMENT = "staging"
-AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"
-AXIOM_DATASET = "campus-agent-runtime"
+APP_API_OTEL_INGEST_ENDPOINT = "https://otel-ingest-staging.mucwiki-edge.link"
 
 [env.staging.secrets]
 required = [
@@ -63,7 +64,7 @@ required = [
   "APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
   "APP_API_STAGING_SMOKE_AUTH_SECRET",
   "SENTRY_DSN",
-  "AXIOM_TOKEN",
+  "APP_API_OTEL_INGEST_SHARED_SECRET",
 ]
 
 [[env.staging.hyperdrive]]

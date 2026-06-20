@@ -20,9 +20,6 @@ execution_control_staging_collector_logs_have_export_errors() {
 
 execution_control_staging_validate_axiom_collector_endpoint() {
   local endpoint="${OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT:-}"
-  local source_endpoint="${AXIOM_ENDPOINT:-}"
-  local normalized_endpoint="${endpoint%/}"
-  local normalized_source_endpoint="${source_endpoint%/}"
 
   if [[ -z "${endpoint}" ]]; then
     return 0
@@ -38,23 +35,12 @@ Current value: ${endpoint}
 EOF
     return 1
   fi
-
-  if [[ -n "${source_endpoint}" && "${normalized_endpoint}" != "${normalized_source_endpoint}" ]]; then
-    cat >&2 <<EOF
-OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and Collector
-export to the same Axiom edge deployment.
-AXIOM_ENDPOINT=${source_endpoint}
-OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=${endpoint}
-EOF
-    return 1
-  fi
 }
 
 execution_control_staging_require_observability_sink_env() {
   local missing_keys=()
   local required_key
   for required_key in \
-    AXIOM_ENDPOINT \
     OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT \
     OTEL_COLLECTOR_SENTRY_AUTH_VALUE \
     OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT \

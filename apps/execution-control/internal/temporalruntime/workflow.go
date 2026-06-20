@@ -108,8 +108,7 @@ func executePrimaryAgentWithBoundedReplan(
 	memory MemoryRecallActivityOutput,
 	requestedCapability string,
 ) (ExecutePrimaryAgentActivityOutput, error) {
-	agentOptions := activityOptions
-	agentOptions.TaskQueue = ActivityTaskQueueAgent
+	agentOptions := primaryAgentActivityOptions(activityOptions)
 	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
 	visibleCapabilities := visibleCapabilitiesForPrimaryAgent(requestedCapability)
 	agentInput := ExecutePrimaryAgentActivityInput{
@@ -138,6 +137,13 @@ func executePrimaryAgentWithBoundedReplan(
 		return ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return retry, nil
+}
+
+func primaryAgentActivityOptions(base workflow.ActivityOptions) workflow.ActivityOptions {
+	options := base
+	options.TaskQueue = ActivityTaskQueueAgent
+	options.StartToCloseTimeout = 180 * time.Second
+	return options
 }
 
 func primaryAgentSelectedKnowledge(agent ExecutePrimaryAgentActivityOutput) bool {

@@ -45,8 +45,8 @@ code-owned runtime seam。当前接受的实现基线是：
   validation / normalization / trace
 - provider `refusal`、`incomplete` 与 request/schema failure 必须在 RAG prompt execution
   path fail-close，不得被当作 schema-valid success 放行
-- `apps/app-api`、operator observability 与 eval runtime 统一投影 `prompt_id`、`prompt_
-  version`、`template_sha256`、`model_execution_state`、`model_execution_detail`
+- `apps/app-api`、operator observability 与 eval runtime 统一投影 output schema、
+  provider response id、`model_execution_state` 与 `model_execution_detail`
 - curriculum / handbook 的 deterministic-first protected paths 继续保持
   deterministic-first，不因 prompt rollout 回退成 prompt-first
 - 当前 phase 顺序、剩余 rollout 与 pending work 不在本文维护；应以

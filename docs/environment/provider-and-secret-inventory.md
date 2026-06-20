@@ -222,14 +222,15 @@ doctor/env readiness contract。
   `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` 配置为只含 safe placeholder 的 trace URL 模板
 
 - Provider / system: Axiom
-  作用: `app-api` runtime logs / metrics ingest
-  主要 env keys: `AXIOM_ENDPOINT` `AXIOM_DATASET` `AXIOM_TOKEN`
+  作用: Collector fan-out 后的 runtime logs / trace query
+  主要 env keys: `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT`
+  `OTEL_COLLECTOR_AXIOM_AUTH_HEADER` `OTEL_COLLECTOR_AXIOM_EVENTS_DATASET`
   `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE`
-  放置位置: `apps/app-api/.dev.vars` 或 Cloudflare secret store
-  何时必需: `app-api` observability
+  放置位置: Collector deployment secret store 或 ignored local runtime env
+  何时必需: runtime observability fan-out
   获取方式: 在 Axiom 确认 edge deployment、创建 dataset、生成 API token；如果要在 panel
   中打开 request/error query，则把 `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` 配置为 safe
-  query URL 模板，panel 不直接查询 Axiom API
+  query URL 模板，panel 不直接查询 Axiom API；`app-api` Worker 不再配置 direct Axiom ingest
 
 - Provider / system: Langfuse
   作用: LLM observability、eval datasets、experiments、scores 与 annotation workflow

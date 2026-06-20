@@ -34,7 +34,14 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 		_, _ = response.Write([]byte(`{
 			"id":"resp_rag_123",
 			"model":"gpt-5-mini",
-			"output_parsed":{"answer_text":"学生应按学校规定办理请假手续。"},
+			"status":"completed",
+			"output_parsed":{
+				"answer_text":"学生应按学校规定办理请假手续。",
+				"semantic_outcome":"answer_from_selected_evidence",
+				"confidence":"high",
+				"used_evidence_refs":["source://student_rules"],
+				"grounding_notes":"The answer is grounded in the selected student handbook excerpt."
+			},
 			"usage":{
 				"input_tokens":400,
 				"output_tokens":100,
@@ -99,6 +106,78 @@ func TestProviderBackedRAGSynthesisExecutorBuildsSummaryAndAnswer(t *testing.T) 
 	if result.ProviderSummary.EstimatedCostMicroUSD != 296 {
 		t.Fatalf("estimated cost = %d, want 296", result.ProviderSummary.EstimatedCostMicroUSD)
 	}
+	if result.Confidence != "high" || result.SemanticOutcome != "answer_from_selected_evidence" {
+		t.Fatalf("structured synthesis result = %#v", result)
+	}
+}
+
+func TestProviderBackedRAGSynthesisExecutorFailsClosedWhenStructuredOutputMissingConfidence(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{
+			"id":"resp_rag_missing_confidence",
+			"model":"gpt-5-mini",
+			"status":"completed",
+			"output_parsed":{
+				"answer_text":"学生应按学校规定办理请假手续。",
+				"semantic_outcome":"answer_from_selected_evidence",
+				"used_evidence_refs":["source://student_rules"],
+				"grounding_notes":"The answer is grounded in selected evidence."
+			}
+		}`))
+	}))
+	defer server.Close()
+	executor := providerBackedRAGSynthesisExecutor{
+		clientFactory: func(providerConfigSnapshot) *provider.ResponsesClient {
+			return provider.NewResponsesClient(provider.ResponsesClientConfig{
+				APIKey:        "test-key",
+				BaseURL:       server.URL,
+				HTTPClient:    server.Client(),
+				ModelName:     "gpt-5-mini",
+				ModelProvider: "openai",
+			})
+		},
+	}
+
+	_, err := executor.ExecuteRAGSynthesis(context.Background(), validRAGSynthesisPacketForTest())
+	if err == nil {
+		t.Fatal("expected missing confidence to fail closed")
+	}
+}
+
+func TestProviderBackedRAGSynthesisExecutorFailsClosedWhenEvidenceRefWasNotSelected(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{
+			"id":"resp_rag_unknown_ref",
+			"model":"gpt-5-mini",
+			"status":"completed",
+			"output_parsed":{
+				"answer_text":"学生应按学校规定办理请假手续。",
+				"semantic_outcome":"answer_from_selected_evidence",
+				"confidence":"medium",
+				"used_evidence_refs":["source://not-selected"],
+				"grounding_notes":"The answer cites an unselected source."
+			}
+		}`))
+	}))
+	defer server.Close()
+	executor := providerBackedRAGSynthesisExecutor{
+		clientFactory: func(providerConfigSnapshot) *provider.ResponsesClient {
+			return provider.NewResponsesClient(provider.ResponsesClientConfig{
+				APIKey:        "test-key",
+				BaseURL:       server.URL,
+				HTTPClient:    server.Client(),
+				ModelName:     "gpt-5-mini",
+				ModelProvider: "openai",
+			})
+		},
+	}
+
+	_, err := executor.ExecuteRAGSynthesis(context.Background(), validRAGSynthesisPacketForTest())
+	if err == nil {
+		t.Fatal("expected unselected evidence ref to fail closed")
+	}
 }
 
 func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
@@ -147,4 +226,24 @@ func writeRAGPricingCatalogForTest(t *testing.T, body string) string {
 		t.Fatalf("write pricing catalog: %v", err)
 	}
 	return path
+}
+
+func validRAGSynthesisPacketForTest() ragSynthesisPacket {
+	return ragSynthesisPacket{
+		RunID:          "run-rag-provider",
+		StepID:         "synthesis",
+		RequestID:      "req-rag-provider",
+		QueryIntent:    "policy_answer",
+		OutputSchemaID: "rag_answer_v2",
+		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		PromptRefs:     []string{"prompt://rag/rag_answer_v2"},
+		SelectedEvidence: []ragruntime.EvidenceRef{{
+			SourceID:  "student_rules",
+			ChunkID:   "chunk-1",
+			SpanRef:   "span://student_rules/chunk-1#0-24",
+			Excerpt:   "学生应当按照学校规定办理请假手续。",
+			SourceRef: "source://student_rules",
+			Title:     "学生手册",
+		}},
+	}
 }

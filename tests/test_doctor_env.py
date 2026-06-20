@@ -451,7 +451,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(condition["ready"])
             self.assertIn("https://us-east-1.aws.edge.axiom.co", condition["error"])
 
-    def test_collect_env_doctor_status_execution_control_rejects_axiom_collector_endpoint_drift(
+    def test_collect_env_doctor_status_execution_control_accepts_collector_axiom_without_worker_axiom(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -462,8 +462,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         *_execution_control_required_env(),
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://api.axiom.co",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                     ]
                 )
                 + "\n",
@@ -476,11 +475,10 @@ class DoctorEnvTest(unittest.TestCase):
                     surface="execution-control",
                 )
 
-            self.assertFalse(status["overall_ready"])
             condition = status["conditions"]["otel_axiom_collector_endpoint_contract"]
             self.assertTrue(condition["required"])
-            self.assertFalse(condition["ready"])
-            self.assertIn("must match AXIOM_ENDPOINT", condition["error"])
+            self.assertTrue(condition["ready"])
+            self.assertIsNone(condition["error"])
 
     def test_collect_env_doctor_status_reports_query_surface_with_app_local_files(self) -> None:
         with TemporaryDirectory() as temp_dir:

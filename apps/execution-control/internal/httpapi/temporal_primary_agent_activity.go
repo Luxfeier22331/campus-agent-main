@@ -94,26 +94,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime status is %q", output.Status),
 		)
 	}
-	if strings.TrimSpace(output.FinalOutput) == "" && !primaryAgentOutputIsWorkflowSignal(output) {
-		return s.failPrimaryAgentActivity(
-			ctx,
-			run,
-			"agent_runtime_empty_output",
-			fmt.Errorf("agent runtime final_output is required"),
-		)
-	}
 	if output.TerminalReason == "" {
-		output.TerminalReason = string(execution.DurableTerminalReasonAnswerCompleted)
+		output.TerminalReason = primaryAgentActivityTerminalReason(output)
 	}
 	completedAt := time.Now().UTC()
-	payload := primaryAgentResultPayload(output)
-	if err := s.replaceTemporalAgentMetadata(ctx, run, func(metadata map[string]any) {
-		for key, value := range payload {
-			metadata[key] = value
-		}
-	}); err != nil {
-		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-	}
 	if err := s.projectPrimaryAgentToolResults(
 		ctx,
 		run,
@@ -124,6 +108,22 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		input.VisibleCapabilities,
 		output,
 	); err != nil {
+		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
+	}
+	if !primaryAgentOutputIsWorkflowSignal(output) && !validPrimaryAgentTerminalEnvelope(output.TerminalEnvelope) {
+		return s.failPrimaryAgentActivity(
+			ctx,
+			run,
+			"agent_runtime_missing_terminal_envelope",
+			fmt.Errorf("agent runtime terminal_envelope is required"),
+		)
+	}
+	payload := primaryAgentResultPayload(output)
+	if err := s.replaceTemporalAgentMetadata(ctx, run, func(metadata map[string]any) {
+		for key, value := range payload {
+			metadata[key] = value
+		}
+	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
@@ -141,6 +141,8 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		ResultKind:            "agent_final_output",
 		ProjectionRef:         agentResultRef,
 		ProviderResponseID:    output.ProviderResponseID,
+		ModelProvider:         output.ModelProvider,
+		ModelName:             output.ModelName,
 		InputTokens:           output.Usage.InputTokens,
 		OutputTokens:          output.Usage.OutputTokens,
 		CachedInputTokens:     output.Usage.CachedInputTokens,
@@ -422,17 +424,20 @@ func (s *Server) callAgentRuntime(
 	}
 	requestCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	body, err := json.Marshal(map[string]any{
+	payload := map[string]any{
 		"run_id":                 input.RunID,
 		"conversation_id":        input.ConversationID,
 		"turn_id":                input.TurnID,
 		"trace_id":               input.TraceID,
 		"input":                  primaryAgentInputText(run),
-		"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
 		"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
-	})
+	}
+	if memoryContext := temporalMemoryContextPayload(input.MemoryContext); memoryContext != nil {
+		payload["memory_context"] = memoryContext
+	}
+	body, err := json.Marshal(payload)
 	if err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, fmt.Errorf("encode agent runtime request: %w", err)
 	}
@@ -481,10 +486,13 @@ type agentRuntimeResponse struct {
 	Error              agentRuntimeError `json:"error"`
 	RunID              string            `json:"run_id"`
 	FinalOutput        string            `json:"final_output"`
+	ModelName          string            `json:"model_name"`
+	ModelProvider      string            `json:"model_provider"`
 	ProviderResponseID string            `json:"provider_response_id"`
 	SDKTraceRef        string            `json:"sdk_trace_ref"`
 	SelectedTools      []string          `json:"selected_tools"`
 	ToolResults        []agentToolResult `json:"tool_results"`
+	TerminalEnvelope   map[string]any    `json:"terminal_envelope"`
 	TerminalReason     string            `json:"terminal_reason"`
 	Usage              agentRuntimeUsage `json:"usage"`
 }
@@ -553,11 +561,14 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	}
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{
 		FinalOutput:        strings.TrimSpace(response.FinalOutput),
+		ModelName:          strings.TrimSpace(response.ModelName),
+		ModelProvider:      strings.TrimSpace(response.ModelProvider),
 		ProviderResponseID: strings.TrimSpace(response.ProviderResponseID),
 		RunID:              strings.TrimSpace(response.RunID),
 		SDKTraceRef:        strings.TrimSpace(response.SDKTraceRef),
 		SelectedTools:      append([]string{}, response.SelectedTools...),
 		Status:             strings.TrimSpace(response.Status),
+		TerminalEnvelope:   cloneAnyMapFromMetadata(response.TerminalEnvelope),
 		TerminalReason:     strings.TrimSpace(response.TerminalReason),
 		ToolResults:        toolResults,
 		Usage: temporalruntime.AgentUsageSummary{
@@ -616,9 +627,12 @@ func primaryAgentResultPayload(output temporalruntime.ExecutePrimaryAgentActivit
 	return map[string]any{
 		"agent_result_ref":     output.AgentResultRef,
 		"final_output":         output.FinalOutput,
+		"model_name":           output.ModelName,
+		"model_provider":       output.ModelProvider,
 		"provider_response_id": output.ProviderResponseID,
 		"sdk_trace_ref":        output.SDKTraceRef,
 		"selected_tools":       append([]string{}, output.SelectedTools...),
+		"terminal_envelope":    cloneAnyMapFromMetadata(output.TerminalEnvelope),
 		"terminal_reason":      output.TerminalReason,
 		"tool_results":         toolResults,
 		"usage": map[string]any{
@@ -630,10 +644,23 @@ func primaryAgentResultPayload(output temporalruntime.ExecutePrimaryAgentActivit
 	}
 }
 
-func primaryAgentOutputIsWorkflowSignal(output temporalruntime.ExecutePrimaryAgentActivityOutput) bool {
-	if strings.TrimSpace(output.TerminalReason) != "tool_selected" {
+func validPrimaryAgentTerminalEnvelope(envelope map[string]any) bool {
+	kind := strings.TrimSpace(stringValue(envelope["kind"]))
+	switch kind {
+	case "answer":
+		return strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
+	case "clarification_required":
+		return strings.TrimSpace(stringValue(envelope["follow_up_question"])) != "" ||
+			strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
+	case "out_of_scope", "policy_refusal", "unsupported_by_evidence":
+		return strings.TrimSpace(stringValue(envelope["reason"])) != "" ||
+			strings.TrimSpace(stringValue(envelope["answer_text"])) != ""
+	default:
 		return false
 	}
+}
+
+func primaryAgentOutputIsWorkflowSignal(output temporalruntime.ExecutePrimaryAgentActivityOutput) bool {
 	for _, tool := range output.SelectedTools {
 		if strings.TrimSpace(tool) == "knowledge_query" {
 			return true
@@ -649,6 +676,24 @@ func primaryAgentOutputIsWorkflowSignal(output temporalruntime.ExecutePrimaryAge
 		}
 	}
 	return false
+}
+
+func primaryAgentActivityTerminalReason(output temporalruntime.ExecutePrimaryAgentActivityOutput) string {
+	if primaryAgentOutputIsWorkflowSignal(output) {
+		return "tool_selected"
+	}
+	switch primaryAgentTerminalKind(output.TerminalEnvelope) {
+	case "clarification_required":
+		return "clarification_required"
+	case "out_of_scope":
+		return "out_of_scope"
+	case "policy_refusal":
+		return "policy_refusal"
+	case "unsupported_by_evidence":
+		return "unsupported_by_evidence"
+	default:
+		return string(execution.DurableTerminalReasonAnswerCompleted)
+	}
 }
 
 func (s *Server) replaceTemporalAgentMetadata(

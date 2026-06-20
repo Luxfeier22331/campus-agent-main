@@ -1,6 +1,6 @@
 export type AppApiEnvironment = "development" | "test" | "staging" | "production";
 export type DatabaseSslMode = "disable" | "prefer" | "require";
-export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 8_000;
+export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 30_000;
 export const DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS = 30_000;
 export const DEFAULT_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = 8_000;
 
@@ -48,9 +48,8 @@ export interface Env {
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
 	OBJECT_STORE_SECRET_KEY?: string;
-	AXIOM_DATASET?: string;
-	AXIOM_ENDPOINT?: string;
-	AXIOM_TOKEN?: string;
+	APP_API_OTEL_INGEST_ENDPOINT?: string;
+	APP_API_OTEL_INGEST_SHARED_SECRET?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;

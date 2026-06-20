@@ -33,9 +33,8 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime",
-                        "AXIOM_TOKEN=axiom-token",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
                     ]
                 )
                 + "\n",
@@ -55,9 +54,8 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                         "APP_API_NAME=campus-agent-app-api",
                         "SENTRY_DSN=",
                         "SENTRY_ENVIRONMENT=development",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus_agent_runtime",
-                        "AXIOM_TOKEN=",
+                        "APP_API_OTEL_INGEST_ENDPOINT=",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=",
                     ]
                 )
                 + "\n",
@@ -93,9 +91,11 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 (app_api_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             app_api_vars = (app_api_dir / ".dev.vars").read_text(encoding="utf-8")
-            self.assertIn("AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co\n", app_api_vars)
-            self.assertIn("AXIOM_DATASET=campus-agent-runtime\n", app_api_vars)
-            self.assertIn("AXIOM_TOKEN=axiom-token\n", app_api_vars)
+            self.assertIn(
+                "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com\n",
+                app_api_vars,
+            )
+            self.assertIn("APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret\n", app_api_vars)
             self.assertIn(
                 "SENTRY_DSN=https://shared.example\n",
                 (operator_console_dir / ".dev.vars").read_text(encoding="utf-8"),
@@ -122,6 +122,8 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.new.example",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.new.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-new-secret",
                     ]
                 )
                 + "\n",
@@ -134,6 +136,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                         "APP_API_NAME=campus-agent-app-api",
                         "SENTRY_DSN=https://api.old.example",
                         "SENTRY_ENVIRONMENT=staging",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.old.example.com",
                     ]
                 )
                 + "\n",
@@ -158,6 +161,12 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "SENTRY_ENVIRONMENT=staging\n",
                 (app_api_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
+            app_api_vars = (app_api_dir / ".dev.vars").read_text(encoding="utf-8")
+            self.assertIn(
+                "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.new.example.com\n",
+                app_api_vars,
+            )
+            self.assertIn("APP_API_OTEL_INGEST_SHARED_SECRET=ingest-new-secret\n", app_api_vars)
             self.assertIn(
                 "SENTRY_RELEASE=operator-console@old\n",
                 (operator_console_dir / ".dev.vars").read_text(encoding="utf-8"),

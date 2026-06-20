@@ -13,16 +13,16 @@
 	"open_capabilities": [],
 	"multi_step_workflow_enabled": false,
 	"otel": {
-		"enabled": false,
+		"enabled": true,
 		"endpoint": "http://otel-collector:4318/v1/traces",
-		"metrics_enabled": false,
+		"metrics_enabled": true,
 		"metrics_endpoint": "http://otel-collector:4318/v1/metrics",
 		"service_name": "campus-execution-control",
 		"export_timeout_ms": 1000,
 		"export_interval_ms": 15000,
 		"sample_ratio": 1,
 		"allowed_attributes_version": "execution-control-otel-attrs-v1",
-		"temporal_tracing_enabled": false
+		"temporal_tracing_enabled": true
 	},
 	"execution_audit": {
 		"enabled": false,
@@ -41,7 +41,7 @@
 		"retrieval_max_concurrent": 4,
 		"synthesis_max_concurrent": 2,
 		"embedding_timeout_ms": 10000,
-		"qdrant_timeout_ms": 10000,
+		"qdrant_timeout_ms": 60000,
 		"provider_timeout_ms": 60000
 	},
 	"personal_memory": {

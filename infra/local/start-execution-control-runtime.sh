@@ -5,8 +5,11 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo_root="$(cd "${script_dir}/../.." && pwd)"
 compose_file="${EXECUTION_CONTROL_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.execution-control-runtime.yml}"
 compose_local_file="${EXECUTION_CONTROL_RUNTIME_LOCAL_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.execution-control-runtime.local.yml}"
+compose_langfuse_file="${EXECUTION_CONTROL_RUNTIME_LANGFUSE_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.yml}"
+compose_minimal_file="${EXECUTION_CONTROL_RUNTIME_MINIMAL_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.execution-control-runtime.minimal.yml}"
 compose_project_name="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PROJECT_NAME:-campus-execution-control-runtime-local}"
 compose_parallel_limit="${EXECUTION_CONTROL_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
+runtime_flavor="${EXECUTION_CONTROL_RUNTIME_FLAVOR:-prodlike}"
 api_host_port="${EXECUTION_CONTROL_HOST_PORT:-27051}"
 data_plane_network="${CAMPUS_AGENT_DATA_PLANE_NETWORK:-campus-agent-data-plane}"
 projection_script="${repo_root}/infra/local/scripts/project-local-runtime-env.mjs"
@@ -127,8 +130,13 @@ compose_file_args() {
     IFS=':' read -r -a files <<<"${EXECUTION_CONTROL_RUNTIME_COMPOSE_FILES}"
   elif [[ -n "${EXECUTION_CONTROL_RUNTIME_COMPOSE_FILE:-}" ]]; then
     files=("${compose_file}")
+  elif [[ "${runtime_flavor}" == "minimal" ]]; then
+    files=("${compose_file}" "${compose_minimal_file}")
+  elif [[ "${runtime_flavor}" == "prodlike" ]]; then
+    files=("${compose_file}" "${compose_local_file}" "${compose_langfuse_file}")
   else
-    files=("${compose_file}" "${compose_local_file}")
+    echo "EXECUTION_CONTROL_RUNTIME_FLAVOR must be prodlike or minimal." >&2
+    return 1
   fi
 
   for file in "${files[@]}"; do

@@ -30,7 +30,13 @@ type Event struct {
 	Collection             string
 	ContextPreflightState  string
 	Corpus                 string
+	CachedInputTokens      int64
+	EstimatedCostMicroUSD  int64
+	InputTokens            int64
+	ModelName              string
+	ModelProvider          string
 	Name                   string
+	OutputTokens           int64
 	RequestID              string
 	TraceID                string
 	ConversationID         string
@@ -278,6 +284,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.Int("target_document_ids_count", event.TargetDocumentIDsCount),
 		attribute.Int("target_version_ids_count", event.TargetVersionIDsCount),
 	}
+	attributes = append(attributes, langfuseGenerationAttributes(event)...)
 	name := strings.TrimSpace(event.Name)
 	if name == "" {
 		name = "execution.event"
@@ -458,6 +465,47 @@ func langfuseTraceTags(event Event) string {
 		tags = append(tags, "env:"+environment)
 	}
 	return strings.Join(tags, ",")
+}
+
+func langfuseGenerationAttributes(event Event) []attribute.KeyValue {
+	modelName := strings.TrimSpace(event.ModelName)
+	modelProvider := strings.TrimSpace(event.ModelProvider)
+	if modelName == "" && modelProvider == "" {
+		return nil
+	}
+	if event.InputTokens <= 0 &&
+		event.OutputTokens <= 0 &&
+		event.CachedInputTokens <= 0 &&
+		event.EstimatedCostMicroUSD <= 0 {
+		return nil
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("langfuse.observation.type", "generation"),
+		attribute.String("langfuse.observation.usage_details", langfuseUsageDetails(event)),
+		attribute.String("langfuse.observation.cost_details", langfuseCostDetails(event.EstimatedCostMicroUSD)),
+	}
+	if modelName != "" {
+		attrs = append(attrs, attribute.String("langfuse.observation.model.name", modelName))
+	}
+	if stepID := strings.TrimSpace(event.StepID); stepID != "" {
+		attrs = append(attrs, attribute.String("langfuse.observation.metadata.step_id", stepID))
+	}
+	return attrs
+}
+
+func langfuseUsageDetails(event Event) string {
+	return `{"cache_read_input_tokens":` +
+		strconv.FormatInt(event.CachedInputTokens, 10) +
+		`,"input":` +
+		strconv.FormatInt(event.InputTokens, 10) +
+		`,"output":` +
+		strconv.FormatInt(event.OutputTokens, 10) +
+		`}`
+}
+
+func langfuseCostDetails(estimatedCostMicroUSD int64) string {
+	totalUSD := float64(estimatedCostMicroUSD) / 1_000_000
+	return `{"total":` + strconv.FormatFloat(totalUSD, 'f', -1, 64) + `}`
 }
 
 func parseHeaders(value string) map[string]string {

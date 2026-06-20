@@ -114,6 +114,9 @@ export function createAgentRuntimeHandler(
 				status: result.status,
 				run_id: result.runId,
 				final_output: result.finalOutput,
+				model_name: result.modelName,
+				model_provider: result.modelProvider,
+				terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
 				provider_response_id: result.providerResponseId,
 				sdk_trace_ref: result.sdkTraceRef,
 				selected_tools: result.selectedTools,
@@ -158,6 +161,18 @@ function jsonResponse(status: number, body: unknown): Response {
 		status,
 		headers: { "content-type": "application/json" },
 	});
+}
+
+function terminalEnvelopeWire(envelope: PrimaryAgentRunResult["terminalEnvelope"]) {
+	if (envelope === undefined) {
+		return;
+	}
+	return {
+		kind: envelope.kind,
+		answer_text: envelope.answerText,
+		follow_up_question: envelope.followUpQuestion,
+		reason: envelope.reason,
+	};
 }
 
 function errorMessage(error: unknown): string {

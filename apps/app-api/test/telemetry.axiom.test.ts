@@ -4,10 +4,28 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	createAxiomRuntimeEventSink,
+	LEGACY_AXIOM_ALLOWED_EVENT_TYPES,
 	sanitizeAxiomEventPayload,
 } from "../src/modules/telemetry/axiom";
 
 describe("axiom runtime event sink", () => {
+	it("freezes direct Axiom ingest to the legacy transitional event set", () => {
+		expect(LEGACY_AXIOM_ALLOWED_EVENT_TYPES).toEqual([
+			"request.accepted",
+			"request.finalized",
+			"request.transport_error",
+			"projection.enqueued",
+			"projection.drain",
+			"quality.sampled_grade",
+			"identity.endpoint",
+			"execution.admission_rejected",
+			"execution.cancel_requested",
+			"execution.cancelled",
+			"execution.bridge_failed",
+			"execution.timed_out",
+		]);
+	});
+
 	it("drops forbidden sensitive fields before building the ingest payload", () => {
 		expect(
 			sanitizeAxiomEventPayload({

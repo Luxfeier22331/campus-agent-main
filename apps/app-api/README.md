@@ -98,9 +98,9 @@ Runtime hardening baseline:
   `dispatched` / `ingestion_failed` explicitly for panel consumers
 - Worker `fetch` and `scheduled` are wrapped by Sentry; `app-api` is the primary
   observability owner for this product topology
-- `app-api` emits minimal Axiom runtime events for `request.accepted`,
-  `request.finalized`, `request.transport_error`, `projection.enqueued`, and
-  `projection.drain`
+- `app-api` emits minimal runtime lifecycle telemetry through the controlled
+  OTLP ingest endpoint; the Collector fans accepted telemetry out to Axiom,
+  Sentry and Langfuse according to `infra/otel`
 - trace propagation keeps canonical `x-trace-id` and also forwards
   `sentry-trace` / `baggage` across `campus-web -> app-api ->
   execution-control` and `operator-console-web -> app-api`
@@ -115,18 +115,11 @@ Observability data policy:
   `duration_ms`, and source-doc count/summary
 - forbidden fields include raw JWT/auth headers, cookies, raw prompt/question,
   raw answer, operator email, transcript text, and long-term memory text
-- the current Axiom integration is an interim Worker-local REST adapter; the
-  long-term architecture still targets `OTel -> Collector -> sink`
-- `AXIOM_ENDPOINT` should normally be the base domain of the org edge deployment
-  shown in Axiom `Settings -> General -> Edge deployment`, for example
-  `<https://us-east-1.aws.edge.axiom.co`>
-- `app-api` should use the edge ingest route from the selected edge deployment
-  domain; keep Worker-local and Collector-based exports on the same edge domain
-- `AXIOM_DATASET` is project-scoped for the current rollout, for example
-  `campus-agent-runtime`; environment and service dimensions are carried by
-  fields such as `deployment.environment`, `service.name`, and `event_type`
-- when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must
-  be an Axiom API token rather than a PAT
+- deployed `app-api` telemetry requires `APP_API_OTEL_INGEST_ENDPOINT` and
+  `APP_API_OTEL_INGEST_SHARED_SECRET`; missing values fail closed instead of
+  falling back to direct Axiom REST ingest
+- the legacy direct Axiom adapter remains only as a transitional module-level
+  test target and is not the default Worker telemetry path
 - Operator Console trace / issue links are app-owned projections, not route-time
   sink queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
   `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when Operator Console should show
@@ -232,9 +225,8 @@ Environment:
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
 - `SENTRY_RELEASE`
-- `AXIOM_ENDPOINT`
-- `AXIOM_DATASET`
-- `AXIOM_TOKEN`
+- `APP_API_OTEL_INGEST_ENDPOINT`
+- `APP_API_OTEL_INGEST_SHARED_SECRET`
 
 Local development:
 

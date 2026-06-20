@@ -330,6 +330,10 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":finalization-completed",
 		RunID:                run.RunID,

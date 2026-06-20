@@ -20,9 +20,11 @@ type ragSynthesisPacket = ragruntime.SynthesisPacketProjection
 type ragSynthesisResult struct {
 	AnswerText       string
 	Confidence       string
+	GroundingNotes   string
 	ProviderSummary  provider.ExecutionSummary
 	ProviderBody     []byte
 	SemanticOutcome  string
+	UsedEvidenceRefs []string
 	GroundingVerdict string
 }
 
@@ -63,16 +65,18 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	if result.Err != nil {
 		return ragSynthesisResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, result.Err
 	}
-	answerText, err := extractRAGAnswerText(result.Body)
+	output, err := extractRAGSynthesisOutput(result.Body, packet.SelectedEvidence)
 	if err != nil {
 		return ragSynthesisResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, err
 	}
 	return ragSynthesisResult{
-		AnswerText:      answerText,
-		Confidence:      "medium",
-		ProviderSummary: result.Summary,
-		ProviderBody:    result.Body,
-		SemanticOutcome: "answer_from_selected_evidence",
+		AnswerText:       output.AnswerText,
+		Confidence:       output.Confidence,
+		GroundingNotes:   output.GroundingNotes,
+		ProviderSummary:  result.Summary,
+		ProviderBody:     result.Body,
+		SemanticOutcome:  output.SemanticOutcome,
+		UsedEvidenceRefs: output.UsedEvidenceRefs,
 	}, nil
 }
 
@@ -191,9 +195,25 @@ func ragProviderTextSchema(packet ragSynthesisPacket) map[string]any {
 			"schema": map[string]any{
 				"type":                 "object",
 				"additionalProperties": false,
-				"required":             []string{"answer_text"},
+				"required": []string{
+					"answer_text",
+					"semantic_outcome",
+					"confidence",
+					"used_evidence_refs",
+					"grounding_notes",
+				},
 				"properties": map[string]any{
-					"answer_text": map[string]any{"type": "string"},
+					"answer_text":      map[string]any{"type": "string"},
+					"semantic_outcome": map[string]any{"type": "string"},
+					"confidence": map[string]any{
+						"type": "string",
+						"enum": []string{"high", "medium", "low"},
+					},
+					"used_evidence_refs": map[string]any{
+						"type":  "array",
+						"items": map[string]any{"type": "string"},
+					},
+					"grounding_notes": map[string]any{"type": "string"},
 				},
 			},
 		},
@@ -212,13 +232,33 @@ func providerRequestRefForPacket(packet ragSynthesisPacket) string {
 	return "provider://requests/" + strings.TrimSpace(packet.RunID) + "/" + strings.TrimSpace(packet.StepID)
 }
 
-func extractRAGAnswerText(body []byte) (string, error) {
+type ragStructuredSynthesisOutput struct {
+	AnswerText       string
+	Confidence       string
+	GroundingNotes   string
+	SemanticOutcome  string
+	UsedEvidenceRefs []string
+}
+
+func extractRAGSynthesisOutput(
+	body []byte,
+	selectedEvidence []ragruntime.EvidenceRef,
+) (ragStructuredSynthesisOutput, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(body, &payload); err != nil {
-		return "", fmt.Errorf("parse provider response payload: %w", err)
+		return ragStructuredSynthesisOutput{}, fmt.Errorf("parse provider response payload: %w", err)
+	}
+	if status := strings.TrimSpace(stringValue(payload["status"])); status != "" && status != "completed" {
+		return ragStructuredSynthesisOutput{}, fmt.Errorf("provider response status is %q", status)
+	}
+	if strings.TrimSpace(stringValue(payload["refusal"])) != "" {
+		return ragStructuredSynthesisOutput{}, errors.New("provider response refusal is not accepted")
+	}
+	if incomplete, ok := payload["incomplete_details"].(map[string]any); ok && len(incomplete) > 0 {
+		return ragStructuredSynthesisOutput{}, errors.New("provider response incomplete_details is not accepted")
 	}
 	if parsed, ok := payload["output_parsed"].(map[string]any); ok {
-		return requiredRAGAnswerText(parsed)
+		return requiredRAGSynthesisOutput(parsed, selectedEvidence)
 	}
 	for _, outputItem := range ragAnySlice(payload["output"]) {
 		item, ok := outputItem.(map[string]any)
@@ -231,7 +271,10 @@ func extractRAGAnswerText(body []byte) (string, error) {
 				continue
 			}
 			if parsed, ok := content["parsed"].(map[string]any); ok {
-				return requiredRAGAnswerText(parsed)
+				return requiredRAGSynthesisOutput(parsed, selectedEvidence)
+			}
+			if strings.TrimSpace(stringValue(content["refusal"])) != "" {
+				return ragStructuredSynthesisOutput{}, errors.New("provider response content refusal is not accepted")
 			}
 			text, ok := content["text"].(string)
 			if !ok || strings.TrimSpace(text) == "" {
@@ -241,18 +284,69 @@ func extractRAGAnswerText(body []byte) (string, error) {
 			if err := json.Unmarshal([]byte(text), &decoded); err != nil {
 				continue
 			}
-			return requiredRAGAnswerText(decoded)
+			return requiredRAGSynthesisOutput(decoded, selectedEvidence)
 		}
 	}
-	return "", errors.New("provider response did not contain answer_text")
+	return ragStructuredSynthesisOutput{}, errors.New("provider response did not contain structured synthesis output")
 }
 
-func requiredRAGAnswerText(payload map[string]any) (string, error) {
+func requiredRAGSynthesisOutput(
+	payload map[string]any,
+	selectedEvidence []ragruntime.EvidenceRef,
+) (ragStructuredSynthesisOutput, error) {
 	answerText, ok := payload["answer_text"].(string)
 	if !ok || strings.TrimSpace(answerText) == "" {
-		return "", errors.New("provider structured output answer_text is required")
+		return ragStructuredSynthesisOutput{}, errors.New("provider structured output answer_text is required")
 	}
-	return strings.TrimSpace(answerText), nil
+	semanticOutcome := strings.TrimSpace(stringValue(payload["semantic_outcome"]))
+	if semanticOutcome == "" {
+		return ragStructuredSynthesisOutput{}, errors.New("provider structured output semantic_outcome is required")
+	}
+	confidence := strings.TrimSpace(stringValue(payload["confidence"]))
+	switch confidence {
+	case "high", "medium", "low":
+	default:
+		return ragStructuredSynthesisOutput{}, errors.New("provider structured output confidence is required")
+	}
+	groundingNotes := strings.TrimSpace(stringValue(payload["grounding_notes"]))
+	if groundingNotes == "" {
+		return ragStructuredSynthesisOutput{}, errors.New("provider structured output grounding_notes is required")
+	}
+	usedEvidenceRefs := stringSliceFromAny(payload["used_evidence_refs"])
+	if len(usedEvidenceRefs) == 0 {
+		return ragStructuredSynthesisOutput{}, errors.New("provider structured output used_evidence_refs is required")
+	}
+	allowedEvidenceRefs := ragSelectedEvidenceRefSet(selectedEvidence)
+	for _, ref := range usedEvidenceRefs {
+		if _, ok := allowedEvidenceRefs[ref]; !ok {
+			return ragStructuredSynthesisOutput{}, fmt.Errorf("provider structured output used_evidence_ref %q was not selected", ref)
+		}
+	}
+	return ragStructuredSynthesisOutput{
+		AnswerText:       strings.TrimSpace(answerText),
+		Confidence:       confidence,
+		GroundingNotes:   groundingNotes,
+		SemanticOutcome:  semanticOutcome,
+		UsedEvidenceRefs: usedEvidenceRefs,
+	}, nil
+}
+
+func ragSelectedEvidenceRefSet(selectedEvidence []ragruntime.EvidenceRef) map[string]struct{} {
+	refs := make(map[string]struct{}, len(selectedEvidence)*4)
+	for _, evidence := range selectedEvidence {
+		for _, candidate := range []string{
+			evidence.SourceRef,
+			evidence.SpanRef,
+			evidence.SourceID,
+			evidence.ChunkID,
+		} {
+			normalized := strings.TrimSpace(candidate)
+			if normalized != "" {
+				refs[normalized] = struct{}{}
+			}
+		}
+	}
+	return refs
 }
 
 func ragAnySlice(value any) []any {
@@ -292,6 +386,8 @@ func ragSynthesisFinalizedResponse(
 			"diagnostics": map[string]any{
 				"semantic_outcome":       semanticOutcome,
 				"grounding_verdict":      groundingVerdict,
+				"grounding_notes":        strings.TrimSpace(result.GroundingNotes),
+				"used_evidence_refs":     append([]string{}, result.UsedEvidenceRefs...),
 				"verification_kind":      "evidence_integrity",
 				"model_execution_state":  "go_provider_synthesis_completed",
 				"model_execution_detail": result.ProviderSummary.SchemaVersion,
@@ -305,8 +401,10 @@ func ragSynthesisFinalizedResponse(
 			},
 		},
 		Observability: map[string]any{
-			"selected_tool":  "retrieval.query",
-			"result_outcome": semanticOutcome,
+			"selected_tool":          "retrieval.query",
+			"result_outcome":         semanticOutcome,
+			"model_execution_state":  "go_provider_synthesis_completed",
+			"model_execution_detail": result.ProviderSummary.SchemaVersion,
 		},
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":         "single_step",

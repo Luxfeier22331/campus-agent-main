@@ -13,9 +13,8 @@ from scripts.env_sync import (
 OBSERVABILITY_TARGETS = {
     "apps/app-api/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
-        "AXIOM_ENDPOINT": "AXIOM_ENDPOINT",
-        "AXIOM_DATASET": "AXIOM_DATASET",
-        "AXIOM_TOKEN": "AXIOM_TOKEN",
+        "APP_API_OTEL_INGEST_ENDPOINT": "APP_API_OTEL_INGEST_ENDPOINT",
+        "APP_API_OTEL_INGEST_SHARED_SECRET": "APP_API_OTEL_INGEST_SHARED_SECRET",
     },
     "apps/operator-console-web/.dev.vars": {
         "SENTRY_DSN": "SENTRY_DSN",
@@ -25,7 +24,11 @@ OBSERVABILITY_TARGETS = {
     },
 }
 
-REQUIRED_SOURCE_KEYS = ("SENTRY_DSN",)
+REQUIRED_SOURCE_KEYS = (
+    "SENTRY_DSN",
+    "APP_API_OTEL_INGEST_ENDPOINT",
+    "APP_API_OTEL_INGEST_SHARED_SECRET",
+)
 
 
 def sync_worker_observability_env(

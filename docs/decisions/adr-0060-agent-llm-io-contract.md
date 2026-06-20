@@ -7,7 +7,7 @@ status: accepted
 created: 2026-06-19
 updated: 2026-06-19
 ---
-# ADR-0060 Prompt Design Runtime Contract
+# ADR-0060 Agent LLM I/O Contract
 
 ## 状态
 
@@ -23,8 +23,13 @@ Accepted on 2026-06-19.
   untrusted evidence / user packet、strict structured output 与 code-side
   finalization 装配
 
-近期在线链路审查确认，现有原则已经落在文档中，但仍缺少一条 ADR 把 prompt 设计的长期运行时契约冻结下来。
-否则后续实现容易继续把问题误解成“补一份更长的 system prompt”，而不是修复具体 runtime contract：
+近期在线链路审查确认，现有原则已经落在文档中，但仍缺少一条 ADR 把
+agent-facing LLM input / output contract 冻结下来。这里的 contract 指运行时
+给模型的 developer instructions、tool schemas、typed input packet 与
+strict structured output，而不是 prompt 治理产品。
+
+否则后续实现容易继续把问题误解成“补一份更长的 system prompt”或“新增
+prompt registry / versioning”，而不是修复具体 LLM I/O contract：
 
 - `apps/agent-runtime` primary agent instructions 较薄，且 direct/no-tool final output
   仍是自由文本终态
@@ -47,7 +52,7 @@ OpenAI 当前官方实践也支持这个方向：
 
 ## 决策
 
-`campus-agent` 接受以下 prompt design runtime contract：
+`campus-agent` 接受以下 Agent LLM I/O contract：
 
 ```text
 thin developer instructions
@@ -58,7 +63,8 @@ thin developer instructions
 + code-side guardrails/finalization
 ```
 
-本 ADR 不接受“更长的总 system prompt”作为修复方向。
+本 ADR 不接受“更长的总 system prompt”、prompt versioning 或 prompt admin UI
+作为主链路修复方向。
 
 ## 决策细节
 
@@ -98,7 +104,9 @@ developer instructions 只保留跨工具 policy，不复制每个 tool 的领�
 
 ### 决策 3：direct/no-tool final output 也必须有 typed terminal contract
 
-primary agent 的 direct/no-tool branch 不得长期只返回自由文本。
+primary agent 的 direct/no-tool branch 不得只返回自由文本。模型可以直接回答
+`hi 你是谁`，但返回给 runtime 的终态必须是 typed terminal envelope；这不是
+把寒暄拆成 tool / capability。
 
 目标 terminal envelope 至少区分：
 
@@ -108,8 +116,8 @@ primary agent 的 direct/no-tool branch 不得长期只返回自由文本。
 - `unsupported_by_evidence`
 - `policy_refusal`
 
-Go finalization 可以把这些语义映射成 product response status、用户可见文案、
-observability 与 eval projection，但不得靠空字符串、默认 confidence 或自由文本猜测
+Go finalization 可以把这些语义映射成 product response status、用户可见文案
+与 observability projection，但不得靠空字符串、默认 confidence 或自由文本猜测
 terminal outcome。
 
 ### 决策 4：RAG synthesis schema 必须表达 answer 和 grounding 语义

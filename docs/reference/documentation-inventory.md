@@ -35,9 +35,9 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 297
+- Current-worktree docs Markdown files: 298
 - Git tracked docs Markdown files: 289
-- Untracked docs Markdown files included: 6
+- Untracked docs Markdown files included: 7
 - Generated on: 2026-06-18
 
 ### By Directory Area
@@ -51,7 +51,7 @@ class defined by `docs/documentation-architecture.md`.
 - `domains`: 8
 - `environment`: 7
 - `policies`: 5
-- `product`: 4
+- `product`: 5
 - `README.md`: 1
 - `documentation-architecture.md`: 1
 
@@ -64,7 +64,7 @@ class defined by `docs/documentation-architecture.md`.
 - `index`: 32
 - `architecture`: 33
 - `data`: 18
-- `product_requirement`: 3
+- `product_requirement`: 4
 - `policy`: 4
 - `documentation_architecture`: 1
 - `template`: 1
@@ -74,7 +74,7 @@ class defined by `docs/documentation-architecture.md`.
 - `ops`: 88
 - `repository`: 71
 - `data`: 50
-- `product`: 19
+- `product`: 20
 - `capability`: 15
 - `execution`: 16
 - `eval`: 13
@@ -89,7 +89,7 @@ class defined by `docs/documentation-architecture.md`.
 - `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
-- `product_requirement`: 3
+- `product_requirement`: 4
 - `current_truth`: 1
 - `product_truth`: 1
 - `target_invariant`: 1
@@ -100,7 +100,7 @@ class defined by `docs/documentation-architecture.md`.
 - `keep_executable_truth`: 53
 - `keep_ops_procedure`: 47
 - `preserve_adr`: 49
-- `keep_owner_truth`: 34
+- `keep_owner_truth`: 35
 - `keep_reference_truth`: 26
 - `keep_archive_historical`: 23
 - `keep_thin_index`: 26
@@ -112,7 +112,7 @@ class defined by `docs/documentation-architecture.md`.
 - `official-web`: 31
 - `authenticated-notice`: 27
 - `runtime`: 22
-- `operator-observability`: 14
+- `operator-observability`: 15
 - `app-api`: 10
 - `campus-services`: 9
 - `retrieval`: 8
@@ -1305,12 +1305,12 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=decisions`, `cluster=operator-observability`, `state=untracked`, `lines=55`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
-- `docs/decisions/adr-0060-prompt-design-runtime-contract.md`
-  - Title: ADR-0060 Prompt Design Runtime Contract
+- `docs/decisions/adr-0060-agent-llm-io-contract.md`
+  - Title: ADR-0060 Agent LLM I/O Contract
   - Owner class: `decision_record`
   - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
   - Owner boundary: `docs/decisions`
-  - Ledger: `area=decisions`, `cluster=prompt-runtime`, `state=tracked`, `lines=199`
+  - Ledger: `area=decisions`, `cluster=agent-llm-io`, `state=tracked`, `lines=207`
   - Governance action: `preserve_adr`
   - Drift signal: `adr_history_preserved`
 
@@ -1493,7 +1493,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `reference_index`
   - Frontmatter: `doc_type=index`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
-  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=33`
+  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=39`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
 - `docs/product/account-registration-legal-consent-prd.md`
@@ -1518,6 +1518,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
   - Ledger: `area=product`, `cluster=langfuse`, `state=untracked`, `lines=300`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/observability-orchestration-repair-prd.md`
+  - Title: Observability Orchestration Repair PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=operator-observability`, `state=untracked`, `lines=390`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 

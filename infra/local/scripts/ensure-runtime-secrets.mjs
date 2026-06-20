@@ -18,6 +18,16 @@ const requiredSecrets = [
 	"EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
 	"QDRANT_API_KEY",
 	"QDRANT_READ_ONLY_API_KEY",
+	"LANGFUSE_NEXTAUTH_SECRET",
+	"LANGFUSE_SALT",
+	"LANGFUSE_ENCRYPTION_KEY",
+	"LANGFUSE_POSTGRES_PASSWORD",
+	"LANGFUSE_CLICKHOUSE_PASSWORD",
+	"LANGFUSE_REDIS_AUTH",
+	"LANGFUSE_MINIO_ROOT_PASSWORD",
+	"LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+	"LANGFUSE_INIT_PROJECT_SECRET_KEY",
+	"LANGFUSE_INIT_USER_PASSWORD",
 ];
 const retiredGeneratedSecrets = [
 	"ZEP_CE_API_IMAGE",
@@ -42,7 +52,7 @@ export async function ensureRuntimeSecrets(input = {}) {
 
 	for (const key of requiredSecrets) {
 		if (!existing.has(key)) {
-			existing.set(key, randomSecret());
+			existing.set(key, randomValueForKey(key));
 			changed = true;
 		}
 	}
@@ -101,6 +111,23 @@ function serializeEnv(values) {
 
 function randomSecret() {
 	return randomBytes(32).toString("base64url");
+}
+
+function randomHexSecret() {
+	return randomBytes(32).toString("hex");
+}
+
+function randomValueForKey(key) {
+	switch (key) {
+		case "LANGFUSE_ENCRYPTION_KEY":
+			return randomHexSecret();
+		case "LANGFUSE_INIT_PROJECT_PUBLIC_KEY":
+			return `pk-lf-local-${randomSecret()}`;
+		case "LANGFUSE_INIT_PROJECT_SECRET_KEY":
+			return `sk-lf-local-${randomSecret()}`;
+		default:
+			return randomSecret();
+	}
 }
 
 async function fileExists(filePath) {

@@ -8,7 +8,10 @@ import {
 	timestamp,
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
-import type { CapabilityExecutionWorkflowTraceSummary } from "../../modules/integration/capability-execution-types";
+import type {
+	CapabilityExecutionModelUsageSummary,
+	CapabilityExecutionWorkflowTraceSummary,
+} from "../../modules/integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -181,6 +184,10 @@ export const requestObservabilityFact = runtime.table(
 		intentAmbiguityReason: text("intent_ambiguity_reason"),
 		modelProvider: text("model_provider"),
 		modelName: text("model_name"),
+		billableStepCount: integer("billable_step_count"),
+		modelUsageSummaryJson: jsonb("model_usage_summary_json").$type<
+			CapabilityExecutionModelUsageSummary[] | null
+		>(),
 		promptId: text("prompt_id"),
 		promptVersion: text("prompt_version"),
 		templateSha256: text("template_sha256"),

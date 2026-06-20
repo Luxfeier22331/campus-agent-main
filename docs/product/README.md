@@ -24,6 +24,9 @@ HTTP contracts, data schemas, operational procedures or active work status.
 - [langfuse-eval-platform-completion-prd.md](./langfuse-eval-platform-completion-prd.md)
   - Langfuse eval platform completion for trace evidence, score publishing,
     datasets, experiments and RAG parameter evals
+- [observability-orchestration-repair-prd.md](./observability-orchestration-repair-prd.md)
+  - observability orchestration repair across OTel Collector, Sentry, Axiom,
+    Temporal, Langfuse and operator projections
 
 ## Use Rules
 

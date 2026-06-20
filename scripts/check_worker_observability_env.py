@@ -8,9 +8,8 @@ from scripts.env_sync import parse_env_file, resolve_source_env_path
 
 SOURCE_REQUIRED_KEYS = (
     "SENTRY_DSN",
-    "AXIOM_ENDPOINT",
-    "AXIOM_DATASET",
-    "AXIOM_TOKEN",
+    "APP_API_OTEL_INGEST_ENDPOINT",
+    "APP_API_OTEL_INGEST_SHARED_SECRET",
 )
 
 OBSERVABILITY_TARGET_REQUIREMENTS = {
@@ -19,15 +18,13 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_DSN",
             "SENTRY_ENVIRONMENT",
             "SENTRY_RELEASE",
-            "AXIOM_ENDPOINT",
-            "AXIOM_DATASET",
-            "AXIOM_TOKEN",
+            "APP_API_OTEL_INGEST_ENDPOINT",
+            "APP_API_OTEL_INGEST_SHARED_SECRET",
         ),
         "source_mapping": {
             "SENTRY_DSN": "SENTRY_DSN",
-            "AXIOM_ENDPOINT": "AXIOM_ENDPOINT",
-            "AXIOM_DATASET": "AXIOM_DATASET",
-            "AXIOM_TOKEN": "AXIOM_TOKEN",
+            "APP_API_OTEL_INGEST_ENDPOINT": "APP_API_OTEL_INGEST_ENDPOINT",
+            "APP_API_OTEL_INGEST_SHARED_SECRET": "APP_API_OTEL_INGEST_SHARED_SECRET",
         },
     },
     "apps/operator-console-web/.dev.vars": {

@@ -78,6 +78,18 @@ test("projectLocalRuntimeEnv derives local runtime values from root provider inp
 		);
 		assert.equal(result.env.EXECUTION_CONTROL_COMPOSE_PROJECT_NAME, "campus-runtime-test");
 		assert.match(result.env.EXECUTION_CONTROL_RUNTIME_RELEASE, /^execution-control@/);
+		assert.equal(result.env.EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS, "30000");
+		assert.equal(result.env.EXECUTION_CONTROL_TIMEOUT_MS, "30000");
+		assert.equal(result.env.LANGFUSE_BASE_URL, "http://127.0.0.1:3000");
+		assert.equal(
+			result.env.OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT,
+			"http://langfuse-web:3000/api/public/otel",
+		);
+		assert.equal(result.env.OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION, "4");
+		assert.match(result.env.OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER, /^Basic [A-Za-z0-9+/=]+$/);
+		assert.equal(result.env.LANGFUSE_INIT_PROJECT_NAME, "campus-agent-dev");
+		assert.match(result.env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY, /^pk-lf-local-/);
+		assert.match(result.env.LANGFUSE_INIT_PROJECT_SECRET_KEY, /^sk-lf-local-/);
 
 		const syncedDevVars = await readFile(appApiDevVarsPath, "utf8");
 		assert.match(syncedDevVars, /^APP_API_INTERNAL_SHARED_SECRET=generated-internal-secret$/m);
@@ -85,6 +97,7 @@ test("projectLocalRuntimeEnv derives local runtime values from root provider inp
 			syncedDevVars,
 			/^APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY=generated-provider-secret$/m,
 		);
+		assert.match(syncedDevVars, /^EXECUTION_CONTROL_TIMEOUT_MS=30000$/m);
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
 	}
@@ -123,6 +136,51 @@ test("projectLocalRuntimeEnv keeps explicit process overrides over local files",
 		assert.equal(result.env.HINDSIGHT_API_LLM_API_KEY, "process-llm-key");
 		assert.equal(result.env.EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET, "process-internal");
 		assert.equal(result.env.QDRANT_QUERY_API_KEY, "process-qdrant-query");
+	} finally {
+		await rm(tmp, { force: true, recursive: true });
+	}
+});
+
+test("projectLocalRuntimeEnv derives Langfuse collector values from canonical keys", async () => {
+	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
+	const repoEnvPath = path.join(tmp, ".env");
+	const appApiEnvPath = path.join(tmp, "app-api.env");
+	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
+	const generatedRuntimeEnvPath = path.join(tmp, "runtime.env");
+
+	await writeFile(
+		repoEnvPath,
+		[
+			"LANGFUSE_BASE_URL=https://langfuse.dev.example",
+			"LANGFUSE_PUBLIC_KEY=pk-lf-dev",
+			"LANGFUSE_SECRET_KEY=sk-lf-dev",
+			"",
+		].join("\n"),
+	);
+	await writeFile(appApiEnvPath, "");
+	await writeFile(appApiDevVarsPath, "");
+	await writeFile(generatedRuntimeEnvPath, "");
+
+	try {
+		const result = await projectLocalRuntimeEnv({
+			appApiDevVarsPath,
+			appApiEnvPath,
+			composeProjectName: "campus-runtime-test",
+			env: {},
+			generatedRuntimeEnvPath,
+			repoEnvPath,
+			repoRoot: tmp,
+		});
+
+		assert.equal(
+			result.env.OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT,
+			"https://langfuse.dev.example/api/public/otel",
+		);
+		assert.equal(
+			result.env.OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER,
+			`Basic ${Buffer.from("pk-lf-dev:sk-lf-dev").toString("base64")}`,
+		);
+		assert.equal(result.env.OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION, "4");
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
 	}

@@ -8,6 +8,20 @@ services:
     volumes:
       - ../otel/collector-staging-template.yaml:/etc/otelcol-contrib/config.yaml:ro
 
+  otel-ingest-gateway:
+    environment:
+      OTEL_INGEST_SHARED_SECRET: ${OTEL_INGEST_SHARED_SECRET:?set OTEL_INGEST_SHARED_SECRET}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}
+      traefik.http.routers.otel-ingest-gateway-staging.rule: Host(`otel-ingest-staging.mucwiki-edge.link`)
+      traefik.http.routers.otel-ingest-gateway-staging.entrypoints: websecure
+      traefik.http.routers.otel-ingest-gateway-staging.tls: "true"
+      traefik.http.services.otel-ingest-gateway-staging.loadbalancer.server.port: "8000"
+    networks:
+      - supervisor-runtime
+      - proxy
+
   execution-control:
     environment:
       DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-staging}

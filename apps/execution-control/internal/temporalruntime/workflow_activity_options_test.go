@@ -1,6 +1,9 @@
 package temporalruntime
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestKnowledgeActivityOptionsUseSpecializedTaskQueues(t *testing.T) {
 	base := defaultActivityOptions()
@@ -21,5 +24,18 @@ func TestKnowledgeActivityOptionsUseSpecializedTaskQueues(t *testing.T) {
 				t.Fatalf("%s queue = %q, want %q", check.name, options.TaskQueue, check.queue)
 			}
 		})
+	}
+}
+
+func TestPrimaryAgentActivityUsesRealProviderTimeoutWindow(t *testing.T) {
+	base := defaultActivityOptions()
+	base.TaskQueue = "default"
+
+	options := primaryAgentActivityOptions(base)
+	if options.TaskQueue != ActivityTaskQueueAgent {
+		t.Fatalf("primary agent queue = %q, want %q", options.TaskQueue, ActivityTaskQueueAgent)
+	}
+	if options.StartToCloseTimeout != 180*time.Second {
+		t.Fatalf("primary agent StartToCloseTimeout = %s, want 180s", options.StartToCloseTimeout)
 	}
 }

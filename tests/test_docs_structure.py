@@ -15,6 +15,7 @@ EXPECTED_DOC_DIRECTORIES = {
     "domains": "index",
     "environment": "index",
     "policies": "policy",
+    "product": "product_requirement",
     "reference": "reference",
     "runbooks": "runbook",
 }

@@ -243,58 +243,63 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
-		"bridge_duration_ms":                   true,
-		"bridge_cancel_status":                 true,
-		"context_preflight_state":              true,
-		"canonical_index_truth":                true,
-		"candidate_count":                      true,
-		"scope.collection":                     true,
-		"scope.corpus":                         true,
-		"decision":                             true,
-		"activity_attempt":                     true,
-		"activity_type":                        true,
-		"duration_ms":                          true,
-		"failure_code":                         true,
-		"failure_kind":                         true,
-		"langfuse.trace.name":                  true,
-		"langfuse.session.id":                  true,
-		"langfuse.user.id":                     true,
-		"langfuse.release":                     true,
-		"langfuse.trace.tags":                  true,
-		"deployment.environment":               true,
-		"lane":                                 true,
-		"outcome":                              true,
-		"plan_id":                              true,
-		"planning_outcome":                     true,
-		"policy_gate_decision":                 true,
-		"projection_ref":                       true,
-		"queue_wait_ms":                        true,
-		"schedule_to_start_ms":                 true,
-		"latency_ms":                           true,
-		"query_sha256":                         true,
-		"query_mode":                           true,
-		"reference_count":                      true,
-		"retrieval_mode":                       true,
-		"request_id":                           true,
-		"requested_capability":                 true,
-		"run_id":                               true,
-		"routing_next_action":                  true,
-		"selected_capability":                  true,
-		"selected_tool":                        true,
-		"scope_gate_decision":                  true,
-		"status":                               true,
-		"step_id":                              true,
-		"step_kind":                            true,
-		"task_queue":                           true,
-		"terminal_outcome":                     true,
-		"terminal_state":                       true,
-		"fail_close_reason":                    true,
-		"status_code":                          true,
-		"target_version_ids_count":             true,
-		"target_document_ids_count":            true,
-		"telemetry.allowed_attributes_version": true,
-		"trace_id":                             true,
-		"workflow_id":                          true,
+		"bridge_duration_ms":                    true,
+		"bridge_cancel_status":                  true,
+		"context_preflight_state":               true,
+		"canonical_index_truth":                 true,
+		"candidate_count":                       true,
+		"scope.collection":                      true,
+		"scope.corpus":                          true,
+		"decision":                              true,
+		"activity_attempt":                      true,
+		"activity_type":                         true,
+		"duration_ms":                           true,
+		"failure_code":                          true,
+		"failure_kind":                          true,
+		"langfuse.trace.name":                   true,
+		"langfuse.session.id":                   true,
+		"langfuse.user.id":                      true,
+		"langfuse.release":                      true,
+		"langfuse.trace.tags":                   true,
+		"langfuse.observation.type":             true,
+		"langfuse.observation.model.name":       true,
+		"langfuse.observation.usage_details":    true,
+		"langfuse.observation.cost_details":     true,
+		"langfuse.observation.metadata.step_id": true,
+		"deployment.environment":                true,
+		"lane":                                  true,
+		"outcome":                               true,
+		"plan_id":                               true,
+		"planning_outcome":                      true,
+		"policy_gate_decision":                  true,
+		"projection_ref":                        true,
+		"queue_wait_ms":                         true,
+		"schedule_to_start_ms":                  true,
+		"latency_ms":                            true,
+		"query_sha256":                          true,
+		"query_mode":                            true,
+		"reference_count":                       true,
+		"retrieval_mode":                        true,
+		"request_id":                            true,
+		"requested_capability":                  true,
+		"run_id":                                true,
+		"routing_next_action":                   true,
+		"selected_capability":                   true,
+		"selected_tool":                         true,
+		"scope_gate_decision":                   true,
+		"status":                                true,
+		"step_id":                               true,
+		"step_kind":                             true,
+		"task_queue":                            true,
+		"terminal_outcome":                      true,
+		"terminal_state":                        true,
+		"fail_close_reason":                     true,
+		"status_code":                           true,
+		"target_version_ids_count":              true,
+		"target_document_ids_count":             true,
+		"telemetry.allowed_attributes_version":  true,
+		"trace_id":                              true,
+		"workflow_id":                           true,
 	}
 	found := map[string]string{}
 	for _, attr := range attrs {
@@ -331,6 +336,96 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	status := emitter.Status()
 	if status.ExportedCount != 1 {
 		t.Fatalf("exported count = %d, want 1", status.ExportedCount)
+	}
+}
+
+func TestEmitterAddsLangfuseGenerationUsageForBillableModelStep(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{
+		enabled:     true,
+		sampleRatio: 1,
+		tracer:      provider.Tracer("test"),
+	}
+
+	if err := emitter.Emit(context.Background(), Event{
+		Name:                  "temporal.step_observation",
+		DeploymentEnvironment: "local",
+		ModelName:             "gpt-5.5",
+		ModelProvider:         "openai",
+		InputTokens:           7282,
+		OutputTokens:          817,
+		CachedInputTokens:     12,
+		EstimatedCostMicroUSD: 60920,
+		RequestID:             "req-usage",
+		RunID:                 "run-usage",
+		StepID:                "synthesis",
+		TraceID:               "trace-usage",
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	found := map[string]string{}
+	for _, attr := range spans[0].Attributes() {
+		found[string(attr.Key)] = attr.Value.AsString()
+	}
+	if found["langfuse.observation.type"] != "generation" {
+		t.Fatalf("observation type = %q, want generation", found["langfuse.observation.type"])
+	}
+	if found["langfuse.observation.model.name"] != "gpt-5.5" {
+		t.Fatalf("model name = %q, want gpt-5.5", found["langfuse.observation.model.name"])
+	}
+	if found["langfuse.observation.usage_details"] != `{"cache_read_input_tokens":12,"input":7282,"output":817}` {
+		t.Fatalf("usage details = %q", found["langfuse.observation.usage_details"])
+	}
+	if found["langfuse.observation.cost_details"] != `{"total":0.06092}` {
+		t.Fatalf("cost details = %q", found["langfuse.observation.cost_details"])
+	}
+	if found["langfuse.observation.metadata.step_id"] != "synthesis" {
+		t.Fatalf("metadata step id = %q, want synthesis", found["langfuse.observation.metadata.step_id"])
+	}
+}
+
+func TestEmitterPinsLangfuseGenerationCostToZeroWhenRuntimeCostIsZero(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	emitter := &Emitter{
+		enabled:     true,
+		sampleRatio: 1,
+		tracer:      provider.Tracer("test"),
+	}
+
+	if err := emitter.Emit(context.Background(), Event{
+		Name:                  "temporal.step_observation",
+		DeploymentEnvironment: "local",
+		ModelName:             "gpt-5.5",
+		ModelProvider:         "openai",
+		InputTokens:           11285,
+		OutputTokens:          617,
+		CachedInputTokens:     6656,
+		EstimatedCostMicroUSD: 0,
+		RequestID:             "req-zero-cost",
+		RunID:                 "run-zero-cost",
+		StepID:                "agent.primary",
+		TraceID:               "trace-zero-cost",
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
+
+	spans := recorder.Ended()
+	if len(spans) != 1 {
+		t.Fatalf("ended spans = %d, want 1", len(spans))
+	}
+	found := map[string]string{}
+	for _, attr := range spans[0].Attributes() {
+		found[string(attr.Key)] = attr.Value.AsString()
+	}
+	if found["langfuse.observation.cost_details"] != `{"total":0}` {
+		t.Fatalf("cost details = %q, want zero-cost override", found["langfuse.observation.cost_details"])
 	}
 }
 

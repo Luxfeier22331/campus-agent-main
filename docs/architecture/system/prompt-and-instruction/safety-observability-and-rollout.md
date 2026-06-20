@@ -140,18 +140,16 @@ prompt 只能消费已经过 code 过滤的 personalization inputs。
 
 ## Observability And Storage
 
-默认 observability 只记录 prompt metadata，不记录 raw prompt。
+默认 observability 只记录 LLM I/O runtime metadata，不记录 raw prompt。
 
 最小记录字段：
 
-- `prompt_id`
-- `prompt_version`
-- `template_sha256`
 - `model`
 - `request_id`
 - `mode`
-- `variables_schema_version`
 - `output_schema_version`
+- `provider_response_id`
+- `terminal_envelope_kind`
 - `citation_count`
 - `grounding_verdict`
 - `policy_verdict`
@@ -172,7 +170,7 @@ prompt 只能消费已经过 code 过滤的 personalization inputs。
 
 ## Eval And Release Gate
 
-prompt 变更不是纯文案改动，而是 release-relevant change。
+LLM I/O contract 变更不是纯文案改动，而是 release-relevant change。
 
 每次 prompt family 变更至少要经过三层 gate：
 
@@ -203,7 +201,7 @@ prompt 变更不是纯文案改动，而是 release-relevant change。
 - capability-not-open / source-unavailable / fail-close regression
 - out-of-scope / policy-refusal / unsupported-by-evidence regression
 
-prompt version bump 必须与 eval artifact 一起进入变更记录。
+LLM I/O schema 或 tool schema 变更必须与对应回归证据一起进入变更记录。
 
 ## Post-LLM Contract Expectations
 

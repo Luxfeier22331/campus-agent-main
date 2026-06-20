@@ -217,6 +217,13 @@ function startCampusWebLiveSmoke(): ChildProcess {
 	);
 }
 
+function buildLocalAuthEnv(args: LocalDevChatE2eArgs): NodeJS.ProcessEnv {
+	return {
+		...process.env,
+		AUTH_SHELL_ORIGIN: new URL(args.chatBaseUrl).origin,
+	};
+}
+
 export async function waitForReadyzWhileChildAlive(
 	url: string,
 	timeoutMs: number,
@@ -273,6 +280,7 @@ async function stopChild(child: ChildProcess): Promise<void> {
 
 async function main(argv: string[]): Promise<void> {
 	const args = parseArgs(argv);
+	const localAuthEnv = buildLocalAuthEnv(args);
 	if (!readOptionalValue(process.env.APP_API_SMOKE_IDENTITY_PASSWORD)) {
 		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev chat E2E.");
 	}
@@ -295,6 +303,7 @@ async function main(argv: string[]): Promise<void> {
 			args.name,
 		],
 		repoRoot,
+		localAuthEnv,
 	);
 
 	const chatE2eArgs = [

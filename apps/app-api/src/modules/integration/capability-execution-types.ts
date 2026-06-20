@@ -19,6 +19,27 @@ export interface CapabilityExecutionPromptTrace {
 	variablesSchemaVersion: string | null;
 }
 
+export interface CapabilityExecutionModelUsageSummary {
+	cachedInputTokens: number;
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	modelName: string | null;
+	modelProvider: string | null;
+	outputTokens: number;
+	stepCount: number;
+}
+
+export interface CapabilityExecutionUsageSummary {
+	billableStepCount: number;
+	cachedInputTokens: number;
+	estimatedCostMicrousd: number;
+	inputTokens: number;
+	modelName: string | null;
+	modelProvider: string | null;
+	modelUsage: CapabilityExecutionModelUsageSummary[];
+	outputTokens: number;
+}
+
 export interface CapabilityExecutionSessionSlot {
 	confirmed?: boolean;
 	name: string;
@@ -111,6 +132,7 @@ export interface CapabilityExecutionObservability {
 	toolBusinessOutcome?: string | null;
 	toolFailCloseReason?: string | null;
 	toolHistoricalDowngradeReason?: string | null;
+	usageSummary?: CapabilityExecutionUsageSummary | null;
 }
 
 export interface CapabilityExecutionWorkflowTraceSummary {

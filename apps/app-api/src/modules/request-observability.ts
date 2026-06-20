@@ -273,6 +273,8 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		estimatedCostMicrousd: null,
 		failClosed: null,
 		inputTokens: null,
+		billableStepCount: null,
+		modelUsageSummary: null,
 		intentCapability: null,
 		intentClassifierVersion: null,
 		intentLaunchState: null,
@@ -367,6 +369,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		typeof observability?.citationExpected === "boolean" ? observability.citationExpected : null;
 	const citationCount =
 		observability?.citationCount ?? (citationExpected === true ? supportingSources.length : 0);
+	const usageSummary = observability?.usageSummary ?? null;
 
 	return {
 		aclAnomalyCode: observability?.aclAnomalyCode ?? null,
@@ -375,7 +378,9 @@ export function buildFinalizedRequestObservabilityFact(input: {
 			response: input.response,
 			status: input.status,
 		}),
-		cachedInputTokens: observability?.cachedInputTokens ?? null,
+		cachedInputTokens: usageSummary
+			? usageSummary.cachedInputTokens
+			: (observability?.cachedInputTokens ?? null),
 		candidateCount: observability?.candidateCount ?? null,
 		claimSupportSummary: normalizeClaimSupportSummary(input.diagnostics),
 		remoteContentSuspicionSummary: normalizeRemoteContentSuspicionSummary(input.diagnostics),
@@ -397,13 +402,17 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		emptyRecall: retrievalAttempted === true ? retrievedSourceCount === 0 : null,
 		entitlementSnapshotId: input.principal.authorization?.entitlementSnapshotId ?? null,
 		errorCode: input.errorCode,
-		estimatedCostMicrousd: observability?.estimatedCostMicrousd ?? null,
+		estimatedCostMicrousd: usageSummary
+			? usageSummary.estimatedCostMicrousd
+			: (observability?.estimatedCostMicrousd ?? null),
 		failClosed: normalizeFailClosed({
 			diagnostics: input.diagnostics,
 			response: input.response,
 			status: input.status,
 		}),
-		inputTokens: observability?.inputTokens ?? null,
+		inputTokens: usageSummary ? usageSummary.inputTokens : (observability?.inputTokens ?? null),
+		billableStepCount: usageSummary?.billableStepCount ?? null,
+		modelUsageSummary: usageSummary?.modelUsage ?? null,
 		intentCapability: normalizeIntentString(observability?.intentCapability),
 		intentClassifierVersion: normalizeIntentString(observability?.intentClassifierVersion),
 		intentLaunchState: normalizeIntentString(observability?.intentLaunchState),
@@ -423,14 +432,17 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		intentMissingSlots: observability?.intentMissingSlots ?? null,
 		intentAmbiguityReason: normalizeIntentString(observability?.intentAmbiguityReason),
 		measuredAt: input.completedAt,
-		modelName: observability?.promptTrace?.modelName ?? observability?.modelName ?? null,
-		modelProvider:
-			observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null,
+		modelName: usageSummary
+			? usageSummary.modelName
+			: (observability?.promptTrace?.modelName ?? observability?.modelName ?? null),
+		modelProvider: usageSummary
+			? usageSummary.modelProvider
+			: (observability?.promptTrace?.modelProvider ?? observability?.modelProvider ?? null),
 		promptId: observability?.promptTrace?.promptId ?? null,
 		modelExecutionDetail: observability?.modelExecutionDetail ?? null,
 		modelExecutionState: observability?.modelExecutionState ?? null,
 		promptVersion: observability?.promptTrace?.promptVersion ?? null,
-		outputTokens: observability?.outputTokens ?? null,
+		outputTokens: usageSummary ? usageSummary.outputTokens : (observability?.outputTokens ?? null),
 		policyProjectionVersion:
 			input.principal.authorization?.retrievalFilter.policyProjectionVersion ?? null,
 		policyReason: normalizePolicyReason({

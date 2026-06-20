@@ -51,13 +51,18 @@ const catalog: ToolCatalog = {
 
 describe("primary agent runtime", () => {
 	it("returns a no-tool final answer without synthetic capability routing", async () => {
-		const runner: AgentRunner = async ({ input }) => ({
-			finalOutput: `我是校园问答助手。收到：${input}`,
-			providerResponseId: "resp_1",
-			toolCalls: [],
-			traceRef: "trace_1",
-			usage: { inputTokens: 12, outputTokens: 8 },
-		});
+		const runner: AgentRunner = async ({ input }) =>
+			({
+				finalOutput: `我是校园问答助手。收到：${input}`,
+				terminalEnvelope: {
+					kind: "answer",
+					answerText: `我是校园问答助手。收到：${input}`,
+				},
+				providerResponseId: "resp_1",
+				toolCalls: [],
+				traceRef: "trace_1",
+				usage: { inputTokens: 12, outputTokens: 8 },
+			}) as never;
 		const runtime = createPrimaryAgentRuntime({ catalog, runner });
 
 		const result = await runtime.run({
@@ -72,7 +77,38 @@ describe("primary agent runtime", () => {
 
 		expect(result.status).toBe("completed");
 		expect(result.finalOutput).toContain("校园问答助手");
+		expect(
+			(result as { terminalEnvelope?: { kind?: string; answerText?: string } }).terminalEnvelope,
+		).toEqual({
+			kind: "answer",
+			answerText: "我是校园问答助手。收到：hi 你是谁",
+		});
 		expect(result.selectedTools).toEqual([]);
+	});
+
+	it("fails closed when a no-tool final answer has no typed terminal envelope", async () => {
+		const runner: AgentRunner = async () => ({
+			finalOutput: "我是校园问答助手。",
+			providerResponseId: "resp_missing_envelope",
+			toolCalls: [],
+			traceRef: "trace_missing_envelope",
+			usage: { inputTokens: 12, outputTokens: 8 },
+		});
+		const runtime = createPrimaryAgentRuntime({ catalog, runner });
+
+		const result = await runtime.run({
+			runId: "run-missing-envelope",
+			conversationId: "conversation-1",
+			turnId: "turn-1",
+			traceId: "trace-1",
+			input: "hi 你是谁",
+			providerConfig,
+			visibleCapabilities: ["campus_services"],
+		});
+
+		expect(result.status).toBe("failed");
+		expect(result.terminalReason).toBe("agent_runtime_failed");
+		expect(result.finalOutput).toBe("");
 	});
 
 	it("injects bounded personal memory context into runner instructions", async () => {
@@ -119,6 +155,7 @@ describe("primary agent runtime", () => {
 			});
 			return {
 				finalOutput: "校车查询完成。",
+				terminalEnvelope: { kind: "answer", answerText: "校车查询完成。" },
 				providerResponseId: "resp_2",
 				toolCalls: [
 					{
@@ -129,7 +166,7 @@ describe("primary agent runtime", () => {
 				],
 				traceRef: "trace_2",
 				usage: { inputTokens: 20, outputTokens: 10 },
-			};
+			} as never;
 		};
 		const runtime = createPrimaryAgentRuntime({
 			catalog,
@@ -158,6 +195,7 @@ describe("primary agent runtime", () => {
 		});
 
 		expect(result.selectedTools).toEqual(["transport_schedule_lookup"]);
+		expect(result.status).toBe("completed");
 		expect(result.toolResults[0]?.resultRef).toBe(
 			"agent-runtime://run-tool/tools/transport_schedule_lookup",
 		);
@@ -281,6 +319,7 @@ describe("primary agent runtime", () => {
 			});
 			return {
 				finalOutput: "校车查询完成。",
+				terminalEnvelope: { kind: "answer", answerText: "校车查询完成。" },
 				providerResponseId: "resp_signal",
 				toolCalls: [
 					{
@@ -291,7 +330,7 @@ describe("primary agent runtime", () => {
 				],
 				traceRef: "trace_signal",
 				usage: { inputTokens: 20, outputTokens: 10 },
-			};
+			} as never;
 		};
 		const runtime = createPrimaryAgentRuntime({
 			catalog,

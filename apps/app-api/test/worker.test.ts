@@ -159,8 +159,11 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
-		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime"');
+		expect(stagingVarsBlock).toContain(
+			'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-ingest-staging.mucwiki-edge.link"',
+		);
+		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
+		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
@@ -245,6 +248,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain('"AUTH_RESET_EMAIL_FROM"');
 		expect(wranglerConfig).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
 		expect(localSecretsBlock).toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
+		expect(localSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
 		expect(wranglerConfig).toContain("[env.staging.secrets]");
 		expect(stagingSecretsBlock).toContain('"BETTER_AUTH_SECRET"');
 		expect(stagingSecretsBlock).toContain('"AUTH_TURNSTILE_SECRET_KEY"');
@@ -258,7 +262,8 @@ describe("app-api worker foundation", () => {
 		expect(stagingSecretsBlock).toContain('"APP_API_STAGING_SMOKE_AUTH_SECRET"');
 		expect(stagingSecretsBlock).not.toContain('"APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN"');
 		expect(stagingSecretsBlock).toContain('"SENTRY_DSN"');
-		expect(stagingSecretsBlock).toContain('"AXIOM_TOKEN"');
+		expect(stagingSecretsBlock).toContain('"APP_API_OTEL_INGEST_SHARED_SECRET"');
+		expect(stagingSecretsBlock).not.toContain('"AXIOM_TOKEN"');
 	});
 
 	it("declares a local Hyperdrive binding for APP_API_DB in wrangler config", () => {
@@ -273,6 +278,9 @@ describe("app-api worker foundation", () => {
 		);
 		expect(localSmokeWranglerConfig).toContain(
 			'CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"',
+		);
+		expect(localSmokeWranglerConfig).toContain(
+			'APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:27081"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});

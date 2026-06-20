@@ -14,7 +14,7 @@ const args = [
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_PROMPT?.trim() ||
 		"中央民族大学本科学生国家奖学金评审办法",
 	"--expect-model-execution-state",
-	"rag_sdk_completed",
+	"go_provider_synthesis_completed",
 	"--restart-campus-web",
 	"--restart-execution-control-runtime",
 ];

@@ -98,6 +98,8 @@ function finalizedWrite(): FinalizeRequestWrite {
 			estimatedCostMicrousd: null,
 			failClosed: false,
 			inputTokens: null,
+			billableStepCount: null,
+			modelUsageSummary: null,
 			intentCapability: null,
 			intentClassifierVersion: null,
 			intentLaunchState: null,

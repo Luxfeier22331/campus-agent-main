@@ -23,9 +23,8 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime",
-                        "AXIOM_TOKEN=axiom-token",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
                     ]
                 )
                 + "\n",
@@ -37,9 +36,8 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                         "SENTRY_DSN=https://shared.example",
                         "SENTRY_ENVIRONMENT=development",
                         "SENTRY_RELEASE=app-api@dev-local",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime",
-                        "AXIOM_TOKEN=axiom-token",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
                     ]
                 )
                 + "\n",
@@ -88,7 +86,7 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
 
             self.assertFalse(status["overall_ready"])
             self.assertFalse(status["source_ready"])
-            self.assertIn("AXIOM_ENDPOINT", status["source_missing_keys"])
+            self.assertIn("APP_API_OTEL_INGEST_ENDPOINT", status["source_missing_keys"])
             self.assertFalse(status["targets"]["apps/campus-web/.dev.vars"]["exists"])
 
     def test_collect_worker_observability_status_reports_target_mismatch(self) -> None:
@@ -99,9 +97,8 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime",
-                        "AXIOM_TOKEN=axiom-token",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
                     ]
                 )
                 + "\n",
@@ -113,9 +110,8 @@ class CheckWorkerObservabilityEnvTest(unittest.TestCase):
                         "SENTRY_DSN=https://api.other.example",
                         "SENTRY_ENVIRONMENT=development",
                         "SENTRY_RELEASE=app-api@dev-local",
-                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
-                        "AXIOM_DATASET=campus-agent-runtime",
-                        "AXIOM_TOKEN=axiom-token",
+                        "APP_API_OTEL_INGEST_ENDPOINT=https://otel-ingest.example.com",
+                        "APP_API_OTEL_INGEST_SHARED_SECRET=ingest-secret",
                     ]
                 )
                 + "\n",

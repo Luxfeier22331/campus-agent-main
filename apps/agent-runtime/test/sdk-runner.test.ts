@@ -46,6 +46,37 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedModelProvider).toBe(modelProvider);
 	});
 
+	it("configures typed terminal output and preserves the SDK structured final output", async () => {
+		let observedOutputType: unknown;
+		const structuredOutput = {
+			kind: "answer",
+			answerText: "我是校园问答助手。",
+		};
+		const runner = createOpenAIAgentsRunner({
+			runSdk: async (agent) => {
+				observedOutputType = (agent as { outputType?: unknown }).outputType;
+				return {
+					finalOutput: structuredOutput,
+					lastResponseId: "resp-sdk-structured-output",
+					newItems: [],
+				};
+			},
+		});
+
+		const result = await runner({
+			input: "hi 你是谁",
+			instructions: "Answer directly.",
+			tools: [],
+			runId: "run-sdk-structured-output",
+			traceId: "trace-run-sdk-structured-output",
+			providerConfig,
+		});
+
+		expect(observedOutputType).toBeDefined();
+		expect((result as { terminalEnvelope?: unknown }).terminalEnvelope).toEqual(structuredOutput);
+		expect(result.finalOutput).toBe("我是校园问答助手。");
+	});
+
 	it("projects tool calls, trace refs, provider response IDs, and usage from SDK run results", async () => {
 		const toolResult: ToolExecutionResult = {
 			status: "completed",

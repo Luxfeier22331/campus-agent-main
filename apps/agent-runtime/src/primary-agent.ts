@@ -74,6 +74,20 @@ export interface RunnerToolCall {
 	result: ToolExecutionResult | undefined;
 }
 
+export type PrimaryAgentTerminalKind =
+	| "answer"
+	| "clarification_required"
+	| "out_of_scope"
+	| "policy_refusal"
+	| "unsupported_by_evidence";
+
+export interface PrimaryAgentTerminalEnvelope {
+	answerText?: string;
+	followUpQuestion?: string;
+	kind: PrimaryAgentTerminalKind;
+	reason?: string;
+}
+
 export interface AgentRunnerInput {
 	input: string;
 	instructions: string;
@@ -87,6 +101,7 @@ export interface AgentRunnerInput {
 export interface AgentRunnerResult {
 	finalOutput: string;
 	providerResponseId: string;
+	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
 	toolCalls: RunnerToolCall[];
 	traceRef: string;
 	usage: UsageSummary;
@@ -99,11 +114,21 @@ export interface PrimaryAgentRunResult {
 	status: "completed" | "failed";
 	runId: string;
 	finalOutput: string;
+	modelName: string;
+	modelProvider: string;
 	providerResponseId: string;
 	sdkTraceRef: string;
 	selectedTools: string[];
+	terminalEnvelope?: PrimaryAgentTerminalEnvelope;
 	toolResults: ToolExecutionResult[];
-	terminalReason: "answer_completed" | "agent_runtime_failed" | "tool_selected";
+	terminalReason:
+		| "answer_completed"
+		| "agent_runtime_failed"
+		| "clarification_required"
+		| "out_of_scope"
+		| "policy_refusal"
+		| "tool_selected"
+		| "unsupported_by_evidence";
 	usage: UsageSummary;
 }
 
@@ -176,6 +201,8 @@ export function createPrimaryAgentRuntime(
 					status: "failed",
 					runId: input.runId,
 					finalOutput: "",
+					modelName: input.providerConfig.model,
+					modelProvider: input.providerConfig.provider,
 					providerResponseId: result.providerResponseId,
 					sdkTraceRef: result.traceRef,
 					selectedTools: result.toolCalls.map((call) => call.name),
@@ -188,14 +215,35 @@ export function createPrimaryAgentRuntime(
 				(toolResult) => toolResult.result.workflow_signal === toolResult.toolName,
 			)
 				? "tool_selected"
-				: "answer_completed";
+				: terminalReasonFromEnvelope(result.terminalEnvelope);
+			if (terminalReason !== "tool_selected" && result.terminalEnvelope === undefined) {
+				return {
+					status: "failed",
+					runId: input.runId,
+					finalOutput: "",
+					modelName: input.providerConfig.model,
+					modelProvider: input.providerConfig.provider,
+					providerResponseId: result.providerResponseId,
+					sdkTraceRef: result.traceRef,
+					selectedTools: result.toolCalls.map((call) => call.name),
+					toolResults,
+					terminalReason: "agent_runtime_failed",
+					usage: result.usage,
+				};
+			}
 			return {
 				status: "completed",
 				runId: input.runId,
-				finalOutput: result.finalOutput,
+				finalOutput:
+					result.terminalEnvelope === undefined
+						? result.finalOutput
+						: finalOutputFromTerminalEnvelope(result.terminalEnvelope),
+				modelName: input.providerConfig.model,
+				modelProvider: input.providerConfig.provider,
 				providerResponseId: result.providerResponseId,
 				sdkTraceRef: result.traceRef,
 				selectedTools: result.toolCalls.map((call) => call.name),
+				terminalEnvelope: result.terminalEnvelope,
 				toolResults,
 				terminalReason,
 				usage: result.usage,
@@ -227,6 +275,96 @@ function requireCatalogEntry(catalog: ToolCatalog, name: string): ToolCatalogEnt
 		throw new Error(`tool ${name} missing from catalog`);
 	}
 	return tool;
+}
+
+export function terminalEnvelopeFromUnknown(
+	value: unknown,
+): PrimaryAgentTerminalEnvelope | undefined {
+	const record = recordFromUnknown(value);
+	if (record === undefined) {
+		return;
+	}
+	const kind = stringFromUnknown(record.kind);
+	if (!isPrimaryAgentTerminalKind(kind)) {
+		return;
+	}
+	const envelope: PrimaryAgentTerminalEnvelope = { kind };
+	const answerText = stringFromUnknown(record.answerText ?? record.answer_text);
+	if (answerText !== "") {
+		envelope.answerText = answerText;
+	}
+	const followUpQuestion = stringFromUnknown(record.followUpQuestion ?? record.follow_up_question);
+	if (followUpQuestion !== "") {
+		envelope.followUpQuestion = followUpQuestion;
+	}
+	const reason = stringFromUnknown(record.reason);
+	if (reason !== "") {
+		envelope.reason = reason;
+	}
+	if (kind === "answer" && envelope.answerText === undefined) {
+		return;
+	}
+	if (
+		kind === "clarification_required" &&
+		envelope.followUpQuestion === undefined &&
+		envelope.answerText === undefined
+	) {
+		return;
+	}
+	if (
+		(kind === "out_of_scope" || kind === "policy_refusal" || kind === "unsupported_by_evidence") &&
+		envelope.reason === undefined &&
+		envelope.answerText === undefined
+	) {
+		return;
+	}
+	return envelope;
+}
+
+export function finalOutputFromTerminalEnvelope(envelope: PrimaryAgentTerminalEnvelope): string {
+	switch (envelope.kind) {
+		case "clarification_required":
+			return envelope.followUpQuestion ?? envelope.answerText ?? "";
+		case "answer":
+			return envelope.answerText ?? "";
+		default:
+			return envelope.answerText ?? envelope.reason ?? "";
+	}
+}
+
+function terminalReasonFromEnvelope(
+	envelope: PrimaryAgentTerminalEnvelope | undefined,
+): PrimaryAgentRunResult["terminalReason"] {
+	switch (envelope?.kind) {
+		case "clarification_required":
+		case "out_of_scope":
+		case "policy_refusal":
+		case "unsupported_by_evidence":
+			return envelope.kind;
+		default:
+			return "answer_completed";
+	}
+}
+
+function isPrimaryAgentTerminalKind(value: string): value is PrimaryAgentTerminalKind {
+	return (
+		value === "answer" ||
+		value === "clarification_required" ||
+		value === "out_of_scope" ||
+		value === "policy_refusal" ||
+		value === "unsupported_by_evidence"
+	);
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
+	if (value === null || typeof value !== "object" || Array.isArray(value)) {
+		return;
+	}
+	return value as Record<string, unknown>;
+}
+
+function stringFromUnknown(value: unknown): string {
+	return typeof value === "string" ? value.trim() : "";
 }
 
 async function defaultToolExecutor(request: ToolExecutionRequest): Promise<ToolExecutionResult> {

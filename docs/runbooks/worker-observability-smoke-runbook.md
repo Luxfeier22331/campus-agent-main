@@ -59,7 +59,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 
 - `overall_ready = true`
 - `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
-  `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
+  `、`APP_API_OTEL_INGEST_ENDPOINT`、`APP_API_OTEL_INGEST_SHARED_SECRET`
 - `apps/campus-web/.dev.vars`、`apps/campus-web/.dev.vars` 与
   `apps/operator-console-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、
   `SENTRY_RELEASE`
@@ -125,8 +125,8 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 - 真正的 closure 以真实请求、真实 trace 和真实 runtime event 是否进入 sink 为准
 - release identity 默认由三端 deploy 脚本按 `<app>@staging-<sha>` 自动生成；artifact 目录必须复用同一
   release 标识，不要另起名
-- `AXIOM_TOKEN` 可以只是 deploy-side ingest token；如果 query API 返回 `403 token does
-  not have required permissions`，应改用独立的 read/query token
+- Worker 不再配置 `AXIOM_TOKEN`；Axiom exporter credential 属于 Collector
+  deployment secret
 - `SENTRY_DSN` 只证明 deploy-side sink 配置存在；真正的 sink-side verification 仍需要 Sentry
   UI 或 repo-local `SENTRY_API_TOKEN`
 - `SENTRY_API_TOKEN` 是 repo-local lookup credential，不应 fan out 到任何 Worker

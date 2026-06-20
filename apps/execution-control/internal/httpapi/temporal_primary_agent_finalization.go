@@ -59,6 +59,10 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	finalizedResponse, err = s.attachRunUsageSummary(ctx, run.RunID, finalizedResponse)
+	if err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":finalization-completed",
 		RunID:                run.RunID,
@@ -136,40 +140,42 @@ func primaryAgentFinalizedResponse(
 	run execution.DurableRun,
 	agentResult map[string]any,
 ) (map[string]any, error) {
-	answerText := strings.TrimSpace(stringValue(agentResult["final_output"]))
-	if answerText == "" {
-		return nil, fmt.Errorf("agent final_output is required")
+	envelope := cloneAnyMapFromMetadata(agentResult["terminal_envelope"])
+	if !validPrimaryAgentTerminalEnvelope(envelope) {
+		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
 	selectedTools := stringSliceFromAny(agentResult["selected_tools"])
 	selectedCapability := primaryAgentSelectedCapability(selectedTools)
-	terminalReason := strings.TrimSpace(stringValue(agentResult["terminal_reason"]))
-	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalReason, answerText)
+	terminalKind := primaryAgentTerminalKind(envelope)
+	answerText := primaryAgentEnvelopeAnswerText(envelope)
+	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalKind, answerText)
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
 		SelectedCapability: selectedCapability,
 		Status:             status,
 		AnswerText:         primaryAgentAnswerText(status, answerText),
-		Error:              primaryAgentErrorBody(status, terminalReason),
+		Error:              primaryAgentErrorBody(status, terminalKind),
 		FollowUpQuestion:   followUpQuestion,
 		Confidence:         confidence,
 		Result: map[string]any{
 			"agent_result_ref":     agentResult["agent_result_ref"],
 			"provider_response_id": agentResult["provider_response_id"],
 			"selected_tools":       selectedTools,
+			"terminal_envelope":    envelope,
 			"tool_results":         agentResult["tool_results"],
-			"terminal_reason":      terminalReason,
+			"terminal_reason":      terminalKind,
 		},
 		Observability: map[string]any{
 			"agent_runtime":   "openai_agents_sdk",
 			"selected_tools":  selectedTools,
 			"sdk_trace_ref":   agentResult["sdk_trace_ref"],
-			"terminal_reason": terminalReason,
+			"terminal_reason": terminalKind,
 		},
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":             "agent_loop",
 			"selected_capability":       selectedCapability,
 			"selected_tools":            selectedTools,
-			"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalReason),
-			"terminal_reason":           terminalReason,
+			"direct_vs_delegate_branch": primaryAgentTraceBranch(terminalKind),
+			"terminal_reason":           terminalKind,
 			"answer_artifact_kinds":     []string{"agent_final_output"},
 			"answer_artifact_refs":      []string{strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))},
 			"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
@@ -179,10 +185,10 @@ func primaryAgentFinalizedResponse(
 }
 
 func primaryAgentTerminalReason(agentResult map[string]any) execution.DurableTerminalReason {
-	switch strings.TrimSpace(stringValue(agentResult["terminal_reason"])) {
+	switch primaryAgentTerminalKind(cloneAnyMapFromMetadata(agentResult["terminal_envelope"])) {
 	case "clarification_required":
 		return execution.DurableTerminalReasonClarificationRequired
-	case "out_of_scope":
+	case "out_of_scope", "policy_refusal":
 		return execution.DurableTerminalReasonPolicyRejected
 	case "unsupported_by_evidence":
 		return execution.DurableTerminalReasonNoAnswerGrounded
@@ -195,7 +201,7 @@ func primaryAgentResponseFields(terminalReason string, answerText string) (strin
 	switch terminalReason {
 	case "clarification_required":
 		return "needs_clarification", answerText, "medium"
-	case "out_of_scope":
+	case "out_of_scope", "policy_refusal":
 		return "rejected", "", "low"
 	case "unsupported_by_evidence":
 		return "no_answer", "", "low"
@@ -233,12 +239,40 @@ func primaryAgentTraceBranch(terminalReason string) string {
 		return "clarification"
 	case "out_of_scope":
 		return "out_of_scope"
+	case "policy_refusal":
+		return "policy_refusal"
 	case "unsupported_by_evidence":
 		return "unsupported"
 	case "tool_selected":
 		return "tool"
 	default:
 		return "direct_answer"
+	}
+}
+
+func primaryAgentTerminalKind(envelope map[string]any) string {
+	kind := strings.TrimSpace(stringValue(envelope["kind"]))
+	if kind == "" {
+		return "answer"
+	}
+	return kind
+}
+
+func primaryAgentEnvelopeAnswerText(envelope map[string]any) string {
+	kind := primaryAgentTerminalKind(envelope)
+	switch kind {
+	case "clarification_required":
+		if followUp := strings.TrimSpace(stringValue(envelope["follow_up_question"])); followUp != "" {
+			return followUp
+		}
+		return strings.TrimSpace(stringValue(envelope["answer_text"]))
+	case "answer":
+		return strings.TrimSpace(stringValue(envelope["answer_text"]))
+	default:
+		if answerText := strings.TrimSpace(stringValue(envelope["answer_text"])); answerText != "" {
+			return answerText
+		}
+		return strings.TrimSpace(stringValue(envelope["reason"]))
 	}
 }
 

@@ -52,10 +52,10 @@ updated: 2026-06-19
 - `adr-0056-kubernetes-keda-execution-runtime.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
 - `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `adr-0060-prompt-design-runtime-contract.md`
-  - Prompt design 的长期运行时契约：薄 developer instructions、structured tools、
+- `adr-0060-agent-llm-io-contract.md`
+  - Agent LLM I/O 的长期运行时契约：薄 developer instructions、structured tools、
     typed packets、strict structured outputs 与 code-side finalization；不接受用更长总
-    system prompt 替代 runtime contract。
+    system prompt 或 prompt governance 替代 runtime contract。
 
 ## Collaboration / Workflow
 

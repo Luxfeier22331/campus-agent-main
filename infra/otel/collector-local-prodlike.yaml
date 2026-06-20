@@ -1,0 +1,136 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 512
+    spike_limit_mib: 128
+  resource/campus:
+    attributes:
+      - key: service.namespace
+        value: campus-agent
+        action: upsert
+      - key: deployment.environment
+        value: local
+        action: upsert
+      - key: telemetry.allowed_attributes_version
+        value: runtime-otel-attrs-v1
+        action: upsert
+  attributes/drop_forbidden:
+    actions:
+      - key: raw.prompt
+        action: delete
+      - key: raw.query
+        action: delete
+      - key: raw.answer
+        action: delete
+      - key: raw.chat_transcript
+        action: delete
+      - key: raw.retrieved_snippet
+        action: delete
+      - key: chunk.body
+        action: delete
+      - key: canonical.body
+        action: delete
+      - key: ocr.raw_text
+        action: delete
+      - key: authorization
+        action: delete
+      - key: cookie
+        action: delete
+      - key: jwt
+        action: delete
+      - key: api.key
+        action: delete
+      - key: database.url
+        action: delete
+      - key: object_store.secret
+        action: delete
+      - key: provider.secret
+        action: delete
+  filter/drop_marked:
+    error_mode: ignore
+    traces:
+      span:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
+    metrics:
+      datapoint:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
+    logs:
+      log_record:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+exporters:
+  otlphttp/langfuse:
+    endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+    headers:
+      authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
+      x-langfuse-ingestion-version: "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}"
+    compression: gzip
+    encoding: proto
+    sending_queue:
+      enabled: true
+      num_consumers: 2
+      queue_size: 1024
+    retry_on_failure:
+      enabled: true
+      initial_interval: 1s
+      max_interval: 30s
+      max_elapsed_time: 300s
+  debug:
+    verbosity: basic
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    traces:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - otlphttp/langfuse
+        - debug
+    metrics:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - debug
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - resource/campus
+        - attributes/drop_forbidden
+        - filter/drop_marked
+        - batch
+      exporters:
+        - debug

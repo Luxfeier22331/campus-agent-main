@@ -1,6 +1,9 @@
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
-import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
+import type {
+	CapabilityExecutionModelUsageSummary,
+	CapabilityExecutionWorkflowTraceSummary,
+} from "../integration/capability-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -117,6 +120,8 @@ export interface RequestObservabilityFactWrite {
 	workflowTraceSummary?: CapabilityExecutionWorkflowTraceSummary | null;
 	modelProvider: string | null;
 	modelName: string | null;
+	billableStepCount: number | null;
+	modelUsageSummary: CapabilityExecutionModelUsageSummary[] | null;
 	intentCapability: string | null;
 	intentTaskKind: string | null;
 	intentLaunchState: string | null;

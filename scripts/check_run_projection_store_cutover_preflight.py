@@ -19,7 +19,6 @@ REQUIRED_STAGING_ENV_KEYS = [
     "STAGING_INGESTION_OBJECT_STORE_REGION",
     "STAGING_INGESTION_EMBEDDING_BASE_URL",
     "STAGING_INGESTION_EMBEDDING_API_KEY",
-    "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
@@ -79,7 +78,6 @@ URL_KEYS = [
     "STAGING_INGESTION_OBJECT_STORE_ENDPOINT",
     "STAGING_INGESTION_QDRANT_URL",
     "STAGING_INGESTION_EMBEDDING_BASE_URL",
-    "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
@@ -213,10 +211,6 @@ def invalid_qdrant_override_keys(values: dict[str, str]) -> list[str]:
 
 def invalid_observability_keys(values: dict[str, str]) -> list[str]:
     invalid: list[str] = []
-    axiom_endpoint = values.get("AXIOM_ENDPOINT", "").rstrip("/")
-    axiom_collector_endpoint = values.get("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", "").rstrip("/")
-    if axiom_endpoint and axiom_collector_endpoint and axiom_endpoint != axiom_collector_endpoint:
-        invalid.append("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT")
     if values.get("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", "") and "/" in (
         values["OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"]
         .removeprefix("https://")

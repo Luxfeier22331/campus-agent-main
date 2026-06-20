@@ -34,6 +34,33 @@ const runtimeKeys = [
 	"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
 	"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
 	"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
+	"LANGFUSE_BASE_URL",
+	"LANGFUSE_HOST_PORT",
+	"LANGFUSE_MINIO_HOST_PORT",
+	"LANGFUSE_NEXTAUTH_URL",
+	"LANGFUSE_NEXTAUTH_SECRET",
+	"LANGFUSE_SALT",
+	"LANGFUSE_ENCRYPTION_KEY",
+	"LANGFUSE_POSTGRES_PASSWORD",
+	"LANGFUSE_CLICKHOUSE_PASSWORD",
+	"LANGFUSE_REDIS_AUTH",
+	"LANGFUSE_MINIO_ROOT_USER",
+	"LANGFUSE_MINIO_ROOT_PASSWORD",
+	"LANGFUSE_INIT_ORG_ID",
+	"LANGFUSE_INIT_ORG_NAME",
+	"LANGFUSE_INIT_PROJECT_ID",
+	"LANGFUSE_INIT_PROJECT_NAME",
+	"LANGFUSE_INIT_PROJECT_PUBLIC_KEY",
+	"LANGFUSE_INIT_PROJECT_SECRET_KEY",
+	"LANGFUSE_INIT_USER_EMAIL",
+	"LANGFUSE_INIT_USER_NAME",
+	"LANGFUSE_INIT_USER_PASSWORD",
+	"LANGFUSE_PUBLIC_KEY",
+	"LANGFUSE_SECRET_KEY",
+	"LANGFUSE_ENVIRONMENT",
+	"OTEL_INGEST_HOST_PORT",
+	"OTEL_INGEST_MAX_BODY_BYTES",
+	"OTEL_INGEST_SHARED_SECRET",
 	"TEMPORAL_POSTGRES_PASSWORD",
 	"TEMPORAL_POSTGRES_USER",
 	"TEMPORAL_UI_CORS_ORIGINS",
@@ -42,6 +69,8 @@ const runtimeKeys = [
 	"AUDIT_QUEUE_CAPACITY",
 	"APP_API_INTERNAL_BASE_URL",
 	"APP_API_INTERNAL_SHARED_SECRET",
+	"APP_API_OTEL_INGEST_ENDPOINT",
+	"APP_API_OTEL_INGEST_SHARED_SECRET",
 	"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
 	"APP_API_OPERATOR_EMAIL_ALLOWLIST",
 	"APP_API_BASE_URL",
@@ -126,7 +155,10 @@ const runtimeKeys = [
 
 const appApiDevVarsSyncKeys = [
 	"APP_API_INTERNAL_SHARED_SECRET",
+	"APP_API_OTEL_INGEST_ENDPOINT",
+	"APP_API_OTEL_INGEST_SHARED_SECRET",
 	"APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY",
+	"EXECUTION_CONTROL_TIMEOUT_MS",
 ];
 
 export async function projectLocalRuntimeEnv(input = {}) {
@@ -221,7 +253,7 @@ function deriveRuntimeEnv(env, input) {
 		read(env, "APP_API_INTERNAL_BASE_URL") ||
 		"http://host.docker.internal:27031";
 	setValue(env, "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
-	setDefault(env, "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "1000");
+	setDefault(env, "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "5000");
 	setDefault(env, "EXECUTION_CONTROL_APP_API_BASE_URL", trimTrailingSlash(appApiInternalBaseUrl));
 	const appApiInternalSharedSecret =
 		read(env, "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET") ||
@@ -247,12 +279,13 @@ function deriveRuntimeEnv(env, input) {
 		"postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable",
 	);
 	setDefault(env, "QDRANT_URL", "http://qdrant:6333");
+	setDefault(env, "QDRANT_TIMEOUT_SECONDS", "60");
 	if (!read(env, "QDRANT_QUERY_API_KEY") && read(env, "QDRANT_READ_ONLY_API_KEY")) {
 		setValue(env, "QDRANT_QUERY_API_KEY", read(env, "QDRANT_READ_ONLY_API_KEY"));
 	}
 
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
-	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "30000");
+	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "180000");
 	setDefault(env, "AGENT_RUNTIME_PORT", "27062");
 	setDefault(env, "AGENT_RUNTIME_TOOL_CATALOG_PATH", "configs/runtime/tool-catalog.v1.json");
 	setDefault(env, "AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL", "http://execution-control:8000");
@@ -265,8 +298,56 @@ function deriveRuntimeEnv(env, input) {
 		setValue(env, "AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
 	}
 
+	const otelIngestSharedSecret =
+		read(env, "OTEL_INGEST_SHARED_SECRET") ||
+		read(env, "APP_API_OTEL_INGEST_SHARED_SECRET") ||
+		deriveOtelIngestSecret(workerSharedSecret, internalQuerySharedSecret);
+	if (otelIngestSharedSecret) {
+		setValue(env, "OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+		setValue(env, "APP_API_OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+	}
+	setDefault(env, "OTEL_INGEST_HOST_PORT", "127.0.0.1:27081");
+	setDefault(env, "OTEL_INGEST_MAX_BODY_BYTES", "1048576");
+	setDefault(env, "APP_API_OTEL_INGEST_ENDPOINT", "http://127.0.0.1:27081");
+
+	const explicitLangfuseBaseURL = read(env, "LANGFUSE_BASE_URL");
+	setDefault(env, "LANGFUSE_HOST_PORT", "3000");
+	setDefault(env, "LANGFUSE_MINIO_HOST_PORT", "9090");
+	setDefault(env, "LANGFUSE_BASE_URL", `http://127.0.0.1:${read(env, "LANGFUSE_HOST_PORT") || "3000"}`);
+	setDefault(env, "LANGFUSE_NEXTAUTH_URL", read(env, "LANGFUSE_BASE_URL"));
+	setDefault(env, "LANGFUSE_MINIO_ROOT_USER", "minio");
+	setDefault(env, "LANGFUSE_INIT_ORG_ID", "campus-agent-local");
+	setDefault(env, "LANGFUSE_INIT_ORG_NAME", "campus-agent-local");
+	setDefault(env, "LANGFUSE_INIT_PROJECT_ID", "campus-agent-dev");
+	setDefault(env, "LANGFUSE_INIT_PROJECT_NAME", "campus-agent-dev");
+	setDefault(env, "LANGFUSE_INIT_USER_EMAIL", "langfuse-local@campus-agent.local");
+	setDefault(env, "LANGFUSE_INIT_USER_NAME", "Campus Agent Local");
+	setDefault(env, "LANGFUSE_ENVIRONMENT", read(env, "DEPLOYMENT_ENVIRONMENT") || "local");
+	setDefault(env, "LANGFUSE_PUBLIC_KEY", read(env, "LANGFUSE_INIT_PROJECT_PUBLIC_KEY"));
+	setDefault(env, "LANGFUSE_SECRET_KEY", read(env, "LANGFUSE_INIT_PROJECT_SECRET_KEY"));
+	setDefault(env, "LANGFUSE_INIT_PROJECT_PUBLIC_KEY", read(env, "LANGFUSE_PUBLIC_KEY"));
+	setDefault(env, "LANGFUSE_INIT_PROJECT_SECRET_KEY", read(env, "LANGFUSE_SECRET_KEY"));
+	const langfuseCollectorBaseURL = explicitLangfuseBaseURL || "http://langfuse-web:3000";
+	setDefault(
+		env,
+		"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+		`${trimTrailingSlash(langfuseCollectorBaseURL)}/api/public/otel`,
+	);
+	const langfusePublicKey = read(env, "LANGFUSE_PUBLIC_KEY");
+	const langfuseSecretKey = read(env, "LANGFUSE_SECRET_KEY");
+	if (langfusePublicKey && langfuseSecretKey) {
+		setDefault(
+			env,
+			"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+			`Basic ${Buffer.from(`${langfusePublicKey}:${langfuseSecretKey}`).toString("base64")}`,
+		);
+	}
+	setDefault(env, "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION", "4");
+
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233");
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging");
+	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", "30000");
+	setDefault(env, "EXECUTION_CONTROL_TIMEOUT_MS", read(env, "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS"));
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "local:execution-control:001");
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY", "local:workflow-worker:001");
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY", "local:activity-context:001");
@@ -407,6 +488,18 @@ function deriveAgentRuntimeBridgeSecret(workerSharedSecret, internalQuerySharedS
 		.digest("hex");
 }
 
+function deriveOtelIngestSecret(workerSharedSecret, internalQuerySharedSecret) {
+	if (!(workerSharedSecret && internalQuerySharedSecret)) {
+		return "";
+	}
+	return createHash("sha256")
+		.update("campus-agent:otel-ingest:v1\0")
+		.update(workerSharedSecret)
+		.update("\0")
+		.update(internalQuerySharedSecret)
+		.digest("hex");
+}
+
 function projectContainerValue(key, value) {
 	if (
 		key === "DOCUMENT_REGISTRY_DATABASE_URL" ||
@@ -420,6 +513,9 @@ function projectContainerValue(key, value) {
 	}
 	if (key === "QDRANT_URL") {
 		return projectLocalServiceDns(value, "qdrant");
+	}
+	if (key === "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT") {
+		return projectLocalServiceDns(value, "langfuse-web");
 	}
 	if (key === "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL") {
 		return projectLocalServiceDns(value, "host.docker.internal");
@@ -463,7 +559,12 @@ function summarizeProjectedEnv(env) {
 		"HINDSIGHT_API_LLM_API_KEY",
 		"HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
 		"EXECUTION_CONTROL_RUNTIME_RELEASE",
+		"EXECUTION_CONTROL_TIMEOUT_MS",
 		"EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
+		"LANGFUSE_BASE_URL",
+		"OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+		"OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+		"OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
 	];
 	return Object.fromEntries(
 		keys.map((key) => {

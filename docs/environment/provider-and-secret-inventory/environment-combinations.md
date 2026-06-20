@@ -64,7 +64,8 @@ owns this section group; the original path remains the stable index.
 - Cloudflare deploy access
 - panel 的 Cloudflare Access application
 - 对应运行面的 Sentry DSN
-- `app-api` 的 Axiom dataset / token
+- Collector 的 Axiom exporter endpoint / auth header / dataset
+- `app-api` 的 controlled OTLP ingest endpoint / shared secret
 
 ## 当前不需要的 provider
 

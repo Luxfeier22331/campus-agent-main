@@ -147,7 +147,8 @@ SURFACE_SPECS = {
                 "optional_keys": (
                     "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN",
                     "SENTRY_DSN",
-                    "AXIOM_TOKEN",
+                    "APP_API_OTEL_INGEST_ENDPOINT",
+                    "APP_API_OTEL_INGEST_SHARED_SECRET",
                 ),
             },
         },

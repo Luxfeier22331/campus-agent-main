@@ -79,9 +79,21 @@ describe("agent runtime HTTP handler", () => {
 		);
 
 		expect(response.status).toBe(200);
-		const body = (await response.json()) as { final_output?: string; selected_tools?: string[] };
+		const body = (await response.json()) as {
+			final_output?: string;
+			model_name?: string;
+			model_provider?: string;
+			selected_tools?: string[];
+			terminal_envelope?: { kind?: string; answer_text?: string };
+		};
 		expect(body.final_output).toBe("我是校园问答助手。");
+		expect(body.model_name).toBe("gpt-5-mini");
+		expect(body.model_provider).toBe("openai");
 		expect(body.selected_tools).toEqual([]);
+		expect(body.terminal_envelope).toEqual({
+			kind: "answer",
+			answer_text: "我是校园问答助手。",
+		});
 		expect(observedProvider).toEqual(validRuntimePromptProviderConfig());
 		expect(observedMemoryContext).toEqual({
 			contextBlock: "用户记忆:\n- 用户偏好先给结论",
@@ -124,6 +136,9 @@ describe("agent runtime HTTP handler", () => {
 						status: "completed",
 						runId: input.runId,
 						finalOutput: "ok",
+						modelName: "gpt-test",
+						modelProvider: "openai",
+						terminalEnvelope: { kind: "answer", answerText: "ok" },
 						providerResponseId: "resp_signal",
 						sdkTraceRef: "trace_signal",
 						selectedTools: [],
@@ -269,13 +284,15 @@ describe("agent runtime server env contract", () => {
 	});
 });
 
-const noToolRunner: AgentRunner = async () => ({
-	finalOutput: "我是校园问答助手。",
-	providerResponseId: "resp_test",
-	toolCalls: [],
-	traceRef: "trace_test",
-	usage: { inputTokens: 1, outputTokens: 1 },
-});
+const noToolRunner: AgentRunner = async () =>
+	({
+		finalOutput: "我是校园问答助手。",
+		terminalEnvelope: { kind: "answer", answerText: "我是校园问答助手。" },
+		providerResponseId: "resp_test",
+		toolCalls: [],
+		traceRef: "trace_test",
+		usage: { inputTokens: 1, outputTokens: 1 },
+	}) as never;
 
 function validRunBody(): Record<string, unknown> {
 	return {

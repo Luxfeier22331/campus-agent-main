@@ -125,6 +125,20 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_otel_ingest_gateway_build_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!package.json",
+                "!pnpm-lock.yaml",
+                "!pnpm-workspace.yaml",
+                "!apps/otel-ingest-gateway/",
+                "!apps/otel-ingest-gateway/**",
+            }.issubset(patterns)
+        )
+
     def test_dockerignore_keeps_ingestion_control_build_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)

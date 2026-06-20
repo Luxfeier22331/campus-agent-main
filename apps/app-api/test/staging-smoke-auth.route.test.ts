@@ -21,6 +21,8 @@ const env: Env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "staging",
 	APP_API_STAGING_SMOKE_AUTH_SECRET: "staging-smoke-secret",
+	APP_API_OTEL_INGEST_ENDPOINT: "https://otel-ingest.internal",
+	APP_API_OTEL_INGEST_SHARED_SECRET: "otel-ingest-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",

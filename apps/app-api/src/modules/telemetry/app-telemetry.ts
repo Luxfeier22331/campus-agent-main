@@ -1,7 +1,7 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
-import { type AxiomRuntimeEventSink, createAxiomRuntimeEventSink } from "./axiom";
+import type { AxiomRuntimeEventSink } from "./axiom";
 import { buildAxiomEnvelope } from "./axiom-envelope";
 import {
 	hashIdentifier,
@@ -11,6 +11,7 @@ import {
 	toScopeSummary,
 	toSourceDocIdsSummary,
 } from "./helpers";
+import { createOtlpRuntimeEventSink } from "./otlp";
 import { applyRequestContext, applyRequestTags } from "./sentry-scope";
 import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
@@ -19,9 +20,9 @@ export function createAppTelemetry(
 	env: Pick<
 		Env,
 		| "APP_API_ENVIRONMENT"
-		| "AXIOM_DATASET"
-		| "AXIOM_ENDPOINT"
-		| "AXIOM_TOKEN"
+		| "APP_API_NAME"
+		| "APP_API_OTEL_INGEST_ENDPOINT"
+		| "APP_API_OTEL_INGEST_SHARED_SECRET"
 		| "SENTRY_ENVIRONMENT"
 		| "SENTRY_RELEASE"
 	>,
@@ -31,7 +32,7 @@ export function createAppTelemetry(
 		traceDataProvider?: () => TraceDataLike | null | undefined;
 	} = {},
 ): AppTelemetry {
-	const axiomSink = input.axiomSink ?? createAxiomRuntimeEventSink(env);
+	const axiomSink = input.axiomSink ?? createOtlpRuntimeEventSink(env);
 	const now = input.now ?? (() => new Date());
 	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {

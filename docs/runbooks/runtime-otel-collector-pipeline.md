@@ -17,6 +17,9 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
 ## Boundary
 
 - Runtime apps emit sanitized OTLP or OTel-compatible runtime events.
+- Cloudflare Worker surfaces emit OTLP HTTP to the controlled ingest gateway;
+  the gateway enforces authentication, method/path allowlist and payload size
+  before forwarding to the Collector.
 - Collector config lives under `infra/otel/`.
 - The Collector performs resource enrichment, forbidden-field deletion, explicit drop filtering,
   sampling, batching, retry and sink fan-out.
@@ -73,8 +76,9 @@ Expected local evidence:
   OCR raw text, authorization, cookie, JWT, database URL or provider secret fields
 
 Worker JSONL sinks remain available as local debug handoff surfaces. Staging runtime now also
-supports worker-local OTLP export directly to the repo-owned Collector; JSONL is no longer the only
-bridge runtime telemetry path.
+supports Worker-origin OTLP export through `otel-ingest-gateway`; JSONL is no
+longer the only bridge runtime telemetry path. Workers must not post directly to
+the raw Collector receiver.
 
 ## Staging Env
 
@@ -95,6 +99,8 @@ OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=campus-agent-runtime
+OTEL_INGEST_SHARED_SECRET=<secret-managed Worker ingest secret>
+OTEL_INGEST_MAX_BODY_BYTES=1048576
 LANGFUSE_BASE_URL=https://langfuse.internal
 LANGFUSE_PUBLIC_KEY=<secret-managed project public key>
 LANGFUSE_SECRET_KEY=<secret-managed project secret key>
@@ -401,8 +407,8 @@ If the Collector receives telemetry but no sink records appear:
    for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,
    or `/v1/metrics` in the Collector exporter config because `otlphttp` appends the signal path
    automatically.
-8. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` matches `AXIOM_ENDPOINT`, so Worker-local and
-   Collector-based exports land in the same Axiom edge deployment.
+8. Confirm Worker-origin telemetry is posted to `otel-ingest-gateway`, not the
+   raw Collector receiver.
 9. Confirm Axiom traces/logs use `x-axiom-dataset=campus-agent-runtime`.
    Metrics stay on the Collector debug pipeline and are not exported to a
    separate Axiom metrics dataset.

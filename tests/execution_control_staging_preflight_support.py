@@ -81,7 +81,6 @@ _PROJECTED_STAGING_KEYS = [
     "PERSONAL_MEMORY_API_SECRET",
     "PERSONAL_MEMORY_OWNER_SALT",
     "HINDSIGHT_POSTGRES_PASSWORD",
-    "AXIOM_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
     "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
     "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
@@ -99,6 +98,7 @@ _PROJECTED_STAGING_KEYS = [
 _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "CAMPUS_SHARED_POSTGRES_URL",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
+    "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
@@ -122,14 +122,18 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
     "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",
+    "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",
     "PERSONAL_MEMORY_BASE_URL",
     "PERSONAL_MEMORY_API_SECRET",
     "PERSONAL_MEMORY_OWNER_SALT",
     "HINDSIGHT_POSTGRES_PASSWORD",
+    "LANGFUSE_BASE_URL",
+    "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT",
+    "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER",
+    "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION",
 ]
 
 _VALID_OBSERVABILITY_SINK_ENV = {
-    "AXIOM_ENDPOINT": "https://us-east-1.aws.edge.axiom.co",
     "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT": (
         "https://o4511127794155520.ingest.us.sentry.io/api/4511351503454208/integration/otlp"
     ),
@@ -260,7 +264,11 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         script_path.chmod(0o755)
         scripts_dir = temp_root / "infra" / "local" / "scripts"
         scripts_dir.mkdir(parents=True)
-        for source_path in (ROOT / "infra/local/scripts").glob("ensure-*-secrets.mjs"):
+        for script_name in (
+            "ensure-runtime-secrets.mjs",
+            "project-local-runtime-env.mjs",
+        ):
+            source_path = ROOT / "infra/local/scripts" / script_name
             (scripts_dir / source_path.name).write_text(
                 source_path.read_text(encoding="utf-8"),
                 encoding="utf-8",
@@ -272,11 +280,11 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         node - projected.env0 <<'NODE'
         const fs = require("node:fs");
         const env0 = fs.readFileSync(process.argv[2], "utf8");
-        for (const entry of env0.split("\\0")) {{
-          if (!entry) continue;
-          const separator = entry.indexOf("=");
-          if (separator <= 0) continue;
-          process.env[entry.slice(0, separator)] = entry.slice(separator + 1);
+        const entries = env0.split("\\0");
+        for (let index = 0; index + 1 < entries.length; index += 2) {{
+          const key = entries[index];
+          if (!key) continue;
+          process.env[key] = entries[index + 1];
         }}
         const keys = {json.dumps(_PROJECTED_LOCAL_RUNTIME_KEYS)};
         const projected = {{}};

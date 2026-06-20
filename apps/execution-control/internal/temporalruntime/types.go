@@ -101,11 +101,14 @@ type AgentToolResult struct {
 type ExecutePrimaryAgentActivityOutput struct {
 	AgentResultRef     string            `json:"agent_result_ref"`
 	FinalOutput        string            `json:"final_output"`
+	ModelName          string            `json:"model_name"`
+	ModelProvider      string            `json:"model_provider"`
 	ProviderResponseID string            `json:"provider_response_id"`
 	RunID              string            `json:"run_id"`
 	SDKTraceRef        string            `json:"sdk_trace_ref"`
 	SelectedTools      []string          `json:"selected_tools"`
 	Status             string            `json:"status"`
+	TerminalEnvelope   map[string]any    `json:"terminal_envelope,omitempty"`
 	TerminalReason     string            `json:"terminal_reason"`
 	ToolResults        []AgentToolResult `json:"tool_results"`
 	Usage              AgentUsageSummary `json:"usage"`

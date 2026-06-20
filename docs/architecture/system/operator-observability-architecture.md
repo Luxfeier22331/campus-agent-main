@@ -62,6 +62,10 @@ debugging / analysis / grading`
 
 二者相关，但不是同一条数据面。
 
+Cloudflare Worker surfaces 进入这条 observability chain 时只能通过受控 OTLP ingest gateway
+进入 Collector；Operator Console 仍只消费 app-api projection，不能直接查询 gateway、
+Collector 或 vendor sink。
+
 ## Operator Domain Model
 
 长期 operator-facing observability 域固定拆成：
