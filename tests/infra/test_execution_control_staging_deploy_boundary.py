@@ -93,6 +93,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
                     "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
                     "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
                     "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+                    "QDRANT_QUERY_API_KEY=stale-query-key",
                     "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
                     "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
                     "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
@@ -122,6 +123,9 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "Basic cGstbGY6c2stbGY=",
         )
         self.assertEqual(projected["OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION"], "4")
+        self.assertEqual(projected["QDRANT_API_KEY"], "qdrant-key")
+        self.assertEqual(projected["QDRANT_READ_ONLY_API_KEY"], "qdrant-readonly-key")
+        self.assertEqual(projected["QDRANT_QUERY_API_KEY"], "qdrant-readonly-key")
         self.assertEqual(projected["EMBEDDING_MODEL"], "Qwen3-Embedding-4B")
         self.assertEqual(projected["EMBEDDING_DIMENSIONS"], "2560")
         self.assertEqual(

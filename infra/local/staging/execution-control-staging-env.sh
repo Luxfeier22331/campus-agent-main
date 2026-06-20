@@ -839,8 +839,10 @@ if (!resolved.has("QDRANT_DOCKER_URL")) {
 if (!resolved.has("QDRANT_READ_ONLY_API_KEY") && envValue("QDRANT_READ_ONLY_API_KEY")) {
   resolved.set("QDRANT_READ_ONLY_API_KEY", envValue("QDRANT_READ_ONLY_API_KEY"));
 }
-if (!resolved.has("QDRANT_QUERY_API_KEY")) {
-  resolved.set("QDRANT_QUERY_API_KEY", resolved.get("QDRANT_READ_ONLY_API_KEY") || "");
+if (resolved.get("QDRANT_READ_ONLY_API_KEY")) {
+  resolved.set("QDRANT_QUERY_API_KEY", resolved.get("QDRANT_READ_ONLY_API_KEY"));
+} else if (!resolved.has("QDRANT_QUERY_API_KEY")) {
+  resolved.set("QDRANT_QUERY_API_KEY", "");
 }
 resolved.set(
   "EXECUTION_CONTROL_STAGING_REQUIRES_LOCAL_POSTGRES",
