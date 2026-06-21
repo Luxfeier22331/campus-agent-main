@@ -81,7 +81,7 @@ pnpm langfuse:check
 To check a populated staging shell before starting compose:
 
 ```bash
-uv run --all-packages python scripts/check_runtime_otel_collector_config.py
+pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
 ```
 
 To prove the staging template Langfuse fan-out path with the real Collector

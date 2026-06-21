@@ -1,0 +1,8 @@
+[project]
+name = "campus-eval-langfuse"
+version = "0.1.0"
+description = "TypeScript Langfuse eval platform integration workspace marker."
+requires-python = ">=3.12"
+
+[tool.uv]
+package = false

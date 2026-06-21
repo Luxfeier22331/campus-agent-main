@@ -806,18 +806,15 @@ runtime observability artifact：
 
 Langfuse eval platform：
 
-- `campus_evals.langfuse_score_report` 拥有 sanitized
-  `langfuse_score_report.v1` schema、validator、registry check 与 publisher。
-- `publish-langfuse-profile` 仍保留为兼容入口，但内部先把
-  `profile-report.json` 转为 generic score report，再调用
-  `publish-langfuse-score-report`。
+- `packages/eval-langfuse` 拥有 sanitized `langfuse_score_report.v1`
+  schema、validator、registry check、publisher、trace evidence 与 release closeout。
+- Python `campus_evals` 不再提供 Langfuse adapter / publisher / platform automation。
 - generic publish 入口：
-  `uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report
+  `pnpm --dir packages/eval-langfuse langfuse publish-score-report
   --score-report <langfuse-score-report.json> --dry-run --json`。
 - dataset / experiment / review automation 入口：
-  `sync-langfuse-score-configs`、`sync-langfuse-datasets`、
-  `run-langfuse-experiment`、`sync-langfuse-annotation-queue` 与
-  `export-langfuse-review-results`。
+  `sync-score-configs`、`sync-datasets`、`run-experiment`、
+  `sync-annotation-queue` 与 `export-review-results`。
 - dataset sync 支持 `rag_qrels`、`answer_quality`、`release_acceptance`、
   `online_answer_path` 与 `known_gap_review_seed`，其中 query / user goal 只写 hash。
 - experiment runner 支持 Langfuse-hosted dataset run item evidence，也支持 local fixture
@@ -828,8 +825,9 @@ Langfuse eval platform：
   comment hash 与 repo backlog candidate id。
 - RAG first-stage sweep 由 Go
   `apps/execution-control/cmd/rag-first-stage-eval-runner` 生成 candidate result，
-  再由 `run-rag-first-stage-parameter-sweep` 聚合为
-  `rag-first-stage-parameter-sweep.json` 与 `langfuse-score-report.json`。
+  再由 Python deterministic aggregator 聚合为
+  `rag-first-stage-parameter-sweep.json`；Langfuse score report 生成归属
+  `packages/eval-langfuse`。
 - 当前发布入口使用 Langfuse Public API `POST /api/public/scores` 与 Basic Auth；
   dataset / experiment / score-config / annotation automation 也只使用薄 REST adapter。
 - `base_url`、`public_key`、`secret_key` 必须同时存在；缺任一项时 adapter 保持 disabled

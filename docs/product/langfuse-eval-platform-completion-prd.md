@@ -80,9 +80,9 @@ score configs 与 release evidence。
   `langfuse.trace.tags` 以及 run / workflow / step attributes。
 - staging Collector 模板把 traces fan-out 到 Langfuse `/api/public/otel`，使用
   Basic Auth 与 `x-langfuse-ingestion-version=4`。
-- `packages/evals` 支持 `publish-langfuse-profile` 兼容入口，并支持
-  `publish-langfuse-score-report` 发布 repo-owned sanitized score report。
-- `verify-langfuse-trace` 已能校验 trace core、observation、identity drift、
+- `packages/eval-langfuse` 支持 `build-score-report-from-profile` 与
+  `publish-score-report` 发布 repo-owned sanitized score report。
+- `verify-trace` 已能校验 trace core、observation、identity drift、
   observation contract 与 forbidden payload fields。
 - `langfuse-release-evidence.json` builder / checker / closeout runner 已存在，
   但 release closeout 仍绑定 `online-answer-path` profile report。
@@ -249,7 +249,7 @@ metadata
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate \
-  publish-langfuse-score-report \
+  publish-score-report \
   --score-report <path> \
   --json
 ```
@@ -272,11 +272,11 @@ uv run --all-packages python -m scripts.eval_gate \
 
 迁移要求：
 
-- 保留现有 `publish-langfuse-profile` 作为兼容入口。
-- `publish-langfuse-profile` 内部必须先把 `profile-report.json` 转换为
+- profile report 兼容入口已废弃。
+- `build-score-report-from-profile` 负责把 `profile-report.json` 转换为
   `langfuse_score_report.v1`，再调用 generic publisher。
 - `eval-release-gate.yml` 的 Langfuse publish step 在迁移期可继续调用旧入口；
-  Phase 2 完成后切到 `publish-langfuse-score-report`。
+  Phase 2 完成后切到 `publish-score-report`。
 - release evidence artifact 从 `publish_langfuse_profile` 字段迁移到
   `publish_langfuse_score_report` 字段；迁移期 checker 可显式支持旧字段，但新
   closeout 只能写新字段。
@@ -461,7 +461,7 @@ score | null
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate \
-  sync-langfuse-datasets \
+  sync-datasets \
   --dataset-manifest <path> \
   --dry-run \
   --json
@@ -503,7 +503,7 @@ dataset identity：
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate \
-  run-langfuse-experiment \
+  run-experiment \
   --experiment-manifest <path> \
   --json
 ```
@@ -640,8 +640,8 @@ P0 完成标准：
 - `langfuse_score_report.v1` 明确定义 `source_result_denominator`、
   `expected_publish_denominator`、`score_items[]` 与 `omitted_items[]`，并拒绝
   denominator 不一致的 report。
-- `publish-langfuse-score-report` 支持 `BOOLEAN` 和 `NUMERIC`，且旧
-  `publish-langfuse-profile` 已迁移为内部调用 generic publisher。
+- `publish-score-report` 支持 `BOOLEAN` 和 `NUMERIC`，且旧
+  profile publish 兼容入口已删除。
 - score naming registry 能阻止未知 score name publish。
 - `rag_first_stage_parameter_sweep` 对至少 `student_rules` 和
   `curriculum_plan` 产出 sanitized report、candidate result artifact 与
@@ -680,8 +680,8 @@ P2 完成标准：
 
 - 定义 score report schema。
 - 实现 score report validator、golden fixture 和 malformed fixture。
-- 实现 `publish-langfuse-score-report`。
-- 将 `publish-langfuse-profile` 迁移为 profile -> score report adapter。
+- 实现 `publish-score-report`。
+- 将 profile -> score report adapter 放入 `build-score-report-from-profile`。
 - 定义 score naming registry。
 - 接入 RAG first-stage parameter sweep。
 

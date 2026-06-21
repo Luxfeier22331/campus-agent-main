@@ -20,14 +20,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -111,9 +103,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Sync workspace
-        run: uv sync --all-packages --dev
 
       - name: Run Langfuse integration checks
         run: pnpm ci:langfuse

@@ -7,7 +7,6 @@ from campus_evals.benchmark import (
     resolve_retrieval_fixture_manifest_path,
     validate_retrieval_qrels_fixture,
 )
-from campus_evals.langfuse_score_report import validate_langfuse_score_report
 from campus_evals.retrieval_tuning import main as tuning_main
 
 from tests.evals.retrieval_benchmark_test_support import (
@@ -274,7 +273,6 @@ class RetrievalTuningReportTest(unittest.TestCase):
                 encoding="utf-8",
             )
             output_path = root / "report.json"
-            score_report_path = root / "langfuse-score-report.json"
 
             stdout_buffer = io.StringIO()
             with redirect_stdout(stdout_buffer):
@@ -288,22 +286,11 @@ class RetrievalTuningReportTest(unittest.TestCase):
                         str(candidate_path),
                         "--output",
                         str(output_path),
-                        "--langfuse-score-report",
-                        str(score_report_path),
-                        "--langfuse-environment",
-                        "staging",
-                        "--langfuse-release",
-                        "retrieval-tuning@2026-06-19",
-                        "--source-git-head",
-                        "git-head-001",
-                        "--dataset-run-id",
-                        "dataset-run-001",
                         "--format",
                         "json",
                     ]
                 )
             report_payload = json.loads(output_path.read_text(encoding="utf-8"))
-            score_report_payload = json.loads(score_report_path.read_text(encoding="utf-8"))
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(
@@ -312,65 +299,6 @@ class RetrievalTuningReportTest(unittest.TestCase):
         self.assertEqual(report_payload["schema_version"], "retrieval-tuning-report-v1")
         self.assertEqual(report_payload["recommended_candidate_id"], "baseline")
         self.assertEqual(report_payload["candidates"][0]["gate_status"], "pass")
-        self.assertEqual(score_report_payload["schema_version"], "langfuse_score_report.v1")
-        self.assertEqual(score_report_payload["eval_kind"], "rag_first_stage_parameter_sweep")
-        self.assertEqual(score_report_payload["profile_id"], "rag-first-stage-parameter-sweep")
-        self.assertEqual(score_report_payload["surface_key"], "official_web/stable_reference")
-        self.assertEqual(score_report_payload["expected_publish_denominator"], 4)
-        validate_langfuse_score_report(score_report_payload)
-
-    def test_builds_langfuse_score_report_from_retrieval_tuning_report(self) -> None:
-        from campus_evals.langfuse_score_report import (
-            build_score_report_from_retrieval_tuning_report,
-        )
-
-        score_report = build_score_report_from_retrieval_tuning_report(
-            tuning_report_payload={
-                "schema_version": "retrieval-tuning-report-v1",
-                "scope": {"corpus": "regulations", "collection": "student_rules"},
-                "case_count": 2,
-                "recommended_candidate_id": "balanced",
-                "candidates": [
-                    {
-                        "candidate_id": "balanced",
-                        "profile": {"retrieval_top_k": 5},
-                        "metrics": {
-                            "doc_hit_at_1": 1.0,
-                            "doc_hit_at_3": 1.0,
-                            "doc_recall_at_5": 1.0,
-                            "forbidden_hit_rate": 0.0,
-                        },
-                    }
-                ],
-            },
-            tuning_report_path=Path("/tmp/retrieval-tuning-report.json"),
-            environment="staging",
-            release="retrieval-tuning@2026-06-19",
-            source_git_head="git-head-001",
-            dataset_run_id="dataset-run-001",
-        )
-
-        self.assertEqual(score_report["eval_kind"], "rag_first_stage_parameter_sweep")
-        self.assertEqual(score_report["source_result_denominator"], 4)
-        self.assertEqual(score_report["expected_publish_denominator"], 4)
-        self.assertEqual(
-            {item["name"] for item in score_report["score_items"]},
-            {
-                "retrieval.doc_hit_at_1",
-                "retrieval.doc_hit_at_3",
-                "retrieval.doc_recall_at_k",
-                "retrieval.forbidden_hit_rate",
-            },
-        )
-        self.assertEqual(
-            {item["dataset_run_id"] for item in score_report["score_items"]},
-            {"dataset-run-001"},
-        )
-        self.assertEqual(
-            {item["trace_id"] for item in score_report["score_items"]},
-            {None},
-        )
-        validate_langfuse_score_report(score_report)
 
 
 if __name__ == "__main__":

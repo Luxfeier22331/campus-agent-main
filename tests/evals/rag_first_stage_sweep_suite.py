@@ -7,8 +7,7 @@ from tempfile import TemporaryDirectory
 
 
 class RagFirstStageSweepSuite(unittest.TestCase):
-    def test_builds_sweep_report_candidate_artifacts_and_langfuse_scores(self) -> None:
-        from campus_evals.langfuse_score_report import validate_langfuse_score_report
+    def test_builds_sweep_report_candidate_artifacts(self) -> None:
         from campus_evals.rag_first_stage_sweep import build_rag_first_stage_parameter_sweep
 
         with TemporaryDirectory() as tmpdir:
@@ -106,9 +105,6 @@ class RagFirstStageSweepSuite(unittest.TestCase):
             sweep_report = json.loads(
                 (output_dir / "rag-first-stage-parameter-sweep.json").read_text(encoding="utf-8")
             )
-            score_report = json.loads(
-                (output_dir / "langfuse-score-report.json").read_text(encoding="utf-8")
-            )
 
         self.assertEqual(report["schema_version"], "rag_first_stage_parameter_sweep.v1")
         self.assertEqual(sweep_report["surfaces"][0]["surface_key"], "regulations/student_rules")
@@ -120,24 +116,7 @@ class RagFirstStageSweepSuite(unittest.TestCase):
         self.assertEqual(candidate["metrics"]["retrieval.p95_latency_ms"], 30)
         self.assertEqual(candidate["recommended"], False)
         self.assertIn("no_hit_false_positive_rate_above_threshold", candidate["rejected_reasons"])
-        self.assertEqual(
-            {
-                item["name"]
-                for item in score_report["score_items"]
-                if item["metadata"]["candidate_id"] == "topk3-d20-s20"
-            },
-            {
-                "retrieval.doc_hit_at_1",
-                "retrieval.doc_hit_at_3",
-                "retrieval.doc_recall_at_k",
-                "retrieval.forbidden_hit_rate",
-                "retrieval.no_hit_false_positive_rate",
-                "retrieval.wrong_version_hit_rate",
-                "retrieval.p95_latency_ms",
-                "retrieval.pass",
-            },
-        )
-        self.assertEqual(validate_langfuse_score_report(score_report)["score_count"], 8)
+        self.assertFalse((output_dir / "langfuse-score-report.json").exists())
 
     def test_rejects_candidate_without_latency(self) -> None:
         from campus_evals.rag_first_stage_sweep import validate_rag_first_stage_candidate_result

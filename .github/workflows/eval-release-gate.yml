@@ -174,7 +174,7 @@ jobs:
       - name: Build online answer Langfuse score report
         if: ${{ inputs.profile == 'online-answer-path' && inputs.publish_langfuse_scores == true }}
         run: |
-          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate build-langfuse-score-report-from-profile \
+          pnpm --dir packages/eval-langfuse langfuse build-score-report-from-profile \
             --profile-report "${{ steps.accept.outputs.artifact_dir }}/profile-report.json" \
             --output "${{ steps.accept.outputs.artifact_dir }}/langfuse-score-report.json" \
             --json | tee langfuse-score-report-build.json
@@ -182,7 +182,7 @@ jobs:
       - name: Publish online answer Langfuse scores
         if: ${{ inputs.profile == 'online-answer-path' && inputs.publish_langfuse_scores == true }}
         run: |
-          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report \
+          pnpm --dir packages/eval-langfuse langfuse publish-score-report \
             --score-report "${{ steps.accept.outputs.artifact_dir }}/langfuse-score-report.json" \
             --json | tee langfuse-publish.json
 

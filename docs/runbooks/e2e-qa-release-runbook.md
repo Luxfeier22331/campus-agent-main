@@ -394,12 +394,13 @@ E2E QA 通过必须同时满足：
 - browser QA 没有阻断性 console / network / auth 问题
 - Sentry 有真实 staging span 或等价 trace evidence
 - Axiom 有真实 runtime event evidence
-- Langfuse real trace evidence 通过 `verify-langfuse-trace`，并带 request / run /
-  workflow identity 比对
+- Langfuse real trace evidence 通过
+  `pnpm --dir packages/eval-langfuse langfuse verify-trace`，并带 request /
+  run / workflow identity 比对
 - `online-answer-path` Langfuse eval score publish evidence 已落盘，且仅作为 eval
   sink evidence
 - Langfuse closeout 通过
-  `node ./scripts/run-langfuse-release-closeout-staging.mjs` 生成并校验
+  `pnpm --dir packages/eval-langfuse langfuse closeout-staging` 生成并校验
   `langfuse-release-evidence.json`
 - operator runtime task queue / autoscaler projection evidence 完整
 - eval diagnostic badcase projection 使用 operator step trajectory 且无 missing attribution

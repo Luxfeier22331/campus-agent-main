@@ -21,6 +21,7 @@ members = [
     "campus-chatkit-adapter",
     "campus-contracts",
     "campus-dining-floorplans",
+    "campus-eval-langfuse",
     "campus-evals",
     "campus-ingestion-contracts",
     "campus-ingestion-core",
@@ -326,6 +327,11 @@ source = { editable = "packages/contracts" }
 name = "campus-dining-floorplans"
 version = "0.1.0"
 source = { virtual = "packages/dining-floorplans" }
+
+[[package]]
+name = "campus-eval-langfuse"
+version = "0.1.0"
+source = { virtual = "packages/eval-langfuse" }
 
 [[package]]
 name = "campus-evals"

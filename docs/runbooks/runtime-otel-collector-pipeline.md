@@ -168,26 +168,8 @@ Fail-closed Langfuse env check:
 OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT=https://langfuse.internal/api/public/otel \
 OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER="Basic <base64-public-secret-pair>" \
 OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4 \
-uv run --all-packages python scripts/check_runtime_otel_collector_config.py
+pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
 ```
-
-Local Collector -> Langfuse fan-out proof:
-
-```bash
-uv run --all-packages python -m scripts.proof_runtime_otel_langfuse_fanout
-```
-
-This starts the real `otel/opentelemetry-collector-contrib:0.127.0` container
-with `infra/otel/collector-staging-template.yaml`, sends one minimal OTLP/HTTP
-trace to the Collector and uses local fake Sentry / Axiom / Langfuse OTLP
-endpoints to assert the Langfuse outbound request path is
-`/api/public/otel/v1/traces`, the `authorization` header is Basic auth, the
-`x-langfuse-ingestion-version` header is `4` and the decoded protobuf body is
-non-empty with sanitized Langfuse / runtime trace attributes such as
-`langfuse.trace.name`, `langfuse.session.id`, `request_id`, `run_id`,
-`workflow_id` and `trace_id`. It proves staging-template Collector fan-out
-wiring and attribute preservation only; deployed release evidence still
-requires the real trace smoke below.
 
 Langfuse eval score publish smoke:
 
@@ -196,7 +178,7 @@ LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
 LANGFUSE_ENVIRONMENT=staging \
-uv run --all-packages python -m scripts.eval_gate build-langfuse-score-report-from-profile \
+pnpm --dir packages/eval-langfuse langfuse build-score-report-from-profile \
   --profile-report .tmp/evals/online-answer-path/profile-report.json \
   --output .tmp/evals/online-answer-path/langfuse-score-report.json \
   --json
@@ -205,7 +187,7 @@ LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
 LANGFUSE_ENVIRONMENT=staging \
-uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report \
+pnpm --dir packages/eval-langfuse langfuse publish-score-report \
   --score-report .tmp/evals/online-answer-path/langfuse-score-report.json \
   --json
 ```
@@ -216,7 +198,7 @@ Langfuse real trace evidence smoke:
 LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
-uv run --all-packages python -m scripts.eval_gate verify-langfuse-trace \
+pnpm --dir packages/eval-langfuse langfuse verify-trace \
   --product-trace-id <app-api-trace-id-from-chat-request> \
   --session-id <conversation-id> \
   --user-id <stable-non-pii-user-id> \
@@ -249,7 +231,16 @@ product truth.
 Langfuse release evidence closeout:
 
 ```bash
-node ./scripts/run-langfuse-release-closeout-staging.mjs
+pnpm --dir packages/eval-langfuse langfuse closeout-staging \
+  --output-dir .tmp/e2e-qa/langfuse-closeout \
+  --profile-report .tmp/e2e-qa/langfuse-closeout/online-answer-path/profile-report.json \
+  --durable-chat-artifact .tmp/e2e-qa/langfuse-closeout/chat-durable-reconnect.json \
+  --environment staging \
+  --release <runtime-release-id> \
+  --tag surface:execution-control \
+  --tag capability:knowledge \
+  --tag env:staging \
+  --json
 ```
 
 The staging closeout command loads the repository staging env using
@@ -270,16 +261,16 @@ Do not derive `workflowId` from `runId`; it must come from the sanitized run
 step attempt projection. If any identity flag is also passed explicitly, the
 closeout runner fails when it does not match the artifact value.
 
-This runs `verify-langfuse-trace --json`, builds `langfuse-score-report.json`
-from the profile report, runs `publish-langfuse-score-report --json`, writes
-`verify-langfuse-trace.json`, `publish-langfuse-score-report.json` and
+This runs `verify-trace --json`, builds `langfuse-score-report.json`
+from the profile report, runs `publish-score-report --json`, writes
+`verify-trace.json`, `publish-score-report.json` and
 `langfuse-release-evidence.json`, then validates the final artifact before
 returning success.
 
 Manual build and check path:
 
 ```bash
-uv run --all-packages python -m scripts.run_langfuse_release_evidence_closeout \
+pnpm --dir packages/eval-langfuse langfuse closeout-staging \
   --output-dir "$E2E_QA_EVIDENCE_DIR" \
   --profile-report .tmp/evals/online-answer-path/profile-report.json \
   --environment staging \
@@ -293,7 +284,7 @@ uv run --all-packages python -m scripts.run_langfuse_release_evidence_closeout \
 Manual artifact assembly path:
 
 ```bash
-uv run --all-packages python -m scripts.build_langfuse_release_evidence \
+pnpm --dir packages/eval-langfuse langfuse build-release-evidence \
   --output "$E2E_QA_EVIDENCE_DIR/langfuse-release-evidence.json" \
   --environment staging \
   --release <runtime-release-id> \
@@ -306,21 +297,22 @@ uv run --all-packages python -m scripts.build_langfuse_release_evidence \
   --tag surface:execution-control \
   --tag capability:knowledge \
   --tag env:staging \
-  --verify-output "$E2E_QA_EVIDENCE_DIR/verify-langfuse-trace.json" \
+  --verify-output "$E2E_QA_EVIDENCE_DIR/verify-trace.json" \
   --verify-exit-code 0 \
-  --verify-command "uv run --all-packages python -m scripts.eval_gate verify-langfuse-trace --product-trace-id <app-api-trace-id-from-chat-request> --session-id <conversation-id> --user-id <stable-non-pii-user-id> --release <runtime-release-id> --request-id <app-api-request-id> --run-id <execution-run-id> --workflow-id <temporal-workflow-id> --tag surface:execution-control --tag capability:knowledge --tag env:staging --json" \
-  --publish-output "$E2E_QA_EVIDENCE_DIR/publish-langfuse-score-report.json" \
+  --verify-command "pnpm --dir packages/eval-langfuse langfuse verify-trace --product-trace-id <app-api-trace-id-from-chat-request> --session-id <conversation-id> --user-id <stable-non-pii-user-id> --release <runtime-release-id> --request-id <app-api-request-id> --run-id <execution-run-id> --workflow-id <temporal-workflow-id> --tag surface:execution-control --tag capability:knowledge --tag env:staging --json" \
+  --publish-output "$E2E_QA_EVIDENCE_DIR/publish-score-report.json" \
   --publish-exit-code 0 \
   --expected-publish-denominator "$(jq -er '.expected_publish_denominator' "$E2E_QA_EVIDENCE_DIR/langfuse-score-report.json")" \
-  --publish-command "uv run --all-packages python -m scripts.eval_gate publish-langfuse-score-report --score-report $E2E_QA_EVIDENCE_DIR/langfuse-score-report.json --json"
+  --publish-command "pnpm --dir packages/eval-langfuse langfuse publish-score-report --score-report $E2E_QA_EVIDENCE_DIR/langfuse-score-report.json --json"
 
-uv run --all-packages python -m scripts.check_langfuse_release_evidence \
-  "$E2E_QA_EVIDENCE_DIR/langfuse-release-evidence.json"
+pnpm --dir packages/eval-langfuse langfuse check-release-evidence \
+  --evidence "$E2E_QA_EVIDENCE_DIR/langfuse-release-evidence.json" \
+  --json
 ```
 
 The JSON artifact records the product trace id, derived Langfuse trace id,
-request / run / workflow identity, `verify-langfuse-trace` JSON output and
-`publish-langfuse-score-report` JSON output. The builder writes only artifacts that
+request / run / workflow identity, `verify-trace` JSON output and
+`publish-score-report` JSON output. The builder writes only artifacts that
 pass the same checker. The checker fails closed when the real trace verifier
 output, identity values, required tags, observation count or
 `online-answer-path` score report publish output do not match the release
@@ -378,29 +370,27 @@ Expected evidence:
 - `TestProjectTemporalStepEmitsLangfuseObservationTelemetry` proves an
   execution-control Temporal step observation reaches an in-test `/v1/traces`
   OTLP collector as protobuf with Langfuse observation attributes.
-- `uv run --all-packages python -m scripts.eval_gate verify-langfuse-trace ... --json`
+- `pnpm --dir packages/eval-langfuse langfuse verify-trace ... --json`
   passes for the real deployed chat request trace after the Collector fans out
   to Langfuse.
-- `uv run --all-packages python -m scripts.run_langfuse_release_evidence_closeout ...`
+- `pnpm --dir packages/eval-langfuse langfuse closeout-staging ...`
   runs trace verification, generic eval score report publish and artifact
   validation in one closeout command.
-- `uv run --all-packages python -m scripts.build_langfuse_release_evidence ...`
+- `pnpm --dir packages/eval-langfuse langfuse build-release-evidence ...`
   writes the `langfuse-release-evidence.json` closeout artifact from verifier
   and score-publish JSON outputs.
-- `uv run --all-packages python -m scripts.check_langfuse_release_evidence ...`
+- `pnpm --dir packages/eval-langfuse langfuse check-release-evidence ...`
   passes for the `langfuse-release-evidence.json` closeout artifact.
 
 Collector config structural smoke:
 
 ```bash
 pnpm ci:langfuse
-uv run --all-packages python -m scripts.proof_runtime_otel_langfuse_fanout
 ```
 
-`pnpm ci:langfuse` also covers the Langfuse dataset sync dry-run,
-experiment artifact validator and RAG first-stage sweep validator. These checks
-prove the eval platform management plane can create sanitized artifacts; they do
-not replace the real staging trace and score publish closeout.
+`pnpm ci:langfuse` covers the TS Langfuse package and trace id vector checks.
+These checks prove the eval platform management plane can create sanitized
+artifacts; they do not replace the real staging trace and score publish closeout.
 
 ## Drop Diagnosis
 
@@ -411,7 +401,7 @@ If the Collector receives telemetry but no sink records appear:
 3. Check sampling percentages.
 4. Confirm Sentry and Axiom endpoint/header values were injected by the runtime secret manager.
 5. Confirm Langfuse endpoint, Basic auth header and ingestion version passed
-   `scripts/check_runtime_otel_collector_config.py`.
+   `pnpm --dir packages/eval-langfuse langfuse check-collector-config --json`.
 6. Confirm Sentry uses `x-sentry-auth`, not `Authorization`.
 7. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
    for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,

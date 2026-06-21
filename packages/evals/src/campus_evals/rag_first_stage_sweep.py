@@ -6,20 +6,9 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
-from campus_evals.langfuse_score_report import write_langfuse_score_report
 
 CANDIDATE_SCHEMA_VERSION = "rag_first_stage_candidate_result.v1"
 SWEEP_SCHEMA_VERSION = "rag_first_stage_parameter_sweep.v1"
-SCORE_NAMES = (
-    "retrieval.doc_hit_at_1",
-    "retrieval.doc_hit_at_3",
-    "retrieval.doc_recall_at_k",
-    "retrieval.forbidden_hit_rate",
-    "retrieval.no_hit_false_positive_rate",
-    "retrieval.wrong_version_hit_rate",
-    "retrieval.p95_latency_ms",
-    "retrieval.pass",
-)
 
 
 def validate_rag_first_stage_candidate_result(payload: Mapping[str, object]) -> dict[str, object]:
@@ -70,7 +59,6 @@ def build_rag_first_stage_parameter_sweep(
     }
     candidates = [_load_candidate(path) for path in candidate_paths]
     surface_reports: list[dict[str, object]] = []
-    score_items: list[dict[str, object]] = []
     for surface_key in sorted({candidate["surface_key"] for candidate in candidates}):
         dataset = datasets.get(surface_key)
         if dataset is None:
@@ -90,15 +78,6 @@ def build_rag_first_stage_parameter_sweep(
                 else False
             )
             _write_candidate_copy(output_dir, surface_key, candidate_report)
-            score_items.extend(
-                _candidate_score_items(
-                    candidate_report=candidate_report,
-                    eval_run_id=_eval_run_id(release, dataset_run_id),
-                    dataset_run_id=dataset_run_id,
-                    release=release,
-                    source_git_head=source_git_head,
-                )
-            )
         surface_reports.append(
             {
                 "surface_key": surface_key,
@@ -119,25 +98,6 @@ def build_rag_first_stage_parameter_sweep(
         "surfaces": surface_reports,
     }
     _write_json(sweep_path, report)
-    score_report = {
-        "schema_version": "langfuse_score_report.v1",
-        "eval_kind": "rag_first_stage_parameter_sweep",
-        "eval_run_id": _eval_run_id(release, dataset_run_id),
-        "profile_id": "rag-first-stage-parameter-sweep",
-        "surface_key": "multi-surface"
-        if len(surface_reports) > 1
-        else surface_reports[0]["surface_key"],
-        "variant_id": "sweep",
-        "environment": _required_string(environment, "environment"),
-        "release": _required_string(release, "release"),
-        "source_git_head": _required_string(source_git_head, "source_git_head"),
-        "source_artifact_path": str(sweep_path),
-        "source_result_denominator": len(score_items),
-        "expected_publish_denominator": len(score_items),
-        "score_items": score_items,
-        "omitted_items": [],
-    }
-    write_langfuse_score_report(output_dir / "langfuse-score-report.json", score_report)
     return report
 
 
@@ -204,55 +164,6 @@ def _candidate_report(dataset: object, candidate: dict[str, object]) -> dict[str
         "rejected_reasons": rejected_reasons,
         "cases": cases,
     }
-
-
-def _candidate_score_items(
-    *,
-    candidate_report: Mapping[str, object],
-    eval_run_id: str,
-    dataset_run_id: str,
-    release: str,
-    source_git_head: str,
-) -> list[dict[str, object]]:
-    metrics = dict(candidate_report["metrics"])  # type: ignore[index]
-    items: list[dict[str, object]] = []
-    for score_name in SCORE_NAMES:
-        value = metrics[score_name]
-        data_type = "BOOLEAN" if score_name == "retrieval.pass" else "NUMERIC"
-        if score_name == "retrieval.pass":
-            value = 1 if bool(value) else 0
-        case_id = _slug(
-            f"{candidate_report['surface_key']}:{candidate_report['variant_id']}:{score_name}"
-        )
-        items.append(
-            {
-                "idempotency_key": _stable_score_id(eval_run_id, case_id, score_name),
-                "name": score_name,
-                "data_type": data_type,
-                "value": value,
-                "case_id": case_id,
-                "trace_id": None,
-                "observation_id": None,
-                "session_id": None,
-                "dataset_run_id": dataset_run_id,
-                "dataset_item_id": _slug(f"campus:{case_id}"),
-                "metadata": {
-                    "candidate_id": candidate_report["variant_id"],
-                    "case_id": case_id,
-                    "dataset_item_id": _slug(f"campus:{case_id}"),
-                    "eval_kind": "rag_first_stage_parameter_sweep",
-                    "metric_key": score_name,
-                    "release": release,
-                    "schema_version": SWEEP_SCHEMA_VERSION,
-                    "source_git_head": source_git_head,
-                    "surface_key": candidate_report["surface_key"],
-                    "top_k": candidate_report["retrieval_top_k"],
-                    "variant_id": candidate_report["variant_id"],
-                },
-                "comment": f"{candidate_report['variant_id']} {score_name}",
-            }
-        )
-    return items
 
 
 def _load_candidate(path: Path) -> dict[str, object]:
@@ -475,10 +386,6 @@ def _require_equal(actual: object, expected: object, field: str) -> None:
 
 def _eval_run_id(release: str, dataset_run_id: str) -> str:
     return _slug(f"rag-first-stage:{release}:{dataset_run_id}")
-
-
-def _stable_score_id(eval_run_id: str, case_id: str, score_name: str) -> str:
-    return f"lfscore:{_slug(eval_run_id)}:{_slug(case_id)}:{_slug(score_name)}"
 
 
 def _slug(value: str) -> str:

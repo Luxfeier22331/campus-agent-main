@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-06-19
+updated: 2026-06-21
 ---
 # Documentation Inventory
 
@@ -35,10 +35,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 298
+- Current-worktree docs Markdown files: 299
 - Git tracked docs Markdown files: 289
-- Untracked docs Markdown files included: 7
-- Generated on: 2026-06-18
+- Untracked docs Markdown files included: 8
+- Generated on: 2026-06-21
 
 ### By Directory Area
 
@@ -51,7 +51,7 @@ class defined by `docs/documentation-architecture.md`.
 - `domains`: 8
 - `environment`: 7
 - `policies`: 5
-- `product`: 5
+- `product`: 6
 - `README.md`: 1
 - `documentation-architecture.md`: 1
 
@@ -64,7 +64,7 @@ class defined by `docs/documentation-architecture.md`.
 - `index`: 32
 - `architecture`: 33
 - `data`: 18
-- `product_requirement`: 4
+- `product_requirement`: 5
 - `policy`: 4
 - `documentation_architecture`: 1
 - `template`: 1
@@ -74,7 +74,7 @@ class defined by `docs/documentation-architecture.md`.
 - `ops`: 88
 - `repository`: 71
 - `data`: 50
-- `product`: 20
+- `product`: 21
 - `capability`: 15
 - `execution`: 16
 - `eval`: 13
@@ -89,7 +89,7 @@ class defined by `docs/documentation-architecture.md`.
 - `supporting_architecture`: 24
 - `data_truth`: 18
 - `domain_architecture`: 6
-- `product_requirement`: 4
+- `product_requirement`: 5
 - `current_truth`: 1
 - `product_truth`: 1
 - `target_invariant`: 1
@@ -100,7 +100,7 @@ class defined by `docs/documentation-architecture.md`.
 - `keep_executable_truth`: 53
 - `keep_ops_procedure`: 47
 - `preserve_adr`: 49
-- `keep_owner_truth`: 35
+- `keep_owner_truth`: 36
 - `keep_reference_truth`: 26
 - `keep_archive_historical`: 23
 - `keep_thin_index`: 26
@@ -1507,10 +1507,10 @@ class defined by `docs/documentation-architecture.md`.
 - `docs/product/chatkit-runtime-self-host-prd.md`
   - Title: ChatKit Runtime Self-host PRD
   - Owner class: `product_requirement`
-  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=historical`
   - Owner boundary: `docs/product`
   - Ledger: `area=product`, `cluster=chatkit`, `state=untracked`, `lines=207`
-  - Governance action: `keep_owner_truth`
+  - Governance action: `keep_historical_reference`
   - Drift signal: `ok`
 - `docs/product/langfuse-eval-platform-completion-prd.md`
   - Title: Langfuse Eval Platform Completion PRD
@@ -1518,6 +1518,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
   - Ledger: `area=product`, `cluster=langfuse`, `state=untracked`, `lines=300`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/multi-turn-context-and-rag-followup-prd.md`
+  - Title: Run Context Envelope And RAG Follow-up PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=retrieval`, `state=untracked`, `lines=854`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/product/observability-orchestration-repair-prd.md`

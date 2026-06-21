@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-19
+updated: 2026-06-21
 ---
 
 # Docs
@@ -23,6 +23,7 @@ class owns a fact.
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
   - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
+  - [product/multi-turn-context-and-rag-followup-prd.md](./product/multi-turn-context-and-rag-followup-prd.md)
 - Current accepted merged truth:
   - [architecture/current-architecture.md](./architecture/current-architecture.md)
 - Long-term architecture invariants:

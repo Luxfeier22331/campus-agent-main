@@ -22,15 +22,6 @@ from campus_evals.profile_registry import (
 from scripts.check_worker_secret_presence import collect_worker_secret_presence
 from scripts.doctor_env import collect_env_doctor_status
 from scripts.eval_gate_fixture_smoke import profile_fixture_smoke_loaders
-from scripts.eval_gate_langfuse import (
-    add_langfuse_eval_gate_parsers,
-    audit_workflow_langfuse_publish_contract,
-    handle_langfuse_eval_gate_command,
-    langfuse_settings_from_env,
-    publish_langfuse_profile_report_artifact,
-    publish_langfuse_score_report_artifact,
-    verify_langfuse_online_trace_evidence_artifact,
-)
 
 DEFAULT_WORKER_APPS = ("apps/app-api", "apps/campus-web", "apps/operator-console-web")
 
@@ -205,8 +196,6 @@ def build_parser() -> argparse.ArgumentParser:
         help="Default true. Use --no-dry-run to POST into app-api operator ingest seams.",
     )
     publish_profile_parser.add_argument("--json", action="store_true")
-
-    add_langfuse_eval_gate_parsers(subparsers)
 
     audit_parser = subparsers.add_parser(
         "audit",
@@ -401,9 +390,6 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
             repo_root / ".github" / "workflows" / "eval-release-gate.yml"
         ),
         _audit_workflow_contract_generation_check(
-            repo_root / ".github" / "workflows" / "eval-release-gate.yml"
-        ),
-        audit_workflow_langfuse_publish_contract(
             repo_root / ".github" / "workflows" / "eval-release-gate.yml"
         ),
         _audit_operations_policy_coverage(),
@@ -744,17 +730,6 @@ def main(argv: list[str] | None = None) -> int:
             dry_run=bool(args.dry_run),
         )
         print(json.dumps(summary, ensure_ascii=False, indent=2))
-        return 0
-
-    langfuse_summary = handle_langfuse_eval_gate_command(
-        args,
-        settings_factory=langfuse_settings_from_env,
-        publish_profile=publish_langfuse_profile_report_artifact,
-        publish_score_report=publish_langfuse_score_report_artifact,
-        verify_trace=verify_langfuse_online_trace_evidence_artifact,
-    )
-    if langfuse_summary is not None:
-        print(json.dumps(langfuse_summary, ensure_ascii=False, indent=2))
         return 0
 
     metric_domain_overrides = _parse_metric_domain_overrides(args.metric_domain_override)

@@ -189,11 +189,11 @@ updated: 2026-06-09
   - Request ID:
   - Run ID:
   - Temporal workflow ID:
-  - `verify-langfuse-trace` output:
+  - `verify-trace` output:
 - Langfuse eval score publish:
   - Profile report:
   - Score report:
-  - `publish-langfuse-score-report` output:
+  - `publish-score-report` output:
 - Redaction check:
 
 ## Data Plane Sanity

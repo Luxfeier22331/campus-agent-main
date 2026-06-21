@@ -158,14 +158,14 @@ repo 级 manual workflow 使用：
 acceptance 完成后执行：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  build-langfuse-score-report-from-profile \
+pnpm --dir packages/eval-langfuse langfuse \
+  build-score-report-from-profile \
   --profile-report <artifact_dir>/profile-report.json \
   --output <artifact_dir>/langfuse-score-report.json \
   --json
 
-uv run --all-packages python -m scripts.eval_gate \
-  publish-langfuse-score-report \
+pnpm --dir packages/eval-langfuse langfuse \
+  publish-score-report \
   --score-report <artifact_dir>/langfuse-score-report.json \
   --json
 ```
@@ -178,15 +178,13 @@ request 失败会让步骤失败；Langfuse 只作为 eval score sink，不成�
 
 ## Langfuse Eval Platform Lane
 
-`pnpm ci:langfuse` 固定覆盖 Langfuse trace id vector、adapter / score report
-validation、score registry、dataset sync dry-run、experiment artifact validator、
-RAG first-stage sweep artifact validator、Collector fan-out contract、release
-evidence checker 与 release closeout checker。
+`pnpm ci:langfuse` 固定覆盖 TS Langfuse package typecheck/test 与
+app-api trace id vector。
 
 本 lane 的事实边界：
 
-- `packages/evals` 拥有 case schema、qrels、deterministic scorer、score
-  registry、score report 与 release verdict。
+- `packages/evals` 拥有 case schema、qrels 与 deterministic scorer；
+  `packages/eval-langfuse` 拥有 Langfuse score report、platform sync 与 release verdict。
 - Langfuse 只接收 sanitized dataset、experiment、score、annotation 与 trace
   drill-down 投影。
 - 缺 Langfuse 配置、缺 dataset version、缺 trace correlation、score denominator
@@ -199,8 +197,8 @@ score name 必须先进入
 同步到 Langfuse score configs：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  sync-langfuse-score-configs \
+pnpm --dir packages/eval-langfuse langfuse \
+  sync-score-configs \
   --registry packages/evals/fixtures/ops/langfuse_score_registry.v1.json \
   --dry-run \
   --json
@@ -215,8 +213,8 @@ dataset manifest 使用 repo fixture path 和稳定 dataset slug，不把 fixtur
 写入 item id。dry-run：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  sync-langfuse-datasets \
+pnpm --dir packages/eval-langfuse langfuse \
+  sync-datasets \
   --dataset-manifest <langfuse-dataset-manifest.json> \
   --dry-run \
   --json
@@ -270,50 +268,24 @@ runner 对每个 case 执行 dense prefetch、sparse prefetch 与 hybrid RRF fin
 查询，并写出 `rag_first_stage_candidate_result.v1`。它只记录 doc/version/chunk/score
 等 sanitized evidence identity，不记录 query body、snippet 或 source body。
 
-Python 聚合多个 candidate result，计算 deterministic metrics 并产出 sweep report
-与 generic Langfuse score report：
-
-```bash
-uv run --all-packages python -m scripts.eval_gate \
-  run-rag-first-stage-parameter-sweep \
-  --qrels packages/evals/fixtures/<surface-a>/retrieval_qrels.json \
-  --qrels packages/evals/fixtures/<surface-b>/retrieval_qrels.json \
-  --candidate-result .tmp/rag-eval/student-rules-topk3-d20-s20.json \
-  --candidate-result .tmp/rag-eval/curriculum-topk3-d20-s20.json \
-  --output-dir .tmp/rag-eval/sweep \
-  --environment staging \
-  --release <release-id> \
-  --source-git-head <git-sha> \
-  --dataset-run-id <dataset-run-id> \
-  --json
-```
+Python deterministic aggregator 由测试或专用调用方消费多个 candidate result，
+计算 metrics 并产出 sweep report。
 
 输出：
 
 - `.tmp/rag-eval/sweep/rag-first-stage-parameter-sweep.json`
-- `.tmp/rag-eval/sweep/langfuse-score-report.json`
 - `.tmp/rag-eval/sweep/<surface>/<variant>.json`
 
-发布 score report：
-
-```bash
-uv run --all-packages python -m scripts.eval_gate \
-  publish-langfuse-score-report \
-  --score-report .tmp/rag-eval/sweep/langfuse-score-report.json \
-  --dry-run \
-  --json
-```
-
-release closeout 真实发布时去掉 `--dry-run`。发布输出必须满足
-`published == expected_publish_denominator`、`failed == 0`。
+Langfuse score report 生成和发布归属 `packages/eval-langfuse`，不得从
+Python eval runner 直接写入 Langfuse artifacts。
 
 ### Experiments
 
 Langfuse-hosted dataset experiment runner 必须先写 repo artifact，再发布 score：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  run-langfuse-experiment \
+pnpm --dir packages/eval-langfuse langfuse \
+  run-experiment \
   --experiment-manifest <langfuse-experiment-manifest.json> \
   --json
 ```
@@ -336,8 +308,8 @@ Langfuse UI 状态。
 low-score、failed 或 known-gap case 可以进入 Langfuse annotation queue：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  sync-langfuse-annotation-queue \
+pnpm --dir packages/eval-langfuse langfuse \
+  sync-annotation-queue \
   --review-manifest <langfuse-review-manifest.json> \
   --dry-run \
   --json
@@ -346,8 +318,8 @@ uv run --all-packages python -m scripts.eval_gate \
 完成 review 后导出 repo artifact：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate \
-  export-langfuse-review-results \
+pnpm --dir packages/eval-langfuse langfuse \
+  export-review-results \
   --review-manifest <langfuse-review-manifest.json> \
   --output .tmp/langfuse-review-export.json \
   --json
