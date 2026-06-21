@@ -63,23 +63,43 @@ function encodeSseMessage(input: { data: unknown; event: string }): Uint8Array {
 	return new TextEncoder().encode(`event: ${input.event}\ndata: ${JSON.stringify(input.data)}\n\n`);
 }
 
+function encodeSseComment(comment: string): Uint8Array {
+	return new TextEncoder().encode(`: ${comment}\n\n`);
+}
+
 function createRunEventsSseResponse(input: {
 	events: AsyncIterable<RuntimeRunEventProjection>;
+	onTerminal?: ((event: ChatCommandStreamEvent) => Promise<void> | void) | undefined;
 	run: RuntimeRunSummary;
 }): Response {
 	const stream = new ReadableStream<Uint8Array>({
 		async start(controller) {
+			let heartbeatInterval: ReturnType<typeof setInterval> | null = null;
 			try {
+				controller.enqueue(encodeSseComment("keepalive"));
+				heartbeatInterval = setInterval(() => {
+					controller.enqueue(encodeSseComment("keepalive"));
+				}, 15_000);
 				for await (const event of input.events) {
 					const productEvent = toChatRunResumeStreamEvent({
 						event,
 						run: input.run,
 					});
 					if (productEvent) {
+						if (
+							productEvent.event === "request.completed" ||
+							productEvent.event === "request.cancelled" ||
+							productEvent.event === "request.failed"
+						) {
+							await input.onTerminal?.(productEvent);
+						}
 						controller.enqueue(encodeSseMessage(productEvent));
 					}
 				}
 			} finally {
+				if (heartbeatInterval) {
+					clearInterval(heartbeatInterval);
+				}
 				controller.close();
 			}
 		},
@@ -301,6 +321,13 @@ export function registerChatRunRoutes(input: {
 			});
 			return createRunEventsSseResponse({
 				events,
+				onTerminal: async () => {
+					await scope.resolveChatCommandService().reconcileDurableCloseouts?.({
+						limit: 1,
+						runId: runStatus.run.runId,
+						startedBefore: new Date().toISOString(),
+					});
+				},
 				run: runStatus.run,
 			});
 		} catch (error) {

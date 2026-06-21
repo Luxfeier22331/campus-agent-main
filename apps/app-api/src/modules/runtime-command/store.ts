@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -10,6 +10,7 @@ import {
 	requestObservabilityFact,
 	sessionSlots,
 } from "../../db/schema";
+import type { AppPrincipalType } from "../auth";
 import type { ChatConversation } from "../chat";
 import { ABUSE_THROTTLE_TEN_MINUTE_WINDOW_MS } from "../safety-ops-policy";
 import { createEmptyAbuseControlState, deriveAbuseControlState } from "./store-abuse";
@@ -25,12 +26,13 @@ import {
 	buildRequestObservabilityFactUpdateValues,
 	buildSessionSlotInsertValues,
 } from "./store-mutations";
-import type { ChatCommandStore } from "./store-types";
+import type { AcceptedDurableRequestCloseout, ChatCommandStore } from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
 export type {
 	AbuseControlState,
+	AcceptedDurableRequestCloseout,
 	AcceptRequestWrite,
 	ChatCommandStore,
 	FinalizeRequestWrite,
@@ -79,6 +81,91 @@ export function createPgChatCommandStore(
 	}
 
 	return {
+		async listAcceptedDurableRequestsForCloseout(input = {}) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
+			const startedBefore = input.startedBefore ? new Date(input.startedBefore) : new Date();
+			const runId = input.runId?.trim();
+			const executionRows = await db
+				.select()
+				.from(requestExecution)
+				.where(
+					and(
+						eq(requestExecution.status, "accepted"),
+						isNotNull(requestExecution.runId),
+						lte(requestExecution.startedAt, startedBefore),
+						...(runId ? [eq(requestExecution.runId, runId)] : []),
+					),
+				)
+				.orderBy(asc(requestExecution.startedAt))
+				.limit(limit);
+			const candidates: AcceptedDurableRequestCloseout[] = [];
+			for (const row of executionRows) {
+				if (!row.runId) {
+					continue;
+				}
+				const conversation = await loadConversation(row.actorUserId, row.conversationId);
+				if (!conversation) {
+					continue;
+				}
+				candidates.push({
+					acceptedAt: row.startedAt.toISOString(),
+					conversation,
+					conversationTitle: conversation.title,
+					idempotencyKey: row.idempotencyKey,
+					principal: {
+						actor: {
+							departments: row.actorDepartmentsJson,
+							principalId: row.actorPrincipalId,
+							principalType: row.principalType as AppPrincipalType,
+							roles: row.actorRolesJson,
+							userId: row.actorUserId,
+						},
+						authorization: {
+							...(row.applicabilityScope ? { applicabilityScope: row.applicabilityScope } : {}),
+							approvalState: "not_required",
+							entitlementGroups: row.entitlementGroupsJson,
+							entitlementSnapshotId: row.entitlementSnapshotId ?? "",
+							ownershipScopes: [`conversation:${row.actorUserId}`],
+							principalId: row.actorPrincipalId,
+							projectionSource: "campus_identity",
+							retrievalFilter: {
+								entitlementGroups: row.entitlementGroupsJson,
+								policyProjectionVersion: "phase1-authorization-projection-v1",
+								visibilityLevel: "public",
+								visibilityScope: row.visibilityScope ?? "main",
+							},
+							visibilityScope: row.visibilityScope,
+						},
+						permissions: {
+							chat: true,
+							operator: row.actorRolesJson.includes("operator"),
+						},
+						principal: {
+							displayName: row.principalLabel ?? row.actorPrincipalId,
+							email: null,
+							principalId: row.actorPrincipalId,
+							type: row.principalType as AppPrincipalType,
+						},
+						session: null,
+					},
+					questionPreview: row.questionPreview,
+					requestFingerprintSha256: row.requestFingerprintSha256,
+					requestId: row.requestId,
+					requestedCapability: row.requestedCapability,
+					requestedScope:
+						row.requestedScopeJson as AcceptedDurableRequestCloseout["requestedScope"],
+					runId: row.runId,
+					safetyIdentifier: row.safetyIdentifier,
+					surface: row.surface,
+					traceId: row.traceId,
+					userMessageId: row.userMessageId,
+					versionQuery: row.versionQueryJson,
+				});
+			}
+			return candidates;
+		},
+
 		async findIdempotentRequest(input) {
 			const db = await getDb();
 			const executionRows = await db

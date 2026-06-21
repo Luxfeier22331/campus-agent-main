@@ -5,13 +5,14 @@ import {
 	ExecutionControlTransportError,
 } from "../integration";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../personalization/tenant";
-import { type RuntimeRunPhase, runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
+import { runtimeRunPhaseFromExecutionStatus } from "../runtime-run";
 import { ensureLangfuseTraceParent } from "../telemetry/trace";
 
 import {
 	startDurableFinalizationCloseout,
 	waitForDurableFinalizationResponse,
 } from "./service/durable";
+import { reconcileDurableCloseouts } from "./service/durable-closeout";
 import { buildCapabilityExecutionRunMetadata } from "./service/durable-metadata";
 import {
 	buildAbuseThrottleRejectedResponse,
@@ -27,12 +28,12 @@ import {
 } from "./service/normalize";
 import { toTerminalChatStreamEvent } from "./service/stream";
 import {
+	type AcceptedChatCommandContext,
 	type ChatCommandService,
 	type ChatCommandServiceDependencies,
 	type ChatCommandStreamEvent,
 	type ChatCommandSubmitInput,
 	NEW_CONVERSATION_FINGERPRINT_SCOPE,
-	type ValidatedChatCommandPayload,
 } from "./service/types";
 import {
 	buildAcceptedWrite,
@@ -50,24 +51,6 @@ export type {
 	ChatCommandServiceDependencies,
 	ChatCommandStreamEvent,
 } from "./service/types";
-
-interface AcceptedChatCommandContext {
-	acceptedAt: string;
-	conversation: ChatConversation;
-	conversationTitle: string;
-	idempotencyKey: string | null;
-	input: ChatCommandSubmitInput;
-	requestFingerprintSha256: string | null;
-	requestId: string;
-	runId: string | null;
-	runPhase: RuntimeRunPhase | null;
-	safetyIdentifier: string | null;
-	surface: string;
-	traceId: string;
-	turnId: string | null;
-	userMessageId: string;
-	validatedPayload: ValidatedChatCommandPayload;
-}
 
 type AcceptChatCommandResult =
 	| { kind: "accepted"; value: AcceptedChatCommandContext }
@@ -639,6 +622,15 @@ export function buildChatCommandService(
 	}
 
 	return {
+		async reconcileDurableCloseouts(input = {}) {
+			return reconcileDurableCloseouts({
+				dependencies,
+				finalizeAcceptedCommand,
+				now,
+				reconcileInput: input,
+			});
+		},
+
 		async submit(input) {
 			const accepted = await acceptCommand(input);
 			if (accepted.kind === "existing") {

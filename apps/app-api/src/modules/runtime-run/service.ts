@@ -129,7 +129,7 @@ export interface RuntimeRunService {
 }
 
 const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
-	maxAttempts: 30,
+	maxAttempts: 180,
 	pollIntervalMs: 1000,
 } as const;
 

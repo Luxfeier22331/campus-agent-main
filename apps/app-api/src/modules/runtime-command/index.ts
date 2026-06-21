@@ -16,6 +16,7 @@ export {
 } from "./service";
 export {
 	type AbuseControlState,
+	type AcceptedDurableRequestCloseout,
 	type AcceptRequestWrite,
 	type ChatCommandStore,
 	createPgChatCommandStore,

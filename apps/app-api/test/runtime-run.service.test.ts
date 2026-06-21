@@ -257,6 +257,65 @@ describe("runtime run service", () => {
 		]);
 	});
 
+	it("keeps the default durable event subscription open long enough for RAG closeout", async () => {
+		const sleep = vi.fn(async () => undefined);
+		const listRunEvents = vi.fn();
+		for (let index = 0; index < 55; index += 1) {
+			listRunEvents.mockResolvedValueOnce([]);
+		}
+		listRunEvents.mockResolvedValueOnce([
+			durableEvent({
+				eventType: "finalization.completed",
+				payload: {
+					request_id: "req_01HQ",
+					trace_id: "trace_01HQ",
+				},
+				sequence: 3,
+			}),
+		]);
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun()),
+			listRunEvents,
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		const observed: RuntimeRunEventProjection[] = [];
+		for await (const event of service.subscribeEvents({
+			afterSequence: 2,
+			polling: {
+				maxAttempts: 56,
+				pollIntervalMs: 1000,
+				sleep,
+			},
+			principal: createPrincipal(),
+			runId: "run_01HQ",
+		})) {
+			observed.push(event);
+		}
+
+		expect(listRunEvents).toHaveBeenCalledTimes(56);
+		expect(sleep).toHaveBeenCalledTimes(55);
+		expect(observed).toEqual([
+			expect.objectContaining({
+				eventType: "finalization.completed",
+				sequence: 3,
+			}),
+		]);
+	});
+
 	it("lists sanitized durable step trajectory for an owned run", async () => {
 		const listRunSteps = vi.fn().mockResolvedValue({
 			attempts: [],

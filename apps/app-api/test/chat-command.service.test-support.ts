@@ -199,6 +199,7 @@ export function createCommandStore(input?: {
 			shouldThrottle: false,
 			throttleReason: null,
 		})),
+		listAcceptedDurableRequestsForCloseout: vi.fn(async () => []),
 	};
 
 	return {

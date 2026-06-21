@@ -351,4 +351,82 @@ describe("chat command durable stream closeout", () => {
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
 	});
+
+	it("reconciles accepted durable requests after the original stream lifetime ends", async () => {
+		const { conversation, store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore({ conversation });
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventId: "event-final",
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:56.000Z",
+					payload: {
+						request_id: "req_0001",
+						response: answerResponsePayload("国家奖学金评审结果会按学校规则公示。"),
+						trace_id: "trace_0001",
+					},
+					sequence: 8,
+				}),
+			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		store.listAcceptedDurableRequestsForCloseout = vi.fn(async () => [
+			{
+				acceptedAt: "2026-06-04T01:02:03.000Z",
+				conversation,
+				conversationTitle: conversation.title,
+				idempotencyKey: null,
+				principal: createPrincipal(),
+				questionPreview: "中央民族大学本科学生国家奖学金评审办法",
+				requestFingerprintSha256: "fingerprint_0001",
+				requestId: "req_0001",
+				requestedCapability: "knowledge",
+				requestedScope: null,
+				runId: "run_0001",
+				safetyIdentifier: "safety_0001",
+				surface: "campus_web",
+				traceId: "trace_0001",
+				userMessageId: "msg_user_0001",
+				versionQuery: null,
+			},
+		]);
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:03:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		await expect(service.reconcileDurableCloseouts?.()).resolves.toEqual({
+			failed: 0,
+			finalized: 1,
+			scanned: 1,
+		});
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
+			afterSequence: 0,
+			runId: "run_0001",
+			traceHeaders: expect.any(Object),
+			traceId: "trace_0001",
+			waitMs: 0,
+		});
+		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]).toMatchObject({
+			assistantMessage: {
+				requestId: "req_0001",
+				role: "assistant",
+				text: "国家奖学金评审结果会按学校规则公示。",
+			},
+			requestExecution: {
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "completed",
+			},
+		});
+	});
 });

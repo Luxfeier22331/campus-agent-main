@@ -223,6 +223,98 @@ describe("chat durable staging e2e runner", () => {
 		);
 	});
 
+	it("reopens the durable run event stream from the last observed sequence", async () => {
+		const calls: Array<{ afterSequence?: number; url: string }> = [];
+		let resumeOpenCount = 0;
+
+		const result = await runChatDurableE2eStaging(
+			["--chat-base-url", "https://campus.example.com"],
+			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz() {
+					return { payload: { ok: true }, status: 200 };
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatDurableE2eDependencies["fetchJsonWithCookie"]>>[0],
+				) {
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: { chat: true, operator: false },
+							principal: { principalId: "user_staging" },
+							session: null,
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/runs/run_01HQ")) {
+						return jsonResult({
+							run: {
+								conversationId: "conv_01HQ",
+								requestId: "req_01HQ",
+								runId: "run_01HQ",
+								status: "completed",
+								traceId: "trace_01HQ",
+							},
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/runs/run_01HQ/steps")) {
+						return jsonResult({
+							attempts: [{ runId: "run_01HQ", workflowId: "workflow_01HQ" }],
+							results: [],
+							run: {
+								requestId: "req_01HQ",
+								runId: "run_01HQ",
+								traceId: "trace_01HQ",
+							},
+							steps: [],
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations/conv_01HQ")) {
+						return jsonResult({
+							conversation: {
+								id: "conv_01HQ",
+								messages: [
+									{ kind: "answer", requestId: "req_01HQ", role: "assistant", text: "done" },
+								],
+							},
+						} as T);
+					}
+					throw new Error(`unexpected json request: ${input.url}`);
+				},
+				async mintSmokeSession() {
+					return "session=staging";
+				},
+				async openRunEventStream(input) {
+					resumeOpenCount += 1;
+					calls.push({ afterSequence: input.afterSequence, url: input.url });
+					if (resumeOpenCount === 1) {
+						return sseResponse([
+							'event: execution.running\ndata: {"occurredAt":"2026-06-04T00:00:01.000Z","requestId":"req_01HQ","runId":"run_01HQ","sequence":2,"status":"running","traceId":"trace_01HQ"}\n\n',
+						]);
+					}
+					return sseResponse([
+						'event: request.completed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_01HQ","runId":"run_01HQ","sequence":3,"status":"completed","traceId":"trace_01HQ"}\n\n',
+					]);
+				},
+				async openSubmitStream() {
+					return sseResponse([
+						'event: request.accepted\ndata: {"requestId":"req_01HQ","runId":"run_01HQ","status":"accepted","traceId":"trace_01HQ"}\n\n',
+					]);
+				},
+			},
+		);
+
+		expect(result.resume.events.map((event) => event.sequence)).toEqual([2, 3]);
+		expect(calls).toEqual([
+			{
+				afterSequence: 0,
+				url: "https://campus.example.com/api/chat/runs/run_01HQ/events/stream?after_sequence=0",
+			},
+			{
+				afterSequence: 2,
+				url: "https://campus.example.com/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
+			},
+		]);
+	});
+
 	it("fails closed when the accepted stream event does not include a durable run id", async () => {
 		await expect(
 			runChatDurableE2eStaging(

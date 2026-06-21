@@ -1,3 +1,4 @@
+import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type {
@@ -190,6 +191,25 @@ export interface StoredIdempotentRequest {
 	status: RequestExecutionStatus;
 }
 
+export interface AcceptedDurableRequestCloseout {
+	acceptedAt: string;
+	conversation: import("../chat").ChatConversation;
+	conversationTitle: string;
+	idempotencyKey: string | null;
+	principal: ResolvedAppPrincipal;
+	questionPreview: string;
+	requestFingerprintSha256: string | null;
+	requestId: string;
+	requestedCapability: string | null;
+	requestedScope: RequestedScope | null;
+	runId: string;
+	safetyIdentifier: string | null;
+	surface: string;
+	traceId: string;
+	userMessageId: string;
+	versionQuery: VersionQuery | null;
+}
+
 export interface AbuseControlState {
 	activeThrottleUntil: string | null;
 	requestCountLastMinute: number;
@@ -210,4 +230,9 @@ export interface ChatCommandStore {
 	}): Promise<AbuseControlState>;
 	acceptRequest(input: AcceptRequestWrite): Promise<void>;
 	finalizeRequest(input: FinalizeRequestWrite): Promise<import("../chat").ChatConversation>;
+	listAcceptedDurableRequestsForCloseout(input?: {
+		limit?: number;
+		runId?: string;
+		startedBefore?: string;
+	}): Promise<AcceptedDurableRequestCloseout[]>;
 }

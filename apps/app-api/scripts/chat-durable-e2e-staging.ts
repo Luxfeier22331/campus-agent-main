@@ -563,35 +563,35 @@ async function readRunEventsUntilFinalization(input: {
 	openRunEventStream: NonNullable<ChatDurableE2eDependencies["openRunEventStream"]>;
 	url: string;
 }): Promise<{ events: DurableRunEventProjection[]; terminalEvent: DurableRunEventProjection }> {
-	const response = await input.openRunEventStream({
-		afterSequence: 0,
-		cookieHeader: input.cookieHeader,
-		runId: input.accepted.runId,
-		url: input.url,
-	});
 	let lastSequence = 0;
 	const events: DurableRunEventProjection[] = [];
-
-	for await (const rawEvent of parseSse(response)) {
-		const event = readRunEvent(rawEvent);
-		if (event.runId !== input.accepted.runId) {
-			throw new Error("durable run event runId does not match request.accepted.");
-		}
-		if (event.sequence <= lastSequence) {
-			throw new Error("durable run event sequence must strictly advance.");
-		}
-		lastSequence = event.sequence;
-		events.push(event);
-		if (isFinalizationCompleted(event)) {
-			assertFinalEventMatchesAccepted(event, input.accepted);
-			return {
-				events,
-				terminalEvent: event,
-			};
+	for (let attempt = 0; attempt < 8; attempt += 1) {
+		const url = new URL(input.url);
+		url.searchParams.set("after_sequence", String(lastSequence));
+		const response = await input.openRunEventStream({
+			afterSequence: lastSequence,
+			cookieHeader: input.cookieHeader,
+			runId: input.accepted.runId,
+			url: url.toString(),
+		});
+		for await (const rawEvent of parseSse(response)) {
+			const event = readRunEvent(rawEvent);
+			if (event.runId !== input.accepted.runId) {
+				throw new Error("durable run event runId does not match request.accepted.");
+			}
+			if (event.sequence <= lastSequence) {
+				throw new Error("durable run event sequence must strictly advance.");
+			}
+			lastSequence = event.sequence;
+			events.push(event);
+			if (isFinalizationCompleted(event)) {
+				assertFinalEventMatchesAccepted(event, input.accepted);
+				return { events, terminalEvent: event };
+			}
 		}
 	}
 
-	throw new Error("Run event stream ended before request.completed.");
+	throw new Error("Run event streams ended before request.completed.");
 }
 
 function summarizeConversation(

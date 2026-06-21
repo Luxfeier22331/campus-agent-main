@@ -4,7 +4,12 @@ import * as Sentry from "@sentry/cloudflare";
 import { type AppDependencies, createApp } from "./app";
 import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "./config";
 import { AppApiRouteError } from "./http";
-import { createOfficialWebHandoffPublisher } from "./modules/integration";
+import { createPgChatConversationStore } from "./modules/chat";
+import {
+	createExecutionControlRuntimeClient,
+	createOfficialWebHandoffPublisher,
+	isExecutionControlRuntimeConfigured,
+} from "./modules/integration";
 import {
 	buildOfficialWebProjectionProjector,
 	createPgOfficialWebProjectionStore,
@@ -15,6 +20,11 @@ import {
 	createPgProjectionStore,
 	type RequestProjectionProjector,
 } from "./modules/projection";
+import {
+	buildChatCommandService,
+	type ChatCommandService,
+	createPgChatCommandStore,
+} from "./modules/runtime-command";
 import { createAppTelemetry } from "./modules/telemetry";
 
 export type { Env } from "./config";
@@ -133,6 +143,39 @@ export function createWorkerRuntime(
 			handoffPublisher: createOfficialWebHandoffPublisher(env),
 			store: createPgOfficialWebProjectionStore(env),
 		});
+	let durableCloseoutService = dependencies.chatCommandService ?? null;
+	function resolveDurableCloseoutService(): ChatCommandService {
+		if (durableCloseoutService) {
+			return durableCloseoutService;
+		}
+		if (resolveEnvironment(env) === "test") {
+			durableCloseoutService = {
+				async reconcileDurableCloseouts() {
+					return { failed: 0, finalized: 0, scanned: 0 };
+				},
+				async submit() {
+					throw new AppApiRouteError({
+						code: "dependency_not_ready",
+						message: "Chat command service is not configured.",
+						retryable: true,
+						status: 503,
+					});
+				},
+			};
+			return durableCloseoutService;
+		}
+		const executionRuntime = isExecutionControlRuntimeConfigured(env)
+			? createExecutionControlRuntimeClient(env)
+			: undefined;
+		durableCloseoutService = buildChatCommandService({
+			conversationStore: createPgChatConversationStore(env),
+			executionRuntime,
+			isExecutionRuntimeConfigured: Boolean(executionRuntime),
+			store: createPgChatCommandStore(env),
+			telemetry,
+		});
+		return durableCloseoutService;
+	}
 	const scheduleRequestProjectionDrain =
 		dependencies.scheduleRequestProjectionDrain ??
 		((input: {
@@ -203,6 +246,14 @@ export function createWorkerRuntime(
 			return app.fetch(request, env, executionCtx as ExecutionContext | undefined);
 		},
 		async scheduled(): Promise<void> {
+			const closeoutResult = await Sentry.startSpan(
+				{
+					name: "app-api.durable-closeout.reconcile",
+					op: "cron",
+				},
+				() =>
+					resolveDurableCloseoutService().reconcileDurableCloseouts?.() ?? Promise.resolve(null),
+			);
 			const requestResult = await drainRequestProjection({
 				op: "cron",
 				requestProjector,
@@ -235,6 +286,26 @@ export function createWorkerRuntime(
 						failed: requestResult.failed,
 						processed: requestResult.processed,
 						source: "app-api.request-projection-projector",
+					}),
+				);
+			}
+			if (closeoutResult && (closeoutResult.finalized > 0 || closeoutResult.failed > 0)) {
+				console.info(
+					JSON.stringify({
+						failed: closeoutResult.failed,
+						finalized: closeoutResult.finalized,
+						scanned: closeoutResult.scanned,
+						source: "app-api.durable-closeout-reconciler",
+					}),
+				);
+			}
+			if (closeoutResult && closeoutResult.failed > 0) {
+				console.error(
+					JSON.stringify({
+						failed: closeoutResult.failed,
+						finalized: closeoutResult.finalized,
+						scanned: closeoutResult.scanned,
+						source: "app-api.durable-closeout-reconciler",
 					}),
 				);
 			}

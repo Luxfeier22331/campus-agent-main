@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { ChatConversationStore } from "../../chat";
+import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type {
 	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
@@ -81,7 +81,34 @@ export interface ChatCommandSubmitInput {
 	waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 }
 
+export interface AcceptedChatCommandContext {
+	acceptedAt: string;
+	conversation: ChatConversation;
+	conversationTitle: string;
+	idempotencyKey: string | null;
+	input: ChatCommandSubmitInput;
+	requestFingerprintSha256: string | null;
+	requestId: string;
+	runId: string | null;
+	runPhase: RuntimeRunPhase | null;
+	safetyIdentifier: string | null;
+	surface: string;
+	traceId: string;
+	turnId: string | null;
+	userMessageId: string;
+	validatedPayload: ValidatedChatCommandPayload;
+}
+
 export interface ChatCommandService {
+	reconcileDurableCloseouts?(input?: {
+		limit?: number;
+		runId?: string;
+		startedBefore?: string;
+	}): Promise<{
+		failed: number;
+		finalized: number;
+		scanned: number;
+	}>;
 	submit(input: ChatCommandSubmitInput): Promise<ChatCommandResponse>;
 	submitStream?(input: ChatCommandSubmitInput): AsyncIterable<ChatCommandStreamEvent>;
 }
