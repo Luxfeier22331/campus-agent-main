@@ -6,6 +6,9 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/me/identity",
 	"/api/me/access",
 	"/api/me/preferences",
+	"/api/me/profile-memory",
+	"/api/me/profile-memory/items",
+	"/api/me/profile-memory/settings",
 	"/api/me/security/sessions",
 	"/api/me/authorized-apps",
 	"/api/auth/sign-in/email",
@@ -47,6 +50,7 @@ export function isAllowedCampusAppApiRequest(pathname: string): boolean {
 		/^\/api\/chat\/runs\/[^/]+\/events$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/events\/stream$/.test(pathname) ||
 		/^\/api\/chat\/runs\/[^/]+\/cancel$/.test(pathname) ||
+		/^\/api\/me\/profile-memory\/items\/[^/]+$/.test(pathname) ||
 		/^\/api\/me\/security\/sessions\/[^/]+$/.test(pathname) ||
 		/^\/api\/me\/authorized-apps\/[^/]+$/.test(pathname) ||
 		/^\/api\/docs\/collections\/[^/]+\/[^/]+\/navigation$/.test(pathname) ||
