@@ -8,6 +8,7 @@ export interface DocsNavigationResponse {
 	nodes: Array<{
 		canonicalUrl: string;
 		documentSlug: string;
+		displayTitle?: string;
 		isCurrent: boolean;
 		kind: "document" | "section";
 		title: string;

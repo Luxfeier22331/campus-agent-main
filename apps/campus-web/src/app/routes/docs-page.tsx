@@ -5,63 +5,84 @@ import { useEffect, useMemo, useState } from "react";
 import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
 import { Card } from "@/components/ui/card";
-import { resolveDocument } from "@/features/docs/api";
-import type { DocsResolveResponse } from "@/features/docs/model";
+import { getDocsNavigation, resolveDocument } from "@/features/docs/api";
+import type { DocsNavigationResponse, DocsResolveResponse } from "@/features/docs/model";
 import {
 	buildVersionReaderHref,
 	parseReaderLocationState,
 	type ReaderLocationState,
 } from "@/features/docs/reader-state";
 
-const DEFAULT_DOCS = {
+const DEFAULT_COLLECTION = {
 	collection: "student_rules",
 	corpus: "regulations",
-	documentSlug: "index",
 };
+
+type DocsRouteTarget =
+	| {
+			collection: string;
+			corpus: string;
+			kind: "collection";
+			readerState: ReaderLocationState;
+	  }
+	| {
+			collection: string;
+			corpus: string;
+			documentSlug: string;
+			kind: "document";
+			readerState: ReaderLocationState;
+			versionSlug: string | null;
+	  };
+
+type DocsPageState =
+	| { status: "loading" }
+	| { message: string; status: "error" }
+	| { navigation: DocsNavigationResponse; status: "collection" }
+	| { document: DocsResolveResponse; status: "document" };
 
 export function DocsPage() {
 	const location = useLocation();
-	const routeParts = useMemo(
-		() => parseDocsPath(location.pathname, `${location.search}${location.hash}`),
-		[location.hash, location.pathname, location.search],
+	const serializedSearch = serializeRouterSearch(location.search);
+	const routeTarget = useMemo(
+		() => parseDocsPath(location.pathname, `${serializedSearch}${location.hash}`),
+		[location.hash, location.pathname, serializedSearch],
 	);
-	const [document, setDocument] = useState<DocsResolveResponse | null>(null);
-	const [error, setError] = useState<string | null>(null);
-	const [loading, setLoading] = useState(true);
+	const [state, setState] = useState<DocsPageState>({ status: "loading" });
 
 	useEffect(() => {
 		let cancelled = false;
-		setLoading(true);
-		setError(null);
-		resolveDocument({
-			anchor: routeParts.readerState.anchor,
-			...routeParts,
-			documentSlug: routeParts.documentSlug,
-			highlightRootUnitIds: routeParts.readerState.highlightRootUnitIds,
-			versionSlug: routeParts.versionSlug,
-		})
-			.then((nextDocument) => {
-				if (cancelled) {
-					return;
+		setState({ status: "loading" });
+		const load =
+			routeTarget.kind === "collection"
+				? getDocsNavigation({
+						collection: routeTarget.collection,
+						corpus: routeTarget.corpus,
+					}).then((navigation) => ({ navigation, status: "collection" as const }))
+				: resolveDocument({
+						anchor: routeTarget.readerState.anchor,
+						collection: routeTarget.collection,
+						corpus: routeTarget.corpus,
+						documentSlug: routeTarget.documentSlug,
+						highlightRootUnitIds: routeTarget.readerState.highlightRootUnitIds,
+						versionSlug: routeTarget.versionSlug,
+					}).then((document) => ({ document, status: "document" as const }));
+
+		load
+			.then((nextState) => {
+				if (!cancelled) {
+					setState(nextState);
 				}
-				setDocument(nextDocument);
 			})
 			.catch(() => {
 				if (cancelled) {
 					return;
 				}
-				setDocument(null);
-				setError("文档暂时无法打开。");
-			})
-			.finally(() => {
-				if (!cancelled) {
-					setLoading(false);
-				}
+				setState({ message: "文档暂时无法打开。", status: "error" });
 			});
 		return () => {
 			cancelled = true;
 		};
-	}, [routeParts]);
+	}, [routeTarget]);
 
 	return (
 		<SupportSurfaceShell
@@ -70,21 +91,60 @@ export function DocsPage() {
 			eyebrow="校园文档"
 			title="文档"
 		>
-			{error ? (
-				<ErrorPanel message={error} />
+			{state.status === "error" ? (
+				<ErrorPanel message={state.message} />
 			) : (
 				<Card className="w-full max-w-2xl p-5">
-					<p className="text-sm font-medium text-[var(--sys-text-muted)]">正在打开文档</p>
-					{loading || !document ? (
+					{state.status === "loading" ? (
 						<div className="mt-4">
-							<LoadingPanel label="正在准备文档" />
+							<LoadingPanel
+								label={routeTarget.kind === "collection" ? "正在读取文档目录" : "正在准备文档"}
+							/>
 						</div>
+					) : state.status === "collection" ? (
+						<CollectionDirectory navigation={state.navigation} />
 					) : (
-						<ReaderHandoff document={document} readerState={routeParts.readerState} />
+						<>
+							<p className="text-sm font-medium text-[var(--sys-text-muted)]">正在打开文档</p>
+							<ReaderHandoff document={state.document} readerState={routeTarget.readerState} />
+						</>
 					)}
 				</Card>
 			)}
 		</SupportSurfaceShell>
+	);
+}
+
+function CollectionDirectory({ navigation }: { navigation: DocsNavigationResponse }) {
+	const { collection, nodes } = navigation;
+	return (
+		<>
+			<p className="text-sm font-medium text-[var(--sys-text-muted)]">文档目录</p>
+			<h2 className="mt-2 text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
+				{collection.displayName}
+			</h2>
+			{collection.description ? (
+				<p className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
+					{collection.description}
+				</p>
+			) : null}
+			{nodes.length > 0 ? (
+				<ul className="mt-5 divide-y divide-[var(--sys-border-subtle)]">
+					{nodes.map((node) => (
+						<li key={node.documentSlug}>
+							<a
+								className="block py-3 text-sm font-medium leading-6 text-[var(--sys-text-strong)] hover:text-[var(--sys-brand-identity)]"
+								href={node.canonicalUrl}
+							>
+								{node.displayTitle ?? node.title}
+							</a>
+						</li>
+					))}
+				</ul>
+			) : (
+				<p className="mt-5 text-sm text-[var(--sys-text-muted)]">当前没有可阅读的文档。</p>
+			)}
+		</>
 	);
 }
 
@@ -119,14 +179,69 @@ function ReaderHandoff({
 	);
 }
 
-function parseDocsPath(pathname: string, searchAndHash: string) {
-	const parts = pathname.split("/").filter(Boolean);
+function parseDocsPath(pathname: string, searchAndHash: string): DocsRouteTarget {
+	const parts = decodePathParts(pathname);
+	const corpus = parts[1] ?? DEFAULT_COLLECTION.corpus;
+	const collection = parts[2] ?? DEFAULT_COLLECTION.collection;
+	const documentSlug = parts[3] && parts[3] !== "v" ? parts[3] : null;
+	const readerState = parseReaderLocationState(`${pathname}${searchAndHash}`);
+	if (!documentSlug) {
+		return {
+			collection,
+			corpus,
+			kind: "collection",
+			readerState,
+		};
+	}
 	const versionMarkerIndex = parts.indexOf("v");
 	return {
-		collection: parts[2] ?? DEFAULT_DOCS.collection,
-		corpus: parts[1] ?? DEFAULT_DOCS.corpus,
-		documentSlug: parts[3] ?? DEFAULT_DOCS.documentSlug,
-		readerState: parseReaderLocationState(`${pathname}${searchAndHash}`),
+		collection,
+		corpus,
+		documentSlug,
+		kind: "document",
+		readerState,
 		versionSlug: versionMarkerIndex >= 0 ? (parts[versionMarkerIndex + 1] ?? null) : null,
 	};
+}
+
+function decodePathParts(pathname: string): string[] {
+	try {
+		return pathname.split("/").filter(Boolean).map(decodeURIComponent);
+	} catch {
+		return pathname.split("/").filter(Boolean);
+	}
+}
+
+function serializeRouterSearch(search: unknown): string {
+	if (!search) {
+		return "";
+	}
+	if (typeof search === "string") {
+		return search;
+	}
+	if (search instanceof URLSearchParams) {
+		const serialized = search.toString();
+		return serialized ? `?${serialized}` : "";
+	}
+	if (typeof search !== "object") {
+		return "";
+	}
+
+	const params = new URLSearchParams();
+	for (const [key, value] of Object.entries(search as Record<string, unknown>)) {
+		if (value === null || value === undefined || value === "") {
+			continue;
+		}
+		if (Array.isArray(value)) {
+			for (const item of value) {
+				if (item !== null && item !== undefined && item !== "") {
+					params.append(key, String(item));
+				}
+			}
+			continue;
+		}
+		params.set(key, String(value));
+	}
+	const serialized = params.toString();
+	return serialized ? `?${serialized}` : "";
 }

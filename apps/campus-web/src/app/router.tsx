@@ -75,6 +75,12 @@ const conversationRoute = createRoute({
 	path: "/c/$conversationId",
 });
 
+const docsIndexRoute = createRoute({
+	component: DocsPage,
+	getParentRoute: () => rootRoute,
+	path: "/docs",
+});
+
 const docsRoute = createRoute({
 	component: DocsPage,
 	getParentRoute: () => rootRoute,
@@ -156,6 +162,7 @@ const legalPrivacyRoute = createRoute({
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	conversationRoute,
+	docsIndexRoute,
 	docsRoute,
 	mapRoute,
 	diningRoute,

@@ -114,6 +114,8 @@ describe("campus worker boundary", () => {
 		for (const path of [
 			"/",
 			"/c/conv_1",
+			"/docs",
+			"/docs/",
 			"/docs/student_rules",
 			"/map",
 			"/dining",

@@ -69,6 +69,7 @@ const VITE_DEV_ASSET_PREFIXES = [
 const SHELL_PATH_PREFIXES = ["/c/", "/docs/"] as const;
 const SHELL_EXACT_PATHS = new Set([
 	"/",
+	"/docs",
 	"/map",
 	"/dining",
 	"/feedback",

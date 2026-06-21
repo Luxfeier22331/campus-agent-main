@@ -11,8 +11,7 @@ import { UnauthorizedError } from "@/platform/api/client";
 const supportNavItems = [
 	{
 		label: "文档",
-		params: { _splat: "regulations/student_rules/index" },
-		to: "/docs/$",
+		to: "/docs",
 	},
 	{ label: "校园地图", to: "/map" },
 	{ label: "饭堂分布图", to: "/dining" },
@@ -238,7 +237,7 @@ export function SupportNavigation({
 			{visibleItems.map((item) => {
 				const active =
 					activePath &&
-					(item.to === "/docs/$" ? activePath.startsWith("/docs") : activePath === item.to);
+					(item.to === "/docs" ? activePath.startsWith("/docs") : activePath === item.to);
 				return (
 					<Link
 						className={cn(
@@ -250,7 +249,6 @@ export function SupportNavigation({
 								"text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]",
 						)}
 						key={item.label}
-						params={"params" in item ? item.params : undefined}
 						to={item.to}
 					>
 						{item.label}

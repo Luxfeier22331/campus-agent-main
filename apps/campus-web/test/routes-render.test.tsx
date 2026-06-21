@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { UseChatKitOptions } from "@openai/chatkit-react";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
 import rootLayoutSource from "../src/app/root-layout.tsx?raw";
@@ -90,7 +90,7 @@ vi.mock("@tanstack/react-router", async () => {
 		useLocation: () => ({
 			hash: window.location.hash,
 			pathname: window.location.pathname,
-			search: window.location.search,
+			search: Object.fromEntries(new URLSearchParams(window.location.search)),
 		}),
 		useNavigate: () => navigateMock,
 	};
@@ -133,32 +133,33 @@ describe("campus routes", () => {
 			collection: {
 				collection: "student_rules",
 				corpus: "regulations",
+				description: "当前公开的学生手册与学生管理规章。",
 				displayName: "学生手册",
 			},
 			nodes: [
 				{
-					canonicalUrl: "/docs/regulations/student_rules/index",
-					documentSlug: "index",
+					canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
+					documentSlug: "中央民族大学学生管理规定",
 					isCurrent: true,
 					kind: "document",
-					title: "总则",
+					title: "中央民族大学学生管理规定",
 				},
 			],
 		});
 		docsApiMock.resolveDocument.mockResolvedValue({
 			document: {
-				canonicalUrl: "/docs/regulations/student_rules/index",
+				canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
 				collection: "student_rules",
 				corpus: "regulations",
 				docId: "doc_01",
-				documentSlug: "index",
-				title: "学生手册",
+				documentSlug: "中央民族大学学生管理规定",
+				title: "中央民族大学学生管理规定",
 				updatedAt: "2026-06-08T00:00:00.000Z",
 				versionId: "version_01",
 				versionSlug: "2026",
 			},
 			readerAsset: {
-				canonicalUrl: "/docs/regulations/student_rules/index",
+				canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
 				contentUrl: "/assets/docs/student-rules.html",
 				deliveryMode: "public_static_asset",
 				outlineUrl: "/assets/docs/student-rules-outline.json",
@@ -374,7 +375,7 @@ describe("campus routes", () => {
 	});
 
 	it("keeps feedback navigation visible on non-map support pages", () => {
-		window.history.pushState({}, "", "/docs/regulations/student_rules/index");
+		window.history.pushState({}, "", "/docs/regulations/student_rules/中央民族大学学生管理规定");
 		render(<RootLayout />);
 
 		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
@@ -430,31 +431,52 @@ describe("campus routes", () => {
 		);
 	});
 
-	it("keeps docs route as a reader handoff without custom search or developer targets", async () => {
+	it("renders the default docs route as a collection directory", async () => {
+		window.history.pushState({}, "", "/docs");
+		render(<DocsPage />);
+
+		expect(await screen.findByRole("heading", { name: "学生手册" })).toBeInTheDocument();
+		expect(screen.getByText("当前公开的学生手册与学生管理规章。")).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "中央民族大学学生管理规定" })).toHaveAttribute(
+			"href",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定",
+		);
+		expect(docsApiMock.getDocsNavigation).toHaveBeenCalledWith({
+			collection: "student_rules",
+			corpus: "regulations",
+		});
+		expect(docsApiMock.resolveDocument).not.toHaveBeenCalled();
+	});
+
+	it("keeps docs document routes as reader handoffs without custom search or developer targets", async () => {
 		window.history.pushState(
 			{},
 			"",
-			"/docs/regulations/student_rules/index/v/2025-history?hl=unit_award#general",
+			"/docs/regulations/student_rules/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%AD%A6%E7%94%9F%E7%AE%A1%E7%90%86%E8%A7%84%E5%AE%9A/v/2025-history?hl=unit_award#general",
 		);
 		const { unmount } = render(<DocsPage />);
 
 		expect(await screen.findByText("正在打开文档")).toBeInTheDocument();
-		expect(docsApiMock.resolveDocument).toHaveBeenCalledWith(
-			expect.objectContaining({
-				anchor: "general",
-				documentSlug: "index",
-				highlightRootUnitIds: ["unit_award"],
-				versionSlug: "2025-history",
-			}),
+		await waitFor(() =>
+			expect(docsApiMock.resolveDocument).toHaveBeenCalledWith(
+				expect.objectContaining({
+					anchor: "general",
+					documentSlug: "中央民族大学学生管理规定",
+					highlightRootUnitIds: ["unit_award"],
+					versionSlug: "2025-history",
+				}),
+			),
 		);
 		expect(screen.queryByText("学生应按时参加教学活动。")).toBeNull();
 		expect(screen.queryByText("奖学金评定需要满足对应条件。")).toBeNull();
 		expect(screen.getByRole("link", { name: "继续打开" })).toHaveAttribute(
 			"href",
-			"/docs/regulations/student_rules/index?hl=unit_award#general",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定?hl=unit_award#general",
 		);
 		expect(screen.queryByText("阅读目标")).toBeNull();
-		expect(screen.queryByText("/docs/regulations/student_rules/index")).toBeNull();
+		expect(
+			screen.queryByText("/docs/regulations/student_rules/中央民族大学学生管理规定"),
+		).toBeNull();
 		expect(screen.queryByLabelText("搜索文档")).toBeNull();
 		expect(screen.queryByRole("button", { name: "搜索" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "打开原文" })).toBeNull();
