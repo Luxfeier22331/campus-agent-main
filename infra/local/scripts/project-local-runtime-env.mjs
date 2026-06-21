@@ -118,6 +118,7 @@ const runtimeKeys = [
 	"OBJECT_STORE_ACCESS_KEY",
 	"OBJECT_STORE_SECRET_KEY",
 	"OBJECT_STORE_REGION",
+	"OBJECT_STORE_BUCKET_SOURCE",
 	"OBJECT_STORE_BUCKET_DERIVED",
 	"QDRANT_URL",
 	"QDRANT_API_KEY",
@@ -170,6 +171,7 @@ export async function projectLocalRuntimeEnv(input = {}) {
 		input.generatedRuntimeEnvPath ?? path.join(repoRoot, "infra/local/.generated/runtime.env");
 	const composeProjectName =
 		input.composeProjectName ?? "campus-execution-control-runtime-local";
+	const target = normalizeProjectionTarget(input.target ?? "container");
 
 	await ensureRuntimeSecrets({ envPath: generatedRuntimeEnvPath });
 
@@ -195,7 +197,7 @@ export async function projectLocalRuntimeEnv(input = {}) {
 	const projectedEnv = {};
 	for (const [key, value] of env.entries()) {
 		if (runtimeKeys.includes(key) || key.startsWith("EXECUTION_CONTROL_")) {
-			projectedEnv[key] = projectContainerValue(key, value);
+			projectedEnv[key] = target === "container" ? projectContainerValue(key, value) : value;
 		}
 	}
 	return {
@@ -286,6 +288,13 @@ function deriveRuntimeEnv(env, input) {
 	if (!read(env, "QDRANT_QUERY_API_KEY") && read(env, "QDRANT_READ_ONLY_API_KEY")) {
 		setValue(env, "QDRANT_QUERY_API_KEY", read(env, "QDRANT_READ_ONLY_API_KEY"));
 	}
+
+	setDefault(env, "OBJECT_STORE_ENDPOINT", "http://127.0.0.1:9000");
+	setDefault(env, "OBJECT_STORE_ACCESS_KEY", "minioadmin");
+	setDefault(env, "OBJECT_STORE_SECRET_KEY", "minioadmin");
+	setDefault(env, "OBJECT_STORE_REGION", "us-east-1");
+	setDefault(env, "OBJECT_STORE_BUCKET_SOURCE", "campus-rag-source");
+	setDefault(env, "OBJECT_STORE_BUCKET_DERIVED", "campus-rag-derived");
 
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL", "http://agent-runtime:27062");
 	setDefault(env, "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", "180000");
@@ -643,6 +652,12 @@ function summarizeProjectedEnv(env) {
 		"RERANK_BASE_URL",
 		"RERANK_API_KEY",
 		"RERANK_MODEL",
+		"OBJECT_STORE_ENDPOINT",
+		"OBJECT_STORE_ACCESS_KEY",
+		"OBJECT_STORE_SECRET_KEY",
+		"OBJECT_STORE_REGION",
+		"OBJECT_STORE_BUCKET_SOURCE",
+		"OBJECT_STORE_BUCKET_DERIVED",
 		"QDRANT_URL",
 		"QDRANT_QUERY_API_KEY",
 		"HINDSIGHT_API_LLM_API_KEY",
@@ -693,6 +708,13 @@ function shouldSetEnv(value) {
 	return !normalized || normalized.startsWith("replace-with-") || isTemplatePlaceholder(normalized);
 }
 
+function normalizeProjectionTarget(value) {
+	if (value === "container" || value === "host") {
+		return value;
+	}
+	throw new Error("--target must be container or host");
+}
+
 function isTemplatePlaceholder(value) {
 	return (
 		value.includes("<project-ref>") ||
@@ -713,6 +735,7 @@ function parseArgs(argv) {
 		format: "env",
 		repoRoot: defaultRepoRoot,
 		syncAppApiDevVars: false,
+		target: "container",
 	};
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -734,6 +757,8 @@ function parseArgs(argv) {
 			args.composeProjectName = value;
 		} else if (token === "--format") {
 			args.format = value;
+		} else if (token === "--target") {
+			args.target = normalizeProjectionTarget(value);
 		} else {
 			throw new Error(`unknown argument ${token}`);
 		}

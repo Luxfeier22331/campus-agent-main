@@ -379,11 +379,16 @@ Hindsight API。
 
 本地开发推荐获取方式：
 
-- 按 [../../decisions/adr-0002-local-minio-conventions.md](../../decisions/adr-0002-loc
-  al-minio-conventions.md) 运行 Docker MinIO
+- 按 [../../decisions/adr-0002-local-minio-conventions.md](../../decisions/adr-0002-local-minio-conventions.md)
+  运行 repo-local Docker MinIO
 - 创建或确保 bucket：
   - `campus-rag-source`
   - `campus-rag-derived`
+- `infra/local/scripts/project-local-runtime-env.mjs` 是本地 runtime env 投影入口；默认
+  `--target container` 投影 Docker DNS，`--target host` 投影本机 Node/Vite 命令可访问的
+  `127.0.0.1:9000`
+- `apps/campus-web/scripts/run-with-local-env.mjs` 使用 `--target host` 自动注入 repo-local
+  MinIO 默认值；本地 `campus-web` docs build 不需要在当前 shell 手写 `OBJECT_STORE_*`
 
 云端获取方式：
 

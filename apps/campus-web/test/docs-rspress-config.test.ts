@@ -34,6 +34,7 @@ describe("campus docs Rspress build boundary", () => {
 		expect(packageJson.scripts["docs:sync:published-reader:staging"]).toBeUndefined();
 		expect(buildDocsSource).toContain("run-with-local-env.mjs");
 		expect(buildDocsSource).toContain("sync-campus-published-reader.mjs");
+		expect(buildDocsSource).toContain("export-public-docs-sync-manifest.ts");
 		expect(buildDocsSource).toContain("--manifest-path");
 		expect(buildDocsSource).toContain("../../var/public-docs-sync-manifest.json");
 		expect(buildDocsSource).toContain("run-with-staging-ingestion-env.mjs");
@@ -114,6 +115,10 @@ describe("campus docs Rspress build boundary", () => {
 
 		expect(localEnvScript).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
 		expect(localEnvScript).toContain('resolve(appDir, ".env")');
+		expect(localEnvScript).toContain("project-local-runtime-env.mjs");
+		expect(localEnvScript).toContain("--target");
+		expect(localEnvScript).toContain("host");
+		expect(localEnvScript).toContain("--skip-hindsight-provider-config");
 		expect(localEnvScript).not.toContain('resolve(appDir, ".dev.vars")');
 		expect(localEnvScript).not.toContain("minioadmin");
 		expect(localEnvScript).not.toContain("OBJECT_STORE_ENDPOINT=");

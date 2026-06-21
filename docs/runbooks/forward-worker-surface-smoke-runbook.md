@@ -52,6 +52,11 @@ smoke。docs 不再由独立 `public-docs` Worker 验证；docs browser route �
   `apps/app-api/db/shared-product-migrations/*`，先执行
   `node apps/app-api/scripts/run-with-local-env.mjs node
   ./scripts/bootstrap-shared-product-with-seeds.mjs`
+- 做 campus-web docs build 前，repo-local MinIO 应已运行并包含
+  `campus-rag-source` / `campus-rag-derived` bucket。`campus-web` 本地 build
+  通过 `apps/campus-web/scripts/run-with-local-env.mjs` 消费
+  `infra/local/scripts/project-local-runtime-env.mjs --target host`，不要求当前 shell
+  手写 `OBJECT_STORE_*`
 
 ## 标准命令
 
@@ -121,6 +126,9 @@ pnpm --dir apps/campus-web dev
 - campus-web dev 固定监听 `http://127.0.0.1:27014`
 - `build-published-reader-docs.mjs` 先生成 Rspress reader assets，再由
   campus-web 静态 delivery 提供 `/docs/*` 与 `/static/*`
+- 本地 `build-published-reader-docs.mjs` 如果缺少
+  `var/public-docs-sync-manifest.json`，会先通过 `app-api` read model 导出该 manifest；
+  staging build 仍要求显式提供 `var/public-docs-sync-manifest.staging.json`
 - `/_docs/*` 是匿名 public reader asset delivery
 - `/_gated-docs/*` 必须走 Worker-first admission，并通过 same-origin
   `/api/docs/.../admission` 向 `app-api` 校验后读取静态资产

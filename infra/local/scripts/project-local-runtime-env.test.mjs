@@ -4,8 +4,11 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { projectLocalRuntimeEnv } from "./project-local-runtime-env.mjs";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
 test("projectLocalRuntimeEnv projects Hindsight provider env from app-api active profiles", async () => {
 	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
@@ -246,6 +249,108 @@ test("projectLocalRuntimeEnv derives Langfuse collector values from canonical ke
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
 	}
+});
+
+test("projectLocalRuntimeEnv projects repo-local object store defaults for container and host targets", async () => {
+	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
+	const repoEnvPath = path.join(tmp, ".env");
+	const appApiEnvPath = path.join(tmp, "app-api.env");
+	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
+	const generatedRuntimeEnvPath = path.join(tmp, "runtime.env");
+
+	await writeFile(repoEnvPath, "");
+	await writeFile(appApiEnvPath, "");
+	await writeFile(appApiDevVarsPath, "");
+	await writeFile(generatedRuntimeEnvPath, "");
+
+	try {
+		const container = await projectLocalRuntimeEnv({
+			appApiDevVarsPath,
+			appApiEnvPath,
+			composeProjectName: "campus-runtime-test",
+			env: {},
+			generatedRuntimeEnvPath,
+			repoEnvPath,
+			repoRoot: tmp,
+			skipHindsightProviderConfig: true,
+			target: "container",
+		});
+		const host = await projectLocalRuntimeEnv({
+			appApiDevVarsPath,
+			appApiEnvPath,
+			composeProjectName: "campus-runtime-test",
+			env: {},
+			generatedRuntimeEnvPath,
+			repoEnvPath,
+			repoRoot: tmp,
+			skipHindsightProviderConfig: true,
+			target: "host",
+		});
+
+		assert.equal(container.env.OBJECT_STORE_ENDPOINT, "http://minio:9000");
+		assert.equal(host.env.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:9000");
+		for (const projected of [container.env, host.env]) {
+			assert.equal(projected.OBJECT_STORE_ACCESS_KEY, "minioadmin");
+			assert.equal(projected.OBJECT_STORE_SECRET_KEY, "minioadmin");
+			assert.equal(projected.OBJECT_STORE_REGION, "us-east-1");
+			assert.equal(projected.OBJECT_STORE_BUCKET_SOURCE, "campus-rag-source");
+			assert.equal(projected.OBJECT_STORE_BUCKET_DERIVED, "campus-rag-derived");
+		}
+	} finally {
+		await rm(tmp, { force: true, recursive: true });
+	}
+});
+
+test("projectLocalRuntimeEnv keeps explicit object store env over repo-local defaults", async () => {
+	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
+	const repoEnvPath = path.join(tmp, ".env");
+	const appApiEnvPath = path.join(tmp, "app-api.env");
+	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
+	const generatedRuntimeEnvPath = path.join(tmp, "runtime.env");
+
+	await writeFile(repoEnvPath, "");
+	await writeFile(appApiEnvPath, "");
+	await writeFile(appApiDevVarsPath, "");
+	await writeFile(generatedRuntimeEnvPath, "");
+
+	try {
+		const result = await projectLocalRuntimeEnv({
+			appApiDevVarsPath,
+			appApiEnvPath,
+			composeProjectName: "campus-runtime-test",
+			env: {
+				OBJECT_STORE_ACCESS_KEY: "explicit-access",
+				OBJECT_STORE_BUCKET_DERIVED: "explicit-derived",
+				OBJECT_STORE_BUCKET_SOURCE: "explicit-source",
+				OBJECT_STORE_ENDPOINT: "http://127.0.0.1:19000",
+				OBJECT_STORE_REGION: "local-test",
+				OBJECT_STORE_SECRET_KEY: "explicit-secret",
+			},
+			generatedRuntimeEnvPath,
+			repoEnvPath,
+			repoRoot: tmp,
+			skipHindsightProviderConfig: true,
+			target: "host",
+		});
+
+		assert.equal(result.env.OBJECT_STORE_ENDPOINT, "http://127.0.0.1:19000");
+		assert.equal(result.env.OBJECT_STORE_ACCESS_KEY, "explicit-access");
+		assert.equal(result.env.OBJECT_STORE_SECRET_KEY, "explicit-secret");
+		assert.equal(result.env.OBJECT_STORE_REGION, "local-test");
+		assert.equal(result.env.OBJECT_STORE_BUCKET_SOURCE, "explicit-source");
+		assert.equal(result.env.OBJECT_STORE_BUCKET_DERIVED, "explicit-derived");
+	} finally {
+		await rm(tmp, { force: true, recursive: true });
+	}
+});
+
+test("repo-local MinIO bucket initialization uses accepted source and derived buckets", async () => {
+	const source = await readFile(path.resolve(scriptDir, "../minio/create_buckets.sh"), "utf8");
+
+	assert.match(source, /OBJECT_STORE_BUCKET_SOURCE:-campus-rag-source/);
+	assert.match(source, /OBJECT_STORE_BUCKET_DERIVED:-campus-rag-derived/);
+	assert.doesNotMatch(source, /campus-rag-raw/);
+	assert.doesNotMatch(source, /campus-rag-processed/);
 });
 
 class ActiveProviderConfigServer {
