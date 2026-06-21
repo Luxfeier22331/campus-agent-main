@@ -1,0 +1,27 @@
+{
+	"name": "eval-langfuse",
+	"version": "0.1.0",
+	"private": true,
+	"description": "TypeScript Langfuse eval platform integration for campus-agent.",
+	"type": "module",
+	"exports": {
+		".": "./src/index.ts"
+	},
+	"bin": {
+		"campus-langfuse": "./src/cli.ts"
+	},
+	"scripts": {
+		"langfuse": "tsx ./src/cli.ts",
+		"test": "vitest run",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@langfuse/client": "^5.5.3"
+	},
+	"devDependencies": {
+		"@types/node": "^24.12.0",
+		"tsx": "^4.21.0",
+		"typescript": "^5.8.2",
+		"vitest": "^4.1.0"
+	}
+}

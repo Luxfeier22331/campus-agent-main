@@ -18,21 +18,28 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@assistant-ui/react": "0.14.23",
+		"@assistant-ui/react-data-stream": "0.12.17",
+		"@assistant-ui/react-markdown": "^0.14.4",
 		"@better-auth/oauth-provider": "^1.5.6",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@rspress/core": "^2.0.9",
 		"@sentry/cloudflare": "^10.46.0",
 		"@tanstack/react-router": "^1.132.23",
+		"assistant-stream": "0.3.23",
 		"better-auth": "^1.5.6",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
 		"dining-floorplans": "workspace:*",
 		"lucide-react": "^1.7.0",
 		"maplibre-gl": "^5.14.0",
+		"radix-ui": "^1.6.0",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
 		"react-zoom-pan-pinch": "^4.0.3",
-		"tailwind-merge": "^3.5.0"
+		"remark-gfm": "^4.0.1",
+		"tailwind-merge": "^3.5.0",
+		"zustand": "^5.0.14"
 	},
 	"devDependencies": {
 		"@aws-sdk/client-s3": "^3.1022.0",
