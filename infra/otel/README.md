@@ -49,9 +49,11 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
 - Langfuse OTLP endpoint should be the `/api/public/otel` endpoint. Use
   `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4` unless the Langfuse deployment
   contract changes.
-- The staging runtime compose requires Langfuse endpoint, Basic auth header and
-  ingestion version to be populated. Missing values fail startup instead of
-  allowing a broken exporter.
+- Canonical staging defaults to `collector-local-debug.yaml` so staging env can
+  stay free of external sink credentials. Set
+  `EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE=fanout` and
+  `EXECUTION_CONTROL_STAGING_OTEL_COLLECTOR_CONFIG_FILE=../otel/collector-staging-template.yaml`
+  only when Sentry/Axiom/Langfuse sink credentials are intentionally deployed.
 - The staging runtime compose exposes only `otel-ingest-gateway` for Worker
   OTLP. It does not expose raw Collector OTLP receivers.
 

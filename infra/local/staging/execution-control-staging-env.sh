@@ -1120,7 +1120,7 @@ execution_control_staging_require_isolated_temporal_proof_runtime() {
 }
 
 execution_control_staging_require_runtime_env_core() {
-  execution_control_staging_require_observability_sink_env
+  execution_control_staging_require_observability_env
 
   if [[ -n "${EXECUTION_CONTROL_STAGING_DATA_PLANE_ERRORS:-}" ]]; then
     echo "execution-control staging data-plane env is invalid:" >&2

@@ -11,11 +11,30 @@ execution_control_staging_capture_compose_logs() {
 execution_control_staging_collector_logs_have_export_errors() {
   local log_file="${execution_control_staging_otel_collector_recent_log_file}"
 
+  if [[ "${EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE:-debug}" != "fanout" ]]; then
+    return 1
+  fi
+
   if [[ ! -f "${log_file}" ]]; then
     return 1
   fi
 
   grep -Eq 'Exporting failed\. Dropping data\.|not retryable error:|Permanent error:' "${log_file}"
+}
+
+execution_control_staging_require_observability_env() {
+  case "${EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE:-debug}" in
+    debug)
+      return 0
+      ;;
+    fanout)
+      execution_control_staging_require_observability_sink_env
+      ;;
+    *)
+      echo "EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE must be debug or fanout." >&2
+      return 1
+      ;;
+  esac
 }
 
 execution_control_staging_validate_axiom_collector_endpoint() {

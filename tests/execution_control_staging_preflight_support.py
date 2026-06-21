@@ -237,6 +237,7 @@ def run_common_script_with_env(
     repo_env: str,
     staging_env: str,
     app_api_dev_vars: str | None = None,
+    include_observability_sink_fixture: bool = True,
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         temp_root = Path(temp_dir)
@@ -253,7 +254,11 @@ def run_common_script_with_env(
         runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
         runtime_env_path.parent.mkdir(parents=True)
         runtime_env_path.write_text(
-            _with_valid_staging_fixture_env(staging_env) + "\n",
+            _with_valid_staging_fixture_env(
+                staging_env,
+                include_observability_sink_fixture=include_observability_sink_fixture,
+            )
+            + "\n",
             encoding="utf-8",
         )
         app_api_dir = temp_root / "apps" / "app-api"
@@ -305,7 +310,11 @@ def _with_valid_observability_sink_env(staging_env: str) -> str:
     return "\n".join([*missing_fixture_lines, staging_env]).strip()
 
 
-def _with_valid_staging_fixture_env(staging_env: str) -> str:
+def _with_valid_staging_fixture_env(
+    staging_env: str,
+    *,
+    include_observability_sink_fixture: bool = True,
+) -> str:
     present_keys = {
         line.split("=", 1)[0].strip()
         for line in staging_env.splitlines()
@@ -319,9 +328,10 @@ def _with_valid_staging_fixture_env(staging_env: str) -> str:
         for key, value in _VALID_STAGING_PROVIDER_ENV.items()
         if key not in present_keys
     )
-    return _with_valid_observability_sink_env(
-        "\n".join([*missing_fixture_lines, staging_env]).strip()
-    )
+    payload = "\n".join([*missing_fixture_lines, staging_env]).strip()
+    if include_observability_sink_fixture:
+        return _with_valid_observability_sink_env(payload)
+    return payload
 
 
 def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedProcess[str]:

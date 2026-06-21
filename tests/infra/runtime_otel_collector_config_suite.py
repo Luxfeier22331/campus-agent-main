@@ -16,6 +16,9 @@ STAGING_CONFIG = REPO_ROOT / "infra/otel/collector-staging-template.yaml"
 ENV_EXAMPLE = REPO_ROOT / "infra/otel/collector.env.example"
 RUNBOOK = REPO_ROOT / "docs/runbooks/runtime-otel-collector-pipeline.md"
 RUNTIME_COMPOSE = REPO_ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+STAGING_RUNTIME_COMPOSE = (
+    REPO_ROOT / "infra/local/docker-compose.execution-control-runtime.staging.yml"
+)
 STAGING_RUNTIME_PROFILE = (
     REPO_ROOT / "configs/runtime/execution-control/runtime-profile.staging.json"
 )
@@ -276,15 +279,15 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
         self.assertEqual(exporter["compression"], "gzip")
         self.assertEqual(exporter["encoding"], "proto")
 
-    def test_runtime_compose_requires_langfuse_fanout_endpoint_and_auth(self) -> None:
-        compose = RUNTIME_COMPOSE.read_text(encoding="utf-8")
+    def test_staging_runtime_compose_defaults_to_debug_collector_config(self) -> None:
+        compose = STAGING_RUNTIME_COMPOSE.read_text(encoding="utf-8")
 
         self.assertIn(
-            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT: "
-            "${OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT:?set "
-            "OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}",
+            "${EXECUTION_CONTROL_STAGING_OTEL_COLLECTOR_CONFIG_FILE:-../otel/collector-local-debug.yaml}:"
+            "/etc/otelcol-contrib/config.yaml:ro",
             compose,
         )
+        self.assertNotIn("OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT:?set", compose)
 
     def test_runtime_compose_routes_worker_otlp_through_controlled_ingest_gateway(
         self,
@@ -302,18 +305,8 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             compose,
         )
         self.assertNotIn("${OTEL_COLLECTOR_HOST_PORT", compose)
-        self.assertIn(
-            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER: "
-            "${OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:?set "
-            "OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}",
-            compose,
-        )
-        self.assertIn(
-            "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "
-            "${OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION:?set "
-            "OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}",
-            compose,
-        )
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER:", compose)
+        self.assertIn("OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION:", compose)
 
     def test_staging_runtime_profile_enables_temporal_sdk_tracing(self) -> None:
         profile = json.loads(STAGING_RUNTIME_PROFILE.read_text(encoding="utf-8"))

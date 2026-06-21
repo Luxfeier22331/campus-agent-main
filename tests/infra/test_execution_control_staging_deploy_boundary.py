@@ -176,6 +176,48 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             "Qwen3-Embedding-4B",
         )
 
+    def test_env_loader_accepts_clean_debug_observability_without_axiom_or_sentry(
+        self,
+    ) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env="\n".join(
+                (
+                    "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret",
+                    "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
+                    "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+                    "STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com",
+                    "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
+                    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
+                    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+                    "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
+                    "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
+                )
+            ),
+            include_observability_sink_fixture=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(projected["OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT"], "")
+        self.assertEqual(projected["OTEL_COLLECTOR_SENTRY_AUTH_VALUE"], "")
+        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"], "")
+        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_AUTH_HEADER"], "")
+        self.assertEqual(projected["OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"], "")
+        self.assertEqual(
+            projected["OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT"],
+            "http://langfuse-web:3000/api/public/otel",
+        )
+
     def test_env_loader_projects_internal_agent_runtime_bridge_without_manual_secret(self) -> None:
         result = run_common_script_with_env(
             repo_env="",

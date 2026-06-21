@@ -82,7 +82,17 @@ the raw Collector receiver.
 
 ## Staging Env
 
-Populate the staging template from deployment secrets, not from tracked files:
+Canonical staging defaults to `collector-local-debug.yaml` and does not require
+Sentry/Axiom/Langfuse sink credentials in the env file. Keep those values absent
+unless the goal is to prove external fan-out. To enable fan-out, set:
+
+```bash
+EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE=fanout
+EXECUTION_CONTROL_STAGING_OTEL_COLLECTOR_CONFIG_FILE=../otel/collector-staging-template.yaml
+```
+
+Then populate the staging template from deployment secrets, not from tracked
+files:
 
 ```bash
 DEPLOYMENT_ENVIRONMENT=staging
