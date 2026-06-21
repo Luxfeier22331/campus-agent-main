@@ -242,7 +242,7 @@ doctor/env readiness contract。
   `OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT` `OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER`
   `OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION`
   放置位置: canonical keys 放 staging ops runtime env / CI vars+secrets；derived
-  Collector keys 由 deploy renderer 或 `node ./scripts/run-langfuse-release-closeout-staging.mjs`
+  Collector keys 由 deploy renderer 或 `pnpm --dir packages/eval-langfuse langfuse derive-collector-env`
   派生后进入 OTel Collector process env
   何时必需: 启用 Langfuse runtime trace fan-out 时必需；本地骨架默认可为空
   获取方式: self-hosted Langfuse project 中生成 public / secret key；不要手写
