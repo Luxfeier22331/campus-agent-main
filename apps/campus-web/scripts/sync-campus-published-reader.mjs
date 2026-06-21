@@ -15,7 +15,10 @@ import {
 	writeText,
 } from "./published-reader-text.mjs";
 
-export { resolvePublishedReaderObjectStoreBucket } from "./published-reader-object-store.mjs";
+export {
+	resolvePublishedReaderObjectStoreBucket,
+	resolvePublishedReaderObjectStoreCredentials,
+} from "./published-reader-object-store.mjs";
 export { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");

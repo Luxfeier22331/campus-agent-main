@@ -2,8 +2,9 @@ import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export function createS3ObjectStore() {
 	const endpoint = requireEnv("OBJECT_STORE_ENDPOINT");
-	const accessKeyId = requireEnv("OBJECT_STORE_ACCESS_KEY");
-	const secretAccessKey = requireEnv("OBJECT_STORE_SECRET_KEY");
+	const { accessKeyId, secretAccessKey } = resolvePublishedReaderObjectStoreCredentials(
+		process.env,
+	);
 	const region = process.env.OBJECT_STORE_REGION?.trim() || "us-east-1";
 	const bucket = resolvePublishedReaderObjectStoreBucket(process.env);
 	const client = new S3Client({
@@ -43,6 +44,21 @@ export function resolvePublishedReaderObjectStoreBucket(env) {
 	return env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-rag-derived";
 }
 
+export function resolvePublishedReaderObjectStoreCredentials(env) {
+	const derivedAccessKey = env.OBJECT_STORE_DERIVED_ACCESS_KEY?.trim();
+	const derivedSecretKey = env.OBJECT_STORE_DERIVED_SECRET_KEY?.trim();
+	if (derivedAccessKey && derivedSecretKey) {
+		return {
+			accessKeyId: derivedAccessKey,
+			secretAccessKey: derivedSecretKey,
+		};
+	}
+	return {
+		accessKeyId: requireEnvFrom(env, "OBJECT_STORE_ACCESS_KEY"),
+		secretAccessKey: requireEnvFrom(env, "OBJECT_STORE_SECRET_KEY"),
+	};
+}
+
 function isMissingObjectError(error) {
 	return Boolean(
 		error &&
@@ -55,7 +71,11 @@ function isMissingObjectError(error) {
 }
 
 function requireEnv(name) {
-	const value = process.env[name]?.trim();
+	return requireEnvFrom(process.env, name);
+}
+
+function requireEnvFrom(env, name) {
+	const value = env[name]?.trim();
 	if (!value) {
 		throw new Error(`${name} is required for campus docs published reader sync`);
 	}

@@ -21,6 +21,16 @@ export function resolvePublishedReaderObjectStoreBucket(env: {
 	OBJECT_STORE_BUCKET_DERIVED?: string;
 }): string;
 
+export function resolvePublishedReaderObjectStoreCredentials(env: {
+	OBJECT_STORE_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
+	OBJECT_STORE_DERIVED_SECRET_KEY?: string;
+	OBJECT_STORE_SECRET_KEY?: string;
+}): {
+	accessKeyId: string;
+	secretAccessKey: string;
+};
+
 export function syncCampusPublishedReaderDocs(
 	input: ReaderSyncInput,
 ): Promise<{ generatedDocumentCount: number }>;

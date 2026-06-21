@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	parsePublishedReaderSyncArgs,
 	resolvePublishedReaderObjectStoreBucket,
+	resolvePublishedReaderObjectStoreCredentials,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
 } from "../scripts/sync-campus-published-reader.mjs";
@@ -32,6 +33,20 @@ describe("campus-web published reader sync", () => {
 				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived-local",
 			}),
 		).toBe("campus-rag-derived-local");
+	});
+
+	it("uses derived bucket credentials for published reader object store access", () => {
+		expect(
+			resolvePublishedReaderObjectStoreCredentials({
+				OBJECT_STORE_ACCESS_KEY: "shared-access",
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_SECRET_KEY: "shared-secret",
+			}),
+		).toEqual({
+			accessKeyId: "derived-access",
+			secretAccessKey: "derived-secret",
+		});
 	});
 
 	it("resolves docs sync manifest selection from CLI args only", () => {
