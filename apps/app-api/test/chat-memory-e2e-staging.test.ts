@@ -195,7 +195,7 @@ describe("chat memory staging e2e runner", () => {
 				}),
 				{
 					method: "GET",
-					url: "https://campus.example.com/api/chat/runs/run_01HQ/steps",
+					url: "https://api.example.com/api/chat/runs/run_01HQ/steps",
 				},
 				{
 					method: "DELETE",

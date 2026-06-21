@@ -532,7 +532,7 @@ export async function runChatMemoryE2eStaging(
 			method: "GET",
 			url: new URL(
 				`/api/chat/runs/${encodeURIComponent(submit.runId)}/steps`,
-				args.chatBaseUrl,
+				args.appApiReadyzUrl,
 			).toString(),
 		});
 		result.recall = readMemoryRecallProof(stepsResult.payload);
