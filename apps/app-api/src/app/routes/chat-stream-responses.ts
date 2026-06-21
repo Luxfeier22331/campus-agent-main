@@ -152,6 +152,7 @@ export function createAssistantUiDataStreamResponse(input: {
 							controller.enqueue(
 								encodeAssistantUiDataStreamChunk("aui-data", {
 									data: part,
+									name: part.type,
 								}),
 							);
 						}

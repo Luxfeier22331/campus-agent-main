@@ -193,8 +193,8 @@ document/index release`
   `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
   docs/chat/map/dining/feedback endpoints；Q&A 主线程通过 `/api/chat/assistant-ui`
   接入 app-api chat command stream
-- Q&A 主线程 UI、composer、history search 与 source/place card rendering 由
-  `campus-web` first-party assistant surface 承担；conversation truth 仍属于
+- Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
+  primitives 承担；conversation/message/title truth、stream command 与历史读写仍属于
   `apps/app-api`
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号

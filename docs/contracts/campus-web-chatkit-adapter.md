@@ -14,14 +14,17 @@ updated: 2026-06-21
 
 ## Boundary
 
-`campus-web` uses ChatKit custom server integration for the Q&A conversation
-surface. The browser calls only:
+This is a historical contract for the retired ChatKit experiment. It does not
+describe the current `campus-web` Q&A runtime, which uses assistant-ui primitives
+and `/api/chat/assistant-ui`.
+
+The retired browser path called:
 
 `campus-web /api/chatkit -> app-api /api/chatkit -> apps/chatkit-adapter /chatkit`
 
-`apps/chatkit-adapter` is an internal protocol adapter. It does not generate
+`apps/chatkit-adapter` was an internal protocol adapter. It did not generate
 answers, own conversation truth, write database rows directly, or call
-`execution-control`. It translates ChatKit thread/item/action/event protocol to
+`execution-control`. It translated ChatKit thread/item/action/event protocol to
 explicit `apps/app-api` chat commands and projections.
 
 `apps/app-api` remains the owner of auth/session/principal, conversation rows,
@@ -136,9 +139,9 @@ markdown text.
 name, campus, description, and tags. It must not turn into a guessed route,
 feedback prompt, or plain hidden metadata.
 
-## Browser Integration
+## Historical Browser Integration
 
-`campus-web` owns:
+In the retired ChatKit experiment, `campus-web` owned:
 
 - Q&A product shell
 - account modal and account menu
@@ -147,10 +150,10 @@ feedback prompt, or plain hidden metadata.
 - CSP/static-asset admission for the self-hosted ChatKit web component runtime
   mirror under `/vendor/openai-chatkit/<runtime-version>/`
 
-ChatKit owns the central thread UI, history panel, history search, composer,
+ChatKit owned the central thread UI, history panel, history search, composer,
 retry, stop, feedback controls, rename/delete actions, and thread item rendering.
 
-The browser runtime is the OpenAI ChatKit web component mirrored as versioned
+The browser runtime was the OpenAI ChatKit web component mirrored as versioned
 same-origin campus-web static assets. `@openai/chatkit-react` provides React
 bindings and configuration; it does not replace the web component runtime. The
 custom API config must point to the same-origin `/api/chatkit` endpoint and carry
@@ -166,11 +169,9 @@ Unauthenticated ChatKit requests are handled by request intent:
 - successful modal login refreshes campus session state and closes the modal; it
   does not automatically replay the original ChatKit request
 
-`campus-web` must not keep a second self-built message/composer/run-state path
-or self-built conversation search/history path active for `/` or
-`/c/:conversationId`. If ChatKit is unavailable, the Q&A surface shows an
-explicit product error and does not silently fall back to the retired local chat
-UI.
+Current `campus-web` must not reintroduce this ChatKit browser path, a second
+self-built message/composer/run-state path, or a self-built conversation
+search/history path for `/` or `/c/:conversationId`.
 
 Raw adapter, network, stack, provider, run, trace, staging, federation, or OAuth
 diagnostics must be logged only through internal telemetry/console paths. User

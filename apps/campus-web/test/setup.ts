@@ -15,6 +15,11 @@ class TestResizeObserver {
 }
 
 globalThis.ResizeObserver ??= TestResizeObserver;
+if (typeof Element !== "undefined") {
+	Element.prototype.scrollTo ??= function scrollTo() {
+		return;
+	};
+}
 
 afterEach(() => {
 	cleanup();

@@ -7,8 +7,13 @@
 	--color-card: var(--card-bg);
 	--color-muted: var(--sys-bg-muted);
 	--color-muted-foreground: var(--sys-text-muted);
+	--color-accent: var(--sys-bg-muted);
+	--color-accent-foreground: var(--sys-text-strong);
+	--color-popover: var(--sys-surface-default);
+	--color-popover-foreground: var(--sys-text-default);
 	--color-primary: var(--sys-brand-interactive);
 	--color-primary-foreground: var(--sys-text-inverse);
+	--color-destructive: var(--sys-status-danger);
 	--color-border: var(--sys-border-subtle);
 	--color-input: var(--input-border);
 	--color-ring: var(--sys-border-focus);

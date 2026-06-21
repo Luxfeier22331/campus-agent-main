@@ -1,52 +1,42 @@
-import { Link, useNavigate } from "@tanstack/react-router";
-import { Menu, MessageSquarePlus, Search, X } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant-ui/react";
+import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
+import { useNavigate } from "@tanstack/react-router";
+import { Menu } from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 
 import { AccountLoginDialog } from "@/app/routes/account-action-page";
+import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
 import { type AccountEntryState, QAAccountEntry } from "@/components/conversation/qa-account-entry";
-import { getSessionPrincipal, searchConversations } from "@/features/conversation/api";
-import type { ConversationSummary } from "@/features/conversation/model";
-import { cn } from "@/lib/utils";
+import { SupportNavigation } from "@/components/conversation/support-navigation";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { getSessionPrincipal } from "@/features/conversation/api";
+import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
 import { UnauthorizedError } from "@/platform/api/client";
 
-const supportNavItems = [
-	{
-		label: "文档",
-		to: "/docs",
-	},
-	{ label: "校园地图", to: "/map" },
-	{ label: "饭堂分布图", to: "/dining" },
-	{ emphasis: true, label: "反馈", to: "/feedback" },
-] as const;
-
-const railActionClass =
-	"inline-flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 text-left text-sm font-medium leading-5 hover:bg-[var(--sys-bg-muted)]";
-const railActionIconClass = "size-4 shrink-0 text-[var(--sys-text-muted)]";
-const railActionShortcutClass =
-	"ml-auto text-xs font-normal leading-4 text-[var(--sys-text-subtle)]";
-
 export function QAShell({
-	children,
+	assistantThreadId,
 	loginRequested,
 	topTitle,
 }: {
-	children: ReactNode | ((props: { openLoginDialog: () => void }) => ReactNode);
+	assistantThreadId: string | null;
 	loginRequested?: boolean;
 	topTitle: string;
 }) {
 	const navigate = useNavigate();
-	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+	const [mobileThreadListOpen, setMobileThreadListOpen] = useState(false);
 	const [loginOpen, setLoginOpen] = useState(false);
 	const [loginReturnFocusElement, setLoginReturnFocusElement] = useState<HTMLElement | null>(null);
 	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
-	const [historySearchOpen, setHistorySearchOpen] = useState(false);
-	const openLoginDialog = () => {
+
+	const openLoginDialog = useCallback(() => {
 		setLoginReturnFocusElement(
 			document.activeElement instanceof HTMLElement ? document.activeElement : null,
 		);
-		setMobileMenuOpen(false);
+		setMobileThreadListOpen(false);
 		setLoginOpen(true);
-	};
+	}, []);
 
 	const refreshAccountEntry = useCallback(async () => {
 		setAccountEntry({ status: "loading" });
@@ -77,15 +67,7 @@ export function QAShell({
 	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
 			const commandKey = event.metaKey || event.ctrlKey;
-			if (!commandKey) {
-				return;
-			}
-			if (event.key.toLowerCase() === "k") {
-				event.preventDefault();
-				setHistorySearchOpen(true);
-				return;
-			}
-			if (event.shiftKey && event.key.toLowerCase() === "o") {
+			if (commandKey && event.shiftKey && event.key.toLowerCase() === "o") {
 				event.preventDefault();
 				void navigate({ to: "/" });
 			}
@@ -95,267 +77,126 @@ export function QAShell({
 	}, [navigate]);
 
 	return (
-		<div className="min-h-dvh bg-[var(--sys-bg-canvas)] text-[var(--sys-text-default)]">
-			<div className="grid min-h-dvh lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
-				<ProductRail
-					accountEntry={accountEntry}
-					className="hidden lg:flex"
-					onLoginRequest={openLoginDialog}
-					onSearchRequest={() => setHistorySearchOpen(true)}
-				/>
-				<div className="flex min-h-dvh min-w-0 flex-col">
-					<header className="border-b border-[var(--sys-border-subtle)] bg-[var(--sys-surface-default)] px-4 lg:px-5">
-						<div className="flex min-h-[60px] items-center justify-between gap-4">
-							<div className="flex min-w-0 items-center gap-3">
-								<button
-									aria-label="打开校园问答菜单"
-									className="grid size-10 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] lg:hidden"
-									onClick={() => setMobileMenuOpen(true)}
-									type="button"
-								>
-									<Menu aria-hidden="true" className="size-5" />
-								</button>
-								<h1 className="truncate text-sm font-medium tracking-normal text-[var(--sys-text-strong)]">
-									{topTitle}
-								</h1>
+		<AssistantRemoteRuntimeFrame onLoginRequired={openLoginDialog} threadId={assistantThreadId}>
+			<div className="flex min-h-dvh flex-col bg-background text-foreground">
+				<header className="shrink-0 border-b bg-background/95 px-4 backdrop-blur-sm lg:px-5">
+					<div className="flex min-h-14 items-center justify-between gap-3">
+						<div className="flex min-w-0 items-center gap-3">
+							<Button
+								aria-label="打开聊天记录"
+								className="lg:hidden"
+								onClick={() => setMobileThreadListOpen(true)}
+								size="icon-lg"
+								type="button"
+								variant="ghost"
+							>
+								<Menu aria-hidden="true" className="size-5" />
+							</Button>
+							<div className="min-w-0">
+								<p className="truncate text-sm font-semibold text-foreground">
+									中央民族大学校园问答
+								</p>
+								<p className="truncate text-xs text-muted-foreground">{topTitle}</p>
 							</div>
-							<SupportNavigation className="hidden md:flex" />
 						</div>
-					</header>
-					<main className="relative flex min-h-0 flex-1 flex-col">
-						{typeof children === "function" ? children({ openLoginDialog }) : children}
+						<div className="flex min-w-0 items-center gap-3">
+							<SupportNavigation className="hidden md:flex" />
+							<QAAccountEntry
+								onLoginRequest={openLoginDialog}
+								placement="topbar"
+								state={accountEntry}
+							/>
+						</div>
+					</div>
+				</header>
+				<div className="grid min-h-0 flex-1 lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
+					<aside className="hidden min-h-0 border-r bg-[var(--chat-sidebar-bg)] px-2.5 py-3 lg:block">
+						<h2 className="px-2.5 pb-2 text-xs font-medium text-muted-foreground">聊天记录</h2>
+						<ThreadList />
+					</aside>
+					<main className="min-h-0 min-w-0" data-testid="assistant-chat">
+						<AssistantConversationSurface />
 					</main>
 				</div>
-			</div>
-			{mobileMenuOpen ? (
-				<div className="fixed inset-0 z-50 bg-[var(--alpha-black-40)] lg:hidden">
-					<div className="flex h-dvh w-[min(88vw,var(--layout-chat-sidebar-width))] flex-col bg-[var(--chat-sidebar-bg)] shadow-[var(--shadow-md)]">
-						<div className="flex justify-end px-4 pt-4">
-							<button
-								aria-label="关闭校园问答菜单"
-								className="grid size-10 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]"
-								onClick={() => setMobileMenuOpen(false)}
-								type="button"
-							>
-								<X aria-hidden="true" className="size-5" />
-							</button>
-						</div>
-						<ProductRail
-							accountEntry={accountEntry}
-							className="flex min-h-0 flex-1 border-r-0 pt-2"
-							showSupportNavigation
-							onLoginRequest={openLoginDialog}
-							onSearchRequest={() => setHistorySearchOpen(true)}
-						/>
-					</div>
-				</div>
-			) : null}
-			{historySearchOpen ? (
-				<HistorySearchDialog onClose={() => setHistorySearchOpen(false)} />
-			) : null}
-			{loginOpen ? (
-				<AccountLoginDialog
-					onAuthenticated={async () => {
-						await refreshAccountEntry();
-						setLoginOpen(false);
-					}}
-					onClose={() => {
-						setLoginOpen(false);
-					}}
-					returnFocusElement={loginReturnFocusElement}
-				/>
-			) : null}
-		</div>
-	);
-}
-
-function ProductRail({
-	accountEntry,
-	className,
-	onLoginRequest,
-	onSearchRequest,
-	showSupportNavigation,
-}: {
-	accountEntry: AccountEntryState;
-	className?: string;
-	onLoginRequest?: () => void;
-	onSearchRequest?: () => void;
-	showSupportNavigation?: boolean;
-}) {
-	return (
-		<aside
-			className={cn(
-				"w-[var(--layout-chat-sidebar-width)] shrink-0 flex-col border-r border-[var(--chat-sidebar-border)] bg-[var(--chat-sidebar-bg)] px-2.5 py-2.5",
-				className,
-			)}
-		>
-			<div className="min-w-0 px-2 py-1.5">
-				<p className="truncate text-[13px] font-semibold text-[var(--sys-text-strong)]">
-					中央民族大学校园问答
-				</p>
-				<p className="mt-0.5 text-xs text-[var(--sys-text-subtle)]">MUC Campus Q&A</p>
-			</div>
-			<div className="mt-2 space-y-1">
-				<Link className={cn(railActionClass, "text-[var(--sys-text-strong)]")} to="/">
-					<MessageSquarePlus aria-hidden="true" className={railActionIconClass} />
-					新对话
-					<span aria-hidden="true" className={railActionShortcutClass}>
-						⌘⇧O
-					</span>
-				</Link>
-				<button
-					className={cn(
-						railActionClass,
-						"text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]",
-					)}
-					onClick={onSearchRequest}
-					type="button"
-				>
-					<Search aria-hidden="true" className={railActionIconClass} />
-					搜索聊天
-					<span aria-hidden="true" className={railActionShortcutClass}>
-						⌘K
-					</span>
-				</button>
-			</div>
-			{showSupportNavigation ? (
-				<SupportNavigation className="mt-5 flex flex-col items-stretch gap-1 border-t border-[var(--chat-sidebar-border)] pt-4" />
-			) : null}
-			<QAAccountEntry onLoginRequest={onLoginRequest} state={accountEntry} />
-		</aside>
-	);
-}
-
-function HistorySearchDialog({ onClose }: { onClose: () => void }) {
-	const [query, setQuery] = useState("");
-	const [results, setResults] = useState<ConversationSummary[]>([]);
-	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
-
-	useEffect(() => {
-		const trimmed = query.trim();
-		if (!trimmed) {
-			setResults([]);
-			setStatus("idle");
-			return;
-		}
-
-		let cancelled = false;
-		setStatus("loading");
-		const timer = window.setTimeout(() => {
-			void searchConversations({ query: trimmed }).then(
-				(response) => {
-					if (!cancelled) {
-						setResults(response.conversations);
-						setStatus("idle");
-					}
-				},
-				() => {
-					if (!cancelled) {
-						setStatus("error");
-					}
-				},
-			);
-		}, 150);
-
-		return () => {
-			cancelled = true;
-			window.clearTimeout(timer);
-		};
-	}, [query]);
-
-	return (
-		<div className="fixed inset-0 z-50 bg-[var(--alpha-black-40)] px-4 py-[12dvh]">
-			<div
-				aria-label="搜索聊天"
-				className="mx-auto max-w-xl rounded-xl border border-[var(--sys-border-subtle)] bg-[var(--sys-surface-default)] shadow-[var(--shadow-md)]"
-				role="dialog"
-			>
-				<div className="flex items-center gap-2 border-b border-[var(--sys-border-subtle)] px-3 py-2">
-					<Search aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
-					<input
-						aria-label="搜索历史会话"
-						className="min-h-10 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--sys-text-subtle)]"
-						onChange={(event) => setQuery(event.target.value)}
-						placeholder="搜索历史会话"
-						value={query}
+				<MobileThreadList onOpenChange={setMobileThreadListOpen} open={mobileThreadListOpen} />
+				{loginOpen ? (
+					<AccountLoginDialog
+						onAuthenticated={async () => {
+							await refreshAccountEntry();
+							setLoginOpen(false);
+						}}
+						onClose={() => {
+							setLoginOpen(false);
+						}}
+						returnFocusElement={loginReturnFocusElement}
 					/>
-					<button
-						aria-label="关闭搜索"
-						className="grid size-9 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]"
-						onClick={onClose}
-						type="button"
-					>
-						<X aria-hidden="true" className="size-4" />
-					</button>
-				</div>
-				<div className="max-h-[52dvh] overflow-y-auto p-2">
-					{status === "loading" ? (
-						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">正在搜索</p>
-					) : null}
-					{status === "error" ? (
-						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">搜索失败</p>
-					) : null}
-					{query.trim() && status === "idle" && results.length === 0 ? (
-						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">没有匹配会话</p>
-					) : null}
-					{results.map((conversation) => (
-						<Link
-							className="block rounded-lg px-3 py-2 text-sm hover:bg-[var(--sys-bg-muted)]"
-							key={conversation.id}
-							onClick={onClose}
-							params={{ conversationId: conversation.id }}
-							to="/c/$conversationId"
-						>
-							<span className="block truncate font-medium text-[var(--sys-text-strong)]">
-								{conversation.title}
-							</span>
-							<span className="mt-0.5 block text-xs text-[var(--sys-text-subtle)]">
-								{new Date(conversation.updatedAt).toLocaleString("zh-CN")}
-							</span>
-						</Link>
-					))}
-				</div>
+				) : null}
 			</div>
-		</div>
+		</AssistantRemoteRuntimeFrame>
 	);
 }
 
-export function SupportNavigation({
-	activePath,
-	className,
+function AssistantRemoteRuntimeFrame({
+	children,
+	onLoginRequired,
+	threadId,
 }: {
-	activePath?: string;
-	className?: string;
+	children: ReactNode;
+	onLoginRequired: () => void;
+	threadId: string | null;
 }) {
-	const visibleItems = supportNavItems.filter(
-		(item) => !(activePath === "/map" && item.to === "/feedback"),
+	const adapter = useMemo(() => createCampusAssistantThreadListAdapter(), []);
+	const runtimeHook = useMemo(
+		() => createCampusDataStreamRuntimeHook(onLoginRequired),
+		[onLoginRequired],
 	);
+	const runtime = useRemoteThreadListRuntime({
+		adapter,
+		runtimeHook,
+		threadId: threadId ?? undefined,
+	});
+
+	return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+}
+
+function createCampusDataStreamRuntimeHook(onLoginRequired: () => void) {
+	return function useCampusDataStreamRuntime() {
+		return useDataStreamRuntime({
+			api: "/api/chat/assistant-ui",
+			credentials: "same-origin",
+			onResponse: (response) => {
+				if (response.status === 401) {
+					onLoginRequired();
+				}
+			},
+			protocol: "data-stream",
+			sendExtraMessageFields: true,
+		});
+	};
+}
+
+function MobileThreadList({
+	onOpenChange,
+	open,
+}: {
+	onOpenChange: (open: boolean) => void;
+	open: boolean;
+}) {
 	return (
-		<nav
-			aria-label="支撑页面导航"
-			className={cn("items-center gap-3", className ?? "hidden md:flex")}
-		>
-			{visibleItems.map((item) => {
-				const active =
-					activePath &&
-					(item.to === "/docs" ? activePath.startsWith("/docs") : activePath === item.to);
-				return (
-					<Link
-						className={cn(
-							"inline-flex min-h-8 items-center border-b border-transparent text-xs font-medium text-[var(--sys-text-subtle)] hover:text-[var(--sys-text-strong)]",
-							active && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
-							"emphasis" in item &&
-								item.emphasis &&
-								active &&
-								"text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]",
-						)}
-						key={item.label}
-						to={item.to}
-					>
-						{item.label}
-					</Link>
-				);
-			})}
-		</nav>
+		<Sheet onOpenChange={onOpenChange} open={open}>
+			<SheetContent
+				className="w-[min(88vw,var(--layout-chat-sidebar-width))] bg-[var(--chat-sidebar-bg)] p-0 lg:hidden"
+				closeLabel="关闭聊天记录"
+				side="left"
+			>
+				<SheetHeader className="border-b px-3 py-3">
+					<SheetTitle>聊天记录</SheetTitle>
+				</SheetHeader>
+				<div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
+					<h2 className="px-2.5 pb-2 text-xs font-medium text-muted-foreground">聊天记录</h2>
+					<ThreadList />
+				</div>
+			</SheetContent>
+		</Sheet>
 	);
 }

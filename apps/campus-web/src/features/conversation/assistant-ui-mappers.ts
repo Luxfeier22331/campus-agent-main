@@ -1,30 +1,15 @@
-import type { ChatStructuredPart, ConversationDetail } from "./model";
+import type { ThreadMessageLike } from "@assistant-ui/react";
+import type { ConversationDetail } from "./model";
 
-export interface AssistantThreadMessage {
-	content: AssistantThreadMessagePart[];
-	id: string;
-	role: "assistant" | "user";
-}
-
-export type AssistantThreadMessagePart =
-	| {
-			text: string;
-			type: "text";
-	  }
-	| {
-			data: ChatStructuredPart;
-			type: "data";
-	  };
-
-export function toAssistantThreadMessages(
-	conversation: ConversationDetail,
-): AssistantThreadMessage[] {
+export function toAssistantThreadMessages(conversation: ConversationDetail): ThreadMessageLike[] {
 	return conversation.messages.map((message) => ({
+		createdAt: new Date(message.createdAt),
 		content: [
 			...(message.text ? [{ text: message.text, type: "text" as const }] : []),
 			...(message.role === "assistant"
 				? (message.structuredParts ?? []).map((part) => ({
 						data: part,
+						name: part.type,
 						type: "data" as const,
 					}))
 				: []),

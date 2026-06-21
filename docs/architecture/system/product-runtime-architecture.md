@@ -90,9 +90,9 @@ projection / operator read model / operator-safe operations domains`
     `/account/*` 交付 SPA shell，并为 `/docs/*` 交付 Rspress-powered canonical reader
   - Q&A 主体验使用 first-party assistant chat surface，经由 `/api/chat/assistant-ui`
     进入 app-api/session gate 与 chat command stream
-  - Q&A 主线程 UI、composer、history search、source cards 与 place cards 由
-    `campus-web` 承担；conversation truth、message truth、run truth 和 execution truth
-    仍属于 `apps/app-api` / execution plane
+  - Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
+    primitives 承担；conversation truth、message truth、title truth、run truth 和
+    execution truth 仍属于 `apps/app-api` / execution plane
   - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth
     endpoints、implemented federation endpoints、`/api/chat/assistant-ui`、
     `/api/chat/conversations*`、`/api/docs/*` 与 campus experience endpoints
@@ -151,7 +151,7 @@ projection / operator read model / operator-safe operations domains`
 
 - student-facing campus UI and app grid
 - conversation/map/dining/feedback browser shells
-- first-party assistant Q&A browser surface
+- assistant-ui-backed first-party assistant Q&A browser surface
 - Rspress-powered `/docs/*` canonical reader delivery
 - `/account/*` account browser shell, auth forms, password reset pages, federation
   consent/error pages

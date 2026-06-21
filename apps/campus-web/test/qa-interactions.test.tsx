@@ -9,9 +9,14 @@ import { UnauthorizedError } from "../src/platform/api/client";
 const designTokensSource = readFileSync("src/design/tokens.css", "utf8");
 
 const conversationApiMock = vi.hoisted(() => ({
+	archiveConversation: vi.fn(),
+	createConversationDraft: vi.fn(),
+	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
 	getSessionPrincipal: vi.fn(),
-	searchConversations: vi.fn(),
+	listConversations: vi.fn(),
+	renameConversation: vi.fn(),
+	unarchiveConversation: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -65,6 +70,10 @@ vi.mock("@tanstack/react-router", async () => {
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
 
+function openRadixMenu(trigger: HTMLElement) {
+	fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+}
+
 describe("Q&A product interactions", () => {
 	beforeEach(() => {
 		navigateMock.mockReset();
@@ -89,6 +98,33 @@ describe("Q&A product interactions", () => {
 			title: "会话",
 			updatedAt: "2026-06-21T01:00:00.000Z",
 		});
+		conversationApiMock.listConversations.mockReset();
+		conversationApiMock.listConversations.mockImplementation(
+			(input: { view?: "active" | "archived" } = {}) =>
+				Promise.resolve(
+					input.view === "archived"
+						? [
+								{
+									archivedAt: "2026-06-21T02:00:00.000Z",
+									createdAt: "2026-06-20T01:00:00.000Z",
+									id: "conv_archived",
+									pinnedAt: null,
+									title: "已归档问题",
+									updatedAt: "2026-06-20T02:00:00.000Z",
+								},
+							]
+						: [
+								{
+									archivedAt: null,
+									createdAt: "2026-06-21T01:00:00.000Z",
+									id: "conv_active",
+									pinnedAt: null,
+									title: "国家奖学金",
+									updatedAt: "2026-06-21T01:02:00.000Z",
+								},
+							],
+				),
+		);
 		conversationApiMock.getSessionPrincipal.mockReset();
 		conversationApiMock.getSessionPrincipal.mockResolvedValue({
 			permissions: { chat: true, operator: false },
@@ -103,48 +139,29 @@ describe("Q&A product interactions", () => {
 				sessionId: "session_01",
 			},
 		});
-		conversationApiMock.searchConversations.mockReset();
-		conversationApiMock.searchConversations.mockResolvedValue({
-			conversations: [
-				{
-					archivedAt: null,
-					createdAt: "2026-06-21T01:00:00.000Z",
-					id: "conv_01",
-					pinnedAt: null,
-					title: "国家奖学金",
-					updatedAt: "2026-06-21T01:00:00.000Z",
-				},
-			],
-			query: "国家奖学金",
-		});
 	});
 
-	it("opens conversation search from the sidebar action and keyboard shortcut", async () => {
+	it("does not expose a local conversation search surface", async () => {
 		render(<HomePage />);
 
 		await screen.findByTestId("assistant-chat");
-		fireEvent.click(await screen.findByRole("button", { name: "搜索聊天" }));
-		expect(screen.getByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
-		fireEvent.change(screen.getByRole("textbox", { name: "搜索历史会话" }), {
-			target: { value: "国家奖学金" },
-		});
-		expect(await screen.findByRole("link", { name: /国家奖学金/ })).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "关闭搜索" }));
+		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 
 		fireEvent.keyDown(window, { key: "k", metaKey: true });
-		expect(screen.getByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
+		expect(screen.queryByRole("dialog", { name: "搜索聊天" })).toBeNull();
 	});
 
-	it("keeps the Q&A rail compact without an inline history placeholder", async () => {
+	it("renders assistant-ui thread history in the Q&A rail", async () => {
 		render(<HomePage />);
 
-		const newConversationLink = await screen.findByRole("link", { name: "新对话" });
-		const searchButton = screen.getByRole("button", { name: "搜索聊天" });
+		const newConversationButton = await screen.findByRole("button", { name: /新对话/ });
 
-		expect(
-			newConversationLink.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
-		expect(screen.queryByText("聊天记录")).toBeNull();
+		expect(newConversationButton).toBeInTheDocument();
+		expect(await screen.findByText("聊天记录")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "国家奖学金" })).toBeInTheDocument();
+		expect(screen.getByText("已归档")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "已归档问题" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(designTokensSource).toContain("--layout-chat-sidebar-width: 260px;");
 	});
@@ -167,7 +184,9 @@ describe("Q&A product interactions", () => {
 	it("uses the assistant chat surface as the conversation control surface", async () => {
 		render(<ConversationPage />);
 
-		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
+		await waitFor(() => {
+			expect(screen.getByTestId("assistant-chat")).toBeInTheDocument();
+		});
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 
@@ -192,19 +211,15 @@ describe("Q&A product interactions", () => {
 		await screen.findByTestId("assistant-chat");
 		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
 
-		fireEvent.change(screen.getByRole("textbox", { name: "输入校园问题" }), {
-			target: { value: "hello" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
+		openRadixMenu(screen.getByRole("button", { name: "登录" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
 		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "关闭登录" }));
 		expect(screen.queryByRole("dialog", { name: "登录" })).toBeNull();
 
-		fireEvent.change(screen.getByRole("textbox", { name: "输入校园问题" }), {
-			target: { value: "hello again" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "发送" }));
+		openRadixMenu(screen.getByRole("button", { name: "登录" }));
+		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
 		fireEvent.click(await screen.findByRole("button", { name: "模拟登录成功" }));
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "刷新用户 fresh@muc.edu.cn" })).toBeInTheDocument();

@@ -62,6 +62,7 @@ describe("assistant-ui conversation mappers", () => {
 		expect(toAssistantThreadMessages(conversation)).toEqual([
 			{
 				content: [{ text: "国家奖学金什么时候评审？", type: "text" }],
+				createdAt: new Date("2026-06-21T01:00:00.000Z"),
 				id: "msg_user",
 				role: "user",
 			},
@@ -70,9 +71,11 @@ describe("assistant-ui conversation mappers", () => {
 					{ text: "国家奖学金每学年评审一次。", type: "text" },
 					{
 						data: conversation.messages[1].structuredParts?.[0],
+						name: "source_items",
 						type: "data",
 					},
 				],
+				createdAt: new Date("2026-06-21T01:00:02.000Z"),
 				id: "msg_assistant",
 				role: "assistant",
 			},

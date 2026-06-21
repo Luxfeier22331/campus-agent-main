@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
-import { X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
 import { AccountEmailPasswordForm } from "./account-auth-form";
 
@@ -19,109 +19,39 @@ export function AccountLoginDialog({
 	returnFocusElement?: HTMLElement | null;
 }) {
 	const [postLoginError, setPostLoginError] = useState<string | null>(null);
-	const dialogRef = useRef<HTMLElement | null>(null);
 	const returnFocusElementRef = useRef<HTMLElement | null>(
 		returnFocusElement ?? getActiveHtmlElement(),
 	);
 	const autoFocusEmail = useMemo(shouldAutoFocusDialogEmail, []);
 	const returnTo = useMemo(readReturnTo, []);
 
-	useEffect(() => {
-		function handleKeyDown(event: KeyboardEvent) {
-			if (event.key === "Escape") {
-				onClose();
-				return;
-			}
-			if (event.key !== "Tab") {
-				return;
-			}
-			const dialog = dialogRef.current;
-			if (!dialog) {
-				return;
-			}
-			const focusableElements = getFocusableDialogElements(dialog);
-			if (focusableElements.length === 0) {
-				event.preventDefault();
-				return;
-			}
-			const firstElement = focusableElements[0];
-			const lastElement = focusableElements.at(-1);
-			if (!(firstElement && lastElement)) {
-				return;
-			}
-			const activeElement = getActiveHtmlElement();
-			if (!(activeElement && dialog.contains(activeElement))) {
-				event.preventDefault();
-				firstElement.focus();
-				return;
-			}
-			if (event.shiftKey && activeElement === firstElement) {
-				event.preventDefault();
-				lastElement.focus();
-				return;
-			}
-			if (!event.shiftKey && activeElement === lastElement) {
-				event.preventDefault();
-				firstElement.focus();
-			}
-		}
-		window.addEventListener("keydown", handleKeyDown);
-		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [onClose]);
-
-	useEffect(() => {
-		const previousOverflow = document.body.style.overflow;
-		document.body.style.overflow = "hidden";
-		if (!autoFocusEmail) {
-			dialogRef.current?.focus();
-		}
-		return () => {
-			document.body.style.overflow = previousOverflow;
-			const returnFocusTarget = returnFocusElementRef.current;
-			if (returnFocusTarget && document.contains(returnFocusTarget)) {
-				returnFocusTarget.focus();
-			}
-		};
-	}, [autoFocusEmail]);
-
 	return (
-		<div
-			className="fixed inset-0 z-50 flex items-center justify-center px-4 py-4 sm:py-6"
-			onPointerDown={(event) => {
-				if (event.target === event.currentTarget) {
+		<Dialog
+			onOpenChange={(open) => {
+				if (!open) {
 					onClose();
 				}
 			}}
+			open
 		>
-			<div
-				aria-hidden="true"
-				className="absolute inset-0 bg-white/70 backdrop-blur-[2px]"
-				onPointerDown={onClose}
-			/>
-			<section
+			<DialogContent
 				aria-label="登录"
-				aria-modal="true"
-				className="relative max-h-[calc(100dvh-32px)] w-[calc(100vw-32px)] max-w-[388px] overflow-y-auto rounded-2xl border border-[var(--sys-border-subtle)] bg-white px-5 pb-6 pt-8 shadow-[0_18px_60px_rgba(16,24,40,0.14)] sm:px-6"
-				onPointerDown={(event) => event.stopPropagation()}
-				ref={dialogRef}
-				role="dialog"
-				tabIndex={-1}
+				className="max-h-[calc(100dvh-32px)] max-w-[388px] overflow-y-auto rounded-2xl border-[var(--sys-border-subtle)] bg-white px-5 pb-6 pt-8 shadow-[0_18px_60px_rgba(16,24,40,0.14)] sm:px-6"
+				onCloseAutoFocus={(event) => {
+					const returnFocusTarget = returnFocusElementRef.current;
+					if (returnFocusTarget && document.contains(returnFocusTarget)) {
+						event.preventDefault();
+						returnFocusTarget.focus();
+					}
+				}}
 			>
-				<button
-					aria-label="关闭登录"
-					className="absolute right-3 top-3 grid size-9 place-items-center rounded-full text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)] hover:text-[var(--sys-text-strong)]"
-					onClick={onClose}
-					type="button"
-				>
-					<X aria-hidden="true" className="size-4" />
-				</button>
 				<div className="mb-6 text-center">
-					<h2 className="text-[22px] font-semibold leading-7 tracking-normal text-[var(--sys-text-strong)]">
+					<DialogTitle className="text-[22px] font-semibold leading-7 tracking-normal text-[var(--sys-text-strong)]">
 						登录
-					</h2>
-					<p className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
+					</DialogTitle>
+					<DialogDescription className="mt-2 text-sm leading-6 text-[var(--sys-text-muted)]">
 						登录后可继续提问，并保留聊天记录。
-					</p>
+					</DialogDescription>
 				</div>
 				<AccountEmailPasswordForm
 					autoFocusEmail={autoFocusEmail}
@@ -175,8 +105,8 @@ export function AccountLoginDialog({
 						{postLoginError}
 					</p>
 				) : null}
-			</section>
-		</div>
+			</DialogContent>
+		</Dialog>
 	);
 }
 
@@ -186,14 +116,6 @@ function getActiveHtmlElement(): HTMLElement | null {
 	}
 	const activeElement = document.activeElement;
 	return activeElement && "focus" in activeElement ? (activeElement as HTMLElement) : null;
-}
-
-function getFocusableDialogElements(container: HTMLElement): HTMLElement[] {
-	return Array.from(
-		container.querySelectorAll<HTMLElement>(
-			'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
-		),
-	).filter((element) => element.getAttribute("aria-hidden") !== "true");
 }
 
 function readReturnTo(): string {

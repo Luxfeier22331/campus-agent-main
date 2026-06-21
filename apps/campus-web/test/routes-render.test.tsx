@@ -12,6 +12,7 @@ import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import qaAccountEntrySource from "../src/components/conversation/qa-account-entry.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
+import supportNavigationSource from "../src/components/conversation/support-navigation.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import { UnauthorizedError } from "../src/platform/api/client";
 import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
@@ -30,8 +31,14 @@ const feedbackApiMock = vi.hoisted(() => ({
 	submitFeedback: vi.fn(),
 }));
 const conversationApiMock = vi.hoisted(() => ({
+	archiveConversation: vi.fn(),
+	createConversationDraft: vi.fn(),
+	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
 	getSessionPrincipal: vi.fn(),
+	listConversations: vi.fn(),
+	renameConversation: vi.fn(),
+	unarchiveConversation: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
@@ -40,6 +47,10 @@ function installTurnstileRuntimeConfig() {
 		"beforeend",
 		`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
 	);
+}
+
+function openRadixMenu(trigger: HTMLElement) {
+	fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
 }
 
 vi.mock("@tanstack/react-router", async () => {
@@ -73,8 +84,14 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("../src/features/conversation/api", () => ({
+	archiveConversation: conversationApiMock.archiveConversation,
+	createConversationDraft: conversationApiMock.createConversationDraft,
+	deleteConversation: conversationApiMock.deleteConversation,
 	getConversationDetail: conversationApiMock.getConversationDetail,
 	getSessionPrincipal: conversationApiMock.getSessionPrincipal,
+	listConversations: conversationApiMock.listConversations,
+	renameConversation: conversationApiMock.renameConversation,
+	unarchiveConversation: conversationApiMock.unarchiveConversation,
 }));
 
 vi.mock("../src/features/docs/api", () => docsApiMock);
@@ -160,6 +177,9 @@ describe("campus routes", () => {
 			},
 		});
 		navigateMock.mockReset();
+		conversationApiMock.archiveConversation.mockReset();
+		conversationApiMock.createConversationDraft.mockReset();
+		conversationApiMock.deleteConversation.mockReset();
 		conversationApiMock.getConversationDetail.mockReset();
 		conversationApiMock.getConversationDetail.mockResolvedValue({
 			archivedAt: null,
@@ -170,16 +190,45 @@ describe("campus routes", () => {
 			title: "会话",
 			updatedAt: "2026-06-21T01:00:00.000Z",
 		});
+		conversationApiMock.listConversations.mockReset();
+		conversationApiMock.listConversations.mockImplementation(
+			(input: { view?: "active" | "archived" } = {}) =>
+				Promise.resolve(
+					input.view === "archived"
+						? [
+								{
+									archivedAt: "2026-06-21T02:00:00.000Z",
+									createdAt: "2026-06-20T01:00:00.000Z",
+									id: "conv_archived",
+									pinnedAt: null,
+									title: "已归档问题",
+									updatedAt: "2026-06-20T02:00:00.000Z",
+								},
+							]
+						: [
+								{
+									archivedAt: null,
+									createdAt: "2026-06-21T01:00:00.000Z",
+									id: "conv_active",
+									pinnedAt: null,
+									title: "国家奖学金",
+									updatedAt: "2026-06-21T01:02:00.000Z",
+								},
+							],
+				),
+		);
+		conversationApiMock.renameConversation.mockReset();
+		conversationApiMock.unarchiveConversation.mockReset();
 	});
 
 	it("renders the assistant Q&A home shell without app launcher debt", async () => {
 		render(<HomePage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "新对话" })).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-		expect(screen.queryByText("聊天记录")).toBeNull();
+		expect(screen.getAllByText("新对话").length).toBeGreaterThanOrEqual(1);
+		expect(screen.getByRole("button", { name: "新对话" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
+		expect(screen.getByText("聊天记录")).toBeInTheDocument();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
@@ -190,8 +239,8 @@ describe("campus routes", () => {
 		expect(await screen.findByText("测试用户")).toBeInTheDocument();
 		expect(screen.getByText("user@muc.edu.cn")).toBeInTheDocument();
 		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
-		fireEvent.click(screen.getByRole("button", { name: "测试用户 user@muc.edu.cn" }));
-		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
+		openRadixMenu(screen.getByRole("button", { name: "测试用户 user@muc.edu.cn" }));
+		expect(screen.getByRole("menu")).toBeInTheDocument();
 		expect(screen.getByRole("menuitem", { name: "账号设置" })).toBeInTheDocument();
 		expect(screen.getByRole("menuitem", { name: "个性化" })).toBeInTheDocument();
 		expect(screen.getByRole("menuitem", { name: "帮助与反馈" })).toHaveAttribute(
@@ -231,53 +280,58 @@ describe("campus routes", () => {
 		expect(qaAccountEntrySource).not.toContain("rounded-full bg-[var(--sys-brand-identity)]");
 		expect(qaAccountEntrySource).not.toContain(">民<");
 		expect(qaAccountEntrySource).toContain("UserRound");
-		expect(qaAccountEntrySource).toContain('role="menu"');
+		expect(qaAccountEntrySource).toContain("DropdownMenuContent");
+		expect(qaAccountEntrySource).not.toContain('role="menu"');
 		expect(qaAccountEntrySource).toContain("ChevronUp");
 		expect(qaAccountEntrySource).not.toContain("关闭账号面板");
 		expect(qaAccountEntrySource).toContain("const accountEntryButtonClass");
 		expect(qaAccountEntrySource).toContain("const accountMenuItemClass");
 		expect(qaAccountEntrySource).toContain("className={accountMenuItemClass}");
 		expect(qaAccountEntrySource).toContain("accountMenuItemClass,");
-		expect(qaShellSource).toContain("饭堂分布图");
-		expect(qaShellSource).toContain("const railActionClass");
-		expect(qaShellSource).toContain("const railActionIconClass");
-		expect(qaShellSource).toContain("const railActionShortcutClass");
+		expect(supportNavigationSource).toContain("饭堂分布图");
+		expect(qaShellSource).toContain("ThreadList");
+		expect(qaShellSource).not.toContain("const railActionClass");
+		expect(qaShellSource).not.toContain("const railActionIconClass");
+		expect(qaShellSource).not.toContain("const railActionShortcutClass");
 		expect(qaShellSource).not.toContain("ChatKit 管理");
 		expect(qaShellSource).not.toContain("ConversationSidebar");
-		expect(qaShellSource).not.toContain("rounded-lg px-3 text-sm font-medium");
+		expect(qaShellSource).not.toContain("搜索历史会话");
 		expect(stylesSource).toContain("@layer base");
 		expect(stylesSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
 
-	it("closes the account menu when clicking outside it", async () => {
+	it("closes the account menu through Radix dismissal", async () => {
 		render(<HomePage />);
 
 		const accountButton = await screen.findByRole("button", {
 			name: "测试用户 user@muc.edu.cn",
 		});
-		fireEvent.click(accountButton);
+		openRadixMenu(accountButton);
 
-		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
-		fireEvent.pointerDown(document.body);
-		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
+		expect(screen.getByRole("menu")).toBeInTheDocument();
+		fireEvent.keyDown(document, { key: "Escape" });
+		await waitFor(() => {
+			expect(screen.queryByRole("menu")).toBeNull();
+		});
 	});
 
 	it("separates the account entry from the conversation history area", async () => {
 		render(<HomePage />);
 
-		expect(await screen.findByRole("separator", { name: "账号区域" })).toBeInTheDocument();
+		expect(
+			await screen.findByRole("button", { name: "测试用户 user@muc.edu.cn" }),
+		).toBeInTheDocument();
+		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
 
-	it("places the new conversation action before chat search in the sidebar", async () => {
+	it("keeps the sidebar free of local chat search", async () => {
 		render(<HomePage />);
 
-		const newConversationLink = await screen.findByRole("link", { name: "新对话" });
-		const searchButton = screen.getByRole("button", { name: "搜索聊天" });
+		const newConversationButton = await screen.findByRole("button", { name: "新对话" });
 
-		expect(
-			newConversationLink.compareDocumentPosition(searchButton) & Node.DOCUMENT_POSITION_FOLLOWING,
-		).toBeTruthy();
+		expect(newConversationButton).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 	});
 
@@ -286,7 +340,7 @@ describe("campus routes", () => {
 		installTurnstileRuntimeConfig();
 		render(<HomePage />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
+		openRadixMenu(await screen.findByRole("button", { name: "登录" }));
 		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
 
 		const dialog = await screen.findByRole("dialog", { name: "登录" });
@@ -315,23 +369,21 @@ describe("campus routes", () => {
 		);
 	});
 
-	it("closes the mobile rail before opening the inline login dialog", async () => {
+	it("keeps the mobile thread list scoped to conversation history", async () => {
 		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
 		render(<HomePage />);
 
-		fireEvent.click(screen.getByRole("button", { name: "打开校园问答菜单" }));
-		const closeMobileMenuButton = screen.getByRole("button", { name: "关闭校园问答菜单" });
+		fireEvent.click(screen.getByRole("button", { name: "打开聊天记录" }));
+		const mobileMenu = screen.getByRole("dialog", { name: "聊天记录" });
+		const closeMobileMenuButton = within(mobileMenu).getByRole("button", {
+			name: "关闭聊天记录",
+		});
 		expect(closeMobileMenuButton).toBeInTheDocument();
-		const mobileMenu = closeMobileMenuButton.closest(".fixed");
-		if (!mobileMenu) {
-			throw new Error("mobile menu container was not rendered");
-		}
 
-		fireEvent.click(await within(mobileMenu as HTMLElement).findByRole("button", { name: "登录" }));
-		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
-
-		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "关闭校园问答菜单" })).toBeNull();
+		expect(within(mobileMenu).queryByRole("button", { name: "登录" })).toBeNull();
+		expect(await within(mobileMenu).findByRole("button", { name: "国家奖学金" }));
+		fireEvent.click(closeMobileMenuButton);
+		expect(screen.queryByRole("button", { name: "关闭聊天记录" })).toBeNull();
 	});
 
 	it("does not wrap the map route in the generic support page header", () => {
@@ -360,7 +412,7 @@ describe("campus routes", () => {
 		render(<HomePage />);
 
 		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "账号" }));
+		openRadixMenu(screen.getByRole("button", { name: "账号" }));
 
 		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
 		expect(screen.getByRole("menuitem", { name: "登录" })).not.toHaveAttribute("href");
@@ -579,8 +631,8 @@ describe("campus routes", () => {
 		render(<ConversationPage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
-		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
-		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
+		expect(screen.getByText("会话")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});

@@ -513,10 +513,11 @@ describe("campus account pages", () => {
 		expect(screen.getByText("登录与安全")).toBeInTheDocument();
 		expect(screen.getByText("授权应用")).toBeInTheDocument();
 		expect(screen.getByText("个性化")).toBeInTheDocument();
-		expect(screen.getByText("历史记录")).toBeInTheDocument();
+		expect(screen.queryByText("历史记录")).toBeNull();
 		expect(screen.getByText("用户")).toBeInTheDocument();
 		expect(screen.getByText("问答 / 文档 / 账号")).toBeInTheDocument();
 		expect(screen.getByText("问答")).toBeInTheDocument();
+		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
 
 		fireEvent.click(screen.getByRole("button", { name: "登录与安全" }));
 
@@ -567,7 +568,7 @@ describe("campus account pages", () => {
 		expect(await screen.findByText("已关闭")).toBeInTheDocument();
 	});
 
-	it("manages archived chats from the account settings history section", async () => {
+	it("keeps archived chat management out of account settings", async () => {
 		accountSessionMock.loadAccountOverview.mockResolvedValue({
 			overview: createAccountOverview(),
 			state: "ready",
@@ -592,52 +593,14 @@ describe("campus account pages", () => {
 			authorizedApps: [],
 			state: "ready",
 		});
-		conversationApiMock.listConversations.mockResolvedValue([
-			{
-				archivedAt: "2026-06-08T00:12:00.000Z",
-				createdAt: "2026-06-08T00:00:00.000Z",
-				id: "conv_archived",
-				pinnedAt: null,
-				title: "旧问题",
-				updatedAt: "2026-06-08T00:02:00.000Z",
-			},
-		]);
+		render(<AccountPage />);
 
-		render(<AccountPage initialSection="history" />);
-
-		expect(await screen.findByText("已归档聊天")).toBeInTheDocument();
-		await waitFor(() =>
-			expect(conversationApiMock.listConversations).toHaveBeenCalledWith({
-				limit: 50,
-				view: "archived",
-			}),
-		);
-		expect(screen.getByText("旧问题")).toBeInTheDocument();
-
-		fireEvent.click(screen.getByRole("button", { name: "恢复 旧问题" }));
-
-		await waitFor(() =>
-			expect(conversationApiMock.unarchiveConversation).toHaveBeenCalledWith("conv_archived"),
-		);
-
-		conversationApiMock.listConversations.mockResolvedValue([
-			{
-				archivedAt: "2026-06-08T00:12:00.000Z",
-				createdAt: "2026-06-08T00:00:00.000Z",
-				id: "conv_archived_delete",
-				pinnedAt: null,
-				title: "待删除旧问题",
-				updatedAt: "2026-06-08T00:02:00.000Z",
-			},
-		]);
-		render(<AccountPage initialSection="history" />);
-
-		expect(await screen.findByText("待删除旧问题")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "删除 待删除旧问题" }));
-
-		await waitFor(() =>
-			expect(conversationApiMock.deleteConversation).toHaveBeenCalledWith("conv_archived_delete"),
-		);
+		expect(await screen.findByText("student@muc.edu.cn")).toBeInTheDocument();
+		expect(screen.queryByText("历史记录")).toBeNull();
+		expect(screen.queryByText("已归档聊天")).toBeNull();
+		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
+		expect(conversationApiMock.unarchiveConversation).not.toHaveBeenCalled();
+		expect(conversationApiMock.deleteConversation).not.toHaveBeenCalled();
 	});
 });
 

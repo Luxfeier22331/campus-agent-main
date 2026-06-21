@@ -5,11 +5,19 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { campusWebManualChunks } from "./config/manual-chunks";
 
 const require = createRequire(import.meta.url);
 const sharedFaviconPath = path.resolve(__dirname, "../../configs/branding/web-public/favicon.ico");
 
 export default defineConfig({
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: campusWebManualChunks,
+			},
+		},
+	},
 	publicDir: path.resolve(__dirname, "public"),
 	plugins: [
 		tailwindcss(),

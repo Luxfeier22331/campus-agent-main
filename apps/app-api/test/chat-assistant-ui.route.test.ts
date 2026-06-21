@@ -51,7 +51,24 @@ describe("assistant-ui chat route", () => {
 								archivedAt: null,
 								createdAt: "2026-06-21T01:00:00.000Z",
 								id: "conv_01HQ",
-								messages: [],
+								messages: [
+									{
+										conversationId: "conv_01HQ",
+										createdAt: "2026-06-21T01:00:02.000Z",
+										id: "msg_assistant",
+										kind: "answer",
+										requestId: "req_01HQ",
+										retryable: false,
+										role: "assistant",
+										structuredParts: [
+											{
+												sourceItems: [],
+												type: "source_items",
+											},
+										],
+										text: "国家奖学金每学年评审一次。",
+									},
+								],
 								pinnedAt: null,
 								title: "国家奖学金",
 								updatedAt: "2026-06-21T01:00:02.000Z",
@@ -104,6 +121,9 @@ describe("assistant-ui chat route", () => {
 		expect(response.headers.get("content-type")).toContain("text");
 		const body = await response.text();
 		expect(body).toContain("国家奖学金每学年评审一次。");
+		expect(body).toContain(
+			`aui-data:{"data":{"sourceItems":[],"type":"source_items"},"name":"source_items"}`,
+		);
 		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
 		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
 		expect(submitStream).toHaveBeenCalledWith(

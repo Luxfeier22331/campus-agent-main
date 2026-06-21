@@ -56,7 +56,15 @@ export async function getConversationDetail(conversationId: string): Promise<Con
 	const payload = await requestJson<{ conversation: ConversationDetail }>({
 		path: `/api/chat/conversations/${encodeURIComponent(conversationId)}`,
 	});
-	return payload.conversation;
+	return normalizeConversationDetail(payload.conversation);
+}
+
+export async function createConversationDraft(): Promise<ConversationDetail> {
+	const payload = await requestJson<{ conversation: ConversationDetail }>({
+		method: "POST",
+		path: "/api/chat/conversations",
+	});
+	return normalizeConversationDetail(payload.conversation);
 }
 
 export async function renameConversation(input: {
@@ -111,6 +119,14 @@ async function mutateConversationSummary(
 		path,
 	});
 	return payload.conversation;
+}
+
+function normalizeConversationDetail(conversation: ConversationDetail): ConversationDetail {
+	return {
+		...conversation,
+		archivedAt: conversation.archivedAt ?? null,
+		pinnedAt: conversation.pinnedAt ?? null,
+	};
 }
 
 export async function deleteConversation(conversationId: string): Promise<void> {

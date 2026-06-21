@@ -1,7 +1,7 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { type ReactNode, Suspense } from "react";
 
-import { SupportNavigation } from "@/components/conversation/qa-shell";
+import { SupportNavigation } from "@/components/conversation/support-navigation";
 import { cn } from "@/lib/utils";
 
 export function RootLayout() {
