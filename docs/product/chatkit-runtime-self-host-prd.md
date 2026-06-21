@@ -2,12 +2,16 @@
 doc_type: product_requirement
 truth_scope: product
 owner_boundary: docs/product
-status: active
+status: historical
 created: 2026-06-19
-updated: 2026-06-19
+updated: 2026-06-21
 ---
 
 # ChatKit Runtime Self-host PRD
+
+> Retired: `campus-web` Q&A 已切换为 first-party assistant chat surface，经由
+> `/api/chat/assistant-ui` 进入 `apps/app-api`。本 PRD 只保留为历史背景，不再代表
+> 当前 product requirement。
 
 ## 1. 背景
 

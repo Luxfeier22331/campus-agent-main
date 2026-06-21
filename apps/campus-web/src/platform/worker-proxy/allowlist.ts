@@ -21,7 +21,7 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/federation/logout",
 	"/api/chat/conversations",
 	"/api/chat/conversations/search",
-	"/api/chatkit",
+	"/api/chat/assistant-ui",
 	"/api/chat/requests",
 	"/api/chat/requests/stream",
 	"/api/docs/readyz",

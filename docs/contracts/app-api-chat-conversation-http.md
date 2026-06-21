@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-10
-updated: 2026-06-10
+updated: 2026-06-21
 ---
 # App API Chat Conversation HTTP Contract
 
@@ -15,10 +15,11 @@ association, user-side archive/pin/delete state, answer feedback, and edit
 truncation. Browser surfaces, including `campus-web`, only render a UI
 projection and send commands through this contract.
 
-`campus-web` Q&A uses ChatKit custom server integration through
-`docs/contracts/campus-web-chatkit-adapter.md`. ChatKit thread/item/actions are
-adapter projections over this app-api conversation contract, not a second
-conversation truth.
+`campus-web` Q&A uses the first-party assistant chat surface through
+`/api/chat/assistant-ui` for message submission and data-stream response
+projection. Conversation list/detail/search, feedback, run events and cancel
+remain explicit app-api routes; they are not a second browser-side conversation
+truth.
 
 This contract does not define token delta streaming, share/export, file upload,
 batch management, or local browser-only conversation truth.

@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import type { UseChatKitOptions } from "@openai/chatkit-react";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
@@ -31,12 +30,9 @@ const feedbackApiMock = vi.hoisted(() => ({
 	submitFeedback: vi.fn(),
 }));
 const conversationApiMock = vi.hoisted(() => ({
+	getConversationDetail: vi.fn(),
 	getSessionPrincipal: vi.fn(),
 }));
-const useChatKitMock = vi.hoisted(() =>
-	vi.fn((_: UseChatKitOptions) => ({ control: { id: "control" }, showHistory: vi.fn() })),
-);
-const loadChatKitRuntimeMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
 const navigateMock = vi.hoisted(() => vi.fn());
 
 function installTurnstileRuntimeConfig() {
@@ -44,26 +40,6 @@ function installTurnstileRuntimeConfig() {
 		"beforeend",
 		`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
 	);
-}
-
-vi.mock("@openai/chatkit-react", () => ({
-	ChatKit: ({ className, control }: { className?: string; control: unknown }) => (
-		<div className={className} data-control={JSON.stringify(control)} data-testid="chatkit" />
-	),
-	useChatKit: useChatKitMock,
-}));
-
-vi.mock("../src/features/conversation/chatkit-runtime", () => ({
-	CHATKIT_RUNTIME_SCRIPT_URL: "/vendor/openai-chatkit/2026-06-17/chatkit.js",
-	loadChatKitRuntime: loadChatKitRuntimeMock,
-}));
-
-function getLastChatKitOptions(): UseChatKitOptions {
-	const call = useChatKitMock.mock.calls.at(-1);
-	if (!call) {
-		throw new Error("useChatKit was not called.");
-	}
-	return call[0] as UseChatKitOptions;
 }
 
 vi.mock("@tanstack/react-router", async () => {
@@ -97,6 +73,7 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("../src/features/conversation/api", () => ({
+	getConversationDetail: conversationApiMock.getConversationDetail,
 	getSessionPrincipal: conversationApiMock.getSessionPrincipal,
 }));
 
@@ -183,12 +160,19 @@ describe("campus routes", () => {
 			},
 		});
 		navigateMock.mockReset();
-		useChatKitMock.mockClear();
-		loadChatKitRuntimeMock.mockReset();
-		loadChatKitRuntimeMock.mockResolvedValue(undefined);
+		conversationApiMock.getConversationDetail.mockReset();
+		conversationApiMock.getConversationDetail.mockResolvedValue({
+			archivedAt: null,
+			createdAt: "2026-06-21T01:00:00.000Z",
+			id: "conv_01",
+			messages: [],
+			pinnedAt: null,
+			title: "会话",
+			updatedAt: "2026-06-21T01:00:00.000Z",
+		});
 	});
 
-	it("renders the v1.3 Q&A home shell without app launcher debt", async () => {
+	it("renders the assistant Q&A home shell without app launcher debt", async () => {
 		render(<HomePage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
@@ -201,13 +185,8 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
-		expect(await screen.findByTestId("chatkit")).toBeInTheDocument();
-		expect(useChatKitMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				api: expect.objectContaining({ url: "/api/chatkit" }),
-				initialThread: null,
-			}),
-		);
+		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
+		expect(screen.getByRole("textbox", { name: "输入校园问题" })).toBeInTheDocument();
 		expect(await screen.findByText("测试用户")).toBeInTheDocument();
 		expect(screen.getByText("user@muc.edu.cn")).toBeInTheDocument();
 		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
@@ -222,11 +201,6 @@ describe("campus routes", () => {
 		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
 		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
-		expect(getLastChatKitOptions().startScreen).toEqual({
-			greeting: "今天想了解什么校园信息？",
-			prompts: [],
-		});
-		expect(getLastChatKitOptions().disclaimer).toBeUndefined();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
 		expect(screen.queryByText("食堂")).toBeNull();
@@ -601,19 +575,14 @@ describe("campus routes", () => {
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
 	});
 
-	it("renders the v1.3 conversation shell with ChatKit as the thread surface", async () => {
+	it("renders the assistant conversation shell as the thread surface", async () => {
 		render(<ConversationPage />);
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("MUC Campus Q&A")).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
-		expect(await screen.findByTestId("chatkit")).toBeInTheDocument();
-		expect(useChatKitMock).toHaveBeenLastCalledWith(
-			expect.objectContaining({
-				api: expect.objectContaining({ url: "/api/chatkit" }),
-				initialThread: "conv_01",
-			}),
-		);
+		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 
 	it("renders fail-closed not found page", () => {

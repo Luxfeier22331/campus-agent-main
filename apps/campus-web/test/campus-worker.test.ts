@@ -72,7 +72,7 @@ describe("campus worker boundary", () => {
 			"/api/federation/logout",
 			"/api/chat/conversations",
 			"/api/chat/conversations/search",
-			"/api/chatkit",
+			"/api/chat/assistant-ui",
 			"/api/chat/conversations/conv_1",
 			"/api/chat/conversations/conv_1/archive",
 			"/api/chat/conversations/conv_1/pin",
@@ -141,7 +141,7 @@ describe("campus worker boundary", () => {
 		}
 	});
 
-	it("allows the self-hosted ChatKit runtime required by the Q&A shell CSP", async () => {
+	it("keeps the Q&A shell CSP first-party for assistant chat", async () => {
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
 				headers: { accept: "text/html" },
@@ -153,47 +153,6 @@ describe("campus worker boundary", () => {
 		expect(csp).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
 		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
-	});
-
-	it("serves self-hosted ChatKit vendor assets through the static asset binding", async () => {
-		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/vendor/openai-chatkit/2026-06-17/chatkit.js", {
-				headers: { accept: "application/javascript" },
-			}),
-			createEnv(undefined, {
-				fetch(request) {
-					return new Response(`asset:${new URL(request.url).pathname}`, {
-						headers: { "content-type": "application/javascript" },
-					});
-				},
-			}),
-		);
-
-		expect(response.status).toBe(200);
-		await expect(response.text()).resolves.toBe(
-			"asset:/vendor/openai-chatkit/2026-06-17/chatkit.js",
-		);
-	});
-
-	it("returns product JSON when the ChatKit proxy dependency is unavailable", async () => {
-		const env = createEnv({
-			fetch() {
-				throw new Error("fetch failed");
-			},
-		});
-
-		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/chatkit", {
-				body: JSON.stringify({ type: "threads.create" }),
-				headers: { "content-type": "application/json" },
-				method: "POST",
-			}),
-			env,
-		);
-
-		expect(response.status).toBe(503);
-		expect(response.headers.get("content-type")).toContain("application/json");
-		await expect(response.text()).resolves.toContain("服务暂不可用，请稍后再试。");
 	});
 
 	it("forwards browser trace context headers into app-api chat requests", async () => {
@@ -208,8 +167,8 @@ describe("campus worker boundary", () => {
 		});
 
 		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/chatkit", {
-				body: JSON.stringify({ type: "threads.create" }),
+			new Request("https://campus.muc.wiki/api/chat/assistant-ui", {
+				body: JSON.stringify({ messages: [] }),
 				headers: {
 					baggage: "sentry-environment=staging",
 					"content-type": "application/json",
@@ -284,8 +243,8 @@ describe("campus worker boundary", () => {
 		vi.stubGlobal("fetch", fetchMock);
 
 		const response = await worker.fetch(
-			new Request("http://127.0.0.1:27014/api/chatkit", {
-				body: JSON.stringify({ type: "threads.list" }),
+			new Request("http://127.0.0.1:27014/api/chat/assistant-ui", {
+				body: JSON.stringify({ messages: [] }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),
@@ -295,9 +254,9 @@ describe("campus worker boundary", () => {
 		expect(response.status).toBe(401);
 		expect(fetchMock).toHaveBeenCalledOnce();
 		const forwarded = fetchMock.mock.calls[0][0] as Request;
-		expect(forwarded.url).toBe("http://127.0.0.1:27031/api/chatkit");
+		expect(forwarded.url).toBe("http://127.0.0.1:27031/api/chat/assistant-ui");
 		expect(forwarded.headers.get("content-type")).toBe("application/json");
-		await expect(forwarded.text()).resolves.toBe(JSON.stringify({ type: "threads.list" }));
+		await expect(forwarded.text()).resolves.toBe(JSON.stringify({ messages: [] }));
 		await expect(response.text()).resolves.toContain("请先登录。");
 	});
 

@@ -39,8 +39,8 @@ endpoint grouping. Detailed endpoint bodies live in split contract docs.
   - Dining operations draft, release candidate, release and audit endpoints
 - `app-api-document-reader-http.md`
   - Document reader published asset and read-model contract
-- `campus-web-chatkit-adapter.md`
-  - campus-web ChatKit protocol adapter
+- `app-api-chat-conversation-http.md`
+  - campus-web first-party assistant chat and conversation routes
 
 ## Index-Owned Baseline
 
@@ -70,8 +70,8 @@ implementation surfaces 暴露的 browser-facing HTTP contract。
 - student dining public contract：`docs/contracts/app-api-dining-http.md`
 - dining ops HTTP contract：`docs/contracts/app-api-dining-ops-http.md`
 - chat conversation product contract：`docs/contracts/app-api-chat-conversation-http.md`
-- campus-web ChatKit protocol adapter：
-  `docs/contracts/campus-web-chatkit-adapter.md`
+- campus-web first-party assistant chat and conversation routes：
+  `docs/contracts/app-api-chat-conversation-http.md`
 
 这份文档不冻结：
 

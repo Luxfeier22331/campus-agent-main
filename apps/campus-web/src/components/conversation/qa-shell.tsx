@@ -4,7 +4,8 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 
 import { AccountLoginDialog } from "@/app/routes/account-action-page";
 import { type AccountEntryState, QAAccountEntry } from "@/components/conversation/qa-account-entry";
-import { getSessionPrincipal } from "@/features/conversation/api";
+import { getSessionPrincipal, searchConversations } from "@/features/conversation/api";
+import type { ConversationSummary } from "@/features/conversation/model";
 import { cn } from "@/lib/utils";
 import { UnauthorizedError } from "@/platform/api/client";
 
@@ -38,6 +39,7 @@ export function QAShell({
 	const [loginOpen, setLoginOpen] = useState(false);
 	const [loginReturnFocusElement, setLoginReturnFocusElement] = useState<HTMLElement | null>(null);
 	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
+	const [historySearchOpen, setHistorySearchOpen] = useState(false);
 	const openLoginDialog = () => {
 		setLoginReturnFocusElement(
 			document.activeElement instanceof HTMLElement ? document.activeElement : null,
@@ -80,7 +82,7 @@ export function QAShell({
 			}
 			if (event.key.toLowerCase() === "k") {
 				event.preventDefault();
-				document.dispatchEvent(new CustomEvent("campus-chatkit-open-history-search"));
+				setHistorySearchOpen(true);
 				return;
 			}
 			if (event.shiftKey && event.key.toLowerCase() === "o") {
@@ -95,10 +97,11 @@ export function QAShell({
 	return (
 		<div className="min-h-dvh bg-[var(--sys-bg-canvas)] text-[var(--sys-text-default)]">
 			<div className="grid min-h-dvh lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
-				<ChatKitProductRail
+				<ProductRail
 					accountEntry={accountEntry}
 					className="hidden lg:flex"
 					onLoginRequest={openLoginDialog}
+					onSearchRequest={() => setHistorySearchOpen(true)}
 				/>
 				<div className="flex min-h-dvh min-w-0 flex-col">
 					<header className="border-b border-[var(--sys-border-subtle)] bg-[var(--sys-surface-default)] px-4 lg:px-5">
@@ -137,14 +140,18 @@ export function QAShell({
 								<X aria-hidden="true" className="size-5" />
 							</button>
 						</div>
-						<ChatKitProductRail
+						<ProductRail
 							accountEntry={accountEntry}
 							className="flex min-h-0 flex-1 border-r-0 pt-2"
 							showSupportNavigation
 							onLoginRequest={openLoginDialog}
+							onSearchRequest={() => setHistorySearchOpen(true)}
 						/>
 					</div>
 				</div>
+			) : null}
+			{historySearchOpen ? (
+				<HistorySearchDialog onClose={() => setHistorySearchOpen(false)} />
 			) : null}
 			{loginOpen ? (
 				<AccountLoginDialog
@@ -162,15 +169,17 @@ export function QAShell({
 	);
 }
 
-function ChatKitProductRail({
+function ProductRail({
 	accountEntry,
 	className,
 	onLoginRequest,
+	onSearchRequest,
 	showSupportNavigation,
 }: {
 	accountEntry: AccountEntryState;
 	className?: string;
 	onLoginRequest?: () => void;
+	onSearchRequest?: () => void;
 	showSupportNavigation?: boolean;
 }) {
 	return (
@@ -199,9 +208,7 @@ function ChatKitProductRail({
 						railActionClass,
 						"text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]",
 					)}
-					onClick={() =>
-						document.dispatchEvent(new CustomEvent("campus-chatkit-open-history-search"))
-					}
+					onClick={onSearchRequest}
 					type="button"
 				>
 					<Search aria-hidden="true" className={railActionIconClass} />
@@ -216,6 +223,100 @@ function ChatKitProductRail({
 			) : null}
 			<QAAccountEntry onLoginRequest={onLoginRequest} state={accountEntry} />
 		</aside>
+	);
+}
+
+function HistorySearchDialog({ onClose }: { onClose: () => void }) {
+	const [query, setQuery] = useState("");
+	const [results, setResults] = useState<ConversationSummary[]>([]);
+	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
+
+	useEffect(() => {
+		const trimmed = query.trim();
+		if (!trimmed) {
+			setResults([]);
+			setStatus("idle");
+			return;
+		}
+
+		let cancelled = false;
+		setStatus("loading");
+		const timer = window.setTimeout(() => {
+			void searchConversations({ query: trimmed }).then(
+				(response) => {
+					if (!cancelled) {
+						setResults(response.conversations);
+						setStatus("idle");
+					}
+				},
+				() => {
+					if (!cancelled) {
+						setStatus("error");
+					}
+				},
+			);
+		}, 150);
+
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
+	}, [query]);
+
+	return (
+		<div className="fixed inset-0 z-50 bg-[var(--alpha-black-40)] px-4 py-[12dvh]">
+			<div
+				aria-label="搜索聊天"
+				className="mx-auto max-w-xl rounded-xl border border-[var(--sys-border-subtle)] bg-[var(--sys-surface-default)] shadow-[var(--shadow-md)]"
+				role="dialog"
+			>
+				<div className="flex items-center gap-2 border-b border-[var(--sys-border-subtle)] px-3 py-2">
+					<Search aria-hidden="true" className="size-4 text-[var(--sys-text-muted)]" />
+					<input
+						aria-label="搜索历史会话"
+						className="min-h-10 flex-1 bg-transparent text-sm outline-none placeholder:text-[var(--sys-text-subtle)]"
+						onChange={(event) => setQuery(event.target.value)}
+						placeholder="搜索历史会话"
+						value={query}
+					/>
+					<button
+						aria-label="关闭搜索"
+						className="grid size-9 place-items-center rounded-lg text-[var(--sys-text-muted)] hover:bg-[var(--sys-bg-muted)]"
+						onClick={onClose}
+						type="button"
+					>
+						<X aria-hidden="true" className="size-4" />
+					</button>
+				</div>
+				<div className="max-h-[52dvh] overflow-y-auto p-2">
+					{status === "loading" ? (
+						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">正在搜索</p>
+					) : null}
+					{status === "error" ? (
+						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">搜索失败</p>
+					) : null}
+					{query.trim() && status === "idle" && results.length === 0 ? (
+						<p className="px-3 py-4 text-sm text-[var(--sys-text-muted)]">没有匹配会话</p>
+					) : null}
+					{results.map((conversation) => (
+						<Link
+							className="block rounded-lg px-3 py-2 text-sm hover:bg-[var(--sys-bg-muted)]"
+							key={conversation.id}
+							onClick={onClose}
+							params={{ conversationId: conversation.id }}
+							to="/c/$conversationId"
+						>
+							<span className="block truncate font-medium text-[var(--sys-text-strong)]">
+								{conversation.title}
+							</span>
+							<span className="mt-0.5 block text-xs text-[var(--sys-text-subtle)]">
+								{new Date(conversation.updatedAt).toLocaleString("zh-CN")}
+							</span>
+						</Link>
+					))}
+				</div>
+			</div>
+		</div>
 	);
 }
 

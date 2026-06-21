@@ -19,8 +19,6 @@ HTTP contracts, data schemas, operational procedures or active work status.
 
 - [account-registration-legal-consent-prd.md](./account-registration-legal-consent-prd.md)
   - registration terms/privacy consent, legal pages and sign-up admission
-- [chatkit-runtime-self-host-prd.md](./chatkit-runtime-self-host-prd.md)
-  - self-hosted ChatKit runtime assets for campus-web Q&A loading
 - [langfuse-eval-platform-completion-prd.md](./langfuse-eval-platform-completion-prd.md)
   - Langfuse eval platform completion for trace evidence, score publishing,
     datasets, experiments and RAG parameter evals
@@ -32,6 +30,11 @@ HTTP contracts, data schemas, operational procedures or active work status.
 
 - Product boundary and non-promises remain in
   [`docs/architecture/product-positioning.md`](../architecture/product-positioning.md).
+
+## Retired PRDs
+
+- [chatkit-runtime-self-host-prd.md](./chatkit-runtime-self-host-prd.md)
+  - retired after `campus-web` Q&A moved to first-party assistant chat surface
 - Current accepted implementation truth remains in
   [`docs/architecture/current-architecture.md`](../architecture/current-architecture.md).
 - Runtime/API wire shape remains in [`docs/contracts/`](../contracts/).

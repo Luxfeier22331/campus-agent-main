@@ -1,11 +1,11 @@
-import { ChatKitConversationSurface } from "@/components/conversation/chatkit-conversation-surface";
+import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
 import { QAShell } from "@/components/conversation/qa-shell";
 
 export function HomePage() {
 	return (
 		<QAShell topTitle="新对话">
 			{({ openLoginDialog }) => (
-				<ChatKitConversationSurface initialThread={null} onLoginRequired={openLoginDialog} />
+				<AssistantConversationSurface initialThread={null} onLoginRequired={openLoginDialog} />
 			)}
 		</QAShell>
 	);

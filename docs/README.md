@@ -22,7 +22,6 @@ class owns a fact.
 - Feature-level product requirements:
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
-  - [product/chatkit-runtime-self-host-prd.md](./product/chatkit-runtime-self-host-prd.md)
   - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
 - Current accepted merged truth:
   - [architecture/current-architecture.md](./architecture/current-architecture.md)

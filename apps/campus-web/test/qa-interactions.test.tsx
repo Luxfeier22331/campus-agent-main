@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import type { UseChatKitOptions } from "@openai/chatkit-react";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -10,29 +9,11 @@ import { UnauthorizedError } from "../src/platform/api/client";
 const designTokensSource = readFileSync("src/design/tokens.css", "utf8");
 
 const conversationApiMock = vi.hoisted(() => ({
+	getConversationDetail: vi.fn(),
 	getSessionPrincipal: vi.fn(),
+	searchConversations: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
-const showHistoryMock = vi.hoisted(() => vi.fn());
-const useChatKitMock = vi.hoisted(() =>
-	vi.fn((_: UseChatKitOptions) => ({
-		control: { id: "control" },
-		showHistory: showHistoryMock,
-	})),
-);
-const loadChatKitRuntimeMock = vi.hoisted(() => vi.fn(() => Promise.resolve()));
-
-vi.mock("@openai/chatkit-react", () => ({
-	ChatKit: ({ className, control }: { className?: string; control: unknown }) => (
-		<div className={className} data-control={JSON.stringify(control)} data-testid="chatkit" />
-	),
-	useChatKit: useChatKitMock,
-}));
-
-vi.mock("../src/features/conversation/chatkit-runtime", () => ({
-	CHATKIT_RUNTIME_SCRIPT_URL: "/vendor/openai-chatkit/2026-06-17/chatkit.js",
-	loadChatKitRuntime: loadChatKitRuntimeMock,
-}));
 
 vi.mock("@/app/routes/account-action-page", () => ({
 	AccountLoginDialog: ({
@@ -84,21 +65,9 @@ vi.mock("@tanstack/react-router", async () => {
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
 
-function getChatKitCustomFetch(options: UseChatKitOptions): typeof fetch {
-	const { api } = options;
-	if (!("url" in api && api.fetch)) {
-		throw new Error("ChatKit custom API fetch was not configured.");
-	}
-	return api.fetch;
-}
-
 describe("Q&A product interactions", () => {
 	beforeEach(() => {
 		navigateMock.mockReset();
-		showHistoryMock.mockReset();
-		useChatKitMock.mockClear();
-		loadChatKitRuntimeMock.mockReset();
-		loadChatKitRuntimeMock.mockResolvedValue(undefined);
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(() =>
@@ -110,6 +79,16 @@ describe("Q&A product interactions", () => {
 				),
 			),
 		);
+		conversationApiMock.getConversationDetail.mockReset();
+		conversationApiMock.getConversationDetail.mockResolvedValue({
+			archivedAt: null,
+			createdAt: "2026-06-21T01:00:00.000Z",
+			id: "conv_01",
+			messages: [],
+			pinnedAt: null,
+			title: "会话",
+			updatedAt: "2026-06-21T01:00:00.000Z",
+		});
 		conversationApiMock.getSessionPrincipal.mockReset();
 		conversationApiMock.getSessionPrincipal.mockResolvedValue({
 			permissions: { chat: true, operator: false },
@@ -124,20 +103,39 @@ describe("Q&A product interactions", () => {
 				sessionId: "session_01",
 			},
 		});
+		conversationApiMock.searchConversations.mockReset();
+		conversationApiMock.searchConversations.mockResolvedValue({
+			conversations: [
+				{
+					archivedAt: null,
+					createdAt: "2026-06-21T01:00:00.000Z",
+					id: "conv_01",
+					pinnedAt: null,
+					title: "国家奖学金",
+					updatedAt: "2026-06-21T01:00:00.000Z",
+				},
+			],
+			query: "国家奖学金",
+		});
 	});
 
-	it("opens ChatKit history from the sidebar search action and keyboard shortcut", async () => {
+	it("opens conversation search from the sidebar action and keyboard shortcut", async () => {
 		render(<HomePage />);
 
-		await screen.findByTestId("chatkit");
+		await screen.findByTestId("assistant-chat");
 		fireEvent.click(await screen.findByRole("button", { name: "搜索聊天" }));
-		expect(showHistoryMock).toHaveBeenCalledOnce();
+		expect(screen.getByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
+		fireEvent.change(screen.getByRole("textbox", { name: "搜索历史会话" }), {
+			target: { value: "国家奖学金" },
+		});
+		expect(await screen.findByRole("link", { name: /国家奖学金/ })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("button", { name: "关闭搜索" }));
 
 		fireEvent.keyDown(window, { key: "k", metaKey: true });
-		expect(showHistoryMock).toHaveBeenCalledTimes(2);
+		expect(screen.getByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
 	});
 
-	it("keeps the Q&A rail as ChatKit actions without a local history placeholder", async () => {
+	it("keeps the Q&A rail compact without an inline history placeholder", async () => {
 		render(<HomePage />);
 
 		const newConversationLink = await screen.findByRole("link", { name: "新对话" });
@@ -166,20 +164,11 @@ describe("Q&A product interactions", () => {
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/" });
 	});
 
-	it("uses ChatKit as the conversation control surface for stop, retry, and edit flows", async () => {
+	it("uses the assistant chat surface as the conversation control surface", async () => {
 		render(<ConversationPage />);
 
-		expect(await screen.findByTestId("chatkit")).toBeInTheDocument();
-		expect(useChatKitMock).toHaveBeenCalledWith(
-			expect.objectContaining({
-				api: expect.objectContaining({ url: "/api/chatkit" }),
-				history: { enabled: true, showDelete: true, showRename: true },
-				initialThread: "conv_01",
-				threadItemActions: { feedback: true, retry: true },
-			}),
-		);
-		const options = useChatKitMock.mock.calls.at(-1)?.[0] as UseChatKitOptions;
-		expect(options.theme).toBeUndefined();
+		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
+		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 
 	it("refreshes the account entry after the login modal succeeds", async () => {
@@ -200,24 +189,22 @@ describe("Q&A product interactions", () => {
 			});
 		render(<HomePage />);
 
-		await screen.findByTestId("chatkit");
+		await screen.findByTestId("assistant-chat");
 		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
 
-		const options = useChatKitMock.mock.calls.at(-1)?.[0] as UseChatKitOptions;
-		const chatKitFetch = getChatKitCustomFetch(options);
-		await chatKitFetch("http://127.0.0.1/api/chatkit", {
-			body: JSON.stringify({ params: { input: "hello" }, type: "threads.create" }),
-			method: "POST",
+		fireEvent.change(screen.getByRole("textbox", { name: "输入校园问题" }), {
+			target: { value: "hello" },
 		});
+		fireEvent.click(screen.getByRole("button", { name: "发送" }));
 		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
 
 		fireEvent.click(screen.getByRole("button", { name: "关闭登录" }));
 		expect(screen.queryByRole("dialog", { name: "登录" })).toBeNull();
 
-		await chatKitFetch("http://127.0.0.1/api/chatkit", {
-			body: JSON.stringify({ params: { input: "hello again" }, type: "threads.create" }),
-			method: "POST",
+		fireEvent.change(screen.getByRole("textbox", { name: "输入校园问题" }), {
+			target: { value: "hello again" },
 		});
+		fireEvent.click(screen.getByRole("button", { name: "发送" }));
 		fireEvent.click(await screen.findByRole("button", { name: "模拟登录成功" }));
 		await waitFor(() => {
 			expect(screen.getByRole("button", { name: "刷新用户 fresh@muc.edu.cn" })).toBeInTheDocument();

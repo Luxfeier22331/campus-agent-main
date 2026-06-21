@@ -1,6 +1,6 @@
 import { useParams } from "@tanstack/react-router";
 
-import { ChatKitConversationSurface } from "@/components/conversation/chatkit-conversation-surface";
+import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
 import { QAShell } from "@/components/conversation/qa-shell";
 
 export function ConversationPage() {
@@ -9,7 +9,7 @@ export function ConversationPage() {
 	return (
 		<QAShell topTitle="会话">
 			{({ openLoginDialog }) => (
-				<ChatKitConversationSurface
+				<AssistantConversationSurface
 					initialThread={conversationId}
 					onLoginRequired={openLoginDialog}
 				/>

@@ -148,9 +148,6 @@ importers:
       '@better-auth/oauth-provider':
         specifier: ^1.5.6
         version: 1.5.6(a2b1b4516ed5a4553f684ff5c3b17055)
-      '@openai/chatkit-react':
-        specifier: ^1.5.1
-        version: 1.5.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@radix-ui/react-slot':
         specifier: ^1.2.4
         version: 1.2.4(@types/react@19.2.14)(react@19.2.4)
@@ -2079,15 +2076,6 @@ packages:
     resolution: {integrity: sha512-YaKnqv0M6bCVvn47pThkFfyHz8xWJ+0Ll9ZnhvwJZ5gyPX0UxHIUeUs9SMG9BSvNuJNJHlc5uvfUDGYAmKJClw==}
     peerDependencies:
       zod: ^3.25.40 || ^4.0
-
-  '@openai/chatkit-react@1.5.1':
-    resolution: {integrity: sha512-iFIOfZ16MLi0dZUmLW273hzBlCsN/xnwefTvoiT6X96DR61jGcJIaCJoNL4OOvp53hmEfhvrp4kENNyDbNt+UA==}
-    peerDependencies:
-      react: '>=18'
-      react-dom: '>=18'
-
-  '@openai/chatkit@1.7.0':
-    resolution: {integrity: sha512-uCUsShQO8PamPXt1gcFc8dbyV9Vic0yUgoUrEo7NT6z00azba8nU20rchVFHvjdgQsxgE/+BtsDtYoOVcq5Jjw==}
 
   '@opentelemetry/api@1.9.1':
     resolution: {integrity: sha512-gLyJlPHPZYdAk1JENA9LeHejZe1Ti77/pTeFm/nMXmQH/HFZlcS/O2XJB+L8fkbrNSqhdtlvjBVjxwUYanNH5Q==}
@@ -7762,14 +7750,6 @@ snapshots:
       - supports-color
       - utf-8-validate
       - ws
-
-  '@openai/chatkit-react@1.5.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      '@openai/chatkit': 1.7.0
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
-
-  '@openai/chatkit@1.7.0': {}
 
   '@opentelemetry/api@1.9.1': {}
 

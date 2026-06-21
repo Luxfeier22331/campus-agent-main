@@ -17,7 +17,6 @@ updated: 2026-06-13
   - `app-api-http/chat.md`
   - `app-api-http/operator.md`
 - `app-api-chat-conversation-http.md`
-- `campus-web-chatkit-adapter.md`
 - `app-api-eval-benchmark-http.md`
 - `app-api-document-reader-http.md`
 - `document-reader-publish-contract.md`
@@ -70,6 +69,12 @@ updated: 2026-06-13
 ## Retrieval internal contract
 
 - `knowledge-retrieval-plan-contract.md`
+
+## Legacy contract
+
+- `campus-web-chatkit-adapter.md`
+  - legacy ChatKit protocol adapter; current `campus-web` Q&A no longer
+    consumes it
 
 ## 使用规则
 

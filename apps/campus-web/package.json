@@ -19,7 +19,6 @@
 	},
 	"dependencies": {
 		"@better-auth/oauth-provider": "^1.5.6",
-		"@openai/chatkit-react": "^1.5.1",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@rspress/core": "^2.0.9",
 		"@sentry/cloudflare": "^10.46.0",
