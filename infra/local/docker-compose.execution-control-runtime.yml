@@ -139,7 +139,12 @@ services:
       - supervisor-runtime
 
   hindsight-api:
-    image: ${HINDSIGHT_API_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.2}
+    build:
+      context: ../..
+      dockerfile: infra/local/hindsight-api-openai-default-headers/Dockerfile
+      args:
+        HINDSIGHT_API_BASE_IMAGE: ${HINDSIGHT_API_BASE_IMAGE:-ghcr.io/vectorize-io/hindsight-api:0.8.2}
+    image: ${HINDSIGHT_API_IMAGE:-campus-agent/hindsight-api:0.8.2-openai-default-headers}
     restart: unless-stopped
     extra_hosts: *host-gateway
     depends_on:
@@ -161,6 +166,7 @@ services:
       HINDSIGHT_API_HOST: 0.0.0.0
       HINDSIGHT_API_LLM_API_KEY: ${HINDSIGHT_API_LLM_API_KEY:?set HINDSIGHT_API_LLM_API_KEY}
       HINDSIGHT_API_LLM_BASE_URL: ${HINDSIGHT_API_LLM_BASE_URL:-}
+      HINDSIGHT_API_LLM_DEFAULT_HEADERS: ${HINDSIGHT_API_LLM_DEFAULT_HEADERS:-}
       HINDSIGHT_API_LLM_MODEL: ${HINDSIGHT_API_LLM_MODEL:-gpt-4o-mini}
       HINDSIGHT_API_LLM_PROVIDER: ${HINDSIGHT_API_LLM_PROVIDER:-openai}
       HINDSIGHT_API_PORT: 8888

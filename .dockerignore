@@ -30,6 +30,8 @@
 !configs/runtime/tool-function-schemas.v1.json
 !configs/runtime/tools.v3.json
 !configs/runtime/workflow-artifacts.v2.json
+!infra/local/hindsight-api-openai-default-headers/
+!infra/local/hindsight-api-openai-default-headers/**
 !tests/
 !tests/fixtures/
 !tests/fixtures/capability_execution_contract/
