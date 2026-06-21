@@ -46,7 +46,7 @@
 	},
 	"personal_memory": {
 		"runtime": "hindsight",
-		"timeout_seconds": 10,
+		"timeout_seconds": 90,
 		"recall_limit": 8,
 		"recall_max_chars": 2500
 	}
