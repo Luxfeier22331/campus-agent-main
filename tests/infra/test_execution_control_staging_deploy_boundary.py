@@ -9,7 +9,10 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tests.execution_control_staging_preflight_support import run_common_script_with_env
+from tests.execution_control_staging_preflight_support import (
+    provider_config_server_for_tests,
+    run_common_script_with_env,
+)
 
 ROOT = Path(__file__).resolve().parents[2]
 STAGING_DIR = ROOT / "infra" / "local" / "staging"
@@ -545,14 +548,17 @@ def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProces
         }}));
         NODE
         """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        with provider_config_server_for_tests() as provider_config_base_url:
+            env = os.environ.copy()
+            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
+            return subprocess.run(
+                ["bash", "-lc", textwrap.dedent(command)],
+                cwd=root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
 
 def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.CompletedProcess[str]:
@@ -649,14 +655,17 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
         }}));
         NODE
         """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        with provider_config_server_for_tests() as provider_config_base_url:
+            env = os.environ.copy()
+            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
+            return subprocess.run(
+                ["bash", "-lc", textwrap.dedent(command)],
+                cwd=root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
 
 def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProcess[str]:

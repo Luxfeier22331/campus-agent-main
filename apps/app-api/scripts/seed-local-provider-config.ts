@@ -1,7 +1,7 @@
 import process from "node:process";
 
-type PromptRole = "primary_agent" | "rag_synthesis";
-type EmbeddingRole = "rag_query_embedding";
+type PromptRole = "hindsight_llm" | "primary_agent" | "rag_synthesis";
+type EmbeddingRole = "hindsight_embedding" | "rag_query_embedding";
 type RerankRole = "rag_reranker";
 type SeedStage = "all" | "embedding" | "prompt" | "rerank";
 
@@ -38,7 +38,8 @@ interface Args {
 	transport: string;
 }
 
-const PROMPT_ROLES: PromptRole[] = ["primary_agent", "rag_synthesis"];
+const PROMPT_ROLES: PromptRole[] = ["primary_agent", "rag_synthesis", "hindsight_llm"];
+const EMBEDDING_ROLES: EmbeddingRole[] = ["rag_query_embedding", "hindsight_embedding"];
 
 main().catch((error) => {
 	console.error(error instanceof Error ? error.message : String(error));
@@ -81,21 +82,24 @@ async function main() {
 		}
 	}
 	if (args.embedding && shouldRunStage(args.stage, "embedding")) {
-		await createAndActivateProfile(args, {
-			connection: await createConnection(args, {
-				apiKey: args.embedding.apiKey,
-				baseUrl: args.embedding.baseUrl,
-				capabilities: ["embedding"],
-				capabilityConfig: {},
-				provider: args.embedding.provider,
-			}),
-			dimensions: args.embedding.dimensions,
-			kind: "embedding",
-			model: args.embedding.model,
-			role: "rag_query_embedding",
-			timeoutMs: args.embedding.timeoutMs,
-			transport: args.embedding.transport,
+		const embeddingConnection = await createConnection(args, {
+			apiKey: args.embedding.apiKey,
+			baseUrl: args.embedding.baseUrl,
+			capabilities: ["embedding"],
+			capabilityConfig: {},
+			provider: args.embedding.provider,
 		});
+		for (const role of EMBEDDING_ROLES) {
+			await createAndActivateProfile(args, {
+				connection: embeddingConnection,
+				dimensions: args.embedding.dimensions,
+				kind: "embedding",
+				model: args.embedding.model,
+				role,
+				timeoutMs: args.embedding.timeoutMs,
+				transport: args.embedding.transport,
+			});
+		}
 	}
 	if (args.rerank && shouldRunStage(args.stage, "rerank")) {
 		await createAndActivateProfile(args, {
@@ -177,6 +181,7 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		internalSharedSecret,
 		embedding: parseEmbeddingArgs(values, env, stage),
 		models: {
+			hindsight_llm: primaryAgentModel,
 			primary_agent: primaryAgentModel,
 			rag_synthesis: ragSynthesisModel,
 		},

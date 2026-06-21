@@ -5,8 +5,12 @@ import os
 import shlex
 import subprocess
 import textwrap
+import threading
+from contextlib import contextmanager
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -286,14 +290,17 @@ def run_common_script_with_env(
         console.log(JSON.stringify(projected));
         NODE
         """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=temp_root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        with provider_config_server_for_tests() as provider_config_base_url:
+            env = os.environ.copy()
+            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
+            return subprocess.run(
+                ["bash", "-lc", textwrap.dedent(command)],
+                cwd=temp_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
 
 
 def _with_valid_observability_sink_env(staging_env: str) -> str:
@@ -376,14 +383,78 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         console.log(JSON.stringify(projected));
         NODE
         """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=temp_root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        with provider_config_server_for_tests() as provider_config_base_url:
+            env = os.environ.copy()
+            env["APP_API_INTERNAL_BASE_URL"] = provider_config_base_url
+            return subprocess.run(
+                ["bash", "-lc", textwrap.dedent(command)],
+                cwd=temp_root,
+                env=env,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+
+
+@contextmanager
+def provider_config_server_for_tests():
+    server = ThreadingHTTPServer(("127.0.0.1", 0), _ProviderConfigHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        host, port = server.server_address[:2]
+        yield f"http://{host}:{port}"
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=2)
+
+
+class _ProviderConfigHandler(BaseHTTPRequestHandler):
+    def do_GET(self) -> None:
+        parsed = urlparse(self.path)
+        role = parse_qs(parsed.query).get("role", [""])[0]
+        profiles = {
+            "hindsight_llm": {
+                "api_key": "llm-key",
+                "base_url": "https://llm.example.com/v1",
+                "kind": "prompt",
+                "model": "gpt-test",
+                "profile_id": "provider_profile_hindsight_llm",
+                "provider": "openai",
+                "revision": 1,
+                "role": "hindsight_llm",
+                "timeout_ms": 30000,
+                "transport": "responses",
+            },
+            "hindsight_embedding": {
+                "api_key": "embedding-key",
+                "base_url": "https://ai.gitee.com/v1",
+                "dimensions": 2560,
+                "kind": "embedding",
+                "model": "Qwen3-Embedding-4B",
+                "profile_id": "provider_profile_hindsight_embedding",
+                "provider": "openai",
+                "revision": 1,
+                "role": "hindsight_embedding",
+                "timeout_ms": 30000,
+                "transport": "embeddings",
+            },
+        }
+        profile = profiles.get(role)
+        if parsed.path != "/api/internal/provider-config/active" or profile is None:
+            self.send_response(404)
+            self.send_header("content-type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"error":{"code":"provider_profile_missing"}}')
+            return
+        self.send_response(200)
+        self.send_header("content-type", "application/json")
+        self.end_headers()
+        self.wfile.write(json.dumps({"profile": profile}).encode("utf-8"))
+
+    def log_message(self, _format: str, *_args: object) -> None:
+        return
 
 
 def _fake_uv_script() -> str:

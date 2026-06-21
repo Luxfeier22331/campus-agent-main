@@ -44,8 +44,16 @@ export interface ProviderConfigServiceDependencies {
 	validators?: Partial<ProviderConfigValidators>;
 }
 
-const PROMPT_ROLES = new Set<PromptProviderRole>(["primary_agent", "rag_synthesis"]);
-const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>(["index_embedding", "rag_query_embedding"]);
+const PROMPT_ROLES = new Set<PromptProviderRole>([
+	"hindsight_llm",
+	"primary_agent",
+	"rag_synthesis",
+]);
+const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>([
+	"hindsight_embedding",
+	"index_embedding",
+	"rag_query_embedding",
+]);
 const RERANK_ROLES = new Set<RerankProviderRole>(["rag_reranker"]);
 const CAPABILITIES = new Set<ProviderConfigCapability>(["embedding", "prompt", "rerank"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -103,7 +111,7 @@ export function buildProviderConfigService(
 					status: 409,
 				});
 			}
-			if (profile.kind === "embedding") {
+			if (profile.kind === "embedding" && profile.role === "rag_query_embedding") {
 				const rawApiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 				const compatibility = await validators.checkEmbeddingCompatibility({
 					apiKey: rawApiKey,

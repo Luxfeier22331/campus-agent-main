@@ -101,11 +101,11 @@ execution_control_runtime_require_runtime_env() {
     return 1
   fi
   if [[ -z "${HINDSIGHT_API_LLM_API_KEY:-}" ]]; then
-    echo "HINDSIGHT_API_LLM_API_KEY or LLM_API_KEY is required for Hindsight retain/recall." >&2
+    echo "HINDSIGHT_API_LLM_API_KEY is required from app-api provider-config projection for Hindsight retain/recall." >&2
     return 1
   fi
   if [[ -z "${HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY:-}" ]]; then
-    echo "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY or EMBEDDING_API_KEY is required for Hindsight embeddings." >&2
+    echo "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY is required from app-api provider-config projection for Hindsight embeddings." >&2
     return 1
   fi
   if [[ -z "${EMBEDDING_API_KEY:-}" ]]; then

@@ -65,7 +65,8 @@ combinations live in split environment references.
   `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts`
   显式写入 app-api provider-config
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
-  必须存在 active `rag_synthesis` profile；live eval 仍可用 env override
+  必须存在 active `rag_synthesis` profile；Hindsight LLM runtime 必须存在 active
+  `hindsight_llm` profile；live eval 仍可用 env override
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
   写回 docs 或 repo-tracked env
 
@@ -95,7 +96,8 @@ doctor/env readiness contract。
   放置位置: online retrieval 不以 root `.env` 为真相；local seed 显式写入
   app-api provider-config；ingestion/eval 仍使用各自 command/env profile
   何时必需: indexing、retrieval、eval embeddings；online query path 必须存在 active
-  `rag_query_embedding` profile
+  `rag_query_embedding` profile；Hindsight embedding runtime 必须存在 active
+  `hindsight_embedding` profile
   获取方式: 当前 baseline 是 Gitee OpenAI-compatible embeddings；需在供应商控制台开通 embeddings
   服务并拿到 token / endpoint；online profile 激活前必须通过维度兼容检查
 

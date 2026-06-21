@@ -26,6 +26,7 @@ load_runtime_env() {
       --repo-root "${repo_root}" \
       --compose-project-name "campus-agent-qdrant-local" \
       --sync-app-api-dev-vars \
+      --skip-hindsight-provider-config \
       --format env
   )
 }

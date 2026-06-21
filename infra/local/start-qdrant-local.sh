@@ -28,6 +28,7 @@ load_runtime_env() {
       --repo-root "${repo_root}" \
       --compose-project-name "${compose_project_name}" \
       --sync-app-api-dev-vars \
+      --skip-hindsight-provider-config \
       --format env
   )
 }

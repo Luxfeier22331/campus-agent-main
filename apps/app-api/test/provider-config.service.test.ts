@@ -237,4 +237,125 @@ describe("provider config service", () => {
 			code: "embedding_profile_incompatible",
 		});
 	});
+
+	it("activates Hindsight embedding profiles without RAG index compatibility checks", async () => {
+		let compatibilityChecks = 0;
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_hindsight_embedding`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async checkEmbeddingCompatibility() {
+					compatibilityChecks += 1;
+					return { ok: false, reason: "rag index compatibility must not gate Hindsight" };
+				},
+				async validateEmbedding() {
+					return {
+						message: "embedding provider validated",
+						observedDimensions: 2560,
+						ok: true,
+						status: "passed",
+					};
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "hindsight-embedding-key",
+				baseUrl: "https://embedding.example/v1",
+				capabilities: ["embedding"],
+				provider: "openai-compatible",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				dimensions: 2560,
+				kind: "embedding",
+				model: "Qwen3-Embedding-4B",
+				role: "hindsight_embedding",
+				timeoutMs: 30000,
+				transport: "embeddings",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		await expect(
+			service.activateProfile({
+				principal: createOperatorPrincipal(),
+				profileId: createdProfile.profile.profileId,
+			}),
+		).resolves.toMatchObject({
+			profile: {
+				active: true,
+				role: "hindsight_embedding",
+				status: "active",
+			},
+		});
+		expect(compatibilityChecks).toBe(0);
+	});
+
+	it("resolves Hindsight LLM active runtime snapshots", async () => {
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_hindsight_llm`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async validatePrompt() {
+					return { message: "prompt provider validated", ok: true, status: "passed" };
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "hindsight-llm-key",
+				baseUrl: "https://llm.example/v1",
+				capabilities: ["prompt"],
+				provider: "openai",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				kind: "prompt",
+				model: "gpt-memory",
+				role: "hindsight_llm",
+				timeoutMs: 30000,
+				transport: "responses",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+		await service.activateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		await expect(
+			service.getActiveRuntimeSnapshot({ role: "hindsight_llm" }),
+		).resolves.toMatchObject({
+			profile: {
+				api_key: "hindsight-llm-key",
+				base_url: "https://llm.example/v1",
+				kind: "prompt",
+				model: "gpt-memory",
+				provider: "openai",
+				role: "hindsight_llm",
+				transport: "responses",
+			},
+		});
+	});
 });

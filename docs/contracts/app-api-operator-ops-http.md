@@ -319,10 +319,11 @@ Rules:
   and timeout
 - request body must not include raw API key
 - `rag_query_embedding` / `index_embedding` compatibility is checked against
-  active query-serving RAG release metadata
-- personal memory has no embedding or prompt provider-config role; it is served
-  by the Hindsight runtime. Retired `memory_graph_llm`,
-  `personal_memory_extraction` and `personal_memory_embedding` profiles remain
-  invalid.
+  active query-serving RAG release metadata; `hindsight_embedding` is validated
+  as provider connectivity but is not checked against RAG release metadata
+- personal memory provider env is projected from `hindsight_llm` and
+  `hindsight_embedding` active profiles into the Hindsight runtime. Retired
+  `memory_graph_llm`, `personal_memory_extraction` and
+  `personal_memory_embedding` profiles remain invalid.
 - incompatible or unsupported roles return `{ "ok": false, "reason": "..." }`
   and app-api activation fails closed

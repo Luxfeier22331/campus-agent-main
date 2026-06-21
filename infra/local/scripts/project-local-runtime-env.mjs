@@ -184,6 +184,9 @@ export async function projectLocalRuntimeEnv(input = {}) {
 	}
 
 	deriveRuntimeEnv(env, { composeProjectName, repoRoot });
+	if (!input.skipHindsightProviderConfig) {
+		await projectHindsightProviderConfig(env, { fetchImpl: input.fetchImpl ?? fetch });
+	}
 
 	if (input.syncAppApiDevVars) {
 		await syncAppApiDevVars(appApiDevVarsPath, env);
@@ -387,19 +390,105 @@ function deriveRuntimeEnv(env, input) {
 
 	setDefault(env, "PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 	setDefault(env, "HINDSIGHT_API_IMAGE", "ghcr.io/vectorize-io/hindsight-api:0.8.2");
-	setDefault(env, "HINDSIGHT_API_LLM_PROVIDER", "openai");
-	setDefault(env, "HINDSIGHT_API_LLM_API_KEY", read(env, "LLM_API_KEY"));
-	setDefault(env, "HINDSIGHT_API_LLM_BASE_URL", read(env, "LLM_BASE_URL"));
-	setDefault(env, "HINDSIGHT_API_LLM_MODEL", read(env, "LLM_MODEL") || "gpt-4o-mini");
-	setDefault(env, "HINDSIGHT_API_EMBEDDINGS_PROVIDER", "openai");
-	setDefault(env, "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", read(env, "EMBEDDING_API_KEY"));
-	setDefault(env, "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", read(env, "EMBEDDING_BASE_URL"));
-	setDefault(
-		env,
-		"HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL",
-		read(env, "EMBEDDING_MODEL") || "text-embedding-3-small",
-	);
 	setDefault(env, "HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+}
+
+async function projectHindsightProviderConfig(env, input) {
+	const llm = await fetchActiveProviderConfigSnapshot(env, "hindsight_llm", input.fetchImpl);
+	const embedding = await fetchActiveProviderConfigSnapshot(
+		env,
+		"hindsight_embedding",
+		input.fetchImpl,
+	);
+	requireProviderProfile(llm, {
+		kind: "prompt",
+		role: "hindsight_llm",
+		transport: "responses",
+	});
+	requireProviderProfile(embedding, {
+		kind: "embedding",
+		role: "hindsight_embedding",
+		transport: "embeddings",
+	});
+	if (!Number.isInteger(embedding.dimensions) || embedding.dimensions <= 0) {
+		throw new Error(
+			"Hindsight provider-config projection requires hindsight_embedding dimensions",
+		);
+	}
+	setValue(env, "HINDSIGHT_API_LLM_PROVIDER", hindsightProviderSlug(llm.provider));
+	setValue(env, "HINDSIGHT_API_LLM_API_KEY", llm.api_key);
+	setValue(env, "HINDSIGHT_API_LLM_BASE_URL", llm.base_url);
+	setValue(env, "HINDSIGHT_API_LLM_MODEL", llm.model);
+	setValue(env, "HINDSIGHT_API_EMBEDDINGS_PROVIDER", hindsightProviderSlug(embedding.provider));
+	setValue(env, "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", embedding.api_key);
+	setValue(env, "HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", embedding.base_url);
+	setValue(env, "HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", embedding.model);
+	setValue(env, "HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+}
+
+async function fetchActiveProviderConfigSnapshot(env, role, fetchImpl) {
+	const baseUrl =
+		read(env, "APP_API_INTERNAL_BASE_URL") ||
+		read(env, "APP_API_BASE_URL") ||
+		"http://127.0.0.1:27031";
+	const sharedSecret =
+		read(env, "APP_API_INTERNAL_SHARED_SECRET") ||
+		read(env, "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
+	if (!sharedSecret) {
+		throw new Error(
+			"Hindsight provider-config projection requires APP_API_INTERNAL_SHARED_SECRET",
+		);
+	}
+	const endpoint = `${trimTrailingSlash(baseUrl)}/api/internal/provider-config/active?role=${encodeURIComponent(role)}`;
+	let response;
+	try {
+		response = await fetchImpl(endpoint, {
+			headers: { "x-app-internal-auth": sharedSecret },
+			method: "GET",
+		});
+	} catch (error) {
+		throw new Error(
+			`Hindsight provider-config projection requires active app-api provider profile ${role}: ${
+				error instanceof Error ? error.message : String(error)
+			}`,
+		);
+	}
+	const text = await response.text();
+	if (!response.ok) {
+		throw new Error(
+			`Hindsight provider-config projection requires active app-api provider profile ${role}; endpoint returned HTTP ${response.status}: ${text}`,
+		);
+	}
+	const payload = text ? JSON.parse(text) : {};
+	return payload.profile;
+}
+
+function requireProviderProfile(profile, expected) {
+	if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+		throw new Error(
+			`Hindsight provider-config projection requires active app-api provider profile ${expected.role}`,
+		);
+	}
+	for (const key of ["api_key", "base_url", "kind", "model", "provider", "role", "transport"]) {
+		if (typeof profile[key] !== "string" || !profile[key].trim()) {
+			throw new Error(
+				`Hindsight provider-config projection requires ${expected.role} ${key}`,
+			);
+		}
+	}
+	if (profile.kind !== expected.kind || profile.role !== expected.role || profile.transport !== expected.transport) {
+		throw new Error(
+			`Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expected.transport}`,
+		);
+	}
+}
+
+function hindsightProviderSlug(provider) {
+	const normalized = provider.trim();
+	if (normalized === "openai" || normalized === "openai-compatible" || normalized === "gitee") {
+		return "openai";
+	}
+	return normalized;
 }
 
 async function syncAppApiDevVars(filePath, env) {
@@ -629,6 +718,10 @@ function parseArgs(argv) {
 		const token = argv[index];
 		if (token === "--sync-app-api-dev-vars") {
 			args.syncAppApiDevVars = true;
+			continue;
+		}
+		if (token === "--skip-hindsight-provider-config") {
+			args.skipHindsightProviderConfig = true;
 			continue;
 		}
 		const value = argv[index + 1];

@@ -64,8 +64,9 @@ updated: 2026-06-09
 - conditional:
   - online prompt / embedding provider model/API key truth must already exist as
     active app-api provider-config profiles; do not hardcode them in
-    execution-control env. Required prompt roles are `primary_agent` and
-    `rag_synthesis`; required online embedding role is `rag_query_embedding`.
+    execution-control env. Required prompt roles are `primary_agent`,
+    `rag_synthesis` and `hindsight_llm`; required online embedding roles are
+    `rag_query_embedding` and `hindsight_embedding`.
   - personal memory runtime uses internal Hindsight service discovery by
     default. Lifecycle scripts project `PERSONAL_MEMORY_BASE_URL` to
     `http://hindsight-api:8888` and generate persistent
@@ -76,10 +77,10 @@ updated: 2026-06-09
     `infra/local/start-execution-control-runtime.sh`; server/staging deploys
     must use their own ops-owned generated env file instead of copying that
     local file.
-  - Hindsight LLM / embedding / reranker provider secrets are Hindsight
-    deployment inputs. They do not use app-api provider-config and must not
-    reintroduce retired `memory_graph_llm` or `personal_memory_extraction`
-    provider roles.
+  - Hindsight LLM / embedding provider env is projected from app-api
+    provider-config active profiles. Do not copy local provider env to staging,
+    do not proxy Hindsight model traffic through app-api, and do not reintroduce
+    retired `memory_graph_llm` or `personal_memory_extraction` provider roles.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、

@@ -25,6 +25,7 @@ const [runtimeEnvPath, runtimeSecretsEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
 const crypto = require("node:crypto");
+const childProcess = require("node:child_process");
 const path = require("node:path");
 const { parseEnv } = require("node:util");
 if (typeof parseEnv !== "function") {
@@ -329,6 +330,12 @@ function setDefault(key, value) {
   }
 }
 
+function setValue(key, value) {
+  if (typeof value === "string" && value.trim()) {
+    resolved.set(key, value.trim());
+  }
+}
+
 const workerSharedSecret =
   sourceEnvValue("API_WORKER_SHARED_SECRET") ||
   sourceEnvValue("EXECUTION_CONTROL_SHARED_SECRET") ||
@@ -360,15 +367,11 @@ setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "30000");
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
-setDefault("HINDSIGHT_API_LLM_API_KEY", resolvedValue("LLM_API_KEY"));
-setDefault("HINDSIGHT_API_LLM_BASE_URL", resolvedValue("LLM_BASE_URL"));
-setDefault("HINDSIGHT_API_LLM_MODEL", resolvedValue("LLM_MODEL"));
-setDefault("HINDSIGHT_API_LLM_PROVIDER", "openai");
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", resolvedValue("EMBEDDING_API_KEY"));
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", resolvedValue("EMBEDDING_BASE_URL"));
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", resolvedValue("EMBEDDING_MODEL"));
-setDefault("HINDSIGHT_API_EMBEDDINGS_PROVIDER", "openai");
-setDefault("HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+if (
+  resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET")
+) {
+  projectHindsightProviderConfig();
+}
 
 const explicitLangfuseBaseURL = sourceEnvValue("LANGFUSE_BASE_URL");
 setDefault("LANGFUSE_HOST_PORT", "3000");
@@ -474,6 +477,93 @@ const stagingOptionalMappings = [
 
 function envValue(key) {
   return sourceEnvValue(key);
+}
+
+function projectHindsightProviderConfig() {
+  const llm = fetchActiveProviderConfigSnapshot("hindsight_llm");
+  const embedding = fetchActiveProviderConfigSnapshot("hindsight_embedding");
+  requireProviderProfile(llm, {
+    kind: "prompt",
+    role: "hindsight_llm",
+    transport: "responses",
+  });
+  requireProviderProfile(embedding, {
+    kind: "embedding",
+    role: "hindsight_embedding",
+    transport: "embeddings",
+  });
+  if (!Number.isInteger(embedding.dimensions) || embedding.dimensions <= 0) {
+    throw new Error(
+      "Hindsight provider-config projection requires hindsight_embedding dimensions",
+    );
+  }
+  setValue("HINDSIGHT_API_LLM_PROVIDER", hindsightProviderSlug(llm.provider));
+  setValue("HINDSIGHT_API_LLM_API_KEY", llm.api_key);
+  setValue("HINDSIGHT_API_LLM_BASE_URL", llm.base_url);
+  setValue("HINDSIGHT_API_LLM_MODEL", llm.model);
+  setValue("HINDSIGHT_API_EMBEDDINGS_PROVIDER", hindsightProviderSlug(embedding.provider));
+  setValue("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", embedding.api_key);
+  setValue("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", embedding.base_url);
+  setValue("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", embedding.model);
+  setValue("HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+}
+
+function fetchActiveProviderConfigSnapshot(role) {
+  const baseURL =
+    sourceEnvValue("HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL") ||
+    resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL");
+  const sharedSecret = resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
+  if (!baseURL || !sharedSecret) {
+    throw new Error(
+      "Hindsight provider-config projection requires app-api internal base URL and shared secret",
+    );
+  }
+  const endpoint = `${baseURL.replace(/\/+$/, "")}/api/internal/provider-config/active?role=${encodeURIComponent(role)}`;
+  let text;
+  try {
+    text = childProcess.execFileSync(
+      "curl",
+      ["-fsS", "--max-time", "10", "-H", `x-app-internal-auth: ${sharedSecret}`, endpoint],
+      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
+    );
+  } catch (error) {
+    const stderr = error?.stderr ? String(error.stderr).trim() : "";
+    throw new Error(
+      `Hindsight provider-config projection requires active app-api provider profile ${role}: ${stderr || error.message}`,
+    );
+  }
+  const payload = text ? JSON.parse(text) : {};
+  return payload.profile;
+}
+
+function requireProviderProfile(profile, expected) {
+  if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
+    throw new Error(
+      `Hindsight provider-config projection requires active app-api provider profile ${expected.role}`,
+    );
+  }
+  for (const key of ["api_key", "base_url", "kind", "model", "provider", "role", "transport"]) {
+    if (typeof profile[key] !== "string" || !profile[key].trim()) {
+      throw new Error(`Hindsight provider-config projection requires ${expected.role} ${key}`);
+    }
+  }
+  if (
+    profile.kind !== expected.kind ||
+    profile.role !== expected.role ||
+    profile.transport !== expected.transport
+  ) {
+    throw new Error(
+      `Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expected.transport}`,
+    );
+  }
+}
+
+function hindsightProviderSlug(provider) {
+  const normalized = provider.trim();
+  if (normalized === "openai" || normalized === "openai-compatible" || normalized === "gitee") {
+    return "openai";
+  }
+  return normalized;
 }
 
 function deriveAgentRuntimeBridgeSecret() {
@@ -763,9 +853,6 @@ resolved.set(
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   envValue("STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED"),
 );
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY", resolvedValue("EMBEDDING_API_KEY"));
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_BASE_URL", resolvedValue("EMBEDDING_BASE_URL"));
-setDefault("HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL", resolvedValue("EMBEDDING_MODEL"));
 const localPostgresConfigs = [
   ["STAGING_INGESTION_SHARED_POSTGRES_URL", envValue("STAGING_INGESTION_SHARED_POSTGRES_URL")],
   [

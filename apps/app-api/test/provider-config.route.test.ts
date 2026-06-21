@@ -285,6 +285,87 @@ describe("operator provider config routes", () => {
 			expect(activeResponse.status).toBe(422);
 		}
 	});
+
+	it("exposes active Hindsight provider runtime snapshots", async () => {
+		const service = buildTestProviderConfigService({
+			async checkEmbeddingCompatibility() {
+				throw new Error("Hindsight embedding must not call RAG compatibility check");
+			},
+		});
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
+			providerConfigService: service,
+		} as Parameters<typeof createApp>[1]);
+		const llmCreateResponse = await createPromptProfile(app, {
+			model: "gpt-memory",
+			role: "hindsight_llm",
+		});
+		const embeddingCreateResponse = await createEmbeddingProfile(app, {
+			model: "Qwen3-Embedding-4B",
+			role: "hindsight_embedding",
+		});
+		const llmProfileId = profileIdFromCreateResponse(await readJsonObject(llmCreateResponse));
+		const embeddingProfileId = profileIdFromCreateResponse(
+			await readJsonObject(embeddingCreateResponse),
+		);
+
+		for (const profileId of [llmProfileId, embeddingProfileId]) {
+			await app.fetch(
+				new Request(
+					`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/validate`,
+					{ method: "POST" },
+				),
+			);
+			const activateResponse = await app.fetch(
+				new Request(
+					`https://app-api.internal/api/operator/provider-config/profiles/${profileId}/activate`,
+					{ method: "POST" },
+				),
+			);
+			expect(activateResponse.status).toBe(200);
+		}
+
+		const llmActiveResponse = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/internal/provider-config/active?role=hindsight_llm",
+				{
+					headers: { "x-app-internal-auth": "provider-config-internal-secret" },
+				},
+			),
+		);
+		const embeddingActiveResponse = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/internal/provider-config/active?role=hindsight_embedding",
+				{
+					headers: { "x-app-internal-auth": "provider-config-internal-secret" },
+				},
+			),
+		);
+
+		expect(llmActiveResponse.status).toBe(200);
+		expect(embeddingActiveResponse.status).toBe(200);
+		await expect(llmActiveResponse.json()).resolves.toMatchObject({
+			profile: {
+				api_key: "sk-test-provider-key",
+				base_url: "https://provider.example/v1",
+				kind: "prompt",
+				model: "gpt-memory",
+				role: "hindsight_llm",
+				transport: "responses",
+			},
+		});
+		await expect(embeddingActiveResponse.json()).resolves.toMatchObject({
+			profile: {
+				api_key: "sk-test-provider-key",
+				base_url: "https://embedding.example/v1",
+				dimensions: 2560,
+				kind: "embedding",
+				model: "Qwen3-Embedding-4B",
+				role: "hindsight_embedding",
+				transport: "embeddings",
+			},
+		});
+	});
 });
 
 async function createPromptProfile(

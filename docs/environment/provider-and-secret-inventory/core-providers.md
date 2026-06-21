@@ -23,14 +23,16 @@ owns this section group; the original path remains the stable index.
 - 各 online prompt role 对应的可用模型名：
   - `primary_agent`
   - `rag_synthesis`
+  - `hindsight_llm`
 
 online serving owner：
 
 - `apps/app-api` provider-config connection + profile
 - Operator Console `/operations/provider-config`
-- `execution-control` 通过
+- `execution-control` 与 runtime projection 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
-  `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot
+  `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot；
+  Hindsight provider projection 读取 `hindsight_llm`
 
 默认 env 放置位置：
 
@@ -98,9 +100,11 @@ online serving owner：
 online serving owner：
 
 - `apps/app-api` provider-config connection + `rag_query_embedding` profile
+- `apps/app-api` provider-config connection + `hindsight_embedding` profile
 - Operator Console `/operations/provider-config`
 - `execution-control` 通过
-  `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot
+  `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot；
+  Hindsight provider projection 读取 `hindsight_embedding`
 
 默认 env 放置位置：
 
@@ -211,8 +215,9 @@ online serving owner：
 Hindsight 是 personal memory 的唯一 runtime substrate，负责 per-user graph、memory
 extraction、dedupe / merge 与 recall。Qdrant 不再承载 personal memory。
 `campus-agent` 只通过 execution-control 的官方 Go SDK 集成消费 Hindsight API；
-PostgreSQL / pgvector、LLM、embedding 与 reranker provider 是 Hindsight deployment
-内部组件。
+PostgreSQL / pgvector 是 Hindsight deployment 内部组件；Hindsight LLM 与 embedding
+provider 的 active key / base URL / model 由 app-api provider-config 统一治理，并由
+local / staging lifecycle 投影为 Hindsight deployment env。
 
 当前 deployment env handles：
 
@@ -240,7 +245,7 @@ local / staging generated self-host runtime bundle keys：
 这些键只服务 self-host runtime 内部 bundle。它们不是 repo top-level `.env` contract；staging
 lifecycle 会在 ops-owned runtime dir 下生成等价值，开发者不需要手工填写。
 
-Hindsight deployment provider env：
+Hindsight deployment provider projection：
 
 - `HINDSIGHT_API_LLM_PROVIDER`
 - `HINDSIGHT_API_LLM_MODEL`
@@ -254,8 +259,14 @@ Hindsight deployment provider env：
 - `HINDSIGHT_API_TENANT_EXTENSION`
 - `HINDSIGHT_API_TENANT_API_KEY`
 
-这些键属于 Hindsight deployment secret。它们不经过 app-api provider-config，也不能恢复
-repo-owned `personal_memory_extraction` prompt。
+其中 LLM 与 embedding 键来自 app-api provider-config active profiles：
+
+- `hindsight_llm`
+- `hindsight_embedding`
+
+`HINDSIGHT_API_RERANKER_PROVIDER` 当前固定投影为 `rrf`，不是外部模型 provider。该统一治理
+不能恢复 repo-owned `personal_memory_extraction` prompt，也不能让 app-api 直接调用
+Hindsight API。
 
 退休键，存在时必须 fail closed：
 
@@ -275,8 +286,11 @@ repo-owned `personal_memory_extraction` prompt。
 获取方式：
 
 1. 部署 self-hosted Hindsight API 及其 runtime bundle。
+1. 通过 Operator Console 或 local seed 创建、验证、激活 `hindsight_llm` 与
+   `hindsight_embedding` provider profiles。
 1. local dev 运行 `infra/local/start-execution-control-runtime.sh`，脚本会生成
-   `infra/local/.generated/runtime.env` 并注入 self-host runtime 内部 bundle secret。
+   `infra/local/.generated/runtime.env`，从 app-api active profiles 投影 Hindsight provider env，
+   并注入 self-host runtime 内部 bundle secret。
 1. local / staging lifecycle 会首次生成稳定 `PERSONAL_MEMORY_API_SECRET`、
    `PERSONAL_MEMORY_OWNER_SALT`、`HINDSIGHT_POSTGRES_PASSWORD`、Temporal internal
    password / salt、internal query secret、metrics token 与 self-host Qdrant keys，并
@@ -285,7 +299,8 @@ repo-owned `personal_memory_extraction` prompt。
    Hindsight endpoint 时才覆盖 `PERSONAL_MEMORY_BASE_URL`。
 1. production 如复用 compose-style self-hosted Hindsight，应沿用同样的首次生成并持久化
    约定；如使用外部 secret store，则由部署脚本写入，不要求开发者手填。
-1. 不把 Hindsight API secret 写入 repo-tracked env、fixture、eval artifact 或 docs。
+1. 不把 Hindsight API secret 或 provider raw key 写入 repo-tracked env、fixture、eval artifact
+   或 docs。
 
 说明：
 

@@ -57,6 +57,7 @@ async function projectLocalRuntimeEnv() {
 			"--repo-root",
 			repoRoot,
 			"--sync-app-api-dev-vars",
+			"--skip-hindsight-provider-config",
 			"--format",
 			"env",
 		],

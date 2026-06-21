@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 const appDir = resolve(__dirname, "..");
 
 describe("local provider-config seed script", () => {
-	it("seeds prompt, embedding, and rerank profiles from local provider env", async () => {
+	it("seeds prompt, Hindsight, embedding, and rerank profiles from local provider env", async () => {
 		const server = new RecordingProviderConfigServer();
 		await server.listen();
 		try {
@@ -64,10 +64,23 @@ describe("local provider-config seed script", () => {
 					transport: "responses",
 				}),
 				expect.objectContaining({
+					kind: "prompt",
+					model: "gpt-shared",
+					role: "hindsight_llm",
+					transport: "responses",
+				}),
+				expect.objectContaining({
 					dimensions: 2560,
 					kind: "embedding",
 					model: "Qwen3-Embedding-4B",
 					role: "rag_query_embedding",
+					transport: "embeddings",
+				}),
+				expect.objectContaining({
+					dimensions: 2560,
+					kind: "embedding",
+					model: "Qwen3-Embedding-4B",
+					role: "hindsight_embedding",
 					transport: "embeddings",
 				}),
 				expect.objectContaining({
@@ -77,8 +90,8 @@ describe("local provider-config seed script", () => {
 					transport: "gitee_rerank",
 				}),
 			]);
-			expect(server.validationPaths()).toHaveLength(4);
-			expect(server.activationPaths()).toHaveLength(4);
+			expect(server.validationPaths()).toHaveLength(6);
+			expect(server.activationPaths()).toHaveLength(6);
 		} finally {
 			await server.close();
 		}
