@@ -156,6 +156,51 @@
 	outline-offset: 2px;
 }
 
+[data-campus-account-surface="auth"],
+[data-campus-account-surface="settings"] {
+	--campus-auth-card-border: var(--sys-border-default);
+	--campus-auth-card-shadow: var(--shadow-auth-card);
+	--campus-auth-description: var(--sys-text-muted);
+	--campus-auth-link: var(--sys-text-link);
+	background: var(--sys-bg-subtle);
+	color: var(--sys-text-default);
+}
+
+[data-campus-account-surface="auth"] [data-slot="card"],
+[data-campus-account-surface="settings"] [data-slot="card"] {
+	border: 1px solid var(--campus-auth-card-border);
+	border-radius: var(--radius-xl);
+	background: var(--sys-surface-default);
+	box-shadow: var(--campus-auth-card-shadow);
+}
+
+[data-campus-account-surface="auth"] [class*="description"],
+[data-campus-account-surface="auth"] [data-slot="description"],
+[data-campus-account-surface="settings"] [class*="description"],
+[data-campus-account-surface="settings"] [data-slot="description"] {
+	color: var(--campus-auth-description);
+}
+
+[data-campus-account-surface="auth"] a,
+[data-campus-account-surface="auth"] [class*="text-accent"],
+[data-campus-account-surface="settings"] a,
+[data-campus-account-surface="settings"] [class*="text-accent"] {
+	color: var(--campus-auth-link);
+}
+
+[data-campus-account-surface="auth"] button[type="submit"],
+[data-campus-account-surface="settings"] button[type="submit"] {
+	min-height: 44px;
+}
+
+[data-campus-account-surface="auth"] button[aria-label="显示密码"],
+[data-campus-account-surface="auth"] button[aria-label="隐藏密码"],
+[data-campus-account-surface="settings"] button[aria-label="显示密码"],
+[data-campus-account-surface="settings"] button[aria-label="隐藏密码"] {
+	min-width: 44px;
+	min-height: 44px;
+}
+
 :root {
 	--sidebar: hsl(0 0% 98%);
 	--sidebar-foreground: hsl(240 5.3% 26.1%);

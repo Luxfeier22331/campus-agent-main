@@ -257,16 +257,23 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 			request.method === "GET" || request.method === "HEAD"
 				? undefined
 				: await request.arrayBuffer();
-		return withNoStore(
-			await appApiFetch(
-				new Request(appApiUrl.toString(), {
-					body,
-					headers,
-					method: request.method,
-					redirect: request.redirect,
-				}),
-			),
+		const response = await appApiFetch(
+			new Request(appApiUrl.toString(), {
+				body,
+				headers,
+				method: request.method,
+				redirect: request.redirect,
+			}),
 		);
+		if (isHtmlServerErrorResponse(response)) {
+			return jsonResponse(503, {
+				error: {
+					code: "dependency_not_ready",
+					message: "服务暂不可用，请稍后再试。",
+				},
+			});
+		}
+		return withNoStore(response);
 	} catch {
 		return jsonResponse(503, {
 			error: {
@@ -275,6 +282,13 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 			},
 		});
 	}
+}
+
+function isHtmlServerErrorResponse(response: Response): boolean {
+	if (response.status < 500) {
+		return false;
+	}
+	return (response.headers.get("content-type") ?? "").toLowerCase().includes("text/html");
 }
 
 function isLoopbackAppApiBaseUrl(value: string): boolean {

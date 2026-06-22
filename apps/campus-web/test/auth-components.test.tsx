@@ -10,6 +10,7 @@ import { Settings } from "../src/components/auth/settings/settings";
 import settingsSource from "../src/components/auth/settings/settings.tsx?raw";
 import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
+import mainSource from "../src/main.tsx?raw";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 
@@ -190,6 +191,7 @@ describe("campus auth UI components", () => {
 	it("uses Better Auth UI HeroUI packages instead of the retired shadcn package", () => {
 		expect(authUIProviderSource).toContain("@better-auth-ui/heroui");
 		expect(authUIProviderSource).toContain("@better-auth-ui/react/plugins");
+		expect(mainSource).toContain("@heroui/react");
 		expect(authSource).toContain("@better-auth-ui/heroui");
 		expect(settingsSource).toContain("@better-auth-ui/heroui");
 		expect(userButtonSource).toContain("@better-auth-ui/heroui");
@@ -201,6 +203,19 @@ describe("campus auth UI components", () => {
 		for (const source of [authUIProviderSource, authSource, settingsSource, userButtonSource]) {
 			expect(source).not.toMatch(/from\s+["']better-auth-ui["']/);
 		}
+	});
+
+	it("mounts the HeroUI toast provider used by Better Auth UI error toasts", () => {
+		expect(mainSource).toContain('<ToastProvider placement="top" />');
+		expect(authUIProviderSource).not.toContain('from "sonner"');
+		expect(authUIProviderSource).not.toContain("<ToastProvider");
+	});
+
+	it("does not add a duplicate local auth mutation toast bridge", () => {
+		expect(authUIProviderSource).not.toContain("MutationCache");
+		expect(authUIProviderSource).not.toContain("matchMutation");
+		expect(authUIProviderSource).not.toContain("authMutationKeys");
+		expect(authUIProviderSource).not.toContain("toast.danger");
 	});
 
 	it("uses only page-level layout for Better Auth UI auth views", () => {
@@ -215,6 +230,25 @@ describe("campus auth UI components", () => {
 		expect(container.innerHTML).not.toContain("border-border");
 		expect(container.innerHTML).not.toContain("bg-card");
 		expect(container.innerHTML).not.toContain("shadow-");
+	});
+
+	it("marks auth and settings surfaces for scoped HeroUI theme overrides", () => {
+		render(<Auth view="signIn" />);
+		expect(screen.getByLabelText("account-auth-layout")).toHaveAttribute(
+			"data-campus-account-surface",
+			"auth",
+		);
+
+		render(<Settings view="account" />);
+		expect(screen.getByLabelText("account-settings-layout")).toHaveAttribute(
+			"data-campus-account-surface",
+			"settings",
+		);
+
+		expect(stylesSource).toContain('[data-campus-account-surface="auth"]');
+		expect(stylesSource).toContain('[data-slot="card"]');
+		expect(stylesSource).toContain("--campus-auth-card-shadow: var(--shadow-auth-card)");
+		expect(stylesSource).toContain("--campus-auth-link");
 	});
 
 	it("uses only page-level layout for Better Auth UI account settings", () => {

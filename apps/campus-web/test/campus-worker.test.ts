@@ -264,6 +264,35 @@ describe("campus worker boundary", () => {
 		await expect(response.text()).resolves.toContain("请先登录。");
 	});
 
+	it("does not expose upstream HTML error overlays through app-api proxy routes", async () => {
+		const env = createEnv({
+			fetch() {
+				return new Response("<!doctype html><title>Error</title><body>fetch failed</body>", {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 500,
+				});
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/auth/sign-in/email", {
+				body: JSON.stringify({ email: "wrong@muc.edu.cn", password: "wrongpassword123" }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(503);
+		expect(response.headers.get("content-type")).toContain("application/json");
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: "dependency_not_ready",
+				message: "服务暂不可用，请稍后再试。",
+			},
+		});
+	});
+
 	it("serves Rspress-built docs assets under the campus docs route", async () => {
 		const env = createEnv();
 		env.ASSETS = {

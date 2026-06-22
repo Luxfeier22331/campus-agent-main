@@ -6,6 +6,7 @@ import {
 	toAssistantThreadMetadata,
 } from "../src/features/conversation/assistant-ui-thread-adapter";
 import type { ConversationDetail, ConversationSummary } from "../src/features/conversation/model";
+import { UnauthorizedError } from "../src/platform/api/client";
 
 const conversationApiMock = vi.hoisted(() => ({
 	archiveConversation: vi.fn(),
@@ -85,6 +86,18 @@ describe("assistant-ui thread adapter", () => {
 			["conv_active", "regular"],
 			["conv_archived", "archived"],
 		]);
+	});
+
+	it("treats anonymous thread-list reads as an empty list without console noise", async () => {
+		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
+		conversationApiMock.listConversations.mockRejectedValue(new UnauthorizedError());
+
+		const adapter = createCampusAssistantThreadListAdapter();
+
+		await expect(adapter.list()).resolves.toEqual({ threads: [] });
+		expect(consoleError).not.toHaveBeenCalled();
+
+		consoleError.mockRestore();
 	});
 
 	it("creates a real app-api draft when assistant-ui initializes a new thread", async () => {

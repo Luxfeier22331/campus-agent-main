@@ -4,7 +4,6 @@ import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Link, useNavigate } from "@tanstack/react-router";
 import type { ComponentProps, ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import { Toaster } from "sonner";
 
 import { campusAuthClient } from "@/platform/auth/client";
 import { SIGNUP_LEGAL_CONSENT_FIELD_NAME } from "@/platform/auth/legal-consent";
@@ -196,12 +195,7 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 		},
 	} satisfies Omit<ComponentProps<typeof AuthProvider>, "children">;
 
-	return (
-		<AuthProvider {...commonProps}>
-			{children}
-			<Toaster position="top-center" richColors />
-		</AuthProvider>
-	);
+	return <AuthProvider {...commonProps}>{children}</AuthProvider>;
 }
 
 function SignupLegalConsentLabel() {

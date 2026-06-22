@@ -9,6 +9,8 @@ import {
 import { createAssistantStream } from "assistant-stream";
 import { type PropsWithChildren, useMemo } from "react";
 
+import { UnauthorizedError } from "@/platform/api/client";
+
 import {
 	archiveConversation,
 	createConversationDraft,
@@ -61,8 +63,8 @@ export function createCampusAssistantThreadListAdapter(): RemoteThreadListAdapte
 		},
 		async list() {
 			const [active, archived] = await Promise.all([
-				listConversations({ limit: THREAD_LIST_LIMIT, view: "active" }),
-				listConversations({ limit: THREAD_LIST_LIMIT, view: "archived" }),
+				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "active" }),
+				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "archived" }),
 			]);
 			return {
 				threads: [...active, ...archived].map(toAssistantThreadMetadata),
@@ -76,6 +78,20 @@ export function createCampusAssistantThreadListAdapter(): RemoteThreadListAdapte
 		},
 		unstable_Provider: CampusAssistantThreadHistoryProvider,
 	};
+}
+
+async function listConversationsForOptionalSession(input: {
+	limit: number;
+	view: "active" | "archived";
+}): Promise<ConversationSummary[]> {
+	try {
+		return await listConversations(input);
+	} catch (error) {
+		if (error instanceof UnauthorizedError) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 export function createCampusAssistantThreadHistoryAdapter(

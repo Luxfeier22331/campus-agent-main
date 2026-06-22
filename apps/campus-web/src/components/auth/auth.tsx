@@ -10,7 +10,8 @@ export function Auth({ view }: { view?: CampusAuthView }) {
 		<CampusAuthUIProvider>
 			<section
 				aria-label="account-auth-layout"
-				className="flex min-h-dvh items-center justify-center px-4 py-10"
+				className="flex min-h-dvh items-start justify-center px-4 pb-10 pt-16 sm:pt-20 md:items-center md:py-10"
+				data-campus-account-surface="auth"
 			>
 				<BetterAuthHeroUIAuth className="mx-auto w-full max-w-sm" view={view} />
 			</section>

@@ -20,14 +20,122 @@ export {
 
 type BetterAuthClient = typeof betterAuthClient;
 type BetterAuthSignUpEmail = BetterAuthClient["signUp"]["email"];
+type BetterAuthSignInEmail = BetterAuthClient["signIn"]["email"];
 type CampusSignUpEmailInput = Parameters<BetterAuthSignUpEmail>[0] & {
 	[SIGNUP_LEGAL_CONSENT_FIELD_NAME]?: unknown;
 };
 type CampusAuthClient = Omit<BetterAuthClient, "signUp"> & {
+	signIn: Omit<BetterAuthClient["signIn"], "email"> & {
+		email: (...args: Parameters<BetterAuthSignInEmail>) => ReturnType<BetterAuthSignInEmail>;
+	};
 	signUp: Omit<BetterAuthClient["signUp"], "email"> & {
 		email: (input: CampusSignUpEmailInput) => ReturnType<BetterAuthSignUpEmail>;
 	};
 };
+
+const USER_FACING_AUTH_ERROR_MESSAGES = {
+	emailNotAllowed: "当前邮箱暂不支持注册或登录。请使用学校邮箱，或联系维护者确认账号开放范围。",
+	emailOrPasswordInvalid: "邮箱或密码不正确。",
+	emailRegistered: "这个邮箱已经注册，请直接登录。",
+	generic: "操作失败，请稍后重试。",
+	invalidOrigin: "登录请求来源无效，请刷新页面后重试。",
+	missingCaptcha: "安全验证还没有完成，请稍后再试。",
+} as const;
+
+function stringFromUnknown(value: unknown): string {
+	return typeof value === "string" ? value : "";
+}
+
+function readAuthErrorCode(error: unknown): string {
+	if (error && typeof error === "object" && "code" in error) {
+		return stringFromUnknown(error.code);
+	}
+	return "";
+}
+
+function readAuthErrorMessage(error: unknown): string {
+	if (error && typeof error === "object" && "message" in error) {
+		return stringFromUnknown(error.message);
+	}
+	return "";
+}
+
+function resolveUserFacingAuthErrorMessage(input: { code?: unknown; message?: unknown }): string {
+	const code = stringFromUnknown(input.code);
+	const message = stringFromUnknown(input.message);
+	const normalized = `${code} ${message}`.toLowerCase();
+
+	if (code === "end_user_email_not_allowed" || normalized.includes("email is not allowed")) {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailNotAllowed;
+	}
+	if (code === "MISSING_RESPONSE" || normalized.includes("missing captcha")) {
+		return USER_FACING_AUTH_ERROR_MESSAGES.missingCaptcha;
+	}
+	if (code === "dependency_not_ready") {
+		return message || USER_FACING_AUTH_ERROR_MESSAGES.generic;
+	}
+	if (code === "INVALID_ORIGIN" || normalized.includes("invalid origin")) {
+		return USER_FACING_AUTH_ERROR_MESSAGES.invalidOrigin;
+	}
+	if (
+		code === "INVALID_EMAIL_OR_PASSWORD" ||
+		code === "UNAUTHORIZED" ||
+		normalized.includes("invalid email or password") ||
+		normalized.includes("invalid password") ||
+		normalized.includes("unauthorized")
+	) {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailOrPasswordInvalid;
+	}
+	if (
+		code === "USER_ALREADY_EXISTS" ||
+		code === "USER_EXISTS" ||
+		code === "EMAIL_ALREADY_EXISTS" ||
+		normalized.includes("already exists") ||
+		normalized.includes("already registered")
+	) {
+		return USER_FACING_AUTH_ERROR_MESSAGES.emailRegistered;
+	}
+	return USER_FACING_AUTH_ERROR_MESSAGES.generic;
+}
+
+function localizeResolvedAuthResult<T>(result: T): T {
+	if (!result || typeof result !== "object" || !("error" in result) || !result.error) {
+		return result;
+	}
+	const error = result.error;
+	const message = resolveUserFacingAuthErrorMessage({
+		code: readAuthErrorCode(error),
+		message: readAuthErrorMessage(error),
+	});
+	return {
+		...result,
+		error: {
+			...(typeof error === "object" ? error : {}),
+			message,
+		},
+	} as T;
+}
+
+function localizeThrownAuthError(error: unknown): never {
+	if (error && typeof error === "object") {
+		const nestedError = "error" in error ? error.error : undefined;
+		const message = resolveUserFacingAuthErrorMessage({
+			code: readAuthErrorCode(nestedError),
+			message: readAuthErrorMessage(nestedError) || readAuthErrorMessage(error),
+		});
+		if ("message" in error) {
+			try {
+				Object.assign(error, { message });
+			} catch {
+				// Preserve the original thrown value if the message property is not writable.
+			}
+		}
+		if (nestedError && typeof nestedError === "object") {
+			Object.assign(nestedError, { message });
+		}
+	}
+	throw error;
+}
 
 function headersInitFromUnknown(headers: unknown): HeadersInit | undefined {
 	if (
@@ -56,29 +164,42 @@ async function campusSignUpEmail(input: CampusSignUpEmailInput) {
 		} as Awaited<ReturnType<CampusAuthClient["signUp"]["email"]>>;
 	}
 	const fetchOptions = signUpInput.fetchOptions ?? {};
-	return betterAuthClient.signUp.email({
-		...signUpInput,
-		fetchOptions: {
-			...fetchOptions,
-			headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),
-		},
-	});
+	try {
+		const result = await betterAuthClient.signUp.email({
+			...signUpInput,
+			fetchOptions: {
+				...fetchOptions,
+				headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),
+			},
+		});
+		return localizeResolvedAuthResult(result) as Awaited<
+			ReturnType<CampusAuthClient["signUp"]["email"]>
+		>;
+	} catch (error) {
+		localizeThrownAuthError(error);
+	}
 }
 
-const campusSignUp = new Proxy(betterAuthClient.signUp, {
-	get(target, property, receiver) {
-		if (property === "email") {
-			return campusSignUpEmail;
-		}
-		return Reflect.get(target, property, receiver);
-	},
+async function campusSignInEmail(...args: Parameters<BetterAuthSignInEmail>) {
+	try {
+		const result = await betterAuthClient.signIn.email(...args);
+		return localizeResolvedAuthResult(result) as Awaited<
+			ReturnType<CampusAuthClient["signIn"]["email"]>
+		>;
+	} catch (error) {
+		localizeThrownAuthError(error);
+	}
+}
+
+const campusSignIn = Object.assign(Object.create(betterAuthClient.signIn), {
+	email: campusSignInEmail,
+}) as CampusAuthClient["signIn"];
+
+const campusSignUp = Object.assign(Object.create(betterAuthClient.signUp), {
+	email: campusSignUpEmail,
 }) as CampusAuthClient["signUp"];
 
-export const campusAuthClient = new Proxy(betterAuthClient, {
-	get(target, property, receiver) {
-		if (property === "signUp") {
-			return campusSignUp;
-		}
-		return Reflect.get(target, property, receiver);
-	},
+export const campusAuthClient = Object.assign(Object.create(betterAuthClient), {
+	signIn: campusSignIn,
+	signUp: campusSignUp,
 }) as CampusAuthClient;

@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import authClientSource from "../src/platform/auth/client.ts?raw";
 
 const authClientMock = vi.hoisted(() => ({
 	requestPasswordReset: vi.fn(),
@@ -102,5 +103,75 @@ describe("campus auth client", () => {
 				},
 			}),
 		);
+	});
+
+	it("does not wrap the Better Auth dynamic client in another Proxy", () => {
+		expect(authClientSource).not.toContain("new Proxy");
+	});
+
+	it.each([
+		[
+			"end_user_email_not_allowed",
+			"This email is not allowed for campus sign-in.",
+			"当前邮箱暂不支持注册或登录。请使用学校邮箱，或联系维护者确认账号开放范围。",
+		],
+		["MISSING_RESPONSE", "Missing CAPTCHA response", "安全验证还没有完成，请稍后再试。"],
+		["dependency_not_ready", "服务暂不可用，请稍后再试。", "服务暂不可用，请稍后再试。"],
+		["INVALID_ORIGIN", "Invalid origin", "登录请求来源无效，请刷新页面后重试。"],
+		["INVALID_EMAIL_OR_PASSWORD", "Invalid email or password", "邮箱或密码不正确。"],
+		["USER_ALREADY_EXISTS", "User already exists", "这个邮箱已经注册，请直接登录。"],
+		["UNKNOWN", "Upstream failure", "操作失败，请稍后重试。"],
+	])("localizes Better Auth thrown errors for code %s", async (code, message, expected) => {
+		const upstreamError = Object.assign(new Error(message), {
+			error: {
+				code,
+				message,
+				status: 400,
+				statusText: "Bad Request",
+			},
+		});
+		authClientMock.signInEmail.mockRejectedValue(upstreamError);
+
+		await expect(
+			campusAuthClient.signIn.email({
+				callbackURL: "/account",
+				email: "student@muc.edu.cn",
+				password: "password1234",
+			}),
+		).rejects.toMatchObject({
+			error: expect.objectContaining({
+				code,
+				message: expected,
+			}),
+			message: expected,
+		});
+	});
+
+	it("localizes resolved Better Auth error payloads for sign-up", async () => {
+		authClientMock.signUpEmail.mockResolvedValue({
+			data: null,
+			error: {
+				code: "MISSING_RESPONSE",
+				message: "Missing CAPTCHA response",
+				status: 400,
+				statusText: "Bad Request",
+			},
+		});
+
+		await expect(
+			campusAuthClient.signUp.email({
+				callbackURL: "/account",
+				email: "student@muc.edu.cn",
+				legalConsentAccepted: true,
+				name: "student@muc.edu.cn",
+				password: "password1234",
+			}),
+		).resolves.toMatchObject({
+			data: null,
+			error: {
+				code: "MISSING_RESPONSE",
+				message: "安全验证还没有完成，请稍后再试。",
+			},
+		});
 	});
 });
