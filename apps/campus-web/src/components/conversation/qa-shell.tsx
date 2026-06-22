@@ -1,15 +1,30 @@
 import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant-ui/react";
 import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
-import { useNavigate } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { ThreadConfigProvider, ThreadList } from "@assistant-ui/react-ui";
+import { Link, useNavigate } from "@tanstack/react-router";
+import { type ReactNode, useCallback, useEffect, useMemo } from "react";
 import { UserButton } from "@/components/auth/user/user-button";
-import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
-import { SupportNavigation } from "@/components/conversation/support-navigation";
+import {
+	AssistantConversationSurface,
+	campusThreadConfig,
+} from "@/components/conversation/assistant-conversation-surface";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarHeader,
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
+
+const supportNavItems = [
+	{ label: "文档", to: "/docs" },
+	{ label: "校园地图", to: "/map" },
+	{ label: "饭堂分布图", to: "/dining" },
+	{ emphasis: true, label: "反馈", to: "/feedback" },
+] as const;
 
 export function QAShell({
 	assistantThreadId,
@@ -21,9 +36,7 @@ export function QAShell({
 	topTitle: string;
 }) {
 	const navigate = useNavigate();
-	const [mobileThreadListOpen, setMobileThreadListOpen] = useState(false);
 	const navigateToLogin = useCallback(() => {
-		setMobileThreadListOpen(false);
 		void navigate({
 			search: { redirectTo: readCurrentRouteTarget() },
 			to: "/account/login",
@@ -50,44 +63,59 @@ export function QAShell({
 
 	return (
 		<AssistantRemoteRuntimeFrame onLoginRequired={navigateToLogin} threadId={assistantThreadId}>
-			<div className="flex min-h-dvh flex-col bg-background text-foreground">
-				<header className="shrink-0 border-b bg-background/95 px-4 backdrop-blur-sm lg:px-5">
-					<div className="flex min-h-14 items-center justify-between gap-3">
-						<div className="flex min-w-0 items-center gap-3">
-							<Button
-								aria-label="打开聊天记录"
-								className="lg:hidden"
-								onClick={() => setMobileThreadListOpen(true)}
-								size="icon-lg"
-								type="button"
-								variant="ghost"
-							>
-								<Menu aria-hidden="true" className="size-5" />
-							</Button>
-							<div className="min-w-0">
-								<p className="truncate text-sm font-semibold text-foreground">
-									中央民族大学校园问答
-								</p>
-								<p className="truncate text-xs text-muted-foreground">{topTitle}</p>
+			<SidebarProvider>
+				<div className="flex min-h-dvh flex-col bg-background text-foreground">
+					<header className="shrink-0 border-b bg-background/95 px-4 backdrop-blur-sm lg:px-5">
+						<div className="flex min-h-14 items-center justify-between gap-3">
+							<div className="flex min-w-0 items-center gap-3">
+								<SidebarTrigger aria-label="打开聊天记录" />
+								<div className="min-w-0">
+									<p className="truncate text-sm font-semibold text-foreground">
+										中央民族大学校园问答
+									</p>
+									<p className="truncate text-xs text-muted-foreground">{topTitle}</p>
+								</div>
+							</div>
+							<div className="flex min-w-0 items-center gap-3">
+								<nav aria-label="支撑页面导航" className="hidden items-center gap-3 md:flex">
+									{supportNavItems.map((item) => (
+										<Button
+											asChild
+											className={[
+												"min-h-8 rounded-md px-2.5 text-xs",
+												"emphasis" in item && item.emphasis
+													? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+													: "",
+											].join(" ")}
+											key={item.to}
+											size="sm"
+											variant="ghost"
+										>
+											<Link to={item.to}>{item.label}</Link>
+										</Button>
+									))}
+								</nav>
+								<UserButton />
 							</div>
 						</div>
-						<div className="flex min-w-0 items-center gap-3">
-							<SupportNavigation className="hidden md:flex" />
-							<UserButton />
-						</div>
+					</header>
+					<div className="flex min-h-0 flex-1">
+						<Sidebar className="bg-[var(--chat-sidebar-bg)]" title="聊天记录">
+							<SidebarHeader>
+								<h2 className="text-sm font-semibold text-foreground">聊天记录</h2>
+							</SidebarHeader>
+							<SidebarContent>
+								<ThreadConfigProvider config={campusThreadConfig}>
+									<ThreadList />
+								</ThreadConfigProvider>
+							</SidebarContent>
+						</Sidebar>
+						<SidebarInset data-testid="assistant-chat">
+							<AssistantConversationSurface />
+						</SidebarInset>
 					</div>
-				</header>
-				<div className="grid min-h-0 flex-1 lg:grid-cols-[var(--layout-chat-sidebar-width)_minmax(0,1fr)]">
-					<aside className="hidden min-h-0 border-r bg-[var(--chat-sidebar-bg)] px-2.5 py-3 lg:block">
-						<h2 className="px-2.5 pb-2 text-xs font-medium text-muted-foreground">聊天记录</h2>
-						<ThreadList />
-					</aside>
-					<main className="min-h-0 min-w-0" data-testid="assistant-chat">
-						<AssistantConversationSurface />
-					</main>
 				</div>
-				<MobileThreadList onOpenChange={setMobileThreadListOpen} open={mobileThreadListOpen} />
-			</div>
+			</SidebarProvider>
 		</AssistantRemoteRuntimeFrame>
 	);
 }
@@ -136,30 +164,4 @@ function createCampusDataStreamRuntimeHook(onLoginRequired: () => void) {
 			sendExtraMessageFields: true,
 		});
 	};
-}
-
-function MobileThreadList({
-	onOpenChange,
-	open,
-}: {
-	onOpenChange: (open: boolean) => void;
-	open: boolean;
-}) {
-	return (
-		<Sheet onOpenChange={onOpenChange} open={open}>
-			<SheetContent
-				className="w-[min(88vw,var(--layout-chat-sidebar-width))] bg-[var(--chat-sidebar-bg)] p-0 lg:hidden"
-				closeLabel="关闭聊天记录"
-				side="left"
-			>
-				<SheetHeader className="border-b px-3 py-3">
-					<SheetTitle>聊天记录</SheetTitle>
-				</SheetHeader>
-				<div className="min-h-0 flex-1 overflow-y-auto px-2.5 py-3">
-					<h2 className="px-2.5 pb-2 text-xs font-medium text-muted-foreground">聊天记录</h2>
-					<ThreadList />
-				</div>
-			</SheetContent>
-		</Sheet>
-	);
 }

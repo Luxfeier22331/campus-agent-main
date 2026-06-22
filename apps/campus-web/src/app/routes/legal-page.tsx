@@ -1,8 +1,9 @@
 import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
-import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 
 const EFFECTIVE_DATE = "2026-06-18";
 
@@ -98,34 +99,33 @@ function LegalDocumentShell({
 	title: string;
 }) {
 	return (
-		<SupportSurfaceShell
-			className="max-w-4xl"
-			eyebrow={`生效日期：${EFFECTIVE_DATE}`}
-			title={title}
-		>
-			<Card className="p-5 md:p-7">
+		<section className="mx-auto max-w-4xl px-4 py-6 pb-24 lg:px-6">
+			<p className="text-sm font-medium text-[var(--sys-text-muted)]">生效日期：{EFFECTIVE_DATE}</p>
+			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
+				{title}
+			</h1>
+			<Separator className="mt-5" />
+			<Card className="mt-5 p-5 md:p-7">
 				<div className="space-y-7 text-sm leading-7 text-[var(--sys-text-muted)]">
 					{children}
 					<div className="border-t border-border pt-5">
 						<p>
 							如需联系服务维护者，请通过
-							<Link
-								className="font-medium text-primary hover:text-primary/80"
-								search={{ source: "legal" }}
-								to="/feedback"
-							>
-								反馈
-							</Link>
+							<Button asChild className="mx-1 h-auto min-h-0 px-0" variant="link">
+								<Link search={{ source: "legal" }} to="/feedback">
+									反馈
+								</Link>
+							</Button>
 							提交说明。你也可以查看
-							<Link className="font-medium text-primary hover:text-primary/80" to={peerHref}>
-								{peerLabel}
-							</Link>
+							<Button asChild className="mx-1 h-auto min-h-0 px-0" variant="link">
+								<Link to={peerHref}>{peerLabel}</Link>
+							</Button>
 							。
 						</p>
 					</div>
 				</div>
 			</Card>
-		</SupportSurfaceShell>
+		</section>
 	);
 }
 

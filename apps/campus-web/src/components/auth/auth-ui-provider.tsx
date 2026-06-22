@@ -4,6 +4,7 @@ import type { ComponentProps, ReactNode } from "react";
 import { Toaster } from "sonner";
 
 import { campusAuthClient } from "@/platform/auth/client";
+import { SIGNUP_LEGAL_CONSENT_FIELD_NAME } from "@/platform/auth/legal-consent";
 import { resolveAccountAuthReturnTarget } from "@/platform/auth/return-target";
 import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
@@ -53,6 +54,13 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 			viewPaths: {
 				SECURITY: "settings/security",
 				SETTINGS: "settings/account",
+			},
+		},
+		additionalFields: {
+			[SIGNUP_LEGAL_CONSENT_FIELD_NAME]: {
+				label: <SignupLegalConsentLabel />,
+				required: true,
+				type: "boolean" as const,
 			},
 		},
 		authClient: campusAuthClient,
@@ -129,7 +137,7 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 			void navigate({ replace: true, to: href });
 		},
 		signUp: {
-			fields: ["name"],
+			fields: ["name", SIGNUP_LEGAL_CONSENT_FIELD_NAME],
 		},
 		viewPaths: {
 			FORGOT_PASSWORD: "forgot-password",
@@ -144,5 +152,24 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 			{children}
 			<Toaster position="top-center" richColors />
 		</AuthUIProviderTanstack>
+	);
+}
+
+function SignupLegalConsentLabel() {
+	return (
+		<span>
+			我已阅读并同意
+			<AuthLink className="mx-1 font-medium text-primary hover:text-primary/80" href="/legal/terms">
+				用户服务协议
+			</AuthLink>
+			和
+			<AuthLink
+				className="mx-1 font-medium text-primary hover:text-primary/80"
+				href="/legal/privacy"
+			>
+				隐私政策
+			</AuthLink>
+			。
+		</span>
 	);
 }

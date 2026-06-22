@@ -9,8 +9,11 @@ import type {
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
+import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
+import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 export function HallGrid({
 	halls,
@@ -22,7 +25,14 @@ export function HallGrid({
 	selectedHallId: string;
 }) {
 	if (halls.length === 0) {
-		return <p className="rounded-xl border border-border bg-white p-4 text-sm">没有匹配的食堂。</p>;
+		return (
+			<Empty>
+				<EmptyHeader>
+					<EmptyTitle>没有匹配的食堂</EmptyTitle>
+					<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
+				</EmptyHeader>
+			</Empty>
+		);
 	}
 	return (
 		<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
@@ -66,31 +76,61 @@ export function TagFilters({
 	tags: string[];
 }) {
 	return (
-		<div className="flex flex-wrap gap-2">
-			<Button
-				aria-pressed={!selectedTag}
-				className={cn(
-					"min-h-9 rounded-full px-3 text-[var(--sys-text-muted)]",
-					!selectedTag && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
-				)}
-				onClick={() => onSelectTag(null)}
-				variant="secondary"
-			>
+		<ToggleGroup
+			aria-label="餐饮标签"
+			onValueChange={(value) => onSelectTag(value || null)}
+			type="single"
+			value={selectedTag ?? "all"}
+		>
+			<ToggleGroupItem className="rounded-full" value="all">
 				全部
-			</Button>
+			</ToggleGroupItem>
 			{tags.map((tag) => (
-				<Button
-					aria-pressed={selectedTag === tag}
-					className={cn(
-						"min-h-9 rounded-full px-3 text-[var(--sys-text-muted)]",
-						selectedTag === tag &&
-							"border-[var(--sys-text-strong)] bg-[var(--sys-brand-interactive-subtle)] text-[var(--sys-text-strong)]",
-					)}
-					key={tag}
-					onClick={() => onSelectTag(tag)}
-					variant="secondary"
-				>
+				<ToggleGroupItem className="rounded-full" key={tag} value={tag}>
 					{tag}
+				</ToggleGroupItem>
+			))}
+		</ToggleGroup>
+	);
+}
+
+export function WindowList({
+	onSelectWindow,
+	selectedWindowId,
+	windows,
+}: {
+	onSelectWindow(windowId: string): void;
+	selectedWindowId: string | null;
+	windows: DiningWindowProjection[];
+}) {
+	if (windows.length === 0) {
+		return (
+			<Empty className="bg-white">
+				<EmptyHeader>
+					<EmptyTitle>没有匹配的餐饮点</EmptyTitle>
+					<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
+				</EmptyHeader>
+			</Empty>
+		);
+	}
+	return (
+		<div className="max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
+			{windows.map((window) => (
+				<Button
+					className={cn(
+						"flex w-full flex-col items-start justify-start rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
+						selectedWindowId === window.windowId && "bg-[var(--sys-brand-interactive-subtle)]",
+					)}
+					key={window.windowId}
+					onClick={() => onSelectWindow(window.windowId)}
+					variant="ghost"
+				>
+					<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
+						{window.assignment?.stallProfile.displayName ?? window.label}
+					</span>
+					<span className="mt-1 block text-xs text-[var(--sys-text-muted)]">
+						{window.locationLabel}
+					</span>
 				</Button>
 			))}
 		</div>
@@ -250,50 +290,15 @@ function DiningFloorplanZoomSurface({
 	);
 }
 
-export function WindowList({
-	onSelectWindow,
-	selectedWindowId,
-	windows,
-}: {
-	onSelectWindow(windowId: string): void;
-	selectedWindowId: string | null;
-	windows: DiningWindowProjection[];
-}) {
-	if (windows.length === 0) {
-		return (
-			<p className="rounded-xl border border-border bg-white p-4 text-sm">没有匹配的餐饮点。</p>
-		);
-	}
-	return (
-		<div className="max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
-			{windows.map((window) => (
-				<Button
-					className={cn(
-						"flex w-full flex-col items-start justify-start rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
-						selectedWindowId === window.windowId && "bg-[var(--sys-brand-interactive-subtle)]",
-					)}
-					key={window.windowId}
-					onClick={() => onSelectWindow(window.windowId)}
-					variant="ghost"
-				>
-					<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
-						{window.assignment?.stallProfile.displayName ?? window.label}
-					</span>
-					<span className="mt-1 block text-xs text-[var(--sys-text-muted)]">
-						{window.locationLabel}
-					</span>
-				</Button>
-			))}
-		</div>
-	);
-}
-
 export function WindowDetail({ window }: { window: DiningWindowProjection | null }) {
 	if (!window) {
 		return (
-			<p className="rounded-xl border border-border bg-white p-4 text-sm">
-				选择餐饮点后查看菜品和价格。
-			</p>
+			<Empty className="bg-white">
+				<EmptyHeader>
+					<EmptyTitle>选择餐饮点</EmptyTitle>
+					<EmptyDescription>选择餐饮点后查看菜品和价格。</EmptyDescription>
+				</EmptyHeader>
+			</Empty>
 		);
 	}
 	const offerings = window.assignment?.offerings ?? [];
@@ -306,12 +311,9 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 				</h2>
 				<div className="mt-3 flex flex-wrap gap-2">
 					{window.tags.map((tag) => (
-						<span
-							className="rounded-full bg-[var(--sys-bg-muted)] px-2 py-1 text-xs text-[var(--sys-text-muted)]"
-							key={tag}
-						>
+						<Badge key={tag} variant="muted">
 							{tag}
-						</span>
+						</Badge>
 					))}
 				</div>
 			</div>
@@ -329,7 +331,12 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 						</div>
 					))
 				) : (
-					<p className="p-4 text-sm text-[var(--sys-text-muted)]">当前餐饮点没有已发布菜品。</p>
+					<Empty className="m-4 min-h-24">
+						<EmptyHeader>
+							<EmptyTitle>暂无菜品</EmptyTitle>
+							<EmptyDescription>当前餐饮点没有已发布菜品。</EmptyDescription>
+						</EmptyHeader>
+					</Empty>
 				)}
 			</div>
 		</Card>

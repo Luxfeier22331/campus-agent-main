@@ -47,7 +47,7 @@ Account browser UI 当前形态：
   `better-auth-ui` 的 `AccountView` 承接
 - Q&A 顶栏账号入口由 `better-auth-ui` 的 `UserButton` 承接
 - `campus-web` 只保留 route composition、中文文案、Turnstile runtime config、
-  return target 和注册前用户协议 / 隐私政策勾选 gate
+  return target，以及通过 Better Auth UI required field 注入的注册协议确认
 - 账号 surface 的通用按钮、卡片、勾选框与弹层 primitive 通过 shadcn/Radix
   wrappers 承接；`campus-web` 不再维护第二套账号表单、登录弹窗或账号设置产品组件
 
@@ -112,7 +112,8 @@ browser-shell-local policy duplication.
 
 - browser route shell for campus/account routes
 - account route composition
-- Better Auth UI provider wiring, localization and minimal app-specific legal gate
+- Better Auth UI provider wiring, localization and non-persistent registration
+  legal consent field wiring
 - return target validation for browser navigation
 - campus app grid/navigation presentation
 

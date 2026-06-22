@@ -2,10 +2,13 @@ import { List, LocateFixed, MapPin, X } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
 	groupMapPlacesForDisplay,
 	type MapPlaceView,
@@ -114,12 +117,9 @@ function MapProductNav() {
 
 function MapNavLink({ children, href }: { children: string; href: string }) {
 	return (
-		<a
-			className="inline-flex min-h-8 items-center rounded-full px-2.5 text-[var(--sys-text-muted)] outline-none hover:bg-white/72 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
-			href={href}
-		>
-			{children}
-		</a>
+		<Button asChild className="min-h-8 rounded-full px-2.5 text-xs" size="sm" variant="ghost">
+			<a href={href}>{children}</a>
+		</Button>
 	);
 }
 
@@ -345,19 +345,27 @@ function CampusSelector({
 	onCampusChange: (campus: string) => void;
 }) {
 	return (
-		<fieldset className="flex gap-1.5 overflow-x-auto pb-0.5">
-			<legend className="sr-only">选择校区</legend>
+		<ToggleGroup
+			aria-label="选择校区"
+			className="flex-nowrap overflow-x-auto pb-0.5"
+			onValueChange={(value) => {
+				if (value) {
+					onCampusChange(value);
+				}
+			}}
+			type="single"
+			value={campus}
+		>
 			{campuses.map((item) => (
-				<FilterButton
-					active={campus === item}
-					isDesktop={isDesktop}
+				<ToggleGroupItem
+					className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
 					key={item}
-					onClick={() => onCampusChange(item)}
+					value={item}
 				>
 					{item}
-				</FilterButton>
+				</ToggleGroupItem>
 			))}
-		</fieldset>
+		</ToggleGroup>
 	);
 }
 
@@ -381,54 +389,33 @@ function CategoryFilters({
 	onCategoryChange: (campus: MapTaskFilter) => void;
 }) {
 	return (
-		<fieldset className="flex gap-1.5 overflow-x-auto pb-0.5">
-			<legend className="sr-only">地点类型</legend>
-			<FilterButton
-				active={category === "all"}
-				isDesktop={isDesktop}
-				onClick={() => onCategoryChange("all")}
+		<ToggleGroup
+			aria-label="地点类型"
+			className="flex-nowrap overflow-x-auto pb-0.5"
+			onValueChange={(value) => {
+				if (value) {
+					onCategoryChange(value as MapTaskFilter);
+				}
+			}}
+			type="single"
+			value={category}
+		>
+			<ToggleGroupItem
+				className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
+				value="all"
 			>
 				全部
-			</FilterButton>
+			</ToggleGroupItem>
 			{categories.map((item) => (
-				<FilterButton
-					active={category === item.value}
-					isDesktop={isDesktop}
+				<ToggleGroupItem
+					className={cn("shrink-0 rounded-full", isDesktop ? "min-h-9" : "min-h-11")}
 					key={item.value}
-					onClick={() => onCategoryChange(item.value)}
+					value={item.value}
 				>
 					{item.label}
-				</FilterButton>
+				</ToggleGroupItem>
 			))}
-		</fieldset>
-	);
-}
-
-function FilterButton({
-	active,
-	children,
-	isDesktop,
-	onClick,
-}: {
-	active: boolean;
-	children: string;
-	isDesktop: boolean;
-	onClick: () => void;
-}) {
-	return (
-		<Button
-			aria-pressed={active}
-			className={cn(
-				"inline-flex shrink-0 items-center rounded-full border border-white/70 bg-white/58 font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] outline-none hover:bg-white/80 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]",
-				isDesktop ? "min-h-9 px-3 text-sm" : "min-h-11 px-3.5 text-sm",
-				active &&
-					"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white hover:bg-[var(--sys-text-default)] hover:text-white",
-			)}
-			onClick={onClick}
-			variant="ghost"
-		>
-			{children}
-		</Button>
+		</ToggleGroup>
 	);
 }
 
@@ -449,7 +436,12 @@ function PlaceList({
 	if (places.length === 0) {
 		return (
 			<section aria-label="地点结果">
-				<InlineEmptyState message="没有找到匹配地点。" />
+				<Empty className="border-transparent bg-transparent">
+					<EmptyHeader>
+						<EmptyTitle>没有找到匹配地点。</EmptyTitle>
+						<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
 			</section>
 		);
 	}
@@ -585,12 +577,9 @@ function MapPlacePopover({
 					</div>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{place.displayTags.map((tag) => (
-							<span
-								className="rounded-full bg-[var(--sys-bg-muted)] px-3 py-1 text-xs text-[var(--sys-text-muted)]"
-								key={tag}
-							>
+							<Badge key={tag} variant="muted">
 								{tag}
-							</span>
+							</Badge>
 						))}
 					</div>
 				</div>
@@ -666,10 +655,6 @@ function MapAssetNotice({ campus }: { campus: string }) {
 			</div>
 		</div>
 	);
-}
-
-function InlineEmptyState({ message }: { message: string }) {
-	return <div className="px-3 py-6 text-sm text-[var(--sys-text-muted)]">{message}</div>;
 }
 
 function useIsDesktopMap() {

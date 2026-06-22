@@ -1,29 +1,51 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
-import { type ReactNode, Suspense } from "react";
+import { Suspense } from "react";
 
 import { CampusAuthUIProvider } from "@/components/auth/auth-ui-provider";
-import { SupportNavigation } from "@/components/conversation/support-navigation";
-import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+
+const supportNavItems = [
+	{ label: "文档", to: "/docs" },
+	{ label: "校园地图", to: "/map" },
+	{ label: "饭堂分布图", to: "/dining" },
+	{ emphasis: true, label: "反馈", to: "/feedback" },
+] as const;
+
+const queryClient = new QueryClient({
+	defaultOptions: {
+		queries: {
+			refetchOnWindowFocus: false,
+			retry: false,
+			staleTime: 30_000,
+		},
+	},
+});
 
 export function RootLayout() {
 	const location = useLocation();
 	const isQaRoute = location.pathname === "/" || location.pathname.startsWith("/c/");
 	const isMapRoute = location.pathname === "/map";
 	return (
-		<div className="min-h-dvh bg-background text-foreground">
-			{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
-			<CampusAuthUIProvider>
-				<main>
-					<Suspense fallback={<RoutePending />}>
-						<Outlet />
-					</Suspense>
-				</main>
-			</CampusAuthUIProvider>
-		</div>
+		<QueryClientProvider client={queryClient}>
+			<div className="min-h-dvh bg-background text-foreground">
+				{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
+				<CampusAuthUIProvider>
+					<main>
+						<Suspense fallback={<RoutePending />}>
+							<Outlet />
+						</Suspense>
+					</main>
+				</CampusAuthUIProvider>
+			</div>
+		</QueryClientProvider>
 	);
 }
 
 function SupportPageHeader({ activePath }: { activePath: string }) {
+	const visibleItems = supportNavItems.filter(
+		(item) => !(activePath === "/map" && item.to === "/feedback"),
+	);
 	return (
 		<header className="sticky top-0 z-30 border-b border-border bg-white">
 			<div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
@@ -37,16 +59,56 @@ function SupportPageHeader({ activePath }: { activePath: string }) {
 						</span>
 					</span>
 				</Link>
-				<SupportNavigation activePath={activePath} className="hidden md:flex" />
+				<nav aria-label="支撑页面导航" className="hidden items-center gap-3 md:flex">
+					{visibleItems.map((item) => (
+						<Button
+							asChild
+							className={[
+								"min-h-8 rounded-md px-2.5 text-xs",
+								isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
+								"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
+									? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+									: "",
+							].join(" ")}
+							key={item.to}
+							size="sm"
+							variant="ghost"
+						>
+							<Link to={item.to}>{item.label}</Link>
+						</Button>
+					))}
+				</nav>
 			</div>
 			<div className="mx-auto max-w-[1440px] px-4 lg:px-6">
-				<SupportNavigation
-					activePath={activePath}
+				<nav
+					aria-label="支撑页面导航"
 					className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden"
-				/>
+				>
+					{visibleItems.map((item) => (
+						<Button
+							asChild
+							className={[
+								"min-h-8 rounded-md px-2.5 text-xs",
+								isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
+								"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
+									? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+									: "",
+							].join(" ")}
+							key={item.to}
+							size="sm"
+							variant="ghost"
+						>
+							<Link to={item.to}>{item.label}</Link>
+						</Button>
+					))}
+				</nav>
 			</div>
 		</header>
 	);
+}
+
+function isSupportNavActive(activePath: string, itemPath: string) {
+	return itemPath === "/docs" ? activePath.startsWith("/docs") : activePath === itemPath;
 }
 
 function RoutePending() {
@@ -65,32 +127,9 @@ export function NotFoundPage() {
 				页面不存在
 			</h1>
 			<p className="mt-3 text-[var(--sys-text-muted)]">这个页面暂时无法打开，请返回首页继续。</p>
-			<Link
-				className="mt-8 inline-flex min-h-11 w-fit items-center rounded-lg bg-primary px-4 text-sm font-medium text-white"
-				to="/"
-			>
-				返回首页
-			</Link>
+			<Button asChild className="mt-8 w-fit">
+				<Link to="/">返回首页</Link>
+			</Button>
 		</section>
 	);
-}
-
-export function ShellSection({ children, className }: { children: ReactNode; className?: string }) {
-	return (
-		<section className={cn("mx-auto w-full px-5 py-14 lg:px-8 lg:py-20", className)}>
-			{children}
-		</section>
-	);
-}
-
-export function PageTitle({ children }: { children: ReactNode }) {
-	return (
-		<h1 className="text-4xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
-			{children}
-		</h1>
-	);
-}
-
-export function PageDescription({ children }: { children: ReactNode }) {
-	return <p className="mt-3 text-base leading-7 text-[var(--sys-text-muted)]">{children}</p>;
 }

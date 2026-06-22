@@ -3,7 +3,9 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MapExperience } from "@/components/map/map-experience";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
+import { Alert } from "@/components/ui/alert";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getCampusMapPlaces } from "@/features/map/api";
 import {
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
@@ -346,11 +348,14 @@ export function MapPage() {
 		<>
 			{error ? (
 				<MapStateShell>
-					<ErrorPanel message={error} />
+					<Alert variant="destructive">{error}</Alert>
 				</MapStateShell>
 			) : loading ? (
 				<MapStateShell>
-					<LoadingPanel label="正在读取地图" />
+					<div className="rounded-lg border border-border bg-card p-6" role="status">
+						<Skeleton className="h-4 w-32" />
+						<span className="sr-only">正在读取地图</span>
+					</div>
 				</MapStateShell>
 			) : data && selectedCampusProfile ? (
 				<MapExperience
@@ -374,7 +379,12 @@ export function MapPage() {
 				/>
 			) : (
 				<MapStateShell>
-					<EmptyPanel message="当前没有可展示的地图地点。" />
+					<Empty>
+						<EmptyHeader>
+							<EmptyTitle>暂无内容</EmptyTitle>
+							<EmptyDescription>当前没有可展示的地图地点。</EmptyDescription>
+						</EmptyHeader>
+					</Empty>
 				</MapStateShell>
 			)}
 		</>

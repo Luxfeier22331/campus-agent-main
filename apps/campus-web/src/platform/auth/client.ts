@@ -1,23 +1,34 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
+import { passkeyClient } from "@better-auth/passkey/client";
 import { createAuthClient } from "better-auth/react";
 
 import {
 	buildSignupLegalConsentHeaders,
-	isSignupLegalConsentAccepted,
+	SIGNUP_LEGAL_CONSENT_FIELD_NAME,
 	SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
 } from "./legal-consent";
 
 const betterAuthClient = createAuthClient({
-	plugins: [oauthProviderClient()],
+	plugins: [oauthProviderClient(), passkeyClient()],
 });
 
 export {
+	SIGNUP_LEGAL_CONSENT_FIELD_NAME,
 	SIGNUP_LEGAL_CONSENT_HEADER_NAME,
 	SIGNUP_LEGAL_CONSENT_HEADER_VALUE,
 	SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
 } from "./legal-consent";
 
-type CampusAuthClient = typeof betterAuthClient;
+type BetterAuthClient = typeof betterAuthClient;
+type BetterAuthSignUpEmail = BetterAuthClient["signUp"]["email"];
+type CampusSignUpEmailInput = Parameters<BetterAuthSignUpEmail>[0] & {
+	[SIGNUP_LEGAL_CONSENT_FIELD_NAME]?: unknown;
+};
+type CampusAuthClient = Omit<BetterAuthClient, "signUp"> & {
+	signUp: Omit<BetterAuthClient["signUp"], "email"> & {
+		email: (input: CampusSignUpEmailInput) => ReturnType<BetterAuthSignUpEmail>;
+	};
+};
 
 function headersInitFromUnknown(headers: unknown): HeadersInit | undefined {
 	if (
@@ -35,8 +46,10 @@ export const campusAuthClient: CampusAuthClient = {
 	...betterAuthClient,
 	signUp: {
 		...betterAuthClient.signUp,
-		email: async (input: Parameters<CampusAuthClient["signUp"]["email"]>[0]) => {
-			if (!isSignupLegalConsentAccepted()) {
+		email: async (input: CampusSignUpEmailInput) => {
+			const { [SIGNUP_LEGAL_CONSENT_FIELD_NAME]: legalConsentAccepted, ...signUpInput } =
+				input as CampusSignUpEmailInput;
+			if (legalConsentAccepted !== true) {
 				return {
 					data: null,
 					error: {
@@ -47,9 +60,9 @@ export const campusAuthClient: CampusAuthClient = {
 					},
 				} as Awaited<ReturnType<CampusAuthClient["signUp"]["email"]>>;
 			}
-			const fetchOptions = input.fetchOptions ?? {};
+			const fetchOptions = signUpInput.fetchOptions ?? {};
 			return betterAuthClient.signUp.email({
-				...input,
+				...signUpInput,
 				fetchOptions: {
 					...fetchOptions,
 					headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),

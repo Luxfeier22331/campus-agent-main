@@ -124,8 +124,7 @@ describe("Q&A product interactions", () => {
 		expect(newConversationButton).toBeInTheDocument();
 		expect(await screen.findByText("聊天记录")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "国家奖学金" })).toBeInTheDocument();
-		expect(screen.getByText("已归档")).toBeInTheDocument();
-		expect(await screen.findByRole("button", { name: "已归档问题" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "已归档问题" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(designTokensSource).toContain("--layout-chat-sidebar-width: 260px;");

@@ -2,9 +2,12 @@ import { useLocation } from "@tanstack/react-router";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
-import { ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
-import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
+import { Alert } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { Separator } from "@/components/ui/separator";
+import { Skeleton } from "@/components/ui/skeleton";
 import { getDocsNavigation, resolveDocument } from "@/features/docs/api";
 import type { DocsNavigationResponse, DocsResolveResponse } from "@/features/docs/model";
 import {
@@ -85,33 +88,40 @@ export function DocsPage() {
 	}, [routeTarget]);
 
 	return (
-		<SupportSurfaceShell
-			className="max-w-[960px]"
-			contentClassName="grid place-items-start"
-			eyebrow="校园文档"
-			title="文档"
-		>
-			{state.status === "error" ? (
-				<ErrorPanel message={state.message} />
-			) : (
-				<Card className="w-full max-w-2xl p-5">
-					{state.status === "loading" ? (
-						<div className="mt-4">
-							<LoadingPanel
-								label={routeTarget.kind === "collection" ? "正在读取文档目录" : "正在准备文档"}
-							/>
-						</div>
-					) : state.status === "collection" ? (
-						<CollectionDirectory navigation={state.navigation} />
-					) : (
-						<>
-							<p className="text-sm font-medium text-[var(--sys-text-muted)]">正在打开文档</p>
-							<ReaderHandoff document={state.document} readerState={routeTarget.readerState} />
-						</>
-					)}
-				</Card>
-			)}
-		</SupportSurfaceShell>
+		<section className="mx-auto max-w-[960px] px-4 py-6 pb-24 lg:px-6">
+			<div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+				<div className="min-w-0">
+					<p className="text-sm font-medium text-[var(--sys-text-muted)]">校园文档</p>
+					<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
+						文档
+					</h1>
+				</div>
+			</div>
+			<Separator className="mt-5" />
+			<div className="mt-5 grid place-items-start">
+				{state.status === "error" ? (
+					<Alert variant="destructive">{state.message}</Alert>
+				) : (
+					<Card className="w-full max-w-2xl p-5">
+						{state.status === "loading" ? (
+							<div className="mt-4 rounded-lg border border-border bg-card p-6" role="status">
+								<Skeleton className="h-4 w-32" />
+								<span className="sr-only">
+									{routeTarget.kind === "collection" ? "正在读取文档目录" : "正在准备文档"}
+								</span>
+							</div>
+						) : state.status === "collection" ? (
+							<CollectionDirectory navigation={state.navigation} />
+						) : (
+							<>
+								<p className="text-sm font-medium text-[var(--sys-text-muted)]">正在打开文档</p>
+								<ReaderHandoff document={state.document} readerState={routeTarget.readerState} />
+							</>
+						)}
+					</Card>
+				)}
+			</div>
+		</section>
 	);
 }
 
@@ -142,7 +152,12 @@ function CollectionDirectory({ navigation }: { navigation: DocsNavigationRespons
 					))}
 				</ul>
 			) : (
-				<p className="mt-5 text-sm text-[var(--sys-text-muted)]">当前没有可阅读的文档。</p>
+				<Empty className="mt-5">
+					<EmptyHeader>
+						<EmptyTitle>暂无文档</EmptyTitle>
+						<EmptyDescription>当前没有可阅读的文档。</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
 			)}
 		</>
 	);
@@ -168,13 +183,12 @@ function ReaderHandoff({
 			<h2 className="mt-2 text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]">
 				{document.document.title}
 			</h2>
-			<a
-				className="mt-5 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-medium text-white"
-				href={readerHref}
-			>
-				继续打开
-				<ExternalLink aria-hidden="true" className="size-4" />
-			</a>
+			<Button asChild className="mt-5">
+				<a href={readerHref}>
+					继续打开
+					<ExternalLink aria-hidden="true" className="size-4" />
+				</a>
+			</Button>
 		</>
 	);
 }

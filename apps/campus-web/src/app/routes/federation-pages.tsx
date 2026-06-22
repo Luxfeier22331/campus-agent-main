@@ -5,7 +5,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { type CampusOAuthContext, resolveCampusOAuthContext } from "@/platform/auth/oauth-context";
-import { ShellSection } from "../root-layout";
 
 export function FederationConsentPage() {
 	const oauthContext = useMemo(readOAuthContext, []);
@@ -85,11 +84,11 @@ function readOAuthError(): { description: string; title: string } {
 
 function FederationPageShell({ children }: { children: ReactNode }) {
 	return (
-		<ShellSection className="max-w-lg py-10 lg:py-14">
+		<section className="mx-auto w-full max-w-lg px-5 py-10 lg:px-8 lg:py-14">
 			<Card className="rounded-lg border-input shadow-none">
 				<CardContent className="p-6 sm:p-8">{children}</CardContent>
 			</Card>
-		</ShellSection>
+		</section>
 	);
 }
 

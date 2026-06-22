@@ -252,7 +252,7 @@ Current implemented truth:
   `/account/settings/security`. Auth and account settings UI are composed from
   `better-auth-ui` (`AuthView`, `AccountView`, `UserButton`) with campus-owned
   route wiring, localization, Turnstile runtime config and non-persistent
-  registration legal gate.
+  registration legal consent field wiring.
 - Campus identity/access/preferences product projections remain owned by
   `apps/app-api` (`/api/me/*`). They are not implemented as custom
   `campus-web` auth/settings components and are not sourced from raw Better

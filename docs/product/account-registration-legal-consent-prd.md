@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-22
 ---
 
 # Account Registration Legal Consent PRD
@@ -43,16 +43,18 @@ updated: 2026-06-18
 
 ### 5.1 注册页协议确认
 
-在 `/account/register` 注册表单提交按钮前展示 checkbox：
+在 `/account/register` 的 Better Auth UI 注册表单中展示必填 boolean field：
 
 > 我已阅读并同意《用户服务协议》和《隐私政策》。
 
 要求：
 
 - 默认未勾选。
-- 未勾选时点击注册，不触发 Turnstile，不提交注册请求。
+- 未勾选时阻止注册请求，并显示同一条用户可理解错误。
 - 显示错误：`请先阅读并同意用户服务协议和隐私政策。`
-- 勾选后才允许进入安全验证和注册请求。
+- 勾选后注册请求携带服务端可校验的协议确认 header。
+- 协议确认不控制 Turnstile 是否展示或执行；Turnstile 属于独立的 auth
+  admission hardening。
 - 协议链接应可被键盘访问，且不得破坏表单基础可用性。
 
 ### 5.2 服务端注册准入
@@ -133,7 +135,7 @@ x-campus-legal-accepted: terms-and-privacy
 
 ## 7. 交互与错误状态
 
-- 未勾选协议：表单内错误提示，不触发网络请求。
+- 未勾选协议：表单/客户端 admission 返回错误，不调用 Better Auth 注册 provider。
 - 绕过前端直接注册：后端返回 `legal_consent_required`，前端显示同一错误。
 - 协议页面加载失败：按普通路由错误处理，不影响已有账号登录。
 - Turnstile 未配置：继续使用现有“账号登录暂不可用，请稍后再试。”逻辑。
@@ -141,7 +143,7 @@ x-campus-legal-accepted: terms-and-privacy
 ## 8. 验收标准
 
 - 注册页默认未勾选协议。
-- 未勾选时点击注册，不调用注册请求。
+- 未勾选时不调用 Better Auth 注册 provider。
 - 勾选后注册请求携带 `x-campus-legal-accepted`。
 - app-api 对缺少该 header 的 `/sign-up/email` 返回拒绝。
 - `/legal/terms` 和 `/legal/privacy` 可直接访问。

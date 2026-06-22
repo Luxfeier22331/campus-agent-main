@@ -8,9 +8,11 @@ import {
 	WindowDetail,
 	WindowList,
 } from "@/components/dining/dining-experience";
-import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
+import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { getDiningFloor, getDiningHalls } from "@/features/dining/api";
 import type {
@@ -156,10 +158,20 @@ export function DiningPage() {
 				</div>
 			</div>
 
-			{error ? <ErrorPanel message={error} /> : null}
-			{isLoadingHalls && !error ? <LoadingPanel label="正在读取食堂数据" /> : null}
+			{error ? <Alert variant="destructive">{error}</Alert> : null}
+			{isLoadingHalls && !error ? (
+				<div className="rounded-lg border border-border bg-card p-6" role="status">
+					<Skeleton className="h-4 w-32" />
+					<span className="sr-only">正在读取食堂数据</span>
+				</div>
+			) : null}
 			{!isLoadingHalls && halls.length === 0 && !error ? (
-				<EmptyPanel message="当前没有已发布的食堂数据。" />
+				<Empty>
+					<EmptyHeader>
+						<EmptyTitle>暂无内容</EmptyTitle>
+						<EmptyDescription>当前没有已发布的食堂数据。</EmptyDescription>
+					</EmptyHeader>
+				</Empty>
 			) : null}
 			{halls.length > 0 ? (
 				<div className="space-y-5">
@@ -228,7 +240,12 @@ export function DiningPage() {
 							<WindowDetail window={selectedWindow} />
 						</div>
 					) : (
-						<EmptyPanel message="当前没有已发布的食堂楼层数据。" />
+						<Empty>
+							<EmptyHeader>
+								<EmptyTitle>暂无内容</EmptyTitle>
+								<EmptyDescription>当前没有已发布的食堂楼层数据。</EmptyDescription>
+							</EmptyHeader>
+						</Empty>
 					)}
 				</div>
 			) : null}

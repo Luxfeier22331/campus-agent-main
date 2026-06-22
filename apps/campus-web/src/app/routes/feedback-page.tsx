@@ -2,10 +2,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
-import { ErrorPanel } from "@/components/shell/state-panels";
-import { SupportSurfaceShell } from "@/components/shell/support-surface-shell";
+import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -14,6 +14,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { submitFeedback } from "@/features/feedback/api";
 import type { FeedbackCategory } from "@/features/feedback/model";
@@ -79,8 +80,12 @@ export function FeedbackPage() {
 	}
 
 	return (
-		<SupportSurfaceShell className="max-w-4xl" title="反馈">
-			<Card>
+		<section className="mx-auto max-w-4xl px-4 py-6 pb-24 lg:px-6">
+			<h1 className="mt-1 text-2xl font-semibold tracking-normal text-[var(--sys-text-strong)] md:text-3xl">
+				反馈
+			</h1>
+			<Separator className="mt-5" />
+			<Card className="mt-5">
 				<CardHeader>
 					<CardTitle>提交反馈</CardTitle>
 				</CardHeader>
@@ -90,12 +95,10 @@ export function FeedbackPage() {
 							control={form.control}
 							name="category"
 							render={({ field }) => (
-								<label className="block" htmlFor="feedback-category">
-									<span className="text-sm font-medium text-[var(--sys-text-strong)]">
-										问题类型
-									</span>
+								<Field>
+									<FieldLabel htmlFor="feedback-category">问题类型</FieldLabel>
 									<Select onValueChange={field.onChange} value={field.value}>
-										<SelectTrigger className="mt-2" id="feedback-category">
+										<SelectTrigger id="feedback-category">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -106,36 +109,30 @@ export function FeedbackPage() {
 											))}
 										</SelectContent>
 									</Select>
-								</label>
+								</Field>
 							)}
 						/>
-						<label className="block" htmlFor="feedback-route-context">
-							<span className="text-sm font-medium text-[var(--sys-text-strong)]">当前页面</span>
+						<Field>
+							<FieldLabel htmlFor="feedback-route-context">当前页面</FieldLabel>
 							<Input id="feedback-route-context" {...form.register("routeContext")} />
-						</label>
-						<label className="block" htmlFor="feedback-body">
-							<span className="text-sm font-medium text-[var(--sys-text-strong)]">问题描述</span>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="feedback-body">问题描述</FieldLabel>
 							<Textarea id="feedback-body" {...form.register("body")} />
-						</label>
-						<label className="block" htmlFor="feedback-contact">
-							<span className="text-sm font-medium text-[var(--sys-text-strong)]">
-								联系方式（可选）
-							</span>
+							{form.formState.errors.body ? (
+								<FieldError>{form.formState.errors.body.message ?? "请填写问题描述。"}</FieldError>
+							) : null}
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="feedback-contact">联系方式（可选）</FieldLabel>
 							<Input
 								id="feedback-contact"
 								placeholder="邮箱或其他联系方式"
 								{...form.register("contact")}
 							/>
-						</label>
-						{error ? <ErrorPanel message={error} /> : null}
-						{form.formState.errors.body ? (
-							<ErrorPanel message={form.formState.errors.body.message ?? "请填写问题描述。"} />
-						) : null}
-						{receivedId ? (
-							<p className="rounded-lg bg-[rgba(0,112,62,0.08)] px-4 py-3 text-sm text-[var(--sys-status-success)]">
-								已收到：{receivedId}
-							</p>
-						) : null}
+						</Field>
+						{error ? <Alert variant="destructive">{error}</Alert> : null}
+						{receivedId ? <Alert variant="success">已收到：{receivedId}</Alert> : null}
 						<Button
 							disabled={submitting || !body.trim()}
 							onClick={form.handleSubmit(handleSubmit)}
@@ -146,7 +143,7 @@ export function FeedbackPage() {
 					</form>
 				</CardContent>
 			</Card>
-		</SupportSurfaceShell>
+		</section>
 	);
 }
 

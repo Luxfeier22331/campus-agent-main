@@ -13,7 +13,6 @@ import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
-import supportNavigationSource from "../src/components/conversation/support-navigation.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 
@@ -216,7 +215,7 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
-		expect(screen.getByRole("textbox", { name: "输入校园问题" })).toBeInTheDocument();
+		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
@@ -245,9 +244,10 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(supportNavigationSource).toContain("饭堂分布图");
+		expect(qaShellSource).toContain("饭堂分布图");
 		expect(qaShellSource).toContain("ThreadList");
 		expect(qaShellSource).toContain("@/components/auth/user/user-button");
+		expect(qaShellSource).not.toContain("SupportNavigation");
 		expect(qaShellSource).not.toContain("AccountLoginDialog");
 		expect(qaShellSource).not.toContain("QAAccountEntry");
 		expect(qaShellSource).not.toContain("getSessionPrincipal");

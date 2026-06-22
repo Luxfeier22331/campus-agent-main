@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "@assistant-ui/react-ui/styles/index.css";
 @import "./design/tokens.css";
 
 @theme inline {
