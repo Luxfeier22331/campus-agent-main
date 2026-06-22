@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { createServer } from "node:http";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -10,10 +9,12 @@ import { projectLocalRuntimeEnv } from "./project-local-runtime-env.mjs";
 
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 
-test("projectLocalRuntimeEnv projects Hindsight provider env from app-api active profiles", async () => {
+test("projectLocalRuntimeEnv projects Hindsight provider env from local projection", async () => {
 	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
-	const providerConfigServer = new ActiveProviderConfigServer();
-	await providerConfigServer.listen();
+	const providerConfigSnapshotHostPath = path.join(
+		tmp,
+		"infra/local/.generated/provider-config-projection.json",
+	);
 	const repoEnvPath = path.join(tmp, ".env");
 	const appApiEnvPath = path.join(tmp, "app-api.env");
 	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
@@ -29,11 +30,11 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from app-api active
 				"EMBEDDING_API_KEY=embedding-secret",
 				"EMBEDDING_MODEL=embedding-local",
 				"EMBEDDING_DIMENSIONS=2560",
-				"APP_API_INTERNAL_BASE_URL=" + providerConfigServer.baseUrl,
 				"CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres.<project-ref>:<url-encoded-password>@<session-pooler-host>:5432/postgres?sslmode=require",
 				"",
 			].join("\n"),
 	);
+	await writeProviderConfigProjection(providerConfigSnapshotHostPath);
 	await writeFile(appApiEnvPath, "");
 	await writeFile(
 		appApiDevVarsPath,
@@ -67,15 +68,12 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from app-api active
 			composeProjectName: "campus-runtime-test",
 			env: {},
 			generatedRuntimeEnvPath,
+			providerConfigSnapshotHostPath,
 			repoEnvPath,
 			repoRoot: tmp,
 			syncAppApiDevVars: true,
 		});
 
-		assert.deepEqual(providerConfigServer.requestedRoles(), [
-			"hindsight_llm",
-			"hindsight_embedding",
-		]);
 		assert.equal(result.env.HINDSIGHT_API_LLM_PROVIDER, "openai");
 		assert.equal(result.env.HINDSIGHT_API_LLM_API_KEY, "active-llm-secret");
 		assert.equal(result.env.HINDSIGHT_API_LLM_BASE_URL, "https://active-llm.example/v1");
@@ -117,14 +115,15 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from app-api active
 		assert.match(syncedDevVars, /^EXECUTION_CONTROL_TIMEOUT_MS=30000$/m);
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
-		await providerConfigServer.close();
 	}
 });
 
 test("projectLocalRuntimeEnv keeps non-Hindsight explicit process overrides over local files", async () => {
 	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
-	const providerConfigServer = new ActiveProviderConfigServer();
-	await providerConfigServer.listen();
+	const providerConfigSnapshotHostPath = path.join(
+		tmp,
+		"infra/local/.generated/provider-config-projection.json",
+	);
 	const repoEnvPath = path.join(tmp, ".env");
 	const appApiEnvPath = path.join(tmp, "app-api.env");
 	const appApiDevVarsPath = path.join(tmp, ".dev.vars");
@@ -132,14 +131,12 @@ test("projectLocalRuntimeEnv keeps non-Hindsight explicit process overrides over
 
 	await writeFile(repoEnvPath, "LLM_API_KEY=file-llm-key\nLLM_MODEL=file-model\n");
 	await writeFile(appApiEnvPath, "");
-	await writeFile(
-		appApiDevVarsPath,
-		`APP_API_INTERNAL_SHARED_SECRET=file-internal\nAPP_API_INTERNAL_BASE_URL=${providerConfigServer.baseUrl}\n`,
-	);
+	await writeFile(appApiDevVarsPath, "APP_API_INTERNAL_SHARED_SECRET=file-internal\n");
 	await writeFile(
 		generatedRuntimeEnvPath,
 		"QDRANT_READ_ONLY_API_KEY=file-qdrant-readonly\nEXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=salt\n",
 	);
+	await writeProviderConfigProjection(providerConfigSnapshotHostPath);
 
 	try {
 		const result = await projectLocalRuntimeEnv({
@@ -152,6 +149,7 @@ test("projectLocalRuntimeEnv keeps non-Hindsight explicit process overrides over
 				QDRANT_QUERY_API_KEY: "process-qdrant-query",
 			},
 			generatedRuntimeEnvPath,
+			providerConfigSnapshotHostPath,
 			repoEnvPath,
 			repoRoot: tmp,
 		});
@@ -161,11 +159,10 @@ test("projectLocalRuntimeEnv keeps non-Hindsight explicit process overrides over
 		assert.equal(result.env.QDRANT_QUERY_API_KEY, "process-qdrant-query");
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
-		await providerConfigServer.close();
 	}
 });
 
-test("projectLocalRuntimeEnv fails closed without active Hindsight provider profiles", async () => {
+test("projectLocalRuntimeEnv fails closed without provider projection artifact", async () => {
 	const tmp = await mkdtemp(path.join(tmpdir(), "campus-runtime-projection-"));
 	const repoEnvPath = path.join(tmp, ".env");
 	const appApiEnvPath = path.join(tmp, "app-api.env");
@@ -198,7 +195,7 @@ test("projectLocalRuntimeEnv fails closed without active Hindsight provider prof
 					repoEnvPath,
 					repoRoot: tmp,
 				}),
-			/Hindsight provider-config projection requires active app-api provider profile/,
+			/provider-config projection is not readable/,
 		);
 	} finally {
 		await rm(tmp, { force: true, recursive: true });
@@ -353,19 +350,16 @@ test("repo-local MinIO bucket initialization uses accepted source and derived bu
 	assert.doesNotMatch(source, /campus-rag-processed/);
 });
 
-class ActiveProviderConfigServer {
-	#server = createServer((request, response) => {
-		const url = new URL(request.url ?? "", "http://127.0.0.1");
-		const role = url.searchParams.get("role") ?? "";
-		this.requests.push({
-			auth: request.headers["x-app-internal-auth"] ?? "",
-			role,
-		});
-		response.setHeader("content-type", "application/json");
-		if (role === "hindsight_llm") {
-			response.end(
-				JSON.stringify({
-					profile: {
+async function writeProviderConfigProjection(filePath) {
+	await mkdir(path.dirname(filePath), { recursive: true });
+	await writeFile(
+		filePath,
+		`${JSON.stringify(
+			{
+				schema_version: "provider_config_projection.v1",
+				generated_at: "2026-06-22T00:00:00Z",
+				profiles: {
+					hindsight_llm: {
 						api_key: "active-llm-secret",
 						base_url: "https://active-llm.example/v1",
 						kind: "prompt",
@@ -373,18 +367,11 @@ class ActiveProviderConfigServer {
 						profile_id: "provider_profile_hindsight_llm",
 						provider: "openai",
 						revision: 3,
-						role,
+						role: "hindsight_llm",
 						timeout_ms: 30000,
 						transport: "responses",
 					},
-				}),
-			);
-			return;
-		}
-		if (role === "hindsight_embedding") {
-			response.end(
-				JSON.stringify({
-					profile: {
+					hindsight_embedding: {
 						api_key: "active-embedding-secret",
 						base_url: "https://active-embedding.example/v1",
 						dimensions: 2560,
@@ -393,45 +380,14 @@ class ActiveProviderConfigServer {
 						profile_id: "provider_profile_hindsight_embedding",
 						provider: "openai",
 						revision: 3,
-						role,
+						role: "hindsight_embedding",
 						timeout_ms: 30000,
 						transport: "embeddings",
 					},
-				}),
-			);
-			return;
-		}
-		response.statusCode = 404;
-		response.end(JSON.stringify({ error: { code: "provider_profile_missing" } }));
-	});
-
-	baseUrl = "";
-	requests = [];
-
-	async listen() {
-		await new Promise((resolve) => {
-			this.#server.listen(0, "127.0.0.1", resolve);
-		});
-		const address = this.#server.address();
-		if (!address || typeof address === "string") {
-			throw new Error("test server did not expose a TCP address");
-		}
-		this.baseUrl = `http://127.0.0.1:${address.port}`;
-	}
-
-	async close() {
-		await new Promise((resolve, reject) => {
-			this.#server.close((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-				resolve();
-			});
-		});
-	}
-
-	requestedRoles() {
-		return this.requests.map((request) => request.role);
-	}
+				},
+			},
+			null,
+			2,
+		)}\n`,
+	);
 }

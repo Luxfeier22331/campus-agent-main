@@ -110,7 +110,8 @@ providers are deployment internals. `campus-agent` code and contracts do not
 integrate with those internals directly.
 
 Hindsight LLM / embedding provider configuration is governed by app-api
-provider-config active profiles and projected into the Hindsight deployment env.
+provider-config active profiles and projected through the local
+`provider_config_projection.v1` artifact into the Hindsight deployment env.
 The accepted Hindsight provider-config roles are `hindsight_llm` and
 `hindsight_embedding`; retired memory extraction provider roles stay retired.
 app-api does not proxy Hindsight model traffic and does not call Hindsight API

@@ -5,8 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
-	"net/url"
+	"os"
 	"strings"
 	"time"
 
@@ -47,41 +46,21 @@ type staticProviderConfigResolverForRole struct {
 	snapshot providerConfigSnapshot
 }
 
-type appAPIProviderConfigResolver struct {
-	baseURL      string
-	httpClient   *http.Client
-	sharedSecret string
-	timeout      time.Duration
+type fileProviderConfigResolver struct {
+	path string
 }
 
 var errProviderConfigResolverNotConfigured = errors.New("provider config resolver is not configured")
 
 func newProviderConfigResolver(cfg config.Config) (providerConfigResolver, error) {
-	baseURL := strings.TrimRight(strings.TrimSpace(cfg.AppAPIInternalBaseURL), "/")
-	sharedSecret := strings.TrimSpace(cfg.AppAPIInternalSharedSecret)
-	if baseURL == "" && sharedSecret == "" {
+	path := strings.TrimSpace(cfg.ProviderConfigSnapshotPath)
+	if path == "" {
+		if strings.TrimSpace(cfg.AppAPIInternalBaseURL) != "" || strings.TrimSpace(cfg.AppAPIInternalSharedSecret) != "" {
+			return nil, errors.New("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH is required for provider-config runtime; app-api internal provider lookup is control-plane only")
+		}
 		return nil, errProviderConfigResolverNotConfigured
 	}
-	if baseURL == "" || sharedSecret == "" {
-		return nil, errors.New("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL and EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET are required together")
-	}
-	parsed, err := url.ParseRequestURI(baseURL)
-	if err != nil {
-		return nil, fmt.Errorf("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL must be a valid URL: %w", err)
-	}
-	if parsed.Scheme != "http" && parsed.Scheme != "https" {
-		return nil, errors.New("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL must use http or https")
-	}
-	timeout := time.Duration(cfg.AppAPIInternalTimeoutMS) * time.Millisecond
-	if timeout <= 0 {
-		timeout = time.Second
-	}
-	return appAPIProviderConfigResolver{
-		baseURL:      baseURL,
-		httpClient:   &http.Client{Timeout: timeout},
-		sharedSecret: sharedSecret,
-		timeout:      timeout,
-	}, nil
+	return fileProviderConfigResolver{path: path}, nil
 }
 
 func newStaticEmbeddingProviderConfigResolver(
@@ -131,57 +110,57 @@ func staticEmbeddingBaseURL(cfg config.Config) string {
 	return ""
 }
 
-func (resolver appAPIProviderConfigResolver) ResolveActiveProviderConfig(
+func (resolver fileProviderConfigResolver) ResolveActiveProviderConfig(
 	ctx context.Context,
 	role providerConfigRole,
 ) (providerConfigSnapshot, error) {
-	if strings.TrimSpace(resolver.baseURL) == "" ||
-		strings.TrimSpace(resolver.sharedSecret) == "" ||
-		resolver.httpClient == nil {
+	_ = ctx
+	if strings.TrimSpace(resolver.path) == "" {
 		return providerConfigSnapshot{}, errProviderConfigResolverNotConfigured
 	}
 	normalizedRole := strings.TrimSpace(string(role))
 	if normalizedRole == "" {
 		return providerConfigSnapshot{}, errors.New("provider config role is required")
 	}
-	requestCtx, cancel := context.WithTimeout(ctx, resolver.timeout)
-	defer cancel()
-	endpoint := resolver.baseURL + "/api/internal/provider-config/active?role=" + url.QueryEscape(normalizedRole)
-	request, err := http.NewRequestWithContext(requestCtx, http.MethodGet, endpoint, nil)
-	if err != nil {
+	if err := requireSecureProviderConfigProjectionFile(resolver.path); err != nil {
 		return providerConfigSnapshot{}, err
 	}
-	request.Header.Set("x-app-internal-auth", resolver.sharedSecret)
-	response, err := resolver.httpClient.Do(request)
+	data, err := os.ReadFile(resolver.path)
 	if err != nil {
-		return providerConfigSnapshot{}, err
+		return providerConfigSnapshot{}, fmt.Errorf("read provider config projection: %w", err)
 	}
-	defer func() { _ = response.Body.Close() }()
 	var payload struct {
-		Error struct {
-			Code    string `json:"code"`
-			Message string `json:"message"`
-		} `json:"error"`
-		Profile providerConfigSnapshot `json:"profile"`
+		SchemaVersion string                            `json:"schema_version"`
+		Profiles      map[string]providerConfigSnapshot `json:"profiles"`
 	}
-	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
-		return providerConfigSnapshot{}, fmt.Errorf("decode provider config snapshot: %w", err)
+	if err := json.Unmarshal(data, &payload); err != nil {
+		return providerConfigSnapshot{}, fmt.Errorf("decode provider config projection: %w", err)
 	}
-	if response.StatusCode < 200 || response.StatusCode >= 300 {
-		message := strings.TrimSpace(payload.Error.Message)
-		if message == "" {
-			message = fmt.Sprintf("provider config endpoint returned HTTP %d", response.StatusCode)
-		}
-		code := strings.TrimSpace(payload.Error.Code)
-		if code != "" {
-			return providerConfigSnapshot{}, fmt.Errorf("%s: %s", code, message)
-		}
-		return providerConfigSnapshot{}, errors.New(message)
+	if payload.SchemaVersion != "provider_config_projection.v1" {
+		return providerConfigSnapshot{}, errors.New("provider config projection schema_version is unsupported")
 	}
-	if err := validateProviderConfigSnapshot(payload.Profile, role); err != nil {
+	snapshot, ok := payload.Profiles[normalizedRole]
+	if !ok {
+		return providerConfigSnapshot{}, fmt.Errorf("provider config projection missing active role %s", normalizedRole)
+	}
+	if err := validateProviderConfigSnapshot(snapshot, role); err != nil {
 		return providerConfigSnapshot{}, err
 	}
-	return payload.Profile, nil
+	return snapshot, nil
+}
+
+func requireSecureProviderConfigProjectionFile(path string) error {
+	fileInfo, err := os.Stat(path)
+	if err != nil {
+		return fmt.Errorf("stat provider config projection: %w", err)
+	}
+	if !fileInfo.Mode().IsRegular() {
+		return errors.New("provider config projection path must be a regular file")
+	}
+	if fileInfo.Mode().Perm() != 0o600 {
+		return errors.New("provider config projection file permissions must be 0600")
+	}
+	return nil
 }
 
 func validateProviderConfigSnapshot(snapshot providerConfigSnapshot, role providerConfigRole) error {

@@ -143,26 +143,17 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 默认规则：
 
-- eval / local command 优先复用 env-defined shared provider：
-  - `LLM_*`
-  - `EMBEDDING_*`
-- 只有在 eval 需要独立 provider、预算或限流时，才使用：
-  - `EVAL_LLM_*`
-  - `EVAL_EMBEDDING_*`
-
-online answer serving 不再以 `LLM_*` / `EMBEDDING_*` env 为 provider/model/API
-key truth；它消费 app-api provider-config active profiles。eval env contract 只描述
-eval / local automation。
-
-eval 链路长期只保留 provider endpoint/key env：
-
-- `EVAL_LLM_BASE_URL`
-- `EVAL_LLM_API_KEY`
-- `EVAL_EMBEDDING_BASE_URL`
-- `EVAL_EMBEDDING_API_KEY`
+- eval provider endpoint/key truth 来自本地
+  `provider_config_projection.v1` artifact。
+- artifact 由 app-api provider-config active profiles 显式同步生成；eval runtime
+  不在热路径调用 app-api。
+- 必需角色：`eval_ragas_llm`、`eval_ragas_embedding`、`eval_judge_llm`。
+- `LLM_*`、`EMBEDDING_*`、`EVAL_LLM_*`、`EVAL_EMBEDDING_*` 不再是 eval
+  provider fallback。
 
 固定要求：
 
+- `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 的 provider projection artifact。
 - eval model、transport、reasoning 与 token 配置由
   `packages/evals/fixtures/ops/eval_runtime_profiles.v1.json` 持有
 - 临时脚本 / REPL 不自动 bootstrap `.env`

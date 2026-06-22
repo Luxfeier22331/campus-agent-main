@@ -84,8 +84,16 @@ execution_control_runtime_require_runtime_env() {
     echo "EXECUTION_CONTROL_RUNTIME_RELEASE is required for runtime telemetry identity." >&2
     return 1
   fi
-  if [[ -z "${EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
-    echo "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET or APP_API_INTERNAL_SHARED_SECRET is required for provider-config runtime access." >&2
+  if [[ -z "${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:-}" ]]; then
+    echo "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH is required for provider-config projection mount." >&2
+    return 1
+  fi
+  if [[ ! -f "${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}" ]]; then
+    echo "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH must point to a synced provider-config projection artifact: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}" >&2
+    return 1
+  fi
+  if [[ -z "${EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:-}" ]]; then
+    echo "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH is required for provider-config runtime access." >&2
     return 1
   fi
   if [[ -z "${HINDSIGHT_POSTGRES_PASSWORD:-}" ]]; then

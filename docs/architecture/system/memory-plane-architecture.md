@@ -61,8 +61,9 @@ execution-control runtime profile 管理，不再通过 env 配置。
 Hindsight API 使用 `HINDSIGHT_API_TENANT_EXTENSION` /
 `HINDSIGHT_API_TENANT_API_KEY` 做 service-to-service auth；`PERSONAL_MEMORY_API_SECRET`
 就是 execution-control 对 Hindsight API 的 bearer token。Hindsight LLM / embedding provider
-的 key / base URL / model 由 app-api provider-config active profiles 统一治理，deployment
-lifecycle 将 `hindsight_llm` 与 `hindsight_embedding` 投影为 Hindsight runtime env。
+的 key / base URL / model 由 app-api provider-config active profiles 统一治理；显式 sync
+生成的本地 provider projection artifact 将 `hindsight_llm` 与 `hindsight_embedding`
+投影为 Hindsight runtime env。
 app-api 不代理 Hindsight 模型流量，也不直接调用 Hindsight API。
 
 `PERSONAL_MEMORY_BASE_URL` 默认由 deployment profile 投影为 internal service DNS，例如
@@ -297,9 +298,9 @@ Hindsight posture：
 - `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
   `PERSONAL_MEMORY_OWNER_SALT` 是 deployment projection，不是开发者手工配置项；
   `runtime`、timeout 与 recall limits 由 execution-control runtime profile 管理。
-- Hindsight LLM / embedding provider env 来自 app-api provider-config active profiles
+- Hindsight LLM / embedding provider env 来自本地 provider projection artifact 中的
   `hindsight_llm` 与 `hindsight_embedding`；不得从 root `LLM_*` / `EMBEDDING_*`
-  serving fallback 隐式继承。
+  serving fallback 隐式继承，也不得在热路径回读 app-api。
 - `activity-knowledge-plan` / `activity-knowledge-synthesis` 不要求 Hindsight 配置；
   `activity-knowledge-retrieval` 只在需要 query-side recall runtime 时加载 Hindsight
   connectivity；knowledge worker 消费的是 bounded memory context，不拥有 memory

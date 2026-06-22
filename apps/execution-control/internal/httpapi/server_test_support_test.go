@@ -267,9 +267,8 @@ func readyServerConfigForTest(t *testing.T, mutators ...func(*config.Config)) co
 	t.Helper()
 	cfg := config.Config{
 		AppName:                    "campus-agent",
-		AppAPIInternalBaseURL:      "https://app-api.internal",
-		AppAPIInternalSharedSecret: "provider-config-secret",
 		MaxConcurrentAnswers:       8,
+		ProviderConfigSnapshotPath: writeProviderProjectionForTest(t),
 		ProviderPricingPath:        providerPricingCatalogForTest(t),
 		RAGSelectedEvidenceMax:     8,
 		RAGTopKMax:                 8,

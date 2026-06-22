@@ -64,7 +64,7 @@ func rejectRetiredSupervisorSettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use app-api provider-config active profiles", name)
+			return fmt.Errorf("%s is retired; use provider-config projection profiles", name)
 		}
 	}
 	return nil
@@ -91,7 +91,7 @@ func rejectRetiredPromptRuntimeSettings() error {
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use app-api provider-config active profiles", name)
+			return fmt.Errorf("%s is retired; use provider-config projection profiles", name)
 		}
 	}
 	return nil

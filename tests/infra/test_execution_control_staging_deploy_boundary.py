@@ -10,8 +10,8 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tests.execution_control_staging_preflight_support import (
-    provider_config_server_for_tests,
     run_common_script_with_env,
+    write_provider_config_projection_for_tests,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -139,15 +139,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["EXECUTION_CONTROL_APP_API_BASE_URL"],
             "https://api-staging.mucwiki-edge.link",
         )
-        self.assertEqual(
-            projected["EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL"],
-            "https://api-staging.mucwiki-edge.link",
-        )
-        self.assertEqual(
-            projected["EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"],
-            "app-api-secret",
-        )
         self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "30000")
+        self.assertTrue(
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"].endswith(
+                "provider-config-projection.json"
+            )
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+        )
         self.assertTrue(projected["EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY"])
         self.assertEqual(
             projected["EXECUTION_CONTROL_COMPOSE_PROJECT_NAME"],
@@ -517,8 +518,19 @@ def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProces
         root = Path(temp_dir)
         common_path = _copy_staging_modules(root)
         runtime_env = root / "ops" / "runtime.env"
-        runtime_env.parent.mkdir()
-        runtime_env.write_text("EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n", encoding="utf-8")
+        projection_path = root / "ops" / "provider-config-projection.json"
+        write_provider_config_projection_for_tests(projection_path)
+        runtime_env.parent.mkdir(exist_ok=True)
+        runtime_env.write_text(
+            "\n".join(
+                (
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         command = f"""
         set -euo pipefail
         export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
@@ -548,17 +560,14 @@ def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProces
         }}));
         NODE
         """
-        with provider_config_server_for_tests() as provider_config_base_url:
-            env = os.environ.copy()
-            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
-            return subprocess.run(
-                ["bash", "-lc", textwrap.dedent(command)],
-                cwd=root,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
 
 def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.CompletedProcess[str]:
@@ -566,12 +575,15 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
         root = Path(temp_dir)
         common_path = _copy_staging_modules(root)
         runtime_env = root / "ops" / "runtime.env"
-        runtime_env.parent.mkdir()
+        projection_path = root / "ops" / "provider-config-projection.json"
+        write_provider_config_projection_for_tests(projection_path)
+        runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
                 (
                     "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
                     "APP_API_INTERNAL_SHARED_SECRET=app-api-secret",
+                    f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
                     "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
                     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
                     "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
@@ -655,17 +667,14 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
         }}));
         NODE
         """
-        with provider_config_server_for_tests() as provider_config_base_url:
-            env = os.environ.copy()
-            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
-            return subprocess.run(
-                ["bash", "-lc", textwrap.dedent(command)],
-                cwd=root,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
 
 def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProcess[str]:
@@ -683,10 +692,13 @@ def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProces
             encoding="utf-8",
         )
         runtime_env = root / "ops" / "runtime.env"
-        runtime_env.parent.mkdir()
+        projection_path = root / "ops" / "provider-config-projection.json"
+        write_provider_config_projection_for_tests(projection_path)
+        runtime_env.parent.mkdir(exist_ok=True)
         runtime_env.write_text(
             "\n".join(
                 (
+                    f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
                     "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
                     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
                     "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",

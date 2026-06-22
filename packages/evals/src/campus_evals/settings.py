@@ -6,7 +6,7 @@ from dataclasses import dataclass, replace
 from functools import cache
 from pathlib import Path
 
-from campus_shared import resolve_embedding_provider_config, resolve_llm_provider_config
+from campus_evals.provider_projection import load_provider_projection_from_env
 
 DEFAULT_SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS = 10.0
 DEFAULT_SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS = 30.0
@@ -294,33 +294,35 @@ class RagasSettings:
 
     def __post_init__(self) -> None:
         if not self.llm_api_key.strip():
-            raise ValueError("LLM_API_KEY is required")
+            raise ValueError("ragas llm api_key is required")
         if not self.llm_model.strip():
-            raise ValueError("EVAL_RAGAS_MODEL is required")
+            raise ValueError("eval runtime profile ragas_model is required")
         if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
-            raise ValueError("EVAL_LLM_TRANSPORT must be one of responses, chat_completions")
+            raise ValueError(
+                "eval runtime profile llm_transport must be one of responses, chat_completions"
+            )
         if not self.embedding_api_key.strip():
-            raise ValueError("EMBEDDING_API_KEY is required")
+            raise ValueError("ragas embedding api_key is required")
         if not self.embedding_model.strip():
-            raise ValueError("EMBEDDING_MODEL is required")
+            raise ValueError("eval runtime profile embedding_model is required")
         if self.embedding_dimensions is None and self.embedding_model == "Qwen3-Embedding-4B":
             object.__setattr__(self, "embedding_dimensions", 2560)
         if self.embedding_dimensions is not None and self.embedding_dimensions <= 0:
-            raise ValueError("EMBEDDING_DIMENSIONS must be greater than zero")
+            raise ValueError("eval runtime profile embedding_dimensions must be greater than zero")
         if (
             self.reasoning_effort is not None
             and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS
         ):
             raise ValueError(
-                "RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none"
+                "eval runtime profile reasoning_effort must be one of minimal, low, medium, high, none"
             )
         if (
             self.text_verbosity is not None
             and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES
         ):
-            raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
+            raise ValueError("eval runtime profile text_verbosity must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
-            raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
+            raise ValueError("eval runtime profile max_output_tokens must be greater than zero")
         if self.max_workers <= 0:
             raise ValueError("RAGAS_MAX_WORKERS must be greater than zero")
         if self.faithfulness_nli_batch_size <= 0:
@@ -336,8 +338,9 @@ class RagasSettings:
     ) -> RagasSettings:
         source = env if env is not None else os.environ
         runtime_profile = load_default_eval_runtime_profile()
-        llm_provider = resolve_llm_provider_config("eval.ragas", env=source)
-        embedding_provider = resolve_embedding_provider_config("eval.ragas", env=source)
+        projection = load_provider_projection_from_env(source)
+        llm_provider = projection.profile("eval_ragas_llm")
+        embedding_provider = projection.profile("eval_ragas_embedding")
         return cls(
             llm_api_key=llm_provider.api_key,
             llm_model=runtime_profile.ragas_model,
@@ -402,25 +405,27 @@ class JudgeLLMSettings:
 
     def __post_init__(self) -> None:
         if not self.llm_api_key.strip():
-            raise ValueError("LLM_API_KEY is required")
+            raise ValueError("judge llm api_key is required")
         if not self.llm_model.strip():
-            raise ValueError("EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required")
+            raise ValueError("eval runtime profile judge_model is required")
         if self.llm_transport not in ALLOWED_EVAL_LLM_TRANSPORTS:
-            raise ValueError("EVAL_LLM_TRANSPORT must be one of responses, chat_completions")
+            raise ValueError(
+                "eval runtime profile llm_transport must be one of responses, chat_completions"
+            )
         if (
             self.reasoning_effort is not None
             and self.reasoning_effort not in ALLOWED_RAGAS_REASONING_EFFORTS
         ):
             raise ValueError(
-                "RAGAS_REASONING_EFFORT must be one of minimal, low, medium, high, none"
+                "eval runtime profile reasoning_effort must be one of minimal, low, medium, high, none"
             )
         if (
             self.text_verbosity is not None
             and self.text_verbosity not in ALLOWED_RAGAS_TEXT_VERBOSITIES
         ):
-            raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
+            raise ValueError("eval runtime profile text_verbosity must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
-            raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
+            raise ValueError("eval runtime profile max_output_tokens must be greater than zero")
 
     @classmethod
     def from_env(
@@ -431,7 +436,8 @@ class JudgeLLMSettings:
     ) -> JudgeLLMSettings:
         source = env if env is not None else os.environ
         runtime_profile = load_default_eval_runtime_profile()
-        llm_provider = resolve_llm_provider_config("eval.judge", env=source)
+        projection = load_provider_projection_from_env(source)
+        llm_provider = projection.profile("eval_judge_llm")
         return cls(
             llm_api_key=llm_provider.api_key,
             llm_model=runtime_profile.judge_model,
@@ -462,27 +468,6 @@ class JudgeLLMSettings:
     @property
     def request_min_interval_seconds(self) -> float:
         return self.http_settings.request_min_interval_seconds
-
-
-def _resolve_embedding_dimensions(*, model: str, raw_dimensions: str) -> int | None:
-    if raw_dimensions:
-        return int(raw_dimensions)
-    if model == "Qwen3-Embedding-4B":
-        return 2560
-    return None
-
-
-def _read_bool(value: str | None, *, default: bool) -> bool:
-    if value is None:
-        return default
-    normalized = value.strip().lower()
-    if not normalized:
-        return default
-    if normalized in {"1", "true", "yes", "on"}:
-        return True
-    if normalized in {"0", "false", "no", "off"}:
-        return False
-    raise ValueError("expected boolean env value")
 
 
 def _read_optional_str(value: str | None) -> str | None:
@@ -528,20 +513,3 @@ def _read_first_non_empty(source: dict[str, str], *keys: str) -> str | None:
         if normalized:
             return normalized
     return None
-
-
-def _resolve_ragas_model(source: dict[str, str]) -> str:
-    return _read_first_non_empty(source, "EVAL_RAGAS_MODEL") or ""
-
-
-def _resolve_judge_model(source: dict[str, str]) -> str:
-    eval_judge_model = _read_first_non_empty(source, "EVAL_JUDGE_MODEL")
-    eval_ragas_model = _read_first_non_empty(source, "EVAL_RAGAS_MODEL")
-    return eval_judge_model or eval_ragas_model or ""
-
-
-def _resolve_eval_llm_transport(source: dict[str, str], surface_key: str) -> str:
-    raw_transport = _read_first_non_empty(source, surface_key, "EVAL_LLM_TRANSPORT")
-    if raw_transport is None:
-        return "responses"
-    return raw_transport.strip().lower()

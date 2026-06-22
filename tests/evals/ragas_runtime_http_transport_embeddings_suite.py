@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from tests.evals.ragas_runtime_test_support import (
-    RagasSettings,
     StringPromptValue,
     asyncio,
     build_http_ragas_embeddings,
@@ -9,6 +8,7 @@ from tests.evals.ragas_runtime_test_support import (
     httpx,
     json,
     patch,
+    ragas_settings_from_projection,
     reset_supplemental_http_runtime_state_for_tests,
     unittest,
 )
@@ -21,7 +21,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
     def test_build_http_ragas_embeddings_share_request_pacer_with_same_provider_origin_and_api_key(
         self,
     ) -> None:
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
                 "LLM_API_KEY": "shared-key",
@@ -42,7 +42,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
     def test_build_http_ragas_embeddings_do_not_share_request_pacer_across_different_api_keys(
         self,
     ) -> None:
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://provider.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -90,7 +90,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
                     },
                 )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -124,7 +124,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -178,7 +178,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
                     },
                 )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",
@@ -219,7 +219,7 @@ class RagasHttpTransportEmbeddingsTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "EMBEDDING_BASE_URL": "https://embed.example/v1",
                 "EMBEDDING_API_KEY": "embed-key",

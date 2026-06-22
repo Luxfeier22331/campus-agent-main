@@ -3,12 +3,12 @@ from __future__ import annotations
 from tests.evals.ragas_runtime_test_support import (
     NLIStatementOutput,
     RagasProjection,
-    RagasSettings,
     StatementFaithfulnessAnswer,
     StatementGeneratorOutput,
     SupplementalHTTPSettings,
     build_default_ragas_metric_names,
     build_ragas_scorer,
+    ragas_settings_from_projection,
     unittest,
 )
 
@@ -42,7 +42,7 @@ class RagasScorerMetricBindingTest(unittest.TestCase):
                 FakeMetric("id_based_context_recall"),
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -105,7 +105,7 @@ class RagasScorerMetricBindingTest(unittest.TestCase):
             resolved_names = tuple(metric_names or build_default_ragas_metric_names())
             return tuple(FakeMetric(name) for name in resolved_names)
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -174,7 +174,7 @@ class RagasScorerMetricBindingTest(unittest.TestCase):
                 del answers
                 return 1.0
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -255,7 +255,7 @@ class RagasScorerMetricBindingTest(unittest.TestCase):
                 del answers
                 return 1.0
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",

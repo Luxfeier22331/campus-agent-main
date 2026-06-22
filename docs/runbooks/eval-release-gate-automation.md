@@ -256,13 +256,17 @@ go run ./cmd/rag-first-stage-eval-runner \
   --json
 ```
 
-运行该命令需要真实 Qdrant query env 与 app-api provider config resolver：
+运行该命令需要真实 Qdrant query env 与本地 provider projection artifact：
 
 - `QDRANT_URL`
 - `QDRANT_QUERY_API_KEY`
 - `QDRANT_TLS_CA_CERT_PATH`（非 local http Qdrant）
-- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
-- `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
+- `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 或
+  `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH`
+
+projection artifact 由 `scripts/sync-provider-config-projection.mjs` 从 app-api
+provider-config active profiles 显式生成；runner 不在热路径调用 app-api provider-config
+resolver。
 
 runner 对每个 case 执行 dense prefetch、sparse prefetch 与 hybrid RRF final
 查询，并写出 `rag_first_stage_candidate_result.v1`。它只记录 doc/version/chunk/score

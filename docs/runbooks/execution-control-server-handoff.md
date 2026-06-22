@@ -59,11 +59,10 @@ updated: 2026-06-09
   - `QDRANT_URL`
   - `QDRANT_QUERY_API_KEY`
   - `QDRANT_TLS_CA_CERT_PATH`
-  - `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
-  - `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
+  - `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH`
 - conditional:
-  - online prompt / embedding provider model/API key truth must already exist as
-    active app-api provider-config profiles; do not hardcode them in
+  - online prompt / embedding provider model/API key truth must already exist in
+    the local `provider_config_projection.v1` artifact; do not hardcode them in
     execution-control env. Required prompt roles are `primary_agent`,
     `rag_synthesis` and `hindsight_llm`; required online embedding roles are
     `rag_query_embedding` and `hindsight_embedding`.
@@ -77,9 +76,9 @@ updated: 2026-06-09
     `infra/local/start-execution-control-runtime.sh`; server/staging deploys
     must use their own ops-owned generated env file instead of copying that
     local file.
-  - Hindsight LLM / embedding provider env is projected from app-api
-    provider-config active profiles. Do not copy local provider env to staging,
-    do not proxy Hindsight model traffic through app-api, and do not reintroduce
+  - Hindsight LLM / embedding provider env is projected from the same local
+    provider projection artifact. Do not copy local provider env to staging, do
+    not proxy Hindsight model traffic through app-api, and do not reintroduce
     retired `memory_graph_llm` or `personal_memory_extraction` provider roles.
   - Qdrant service lifecycle、backup / restore 或 ingestion rebuild 管理路径才使用 admin
     `QDRANT_API_KEY`
@@ -104,11 +103,13 @@ Deployment/start 脚本必须投影同机 internal bridge runtime env：
   `http://execution-control:8000`。
 - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`：默认等于
   `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`，否则 typed tool executor fail closed。
-- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`：execution-control 调用 app-api
-  internal provider-config active snapshot 的地址；compose / staging baseline 使用
-  app-api internal service URL。
-- `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`：必须等于 app-api
-  `APP_API_INTERNAL_SHARED_SECRET`，否则 provider snapshot 读取 fail closed。
+- `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH`：execution-control 本地读取
+  `provider_config_projection.v1` artifact 的路径；compose / staging baseline 使用
+  `/run/campus-agent/provider-config-projection.json`。
+- `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL` /
+  `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`：只服务 provider projection sync
+  与 provider activation compatibility control-plane calls；execution-control 不在
+  provider runtime 热路径读取 app-api active snapshot。
 - embedding profile activation 时 app-api 会反向调用 execution-control
   `/internal/provider-config/embedding:check-compatibility` 做 release/vector
   compatibility check。这个请求只携带 provider/model/dimensions 等候选元数据，不携带

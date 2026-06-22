@@ -137,9 +137,9 @@ judge / ragas runtime 的 HTTP tuning 由 repo-tracked live benchmark profile co
 - requests per minute / min interval
 - keep-alive expiry
 - max connections / max keepalive connections
-- `RAGAS_REASONING_EFFORT`
-- `RAGAS_TEXT_VERBOSITY`
-- `RAGAS_MAX_OUTPUT_TOKENS`
+- reasoning effort
+- text verbosity
+- max output tokens
 
 request pacing 语义固定为：
 

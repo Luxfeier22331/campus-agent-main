@@ -10,6 +10,7 @@ from tests.evals.ragas_runtime_test_support import (
     build_http_ragas_llm,
     httpx,
     json,
+    ragas_settings_from_projection,
     reset_supplemental_http_runtime_state_for_tests,
     unittest,
 )
@@ -48,7 +49,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -88,7 +89,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 text='{"error":{"message":"auth_unavailable: no auth available","type":"new_api_error"}}',
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -134,7 +135,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -192,7 +193,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -238,7 +239,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -401,7 +402,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -448,7 +449,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -517,7 +518,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -593,7 +594,7 @@ class RagasHttpTransportPreflightTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",

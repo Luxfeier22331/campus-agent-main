@@ -1,7 +1,12 @@
 import process from "node:process";
 
-type PromptRole = "hindsight_llm" | "primary_agent" | "rag_synthesis";
-type EmbeddingRole = "hindsight_embedding" | "rag_query_embedding";
+type PromptRole =
+	| "eval_judge_llm"
+	| "eval_ragas_llm"
+	| "hindsight_llm"
+	| "primary_agent"
+	| "rag_synthesis";
+type EmbeddingRole = "eval_ragas_embedding" | "hindsight_embedding" | "rag_query_embedding";
 type RerankRole = "rag_reranker";
 type SeedStage = "all" | "embedding" | "prompt" | "rerank";
 
@@ -38,8 +43,18 @@ interface Args {
 	transport: string;
 }
 
-const PROMPT_ROLES: PromptRole[] = ["primary_agent", "rag_synthesis", "hindsight_llm"];
-const EMBEDDING_ROLES: EmbeddingRole[] = ["rag_query_embedding", "hindsight_embedding"];
+const PROMPT_ROLES: PromptRole[] = [
+	"primary_agent",
+	"rag_synthesis",
+	"hindsight_llm",
+	"eval_ragas_llm",
+	"eval_judge_llm",
+];
+const EMBEDDING_ROLES: EmbeddingRole[] = [
+	"rag_query_embedding",
+	"hindsight_embedding",
+	"eval_ragas_embedding",
+];
 
 main().catch((error) => {
 	console.error(error instanceof Error ? error.message : String(error));
@@ -181,6 +196,8 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv): Args {
 		internalSharedSecret,
 		embedding: parseEmbeddingArgs(values, env, stage),
 		models: {
+			eval_judge_llm: primaryAgentModel,
+			eval_ragas_llm: primaryAgentModel,
 			hindsight_llm: primaryAgentModel,
 			primary_agent: primaryAgentModel,
 			rag_synthesis: ragSynthesisModel,

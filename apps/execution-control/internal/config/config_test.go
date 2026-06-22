@@ -738,7 +738,7 @@ func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" {
+	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" || cfg.ProviderConfigSnapshotPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from LLM_*: %#v", cfg)
 	}
 }
@@ -751,7 +751,7 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *
 		t.Fatalf("LoadFromEnv returned error: %v", err)
 	}
 
-	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" {
+	if cfg.AppAPIInternalBaseURL != "" || cfg.AppAPIInternalSharedSecret != "" || cfg.ProviderConfigSnapshotPath != "" {
 		t.Fatalf("provider-config resolver env was inferred from agent runtime provider: %#v", cfg)
 	}
 }

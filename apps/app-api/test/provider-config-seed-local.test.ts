@@ -70,6 +70,18 @@ describe("local provider-config seed script", () => {
 					transport: "responses",
 				}),
 				expect.objectContaining({
+					kind: "prompt",
+					model: "gpt-shared",
+					role: "eval_ragas_llm",
+					transport: "responses",
+				}),
+				expect.objectContaining({
+					kind: "prompt",
+					model: "gpt-shared",
+					role: "eval_judge_llm",
+					transport: "responses",
+				}),
+				expect.objectContaining({
 					dimensions: 2560,
 					kind: "embedding",
 					model: "Qwen3-Embedding-4B",
@@ -84,14 +96,21 @@ describe("local provider-config seed script", () => {
 					transport: "embeddings",
 				}),
 				expect.objectContaining({
+					dimensions: 2560,
+					kind: "embedding",
+					model: "Qwen3-Embedding-4B",
+					role: "eval_ragas_embedding",
+					transport: "embeddings",
+				}),
+				expect.objectContaining({
 					kind: "rerank",
 					model: "gte-reranker",
 					role: "rag_reranker",
 					transport: "gitee_rerank",
 				}),
 			]);
-			expect(server.validationPaths()).toHaveLength(6);
-			expect(server.activationPaths()).toHaveLength(6);
+			expect(server.validationPaths()).toHaveLength(9);
+			expect(server.activationPaths()).toHaveLength(9);
 		} finally {
 			await server.close();
 		}

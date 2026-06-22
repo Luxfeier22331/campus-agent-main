@@ -254,20 +254,20 @@ func (s *Server) evaluateProviderConfigGate() providerConfigGate {
 		return providerConfigGate{
 			Configured: false,
 			Reason:     reason,
-			Source:     "app-api-provider-config",
+			Source:     "provider-config-projection",
 		}
 	}
 	if s.providerConfigResolver == nil {
 		return providerConfigGate{
 			Configured: false,
 			Reason:     "provider_config_resolver_not_configured",
-			Source:     "app-api-provider-config",
+			Source:     "provider-config-projection",
 		}
 	}
 	return providerConfigGate{
 		Configured: true,
 		Reason:     "",
-		Source:     "app-api-provider-config",
+		Source:     "provider-config-projection",
 	}
 }
 

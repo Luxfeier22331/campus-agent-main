@@ -59,8 +59,9 @@ repo 级 instruction hierarchy 固定拆成五层：
   - owns execution admission, first decision activity scheduling, prompt config
     admission summary, deterministic terminal envelopes and sanitized
     finalization/projection
-  - resolves active prompt provider profiles from `apps/app-api` internal
-    provider-config APIs for `primary_agent` and `rag_synthesis`
+  - consumes active prompt provider profiles from the local
+    `provider_config_projection.v1` artifact for `primary_agent` and
+    `rag_synthesis`
 - `apps/agent-runtime`
   - owns primary agent SDK instructions, model-visible strict tool schemas,
     tool-call loop, direct/no-tool final output and SDK trace normalization
@@ -71,7 +72,7 @@ repo 级 instruction hierarchy 固定拆成五层：
     provider-facing validation/normalization and model execution diagnostics
 - `apps/app-api`
   - owns encrypted provider-config profiles and operator mutation APIs
-  - exposes internal active runtime snapshots to execution-control
+  - exposes internal active provider snapshots for explicit projection sync jobs
   - 只消费 observability-safe prompt metadata，不参与 prompt assembly
 
 补充约束：

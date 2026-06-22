@@ -76,7 +76,7 @@ describe("provider config service", () => {
 		});
 	});
 
-	it("resolves rerank runtime snapshots through reusable provider connections", async () => {
+	it("resolves rerank projection snapshots through reusable provider connections", async () => {
 		const service = buildProviderConfigService({
 			decryptSecret: (value) => value,
 			encryptSecret: (value) => value,
@@ -302,7 +302,128 @@ describe("provider config service", () => {
 		expect(compatibilityChecks).toBe(0);
 	});
 
-	it("resolves Hindsight LLM active runtime snapshots", async () => {
+	it("activates eval embedding profiles without RAG index compatibility checks", async () => {
+		let compatibilityChecks = 0;
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_eval_embedding`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async checkEmbeddingCompatibility() {
+					compatibilityChecks += 1;
+					return { ok: false, reason: "eval embedding must not gate on serving indexes" };
+				},
+				async validateEmbedding() {
+					return {
+						message: "embedding provider validated",
+						observedDimensions: 2560,
+						ok: true,
+						status: "passed",
+					};
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "eval-embedding-key",
+				baseUrl: "https://embedding.example/v1",
+				capabilities: ["embedding"],
+				provider: "openai-compatible",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				dimensions: 2560,
+				kind: "embedding",
+				model: "Qwen3-Embedding-4B",
+				role: "eval_ragas_embedding",
+				timeoutMs: 30000,
+				transport: "embeddings",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		await expect(
+			service.activateProfile({
+				principal: createOperatorPrincipal(),
+				profileId: createdProfile.profile.profileId,
+			}),
+		).resolves.toMatchObject({
+			profile: {
+				active: true,
+				role: "eval_ragas_embedding",
+				status: "active",
+			},
+		});
+		expect(compatibilityChecks).toBe(0);
+	});
+
+	it("resolves eval LLM active projection snapshots", async () => {
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_eval_llm`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async validatePrompt() {
+					return { message: "prompt provider validated", ok: true, status: "passed" };
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "eval-llm-key",
+				baseUrl: "https://llm.example/v1",
+				capabilities: ["prompt"],
+				provider: "openai",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		for (const role of ["eval_ragas_llm", "eval_judge_llm"] as const) {
+			const createdProfile = await service.createProfile({
+				payload: {
+					connectionId: createdConnection.connection.connectionId,
+					kind: "prompt",
+					model: "gpt-eval",
+					role,
+					timeoutMs: 30000,
+					transport: "responses",
+				},
+				principal: createOperatorPrincipal(),
+			});
+			await service.validateProfile({
+				principal: createOperatorPrincipal(),
+				profileId: createdProfile.profile.profileId,
+			});
+			await service.activateProfile({
+				principal: createOperatorPrincipal(),
+				profileId: createdProfile.profile.profileId,
+			});
+
+			await expect(service.getActiveRuntimeSnapshot({ role })).resolves.toMatchObject({
+				profile: {
+					api_key: "eval-llm-key",
+					base_url: "https://llm.example/v1",
+					kind: "prompt",
+					model: "gpt-eval",
+					provider: "openai",
+					role,
+					transport: "responses",
+				},
+			});
+		}
+	});
+
+	it("resolves Hindsight LLM active projection snapshots", async () => {
 		const service = buildProviderConfigService({
 			decryptSecret: (value) => value,
 			encryptSecret: (value) => value,

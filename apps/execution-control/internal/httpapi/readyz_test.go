@@ -271,8 +271,7 @@ func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) 
 
 func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 	server := NewServer(readyServerConfigForTest(t, func(cfg *config.Config) {
-		cfg.AppAPIInternalBaseURL = ""
-		cfg.AppAPIInternalSharedSecret = ""
+		cfg.ProviderConfigSnapshotPath = ""
 	}))
 	markTemporalReadyForTest(server)
 	markRAGRuntimeReadyForTest(server)
@@ -296,7 +295,7 @@ func TestReadyzPublishesProviderConfigGateReason(t *testing.T) {
 	}
 }
 
-func TestReadyzProviderConfigGateUsesAppAPIInternalResolver(t *testing.T) {
+func TestReadyzProviderConfigGateUsesLocalProjectionResolver(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 

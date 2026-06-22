@@ -55,8 +55,8 @@ repo root `.env` 只用于本地工作区开发。
 
 eval / local command 默认共享 provider 真相来自：
 
-- `LLM_*`
-- `EMBEDDING_*`
+- app-api provider-config active profiles
+- 显式同步生成的本地 `provider_config_projection.v1` artifact
 
 online serving 的 active provider truth 来自 app-api provider-config profile：
 
@@ -64,12 +64,13 @@ online serving 的 active provider truth 来自 app-api provider-config profile�
 - embedding roles: `rag_query_embedding`
 - `index_embedding` 只服务 offline indexing / rebuild 语义
 
-只有当 eval 需要独立预算、独立限流或独立 provider 时，才单独下发：
+eval provider truth 同样来自 app-api provider-config profile：
 
-- `EVAL_LLM_*`
-- `EVAL_EMBEDDING_*`
+- prompt roles: `eval_ragas_llm`、`eval_judge_llm`
+- embedding role: `eval_ragas_embedding`
 
-不要为了“看起来整齐”而强制拆出独立 eval key。
+只有当 eval 需要独立预算、独立限流或独立 provider 时，才给这些 roles 绑定独立
+connection。不要为了“看起来整齐”而强制拆出独立 eval key。
 
 ### Rule 4: rotate and revoke are normal operations
 
@@ -137,10 +138,13 @@ online serving 的 active provider truth 来自 app-api provider-config profile�
    --env staging --json`
 1. 确认输出里每个 Worker app 都是 `ready=true`，且没有 `missing_secrets`
 1. 再在 Operator Console 确认目标 provider profiles 已 validate + active
-1. 对 execution-control 确认
+1. 运行 `scripts/sync-provider-config-projection.mjs`，确认目标 runtime 的
+   `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` /
+   `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 projection artifact
+1. 对 execution-control 确认它只读取本地 projection artifact；
    `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL` 与
-   `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET` 已注入，使其能读取 active
-   runtime snapshot
+   `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET` 只用于 control-plane sync /
+   activation compatibility，不作为 provider runtime 热路径
 1. 再通过受控 smoke / acceptance 入口验证 provider 可用
 1. 只记录：
    - secret 是否存在
@@ -151,8 +155,9 @@ online serving 的 active provider truth 来自 app-api provider-config profile�
 ## Rotate Procedure
 
 1. 在 provider 平台创建新 key
-1. 对 online serving：在 Operator Console 创建新 profile revision，validate 后 activate
-1. 对 eval / ingestion / local command：写入目标环境 secret store，并重新部署或重启需要加载新 secret 的运行面
+1. 对 online serving / eval / Hindsight：在 Operator Console 创建新 profile revision，
+   validate 后 activate，再同步新的 provider projection artifact
+1. 对 ingestion / local command：写入目标环境 secret store，并重新部署或重启需要加载新 secret 的运行面
 1. 执行对应 smoke / acceptance / doctor 检查
 1. 确认新 key 工作正常后撤销旧 key
 

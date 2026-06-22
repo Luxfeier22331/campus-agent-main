@@ -19,7 +19,8 @@ from campus_evals.judge_adapters import (
     build_refusal_rubric_adapter,
 )
 from campus_evals.settings import JudgeLLMSettings, RagasSettings, SupplementalHTTPSettings
-from campus_shared.provider_config import ProviderConfigResolutionError
+
+from tests.evals.ragas_runtime_test_support import env_with_eval_provider_projection
 
 HANDBOOK_SCOPE = KnowledgeScope(corpus="regulations", collection="student_rules")
 
@@ -124,14 +125,15 @@ def _clarification_case() -> GoldenCase:
 
 class JudgeSettingsTest(unittest.TestCase):
     def test_judge_settings_from_env_reads_shared_judge_profile(self) -> None:
-        settings = JudgeLLMSettings.from_env(
+        with env_with_eval_provider_projection(
             {
-                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
-                "EVAL_LLM_API_KEY": "llm-key",
+                "EVAL_LLM_BASE_URL": "https://wrong.example/v1",
+                "EVAL_LLM_API_KEY": "wrong-key",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "120",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
             }
-        )
+        ) as env:
+            settings = JudgeLLMSettings.from_env(env)
 
         self.assertEqual(settings.llm_model, "gpt-5.4")
         self.assertEqual(settings.http_settings.read_timeout_seconds, 120.0)
@@ -141,47 +143,50 @@ class JudgeSettingsTest(unittest.TestCase):
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
 
-    def test_judge_settings_from_env_prefers_eval_scoped_keys_for_provider_handles(self) -> None:
-        settings = JudgeLLMSettings.from_env(
+    def test_judge_settings_from_env_uses_projection_over_provider_handle_env(self) -> None:
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
                 "EVAL_LLM_API_KEY": "eval-llm-key",
-                "EVAL_JUDGE_MODEL": "wrong-env-model",
                 "LLM_BASE_URL": "https://shared-llm.example/v1",
                 "LLM_API_KEY": "shared-llm-key",
             }
-        )
+        ) as env:
+            settings = JudgeLLMSettings.from_env(env)
 
-        self.assertEqual(settings.llm_base_url, "https://eval-llm.example/v1")
-        self.assertEqual(settings.llm_api_key, "eval-llm-key")
+        self.assertEqual(settings.llm_base_url, "https://judge.example/v1")
+        self.assertEqual(settings.llm_api_key, "judge-key")
         self.assertEqual(settings.llm_model, "gpt-5.4")
 
     def test_judge_settings_from_env_ignores_eval_llm_transport_env_override(self) -> None:
-        default_settings = JudgeLLMSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
             }
-        )
-        shared_override = JudgeLLMSettings.from_env(
+        ) as env:
+            default_settings = JudgeLLMSettings.from_env(env)
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_LLM_TRANSPORT": "chat_completions",
             }
-        )
-        surface_override = JudgeLLMSettings.from_env(
+        ) as env:
+            shared_override = JudgeLLMSettings.from_env(env)
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_LLM_TRANSPORT": "responses",
                 "EVAL_JUDGE_LLM_TRANSPORT": "chat_completions",
             }
-        )
+        ) as env:
+            surface_override = JudgeLLMSettings.from_env(env)
 
         self.assertEqual(default_settings.llm_transport, "responses")
         self.assertEqual(shared_override.llm_transport, "responses")
         self.assertEqual(surface_override.llm_transport, "responses")
 
     def test_judge_settings_constructor_rejects_unknown_eval_llm_transport(self) -> None:
-        with self.assertRaisesRegex(ValueError, "EVAL_LLM_TRANSPORT must be one of"):
+        with self.assertRaisesRegex(ValueError, "eval runtime profile llm_transport"):
             JudgeLLMSettings(
                 llm_api_key="llm-key",
                 llm_model="gpt-5.4",
@@ -189,48 +194,49 @@ class JudgeSettingsTest(unittest.TestCase):
             )
 
     def test_judge_settings_from_env_uses_profile_without_model_env(self) -> None:
-        settings = JudgeLLMSettings.from_env({"EVAL_LLM_API_KEY": "llm-key"})
+        with env_with_eval_provider_projection({"EVAL_LLM_API_KEY": "llm-key"}) as env:
+            settings = JudgeLLMSettings.from_env(env)
 
         self.assertEqual(settings.llm_model, "gpt-5.4")
 
     def test_judge_settings_from_env_requires_provider_key_with_surface_aware_error(self) -> None:
-        with self.assertRaises(ProviderConfigResolutionError) as raised:
+        with self.assertRaisesRegex(ValueError, "provider projection path is required"):
             JudgeLLMSettings.from_env({})
 
-        self.assertEqual(raised.exception.surface_name, "eval.judge")
-        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
-        self.assertIn("eval.judge", str(raised.exception))
-        self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
-
     def test_judge_settings_from_env_accept_repo_tracked_http_settings_override(self) -> None:
-        settings = JudgeLLMSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_BASE_URL": "https://eval-llm.example/v1",
                 "EVAL_LLM_API_KEY": "eval-llm-key",
-            },
-            http_settings=SupplementalHTTPSettings(read_timeout_seconds=45.0),
-        )
+            }
+        ) as env:
+            settings = JudgeLLMSettings.from_env(
+                env,
+                http_settings=SupplementalHTTPSettings(read_timeout_seconds=45.0),
+            )
 
         self.assertEqual(settings.http_settings.read_timeout_seconds, 45.0)
 
     def test_judge_settings_from_env_reads_request_pacing_override(self) -> None:
-        settings = JudgeLLMSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "15",
             }
-        )
+        ) as env:
+            settings = JudgeLLMSettings.from_env(env)
 
         self.assertEqual(settings.http_settings.request_min_interval_seconds, 15.0)
 
     def test_build_json_judge_attaches_request_pacer_when_configured(self) -> None:
-        settings = JudgeLLMSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_BASE_URL": "https://llm.example/v1",
                 "EVAL_LLM_API_KEY": "llm-key",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
-        )
+        ) as env:
+            settings = JudgeLLMSettings.from_env(env)
         captured: dict[str, object] = {}
 
         class FakeLLM:
@@ -315,14 +321,15 @@ class JudgeSettingsTest(unittest.TestCase):
 
 class JudgeAdapterApplicabilityTest(unittest.TestCase):
     def test_build_handbook_ragas_adapter_passes_metric_names_to_scorer(self) -> None:
-        ragas_settings = RagasSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_EMBEDDING_API_KEY": "embed-key",
                 "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
-        )
+        ) as env:
+            ragas_settings = RagasSettings.from_env(env)
 
         with (
             patch("campus_evals.supplemental_http.build_http_ragas_llm", return_value=object()),
@@ -345,7 +352,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self,
     ) -> None:
         adapter = build_answer_rubric_adapter(
-            JudgeLLMSettings.from_env(
+            _judge_settings_from_projection(
                 {
                     "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -387,7 +394,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self,
     ) -> None:
         adapter = build_refusal_rubric_adapter(
-            JudgeLLMSettings.from_env(
+            _judge_settings_from_projection(
                 {
                     "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -441,14 +448,15 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self.assertEqual(completed[0].verdict, "not_applicable")
 
     def test_handbook_ragas_adapter_marks_non_completed_cases_not_applicable(self) -> None:
-        ragas_settings = RagasSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_EMBEDDING_API_KEY": "embed-key",
                 "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
-        )
+        ) as env:
+            ragas_settings = RagasSettings.from_env(env)
         adapter = build_handbook_ragas_adapter(
             ragas_settings,
             scorer=lambda projection: (type("Result", (), {})(),),
@@ -471,14 +479,15 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
     def test_handbook_ragas_adapter_converts_runtime_errors_into_failed_report_only_results(
         self,
     ) -> None:
-        ragas_settings = RagasSettings.from_env(
+        with env_with_eval_provider_projection(
             {
                 "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_EMBEDDING_API_KEY": "embed-key",
                 "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
-        )
+        ) as env:
+            ragas_settings = RagasSettings.from_env(env)
         adapter = build_handbook_ragas_adapter(
             ragas_settings,
             scorer=lambda projection: (_ for _ in ()).throw(
@@ -509,7 +518,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self,
     ) -> None:
         adapter = build_answer_rubric_adapter(
-            JudgeLLMSettings.from_env(
+            _judge_settings_from_projection(
                 {
                     "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
@@ -534,6 +543,11 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         self.assertEqual(results[0].metric_name, "answer_correctness_rubric")
         self.assertEqual(results[0].verdict, "failed")
         self.assertIsNone(results[0].score)
+
+
+def _judge_settings_from_projection(env: dict[str, str]) -> JudgeLLMSettings:
+    with env_with_eval_provider_projection(env) as resolved:
+        return JudgeLLMSettings.from_env(resolved)
 
 
 if __name__ == "__main__":

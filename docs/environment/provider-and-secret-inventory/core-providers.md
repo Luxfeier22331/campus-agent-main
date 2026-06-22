@@ -29,15 +29,18 @@ online serving owner：
 
 - `apps/app-api` provider-config connection + profile
 - Operator Console `/operations/provider-config`
-- `execution-control` 与 runtime projection 通过
+- `app-api` internal export endpoint 通过
   `/api/internal/provider-config/active?role=primary_agent` 和
-  `/api/internal/provider-config/active?role=rag_synthesis` 读取 active runtime snapshot；
-  Hindsight provider projection 读取 `hindsight_llm`
+  `/api/internal/provider-config/active?role=rag_synthesis` 提供 control-plane
+  profile export；显式 sync job 将这些 active profiles 写入本地
+  `provider_config_projection.v1` artifact
+- `execution-control`、Hindsight 与 eval runtime 只消费本地 projection artifact，不在热路径调用
+  app-api provider-config endpoint
 
 默认 env 放置位置：
 
 - local seed 使用 root `.env` 的 provider seed 输入，不再是 online serving truth；
-  eval 使用 command-scoped `EVAL_*`
+  eval provider 隔离通过 provider-config roles 表达，不使用 command-scoped `EVAL_*`
 - domain multimodal lanes 不通过 `LLM_*` fallback，也不在 root `.env.example`
   只在领域入口显式提供必备 API key 和 model；eval runtime 的 model / max token /
   reasoning / transport tuning 由 repo-tracked eval runtime profile 持有
@@ -48,19 +51,19 @@ online serving owner：
 - local seed `LLM_API_KEY`
 - local seed `LLM_MODEL`
 - optional local seed `RAG_SYNTHESIS_MODEL`
-- command-scoped `EVAL_LLM_BASE_URL`
-- command-scoped `EVAL_LLM_API_KEY`
+- projection path `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH`
 
 获取方式：
 
-1. 先决定是否复用当前 shared provider，还是给 eval 单独拆 provider。
+1. 先决定每个 role 复用当前 shared provider connection，还是给 eval / Hindsight 单独拆
+   provider connection。
 1. 在所选供应商控制台创建项目级或环境级 API key。
 1. 本地开发可填 root `.env` 后执行
    `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts`；
    staging/prod 通过 Operator Console 创建 prompt connection 与 profile，选择 role、base URL、
    model 与 API key。
-1. 先 validate，再 activate；active profile 会以内部 runtime snapshot 形式被
-   execution-control 消费。
+1. 先 validate，再 activate；active profile 通过 explicit sync 生成
+   `provider_config_projection.v1`，由 self-host runtimes 本地消费。
 1. staging / prod 必须分环境单独发 key，不要复用本地开发 key。
 
 如果直接使用 OpenAI，可参考：
@@ -76,10 +79,11 @@ online serving owner：
 
 - 上述 “OpenAI 项目级 key” 是官方推荐路径；如果改用其他 OpenAI-compatible vendor，则点击路径以供应商控制台当前 UI
   为准
-- eval provider override 不是默认必需项。只有预算或限流隔离需要时才单独配置 endpoint/key；
-  模型对比走 eval runtime profile / manifest，不走 root env
+- eval provider isolation 不是默认必需项。只有预算或限流隔离需要时才给
+  `eval_ragas_llm` / `eval_judge_llm` 绑定独立 connection；模型对比走 eval runtime
+  profile / manifest，不走 root env
 - active profile list 只返回 masked secret metadata；raw key 只通过 app-api internal
-  runtime snapshot 给 execution-control，不返回浏览器
+  export 进入 0600 projection artifact，不返回浏览器
 
 ## 2. Embedding provider
 
@@ -101,15 +105,18 @@ online serving owner：
 
 - `apps/app-api` provider-config connection + `rag_query_embedding` profile
 - `apps/app-api` provider-config connection + `hindsight_embedding` profile
+- `apps/app-api` provider-config connection + `eval_ragas_embedding` profile
 - Operator Console `/operations/provider-config`
-- `execution-control` 通过
-  `/api/internal/provider-config/active?role=rag_query_embedding` 读取 active runtime snapshot；
-  Hindsight provider projection 读取 `hindsight_embedding`
+- app-api internal export endpoint 通过
+  `/api/internal/provider-config/active?role=rag_query_embedding` 提供 control-plane
+  profile export；显式 sync job 将 active profiles 写入本地
+  `provider_config_projection.v1` artifact
 
 默认 env 放置位置：
 
 - root `.env` 的 `EMBEDDING_*` 只作为 local seed 输入
-- ingestion / eval / command-scoped override 只消费各自 endpoint/key
+- ingestion 只消费 indexing / rebuild 自己的 endpoint/key；eval provider 隔离通过
+  `eval_ragas_embedding` role 表达
 - online retrieval 不以 root `.env` 为 truth
 
 相关键：
@@ -118,7 +125,7 @@ online serving owner：
 - `EMBEDDING_API_KEY`
 - local seed/default `EMBEDDING_MODEL`
 - local seed/default `EMBEDDING_DIMENSIONS`
-- 可选 eval provider override：`EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`
+- projection path `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH`
 
 获取方式：
 
@@ -127,9 +134,10 @@ online serving owner：
 1. 通过 Operator Console 创建 embedding connection 与 profile，选择 role、base URL、
    model、API key 与 dimensions。
 1. validate profile；activate 前 app-api 必须检查 active retrieval vector dimensions 兼容性。
-1. 只有 ingestion、eval 或 local command 需要独立 provider endpoint/key 时，才额外填写 env；
-   model、dimensions 与 sparse profile 以 collection runtime profile 为准
-   `EMBEDDING_*` 或 `EVAL_EMBEDDING_*`。
+1. 只有 ingestion / local command 需要独立 provider endpoint/key 时才额外填写 env；
+   eval 独立 provider 通过 `eval_ragas_embedding` profile 配置；model、dimensions 与
+   sparse profile 以 collection runtime profile / eval runtime profile 为准，不从
+   `EMBEDDING_*` 或 `EVAL_EMBEDDING_*` 隐式继承。
 
 外部参考：
 
@@ -147,8 +155,9 @@ online serving owner：
 
 - `apps/app-api` provider-config connection + `rag_reranker` profile
 - collection runtime profile 显式 `reranker_enabled_by_default=true`
-- `execution-control` 通过
-  `/api/internal/provider-config/active?role=rag_reranker` 读取 active runtime snapshot
+- app-api internal export endpoint 通过
+  `/api/internal/provider-config/active?role=rag_reranker` 提供 control-plane profile
+  export；execution-control 通过本地 projection artifact 消费该 profile
 
 默认 env 放置位置：
 
@@ -259,7 +268,8 @@ Hindsight deployment provider projection：
 - `HINDSIGHT_API_TENANT_EXTENSION`
 - `HINDSIGHT_API_TENANT_API_KEY`
 
-其中 LLM 与 embedding 键来自 app-api provider-config active profiles：
+其中 LLM 与 embedding 键来自本地 provider projection artifact 中的 app-api
+provider-config active profiles：
 
 - `hindsight_llm`
 - `hindsight_embedding`

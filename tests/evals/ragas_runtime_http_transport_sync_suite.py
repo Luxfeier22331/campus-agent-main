@@ -3,12 +3,12 @@ from __future__ import annotations
 from tests.evals.ragas_runtime_test_support import (
     InstructorBaseRagasLLM,
     PydanticBaseModel,
-    RagasSettings,
     StringPromptValue,
     asyncio,
     build_http_ragas_llm,
     httpx,
     json,
+    ragas_settings_from_projection,
     reset_supplemental_http_runtime_state_for_tests,
     unittest,
 )
@@ -21,7 +21,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
     def test_build_http_ragas_llm_exposes_structured_generation_for_pydantic_ragas_prompts(
         self,
     ) -> None:
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -64,7 +64,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -114,7 +114,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 text='{"error":{"message":"Service temporarily unavailable","type":"api_error"}}',
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -163,7 +163,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -225,7 +225,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -275,7 +275,7 @@ class RagasHttpTransportSyncTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",

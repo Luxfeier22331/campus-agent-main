@@ -11,18 +11,7 @@ from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
 
 SURFACE_SPECS = {
     "evals": {
-        "providers": {
-            "llm": {
-                "checked_keys": LLM_API_KEY_PRECEDENCE,
-                "resolver": resolve_llm_provider_config,
-                "surface_name": "eval.ragas",
-            },
-            "embedding": {
-                "checked_keys": EMBEDDING_API_KEY_PRECEDENCE,
-                "resolver": resolve_embedding_provider_config,
-                "surface_name": "eval.ragas",
-            },
-        },
+        "providers": {},
         "required_settings": {},
         "optional_settings": {},
         "files": {},

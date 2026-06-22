@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from tests.evals.ragas_runtime_test_support import (
     RagasProjection,
-    RagasSettings,
     build_default_ragas_metric_names,
     build_ragas_scorer,
+    ragas_settings_from_projection,
     unittest,
 )
 
@@ -36,7 +36,7 @@ class RagasScorerFailureTest(unittest.TestCase):
                 raise TimeoutError("judge timed out")
             return FakeEvaluationResult(metric_name)
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -118,7 +118,7 @@ class RagasScorerFailureTest(unittest.TestCase):
                 )
             return FakeEvaluationResult(metric_name)
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -179,7 +179,7 @@ class RagasScorerFailureTest(unittest.TestCase):
         class FakeEvaluationResult:
             scores = [{"answer_relevancy": None}]
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -224,7 +224,7 @@ class RagasScorerFailureTest(unittest.TestCase):
             def __init__(self, name: str) -> None:
                 self.name = name
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",

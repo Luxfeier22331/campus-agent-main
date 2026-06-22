@@ -165,9 +165,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
   `/etc/campus-agent/runtime-profile.staging.json`，不是 staging env knobs。
 - staging 不消费 `infra/local/.generated/runtime.env`。Hindsight Postgres password 来自
   staging runtime generated secrets file；Hindsight LLM 与 embedding provider env 来自
-  app-api provider-config active profiles `hindsight_llm` 与 `hindsight_embedding` 的
-  staging projection，不使用 root provider env fallback，也不使用 retired `memory_graph_llm`
-  role。`HINDSIGHT_API_RERANKER_PROVIDER` 当前固定为 `rrf`。
+  staging provider projection artifact 中的 `hindsight_llm` 与 `hindsight_embedding`
+  profiles，不使用 root provider env fallback，也不使用 retired `memory_graph_llm` role。
+  `HINDSIGHT_API_RERANKER_PROVIDER` 当前固定为 `rrf`。
 - `STAGING_INGESTION_EMBEDDING_BASE_URL` 与
   `STAGING_INGESTION_EMBEDDING_API_KEY` 只提供 indexing provider endpoint/key。
   embedding model、dimensions、sparse profile 与 vector binding 由

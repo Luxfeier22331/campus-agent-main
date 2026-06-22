@@ -3,14 +3,11 @@ from __future__ import annotations
 import json
 import os
 import shlex
+import stat
 import subprocess
 import textwrap
-import threading
-from contextlib import contextmanager
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -50,9 +47,9 @@ _PROJECTED_STAGING_KEYS = [
     "APP_API_OTEL_INGEST_ENDPOINT",
     "APP_API_OTEL_INGEST_SHARED_SECRET",
     "EXECUTION_CONTROL_APP_API_BASE_URL",
-    "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL",
-    "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
     "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
+    "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
+    "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_NAME",
     "HINDSIGHT_API_EMBEDDINGS_OPENAI_API_KEY",
@@ -151,6 +148,8 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "CAMPUS_SHARED_POSTGRES_URL",
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
     "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
+    "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
+    "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "OBJECT_STORE_ENDPOINT",
     "QDRANT_URL",
@@ -228,9 +227,6 @@ _VALID_TEMPORAL_ENV = {
 
 _VALID_STAGING_PROVIDER_ENV = {
     "APP_API_INTERNAL_SHARED_SECRET": "app-api-secret",
-    "LLM_API_KEY": "llm-key",
-    "LLM_BASE_URL": "https://llm.example.com/v1",
-    "LLM_MODEL": "gpt-test",
     "STAGING_INGESTION_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
     "STAGING_INGESTION_EMBEDDING_DIMENSIONS": "2560",
 }
@@ -257,9 +253,16 @@ def run_common_script_with_env(
             (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
         runtime_env_path.parent.mkdir(parents=True)
+        projection_path = temp_root / "ops" / "staging" / "provider-config-projection.json"
+        write_provider_config_projection_for_tests(projection_path)
         runtime_env_path.write_text(
             _with_valid_staging_fixture_env(
-                staging_env,
+                "\n".join(
+                    [
+                        f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
+                        staging_env,
+                    ]
+                ),
                 include_observability_sink_fixture=include_observability_sink_fixture,
             )
             + "\n",
@@ -290,17 +293,14 @@ def run_common_script_with_env(
         console.log(JSON.stringify(projected));
         NODE
         """
-        with provider_config_server_for_tests() as provider_config_base_url:
-            env = os.environ.copy()
-            env["HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL"] = provider_config_base_url
-            return subprocess.run(
-                ["bash", "-lc", textwrap.dedent(command)],
-                cwd=temp_root,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=temp_root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
 
 def _with_valid_observability_sink_env(staging_env: str) -> str:
@@ -363,6 +363,10 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
                 encoding="utf-8",
             )
         (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
+        projection_path = (
+            temp_root / "infra" / "local" / ".generated" / "provider-config-projection.json"
+        )
+        write_provider_config_projection_for_tests(projection_path)
         command = f"""
         set -euo pipefail
         {shlex.quote(str(script_path))} __campus_agent_print_projected_env > projected.env0
@@ -383,78 +387,77 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         console.log(JSON.stringify(projected));
         NODE
         """
-        with provider_config_server_for_tests() as provider_config_base_url:
-            env = os.environ.copy()
-            env["APP_API_INTERNAL_BASE_URL"] = provider_config_base_url
-            return subprocess.run(
-                ["bash", "-lc", textwrap.dedent(command)],
-                cwd=temp_root,
-                env=env,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=temp_root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
 
 
-@contextmanager
-def provider_config_server_for_tests():
-    server = ThreadingHTTPServer(("127.0.0.1", 0), _ProviderConfigHandler)
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
-    thread.start()
-    try:
-        host, port = server.server_address[:2]
-        yield f"http://{host}:{port}"
-    finally:
-        server.shutdown()
-        server.server_close()
-        thread.join(timeout=2)
-
-
-class _ProviderConfigHandler(BaseHTTPRequestHandler):
-    def do_GET(self) -> None:
-        parsed = urlparse(self.path)
-        role = parse_qs(parsed.query).get("role", [""])[0]
-        profiles = {
-            "hindsight_llm": {
-                "api_key": "llm-key",
-                "base_url": "https://llm.example.com/v1",
-                "kind": "prompt",
-                "model": "gpt-test",
-                "profile_id": "provider_profile_hindsight_llm",
-                "provider": "openai",
-                "revision": 1,
-                "role": "hindsight_llm",
-                "timeout_ms": 30000,
-                "transport": "responses",
+def write_provider_config_projection_for_tests(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    profiles = {
+        "primary_agent": _prompt_profile("primary_agent"),
+        "rag_synthesis": _prompt_profile("rag_synthesis"),
+        "rag_query_embedding": _embedding_profile("rag_query_embedding"),
+        "rag_reranker": {
+            **_prompt_profile("rag_reranker"),
+            "kind": "rerank",
+            "transport": "rerank",
+        },
+        "hindsight_llm": _prompt_profile("hindsight_llm"),
+        "hindsight_embedding": _embedding_profile("hindsight_embedding"),
+        "eval_ragas_llm": _prompt_profile("eval_ragas_llm"),
+        "eval_ragas_embedding": _embedding_profile("eval_ragas_embedding"),
+        "eval_judge_llm": _prompt_profile("eval_judge_llm"),
+    }
+    path.write_text(
+        json.dumps(
+            {
+                "schema_version": "provider_config_projection.v1",
+                "generated_at": "2026-06-22T00:00:00Z",
+                "profiles": profiles,
             },
-            "hindsight_embedding": {
-                "api_key": "embedding-key",
-                "base_url": "https://ai.gitee.com/v1",
-                "dimensions": 2560,
-                "kind": "embedding",
-                "model": "Qwen3-Embedding-4B",
-                "profile_id": "provider_profile_hindsight_embedding",
-                "provider": "openai",
-                "revision": 1,
-                "role": "hindsight_embedding",
-                "timeout_ms": 30000,
-                "transport": "embeddings",
-            },
-        }
-        profile = profiles.get(role)
-        if parsed.path != "/api/internal/provider-config/active" or profile is None:
-            self.send_response(404)
-            self.send_header("content-type", "application/json")
-            self.end_headers()
-            self.wfile.write(b'{"error":{"code":"provider_profile_missing"}}')
-            return
-        self.send_response(200)
-        self.send_header("content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(json.dumps({"profile": profile}).encode("utf-8"))
+            ensure_ascii=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR)
 
-    def log_message(self, _format: str, *_args: object) -> None:
-        return
+
+def _prompt_profile(role: str) -> dict[str, object]:
+    return {
+        "api_key": "llm-key",
+        "base_url": "https://llm.example.com/v1",
+        "kind": "prompt",
+        "model": "gpt-test",
+        "profile_id": f"provider_profile_{role}",
+        "provider": "openai",
+        "revision": 1,
+        "role": role,
+        "timeout_ms": 30000,
+        "transport": "responses",
+    }
+
+
+def _embedding_profile(role: str) -> dict[str, object]:
+    return {
+        "api_key": "embedding-key",
+        "base_url": "https://ai.gitee.com/v1",
+        "dimensions": 2560,
+        "kind": "embedding",
+        "model": "Qwen3-Embedding-4B",
+        "profile_id": f"provider_profile_{role}",
+        "provider": "openai",
+        "revision": 1,
+        "role": role,
+        "timeout_ms": 30000,
+        "transport": "embeddings",
+    }
 
 
 def _fake_uv_script() -> str:

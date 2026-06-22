@@ -29,7 +29,7 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		method: "GET",
 		path: "/api/internal/provider-config/active",
 		callerClass: "machine-internal",
-		admission: "x-app-internal-auth; returns active provider runtime snapshot",
+		admission: "x-app-internal-auth; exports active provider snapshot for projection sync",
 	},
 	{
 		method: "ALL",

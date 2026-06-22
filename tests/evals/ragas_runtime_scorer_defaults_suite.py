@@ -15,6 +15,7 @@ from tests.evals.ragas_runtime_test_support import (
     build_ragas_scorer,
     json,
     patch,
+    ragas_settings_from_projection,
     unittest,
 )
 
@@ -73,7 +74,7 @@ class RagasScorerDefaultsTest(unittest.TestCase):
                 faithful = sum(1 for item in answers.statements if int(item.verdict) == 1)
                 return faithful / total
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",

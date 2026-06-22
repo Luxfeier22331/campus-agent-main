@@ -645,13 +645,16 @@ formal benchmark core：
 
 ragas runtime：
 
-- 共享 provider 真相默认来自 `LLM_*` 与 `EMBEDDING_*`
-- `campus_evals.settings.RagasSettings.from_env()` 的 provider 解析优先级固定为
-  `EVAL_LLM_* > LLM_*` 与 `EVAL_EMBEDDING_* > EMBEDDING_*`
-- `campus_evals.settings.JudgeLLMSettings.from_env()` 的 provider 解析优先级固定为
-  `EVAL_LLM_* > LLM_*`
-- `EVAL_LLM_*` / `EVAL_EMBEDDING_*` 只用于 eval 需要独立 provider、独立预算或独立限流的场景；默认不再作为
-  root `.env` 主真相
+- provider 真相来自本地 `provider_config_projection.v1` artifact，由
+  `scripts/sync-provider-config-projection.mjs` 从 app-api provider-config active
+  profiles 显式同步生成
+- `campus_evals.settings.RagasSettings.from_env()` 固定读取 projection 中的
+  `eval_ragas_llm` 与 `eval_ragas_embedding`
+- `campus_evals.settings.JudgeLLMSettings.from_env()` 固定读取 projection 中的
+  `eval_judge_llm`
+- `LLM_*`、`EMBEDDING_*`、`EVAL_LLM_*` 与 `EVAL_EMBEDDING_*` 不再作为
+  eval provider fallback；如需 eval 独立预算或限流，在 app-api provider-config 中配置独立
+  eval role 并重新同步 projection
 - repo 主路径里的 ragas / judge HTTP runtime tuning 不再从 env 读取，而是由
   `BenchmarkProfile.http_settings` 显式注入
 - low-level helper 仍保留
@@ -661,8 +664,9 @@ ragas runtime：
   `fixtures/ops/eval_runtime_profiles.v1.json` 持有；env 不再是这些 profile 值的入口
 - eval LLM transport profile 允许值固定为 `responses` 或 `chat_completions`
 - 默认运行面仍走 `build_http_ragas_llm()` + `build_http_ragas_embeddings()`；LLM
-  transport 会按当前 env 对 OpenAI-compatible `/responses` 或 `/chat/completions` 发原生
-  HTTP 请求，embeddings 固定走 `/embeddings`，实现边界固定在 `campus_evals.supplemental_http`
+  transport 会按 eval runtime profile 对 OpenAI-compatible `/responses` 或
+  `/chat/completions` 发原生 HTTP 请求，embeddings 固定走 `/embeddings`，
+  实现边界固定在 `campus_evals.supplemental_http`
 - `BenchmarkProfile.http_settings` 现在统一控制 ragas + rubric judge 共享的 supplemental
   provider runtime，包括 connect/read/write/pool timeout、单层 retry、provider runtime
   circuit breaker、preflight timeout、request pacing 与 keep-alive
@@ -698,7 +702,10 @@ ragas runtime：
 
 最小 smoke（ad-hoc inline Python）：
 
-- `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run
+- 先同步本地 projection artifact：
+  `node scripts/sync-provider-config-projection.mjs --output infra/local/.generated/provider-config-projection.json`
+- 再运行：
+  `set -a && source .env && set +a && env UV_CACHE_DIR=/tmp/uv-cache uv run
   --package campus-evals python - <<'PY'`
 - `from campus_evals import RagasProjection, RagasSettings, build_ragas_scorer`
 - `settings = RagasSettings.from_env()`
@@ -710,12 +717,11 @@ ragas runtime：
 
 provider 诊断约定：
 
-- shared provider precedence 已收口到 `campus_shared.provider_config`
-- eval LLM provider key 优先级固定为 `EVAL_LLM_API_KEY > LLM_API_KEY`
-- eval embedding provider key 优先级固定为 `EVAL_EMBEDDING_API_KEY >
-  EMBEDDING_API_KEY`
-- provider key 缺失现在会给出 surface-aware typed error，而不是只报笼统 `LLM_API_KEY is
-  required`
+- eval provider readiness 由 `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向的
+  0600 projection artifact 决定
+- required roles 固定为 `eval_ragas_llm`、`eval_ragas_embedding` 与
+  `eval_judge_llm`
+- provider key 缺失现在会给出 projection / role aware typed error，不打印 raw secret
 - deploy-side provider secret 治理见 `docs/runbooks/provider-secret-governance.md`
 
 student handbook formal benchmark：

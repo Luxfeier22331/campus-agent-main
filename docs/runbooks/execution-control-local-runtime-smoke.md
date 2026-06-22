@@ -137,6 +137,13 @@ node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx \
   ./scripts/seed-local-provider-config.ts --stage embedding
 ```
 
+同步本地 provider projection artifact：
+
+```bash
+node scripts/sync-provider-config-projection.mjs \
+  --output infra/local/.generated/provider-config-projection.json
+```
+
 如果启用 rerank：
 
 ```bash

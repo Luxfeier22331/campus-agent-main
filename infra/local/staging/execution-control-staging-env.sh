@@ -25,7 +25,6 @@ const [runtimeEnvPath, runtimeSecretsEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
 const crypto = require("node:crypto");
-const childProcess = require("node:child_process");
 const path = require("node:path");
 const { parseEnv } = require("node:util");
 if (typeof parseEnv !== "function") {
@@ -158,9 +157,9 @@ const keys = [
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
   "EXECUTION_CONTROL_APP_API_BASE_URL",
-  "EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL",
-  "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
   "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
+  "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
+  "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_RUNTIME_PROFILE",
   "EXECUTION_CONTROL_RUNTIME_CONFIG_PATH",
   "EXECUTION_CONTROL_METRICS_BEARER_TOKEN",
@@ -362,17 +361,12 @@ const stagingAppAPIBaseURL =
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
   "https://api-staging.mucwiki-edge.link";
 setDefault("EXECUTION_CONTROL_APP_API_BASE_URL", stagingAppAPIBaseURL);
-setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL", stagingAppAPIBaseURL);
-setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET", resolvedValue("APP_API_INTERNAL_SHARED_SECRET"));
 setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "30000");
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
-if (
-  resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET")
-) {
-  projectHindsightProviderConfig();
-}
+projectProviderConfigProjection();
+projectHindsightProviderConfig();
 
 const explicitLangfuseBaseURL = sourceEnvValue("LANGFUSE_BASE_URL");
 setDefault("LANGFUSE_HOST_PORT", "3000");
@@ -481,8 +475,9 @@ function envValue(key) {
 }
 
 function projectHindsightProviderConfig() {
-  const llm = fetchActiveProviderConfigSnapshot("hindsight_llm");
-  const embedding = fetchActiveProviderConfigSnapshot("hindsight_embedding");
+  const projection = loadProviderConfigProjection();
+  const llm = providerProfileFromProjection(projection, "hindsight_llm");
+  const embedding = providerProfileFromProjection(projection, "hindsight_embedding");
   requireProviderProfile(llm, {
     kind: "prompt",
     role: "hindsight_llm",
@@ -509,38 +504,49 @@ function projectHindsightProviderConfig() {
   setValue("HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
 }
 
-function fetchActiveProviderConfigSnapshot(role) {
-  const baseURL =
-    sourceEnvValue("HINDSIGHT_PROVIDER_CONFIG_APP_API_BASE_URL") ||
-    resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL");
-  const sharedSecret = resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
-  if (!baseURL || !sharedSecret) {
-    throw new Error(
-      "Hindsight provider-config projection requires app-api internal base URL and shared secret",
-    );
+function projectProviderConfigProjection() {
+  const snapshotPath =
+    resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
+    `${resolvedValue("EXECUTION_CONTROL_STAGING_RUNTIME_DIR") || "."}/provider-config-projection.json`;
+  setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
+  setValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
+}
+
+function loadProviderConfigProjection() {
+  const snapshotPath = resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH");
+  if (!snapshotPath) {
+    throw new Error("provider-config projection requires CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH");
   }
-  const endpoint = `${baseURL.replace(/\/+$/, "")}/api/internal/provider-config/active?role=${encodeURIComponent(role)}`;
-  let text;
   try {
-    text = childProcess.execFileSync(
-      "curl",
-      ["-fsS", "--max-time", "10", "-H", `x-app-internal-auth: ${sharedSecret}`, endpoint],
-      { encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
-    );
+    const payload = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+    if (payload.schema_version !== "provider_config_projection.v1") {
+      throw new Error("schema_version is unsupported");
+    }
+    if (!payload.profiles || typeof payload.profiles !== "object" || Array.isArray(payload.profiles)) {
+      throw new Error("profiles must be an object");
+    }
+    return payload;
   } catch (error) {
-    const stderr = error?.stderr ? String(error.stderr).trim() : "";
     throw new Error(
-      `Hindsight provider-config projection requires active app-api provider profile ${role}: ${stderr || error.message}`,
+      `provider-config projection is not readable at ${snapshotPath}: ${error.message}`,
     );
   }
-  const payload = text ? JSON.parse(text) : {};
-  return payload.profile;
+}
+
+function providerProfileFromProjection(projection, role) {
+  const profile = projection.profiles?.[role];
+  if (!profile) {
+    throw new Error(
+      `Hindsight provider-config projection requires active provider profile ${role}`,
+    );
+  }
+  return profile;
 }
 
 function requireProviderProfile(profile, expected) {
   if (!profile || typeof profile !== "object" || Array.isArray(profile)) {
     throw new Error(
-      `Hindsight provider-config projection requires active app-api provider profile ${expected.role}`,
+      `Hindsight provider-config projection requires active provider profile ${expected.role}`,
     );
   }
   for (const key of ["api_key", "base_url", "kind", "model", "provider", "role", "transport"]) {

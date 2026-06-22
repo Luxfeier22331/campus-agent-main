@@ -197,7 +197,7 @@ describe("operator provider config routes", () => {
 		});
 	});
 
-	it("exposes active runtime snapshots for internal execution-control consumers", async () => {
+	it("exposes active provider snapshots for projection sync consumers", async () => {
 		const service = buildTestProviderConfigService({
 			async checkEmbeddingCompatibility() {
 				return { ok: true };
@@ -286,7 +286,7 @@ describe("operator provider config routes", () => {
 		}
 	});
 
-	it("exposes active Hindsight provider runtime snapshots", async () => {
+	it("exposes active Hindsight provider snapshots for projection sync", async () => {
 		const service = buildTestProviderConfigService({
 			async checkEmbeddingCompatibility() {
 				throw new Error("Hindsight embedding must not call RAG compatibility check");

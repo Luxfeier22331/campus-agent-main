@@ -59,14 +59,15 @@ combinations live in split environment references.
   主要 online owner: `apps/app-api` provider-config connection + profile；Operator
   Console `/operations/provider-config` 创建、验证、激活
   主要 env keys: root `.env` 的 `LLM_BASE_URL` `LLM_API_KEY` `LLM_MODEL`
-  `RAG_SYNTHESIS_MODEL` 仅作为 local seed 输入；eval override 仍走 command-scoped
-  `EVAL_*`
+  `RAG_SYNTHESIS_MODEL` 仅作为 local seed 输入；eval provider 隔离通过 provider-config
+  roles 表达
   放置位置: online serving 不以 root `.env` 为真相；root provider env 只被
   `node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-local-provider-config.ts`
   显式写入 app-api provider-config
   何时必需: 真实 query path 必须存在 active `primary_agent` profile；RAG synthesis
   必须存在 active `rag_synthesis` profile；Hindsight LLM runtime 必须存在 active
-  `hindsight_llm` profile；live eval 仍可用 env override
+  `hindsight_llm` profile；eval RAGAS / judge 必须存在 active `eval_ragas_llm` /
+  `eval_judge_llm` profiles
   获取方式: 在所选供应商控制台创建项目级 API key；通过 Operator Console 写入 profile，不把 raw key
   写回 docs 或 repo-tracked env
 
@@ -79,8 +80,9 @@ node apps/app-api/scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-lo
 
 脚本读取 `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` 作为本地连接创建输入；
 `RAG_SYNTHESIS_MODEL` 缺省复用 `LLM_MODEL`。这些 env 不作为 online serving
-fallback；`execution-control` 只能通过 `app-api` internal provider-config active
-snapshot 消费 connection 解析后的 runtime view。
+fallback；self-host runtime 只能消费显式同步生成的本地
+`provider_config_projection.v1` artifact。`app-api` internal provider-config active
+endpoint 只作为 projection sync 的控制面导出，不是运行时热路径。
 
 离线/领域 multimodal lane 不在 root `.env.example` 注册一组 domain env。需要真实
 模型验证时，只配置该领域必备的 `*_API_KEY` 与 `*_MODEL`；base URL、max tokens、
@@ -160,16 +162,19 @@ doctor/env readiness contract。
   `mineru_api / vlm`，以 collection runtime profile 为准，不再跟随 root
   `OCR_*` 默认值漂移
 
-- Provider / system: Eval-only provider override
-  作用: eval 独立预算 / 独立限流
-  主要 env keys: `EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY`
-  `EVAL_EMBEDDING_BASE_URL` `EVAL_EMBEDDING_API_KEY`；personal memory extraction live compare
-  额外通过 provider profiles manifest 的 `credential_ref=llm_provider` 指向 shared /
-  eval LLM provider credential
-  放置位置: command-scoped env / CI secret / deploy secret；不属于 root `.env.example`
-  何时必需: 只有 eval 不想复用 shared provider 时
-  获取方式: 在对应供应商控制台单独申请；默认不需要。eval runtime profile 记录 model、
-  transport、reasoning 与 token 配置；env 只提供 provider endpoint/key
+- Provider / system: Eval provider-config roles
+  作用: eval 独立预算 / 独立限流，以及 RAGAS / rubric judge runtime provider governance
+  主要 provider roles: `eval_ragas_llm` `eval_judge_llm`
+  `eval_ragas_embedding`
+  主要 env keys: `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600
+  `provider_config_projection.v1` artifact
+  放置位置: app-api provider-config encrypted store + self-host runtime local projection
+  artifact；不属于 root `.env.example`
+  何时必需: 真实 eval / RAGAS / judge 需要外部模型时必须存在。只有 eval 不想复用 shared
+  provider 时，才给上述 roles 绑定独立 connection。
+  获取方式: 在对应供应商控制台单独申请或复用 shared provider key，通过 Operator Console
+  写入 provider-config profile；eval runtime profile 记录 model、transport、reasoning 与 token
+  配置，provider endpoint/key 来自 projection artifact
 
 - Provider / system: FeedWe public WeChat article acquisition
   作用: `wechat_official_account` source channel 的公开公众号文章 acquisition
@@ -277,8 +282,9 @@ doctor/env readiness contract。
   `EXECUTION_CONTROL_TEMPORAL_*`
   `EXECUTION_CONTROL_APP_API_INTERNAL_BASE_URL`
   `EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET`
+  `EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH`
   `QDRANT_API_KEY`
-  provider/model/API key active profiles from app-api provider-config
+  provider/model/API key active profiles from local provider projection artifact
   放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
   secret source
   何时必需: 当前 canonical staging execution runtime 需要

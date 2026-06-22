@@ -45,11 +45,14 @@ export interface ProviderConfigServiceDependencies {
 }
 
 const PROMPT_ROLES = new Set<PromptProviderRole>([
+	"eval_judge_llm",
+	"eval_ragas_llm",
 	"hindsight_llm",
 	"primary_agent",
 	"rag_synthesis",
 ]);
 const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>([
+	"eval_ragas_embedding",
 	"hindsight_embedding",
 	"index_embedding",
 	"rag_query_embedding",

@@ -2,8 +2,14 @@ import type { ResolvedAppPrincipal } from "../auth";
 
 export type ProviderConfigKind = "embedding" | "prompt" | "rerank";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
-export type PromptProviderRole = "hindsight_llm" | "primary_agent" | "rag_synthesis";
+export type PromptProviderRole =
+	| "eval_judge_llm"
+	| "eval_ragas_llm"
+	| "hindsight_llm"
+	| "primary_agent"
+	| "rag_synthesis";
 export type EmbeddingProviderRole =
+	| "eval_ragas_embedding"
 	| "hindsight_embedding"
 	| "index_embedding"
 	| "rag_query_embedding";

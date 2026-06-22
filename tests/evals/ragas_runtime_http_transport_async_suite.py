@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from tests.evals.ragas_runtime_test_support import (
-    RagasSettings,
     StringPromptValue,
     asyncio,
     build_http_ragas_llm,
     httpx,
     patch,
+    ragas_settings_from_projection,
     reset_supplemental_http_runtime_state_for_tests,
     unittest,
 )
@@ -51,7 +51,7 @@ class RagasHttpTransportAsyncTest(unittest.TestCase):
                     },
                 )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -96,7 +96,7 @@ class RagasHttpTransportAsyncTest(unittest.TestCase):
                 },
             )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -142,7 +142,7 @@ class RagasHttpTransportAsyncTest(unittest.TestCase):
                     },
                 )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -188,7 +188,7 @@ class RagasHttpTransportAsyncTest(unittest.TestCase):
                     },
                 )
 
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
@@ -206,7 +206,7 @@ class RagasHttpTransportAsyncTest(unittest.TestCase):
         self.assertEqual(len(created_clients), 1)
 
     def test_build_http_ragas_llm_reuses_request_pacer_for_same_provider_key(self) -> None:
-        settings = RagasSettings.from_env(
+        settings = ragas_settings_from_projection(
             {
                 "LLM_BASE_URL": "https://llm.example/v1",
                 "LLM_API_KEY": "llm-key",
