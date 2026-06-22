@@ -292,6 +292,7 @@ class AppApiEvalClient:
         answer = dict(payload.get("answer") or {})
         conversation = dict(answer.get("conversation") or {})
         result = dict(answer.get("result") or {})
+        execution_payload = _optional_record(payload.get("execution"))
         supervisor_payload = _optional_record(payload.get("supervisor"))
         request_id = _required_string(
             result.get("requestId") or response.headers.get("x-request-id"),
@@ -306,8 +307,8 @@ class AppApiEvalClient:
             "answer.conversation.updatedAt",
         )
         execution_response = (
-            _build_execution_response_from_internal_eval(supervisor_payload)
-            if supervisor_payload is not None
+            _build_execution_response_from_internal_eval(execution_payload or supervisor_payload)
+            if execution_payload is not None or supervisor_payload is not None
             else _build_execution_response(result)
         )
         observed_trace = (

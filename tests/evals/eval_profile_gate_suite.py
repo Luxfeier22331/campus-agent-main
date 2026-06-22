@@ -388,7 +388,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                             "text": "ok",
                         },
                     },
-                    "supervisor": {
+                    "execution": {
                         "status": "completed",
                         "selectedCapability": "campus_services",
                         "answerText": "ok",
@@ -522,6 +522,66 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         self.assertEqual(execution.request_correlation.request_id, "req_runtime_01")
         self.assertEqual(execution.request_correlation.trace_id, "trace_runtime_01")
         self.assertEqual(execution.response.selected_capability, "campus_services")
+
+    def test_execute_chat_request_prefers_top_level_execution_payload(self) -> None:
+        from campus_evals.app_api_chat_runtime_client import (
+            AppApiEvalClient,
+            AppApiEvalClientSettings,
+        )
+
+        def handler(_request: httpx.Request) -> httpx.Response:
+            return httpx.Response(
+                200,
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conversation-1",
+                            "updatedAt": "2026-04-29T00:00:00+00:00",
+                        },
+                        "result": {
+                            "requestId": "req_runtime_01",
+                            "traceId": "trace_runtime_01",
+                            "kind": "answer",
+                            "text": "fallback answer",
+                        },
+                    },
+                    "execution": {
+                        "status": "completed",
+                        "selectedCapability": "campus_services",
+                        "answerText": "execution answer",
+                        "traceId": "trace_runtime_01",
+                        "workflowTraceSummary": {
+                            "selectedCapability": "campus_services",
+                            "selectedTools": ["service_status_lookup"],
+                            "workflowMode": "agent_loop",
+                        },
+                    },
+                },
+            )
+
+        client = AppApiEvalClient(
+            settings=AppApiEvalClientSettings(
+                app_api_base_url="https://app-api.example",
+                internal_shared_secret="shared-secret",
+                eval_user_email="eval@example.edu",
+            ),
+            client=httpx.Client(
+                base_url="https://app-api.example",
+                transport=httpx.MockTransport(handler),
+            ),
+        )
+
+        execution = client.execute_chat_request(
+            case_id="runtime-case-1",
+            prompt="校园卡丢了怎么办",
+        )
+
+        self.assertEqual(execution.response.answer_text, "execution answer")
+        self.assertEqual(execution.response.selected_capability, "campus_services")
+        self.assertEqual(
+            execution.response.workflow_trace_summary.selected_tools,
+            ("service_status_lookup",),
+        )
 
 
 def _single_online_answer_case_path(root: Path, case) -> Path:
