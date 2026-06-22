@@ -34,6 +34,29 @@ func TestLoadRuntimeProfileUsesCollectionAliasAndHybridSettings(t *testing.T) {
 	if !profile.RetrievalEnabled || !profile.QueryEnabledByDefault {
 		t.Fatalf("query serving flags = retrieval %v query %v, want both true", profile.RetrievalEnabled, profile.QueryEnabledByDefault)
 	}
+	if len(profile.ServingVisibilityLevels) != 1 || profile.ServingVisibilityLevels[0] != "public" {
+		t.Fatalf("serving visibility levels = %#v, want public", profile.ServingVisibilityLevels)
+	}
+}
+
+func TestLoadRuntimeProfileReadsInstitutionalServingPolicy(t *testing.T) {
+	profile, err := LoadRuntimeProfile(
+		filepath.Join("..", "..", "..", "..", "configs", "ingestion"),
+		"regulations",
+		"institutional_rules",
+	)
+	if err != nil {
+		t.Fatalf("load runtime profile: %v", err)
+	}
+
+	if len(profile.ServingVisibilityLevels) != 2 ||
+		profile.ServingVisibilityLevels[0] != "public" ||
+		profile.ServingVisibilityLevels[1] != "restricted" {
+		t.Fatalf("serving visibility levels = %#v, want public + restricted", profile.ServingVisibilityLevels)
+	}
+	if len(profile.ServingVisibilityScopes) != 1 || profile.ServingVisibilityScopes[0] != "campus" {
+		t.Fatalf("serving visibility scopes = %#v, want campus", profile.ServingVisibilityScopes)
+	}
 }
 
 func TestBuildDenseQueryTextAppliesEmbeddingInstruction(t *testing.T) {

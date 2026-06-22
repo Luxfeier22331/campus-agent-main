@@ -36,6 +36,46 @@ func TestRAGPlanProjectionRejectsTopKAboveBudget(t *testing.T) {
 	}
 }
 
+func TestRAGPlanProjectionCarriesSanitizedRetrievalAccess(t *testing.T) {
+	plan, err := ragPlanProjectionForRun(
+		execution.DurableRun{
+			RequestID: "req-rag-access",
+			RunID:     "run-rag-access",
+			Metadata: map[string]any{
+				"execution_payload": map[string]any{
+					"context": map[string]any{
+						"authorization": map[string]any{
+							"retrieval_filter": map[string]any{
+								"entitlement_groups":        []any{"campus_members"},
+								"policy_projection_version": "phase1-authorization-projection-v1",
+								"visibility_level":          "restricted",
+								"visibility_scope":          "campus",
+							},
+						},
+					},
+					"requested_scope": map[string]any{
+						"collection": "institutional_rules",
+						"corpus":     "regulations",
+					},
+					"user_goal": "研究生三助管理办法",
+				},
+			},
+		},
+		"",
+		8,
+	)
+	if err != nil {
+		t.Fatalf("build rag plan: %v", err)
+	}
+
+	if plan.RetrievalAccess.VisibilityLevel != "restricted" ||
+		plan.RetrievalAccess.VisibilityScope != "campus" ||
+		len(plan.RetrievalAccess.EntitlementGroups) != 1 ||
+		plan.RetrievalAccess.EntitlementGroups[0] != "campus_members" {
+		t.Fatalf("retrieval access = %#v", plan.RetrievalAccess)
+	}
+}
+
 func TestSelectRAGEvidenceUsesConfiguredBudget(t *testing.T) {
 	candidates := make([]ragruntime.EvidenceRef, 0, 6)
 	for index := 0; index < 6; index++ {

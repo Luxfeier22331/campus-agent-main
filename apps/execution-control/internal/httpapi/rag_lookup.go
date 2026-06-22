@@ -373,6 +373,7 @@ func (e qdrantRAGLookupExecutor) queryPointsWithProfileAndProviderConfig(
 		Mode:               plan.QueryMode,
 		Profile:            profile,
 		QueryText:          plan.QueryText,
+		RetrievalAccess:    retrievalAccessFromRAGPlan(plan),
 		TopK:               plan.TopK,
 		VersionID:          resolvedQueryVersionID(plan),
 	})
@@ -431,6 +432,7 @@ func validateRAGLookupQueryShape(
 		Mode:               plan.QueryMode,
 		Profile:            profile,
 		QueryText:          plan.QueryText,
+		RetrievalAccess:    retrievalAccessFromRAGPlan(plan),
 		TopK:               plan.TopK,
 		VersionID:          resolvedQueryVersionID(plan),
 	})
@@ -685,6 +687,15 @@ func resolvedQueryCompareToVersionID(plan ragruntime.PlanProjection) string {
 		return ""
 	}
 	return strings.TrimSpace(plan.ResolvedVersionQuery.CompareToVersionID)
+}
+
+func retrievalAccessFromRAGPlan(plan ragruntime.PlanProjection) retrievalruntime.RetrievalAccess {
+	return retrievalruntime.RetrievalAccess{
+		EntitlementGroups:       append([]string{}, plan.RetrievalAccess.EntitlementGroups...),
+		PolicyProjectionVersion: strings.TrimSpace(plan.RetrievalAccess.PolicyProjectionVersion),
+		VisibilityLevel:         strings.TrimSpace(plan.RetrievalAccess.VisibilityLevel),
+		VisibilityScope:         strings.TrimSpace(plan.RetrievalAccess.VisibilityScope),
+	}
 }
 
 func firstNonEmptyText(values ...any) string {

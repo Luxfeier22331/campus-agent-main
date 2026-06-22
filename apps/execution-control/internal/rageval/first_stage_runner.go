@@ -52,8 +52,16 @@ type LookupRequest struct {
 	RRFDenseWeight      float64
 	RRFK                int
 	RRFSparseWeight     float64
+	RetrievalAccess     RetrievalAccess
 	SparsePrefetchLimit int
 	VariantID           string
+}
+
+type RetrievalAccess struct {
+	EntitlementGroups       []string
+	PolicyProjectionVersion string
+	VisibilityLevel         string
+	VisibilityScope         string
 }
 
 type LookupResult struct {
@@ -101,8 +109,15 @@ type qrelsFixture struct {
 }
 
 type qrelsCase struct {
-	CaseID string `json:"case_id"`
-	Query  string `json:"query"`
+	CaseID           string                `json:"case_id"`
+	Query            string                `json:"query"`
+	RequestOverrides qrelsRequestOverrides `json:"request_overrides"`
+}
+
+type qrelsRequestOverrides struct {
+	EntitlementGroups []string `json:"entitlement_groups"`
+	VisibilityLevel   string   `json:"visibility_level"`
+	VisibilityScope   string   `json:"visibility_scope"`
 }
 
 func BuildFirstStageCandidateResult(
@@ -145,6 +160,7 @@ func BuildFirstStageCandidateResult(
 			RRFDenseWeight:      options.Candidate.RRFDenseWeight,
 			RRFK:                options.Candidate.RRFK,
 			RRFSparseWeight:     options.Candidate.RRFSparseWeight,
+			RetrievalAccess:     retrievalAccessFromQrelsCase(item),
 			SparsePrefetchLimit: options.Candidate.SparsePrefetchLimit,
 			VariantID:           options.Candidate.VariantID,
 		})
@@ -218,6 +234,30 @@ func loadQrels(path string) (qrelsFixture, error) {
 		}
 	}
 	return fixture, nil
+}
+
+func retrievalAccessFromQrelsCase(item qrelsCase) RetrievalAccess {
+	level := strings.TrimSpace(item.RequestOverrides.VisibilityLevel)
+	if level == "" {
+		level = "public"
+	}
+	return RetrievalAccess{
+		EntitlementGroups:       normalizeQrelsStrings(item.RequestOverrides.EntitlementGroups),
+		PolicyProjectionVersion: "phase1-authorization-projection-v1",
+		VisibilityLevel:         level,
+		VisibilityScope:         strings.TrimSpace(item.RequestOverrides.VisibilityScope),
+	}
+}
+
+func normalizeQrelsStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return normalized
 }
 
 func validateCandidateParameters(candidate CandidateParameters) error {

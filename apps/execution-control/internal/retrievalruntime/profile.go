@@ -38,6 +38,8 @@ type RuntimeProfile struct {
 	RRFSparseWeight           float64
 	ServingRevisionTracks     []string
 	ServingStage              string
+	ServingVisibilityLevels   []string
+	ServingVisibilityScopes   []string
 	SparsePrefetchLimit       int
 	SparseVectorName          string
 }
@@ -64,6 +66,8 @@ type runtimeProfilePayload struct {
 	RRFSparseWeight           float64  `json:"rrf_sparse_weight"`
 	ServingRevisionTracks     []string `json:"serving_revision_tracks"`
 	ServingStage              string   `json:"serving_stage"`
+	ServingVisibilityLevels   []string `json:"serving_visibility_levels"`
+	ServingVisibilityScopes   []string `json:"serving_visibility_scopes"`
 	SparsePrefetchLimit       int      `json:"sparse_prefetch_limit"`
 }
 
@@ -102,6 +106,8 @@ func LoadRuntimeProfile(configRoot string, corpus string, collection string) (Ru
 		RRFSparseWeight:           defaultPositiveFloat(payload.RRFSparseWeight, 1.0),
 		ServingRevisionTracks:     normalizeStringSlice(payload.ServingRevisionTracks),
 		ServingStage:              strings.TrimSpace(payload.ServingStage),
+		ServingVisibilityLevels:   normalizeStringSlice(payload.ServingVisibilityLevels),
+		ServingVisibilityScopes:   normalizeStringSlice(payload.ServingVisibilityScopes),
 		SparsePrefetchLimit:       defaultPositive(payload.SparsePrefetchLimit, DefaultSparsePrefetchLimit),
 		SparseVectorName:          defaultString(payload.QdrantSparseVectorName, DefaultSparseVectorName),
 	}
@@ -159,6 +165,19 @@ func validateRuntimeProfile(profile RuntimeProfile, corpus string, collection st
 	if profile.DenseVectorName == "" || profile.SparseVectorName == "" {
 		return fmt.Errorf("runtime profile %s/%s qdrant vector names are required", corpus, collection)
 	}
+	if len(profile.ServingVisibilityLevels) == 0 {
+		return fmt.Errorf("runtime profile %s/%s serving_visibility_levels is required", corpus, collection)
+	}
+	for _, level := range profile.ServingVisibilityLevels {
+		switch level {
+		case "public", "restricted":
+		default:
+			return fmt.Errorf("runtime profile %s/%s has unsupported serving visibility level %q", corpus, collection, level)
+		}
+	}
+	if containsString(profile.ServingVisibilityLevels, "restricted") && len(profile.ServingVisibilityScopes) == 0 {
+		return fmt.Errorf("runtime profile %s/%s serving_visibility_scopes is required for restricted visibility", corpus, collection)
+	}
 	return nil
 }
 
@@ -193,4 +212,13 @@ func normalizeStringSlice(values []string) []string {
 		}
 	}
 	return normalized
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

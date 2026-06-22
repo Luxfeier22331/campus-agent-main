@@ -73,28 +73,29 @@ func (e ragFirstStageEvalExecutor) Lookup(
 		return rageval.LookupResult{}, err
 	}
 
-	densePoints, err := e.qdrant.queryPointsWithBody(
-		ctx,
-		profile,
-		ragEvalDenseQueryBody(plan, profile, embedding, request.DensePrefetchLimit),
-	)
+	denseBody, err := ragEvalDenseQueryBody(plan, profile, embedding, request.DensePrefetchLimit)
+	if err != nil {
+		return rageval.LookupResult{}, err
+	}
+	densePoints, err := e.qdrant.queryPointsWithBody(ctx, profile, denseBody)
 	if err != nil {
 		return rageval.LookupResult{}, fmt.Errorf("dense prefetch query: %w", err)
 	}
-	sparsePoints, err := e.qdrant.queryPointsWithBody(
-		ctx,
-		profile,
-		ragEvalSparseQueryBody(plan, profile, request.SparsePrefetchLimit),
-	)
+	sparseBody, err := ragEvalSparseQueryBody(plan, profile, request.SparsePrefetchLimit)
+	if err != nil {
+		return rageval.LookupResult{}, err
+	}
+	sparsePoints, err := e.qdrant.queryPointsWithBody(ctx, profile, sparseBody)
 	if err != nil {
 		return rageval.LookupResult{}, fmt.Errorf("sparse prefetch query: %w", err)
 	}
 	hybridBody, err := retrievalruntime.BuildHybridQueryBody(retrievalruntime.QueryRequest{
-		DenseEmbedding: embedding,
-		Mode:           plan.QueryMode,
-		Profile:        profile,
-		QueryText:      plan.QueryText,
-		TopK:           plan.TopK,
+		DenseEmbedding:  embedding,
+		Mode:            plan.QueryMode,
+		Profile:         profile,
+		QueryText:       plan.QueryText,
+		RetrievalAccess: retrievalAccessFromRAGPlan(plan),
+		TopK:            plan.TopK,
 	})
 	if err != nil {
 		return rageval.LookupResult{}, err
@@ -174,14 +175,18 @@ func ragEvalDenseQueryBody(
 	profile retrievalruntime.RuntimeProfile,
 	embedding []float64,
 	limit int,
-) map[string]any {
-	filter, _ := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
-		DenseEmbedding: embedding,
-		Mode:           plan.QueryMode,
-		Profile:        profile,
-		QueryText:      plan.QueryText,
-		TopK:           plan.TopK,
+) (map[string]any, error) {
+	filter, err := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
+		DenseEmbedding:  embedding,
+		Mode:            plan.QueryMode,
+		Profile:         profile,
+		QueryText:       plan.QueryText,
+		RetrievalAccess: retrievalAccessFromRAGPlan(plan),
+		TopK:            plan.TopK,
 	})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"filter":       filter,
 		"limit":        ragEvalMaxInt(plan.TopK, limit),
@@ -189,20 +194,24 @@ func ragEvalDenseQueryBody(
 		"using":        profile.DenseVectorName,
 		"with_payload": true,
 		"with_vector":  false,
-	}
+	}, nil
 }
 
 func ragEvalSparseQueryBody(
 	plan ragruntime.PlanProjection,
 	profile retrievalruntime.RuntimeProfile,
 	limit int,
-) map[string]any {
-	filter, _ := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
-		Mode:      plan.QueryMode,
-		Profile:   profile,
-		QueryText: plan.QueryText,
-		TopK:      plan.TopK,
+) (map[string]any, error) {
+	filter, err := retrievalruntime.BuildQdrantFilter(retrievalruntime.QueryRequest{
+		Mode:            plan.QueryMode,
+		Profile:         profile,
+		QueryText:       plan.QueryText,
+		RetrievalAccess: retrievalAccessFromRAGPlan(plan),
+		TopK:            plan.TopK,
 	})
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
 		"filter": filter,
 		"limit":  ragEvalMaxInt(plan.TopK, limit),
@@ -219,7 +228,7 @@ func ragEvalSparseQueryBody(
 		"using":        profile.SparseVectorName,
 		"with_payload": true,
 		"with_vector":  false,
-	}
+	}, nil
 }
 
 func overrideRAGEvalRuntimeProfile(
@@ -246,13 +255,19 @@ func ragEvalPlanFromLookupRequest(request rageval.LookupRequest) (ragruntime.Pla
 	}
 	hash := sha256.Sum256([]byte(caseID + "\n" + corpus + "\n" + collection + "\n" + queryText))
 	return ragruntime.PlanProjection{
-		Collection:       collection,
-		CollectionAlias:  collection,
-		Corpus:           corpus,
-		PayloadSHA256:    hex.EncodeToString(hash[:]),
-		PlanID:           "rag-eval-plan-" + safeRAGEvalID(caseID),
-		QueryMode:        "current",
-		QueryText:        queryText,
+		Collection:      collection,
+		CollectionAlias: collection,
+		Corpus:          corpus,
+		PayloadSHA256:   hex.EncodeToString(hash[:]),
+		PlanID:          "rag-eval-plan-" + safeRAGEvalID(caseID),
+		QueryMode:       "current",
+		QueryText:       queryText,
+		RetrievalAccess: ragruntime.RetrievalAccessProjection{
+			EntitlementGroups:       append([]string{}, request.RetrievalAccess.EntitlementGroups...),
+			PolicyProjectionVersion: request.RetrievalAccess.PolicyProjectionVersion,
+			VisibilityLevel:         request.RetrievalAccess.VisibilityLevel,
+			VisibilityScope:         request.RetrievalAccess.VisibilityScope,
+		},
 		RequestID:        "rag-eval-request-" + safeRAGEvalID(caseID),
 		RunID:            "rag-eval-run-" + safeRAGEvalID(caseID),
 		RuntimeProfileID: corpus + "/" + collection,

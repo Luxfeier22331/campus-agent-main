@@ -19,6 +19,11 @@ func TestBuildFirstStageCandidateResultRunsAllQrelsCases(t *testing.T) {
 			{
 				"case_id": "positive",
 				"query": "学生证丢了怎么办",
+				"request_overrides": {
+					"entitlement_groups": ["campus_members"],
+					"visibility_level": "restricted",
+					"visibility_scope": "campus"
+				},
 				"expected_sources": [{"doc_id": "doc-expected", "version_id": "v1"}]
 			},
 			{
@@ -81,6 +86,12 @@ func TestBuildFirstStageCandidateResultRunsAllQrelsCases(t *testing.T) {
 	}
 	if executor.requests[0].RetrievalTopK != 3 || executor.requests[0].DensePrefetchLimit != 20 {
 		t.Fatalf("request params = %#v", executor.requests[0])
+	}
+	if executor.requests[0].RetrievalAccess.VisibilityLevel != "restricted" ||
+		executor.requests[0].RetrievalAccess.VisibilityScope != "campus" ||
+		len(executor.requests[0].RetrievalAccess.EntitlementGroups) != 1 ||
+		executor.requests[0].RetrievalAccess.EntitlementGroups[0] != "campus_members" {
+		t.Fatalf("request retrieval access = %#v", executor.requests[0].RetrievalAccess)
 	}
 	if result.Cases[0].Status != CaseStatusCompleted || result.Cases[0].LatencyMS != 17 {
 		t.Fatalf("positive case = %#v", result.Cases[0])

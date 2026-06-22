@@ -148,6 +148,22 @@ serving truth 不写死在 Execution Agent Layer、API shell 或 env 默认值�
 - current query-enabled scope
 - source / version / runtime-profile projection
 
+visibility / scope policy 同样属于 runtime profile 与 admission projection：
+
+- runtime profile 必须显式声明 `serving_visibility_levels`；如果包含
+  `restricted`，还必须声明 `serving_visibility_scopes`
+- online plan 必须携带来自 product admission 的 sanitized
+  `retrieval_access` projection，包括 `policy_projection_version`、
+  `visibility_level`，以及 restricted 查询所需的 `visibility_scope` /
+  `entitlement_groups`
+- Qdrant 查询层只计算 runtime profile serving policy 与 request access projection
+  的交集；缺失 projection、缺失 profile policy 或交集为空时 fail closed
+- visibility / scope serving policy 不改变 chunking、embedding 或 vector payload
+  identity；已有 alias 的 point payload 已携带正确 visibility 字段时，不得为这类
+  filter policy 调整触发重新 embedding
+- offline RAG eval 不绕过该 contract；qrels 可以通过 `request_overrides`
+  表达 restricted/campus case 的同等 access projection
+
 ## Incremental RAG Release Lane
 
 对 regulation、official web stable reference、curriculum 等 canonical document scope，RAG

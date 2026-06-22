@@ -38,7 +38,15 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 				"conversation_id":%q,
 				"trace":{"trace_id":"trace-%s"},
 				"actor":{"user_id":"user-executor"},
-				"context":{"actor":{"user_id":"user-executor"}},
+				"context":{
+					"actor":{"user_id":"user-executor"},
+					"authorization":{
+						"retrieval_filter":{
+							"policy_projection_version":"phase1-authorization-projection-v1",
+							"visibility_level":"public"
+						}
+					}
+				},
 				"runtime_decisions":{"runtime_decision_summary":{}}
 			},
 			"handoff":{
@@ -73,7 +81,12 @@ func createHTTPAPIQueuedDurableRunForTest(
 			"conversation_id": conversationID,
 			"trace":           map[string]any{"trace_id": "trace-executor-001"},
 			"actor":           map[string]any{"user_id": "user-executor"},
-			"context":         map[string]any{"actor": map[string]any{"user_id": "user-executor"}},
+			"context": map[string]any{
+				"actor": map[string]any{"user_id": "user-executor"},
+				"authorization": map[string]any{
+					"retrieval_filter": publicRetrievalFilterForTest(),
+				},
+			},
 			"runtime_decisions": map[string]any{
 				"runtime_decision_summary": map[string]any{},
 			},

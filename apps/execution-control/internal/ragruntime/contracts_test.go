@@ -21,6 +21,28 @@ func TestValidatePlanProjectionRequiresPlanID(t *testing.T) {
 	}
 }
 
+func TestValidatePlanProjectionRequiresRetrievalAccess(t *testing.T) {
+	plan := validPlanProjection()
+	plan.RetrievalAccess = RetrievalAccessProjection{}
+
+	if err := ValidatePlanProjection(plan); err == nil {
+		t.Fatal("plan projection without retrieval access must fail closed")
+	}
+}
+
+func TestValidatePlanProjectionRequiresRestrictedScopeAndEntitlements(t *testing.T) {
+	plan := validPlanProjection()
+	plan.RetrievalAccess = RetrievalAccessProjection{
+		PolicyProjectionVersion: "phase1-authorization-projection-v1",
+		VisibilityLevel:         "restricted",
+		VisibilityScope:         "campus",
+	}
+
+	if err := ValidatePlanProjection(plan); err == nil {
+		t.Fatal("restricted retrieval access without entitlement groups must fail closed")
+	}
+}
+
 func TestValidateEvidenceSelectionRequiresBoundedEvidence(t *testing.T) {
 	selection := EvidenceSelectionResult{
 		CandidateCount: 1,
@@ -123,14 +145,18 @@ func TestValidateSynthesisPacketAcceptsProofedPreviousEvidenceContext(t *testing
 
 func validPlanProjection() PlanProjection {
 	return PlanProjection{
-		Collection:               "student_rules",
-		CollectionAlias:          "student_rules",
-		Corpus:                   "regulations",
-		NoWideningPolicy:         true,
-		PayloadSHA256:            "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		PlanID:                   "rag:regulations:student_rules:current",
-		QueryMode:                "current",
-		QueryText:                "学生请假手续",
+		Collection:       "student_rules",
+		CollectionAlias:  "student_rules",
+		Corpus:           "regulations",
+		NoWideningPolicy: true,
+		PayloadSHA256:    "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		PlanID:           "rag:regulations:student_rules:current",
+		QueryMode:        "current",
+		QueryText:        "学生请假手续",
+		RetrievalAccess: RetrievalAccessProjection{
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			VisibilityLevel:         "public",
+		},
 		RequestID:                "req-1",
 		RequiredEvidenceContract: "answer_bearing_evidence",
 		RunID:                    "run-1",

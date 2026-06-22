@@ -39,6 +39,8 @@
 	},
 	"current_only": true,
 	"serving_revision_tracks": ["current-effective", "source-faithful"],
+	"serving_visibility_levels": ["public"],
+	"serving_visibility_scopes": [],
 	"no_hit_min_top_score": 0.6,
 	"no_hit_min_score_gap": 0.1
 }

@@ -38,6 +38,8 @@
 		"sparse_vector_name": "sparse"
 	},
 	"serving_revision_tracks": ["source-faithful"],
+	"serving_visibility_levels": ["public"],
+	"serving_visibility_scopes": [],
 	"no_hit_min_top_score": 0.6,
 	"no_hit_min_score_gap": 0.1
 }

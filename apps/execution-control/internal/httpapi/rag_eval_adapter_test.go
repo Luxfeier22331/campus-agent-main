@@ -74,11 +74,15 @@ func TestRAGFirstStageEvalExecutorCapturesDenseSparsePrefetchAndRRFFinal(t *test
 	}
 
 	result, err := executor.Lookup(context.Background(), rageval.LookupRequest{
-		CaseID:              "leave-policy",
-		Collection:          "student_rules",
-		Corpus:              "regulations",
-		DensePrefetchLimit:  10,
-		QueryText:           "学生请假手续",
+		CaseID:             "leave-policy",
+		Collection:         "student_rules",
+		Corpus:             "regulations",
+		DensePrefetchLimit: 10,
+		QueryText:          "学生请假手续",
+		RetrievalAccess: rageval.RetrievalAccess{
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			VisibilityLevel:         "public",
+		},
 		RetrievalTopK:       3,
 		RRFK:                60,
 		RRFDenseWeight:      1,

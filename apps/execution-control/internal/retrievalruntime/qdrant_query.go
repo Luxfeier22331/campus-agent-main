@@ -11,9 +11,17 @@ type QueryRequest struct {
 	Mode               string
 	Profile            RuntimeProfile
 	QueryText          string
+	RetrievalAccess    RetrievalAccess
 	TopK               int
 	VersionID          string
 	CompareToVersionID string
+}
+
+type RetrievalAccess struct {
+	EntitlementGroups       []string
+	PolicyProjectionVersion string
+	VisibilityLevel         string
+	VisibilityScope         string
 }
 
 func BuildHybridQueryBody(request QueryRequest) (map[string]any, error) {
@@ -70,8 +78,12 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 		qdrantMatchCondition("corpus", request.Profile.Corpus),
 		qdrantMatchCondition("collection", request.Profile.Collection),
 		qdrantMatchCondition("status", "active"),
-		qdrantMatchCondition("visibility_level", "public"),
 	}
+	visibilityConditions, err := visibilityFilterConditions(request)
+	if err != nil {
+		return nil, err
+	}
+	must = append(must, visibilityConditions...)
 	if len(request.Profile.ServingRevisionTracks) > 0 {
 		must = append(must, qdrantMatchAnyCondition("revision_track", request.Profile.ServingRevisionTracks))
 	}
@@ -81,6 +93,101 @@ func BuildQdrantFilter(request QueryRequest) (map[string]any, error) {
 	}
 	must = append(must, versionConditions...)
 	return map[string]any{"must": must}, nil
+}
+
+func visibilityFilterConditions(request QueryRequest) ([]map[string]any, error) {
+	profileLevels := normalizeStringSlice(request.Profile.ServingVisibilityLevels)
+	if len(profileLevels) == 0 {
+		return nil, fmt.Errorf("runtime profile %s/%s serving_visibility_levels is required", request.Profile.Corpus, request.Profile.Collection)
+	}
+	accessLevel := strings.TrimSpace(request.RetrievalAccess.VisibilityLevel)
+	if accessLevel == "" {
+		return nil, errors.New("retrieval access visibility_level is required")
+	}
+	if strings.TrimSpace(request.RetrievalAccess.PolicyProjectionVersion) == "" {
+		return nil, errors.New("retrieval access policy_projection_version is required")
+	}
+	allowedLevels := allowedVisibilityLevelsForAccess(accessLevel)
+	servingLevels := intersectStrings(profileLevels, allowedLevels)
+	if len(servingLevels) == 0 {
+		return nil, fmt.Errorf(
+			"retrieval access visibility_level %q is not admitted by runtime profile %s/%s",
+			accessLevel,
+			request.Profile.Corpus,
+			request.Profile.Collection,
+		)
+	}
+	branches := make([]map[string]any, 0, len(servingLevels))
+	for _, level := range servingLevels {
+		switch level {
+		case "public":
+			branches = append(branches, map[string]any{
+				"must": []map[string]any{qdrantMatchCondition("visibility_level", "public")},
+			})
+		case "restricted":
+			restrictedBranch, err := restrictedVisibilityBranch(request)
+			if err != nil {
+				return nil, err
+			}
+			branches = append(branches, restrictedBranch)
+		default:
+			return nil, fmt.Errorf("runtime profile contains unsupported serving visibility level %q", level)
+		}
+	}
+	if len(branches) == 1 {
+		rawMust, _ := branches[0]["must"].([]map[string]any)
+		return rawMust, nil
+	}
+	return []map[string]any{{
+		"should": branches,
+	}}, nil
+}
+
+func restrictedVisibilityBranch(request QueryRequest) (map[string]any, error) {
+	scope := strings.TrimSpace(request.RetrievalAccess.VisibilityScope)
+	if scope == "" {
+		return nil, errors.New("retrieval access visibility_scope is required for restricted lookup")
+	}
+	if !containsString(normalizeStringSlice(request.Profile.ServingVisibilityScopes), scope) {
+		return nil, fmt.Errorf(
+			"retrieval access visibility_scope %q is not admitted by runtime profile %s/%s",
+			scope,
+			request.Profile.Corpus,
+			request.Profile.Collection,
+		)
+	}
+	groups := normalizeStringSlice(request.RetrievalAccess.EntitlementGroups)
+	if len(groups) == 0 {
+		return nil, errors.New("retrieval access entitlement_groups is required for restricted lookup")
+	}
+	return map[string]any{
+		"must": []map[string]any{
+			qdrantMatchCondition("visibility_level", "restricted"),
+			qdrantMatchCondition("visibility_scope", scope),
+			qdrantMatchAnyCondition("entitlement_groups", groups),
+		},
+	}, nil
+}
+
+func allowedVisibilityLevelsForAccess(level string) []string {
+	switch level {
+	case "restricted":
+		return []string{"public", "restricted"}
+	case "public":
+		return []string{"public"}
+	default:
+		return nil
+	}
+}
+
+func intersectStrings(left []string, right []string) []string {
+	result := make([]string, 0, len(left))
+	for _, leftValue := range left {
+		if containsString(right, leftValue) && !containsString(result, leftValue) {
+			result = append(result, leftValue)
+		}
+	}
+	return result
 }
 
 func versionFilterConditions(request QueryRequest) ([]map[string]any, error) {

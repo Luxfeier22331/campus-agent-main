@@ -39,11 +39,15 @@ func TestQdrantRAGLookupQueryUsesHybridPrefetchFromRuntimeProfile(t *testing.T) 
 	}
 
 	points, err := executor.queryPoints(context.Background(), ragruntime.PlanProjection{
-		Collection:       "student_rules",
-		CollectionAlias:  "student_rules",
-		Corpus:           "regulations",
-		QueryMode:        "current",
-		QueryText:        "学生请假手续",
+		Collection:      "student_rules",
+		CollectionAlias: "student_rules",
+		Corpus:          "regulations",
+		QueryMode:       "current",
+		QueryText:       "学生请假手续",
+		RetrievalAccess: ragruntime.RetrievalAccessProjection{
+			PolicyProjectionVersion: "phase1-authorization-projection-v1",
+			VisibilityLevel:         "public",
+		},
 		RunID:            "run-qdrant-query",
 		TopK:             3,
 		RuntimeProfileID: "regulations/student_rules",
@@ -122,6 +126,7 @@ func TestQdrantRAGLookupHistoricalVersionFilterDoesNotFallbackToCurrent(t *testi
 		Corpus:          "regulations",
 		QueryMode:       "historical",
 		QueryText:       "旧版国奖评审办法",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
 		RunID:           "run-qdrant-historical-query",
 		TopK:            3,
 		VersionQuery: &ragruntime.VersionQueryProjection{
@@ -183,6 +188,7 @@ func TestQdrantRAGLookupAsOfUsesResolvedVersionFilter(t *testing.T) {
 		Corpus:          "regulations",
 		QueryMode:       "as_of",
 		QueryText:       "2025 年请假手续",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
 		RunID:           "run-qdrant-as-of-query",
 		TopK:            3,
 		VersionQuery: &ragruntime.VersionQueryProjection{
@@ -223,6 +229,7 @@ func TestQdrantRAGLookupHistoricalModeRequiresExplicitVersionQuery(t *testing.T)
 		Corpus:          "regulations",
 		QueryMode:       "historical",
 		QueryText:       "旧版国奖评审办法",
+		RetrievalAccess: publicRetrievalAccessProjectionForTest(),
 		RunID:           "run-qdrant-historical-missing-version",
 		TopK:            3,
 	}, []float64{0.1, 0.2, 0.3})
@@ -302,6 +309,7 @@ func TestQdrantRAGLookupFailsClosedBeforeQueryWhenReleaseMetadataMissing(t *test
 		Corpus:           "regulations",
 		QueryMode:        "current",
 		QueryText:        "学生请假手续",
+		RetrievalAccess:  publicRetrievalAccessProjectionForTest(),
 		RunID:            "run-release-metadata-missing",
 		TopK:             3,
 		RuntimeProfileID: "regulations/student_rules",
@@ -353,6 +361,7 @@ func TestQdrantRAGLookupUsesPointPayloadReleaseMetadataWhenCollectionMetadataMis
 		Corpus:           "regulations",
 		QueryMode:        "current",
 		QueryText:        "学生请假手续",
+		RetrievalAccess:  publicRetrievalAccessProjectionForTest(),
 		RunID:            "run-release-metadata-scroll",
 		TopK:             3,
 		RuntimeProfileID: "regulations/student_rules",

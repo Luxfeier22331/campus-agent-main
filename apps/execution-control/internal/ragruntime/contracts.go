@@ -35,6 +35,7 @@ type PlanProjection struct {
 	PayloadSHA256            string                           `json:"payload_sha256"`
 	RuntimeProfileID         string                           `json:"runtime_profile_id,omitempty"`
 	QdrantAliasName          string                           `json:"qdrant_alias_name,omitempty"`
+	RetrievalAccess          RetrievalAccessProjection        `json:"retrieval_access"`
 	AdmittedScopes           []ScopeProjection                `json:"admitted_scopes,omitempty"`
 	SourceTrustPolicy        SourceTrustPolicy                `json:"source_trust_policy,omitempty"`
 	Budget                   PlanBudgetProjection             `json:"budget,omitempty"`
@@ -108,6 +109,13 @@ type VersionQueryProjection struct {
 	AsOf               string `json:"as_of,omitempty"`
 	VersionID          string `json:"version_id,omitempty"`
 	CompareToVersionID string `json:"compare_to_version_id,omitempty"`
+}
+
+type RetrievalAccessProjection struct {
+	EntitlementGroups       []string `json:"entitlement_groups,omitempty"`
+	PolicyProjectionVersion string   `json:"policy_projection_version"`
+	VisibilityLevel         string   `json:"visibility_level"`
+	VisibilityScope         string   `json:"visibility_scope,omitempty"`
 }
 
 type RetrievalLookupRequest struct {
@@ -261,10 +269,34 @@ func ValidatePlanProjection(plan PlanProjection) error {
 	if err := validatePreviousEvidenceReuse(plan.PreviousEvidenceReuse); err != nil {
 		return err
 	}
+	if err := validateRetrievalAccess(plan.RetrievalAccess); err != nil {
+		return err
+	}
 	if !isSHA256Hex(plan.PayloadSHA256) {
 		return fmt.Errorf("%w: payload_sha256 must be lowercase sha256 hex", ErrInvalidProjection)
 	}
 	return rejectUnsafeDebug(plan.UnsafeDebug)
+}
+
+func validateRetrievalAccess(access RetrievalAccessProjection) error {
+	if strings.TrimSpace(access.PolicyProjectionVersion) == "" {
+		return fmt.Errorf("%w: retrieval_access.policy_projection_version is required", ErrInvalidProjection)
+	}
+	level := strings.TrimSpace(access.VisibilityLevel)
+	switch level {
+	case "public":
+		return nil
+	case "restricted":
+		if strings.TrimSpace(access.VisibilityScope) == "" {
+			return fmt.Errorf("%w: retrieval_access.visibility_scope is required for restricted access", ErrInvalidProjection)
+		}
+		if len(normalizeProjectionStrings(access.EntitlementGroups)) == 0 {
+			return fmt.Errorf("%w: retrieval_access.entitlement_groups is required for restricted access", ErrInvalidProjection)
+		}
+		return nil
+	default:
+		return fmt.Errorf("%w: retrieval_access.visibility_level is unsupported", ErrInvalidProjection)
+	}
 }
 
 func validateQueryRewrite(rewrite *QueryRewriteProjection) error {
@@ -452,6 +484,17 @@ func requireFields(fields map[string]string) error {
 		}
 	}
 	return nil
+}
+
+func normalizeProjectionStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed != "" {
+			normalized = append(normalized, trimmed)
+		}
+	}
+	return normalized
 }
 
 func validateEvidenceRef(index int, evidence EvidenceRef) error {

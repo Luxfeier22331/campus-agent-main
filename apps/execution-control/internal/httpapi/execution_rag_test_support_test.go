@@ -155,6 +155,20 @@ func validLookupResultForTest(plan ragruntime.PlanProjection) ragruntime.Retriev
 	return result
 }
 
+func publicRetrievalAccessProjectionForTest() ragruntime.RetrievalAccessProjection {
+	return ragruntime.RetrievalAccessProjection{
+		PolicyProjectionVersion: "phase1-authorization-projection-v1",
+		VisibilityLevel:         "public",
+	}
+}
+
+func publicRetrievalFilterForTest() map[string]any {
+	return map[string]any{
+		"policy_projection_version": "phase1-authorization-projection-v1",
+		"visibility_level":          "public",
+	}
+}
+
 func addRequestedScopeForRunTest(
 	t *testing.T,
 	store *execution.InMemoryRunProjectionStore,
@@ -173,9 +187,26 @@ func addRequestedScopeForRunTest(
 		payload = map[string]any{}
 	}
 	payload["requested_scope"] = map[string]any{"corpus": corpus, "collection": collection}
+	ensurePublicRetrievalAccessForRunTest(payload)
 	metadata["execution_payload"] = payload
 	if err := store.ReplaceRunMetadata(context.Background(), runID, metadata); err != nil {
 		t.Fatalf("replace run metadata: %v", err)
+	}
+}
+
+func ensurePublicRetrievalAccessForRunTest(payload map[string]any) {
+	contextProjection, _ := payload["context"].(map[string]any)
+	if contextProjection == nil {
+		contextProjection = map[string]any{}
+		payload["context"] = contextProjection
+	}
+	authorization, _ := contextProjection["authorization"].(map[string]any)
+	if authorization == nil {
+		authorization = map[string]any{}
+		contextProjection["authorization"] = authorization
+	}
+	if _, ok := authorization["retrieval_filter"].(map[string]any); !ok {
+		authorization["retrieval_filter"] = publicRetrievalFilterForTest()
 	}
 }
 

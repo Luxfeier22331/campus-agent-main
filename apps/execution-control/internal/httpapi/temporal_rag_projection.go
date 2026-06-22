@@ -81,6 +81,7 @@ func ragPlanProjectionForRun(
 		return ragruntime.PlanProjection{}, fmt.Errorf("rag top_k %d exceeds configured max %d", topK, topKMax)
 	}
 	queryMode, versionQuery := ragVersionQueryForRun(payload)
+	retrievalAccess := ragRetrievalAccessForRun(payload)
 	plan := ragruntime.PlanProjection{
 		Collection:               scope.Collection,
 		CollectionAlias:          profile.QdrantAliasName,
@@ -94,6 +95,7 @@ func ragPlanProjectionForRun(
 		PreviousEvidenceReuse:    rewrite.PreviousEvidenceReuse,
 		RequestID:                run.RequestID,
 		RequiredEvidenceContract: "answer_bearing_evidence",
+		RetrievalAccess:          retrievalAccess,
 		RuntimeProfileID:         scope.Corpus + "/" + scope.Collection + ":" + profile.ServingStage,
 		RunID:                    run.RunID,
 		SchemaVersion:            "rag_plan_projection_v1",
@@ -125,6 +127,18 @@ func ragPlanProjectionForRun(
 		return ragruntime.PlanProjection{}, err
 	}
 	return plan, nil
+}
+
+func ragRetrievalAccessForRun(payload map[string]any) ragruntime.RetrievalAccessProjection {
+	contextProjection, _ := payload["context"].(map[string]any)
+	authorization, _ := contextProjection["authorization"].(map[string]any)
+	filter, _ := authorization["retrieval_filter"].(map[string]any)
+	return ragruntime.RetrievalAccessProjection{
+		EntitlementGroups:       stringSliceFromAny(filter["entitlement_groups"]),
+		PolicyProjectionVersion: firstNonEmptyText(filter["policy_projection_version"]),
+		VisibilityLevel:         firstNonEmptyText(filter["visibility_level"]),
+		VisibilityScope:         firstNonEmptyText(filter["visibility_scope"]),
+	}
 }
 
 func ragPlanID(scope runtimepolicy.Scope, queryMode string) string {
