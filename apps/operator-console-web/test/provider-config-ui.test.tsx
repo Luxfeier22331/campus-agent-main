@@ -82,6 +82,18 @@ describe("provider config UI", () => {
 					profileId: "provider_profile_index_embedding",
 					role: "index_embedding",
 				}),
+				providerProfile({
+					profileId: "provider_profile_eval_ragas_llm",
+					role: "eval_ragas_llm",
+				}),
+				providerProfile({
+					profileId: "provider_profile_eval_ragas_embedding",
+					role: "eval_ragas_embedding",
+				}),
+				providerProfile({
+					profileId: "provider_profile_eval_judge_llm",
+					role: "eval_judge_llm",
+				}),
 			]),
 		);
 
@@ -101,6 +113,9 @@ describe("provider config UI", () => {
 		expect(screen.getAllByText("知识问答生成").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("知识检索向量化").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("索引构建向量化").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("RAGAS 评测生成").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("RAGAS 评测向量化").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("评测裁判生成").length).toBeGreaterThan(0);
 		expect(screen.queryByText("角色")).not.toBeInTheDocument();
 		expect(screen.queryByText("Base URL")).not.toBeInTheDocument();
 		expect(screen.queryByText("Model")).not.toBeInTheDocument();

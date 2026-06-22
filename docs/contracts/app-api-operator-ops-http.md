@@ -18,7 +18,7 @@ operator HTTP contract 横切规则。
 - `/api/ops/*` 的调用方、authz、错误、pagination 与 audit 规则
 - Operator Console operations surface 与 `app-api` 的 proxy 边界
 - ops draft / release candidate / release / published projection 的通用 envelope
-- provider-config operator command 与 internal runtime snapshot 的边界
+- provider-config operator command 与 internal projection export 的边界
 
 它不负责：
 
@@ -257,8 +257,10 @@ Profile summary shape:
 
 Accepted roles:
 
-- prompt: `primary_agent`, `rag_synthesis`
-- embedding: `rag_query_embedding`, `index_embedding`
+- prompt: `primary_agent`, `rag_synthesis`, `hindsight_llm`,
+  `eval_ragas_llm`, `eval_judge_llm`
+- embedding: `rag_query_embedding`, `index_embedding`,
+  `hindsight_embedding`, `eval_ragas_embedding`
 - rerank: `rag_reranker`
 
 Rules:
@@ -280,16 +282,18 @@ Rules:
   opts in to reranking; missing provider config, missing configured rerank path,
   provider error or incomplete score response fails closed
 
-Internal runtime snapshot:
+Internal provider projection export:
 
 ```text
 GET /api/internal/provider-config/active?role=primary_agent
 ```
 
 Requires `x-app-internal-auth`. Response resolves the active profile through its
-provider connection, includes raw `api_key`, `base_url`, `kind` and optional
-`capability_config`, and is only for machine-internal consumers such as
-`execution-control`; it is not browser-facing.
+provider connection and includes raw `api_key`, `base_url`, `kind` and optional
+`capability_config`. It is a control-plane export used by explicit projection
+sync jobs. Self-host runtimes must consume a local
+`provider_config_projection.v1` artifact, not call this endpoint on their hot
+path. The endpoint is not browser-facing.
 
 Internal OpenAI-compatible proxy:
 

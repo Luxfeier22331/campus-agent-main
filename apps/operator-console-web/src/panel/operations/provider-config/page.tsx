@@ -8,9 +8,11 @@ import { getPanelErrorMessage } from "../../panel-error";
 import { Alert } from "../../ui/alert";
 import { Button } from "../../ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
+import { Empty, EmptyDescription, EmptyTitle } from "../../ui/empty";
 import { Field, FieldError, FieldLabel } from "../../ui/field";
 import { Input } from "../../ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
+import { Skeleton } from "../../ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -41,6 +43,9 @@ const KIND_LABEL: Record<ProviderConfigKind, string> = {
 };
 
 const ROLE_LABEL: Record<ProviderConfigRole, string> = {
+	eval_judge_llm: "评测裁判生成",
+	eval_ragas_embedding: "RAGAS 评测向量化",
+	eval_ragas_llm: "RAGAS 评测生成",
 	index_embedding: "索引构建向量化",
 	primary_agent: "主问答生成",
 	rag_query_embedding: "知识检索向量化",
@@ -57,8 +62,11 @@ const STATUS_LABEL = {
 const ROLE_OPTIONS: Array<{ kind: ProviderConfigKind; role: ProviderConfigRole }> = [
 	{ kind: "prompt", role: "primary_agent" },
 	{ kind: "prompt", role: "rag_synthesis" },
+	{ kind: "prompt", role: "eval_ragas_llm" },
+	{ kind: "prompt", role: "eval_judge_llm" },
 	{ kind: "embedding", role: "rag_query_embedding" },
 	{ kind: "embedding", role: "index_embedding" },
+	{ kind: "embedding", role: "eval_ragas_embedding" },
 ];
 
 const ROLE_ORDER = ROLE_OPTIONS.map((option) => option.role);
@@ -77,7 +85,15 @@ const providerConfigFormSchema = z.object({
 	baseUrl: z.string().url("请输入有效的服务端点。"),
 	dimensions: z.string().regex(/^\d+$/, "请输入数字。"),
 	model: z.string().min(1, "请输入模型名称。"),
-	role: z.enum(["primary_agent", "rag_synthesis", "rag_query_embedding", "index_embedding"]),
+	role: z.enum([
+		"primary_agent",
+		"rag_synthesis",
+		"eval_ragas_llm",
+		"eval_judge_llm",
+		"rag_query_embedding",
+		"index_embedding",
+		"eval_ragas_embedding",
+	]),
 	timeoutMs: z.string().regex(/^\d+$/, "请输入数字。"),
 });
 
@@ -305,6 +321,20 @@ export function ProviderConfigPage() {
 					<CardTitle>运行配置档案</CardTitle>
 				</CardHeader>
 				<CardContent className="p-0">
+					{profilesQuery.isLoading ? (
+						<div className="space-y-2 p-5">
+							<Skeleton className="h-9 w-full" />
+							<Skeleton className="h-9 w-full" />
+							<Skeleton className="h-9 w-full" />
+						</div>
+					) : null}
+					{profilesQuery.error ? (
+						<div className="p-5">
+							<Alert tone="danger">
+								{getPanelErrorMessage(profilesQuery.error, "配置列表读取失败。")}
+							</Alert>
+						</div>
+					) : null}
 					<TableContainer className="rounded-none border-0 border-t">
 						<Table>
 							<TableHeader>
@@ -415,9 +445,10 @@ export function ProviderConfigPage() {
 						</Table>
 					</TableContainer>
 					{profilesQuery.data?.profiles.length === 0 ? (
-						<div className="p-6 text-sm text-slate-600">
-							暂无模型服务配置，请先创建主问答生成配置。
-						</div>
+						<Empty className="m-5">
+							<EmptyTitle>暂无模型服务配置</EmptyTitle>
+							<EmptyDescription>请先创建主问答生成配置。</EmptyDescription>
+						</Empty>
 					) : null}
 				</CardContent>
 			</Card>

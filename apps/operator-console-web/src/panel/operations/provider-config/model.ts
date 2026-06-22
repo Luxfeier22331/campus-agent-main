@@ -1,6 +1,9 @@
 export type ProviderConfigKind = "embedding" | "prompt";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type ProviderConfigRole =
+	| "eval_judge_llm"
+	| "eval_ragas_embedding"
+	| "eval_ragas_llm"
 	| "index_embedding"
 	| "primary_agent"
 	| "rag_query_embedding"

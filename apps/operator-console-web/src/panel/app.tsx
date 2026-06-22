@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { ClipboardList, KeyRound, LogOut, Menu, RefreshCw } from "lucide-react";
+import { ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
@@ -8,16 +8,21 @@ import { fetchJson } from "./http";
 import { ProviderConfigPage } from "./operations/provider-config/page";
 import { formatPanelTimestamp } from "./panel-copy";
 import { getPanelErrorMessage } from "./panel-error";
-import {
-	normalizeOverviewRecord,
-	type PanelOverviewRecord,
-	type RawPanelOverviewResponse,
-} from "./types";
+import { normalizeOverviewRecord, type RawPanelOverviewResponse } from "./types";
 import { Alert } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import { Empty, EmptyDescription, EmptyTitle } from "./ui/empty";
+import { Separator } from "./ui/separator";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarInset,
+	SidebarProvider,
+	SidebarTrigger,
+} from "./ui/sidebar";
+import { Skeleton } from "./ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -68,66 +73,50 @@ function OperatorConsoleShell({ children }: { children: ReactNode }) {
 	const operatorLabel = operator?.displayName || operator?.email || "运维人员";
 
 	return (
-		<div className="min-h-dvh bg-slate-100 text-slate-950">
-			<header className="sticky top-0 z-30 border-slate-200 border-b bg-white">
-				<div className="flex min-h-14 items-center gap-3 px-4">
-					<Sheet>
-						<DialogSheetTrigger />
-						<SheetContent className="lg:hidden">
-							<SheetHeader>
-								<SheetTitle>运维导航</SheetTitle>
-							</SheetHeader>
-							<OperatorNav />
-						</SheetContent>
-					</Sheet>
-					<div className="min-w-0 flex-1">
-						<p className="truncate font-semibold">校园助理运维工作台</p>
+		<SidebarProvider>
+			<div className="min-h-dvh bg-slate-100 text-slate-950">
+				<header className="sticky top-0 z-30 border-slate-200 border-b bg-white">
+					<div className="flex min-h-14 items-center gap-3 px-4">
+						<SidebarTrigger />
+						<div className="min-w-0 flex-1">
+							<p className="truncate font-semibold">校园助理运维工作台</p>
+						</div>
+						<Button
+							aria-label="刷新页面"
+							onClick={() => queryClient.invalidateQueries()}
+							size="icon"
+							variant="ghost"
+						>
+							<RefreshCw className="size-5" />
+						</Button>
+						<div className="hidden text-right text-sm sm:block">
+							<p className="font-medium">{operatorLabel}</p>
+							<p className="text-slate-500 text-xs">
+								{overviewQuery.data?.protectionEnvelope || "受保护访问"}
+							</p>
+						</div>
+						<Button asChild aria-label="退出" size="icon" variant="ghost">
+							<a href="/logout">
+								<LogOut className="size-5" />
+							</a>
+						</Button>
 					</div>
-					<Button
-						aria-label="刷新页面"
-						onClick={() => queryClient.invalidateQueries()}
-						size="icon"
-						variant="ghost"
-					>
-						<RefreshCw className="size-5" />
-					</Button>
-					<div className="hidden text-right text-sm sm:block">
-						<p className="font-medium">{operatorLabel}</p>
-						<p className="text-slate-500 text-xs">
-							{overviewQuery.data?.protectionEnvelope || "受保护访问"}
-						</p>
-					</div>
-					<Button asChild aria-label="退出" size="icon" variant="ghost">
-						<a href="/logout">
-							<LogOut className="size-5" />
-						</a>
-					</Button>
+				</header>
+				<div className="flex">
+					<Sidebar title="运维导航">
+						<OperatorNav />
+					</Sidebar>
+					<SidebarInset>{children}</SidebarInset>
 				</div>
-			</header>
-			<div className="flex">
-				<aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-64 border-slate-200 border-r bg-white p-3 lg:block">
-					<OperatorNav />
-				</aside>
-				<main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
 			</div>
-		</div>
-	);
-}
-
-function DialogSheetTrigger() {
-	return (
-		<SheetTrigger asChild>
-			<Button aria-label="打开导航" className="lg:hidden" size="icon" variant="ghost">
-				<Menu className="size-5" />
-			</Button>
-		</SheetTrigger>
+		</SidebarProvider>
 	);
 }
 
 function OperatorNav() {
 	const location = useLocation();
 	return (
-		<nav aria-label="运维导航" className="grid gap-1">
+		<SidebarContent aria-label="运维导航">
 			{navItems.map((item) => {
 				const active = location.pathname === item.to || location.pathname.startsWith(`${item.to}/`);
 				const Icon = item.icon;
@@ -147,7 +136,7 @@ function OperatorNav() {
 					</Link>
 				);
 			})}
-		</nav>
+		</SidebarContent>
 	);
 }
 
@@ -186,27 +175,30 @@ function RequestsPage() {
 		queryKey: ["requests"],
 	});
 	const alerts = overview.data?.data.alerts ?? [];
+	const volume = overview.data?.data.overview.requestVolume;
 
 	return (
 		<section>
 			<PageHeader description="查看在线问答请求、运行状态和明确阻塞项。" title="请求与运行" />
 			<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_380px]">
 				<div className="grid gap-4 md:grid-cols-3">
-					<MetricCard
-						detail="最近 24 小时"
-						label="受理请求"
-						value={String(overview.data?.data.overview.requestVolume.accepted ?? "-")}
-					/>
-					<MetricCard
-						detail="最近 24 小时"
-						label="完成请求"
-						value={String(overview.data?.data.overview.requestVolume.completed ?? "-")}
-					/>
-					<MetricCard
-						detail="最近 24 小时"
-						label="错误请求"
-						value={String(overview.data?.data.overview.requestVolume.errored ?? "-")}
-					/>
+					{[
+						{ label: "受理请求", value: volume?.accepted },
+						{ label: "完成请求", value: volume?.completed },
+						{ label: "错误请求", value: volume?.errored },
+					].map((metric) => (
+						<Card key={metric.label}>
+							<CardContent className="pt-5">
+								<p className="text-slate-500 text-sm">{metric.label}</p>
+								{metric.value === undefined ? (
+									<Skeleton className="mt-3 h-8 w-16" />
+								) : (
+									<p className="mt-2 font-semibold text-3xl tabular-nums">{metric.value}</p>
+								)}
+								<p className="mt-1 text-slate-500 text-xs">最近 24 小时</p>
+							</CardContent>
+						</Card>
+					))}
 				</div>
 				<Card>
 					<CardHeader>
@@ -215,17 +207,31 @@ function RequestsPage() {
 					</CardHeader>
 					<CardContent className="space-y-3">
 						{runtime.error ? <QueryError error={runtime.error} /> : null}
+						{runtime.isLoading ? (
+							<div className="space-y-3">
+								<Skeleton className="h-5 w-full" />
+								<Skeleton className="h-5 w-full" />
+								<Skeleton className="h-5 w-full" />
+							</div>
+						) : null}
 						{runtime.data ? (
 							<>
-								<StatusRow label="执行服务" status={runtime.data.data.executionRuntime.status} />
-								<StatusRow
-									label="状态同步"
-									status={runtime.data.data.executionRuntime.checks.runProjectionStore}
-								/>
-								<StatusRow
-									label="任务队列"
-									status={runtime.data.data.executionRuntime.checks.temporalRuntime}
-								/>
+								{[
+									{ label: "执行服务", status: runtime.data.data.executionRuntime.status },
+									{
+										label: "状态同步",
+										status: runtime.data.data.executionRuntime.checks.runProjectionStore,
+									},
+									{
+										label: "任务队列",
+										status: runtime.data.data.executionRuntime.checks.temporalRuntime,
+									},
+								].map((item) => (
+									<div className="flex items-center justify-between gap-3" key={item.label}>
+										<span className="text-sm">{item.label}</span>
+										<Badge tone={getStatusTone(item.status)}>{formatStatus(item.status)}</Badge>
+									</div>
+								))}
 								{Object.values(runtime.data.data.executionRuntime.blockers).length > 0 ? (
 									<Alert tone="warning">
 										{Object.values(runtime.data.data.executionRuntime.blockers).join("; ")}
@@ -233,7 +239,20 @@ function RequestsPage() {
 								) : null}
 							</>
 						) : null}
-						{panel.data ? <OperatorSummary overview={panel.data} /> : null}
+						{panel.data ? (
+							<>
+								<Separator />
+								<div>
+									<p className="font-medium text-sm">当前运维主体</p>
+									<p className="text-slate-500 text-sm">
+										{panel.data.operatorContext?.displayName ||
+											panel.data.operatorContext?.email ||
+											panel.data.operatorContext?.operatorId ||
+											"未知"}
+									</p>
+								</div>
+							</>
+						) : null}
 					</CardContent>
 				</Card>
 				<Card className="md:col-span-3">
@@ -254,7 +273,10 @@ function RequestsPage() {
 								))}
 							</div>
 						) : (
-							<p className="text-slate-500 text-sm">当前没有需要处理的告警。</p>
+							<Empty className="min-h-24 border-0 bg-transparent">
+								<EmptyTitle>没有告警</EmptyTitle>
+								<EmptyDescription>当前没有需要处理的告警。</EmptyDescription>
+							</Empty>
 						)}
 					</CardContent>
 				</Card>
@@ -265,6 +287,13 @@ function RequestsPage() {
 					</CardHeader>
 					<CardContent>
 						{requests.error ? <QueryError error={requests.error} /> : null}
+						{requests.isLoading ? (
+							<div className="mb-3 space-y-2">
+								<Skeleton className="h-9 w-full" />
+								<Skeleton className="h-9 w-full" />
+								<Skeleton className="h-9 w-full" />
+							</div>
+						) : null}
 						<TableContainer>
 							<Table>
 								<TableHeader>
@@ -298,7 +327,10 @@ function RequestsPage() {
 									{requests.data?.data.length === 0 ? (
 										<TableRow>
 											<TableCell className="text-slate-500" colSpan={5}>
-												当前没有请求记录。
+												<Empty className="min-h-24 border-0 bg-transparent">
+													<EmptyTitle>没有请求记录</EmptyTitle>
+													<EmptyDescription>当前没有请求记录。</EmptyDescription>
+												</Empty>
 											</TableCell>
 										</TableRow>
 									) : null}
@@ -312,38 +344,8 @@ function RequestsPage() {
 	);
 }
 
-function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
-	return (
-		<Card>
-			<CardContent className="pt-5">
-				<p className="text-slate-500 text-sm">{label}</p>
-				<p className="mt-2 font-semibold text-3xl tabular-nums">{value}</p>
-				<p className="mt-1 text-slate-500 text-xs">{detail}</p>
-			</CardContent>
-		</Card>
-	);
-}
-
-function StatusRow({ label, status }: { label: string; status: string }) {
-	const tone = status === "ready" ? "success" : status === "not_reported" ? "muted" : "warning";
-	return (
-		<div className="flex items-center justify-between gap-3">
-			<span className="text-sm">{label}</span>
-			<Badge tone={tone}>{formatStatus(status)}</Badge>
-		</div>
-	);
-}
-
-function OperatorSummary({ overview }: { overview: PanelOverviewRecord }) {
-	const operator = overview.operatorContext;
-	return (
-		<div className="border-slate-200 border-t pt-3">
-			<p className="font-medium text-sm">当前运维主体</p>
-			<p className="text-slate-500 text-sm">
-				{operator?.displayName || operator?.email || operator?.operatorId || "未知"}
-			</p>
-		</div>
-	);
+function getStatusTone(status: string) {
+	return status === "ready" ? "success" : status === "not_reported" ? "muted" : "warning";
 }
 
 function formatStatus(status: string) {
