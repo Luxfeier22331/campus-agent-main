@@ -106,7 +106,7 @@ class AppApiEvalClientError(RuntimeError):
 @dataclass(frozen=True, slots=True)
 class AppApiEvalExecution:
     response: ExecutionResponse
-    observed_trace: ObservedTrace
+    observed_trace: ObservedTrace | None
     request_correlation: OperatorRequestCorrelation
     conversation_id: str | None = None
 
@@ -310,16 +310,20 @@ class AppApiEvalClient:
             if supervisor_payload is not None
             else _build_execution_response(result)
         )
-        observed_trace = _build_observed_trace(
-            scope=scope,
-            response=execution_response,
+        observed_trace = (
+            _build_observed_trace(
+                scope=scope,
+                response=execution_response,
+            )
+            if scope.get("corpus") and scope.get("collection")
+            else None
         )
         conversation_id = _optional_string(conversation.get("id"))
         correlation_template_values = {
             "case_id": case_id,
-            "collection": scope["collection"],
+            "collection": scope.get("collection") or "",
             "conversation_id": conversation_id or "",
-            "corpus": scope["corpus"],
+            "corpus": scope.get("corpus") or "",
             "request_id": request_id,
             "selected_capability": execution_response.selected_capability or "",
             "status": execution_response.status,

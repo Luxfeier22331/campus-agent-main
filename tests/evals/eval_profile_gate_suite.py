@@ -460,6 +460,69 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
             ({"tool_name": "service_status_lookup", "result_status": "completed"},),
         )
 
+    def test_execute_chat_request_decodes_product_path_without_requested_scope(self) -> None:
+        from campus_evals.app_api_chat_runtime_client import (
+            AppApiEvalClient,
+            AppApiEvalClientSettings,
+        )
+
+        seen: dict[str, object] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen["body"] = json.loads(request.content.decode("utf-8"))
+            return httpx.Response(
+                200,
+                json={
+                    "answer": {
+                        "conversation": {
+                            "id": "conversation-1",
+                            "updatedAt": "2026-04-29T00:00:00+00:00",
+                        },
+                        "result": {
+                            "requestId": "req_runtime_01",
+                            "traceId": "trace_runtime_01",
+                            "kind": "answer",
+                            "text": "ok",
+                        },
+                    },
+                    "supervisor": {
+                        "status": "completed",
+                        "selectedCapability": "campus_services",
+                        "answerText": "ok",
+                        "traceId": "trace_runtime_01",
+                        "workflowTraceSummary": {
+                            "directVsDelegateBranch": "direct",
+                            "selectedCapability": "campus_services",
+                            "workflowMode": "agent_loop",
+                        },
+                    },
+                },
+            )
+
+        http_client = httpx.Client(
+            base_url="https://app-api.example",
+            transport=httpx.MockTransport(handler),
+        )
+        client = AppApiEvalClient(
+            settings=AppApiEvalClientSettings(
+                app_api_base_url="https://app-api.example",
+                internal_shared_secret="shared-secret",
+                eval_user_email="eval@example.edu",
+            ),
+            client=http_client,
+        )
+
+        execution = client.execute_chat_request(
+            case_id="runtime-case-1",
+            prompt="校园卡丢了怎么办",
+        )
+
+        self.assertEqual(seen["body"], {"prompt": "校园卡丢了怎么办"})
+        self.assertIsNone(execution.observed_trace)
+        self.assertEqual(execution.request_correlation.request_id, "req_runtime_01")
+        self.assertEqual(execution.request_correlation.trace_id, "trace_runtime_01")
+        self.assertEqual(execution.response.selected_capability, "campus_services")
+
 
 def _single_online_answer_case_path(root: Path, case) -> Path:
     path = root / "single-online-answer-case.json"
