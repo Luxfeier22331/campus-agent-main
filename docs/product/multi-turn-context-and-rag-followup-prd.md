@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-21
-updated: 2026-06-21
+updated: 2026-06-22
 ---
 
 # Run Context Envelope And RAG Follow-up PRD
@@ -16,8 +16,8 @@ RAG 检索、证据合成、finalization projection 与 Langfuse eval 基础能�
 
 但服务端还缺少一个稳定的 run context envelope。进入模型和能力分支时，
 系统主要依赖当前用户请求、session slots、memory recall 与本轮 evidence。最近多轮
-对话、上一轮回答、上一轮 evidence、上一轮 capability result 尚未形成统一的
-typed、sanitized、budgeted、traceable context packet。
+对话、上一轮回答和上一轮 evidence 尚未形成统一的 typed、sanitized、budgeted、
+traceable context packet。
 
 这会影响典型多轮追问：
 
@@ -41,15 +41,15 @@ current truth 文档负责。
 
 - 支持服务端重建每轮模型可见上下文，不依赖前端原样传入完整 messages。
 - 支持 app-api 编译 `context.conversation` envelope：当前用户消息、recent turns、
-  上一轮回答摘要、上一轮 evidence proof refs、上一轮 capability result refs、
-  session state、visibility、budget 与 truncation summary。
+  上一轮回答摘要、上一轮 evidence proof refs、session state、visibility、budget 与
+  truncation summary。
 - 支持 execution-control 在已接收 context packet 后，按 `context.memory.enabled` gate
   执行 `context.memory_recall`，再继续 `agent.primary`、RAG graph 与 finalization。
 - 支持 primary agent 区分当前用户请求、历史对话、长期记忆、session state、工具结果和
   RAG evidence。
 - 支持 RAG 作为第一消费者，对“这个 / 那个 / 上一条 / 第二点”等追问做指代消解和
   query rewrite。
-- 支持上一轮 selected evidence / capability result 在下一轮追问中被安全复用。
+- 支持上一轮 selected evidence 在下一轮追问中被安全复用。
 - 支持上下文 token budget、裁剪、摘要预留和可诊断 truncation reason。
 - 支持同一 conversation 下连续消息、重试、取消和 regenerate 的顺序与分支语义。
 - 支持 Langfuse 记录上下文装配、query rewrite、evidence reuse 与 eval score。
@@ -131,13 +131,15 @@ context packet 必须区分 model-visible 与 runtime-only 内容。
 - sanitized recent turns
 - previous answer summary
 - previous evidence metadata / excerpt / refs
+- previous capability result refs / bounded summary
 - selected session state summary
 - bounded memory context returned by Hindsight recall when recall is enabled and
   completed
 
-其中 current user message、recent turns、previous answer summary、previous evidence 与
-session state 来自 app-api 生成的 `context.conversation`；bounded memory context 来自
-execution-control enrichment，不属于 app-api 生成的 `context.conversation`。
+其中 current user message、recent turns、previous answer summary、previous evidence、
+previous capability result refs 与 session state 来自 app-api 生成的
+`context.conversation`；bounded memory context 来自 execution-control enrichment，不属于
+app-api 生成的 `context.conversation`。
 
 Runtime-only 内容包括：
 
@@ -152,10 +154,10 @@ diagnostics。
 
 ### 4.4 Fail-closed Contract
 
-schema version 不支持、必填字段缺失、identity mismatch、conversation ownership mismatch、
-evidence scope mismatch、source version 不可确认或 required ref 不存在时，默认 fail
-closed，并产生可诊断错误或澄清结果。不得 silent fallback 到“只看当前问题”并假装支持
-多轮上下文。
+除 optional `context.memory.enabled` 缺失或 false 的 skipped case 外，schema version
+不支持、必填字段缺失、identity mismatch、conversation ownership mismatch、evidence
+scope mismatch、source version 不可确认或 required ref 不存在时，默认 fail closed，并产生
+可诊断错误或澄清结果。不得 silent fallback 到“只看当前问题”并假装支持多轮上下文。
 
 ## 5. 用户场景
 
@@ -215,8 +217,7 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
 - P0 Memory owner 歧义：PG profile memory projection 容易被误当作 online recall
   truth。
 - P1 RAG 追问理解缺口：“这个 / 那个 / 上一条”无法稳定 rewrite。
-- P1 上一轮结果复用缺口：evidence / capability result 缺少可验证 proof ref，难以安全进入
-  下一轮模型输入。
+- P1 上一轮结果复用缺口：evidence 缺少可验证 proof ref，难以安全进入下一轮模型输入。
 - P2 会话并发与分支缺口：连续消息、重试、regenerate 容易产生状态覆盖。
 - P1 上下文质量 eval 缺口：无法证明补齐后多轮/RAG 效果提升。
 
@@ -246,8 +247,9 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
 - previous capability results
   - Canonical source: sanitized run / step / result projection
   - Compiler owner: app-api
-  - Model-visible: yes, refs or summary only
-  - Notes: typed tool result 必须已经被 projection 治理
+  - Model-visible: not in P0
+  - Notes: generic capability result reuse belongs to P2 unless a concrete P0
+    consumer needs it
 - session state
   - Canonical source: conversation sessionSlots
   - Compiler owner: app-api
@@ -291,7 +293,7 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
 - `requested_capability`
 - tenant / institution scope
 - confirmed `session_slots`
-- `context.memory.enabled` gate
+- optional `context.memory.enabled` gate
 - active parent chain selector
 
 输出至少包括：实现阶段必须把该语义投影冻结到 execution payload 的
@@ -347,6 +349,9 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
   cookie、token、Temporal history 或未经治理的 raw payload。
 - assistant tool / RAG output 应保留结构化摘要、引用 id、source metadata 与必要 answer
   summary。
+- `context.memory.enabled` 缺失或为 false 是合法 skipped case，不属于 malformed
+  execution payload；只有 gate 为 true 时，recall request 所需字段才成为 fail-closed
+  必需输入。
 - P0 envelope 必须显式记录 model-visible / runtime-only visibility class。
 - P0 envelope 必须记录 token estimate、budget limit 与 truncation reason；自动摘要可以后置，
   但 budget/truncation 字段不能后置。
@@ -371,7 +376,8 @@ contract source 必须遵循 execution contract 现有治理：
   不新增 top-level `conversation_context`。
 - contract 不得泄漏 Qdrant、Temporal internal、provider SDK、Hindsight internal bank id
   或 Langfuse SDK 类型。
-- 必填字段缺失、schema version 不支持、identity mismatch 必须 fail closed。
+- 除 optional `context.memory.enabled` 缺失或 false 的 skipped case 外，必填字段缺失、
+  schema version 不支持、identity mismatch 必须 fail closed。
 - schema version、recent turn count、previous evidence count、token estimate 与 truncation
   reason 必须进入可观测字段。
 
@@ -386,7 +392,7 @@ primary agent 输入由 `context.conversation` 的 model-visible slices 与 exec
 - recent turns。
 - session slots / session state。
 - 上一轮 answer summary。
-- 上一轮 selected capability / evidence 摘要。
+- 上一轮 selected evidence 摘要。
 
 来自 execution-control enrichment 的输入包括：
 
@@ -463,25 +469,27 @@ P0 必须包含两层 token budget 与 deterministic truncation 策略。
 第一层是 envelope budget，由 app-api 编译 `context.conversation` 时执行，覆盖：
 
 1. 当前用户消息。
-2. system / developer policy。
-3. active session state。
-4. selected evidence metadata / necessary excerpt。
-5. recent user turns。
-6. recent assistant summaries。
-7. older turns summary。
+2. active session state。
+3. selected evidence metadata / necessary excerpt。
+4. recent user turns。
+5. recent assistant summaries。
+6. older turns summary。
 
 第二层是 final model input budget，由 execution-control 在 memory recall / tool result
 enrichment 后执行，覆盖最终注入 primary agent / RAG synthesis 的 model-visible
 context。该层可额外纳入：
 
-1. bounded Hindsight recall output。
-2. admitted typed tool results。
-3. RAG selected evidence necessary excerpt。
+1. system / developer instruction token reserve。
+2. bounded Hindsight recall output。
+3. admitted typed tool results。
+4. RAG selected evidence necessary excerpt。
 
 要求：
 
 - evidence 原文只在 grounding 需要时注入；默认注入摘要、citation metadata 与必要 excerpt。
 - 超预算时必须记录 truncation reason。
+- app-api compiler 不参与 execution prompt assembly，也不得在 envelope budget 中预算
+  system / developer instructions。
 - app-api compiler 不得在 envelope budget 中预算尚未产生的 Hindsight recall result。
 - 第一版可以先做 deterministic 裁剪，不强制自动摘要。
 - contract 必须预留 `context_summary`，用于后续 compact / summary 方案。
@@ -518,9 +526,9 @@ Hindsight recall、recent turns、session slots 和 previous evidence 必须有�
 - 当 session slots 和用户当前请求冲突时，当前请求触发 slot update 或澄清。
 - 合并后的上下文必须可追踪每个 item 的来源。
 - memory recall skip / failure 不得静默伪造空记忆。`context.memory.enabled` 缺失或为
-  false 时投影为 skipped；gate 为 true 但 recall request / Hindsight recall 失败时当前
-  workflow fail closed。completed-turn append failure 属于 final answer 后置 side-effect，
-  不反向失败当前回答，但必须写入 failed step projection。
+  false 时投影为 skipped；gate 为 true 但 recall request 必需字段缺失或 Hindsight
+  recall 失败时当前 workflow fail closed。completed-turn append failure 属于 final
+  answer 后置 side-effect，不反向失败当前回答，但必须写入 failed step projection。
 
 ### FR9. Langfuse Trace Evidence
 
@@ -535,7 +543,6 @@ Hindsight recall、recent turns、session slots 和 previous evidence 必须有�
 - envelope schema version。
 - recent turn count。
 - previous evidence count。
-- previous capability result count。
 - memory recall enabled / skipped / completed state。
 - model-visible item count。
 - runtime-only item count。
@@ -550,6 +557,9 @@ Hindsight recall、recent turns、session slots 和 previous evidence 必须有�
 
 要求：
 
+- PRD 后续实施必须同步更新
+  `docs/contracts/langfuse-runtime-observability-contract.md`，由该 contract 冻结允许的
+  semantic-to-attribute projection。
 - Langfuse-bound payload 必须遵守 repo 脱敏边界。
 - Langfuse-bound payload 不得包含 raw prompt、raw answer、raw transcript、standalone
   query 明文、retrieved snippet、source body 或 provider raw response。
@@ -669,9 +679,14 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
       ],
       "previous_capability_results": [
         {
-          "request_id": "req_prev",
-          "selected_capability": "knowledge",
-          "result_ref": "runtime://results/req_prev/final"
+          "request_id": "req_previous_services",
+          "run_id": "run_previous_services",
+          "capability": "campus_services",
+          "result_kind": "final_response",
+          "projection_ref": "projection://runs/run_previous_services/finalization",
+          "content_hash": "sha256:previous-service-result",
+          "status": "completed",
+          "summary": "上一轮查询了图书馆开放状态。"
         }
       ],
       "session_state": {
@@ -685,12 +700,16 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
           "recent_turns",
           "previous_answer_summary",
           "previous_evidence_refs",
+          "previous_capability_results",
           "session_state"
         ],
         "runtime_only": [
+          "schema_version",
           "conversation_id",
           "user_message_id",
           "parent_message_id",
+          "memory_recall",
+          "source_attribution",
           "budget",
           "truncation"
         ]
@@ -704,6 +723,11 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
         {
           "item": "previous_evidence_refs[0]",
           "source": "runtime step/result projection",
+          "model_visible": true
+        },
+        {
+          "item": "previous_capability_results[0]",
+          "source": "runtime request projection",
           "model_visible": true
         }
       ],
@@ -726,8 +750,9 @@ semantic-to-attribute projection，不是字段名契约；具体 Langfuse attri
   "envelope_schema_version": "conversation_context.v1",
   "recent_turn_count": 2,
   "previous_evidence_count": 1,
-  "model_visible_item_count": 5,
-  "runtime_only_item_count": 5,
+  "previous_capability_result_count": 1,
+  "model_visible_item_count": 6,
+  "runtime_only_item_count": 8,
   "query_rewrite_hash": "sha256:rewrite-example",
   "query_rewrite_resolution_state": "resolved",
   "followup_reference_type": "previous_evidence",
@@ -768,12 +793,18 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 - P0 fixture 覆盖 budget、visibility、source attribution 与 truncation reason。
 - app-api-generated `context.conversation` fixture 不包含 Hindsight recall result。
 - final model input budget fixture 覆盖 memory recall completed 与 skipped 两种情况。
+- valid skipped fixture 覆盖 `context.memory.enabled` 缺失 / false 的 skipped diagnostics。
 - 同一 conversation 连续两条消息不会互相覆盖 active state。
 - 超过 token budget 时有明确 truncation reason。
+- generic previous capability result reuse 只消费 `runtime.request_execution` sanitized
+  completed projection，模型侧只接收 `previous_capability_results` refs / bounded summary，
+  不接收 Temporal history、raw tool payload、原始 provider output 或前端 structured parts。
+- final model context 和 context usage summary 均暴露
+  `previous_capability_results` / `previous_capability_result_count`。
 - Langfuse 能按 dataset run 产出 retrieval、groundedness 和 follow-up scores。
 - 新增 contract 有 schema / validator / malformed fixture 测试。
-- malformed fixture 覆盖 top-level `conversation_context` 被拒绝、缺 provenance、
-  memory gate 缺失 / false 的 skipped diagnostics 与 Langfuse forbidden payload。
+- malformed fixture 覆盖 top-level `conversation_context` 被拒绝、缺 provenance、gate 为
+  true 但 recall input 缺失，以及 Langfuse forbidden payload。
 - 至少一条 integration smoke 覆盖多轮追问进入 RAG 的完整路径。
 - 至少一条 non-RAG / direct answer smoke 覆盖 envelope 进入 primary agent 的路径。
 
@@ -783,12 +814,13 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 
 - 定义 `context.conversation` contract。
 - app-api 装配 current user message、recent turns、previous answer summary、previous
-  evidence proof refs、previous capability result refs、session state、visibility、budget
-  与 truncation summary。
+  evidence proof refs、session state、visibility、budget 与 truncation summary。
 - execution-control 接收、strict decode 并校验 `context.conversation`。
 - primary agent 注入 recent turns、previous answer summary、previous evidence refs、
   execution-control enrichment 的 memory recall output 与 session state。
 - Langfuse trace 记录 context assembler 脱敏摘要。
+- 同步更新 Langfuse runtime observability contract，冻结 P0 envelope semantic summary 的
+  allowed projection。
 - 不承诺完整 RAG rewrite 效果闭环、不承诺 complete regenerate branch UI。
 
 ### P1. RAG 追问闭环
@@ -796,13 +828,15 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 - RAG query rewrite 使用 recent turns 和 previous evidence refs。
 - query rewrite 输出 `resolution_state`、`ambiguity_reason` 与 follow-up reference。
 - RAG synthesis 支持 previous evidence reuse。
-- 增加 follow-up reference trace 与 standalone query hash。
+- 增加 follow-up reference trace 与 standalone query hash，且必须走 Langfuse runtime
+  observability contract。
 - 增加多轮 RAG eval fixtures 和 deterministic scorer。
 
 ### P2. 并发、分支与上下文摘要硬化
 
 - turn sequence guard。
 - regenerate branch schema / active branch pointer。
+- generic previous capability result reuse。
 - compact / summary strategy。
 - context summary 预留字段接入。
 - late completion / cancel / timeout 状态保护。

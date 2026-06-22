@@ -135,6 +135,28 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "export type WorkflowMode = (typeof WORKFLOW_MODES)[number];\n"
         "export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];\n\n"
         "export type SafeRecord = Record<string, unknown>;\n\n"
+        "export interface ConversationContextWire {\n"
+        '\tschema_version: "conversation_context.v1";\n'
+        "\tconversation_id: string;\n"
+        "\tuser_message_id: string;\n"
+        "\tparent_message_id?: string | null;\n"
+        '\tcurrent_user_message: { role: "user"; content: string };\n'
+        "\trecent_turns: SafeRecord[];\n"
+        "\tprevious_answer_summary?: string | null;\n"
+        "\tprevious_evidence_refs: SafeRecord[];\n"
+        "\tprevious_capability_results: SafeRecord[];\n"
+        "\tsession_state: SafeRecord;\n"
+        "\tvisibility: { model_visible: string[]; runtime_only: string[] };\n"
+        "\tmemory_recall: {\n"
+        '\t\tgate_field: "context.memory.enabled";\n'
+        '\t\towner: "execution-control";\n'
+        '\t\truntime: "hindsight";\n'
+        "\t};\n"
+        "\tsource_attribution: SafeRecord[];\n"
+        "\tcontext_summary: string | null;\n"
+        "\tbudget: { token_estimate: number; recent_turn_limit: number };\n"
+        "\ttruncation: SafeRecord | null;\n"
+        "}\n\n"
         "export interface RuntimeDecisionSummaryWire {\n"
         "\tschema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;\n"
         "\tscope_gate_decision?: string;\n"
@@ -251,6 +273,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tresponse_contract: typeof CAPABILITY_EXECUTION_CONTRACT.responseContract;\n"
         "\tuser_goal: string;\n"
         "\tconversation_id?: string;\n"
+        "\ttenant_id?: string;\n"
         "\trequest_id: string;\n"
         "\tsafety_identifier?: string | null;\n"
         "\teffective_capability: RequestedCapability;\n"
@@ -349,6 +372,25 @@ def _generate_go(contract: dict[str, Any]) -> str:
         + _go_string_type("WorkflowMode", workflow_modes)
         + _go_string_type("StepOutputProjectionKind", projection_kinds)
         + """
+type ConversationContextWire struct {
+\tSchemaVersion string `json:"schema_version"`
+\tConversationID string `json:"conversation_id"`
+\tUserMessageID string `json:"user_message_id"`
+\tParentMessageID *string `json:"parent_message_id,omitempty"`
+\tCurrentUserMessage map[string]any `json:"current_user_message"`
+\tRecentTurns []map[string]any `json:"recent_turns"`
+\tPreviousAnswerSummary *string `json:"previous_answer_summary,omitempty"`
+\tPreviousEvidenceRefs []map[string]any `json:"previous_evidence_refs"`
+\tPreviousCapabilityResults []map[string]any `json:"previous_capability_results"`
+\tSessionState map[string]any `json:"session_state"`
+\tVisibility map[string]any `json:"visibility"`
+\tMemoryRecall map[string]any `json:"memory_recall"`
+\tSourceAttribution []map[string]any `json:"source_attribution"`
+\tContextSummary *string `json:"context_summary"`
+\tBudget map[string]any `json:"budget"`
+\tTruncation map[string]any `json:"truncation"`
+}
+
 type RuntimeDecisionSummaryWire struct {
 \tSchemaVersion string `json:"schema_version"`
 \tScopeGateDecision string `json:"scope_gate_decision,omitempty"`
@@ -463,6 +505,7 @@ type CapabilityExecutionRequestWire struct {
 \tResponseContract string `json:"response_contract"`
 \tUserGoal string `json:"user_goal"`
 \tConversationID string `json:"conversation_id,omitempty"`
+\tTenantID string `json:"tenant_id,omitempty"`
 \tRequestID string `json:"request_id"`
 \tSafetyIdentifier *string `json:"safety_identifier,omitempty"`
 \tEffectiveCapability RequestedCapability `json:"effective_capability"`

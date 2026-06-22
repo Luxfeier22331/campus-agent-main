@@ -147,6 +147,105 @@ describe("primary agent runtime", () => {
 		expect(observedInstructions).toContain("Personal memory is advisory context");
 	});
 
+	it("injects the final model conversation context without replacing the current user input", async () => {
+		let observedInput = "";
+		let observedInstructions = "";
+		const runner: AgentRunner = async ({ input, instructions }) => {
+			observedInput = input;
+			observedInstructions = instructions;
+			return {
+				finalOutput: "大一是否可申请需要看转专业办法的年级条件。",
+				terminalEnvelope: {
+					kind: "answer",
+					answerText: "大一是否可申请需要看转专业办法的年级条件。",
+				},
+				providerResponseId: "resp_context",
+				toolCalls: [],
+				traceRef: "trace_context",
+				usage: { inputTokens: 32, outputTokens: 12 },
+			};
+		};
+		const runtime = createPrimaryAgentRuntime({ catalog, runner });
+		const runInput = {
+			runId: "run-context",
+			conversationId: "conversation-1",
+			turnId: "turn-context",
+			traceId: "trace-context",
+			input: "那大一能不能申请？",
+			providerConfig,
+			visibleCapabilities: ["knowledge"],
+			finalModelContext: {
+				schemaVersion: "final_model_context.v1" as const,
+				currentUserMessage: "那大一能不能申请？",
+				recentTurns: [
+					{
+						messageId: "msg_user_001",
+						role: "user" as const,
+						content: "转专业条件是什么？",
+					},
+					{
+						messageId: "msg_assistant_002",
+						role: "assistant" as const,
+						summary: "上一轮回答的是转专业申请条件。",
+					},
+				],
+				previousAnswerSummary: "上一轮围绕转专业申请条件回答。",
+				previousEvidence: [
+					{
+						accessScope: "public_student_rule",
+						contentHash: "sha256:transfer-major-evidence-example",
+						documentId: "transfer-major-policy",
+						evidenceId: "ev_transfer_rule_01",
+						sectionTitle: "申请条件",
+						snippet: "学生申请转专业应符合学校规定的年级、成绩、名额及学院审核要求。",
+						sourceId: "regulations/student_rules/transfer-major/v2026",
+						title: "本科生转专业管理办法",
+						versionId: "rule-transfer-major-2026",
+					},
+				],
+				previousCapabilityResults: [
+					{
+						capability: "campus_services",
+						contentHash: "sha256:previous-service-result",
+						projectionRef: "projection://runs/run_previous_services/finalization",
+						requestId: "req_previous_services",
+						resultKind: "final_response",
+						runId: "run_previous_services",
+						status: "completed",
+						summary: "上一轮查询了图书馆开放状态。",
+					},
+				],
+				usageSummary: {
+					memoryRecallState: "completed" as const,
+					modelVisibleItemCount: 6,
+					runtimeOnlyItemCount: 8,
+					tokenEstimate: 320,
+				},
+				memoryContext: {
+					contextBlock: "用户记忆:\n- 用户偏好先看结论",
+					memoryRef: "projection://runs/run-context/memory/recall",
+					schemaVersion: "memory_recall_result_v1",
+					selectedMemoryChars: 16,
+					selectedMemoryCount: 1,
+				},
+			},
+		};
+
+		await runtime.run(runInput);
+
+		expect(observedInput).toBe("那大一能不能申请？");
+		expect(observedInstructions).toContain("<conversation_context>");
+		expect(observedInstructions).toContain(
+			"previous_answer_summary: 上一轮围绕转专业申请条件回答。",
+		);
+		expect(observedInstructions).toContain("ev_transfer_rule_01");
+		expect(observedInstructions).toContain("previous_capability_results:");
+		expect(observedInstructions).toContain("campus_services");
+		expect(observedInstructions).toContain("projection://runs/run_previous_services/finalization");
+		expect(observedInstructions).toContain("<personal_memory>");
+		expect(observedInstructions).toContain("用户偏好先看结论");
+	});
+
 	it("passes visible SDK tools to the runner and records selected tool results", async () => {
 		const runner: AgentRunner = async ({ tools }) => {
 			const toolResult = await tools[0]?.execute({

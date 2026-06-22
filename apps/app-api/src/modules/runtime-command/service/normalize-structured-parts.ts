@@ -416,30 +416,73 @@ function normalizeSourceItem(source: unknown): ChatSourceItem | null {
 	}
 
 	if (targetKind === "restricted_notice") {
-		return buildRestrictedNoticeSourceItem({ source, title, snippet });
+		return withSourceProofMetadata(
+			buildRestrictedNoticeSourceItem({ source, title, snippet }),
+			source,
+		);
 	}
 
 	if (targetKind === "public_notice_url") {
 		return originalNoticeUrl
-			? buildPublicNoticeSourceItem({ source, title, snippet, originalNoticeUrl })
+			? withSourceProofMetadata(
+					buildPublicNoticeSourceItem({ source, title, snippet, originalNoticeUrl }),
+					source,
+				)
 			: null;
 	}
 
 	if (targetKind === "canonical_reader" || targetKind === "notice_reader") {
 		return basePath
-			? buildCanonicalReaderSourceItem({
-					basePath,
-					readerAnchor,
+			? withSourceProofMetadata(
+					buildCanonicalReaderSourceItem({
+						basePath,
+						readerAnchor,
+						source,
+						targetKind,
+						title,
+						snippet,
+						originalNoticeUrl,
+					}),
 					source,
-					targetKind,
-					title,
-					snippet,
-					originalNoticeUrl,
-				})
+				)
 			: null;
 	}
 
 	return null;
+}
+
+function withSourceProofMetadata(sourceItem: ChatSourceItem, source: Record<string, unknown>) {
+	return {
+		...sourceItem,
+		...optionalRecordStrings(source, {
+			accessScope: ["access_scope", "accessScope"],
+			collection: ["collection"],
+			contentHash: ["content_hash", "contentHash"],
+			documentId: ["document_id", "documentId"],
+			evidenceId: ["evidence_id", "evidenceId"],
+			evidenceRole: ["evidence_role", "evidenceRole"],
+			sourceId: ["source_id", "sourceId", "canonical_source_id", "canonicalSourceId"],
+			snapshotId: ["snapshot_id", "snapshotId"],
+			versionId: ["version_id", "versionId"],
+		}),
+	};
+}
+
+function optionalRecordStrings(
+	source: Record<string, unknown>,
+	fields: Record<string, string[]>,
+): Record<string, string> {
+	const result: Record<string, string> = {};
+	for (const [targetKey, sourceKeys] of Object.entries(fields)) {
+		for (const sourceKey of sourceKeys) {
+			const value = source[sourceKey];
+			if (typeof value === "string" && value.trim()) {
+				result[targetKey] = value.trim();
+				break;
+			}
+		}
+	}
+	return result;
 }
 
 function sourceItemDedupeKey(sourceItem: ChatSourceItem): string {

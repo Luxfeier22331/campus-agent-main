@@ -80,6 +80,47 @@ func TestValidateSynthesisPacketRequiresEvidenceSelectionOutput(t *testing.T) {
 	}
 }
 
+func TestValidateSynthesisPacketAcceptsProofedPreviousEvidenceContext(t *testing.T) {
+	packet := SynthesisPacketProjection{
+		OutputSchemaID: "rag_answer_v2",
+		PayloadSHA256:  "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+		PreviousEvidenceContext: []PreviousEvidenceContextItem{
+			{
+				AccessScope: "public_student_rule",
+				ContentHash: "sha256:transfer-major-evidence-example",
+				DocumentID:  "transfer-major-policy",
+				EvidenceID:  "ev_transfer_rule_01",
+				SourceID:    "regulations/student_rules/transfer-major/v2026",
+				Snippet:     "学生申请转专业应符合学校规定的年级、成绩、名额及学院审核要求。",
+				Title:       "本科生转专业管理办法",
+				VersionID:   "rule-transfer-major-2026",
+			},
+		},
+		PromptRefs:  []string{"prompt://rag/rag_answer_v2"},
+		QueryIntent: "policy_answer",
+		RequestID:   "req-1",
+		RunID:       "run-1",
+		SelectedEvidence: []EvidenceRef{
+			{
+				ChunkID:   "chunk-1",
+				Excerpt:   "学生应按照学校规定办理手续。",
+				SourceID:  "doc-1",
+				SourceRef: "source://student_rules/doc-1",
+				SpanRef:   "span://doc-1/chunk-1#0-20",
+			},
+		},
+		StepID: "synthesis",
+	}
+	if err := ValidateSynthesisPacket(packet); err != nil {
+		t.Fatalf("validate synthesis packet: %v", err)
+	}
+
+	packet.PreviousEvidenceContext[0].ContentHash = ""
+	if err := ValidateSynthesisPacket(packet); err == nil {
+		t.Fatal("previous evidence context without content hash must fail closed")
+	}
+}
+
 func validPlanProjection() PlanProjection {
 	return PlanProjection{
 		Collection:               "student_rules",

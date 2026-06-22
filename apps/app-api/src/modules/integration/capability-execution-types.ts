@@ -63,9 +63,81 @@ export interface CapabilityExecutionMemorySummary {
 	enabled: boolean;
 }
 
+export interface CapabilityExecutionConversationMessage {
+	content?: string;
+	createdAt?: string;
+	messageId?: string;
+	role: "assistant" | "user";
+	summary?: string;
+}
+
+export interface CapabilityExecutionPreviousEvidenceRef {
+	accessScope: string;
+	collection?: string;
+	contentHash: string;
+	documentId?: string;
+	evidenceId: string;
+	evidenceRole?: string;
+	sectionTitle?: string;
+	snapshotId?: string;
+	sourceId: string;
+	sourceKind?: string;
+	snippet?: string;
+	title?: string;
+	versionId?: string;
+}
+
+export interface CapabilityExecutionPreviousCapabilityResultRef {
+	capability: string;
+	contentHash: string;
+	projectionRef: string;
+	requestId: string;
+	resultKind: string;
+	runId: string;
+	status: string;
+	summary?: string;
+}
+
+export interface CapabilityExecutionConversationContext {
+	budget: {
+		recentTurnLimit: number;
+		tokenEstimate: number;
+	};
+	contextSummary: string | null;
+	conversationId: string;
+	currentUserMessage: {
+		content: string;
+		role: "user";
+	};
+	memoryRecall: {
+		gateField: "context.memory.enabled";
+		owner: "execution-control";
+		runtime: "hindsight";
+	};
+	parentMessageId: string | null;
+	previousAnswerSummary: string | null;
+	previousCapabilityResults: CapabilityExecutionPreviousCapabilityResultRef[];
+	previousEvidenceRefs: CapabilityExecutionPreviousEvidenceRef[];
+	recentTurns: CapabilityExecutionConversationMessage[];
+	schemaVersion: "conversation_context.v1";
+	sessionState: CapabilityExecutionSessionSummary;
+	sourceAttribution: Array<{
+		item: string;
+		modelVisible: boolean;
+		source: string;
+	}>;
+	truncation: { reason: string } | null;
+	userMessageId: string;
+	visibility: {
+		modelVisible: string[];
+		runtimeOnly: string[];
+	};
+}
+
 export interface CapabilityExecutionContextProjection {
 	actor: ExecutionActorContext;
 	authorization: ExecutionAuthorizationContext;
+	conversation?: CapabilityExecutionConversationContext;
 	memory?: CapabilityExecutionMemorySummary;
 	session: CapabilityExecutionSessionSummary;
 }

@@ -179,6 +179,7 @@ export function buildChatCommandService(
 		const acceptedAt = now().toISOString();
 		const userMessageId = generateId("msg");
 		const acceptedEventId = generateId("evt");
+		const branchId = conversation?.activeBranchId ?? "branch_active";
 
 		let conversationSeed:
 			| {
@@ -206,13 +207,21 @@ export function buildChatCommandService(
 				title,
 				createdAt: acceptedAt,
 				updatedAt: acceptedAt,
+				activeBranchId: branchId,
+				activeMessageId: null,
+				activeRunId: null,
+				activeTurnSequence: 0,
+				contextSummary: null,
 				sessionSlots: [],
 				messages: [],
 			};
 		}
 
+		const turnSequence =
+			Math.max(conversation.activeTurnSequence ?? 0, conversation.messages.length) + 1;
 		const conversationTitle = buildConversationTitle(conversation.title, validatedPayload.prompt);
 		const acceptedWrite = buildAcceptedWrite({
+			branchId,
 			conversation,
 			conversationSeed,
 			conversationTitle,
@@ -229,6 +238,7 @@ export function buildChatCommandService(
 			safetyIdentifier,
 			surface,
 			traceId,
+			turnSequence,
 			userMessageId,
 			outboxEventId: acceptedEventId,
 		});
@@ -281,6 +291,7 @@ export function buildChatCommandService(
 			kind: "accepted",
 			value: {
 				acceptedAt,
+				branchId,
 				conversation,
 				conversationTitle,
 				idempotencyKey,
@@ -293,6 +304,7 @@ export function buildChatCommandService(
 				surface,
 				traceId,
 				turnId,
+				turnSequence,
 				userMessageId,
 				validatedPayload,
 			},
@@ -318,13 +330,23 @@ export function buildChatCommandService(
 			context.input.traceHeaders ?? telemetry?.getTraceHeaders(),
 			context.traceId,
 		);
+		const previousCapabilityResults = await dependencies.store.listPreviousCapabilityResultRefs({
+			beforeTurnSequence: context.turnSequence,
+			conversationId: context.conversation.id,
+			limit: 3,
+			ownerUserId: context.input.principal.actor.userId,
+		});
 		return {
 			context: buildCapabilityExecutionContextProjection({
 				actor: context.input.principal.actor,
 				authorization: context.input.principal.authorization,
+				conversation: context.conversation,
+				currentUserMessageContent: context.validatedPayload.prompt,
+				currentUserMessageId: context.userMessageId,
 				memory: profileMemorySummary ? { enabled: profileMemorySummary.enabled } : null,
+				previousCapabilityResults,
 				sessionSlots: context.conversation.sessionSlots,
-				turnCount: context.conversation.messages.length,
+				turnCount: context.conversation.messages.length + 1,
 			}),
 			conversationId: context.conversation.id,
 			requestId: context.requestId,
@@ -454,6 +476,7 @@ export function buildChatCommandService(
 		const finalEventId = generateId("evt");
 		const finalized = buildFinalizedWrite({
 			assistantMessageId,
+			branchId: context.branchId,
 			completedAt,
 			conversation: context.conversation,
 			conversationTitle: context.conversationTitle,
@@ -470,9 +493,10 @@ export function buildChatCommandService(
 			surface: context.surface,
 			startedAt: context.acceptedAt,
 			traceId: context.traceId,
+			turnSequence: context.turnSequence,
+			userMessageId: context.userMessageId,
 		});
 
-		finalized.write.requestExecution.userMessageId = context.userMessageId;
 		finalized.write.requestExecution.actorUserId = context.input.principal.actor.userId;
 		finalized.write.requestExecution.actorPrincipalId = context.input.principal.actor.principalId;
 		finalized.write.requestExecution.actorRoles = context.input.principal.actor.roles;

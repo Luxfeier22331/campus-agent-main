@@ -390,6 +390,7 @@ describe("chat command durable stream closeout", () => {
 				safetyIdentifier: "safety_0001",
 				surface: "campus_web",
 				traceId: "trace_0001",
+				turnSequence: 1,
 				userMessageId: "msg_user_0001",
 				versionQuery: null,
 			},

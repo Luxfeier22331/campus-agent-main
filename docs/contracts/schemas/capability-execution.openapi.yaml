@@ -579,6 +579,218 @@ components:
           type: array
           items:
             type: string
+    ConversationContextMessage:
+      type: object
+      additionalProperties: false
+      required:
+        - role
+        - message_id
+      properties:
+        role:
+          enum:
+            - user
+            - assistant
+        message_id:
+          type: string
+        content:
+          type: string
+        summary:
+          type: string
+        created_at:
+          type: string
+    ConversationPreviousEvidenceRef:
+      type: object
+      additionalProperties: false
+      required:
+        - evidence_id
+        - source_id
+        - content_hash
+        - access_scope
+      anyOf:
+        - required:
+            - version_id
+        - required:
+            - snapshot_id
+      properties:
+        evidence_id:
+          type: string
+        source_id:
+          type: string
+        document_id:
+          type: string
+        version_id:
+          type: string
+        snapshot_id:
+          type: string
+        content_hash:
+          type: string
+        source_kind:
+          type: string
+        collection:
+          type: string
+        evidence_role:
+          type: string
+        access_scope:
+          type: string
+        title:
+          type: string
+        section_title:
+          type: string
+        snippet:
+          type: string
+    ConversationPreviousCapabilityResultRef:
+      type: object
+      additionalProperties: false
+      required:
+        - request_id
+        - run_id
+        - capability
+        - result_kind
+        - projection_ref
+        - content_hash
+        - status
+      properties:
+        request_id:
+          type: string
+        run_id:
+          type: string
+        capability:
+          type: string
+        result_kind:
+          type: string
+        projection_ref:
+          type: string
+        content_hash:
+          type: string
+        status:
+          type: string
+        summary:
+          type: string
+    ConversationContext:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - conversation_id
+        - user_message_id
+        - current_user_message
+        - recent_turns
+        - previous_evidence_refs
+        - previous_capability_results
+        - session_state
+        - visibility
+        - memory_recall
+        - source_attribution
+        - context_summary
+        - budget
+        - truncation
+      properties:
+        schema_version:
+          const: conversation_context.v1
+        conversation_id:
+          type: string
+        user_message_id:
+          type: string
+        parent_message_id:
+          oneOf:
+            - type: string
+            - type: "null"
+        current_user_message:
+          type: object
+          additionalProperties: false
+          required:
+            - role
+            - content
+          properties:
+            role:
+              const: user
+            content:
+              type: string
+        recent_turns:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationContextMessage"
+        previous_answer_summary:
+          oneOf:
+            - type: string
+            - type: "null"
+        previous_evidence_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationPreviousEvidenceRef"
+        previous_capability_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ConversationPreviousCapabilityResultRef"
+        session_state:
+          $ref: "#/components/schemas/SafeObject"
+        visibility:
+          type: object
+          additionalProperties: false
+          required:
+            - model_visible
+            - runtime_only
+          properties:
+            model_visible:
+              type: array
+              items:
+                type: string
+            runtime_only:
+              type: array
+              items:
+                type: string
+        memory_recall:
+          type: object
+          additionalProperties: false
+          required:
+            - gate_field
+            - owner
+            - runtime
+          properties:
+            gate_field:
+              const: context.memory.enabled
+            owner:
+              const: execution-control
+            runtime:
+              const: hindsight
+        source_attribution:
+          type: array
+          items:
+            type: object
+            additionalProperties: false
+            required:
+              - item
+              - source
+              - model_visible
+            properties:
+              item:
+                type: string
+              source:
+                type: string
+              model_visible:
+                type: boolean
+        context_summary:
+          oneOf:
+            - type: string
+            - type: "null"
+        budget:
+          type: object
+          additionalProperties: false
+          required:
+            - token_estimate
+            - recent_turn_limit
+          properties:
+            token_estimate:
+              type: integer
+              minimum: 0
+            recent_turn_limit:
+              type: integer
+              minimum: 1
+        truncation:
+          oneOf:
+            - type: object
+              additionalProperties: true
+            - type: "null"
     RequestedScope:
       type:
         - object
@@ -720,6 +932,8 @@ components:
           type: string
         conversation_id:
           type: string
+        tenant_id:
+          type: string
         request_id:
           type: string
         safety_identifier:
@@ -833,6 +1047,9 @@ components:
     ExecutionRequestContext:
       type: object
       additionalProperties: true
+      properties:
+        conversation:
+          $ref: "#/components/schemas/ConversationContext"
       not:
         required:
           - profile_memory

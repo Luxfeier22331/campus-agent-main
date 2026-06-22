@@ -314,6 +314,7 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	}
 	if groundingResult == nil {
 		t.Fatal("grounding.verify result missing")
+		return
 	}
 	if groundingResult.SanitizedPayload["verification_kind"] != "evidence_integrity" {
 		t.Fatalf("grounding result verification kind = %v, want evidence_integrity: %#v", groundingResult.SanitizedPayload["verification_kind"], groundingResult.SanitizedPayload)

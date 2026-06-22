@@ -1,6 +1,9 @@
 package execution
 
-import "slices"
+import (
+	"fmt"
+	"slices"
+)
 
 func (a actorContext) isZero() bool {
 	return a.UserID == "" &&
@@ -123,10 +126,24 @@ func (c contextProjection) toMap() map[string]any {
 		"authorization": c.Authorization.toMap(),
 		"session":       session,
 	}
+	if c.Conversation != nil {
+		result["conversation"] = c.Conversation
+	}
 	if c.MemoryEnabled != nil {
 		result["memory"] = map[string]any{"enabled": *c.MemoryEnabled}
 	}
 	return result
+}
+
+func (c contextProjection) validateConversationIdentity(conversationID string) error {
+	if c.Conversation == nil {
+		return nil
+	}
+	envelopeConversationID, _ := c.Conversation["conversation_id"].(string)
+	if conversationID != "" && envelopeConversationID != "" && envelopeConversationID != conversationID {
+		return fmt.Errorf("context.conversation.conversation_id must match conversation_id")
+	}
+	return nil
 }
 
 func (c contextProjection) noticeAccessContextMap() map[string]any {

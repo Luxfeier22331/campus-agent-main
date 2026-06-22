@@ -32,6 +32,7 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 		[]string{
 			"actor",
 			"authorization",
+			"conversation",
 			"memory",
 			"session",
 		},
@@ -61,10 +62,15 @@ func parseContextProjection(raw json.RawMessage, authMode string) (contextProjec
 	if err != nil {
 		return contextProjection{}, false, err
 	}
+	conversation, err := parseConversationContext(rawContext["conversation"])
+	if err != nil {
+		return contextProjection{}, false, err
+	}
 
 	return contextProjection{
 		Actor:             projectedActor,
 		Authorization:     authorization,
+		Conversation:      conversation,
 		MemoryEnabled:     memoryEnabled,
 		SessionSlots:      sessionSlots,
 		SelectedNoticeRef: selectedNoticeRef,

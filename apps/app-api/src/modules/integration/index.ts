@@ -4,8 +4,11 @@ export type {
 } from "../official-web-projection";
 export type {
 	CapabilityExecutionContextProjection,
+	CapabilityExecutionConversationContext,
 	CapabilityExecutionInput,
 	CapabilityExecutionObservability,
+	CapabilityExecutionPreviousCapabilityResultRef,
+	CapabilityExecutionPreviousEvidenceRef,
 	CapabilityExecutionPromptTrace,
 	CapabilityExecutionResponse,
 	CapabilityExecutionSessionSlot,

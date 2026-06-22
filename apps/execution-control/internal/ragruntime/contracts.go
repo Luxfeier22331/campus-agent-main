@@ -14,30 +14,32 @@ var ErrInvalidProjection = errors.New("invalid rag runtime projection")
 const maxEvidenceExcerptBytes = 1200
 
 type PlanProjection struct {
-	SchemaVersion            string                          `json:"schema_version"`
-	RunID                    string                          `json:"run_id"`
-	StepID                   string                          `json:"step_id"`
-	RequestID                string                          `json:"request_id"`
-	QueryText                string                          `json:"query_text"`
-	QueryMode                string                          `json:"query_mode"`
-	VersionQuery             *VersionQueryProjection         `json:"version_query,omitempty"`
-	Corpus                   string                          `json:"corpus"`
-	Collection               string                          `json:"collection"`
-	CollectionAlias          string                          `json:"collection_alias"`
-	TopK                     int                             `json:"top_k"`
-	NoWideningPolicy         bool                            `json:"no_widening_policy"`
-	RequiredEvidenceContract string                          `json:"required_evidence_contract"`
-	ResolvedVersionQuery     *ResolvedVersionQueryProjection `json:"resolved_version_query,omitempty"`
-	MemoryRef                string                          `json:"memory_ref,omitempty"`
-	PlanID                   string                          `json:"plan_id"`
-	PayloadSHA256            string                          `json:"payload_sha256"`
-	RuntimeProfileID         string                          `json:"runtime_profile_id,omitempty"`
-	QdrantAliasName          string                          `json:"qdrant_alias_name,omitempty"`
-	AdmittedScopes           []ScopeProjection               `json:"admitted_scopes,omitempty"`
-	SourceTrustPolicy        SourceTrustPolicy               `json:"source_trust_policy,omitempty"`
-	Budget                   PlanBudgetProjection            `json:"budget,omitempty"`
-	Steps                    []RetrievalStepProjection       `json:"steps,omitempty"`
-	UnsafeDebug              map[string]any                  `json:"-"`
+	SchemaVersion            string                           `json:"schema_version"`
+	RunID                    string                           `json:"run_id"`
+	StepID                   string                           `json:"step_id"`
+	RequestID                string                           `json:"request_id"`
+	QueryText                string                           `json:"query_text"`
+	QueryMode                string                           `json:"query_mode"`
+	VersionQuery             *VersionQueryProjection          `json:"version_query,omitempty"`
+	Corpus                   string                           `json:"corpus"`
+	Collection               string                           `json:"collection"`
+	CollectionAlias          string                           `json:"collection_alias"`
+	TopK                     int                              `json:"top_k"`
+	NoWideningPolicy         bool                             `json:"no_widening_policy"`
+	RequiredEvidenceContract string                           `json:"required_evidence_contract"`
+	ResolvedVersionQuery     *ResolvedVersionQueryProjection  `json:"resolved_version_query,omitempty"`
+	MemoryRef                string                           `json:"memory_ref,omitempty"`
+	QueryRewrite             *QueryRewriteProjection          `json:"query_rewrite,omitempty"`
+	PreviousEvidenceReuse    *PreviousEvidenceReuseProjection `json:"previous_evidence_reuse,omitempty"`
+	PlanID                   string                           `json:"plan_id"`
+	PayloadSHA256            string                           `json:"payload_sha256"`
+	RuntimeProfileID         string                           `json:"runtime_profile_id,omitempty"`
+	QdrantAliasName          string                           `json:"qdrant_alias_name,omitempty"`
+	AdmittedScopes           []ScopeProjection                `json:"admitted_scopes,omitempty"`
+	SourceTrustPolicy        SourceTrustPolicy                `json:"source_trust_policy,omitempty"`
+	Budget                   PlanBudgetProjection             `json:"budget,omitempty"`
+	Steps                    []RetrievalStepProjection        `json:"steps,omitempty"`
+	UnsafeDebug              map[string]any                   `json:"-"`
 }
 
 type ScopeProjection struct {
@@ -78,6 +80,27 @@ type StepSelectorProjection struct {
 	TargetRevisionTrack  string   `json:"target_revision_track,omitempty"`
 	PreferredDocumentIDs []string `json:"preferred_document_ids,omitempty"`
 	EntityKeys           []string `json:"entity_keys,omitempty"`
+}
+
+type QueryRewriteProjection struct {
+	StandaloneQueryHash  string                      `json:"standalone_query_hash"`
+	ResolutionState      string                      `json:"resolution_state"`
+	AmbiguityReason      string                      `json:"ambiguity_reason,omitempty"`
+	FollowupReference    FollowupReferenceProjection `json:"followup_reference,omitempty"`
+	RequiresNewRetrieval bool                        `json:"requires_new_retrieval"`
+}
+
+type FollowupReferenceProjection struct {
+	Type string   `json:"type"`
+	IDs  []string `json:"ids,omitempty"`
+}
+
+type PreviousEvidenceReuseProjection struct {
+	Decision             string                        `json:"decision"`
+	EvidenceIDs          []string                      `json:"evidence_ids,omitempty"`
+	PreferredDocumentIDs []string                      `json:"preferred_document_ids,omitempty"`
+	VersionIDs           []string                      `json:"version_ids,omitempty"`
+	ProofRefs            []PreviousEvidenceContextItem `json:"proof_refs,omitempty"`
 }
 
 type VersionQueryProjection struct {
@@ -127,17 +150,32 @@ type EvidenceSelectionResult struct {
 }
 
 type SynthesisPacketProjection struct {
-	MemoryContext      []MemoryContextItem `json:"memory_context,omitempty"`
-	MemoryContextBlock string              `json:"memory_context_block,omitempty"`
-	MemoryRef          string              `json:"memory_ref,omitempty"`
-	OutputSchemaID     string              `json:"output_schema_id"`
-	PayloadSHA256      string              `json:"payload_sha256"`
-	PromptRefs         []string            `json:"prompt_refs"`
-	QueryIntent        string              `json:"query_intent"`
-	RequestID          string              `json:"request_id"`
-	RunID              string              `json:"run_id"`
-	SelectedEvidence   []EvidenceRef       `json:"selected_evidence"`
-	StepID             string              `json:"step_id"`
+	MemoryContext           []MemoryContextItem           `json:"memory_context,omitempty"`
+	MemoryContextBlock      string                        `json:"memory_context_block,omitempty"`
+	MemoryRef               string                        `json:"memory_ref,omitempty"`
+	OutputSchemaID          string                        `json:"output_schema_id"`
+	PayloadSHA256           string                        `json:"payload_sha256"`
+	PreviousEvidenceContext []PreviousEvidenceContextItem `json:"previous_evidence_context,omitempty"`
+	PromptRefs              []string                      `json:"prompt_refs"`
+	QueryIntent             string                        `json:"query_intent"`
+	RequestID               string                        `json:"request_id"`
+	RunID                   string                        `json:"run_id"`
+	SelectedEvidence        []EvidenceRef                 `json:"selected_evidence"`
+	StepID                  string                        `json:"step_id"`
+}
+
+type PreviousEvidenceContextItem struct {
+	AccessScope  string `json:"access_scope"`
+	Collection   string `json:"collection,omitempty"`
+	ContentHash  string `json:"content_hash"`
+	DocumentID   string `json:"document_id,omitempty"`
+	EvidenceID   string `json:"evidence_id"`
+	SectionTitle string `json:"section_title,omitempty"`
+	SnapshotID   string `json:"snapshot_id,omitempty"`
+	Snippet      string `json:"snippet,omitempty"`
+	SourceID     string `json:"source_id"`
+	Title        string `json:"title,omitempty"`
+	VersionID    string `json:"version_id,omitempty"`
 }
 
 type MemoryContextItem struct {
@@ -217,10 +255,54 @@ func ValidatePlanProjection(plan PlanProjection) error {
 	if err := validateQueryMode(plan.QueryMode, plan.VersionQuery); err != nil {
 		return err
 	}
+	if err := validateQueryRewrite(plan.QueryRewrite); err != nil {
+		return err
+	}
+	if err := validatePreviousEvidenceReuse(plan.PreviousEvidenceReuse); err != nil {
+		return err
+	}
 	if !isSHA256Hex(plan.PayloadSHA256) {
 		return fmt.Errorf("%w: payload_sha256 must be lowercase sha256 hex", ErrInvalidProjection)
 	}
 	return rejectUnsafeDebug(plan.UnsafeDebug)
+}
+
+func validateQueryRewrite(rewrite *QueryRewriteProjection) error {
+	if rewrite == nil {
+		return nil
+	}
+	if !isSHA256Ref(rewrite.StandaloneQueryHash) {
+		return fmt.Errorf("%w: query_rewrite.standalone_query_hash must be sha256:<hex>", ErrInvalidProjection)
+	}
+	switch rewrite.ResolutionState {
+	case "resolved", "ambiguous", "unresolved":
+	default:
+		return fmt.Errorf("%w: query_rewrite.resolution_state is unsupported", ErrInvalidProjection)
+	}
+	if rewrite.ResolutionState != "resolved" && strings.TrimSpace(rewrite.AmbiguityReason) == "" {
+		return fmt.Errorf("%w: query_rewrite.ambiguity_reason is required", ErrInvalidProjection)
+	}
+	if strings.TrimSpace(rewrite.FollowupReference.Type) == "" {
+		return fmt.Errorf("%w: query_rewrite.followup_reference.type is required", ErrInvalidProjection)
+	}
+	return nil
+}
+
+func validatePreviousEvidenceReuse(reuse *PreviousEvidenceReuseProjection) error {
+	if reuse == nil {
+		return nil
+	}
+	switch strings.TrimSpace(reuse.Decision) {
+	case "not_available", "not_reused_new_question", "contextual_anchor_for_new_retrieval":
+		for index, ref := range reuse.ProofRefs {
+			if err := validatePreviousEvidenceContextItem(index, ref); err != nil {
+				return err
+			}
+		}
+		return nil
+	default:
+		return fmt.Errorf("%w: previous_evidence_reuse.decision is unsupported", ErrInvalidProjection)
+	}
 }
 
 func validateRetrievalStepProjection(index int, step RetrievalStepProjection) error {
@@ -346,6 +428,11 @@ func ValidateSynthesisPacket(packet SynthesisPacketProjection) error {
 			return err
 		}
 	}
+	for index, ref := range packet.PreviousEvidenceContext {
+		if err := validatePreviousEvidenceContextItem(index, ref); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -383,6 +470,24 @@ func validateEvidenceRef(index int, evidence EvidenceRef) error {
 	return nil
 }
 
+func validatePreviousEvidenceContextItem(index int, evidence PreviousEvidenceContextItem) error {
+	if err := requireFields(map[string]string{
+		"evidence_id":  evidence.EvidenceID,
+		"source_id":    evidence.SourceID,
+		"content_hash": evidence.ContentHash,
+		"access_scope": evidence.AccessScope,
+	}); err != nil {
+		return fmt.Errorf("%w: previous_evidence_context[%d]: %v", ErrInvalidProjection, index, err)
+	}
+	if strings.TrimSpace(evidence.VersionID) == "" && strings.TrimSpace(evidence.SnapshotID) == "" {
+		return fmt.Errorf("%w: previous_evidence_context[%d] must include version_id or snapshot_id", ErrInvalidProjection, index)
+	}
+	if len([]byte(evidence.Snippet)) > maxEvidenceExcerptBytes {
+		return fmt.Errorf("%w: previous_evidence_context[%d].snippet exceeds limit", ErrInvalidProjection, index)
+	}
+	return nil
+}
+
 func rejectUnsafeDebug(value map[string]any) error {
 	for key := range value {
 		normalized := strings.ToLower(strings.TrimSpace(key))
@@ -413,4 +518,8 @@ func isSHA256Hex(value string) bool {
 		return false
 	}
 	return true
+}
+
+func isSHA256Ref(value string) bool {
+	return strings.HasPrefix(value, "sha256:") && isSHA256Hex(strings.TrimPrefix(value, "sha256:"))
 }

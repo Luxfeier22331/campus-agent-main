@@ -26,11 +26,23 @@ export type RequestExecutionStatus =
 	| "rejected"
 	| "cancelled";
 
+export interface PreviousCapabilityResultRef {
+	capability: string;
+	contentHash: string;
+	projectionRef: string;
+	requestId: string;
+	resultKind: string;
+	runId: string;
+	status: string;
+	summary?: string;
+}
+
 export interface RequestExecutionWrite {
 	requestId: string;
 	conversationId: string;
 	userMessageId: string;
 	assistantMessageId: string | null;
+	turnSequence: number;
 	surface: string;
 	actorUserId: string;
 	actorPrincipalId: string;
@@ -177,6 +189,7 @@ export interface AcceptRequestWrite {
 
 export interface FinalizeRequestWrite {
 	assistantMessage: ChatMessage;
+	contextSummary: string | null;
 	conversationTitle: string;
 	ownerUserId: string;
 	outboxEvent: ProjectionOutboxWrite;
@@ -206,6 +219,7 @@ export interface AcceptedDurableRequestCloseout {
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
+	turnSequence: number;
 	userMessageId: string;
 	versionQuery: VersionQuery | null;
 }
@@ -235,4 +249,10 @@ export interface ChatCommandStore {
 		runId?: string;
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
+	listPreviousCapabilityResultRefs(input: {
+		beforeTurnSequence: number;
+		conversationId: string;
+		limit: number;
+		ownerUserId: string;
+	}): Promise<PreviousCapabilityResultRef[]>;
 }

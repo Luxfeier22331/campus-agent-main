@@ -49,12 +49,14 @@ describe("agent runtime HTTP handler", () => {
 	it("runs a primary agent turn with worker authorization", async () => {
 		let observedProvider: unknown;
 		let observedMemoryContext: unknown;
+		let observedFinalModelContext: unknown;
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
 			runtime: {
 				async run(input) {
 					observedProvider = input.providerConfig;
 					observedMemoryContext = input.memoryContext;
+					observedFinalModelContext = input.finalModelContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
 			},
@@ -72,6 +74,47 @@ describe("agent runtime HTTP handler", () => {
 						schema_version: "memory_recall_result_v1",
 						selected_memory_chars: 18,
 						selected_memory_count: 1,
+					},
+					final_model_context: {
+						schema_version: "final_model_context.v1",
+						current_user_message: "那大一能不能申请？",
+						recent_turns: [
+							{
+								message_id: "msg_user_001",
+								role: "user",
+								content: "转专业条件是什么？",
+							},
+						],
+						previous_answer_summary: "上一轮回答的是转专业申请条件。",
+						previous_evidence: [
+							{
+								access_scope: "public_student_rule",
+								content_hash: "sha256:transfer-major-evidence-example",
+								document_id: "transfer-major-policy",
+								evidence_id: "ev_transfer_rule_01",
+								source_id: "regulations/student_rules/transfer-major/v2026",
+								title: "本科生转专业管理办法",
+								version_id: "rule-transfer-major-2026",
+							},
+						],
+						previous_capability_results: [
+							{
+								capability: "campus_services",
+								content_hash: "sha256:previous-service-result",
+								projection_ref: "projection://runs/run_previous_services/finalization",
+								request_id: "req_previous_services",
+								result_kind: "final_response",
+								run_id: "run_previous_services",
+								status: "completed",
+								summary: "上一轮查询了图书馆开放状态。",
+							},
+						],
+						usage_summary: {
+							memory_recall_state: "completed",
+							model_visible_item_count: 6,
+							runtime_only_item_count: 8,
+							token_estimate: 320,
+						},
 					},
 					provider_config: validPromptProviderConfig(),
 				}),
@@ -101,6 +144,29 @@ describe("agent runtime HTTP handler", () => {
 			schemaVersion: "memory_recall_result_v1",
 			selectedMemoryChars: 18,
 			selectedMemoryCount: 1,
+		});
+		expect(observedFinalModelContext).toMatchObject({
+			schemaVersion: "final_model_context.v1",
+			currentUserMessage: "那大一能不能申请？",
+			previousAnswerSummary: "上一轮回答的是转专业申请条件。",
+			previousEvidence: [
+				expect.objectContaining({
+					evidenceId: "ev_transfer_rule_01",
+					contentHash: "sha256:transfer-major-evidence-example",
+				}),
+			],
+			previousCapabilityResults: [
+				expect.objectContaining({
+					capability: "campus_services",
+					projectionRef: "projection://runs/run_previous_services/finalization",
+				}),
+			],
+			usageSummary: {
+				memoryRecallState: "completed",
+				modelVisibleItemCount: 6,
+				runtimeOnlyItemCount: 8,
+				tokenEstimate: 320,
+			},
 		});
 	});
 

@@ -143,6 +143,22 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 			"updated_at":   item.UpdatedAt,
 		})
 	}
+	previousEvidenceContext := make([]map[string]any, 0, len(packet.PreviousEvidenceContext))
+	for _, item := range packet.PreviousEvidenceContext {
+		previousEvidenceContext = append(previousEvidenceContext, map[string]any{
+			"access_scope":  item.AccessScope,
+			"collection":    item.Collection,
+			"content_hash":  item.ContentHash,
+			"document_id":   item.DocumentID,
+			"evidence_id":   item.EvidenceID,
+			"section_title": item.SectionTitle,
+			"snapshot_id":   item.SnapshotID,
+			"snippet":       item.Snippet,
+			"source_id":     item.SourceID,
+			"title":         item.Title,
+			"version_id":    item.VersionID,
+		})
+	}
 	return []map[string]any{
 		{
 			"role":    "developer",
@@ -153,15 +169,16 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 			"role": "user",
 			"type": "message",
 			"content": mustMarshalRAGSynthesisPayload(map[string]any{
-				"query_intent":       packet.QueryIntent,
-				"output_schema_id":   packet.OutputSchemaID,
-				"prompt_refs":        packet.PromptRefs,
-				"memory_context":     memoryContext,
-				"memory_ref":         packet.MemoryRef,
-				"selected_evidence":  evidence,
-				"request_id":         packet.RequestID,
-				"payload_sha256":     packet.PayloadSHA256,
-				"projection_context": map[string]any{"run_id": packet.RunID, "step_id": packet.StepID},
+				"query_intent":              packet.QueryIntent,
+				"output_schema_id":          packet.OutputSchemaID,
+				"prompt_refs":               packet.PromptRefs,
+				"memory_context":            memoryContext,
+				"memory_ref":                packet.MemoryRef,
+				"previous_evidence_context": previousEvidenceContext,
+				"selected_evidence":         evidence,
+				"request_id":                packet.RequestID,
+				"payload_sha256":            packet.PayloadSHA256,
+				"projection_context":        map[string]any{"run_id": packet.RunID, "step_id": packet.StepID},
 			}),
 		},
 	}

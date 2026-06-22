@@ -18,16 +18,22 @@ import type { FinalizeRequestWrite } from "../src/modules/runtime-command/store-
 function finalizedWrite(): FinalizeRequestWrite {
 	return {
 		assistantMessage: {
+			branchId: "branch_active",
 			conversationId: "conv_01HQ",
 			createdAt: "2026-06-04T01:02:06.000Z",
 			id: "msg_assistant_01HQ",
+			isActiveBranchHead: true,
 			kind: "answer",
+			parentMessageId: "msg_user_01HQ",
 			requestId: "req_01HQ",
 			retryable: null,
 			role: "assistant",
+			runId: "run_01HQ",
 			structuredParts: [],
 			text: "国家奖学金每学年评审一次。",
+			turnSequence: 1,
 		},
+		contextSummary: "国家奖学金每学年评审一次。",
 		conversationTitle: "中央民族大学本科学生国家奖学金评审办法",
 		ownerUserId: "user_01HQ",
 		outboxEvent: {
@@ -74,6 +80,7 @@ function finalizedWrite(): FinalizeRequestWrite {
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
+			turnSequence: 1,
 			updatedAt: "2026-06-04T01:02:06.000Z",
 			userMessageId: "msg_user_01HQ",
 			versionQuery: null,
@@ -289,5 +296,89 @@ describe("pg chat command store", () => {
 		expect(update).toHaveBeenCalledTimes(1);
 		expect(returning).toHaveBeenCalledWith({ requestId: expect.anything() });
 		expect(insert).not.toHaveBeenCalled();
+	});
+
+	it("keeps session slots and active branch state when a stale run finalizes after a newer turn", async () => {
+		const requestReturning = vi.fn().mockResolvedValueOnce([{ requestId: "req_01HQ" }]);
+		const conversationReturning = vi.fn().mockResolvedValueOnce([]);
+		const onConflictDoUpdate = vi.fn();
+		const updateWhere = vi
+			.fn()
+			.mockReturnValueOnce({ returning: requestReturning })
+			.mockReturnValueOnce({ returning: conversationReturning })
+			.mockReturnValueOnce(undefined);
+		const updateSet = vi.fn(() => ({ where: updateWhere }));
+		const update = vi.fn(() => ({ set: updateSet }));
+		const insertValues = vi.fn(() => ({ onConflictDoUpdate }));
+		const insert = vi.fn(() => ({ values: insertValues }));
+		const deleteFn = vi.fn();
+		const transaction = vi.fn(async (callback: (tx: unknown) => Promise<void>) =>
+			callback({
+				delete: deleteFn,
+				insert,
+				update,
+			}),
+		);
+		const selectLimit = vi.fn().mockResolvedValue([
+			{
+				activeBranchId: "branch_active",
+				activeMessageId: "msg_newer",
+				activeRunId: "run_newer",
+				activeTurnSequence: 2,
+				contextSummary: "newer summary",
+				createdAt: new Date("2026-06-04T01:02:00.000Z"),
+				id: "conv_01HQ",
+				ownerUserId: "user_01HQ",
+				title: "中央民族大学本科学生国家奖学金评审办法",
+				updatedAt: new Date("2026-06-04T01:02:10.000Z"),
+			},
+		]);
+		const selectOrderBy = vi
+			.fn()
+			.mockResolvedValueOnce([])
+			.mockResolvedValueOnce([
+				{
+					confirmed: true,
+					conversationId: "conv_01HQ",
+					name: "policy_topic",
+					updatedAt: new Date("2026-06-04T01:02:10.000Z"),
+					value: "newer topic",
+				},
+			]);
+		const selectWhere = vi.fn(() => ({ orderBy: selectOrderBy, limit: selectLimit }));
+		const selectFrom = vi.fn(() => ({ where: selectWhere }));
+		const select = vi.fn(() => ({ from: selectFrom }));
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+			transaction,
+		});
+
+		const store = createPgChatCommandStore({} as never);
+		const conversation = await store.finalizeRequest(finalizedWrite());
+
+		expect(conversation).toMatchObject({
+			activeMessageId: "msg_newer",
+			activeRunId: "run_newer",
+			activeTurnSequence: 2,
+			contextSummary: "newer summary",
+			sessionSlots: [
+				expect.objectContaining({
+					name: "policy_topic",
+					value: "newer topic",
+				}),
+			],
+		});
+		expect(update).toHaveBeenCalledTimes(2);
+		expect(insert).toHaveBeenCalledTimes(3);
+		expect(deleteFn).not.toHaveBeenCalled();
+		expect(insertValues).toHaveBeenCalledWith(
+			expect.objectContaining({
+				isActiveBranchHead: false,
+				id: "msg_assistant_01HQ",
+				runId: "run_01HQ",
+				turnSequence: 1,
+			}),
+		);
 	});
 });

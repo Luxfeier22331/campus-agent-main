@@ -30,6 +30,7 @@ export const requestExecution = runtime.table(
 		conversationId: text("conversation_id").notNull(),
 		userMessageId: text("user_message_id").notNull(),
 		assistantMessageId: text("assistant_message_id"),
+		turnSequence: integer("turn_sequence").notNull().default(0),
 		surface: text("surface").notNull(),
 		actorUserId: text("actor_user_id").notNull(),
 		actorPrincipalId: text("actor_principal_id").notNull(),
@@ -68,6 +69,9 @@ export const requestExecution = runtime.table(
 			table.conversationId,
 			table.startedAt,
 		),
+		conversationTurnSequenceIndex: index(
+			"runtime_request_execution_conversation_turn_sequence_idx",
+		).on(table.conversationId, table.turnSequence),
 		statusStartedAtIndex: index("runtime_request_execution_status_started_at_idx").on(
 			table.status,
 			table.startedAt,

@@ -5,7 +5,7 @@ import type {
 	AuthorizationProjectionSource,
 	ResolvedAppPrincipal,
 } from "../src/modules/auth";
-import type { ChatMessage } from "../src/modules/chat";
+import type { ChatConversation, ChatMessage } from "../src/modules/chat";
 import type {
 	CapabilityExecutionInput,
 	CapabilityExecutionResponse,
@@ -92,13 +92,18 @@ export function createPrincipal(): ResolvedAppPrincipal {
 	};
 }
 
-export function createConversation() {
+export function createConversation(): ChatConversation {
 	return {
 		id: "conv_01HQ",
 		ownerUserId: "user_01HQ",
 		title: "图书馆开放时间",
 		createdAt: "2026-03-28T07:59:00.000Z",
 		updatedAt: "2026-03-28T07:59:00.000Z",
+		activeBranchId: "branch_active",
+		activeMessageId: null,
+		activeRunId: null,
+		activeTurnSequence: 0,
+		contextSummary: null,
 		sessionSlots: [] as Array<{
 			confirmed: boolean;
 			name: string;
@@ -169,6 +174,15 @@ export function createCommandStore(input?: {
 			}
 			conversation.title = input.conversationTitle;
 			conversation.updatedAt = input.userMessage.createdAt;
+			conversation.activeBranchId = input.userMessage.branchId ?? "branch_active";
+			conversation.activeMessageId = input.userMessage.id;
+			conversation.activeRunId = input.userMessage.runId ?? null;
+			conversation.activeTurnSequence = input.requestExecution.turnSequence;
+			for (const message of conversation.messages) {
+				if (message.branchId === conversation.activeBranchId) {
+					message.isActiveBranchHead = false;
+				}
+			}
 			conversation.messages.push({
 				...input.userMessage,
 				kind: null,
@@ -179,8 +193,24 @@ export function createCommandStore(input?: {
 		}),
 		finalizeRequest: vi.fn(async (input: FinalizeRequestWrite) => {
 			finalWrites.push(input);
-			conversation.updatedAt = input.assistantMessage.createdAt;
-			if (input.sessionSlots) {
+			const isActiveRun =
+				conversation.activeRunId === input.requestExecution.runId &&
+				conversation.activeTurnSequence === input.requestExecution.turnSequence;
+			if (isActiveRun) {
+				conversation.title = input.conversationTitle;
+				conversation.updatedAt = input.assistantMessage.createdAt;
+				conversation.activeBranchId = input.assistantMessage.branchId ?? "branch_active";
+				conversation.activeMessageId = input.assistantMessage.id;
+				conversation.activeRunId = input.assistantMessage.runId ?? null;
+				conversation.activeTurnSequence = input.requestExecution.turnSequence;
+				conversation.contextSummary = input.contextSummary;
+				for (const message of conversation.messages) {
+					if (message.branchId === conversation.activeBranchId) {
+						message.isActiveBranchHead = false;
+					}
+				}
+			}
+			if (isActiveRun && input.sessionSlots) {
 				const nextSlots = input.sessionSlots.map(
 					(slot: FinalizeRequestWrite["sessionSlots"][number]) => ({
 						...slot,
@@ -188,7 +218,10 @@ export function createCommandStore(input?: {
 				);
 				conversation.sessionSlots = nextSlots;
 			}
-			conversation.messages.push(input.assistantMessage);
+			conversation.messages.push({
+				...input.assistantMessage,
+				isActiveBranchHead: isActiveRun,
+			});
 			return structuredClone(conversation);
 		}),
 		findIdempotentRequest: vi.fn(async () => null),
@@ -200,6 +233,7 @@ export function createCommandStore(input?: {
 			throttleReason: null,
 		})),
 		listAcceptedDurableRequestsForCloseout: vi.fn(async () => []),
+		listPreviousCapabilityResultRefs: vi.fn(async () => []),
 	};
 
 	return {
@@ -296,14 +330,6 @@ export function createExecutionRuntimeFromCapabilityClient(
 			steps: [],
 		})),
 	};
-}
-
-export function createExecutionRuntimeForResponse(
-	response: CapabilityExecutionResponse,
-): ExecutionControlRuntimeClient {
-	return createExecutionRuntimeFromCapabilityClient({
-		execute: vi.fn().mockResolvedValue(response),
-	});
 }
 
 function capabilityExecutionInputFromRunCreate(

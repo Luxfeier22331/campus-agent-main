@@ -22,6 +22,7 @@ type ReconcileDurableCloseoutsInput = NonNullable<
 function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedChatCommandContext {
 	return {
 		acceptedAt: candidate.acceptedAt,
+		branchId: candidate.conversation.activeBranchId ?? "branch_active",
 		conversation: candidate.conversation,
 		conversationTitle: candidate.conversationTitle,
 		idempotencyKey: candidate.idempotencyKey,
@@ -44,6 +45,7 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 		surface: candidate.surface,
 		traceId: candidate.traceId,
 		turnId: null,
+		turnSequence: candidate.turnSequence,
 		userMessageId: candidate.userMessageId,
 		validatedPayload: {
 			conversationId: candidate.conversation.id,

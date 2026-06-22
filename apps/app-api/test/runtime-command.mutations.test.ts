@@ -44,6 +44,7 @@ function requestExecutionWrite(
 		status: "accepted",
 		surface: "campus_web",
 		traceId: "trace_001",
+		turnSequence: 1,
 		updatedAt: "2026-06-04T01:02:03.000Z",
 		userMessageId: "msg_user_001",
 		versionQuery: null,
@@ -60,6 +61,7 @@ describe("runtime command mutations", () => {
 			requestId: "req_001",
 			runId: "run_001",
 			status: "accepted",
+			turnSequence: 1,
 		});
 	});
 });

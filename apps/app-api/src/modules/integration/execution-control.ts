@@ -1,7 +1,10 @@
 export type {
 	CapabilityExecutionContextProjection,
+	CapabilityExecutionConversationContext,
 	CapabilityExecutionInput,
 	CapabilityExecutionObservability,
+	CapabilityExecutionPreviousCapabilityResultRef,
+	CapabilityExecutionPreviousEvidenceRef,
 	CapabilityExecutionPromptTrace,
 	CapabilityExecutionResponse,
 	CapabilityExecutionSelectedNoticeRef,

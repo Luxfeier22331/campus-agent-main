@@ -143,6 +143,7 @@ type selectedNoticeRef struct {
 type contextProjection struct {
 	Actor             actorContext
 	Authorization     authorizationProjection
+	Conversation      map[string]any
 	MemoryEnabled     *bool
 	SessionSlots      []sessionSlot
 	SelectedNoticeRef selectedNoticeRef
@@ -215,6 +216,16 @@ func ParseAnswerRequestWithIntentPolicy(
 	conversationID, err := parseOptionalString(payload["conversation_id"])
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
+	}
+	if err := context.validateConversationIdentity(conversationID); err != nil {
+		return AnswerExecutionRequest{}, invalidRequest(err.Error())
+	}
+	tenantID, err := parseOptionalString(payload["tenant_id"])
+	if err != nil {
+		return AnswerExecutionRequest{}, invalidRequest(err.Error())
+	}
+	if context.MemoryEnabled != nil && *context.MemoryEnabled && tenantID == "" {
+		return AnswerExecutionRequest{}, invalidRequest("tenant_id is required when context.memory.enabled is true")
 	}
 	requestID, err := parseOptionalString(payload["request_id"])
 	if err != nil {
@@ -338,6 +349,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		"request_id":                 requestID,
 		"effective_capability":       effectiveRequestedCapability,
 		"lane":                       lane,
+		"tenant_id":                  tenantID,
 		"trace": map[string]any{
 			"trace_id": traceID,
 		},

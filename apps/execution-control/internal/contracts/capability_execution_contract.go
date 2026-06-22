@@ -85,6 +85,25 @@ const (
 	StepOutputProjectionKindGroundingVerdict    StepOutputProjectionKind = "grounding_verdict"
 )
 
+type ConversationContextWire struct {
+	SchemaVersion             string           `json:"schema_version"`
+	ConversationID            string           `json:"conversation_id"`
+	UserMessageID             string           `json:"user_message_id"`
+	ParentMessageID           *string          `json:"parent_message_id,omitempty"`
+	CurrentUserMessage        map[string]any   `json:"current_user_message"`
+	RecentTurns               []map[string]any `json:"recent_turns"`
+	PreviousAnswerSummary     *string          `json:"previous_answer_summary,omitempty"`
+	PreviousEvidenceRefs      []map[string]any `json:"previous_evidence_refs"`
+	PreviousCapabilityResults []map[string]any `json:"previous_capability_results"`
+	SessionState              map[string]any   `json:"session_state"`
+	Visibility                map[string]any   `json:"visibility"`
+	MemoryRecall              map[string]any   `json:"memory_recall"`
+	SourceAttribution         []map[string]any `json:"source_attribution"`
+	ContextSummary            *string          `json:"context_summary"`
+	Budget                    map[string]any   `json:"budget"`
+	Truncation                map[string]any   `json:"truncation"`
+}
+
 type RuntimeDecisionSummaryWire struct {
 	SchemaVersion          string         `json:"schema_version"`
 	ScopeGateDecision      string         `json:"scope_gate_decision,omitempty"`
@@ -199,6 +218,7 @@ type CapabilityExecutionRequestWire struct {
 	ResponseContract         string                `json:"response_contract"`
 	UserGoal                 string                `json:"user_goal"`
 	ConversationID           string                `json:"conversation_id,omitempty"`
+	TenantID                 string                `json:"tenant_id,omitempty"`
 	RequestID                string                `json:"request_id"`
 	SafetyIdentifier         *string               `json:"safety_identifier,omitempty"`
 	EffectiveCapability      RequestedCapability   `json:"effective_capability"`

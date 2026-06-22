@@ -54,6 +54,29 @@ export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[num
 
 export type SafeRecord = Record<string, unknown>;
 
+export interface ConversationContextWire {
+	schema_version: "conversation_context.v1";
+	conversation_id: string;
+	user_message_id: string;
+	parent_message_id?: string | null;
+	current_user_message: { role: "user"; content: string };
+	recent_turns: SafeRecord[];
+	previous_answer_summary?: string | null;
+	previous_evidence_refs: SafeRecord[];
+	previous_capability_results: SafeRecord[];
+	session_state: SafeRecord;
+	visibility: { model_visible: string[]; runtime_only: string[] };
+	memory_recall: {
+		gate_field: "context.memory.enabled";
+		owner: "execution-control";
+		runtime: "hindsight";
+	};
+	source_attribution: SafeRecord[];
+	context_summary: string | null;
+	budget: { token_estimate: number; recent_turn_limit: number };
+	truncation: SafeRecord | null;
+}
+
 export interface RuntimeDecisionSummaryWire {
 	schema_version: typeof CAPABILITY_EXECUTION_CONTRACT.runtimeDecisionSummarySchemaVersion;
 	scope_gate_decision?: string;
@@ -181,6 +204,7 @@ export interface CapabilityExecutionRequestWire {
 	response_contract: typeof CAPABILITY_EXECUTION_CONTRACT.responseContract;
 	user_goal: string;
 	conversation_id?: string;
+	tenant_id?: string;
 	request_id: string;
 	safety_identifier?: string | null;
 	effective_capability: RequestedCapability;

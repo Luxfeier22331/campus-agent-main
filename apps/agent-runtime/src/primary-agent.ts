@@ -9,9 +9,58 @@ export interface PrimaryAgentRunInput {
 	input: string;
 	visibleCapabilities: string[];
 	providerConfig: PromptProviderRuntimeConfig;
+	finalModelContext?: FinalModelContext;
 	memoryContext?: PersonalMemoryContext;
 	memoryProjectionRefs?: string[];
 	signal?: AbortSignal;
+}
+
+export interface FinalModelContext {
+	schemaVersion: "final_model_context.v1";
+	currentUserMessage: string;
+	recentTurns: FinalModelContextTurn[];
+	previousAnswerSummary?: string;
+	previousEvidence: FinalModelContextEvidence[];
+	previousCapabilityResults: FinalModelContextPreviousCapabilityResult[];
+	memoryContext?: PersonalMemoryContext;
+	usageSummary: {
+		memoryRecallState: "completed" | "skipped";
+		modelVisibleItemCount: number;
+		runtimeOnlyItemCount: number;
+		tokenEstimate: number;
+		truncationReason?: string;
+	};
+}
+
+export interface FinalModelContextTurn {
+	content?: string;
+	messageId?: string;
+	role: "assistant" | "user";
+	summary?: string;
+}
+
+export interface FinalModelContextEvidence {
+	accessScope: string;
+	contentHash: string;
+	documentId?: string;
+	evidenceId: string;
+	sectionTitle?: string;
+	snapshotId?: string;
+	snippet?: string;
+	sourceId: string;
+	title?: string;
+	versionId?: string;
+}
+
+export interface FinalModelContextPreviousCapabilityResult {
+	capability: string;
+	contentHash: string;
+	projectionRef: string;
+	requestId: string;
+	resultKind: string;
+	runId: string;
+	status: string;
+	summary?: string;
 }
 
 export interface PersonalMemoryContext {
@@ -185,7 +234,7 @@ export function createPrimaryAgentRuntime(
 				});
 			const result = await options.runner({
 				input: input.input,
-				instructions: instructionsWithMemoryContext(instructions, input.memoryContext),
+				instructions: instructionsWithModelContext(instructions, input),
 				tools: visibleTools,
 				runId: input.runId,
 				traceId: input.traceId,
@@ -250,6 +299,54 @@ export function createPrimaryAgentRuntime(
 			};
 		},
 	};
+}
+
+function instructionsWithModelContext(instructions: string, input: PrimaryAgentRunInput): string {
+	const context = input.finalModelContext;
+	if (context === undefined) {
+		return instructionsWithMemoryContext(instructions, input.memoryContext);
+	}
+	const lines = [
+		instructions,
+		"<conversation_context>",
+		`current_user_message: ${context.currentUserMessage}`,
+	];
+	if (context.recentTurns.length > 0) {
+		lines.push("recent_turns:");
+		for (const turn of context.recentTurns) {
+			const text = (turn.content ?? turn.summary ?? "").trim();
+			if (text !== "") {
+				lines.push(`- ${turn.role}: ${text}`);
+			}
+		}
+	}
+	if (context.previousAnswerSummary?.trim()) {
+		lines.push(`previous_answer_summary: ${context.previousAnswerSummary.trim()}`);
+	}
+	if (context.previousEvidence.length > 0) {
+		lines.push("previous_evidence:");
+		for (const evidence of context.previousEvidence) {
+			const title = [evidence.title, evidence.sectionTitle].filter(Boolean).join(" / ");
+			lines.push(
+				`- ${evidence.evidenceId}: ${[title, evidence.snippet].filter(Boolean).join(" - ")}`,
+			);
+		}
+	}
+	if (context.previousCapabilityResults.length > 0) {
+		lines.push("previous_capability_results:");
+		for (const result of context.previousCapabilityResults) {
+			const details = [
+				result.summary,
+				`projection_ref=${result.projectionRef}`,
+				`result_kind=${result.resultKind}`,
+				`status=${result.status}`,
+			].filter(Boolean);
+			lines.push(`- ${result.capability}: ${details.join(" - ")}`);
+		}
+	}
+	lines.push("</conversation_context>");
+	const memoryContext = context.memoryContext ?? input.memoryContext;
+	return instructionsWithMemoryContext(lines.join("\n"), memoryContext);
 }
 
 function instructionsWithMemoryContext(

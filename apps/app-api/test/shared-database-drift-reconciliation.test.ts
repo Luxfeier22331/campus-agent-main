@@ -324,6 +324,72 @@ describe("shared database drift reconciliation", () => {
 		]);
 	});
 
+	it("allows execution-control-owned run projection step tables to coexist in shared runtime schema", () => {
+		const inventory = makeInventory({
+			journalRows: [],
+			schemas: ["runtime"],
+			tables: [
+				...buildAllExpectedTables().filter((table) => table.schema === "runtime"),
+				{
+					columns: [
+						{
+							name: "step_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_run_steps",
+				},
+				{
+					columns: [
+						{
+							name: "attempt_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_step_attempts",
+				},
+				{
+					columns: [
+						{
+							name: "result_id",
+							notNull: true,
+							primaryKey: true,
+							type: "text",
+						},
+					],
+					constraints: [],
+					indexes: [],
+					schema: "runtime",
+					table: "agent_step_results",
+				},
+			],
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map([
+				["runtime.agent_run_steps", 1],
+				["runtime.agent_step_attempts", 1],
+				["runtime.agent_step_results", 1],
+			]),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraTables).toEqual([]);
+		expect(plan.operations.filter((operation) => operation.kind === "drop_table")).toEqual([]);
+	});
+
 	it("blocks journal-managed shared databases that still miss repo migrations", () => {
 		const inventory = makeInventory({
 			journalRows: migrationContext.migrations

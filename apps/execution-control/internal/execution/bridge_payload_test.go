@@ -57,6 +57,22 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		"context":{
 			"actor":{"user_id":"student-001"},
 			"authorization":{"retrieval_filter":{"visibility_level":"public"}},
+			"conversation":{
+				"schema_version":"conversation_context.v1",
+				"conversation_id":"conv-001",
+				"user_message_id":"msg-user-002",
+				"current_user_message":{"role":"user","content":"这个依据哪条？"},
+				"recent_turns":[],
+				"previous_evidence_refs":[],
+				"previous_capability_results":[],
+				"session_state":{"confirmed_slots":[],"turn_count":2},
+				"visibility":{"model_visible":["current_user_message"],"runtime_only":["budget"]},
+				"memory_recall":{"gate_field":"context.memory.enabled","owner":"execution-control","runtime":"hindsight"},
+				"source_attribution":[],
+				"context_summary":null,
+				"budget":{"token_estimate":12,"recent_turn_limit":6},
+				"truncation":null
+			},
 			"raw_transcript":"上一轮完整对话不应进入跨 agent context"
 		},
 		"runtime_decisions":{"runtime_decision_summary":{}}
@@ -104,6 +120,14 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	)
 	if context["raw_transcript"] != nil {
 		t.Fatalf("capability_request.context leaked raw transcript: %#v", context)
+	}
+	conversation := expectBridgePayloadRecord(
+		t,
+		context["conversation"],
+		"runtime_decisions.handoff.capability_request.context.conversation",
+	)
+	if conversation["schema_version"] != "conversation_context.v1" {
+		t.Fatalf("conversation context = %#v", conversation)
 	}
 	workflowContext := expectBridgePayloadRecord(
 		t,

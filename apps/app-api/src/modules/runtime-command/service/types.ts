@@ -83,6 +83,7 @@ export interface ChatCommandSubmitInput {
 
 export interface AcceptedChatCommandContext {
 	acceptedAt: string;
+	branchId: string;
 	conversation: ChatConversation;
 	conversationTitle: string;
 	idempotencyKey: string | null;
@@ -95,6 +96,7 @@ export interface AcceptedChatCommandContext {
 	surface: string;
 	traceId: string;
 	turnId: string | null;
+	turnSequence: number;
 	userMessageId: string;
 	validatedPayload: ValidatedChatCommandPayload;
 }

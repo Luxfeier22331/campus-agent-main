@@ -22,6 +22,59 @@ const memoryContextSchema = z.object({
 	selected_memory_count: z.number().int().nonnegative(),
 });
 
+const finalModelContextSchema = z.object({
+	schema_version: z.literal("final_model_context.v1"),
+	current_user_message: z.string().min(1),
+	recent_turns: z
+		.array(
+			z.object({
+				message_id: z.string().min(1).optional(),
+				role: z.enum(["assistant", "user"]),
+				content: z.string().optional(),
+				summary: z.string().optional(),
+			}),
+		)
+		.default([]),
+	previous_answer_summary: z.string().optional(),
+	previous_evidence: z
+		.array(
+			z.object({
+				access_scope: z.string().min(1),
+				content_hash: z.string().min(1),
+				document_id: z.string().min(1).optional(),
+				evidence_id: z.string().min(1),
+				section_title: z.string().min(1).optional(),
+				snapshot_id: z.string().min(1).optional(),
+				snippet: z.string().optional(),
+				source_id: z.string().min(1),
+				title: z.string().optional(),
+				version_id: z.string().min(1).optional(),
+			}),
+		)
+		.default([]),
+	previous_capability_results: z
+		.array(
+			z.object({
+				capability: z.string().min(1),
+				content_hash: z.string().min(1),
+				projection_ref: z.string().min(1),
+				request_id: z.string().min(1),
+				result_kind: z.string().min(1),
+				run_id: z.string().min(1),
+				status: z.string().min(1),
+				summary: z.string().optional(),
+			}),
+		)
+		.default([]),
+	usage_summary: z.object({
+		memory_recall_state: z.enum(["completed", "skipped"]),
+		model_visible_item_count: z.number().int().nonnegative(),
+		runtime_only_item_count: z.number().int().nonnegative(),
+		token_estimate: z.number().int().nonnegative(),
+		truncation_reason: z.string().min(1).optional(),
+	}),
+});
+
 const runRequestSchema = z.object({
 	run_id: z.string().min(1),
 	conversation_id: z.string().min(1),
@@ -30,6 +83,7 @@ const runRequestSchema = z.object({
 	input: z.string().min(1),
 	visible_capabilities: z.array(z.string().min(1)).default([]),
 	provider_config: providerConfigSchema,
+	final_model_context: finalModelContextSchema.optional(),
 	memory_context: memoryContextSchema.optional(),
 	memory_projection_refs: z.array(z.string().min(1)).optional(),
 });
@@ -88,6 +142,51 @@ export function createAgentRuntimeHandler(
 						apiKey: parsed.provider_config.api_key,
 						timeoutMs: parsed.provider_config.timeout_ms,
 					},
+					finalModelContext: parsed.final_model_context
+						? {
+								schemaVersion: parsed.final_model_context.schema_version,
+								currentUserMessage: parsed.final_model_context.current_user_message,
+								recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
+									messageId: turn.message_id,
+									role: turn.role,
+									content: turn.content,
+									summary: turn.summary,
+								})),
+								previousAnswerSummary: parsed.final_model_context.previous_answer_summary,
+								previousEvidence: parsed.final_model_context.previous_evidence.map((evidence) => ({
+									accessScope: evidence.access_scope,
+									contentHash: evidence.content_hash,
+									documentId: evidence.document_id,
+									evidenceId: evidence.evidence_id,
+									sectionTitle: evidence.section_title,
+									snapshotId: evidence.snapshot_id,
+									snippet: evidence.snippet,
+									sourceId: evidence.source_id,
+									title: evidence.title,
+									versionId: evidence.version_id,
+								})),
+								previousCapabilityResults:
+									parsed.final_model_context.previous_capability_results.map((result) => ({
+										capability: result.capability,
+										contentHash: result.content_hash,
+										projectionRef: result.projection_ref,
+										requestId: result.request_id,
+										resultKind: result.result_kind,
+										runId: result.run_id,
+										status: result.status,
+										summary: result.summary,
+									})),
+								usageSummary: {
+									memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
+									modelVisibleItemCount:
+										parsed.final_model_context.usage_summary.model_visible_item_count,
+									runtimeOnlyItemCount:
+										parsed.final_model_context.usage_summary.runtime_only_item_count,
+									tokenEstimate: parsed.final_model_context.usage_summary.token_estimate,
+									truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
+								},
+							}
+						: undefined,
 					memoryContext: parsed.memory_context
 						? {
 								contextBlock: parsed.memory_context.context_block,

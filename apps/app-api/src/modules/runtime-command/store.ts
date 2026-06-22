@@ -1,4 +1,6 @@
-import { and, asc, desc, eq, gte, isNotNull, lte } from "drizzle-orm";
+import { createHash } from "node:crypto";
+
+import { and, asc, desc, eq, gte, isNotNull, isNull, lte } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -29,6 +31,10 @@ import {
 import type { AcceptedDurableRequestCloseout, ChatCommandStore } from "./store-types";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
+
+function stableContextHash(values: string[]): string {
+	return `sha256:${createHash("sha256").update(JSON.stringify(values)).digest("hex")}`;
+}
 
 export type {
 	AbuseControlState,
@@ -81,6 +87,57 @@ export function createPgChatCommandStore(
 	}
 
 	return {
+		async listPreviousCapabilityResultRefs(input) {
+			const db = await getDb();
+			const limit = Math.max(1, Math.min(input.limit, 10));
+			const rows = await db
+				.select({
+					answerPreview: requestExecution.answerPreview,
+					requestId: requestExecution.requestId,
+					runId: requestExecution.runId,
+					selectedCapability: requestExecution.selectedCapability,
+					status: requestExecution.status,
+					turnSequence: requestExecution.turnSequence,
+				})
+				.from(requestExecution)
+				.where(
+					and(
+						eq(requestExecution.actorUserId, input.ownerUserId),
+						eq(requestExecution.conversationId, input.conversationId),
+						eq(requestExecution.status, "completed"),
+						isNotNull(requestExecution.runId),
+						isNotNull(requestExecution.selectedCapability),
+						lte(requestExecution.turnSequence, input.beforeTurnSequence - 1),
+					),
+				)
+				.orderBy(desc(requestExecution.turnSequence))
+				.limit(limit);
+			return rows.flatMap((row) => {
+				if (!(row.runId && row.selectedCapability)) {
+					return [];
+				}
+				const projectionRef = `projection://runs/${row.runId}/finalization`;
+				return [
+					{
+						capability: row.selectedCapability,
+						contentHash: stableContextHash([
+							row.requestId,
+							row.runId,
+							row.selectedCapability,
+							row.status,
+							row.answerPreview ?? "",
+						]),
+						projectionRef,
+						requestId: row.requestId,
+						resultKind: "final_response",
+						runId: row.runId,
+						status: row.status,
+						...(row.answerPreview ? { summary: row.answerPreview } : {}),
+					},
+				];
+			});
+		},
+
 		async listAcceptedDurableRequestsForCloseout(input = {}) {
 			const db = await getDb();
 			const limit = Math.max(1, Math.min(input.limit ?? 10, 50));
@@ -159,6 +216,7 @@ export function createPgChatCommandStore(
 					safetyIdentifier: row.safetyIdentifier,
 					surface: row.surface,
 					traceId: row.traceId,
+					turnSequence: row.turnSequence,
 					userMessageId: row.userMessageId,
 					versionQuery: row.versionQueryJson,
 				});
@@ -240,6 +298,17 @@ export function createPgChatCommandStore(
 						.values(buildConversationSeedInsertValues(input.conversationSeed));
 				}
 
+				await tx
+					.update(messages)
+					.set({ isActiveBranchHead: false })
+					.where(
+						and(
+							eq(messages.conversationId, input.userMessage.conversationId),
+							eq(messages.branchId, input.userMessage.branchId ?? "branch_active"),
+							eq(messages.isActiveBranchHead, true),
+						),
+					);
+
 				await tx.insert(messages).values(buildChatMessageInsertValues(input.userMessage));
 
 				await tx
@@ -256,12 +325,16 @@ export function createPgChatCommandStore(
 
 				await tx
 					.update(conversations)
-					.set(
-						buildConversationTitleUpdateValues({
+					.set({
+						...buildConversationTitleUpdateValues({
 							title: input.conversationTitle,
 							updatedAt: input.userMessage.createdAt,
 						}),
-					)
+						activeBranchId: input.userMessage.branchId ?? "branch_active",
+						activeMessageId: input.userMessage.id,
+						activeRunId: input.userMessage.runId ?? null,
+						activeTurnSequence: input.requestExecution.turnSequence,
+					})
 					.where(
 						and(
 							eq(conversations.id, input.userMessage.conversationId),
@@ -273,6 +346,7 @@ export function createPgChatCommandStore(
 
 		async finalizeRequest(input) {
 			const db = await getDb();
+			let activeStateAdvanced = false;
 			await db.transaction(async (tx) => {
 				const finalizedRequestRows = await tx
 					.update(requestExecution)
@@ -290,7 +364,51 @@ export function createPgChatCommandStore(
 					);
 				}
 
-				await tx.insert(messages).values(buildChatMessageInsertValues(input.assistantMessage));
+				const activeUpdateRows = await tx
+					.update(conversations)
+					.set({
+						...buildConversationTitleUpdateValues({
+							title: input.conversationTitle,
+							updatedAt: input.assistantMessage.createdAt,
+						}),
+						activeBranchId: input.assistantMessage.branchId ?? "branch_active",
+						activeMessageId: input.assistantMessage.id,
+						activeRunId: input.assistantMessage.runId ?? null,
+						activeTurnSequence: input.requestExecution.turnSequence,
+						contextSummary: input.contextSummary,
+					})
+					.where(
+						and(
+							eq(conversations.id, input.assistantMessage.conversationId),
+							eq(conversations.ownerUserId, input.ownerUserId),
+							eq(conversations.activeTurnSequence, input.requestExecution.turnSequence),
+							input.requestExecution.runId
+								? eq(conversations.activeRunId, input.requestExecution.runId)
+								: isNull(conversations.activeRunId),
+						),
+					)
+					.returning({ id: conversations.id });
+				activeStateAdvanced = activeUpdateRows.length === 1;
+
+				if (activeStateAdvanced) {
+					await tx
+						.update(messages)
+						.set({ isActiveBranchHead: false })
+						.where(
+							and(
+								eq(messages.conversationId, input.assistantMessage.conversationId),
+								eq(messages.branchId, input.assistantMessage.branchId ?? "branch_active"),
+								eq(messages.isActiveBranchHead, true),
+							),
+						);
+				}
+
+				await tx.insert(messages).values(
+					buildChatMessageInsertValues({
+						...input.assistantMessage,
+						isActiveBranchHead: activeStateAdvanced,
+					}),
+				);
 
 				await tx
 					.insert(projectionOutbox)
@@ -304,26 +422,13 @@ export function createPgChatCommandStore(
 						target: requestObservabilityFact.requestId,
 					});
 
-				await tx
-					.update(conversations)
-					.set(
-						buildConversationTitleUpdateValues({
-							title: input.conversationTitle,
-							updatedAt: input.assistantMessage.createdAt,
-						}),
-					)
-					.where(
-						and(
-							eq(conversations.id, input.assistantMessage.conversationId),
-							eq(conversations.ownerUserId, input.ownerUserId),
-						),
-					);
+				if (activeStateAdvanced) {
+					await tx
+						.delete(sessionSlots)
+						.where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
+				}
 
-				await tx
-					.delete(sessionSlots)
-					.where(eq(sessionSlots.conversationId, input.requestExecution.conversationId));
-
-				if (input.sessionSlots.length > 0) {
+				if (activeStateAdvanced && input.sessionSlots.length > 0) {
 					await tx.insert(sessionSlots).values(
 						buildSessionSlotInsertValues({
 							conversationId: input.requestExecution.conversationId,

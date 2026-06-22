@@ -69,6 +69,13 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
 		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.muc.wiki",
 	});
+	await runSharedDatabaseAdoption({
+		apply: true,
+		env: {
+			...process.env,
+			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
+		},
+	});
 	await runSharedDatabaseDriftReconcile({
 		allowNonEmptyDriftTables: true,
 		apply: true,

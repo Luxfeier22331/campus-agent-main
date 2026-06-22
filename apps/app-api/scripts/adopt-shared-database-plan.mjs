@@ -336,6 +336,7 @@ function shouldApplyStatement(
 	target,
 	expectedTablesForMigration,
 	expectedLatestTables,
+	migrationHasPlannedStructuralStatement,
 	renameColumnSourceKeys,
 	renameIndexSourceKeys,
 ) {
@@ -384,7 +385,10 @@ function shouldApplyStatement(
 		return !targetExists(inventory, target);
 	}
 	if (target.kind === "data_statement") {
-		return targetExists(inventory, target.table ? { ...target, kind: "table" } : target);
+		return (
+			migrationHasPlannedStructuralStatement &&
+			targetExists(inventory, target.table ? { ...target, kind: "table" } : target)
+		);
 	}
 	return !targetExists(inventory, target);
 }
@@ -625,6 +629,7 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 		if (!expectedTablesForMigration) {
 			throw new Error(`Missing expected table specs for migration ${migration.tag}`);
 		}
+		let migrationHasPlannedStructuralStatement = false;
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
 			const renameTargetAlreadyExists = renameTargetExistsForSourceIndex(
@@ -643,6 +648,7 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 					target,
 					expectedTablesForMigration,
 					expectedLatestTables,
+					migrationHasPlannedStructuralStatement,
 					renameColumnTargetAlreadyExists ? new Set() : renameColumnSourceKeys,
 					renameTargetAlreadyExists ? new Set() : renameIndexSourceKeys,
 				)
@@ -652,6 +658,9 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 					statement,
 					target,
 				});
+				if (target.kind !== "data_statement") {
+					migrationHasPlannedStructuralStatement = true;
+				}
 				applyTargetToInventory(plannedInventory, target, expectedTablesForMigration);
 			}
 		}

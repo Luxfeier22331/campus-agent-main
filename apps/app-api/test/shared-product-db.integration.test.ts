@@ -50,6 +50,14 @@ function buildCookieHeader(response: Response): string {
 		.join("; ");
 }
 
+function readIntegrationAuthShellOrigin(env: Env): string {
+	const origin = env.AUTH_SHELL_ORIGIN?.trim();
+	if (!origin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required for shared product DB integration.");
+	}
+	return origin;
+}
+
 describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () => {
 	let app: ReturnType<typeof createApp>;
 	let client: Client | null = null;
@@ -146,14 +154,15 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 
 	it("creates and reads owned conversations through app-api after Better Auth sign-in", async () => {
 		createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		const authShellOrigin = readIntegrationAuthShellOrigin(env);
 
 		const authResponse = await app.fetch(
 			new Request("https://app-api.internal/api/auth/sign-up/email", {
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
-					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
 					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},
@@ -219,14 +228,15 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 
 	it("persists curriculum session slots in chat.session_slots after finalized curriculum completion", async () => {
 		createdEmail = `integration-${Date.now()}@muc.edu.cn`;
+		const authShellOrigin = readIntegrationAuthShellOrigin(env);
 
 		const authResponse = await app.fetch(
 			new Request("https://app-api.internal/api/auth/sign-up/email", {
 				method: "POST",
 				headers: {
 					"content-type": "application/json",
-					origin: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com",
-					referer: `${process.env.AUTH_SHELL_ORIGIN?.trim() || "https://campus.example.com"}/login`,
+					origin: authShellOrigin,
+					referer: `${authShellOrigin}/login`,
 					"x-campus-legal-accepted": "terms-and-privacy",
 					"x-captcha-response": TURNSTILE_TEST_TOKEN,
 				},

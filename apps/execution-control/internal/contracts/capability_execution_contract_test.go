@@ -59,6 +59,22 @@ func TestDecodeCapabilityExecutionRequestWireJSONRejectsContextProfileMemory(t *
 	}
 }
 
+func TestDecodeCapabilityExecutionRequestWireJSONRejectsTopLevelConversationContext(t *testing.T) {
+	payload := canonicalCapabilityExecutionRequestPayload()
+	payload["conversation_context"] = map[string]any{
+		"schema_version":  "conversation_context.v1",
+		"conversation_id": "conv-contract-runtime-neutral",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeCapabilityExecutionRequestWireJSON(body); err == nil {
+		t.Fatal("expected top-level conversation_context to be rejected")
+	}
+}
+
 func TestDecodeCapabilityExecutionLegacyRuntimeDecisionsWireStillValidatesWhenPresent(t *testing.T) {
 	payload := readContractFixture(t, "capability_execution_delegate.valid.json")
 	wire, err := DecodeCapabilityExecutionRequestWireJSON(payload)

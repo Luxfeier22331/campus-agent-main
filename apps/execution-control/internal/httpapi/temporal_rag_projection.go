@@ -55,8 +55,15 @@ func ragPlanProjectionForRun(
 	if queryText == "" {
 		return ragruntime.PlanProjection{}, errors.New("rag query_text is required")
 	}
-	scope, err := ragScopeForRun(run, payload, queryText, queryServingScopesPath)
+	rewrite, err := ragConversationRewriteForPayload(queryText, payload)
 	if err != nil {
+		return ragruntime.PlanProjection{}, err
+	}
+	scope, err := ragScopeForRun(run, payload, rewrite.QueryText, queryServingScopesPath)
+	if err != nil {
+		return ragruntime.PlanProjection{}, err
+	}
+	if err := validateRAGPreviousEvidenceScope(rewrite, scope); err != nil {
 		return ragruntime.PlanProjection{}, err
 	}
 	profile, err := retrievalruntime.LoadRuntimeProfile("", scope.Corpus, scope.Collection)
@@ -82,7 +89,9 @@ func ragPlanProjectionForRun(
 		PlanID:                   ragPlanID(scope, queryMode),
 		QdrantAliasName:          profile.QdrantAliasName,
 		QueryMode:                queryMode,
-		QueryText:                queryText,
+		QueryText:                rewrite.QueryText,
+		QueryRewrite:             &rewrite.Projection,
+		PreviousEvidenceReuse:    rewrite.PreviousEvidenceReuse,
 		RequestID:                run.RequestID,
 		RequiredEvidenceContract: "answer_bearing_evidence",
 		RuntimeProfileID:         scope.Corpus + "/" + scope.Collection + ":" + profile.ServingStage,
@@ -141,7 +150,7 @@ func defaultSourceTrustTier(collection string, queryMode string) string {
 func retrievalPlanStepsForProjection(plan ragruntime.PlanProjection) []ragruntime.RetrievalStepProjection {
 	scope := ragruntime.ScopeProjection{Corpus: plan.Corpus, Collection: plan.Collection}
 	base := func(stepID string, stepType string, stage string, expectedOutput string) ragruntime.RetrievalStepProjection {
-		return ragruntime.RetrievalStepProjection{
+		step := ragruntime.RetrievalStepProjection{
 			Budget: ragruntime.StepBudgetProjection{
 				TimeoutMS: 8000,
 				TopK:      plan.TopK,
@@ -154,6 +163,8 @@ func retrievalPlanStepsForProjection(plan ragruntime.PlanProjection) []ragruntim
 			StepID:         stepID,
 			StepType:       stepType,
 		}
+		applyPreviousEvidenceSelector(&step, plan.PreviousEvidenceReuse)
+		return step
 	}
 	switch plan.QueryMode {
 	case "historical", "as_of":
@@ -413,13 +424,14 @@ func temporalRAGSynthesisPacketForRun(
 		return ragSynthesisPacket{}, err
 	}
 	packet := ragSynthesisPacket{
-		OutputSchemaID:   "rag_answer_v2",
-		PromptRefs:       []string{"prompt://rag/rag_answer_v2"},
-		QueryIntent:      plan.QueryText,
-		RequestID:        run.RequestID,
-		RunID:            run.RunID,
-		SelectedEvidence: selection.SelectedEvidence,
-		StepID:           "synthesis",
+		OutputSchemaID:          "rag_answer_v2",
+		PreviousEvidenceContext: previousEvidenceContextForSynthesis(plan),
+		PromptRefs:              []string{"prompt://rag/rag_answer_v2"},
+		QueryIntent:             plan.QueryText,
+		RequestID:               run.RequestID,
+		RunID:                   run.RunID,
+		SelectedEvidence:        selection.SelectedEvidence,
+		StepID:                  "synthesis",
 	}
 	if memoryItems, memoryRef := memoryContextForRAG(run); memoryRef != "" {
 		packet.MemoryRef = memoryRef
@@ -434,6 +446,16 @@ func temporalRAGSynthesisPacketForRun(
 		return ragSynthesisPacket{}, err
 	}
 	return packet, nil
+}
+
+func previousEvidenceContextForSynthesis(plan ragruntime.PlanProjection) []ragruntime.PreviousEvidenceContextItem {
+	if plan.PreviousEvidenceReuse == nil {
+		return nil
+	}
+	if plan.PreviousEvidenceReuse.Decision != "contextual_anchor_for_new_retrieval" {
+		return nil
+	}
+	return append([]ragruntime.PreviousEvidenceContextItem{}, plan.PreviousEvidenceReuse.ProofRefs...)
 }
 
 func temporalRAGSynthesisRefFromRun(run execution.DurableRun) (string, bool) {

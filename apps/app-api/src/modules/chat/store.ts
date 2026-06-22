@@ -124,8 +124,13 @@ function toChatMessage(
 		kind: (row.kind as ChatMessage["kind"]) ?? null,
 		text: row.text,
 		createdAt: toIsoString(row.createdAt),
+		parentMessageId: row.parentMessageId ?? null,
 		requestId: row.requestId ?? null,
 		retryable: row.retryable ?? null,
+		branchId: row.branchId ?? "branch_active",
+		turnSequence: row.turnSequence ?? 0,
+		runId: row.runId ?? null,
+		isActiveBranchHead: row.isActiveBranchHead ?? false,
 		structuredParts: normalizeChatStructuredParts(row.structuredPartsJson),
 	};
 	if (message.role === "assistant") {
@@ -177,6 +182,11 @@ function toChatConversation(
 		title: row.title,
 		createdAt: toIsoString(row.createdAt),
 		updatedAt: toIsoString(row.updatedAt),
+		activeBranchId: row.activeBranchId ?? "branch_active",
+		activeMessageId: row.activeMessageId ?? null,
+		activeRunId: row.activeRunId ?? null,
+		activeTurnSequence: row.activeTurnSequence ?? 0,
+		contextSummary: row.contextSummary ?? null,
 		sessionSlots: sessionSlotRows.map(
 			(slot): ChatSessionSlot => ({
 				confirmed: slot.confirmed,

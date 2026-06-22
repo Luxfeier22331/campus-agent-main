@@ -376,6 +376,9 @@ func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
 	return requireHindsightSuccess(response, "health")
 }
 
@@ -398,6 +401,9 @@ func (c hindsightHTTPClient) RetainMemories(
 		Execute()
 	if err != nil {
 		return err
+	}
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
 	}
 	return requireHindsightSuccess(response, "retain memories")
 }
@@ -431,6 +437,9 @@ func (c hindsightHTTPClient) RecallMemories(
 	if err != nil {
 		return hindsightRecallResponse{}, err
 	}
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
 	if err := requireHindsightSuccess(response, "recall memories"); err != nil {
 		return hindsightRecallResponse{}, err
 	}
@@ -444,6 +453,9 @@ func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, 
 	if err != nil {
 		return err
 	}
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
 	return requireHindsightSuccess(response, "delete document")
 }
 
@@ -453,6 +465,9 @@ func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) erro
 		Execute()
 	if err != nil {
 		return err
+	}
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
 	}
 	return requireHindsightSuccess(response, "delete bank")
 }

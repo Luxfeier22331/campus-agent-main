@@ -5,7 +5,13 @@ import {
 	DRAFT_CONVERSATION_TITLE,
 	toConversationResponse,
 } from "../../chat";
-import type { CapabilityExecutionResponse, RequestedScope } from "../../integration";
+import type {
+	CapabilityExecutionConversationContext,
+	CapabilityExecutionPreviousCapabilityResultRef,
+	CapabilityExecutionPreviousEvidenceRef,
+	CapabilityExecutionResponse,
+	RequestedScope,
+} from "../../integration";
 import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
 	buildAcceptedRequestObservabilityFact,
@@ -36,22 +42,184 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 export function buildCapabilityExecutionContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
+	conversation: ChatConversation;
+	currentUserMessageContent: string;
+	currentUserMessageId: string;
 	memory?: { enabled: boolean } | null;
+	previousCapabilityResults?: CapabilityExecutionPreviousCapabilityResultRef[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
+	const session = buildExecutionSessionProjection({
+		sessionSlots: input.sessionSlots,
+		turnCount: input.turnCount,
+	});
 	return {
 		actor: input.actor,
 		authorization: input.authorization ?? buildExecutionAuthorizationContext(input.actor),
-		...(input.memory ? { memory: { enabled: input.memory.enabled } } : {}),
-		session: buildExecutionSessionProjection({
-			sessionSlots: input.sessionSlots,
-			turnCount: input.turnCount,
+		conversation: buildConversationContextProjection({
+			conversation: input.conversation,
+			currentUserMessageContent: input.currentUserMessageContent,
+			currentUserMessageId: input.currentUserMessageId,
+			previousCapabilityResults: input.previousCapabilityResults ?? [],
+			session,
 		}),
+		...(input.memory ? { memory: { enabled: input.memory.enabled } } : {}),
+		session,
 	};
 }
 
+function buildConversationContextProjection(input: {
+	conversation: ChatConversation;
+	currentUserMessageContent: string;
+	currentUserMessageId: string;
+	previousCapabilityResults: CapabilityExecutionPreviousCapabilityResultRef[];
+	session: ReturnType<typeof buildExecutionSessionProjection>;
+}): CapabilityExecutionConversationContext {
+	const recentTurnLimit = 6;
+	const priorMessages = input.conversation.messages.slice(-recentTurnLimit);
+	const parentMessage = priorMessages.at(-1) ?? null;
+	const previousAssistant = [...input.conversation.messages]
+		.reverse()
+		.find((message) => message.role === "assistant");
+	const previousEvidenceRefs = previousAssistant
+		? extractPreviousEvidenceRefs(previousAssistant)
+		: [];
+	const recentTurns: CapabilityExecutionConversationContext["recentTurns"] = priorMessages.map(
+		(message) => ({
+			createdAt: message.createdAt,
+			messageId: message.id,
+			role: message.role,
+			...(message.role === "assistant"
+				? { summary: previewText(message.text, 240) }
+				: { content: previewText(message.text, 240) }),
+		}),
+	);
+	const tokenEstimate = estimateContextTokens([
+		input.currentUserMessageContent,
+		...recentTurns.map((turn) => turn.content ?? turn.summary ?? ""),
+		previousAssistant?.text ?? "",
+		...previousEvidenceRefs.map((ref) => ref.snippet ?? ""),
+		...input.previousCapabilityResults.map((ref) => ref.summary ?? ""),
+	]);
+
+	return {
+		budget: {
+			recentTurnLimit,
+			tokenEstimate,
+		},
+		contextSummary: input.conversation.contextSummary ?? null,
+		conversationId: input.conversation.id,
+		currentUserMessage: {
+			role: "user",
+			content: input.currentUserMessageContent,
+		},
+		memoryRecall: {
+			gateField: "context.memory.enabled",
+			owner: "execution-control",
+			runtime: "hindsight",
+		},
+		parentMessageId: parentMessage?.id ?? null,
+		previousAnswerSummary: previousAssistant ? previewText(previousAssistant.text, 240) : null,
+		previousCapabilityResults: input.previousCapabilityResults,
+		previousEvidenceRefs,
+		recentTurns,
+		schemaVersion: "conversation_context.v1",
+		sessionState: input.session,
+		sourceAttribution: previousEvidenceRefs
+			.map((_, index) => ({
+				item: `previous_evidence_refs[${index}]`,
+				modelVisible: true,
+				source: "runtime step/result projection",
+			}))
+			.concat(
+				input.previousCapabilityResults.map((_, index) => ({
+					item: `previous_capability_results[${index}]`,
+					modelVisible: true,
+					source: "runtime request projection",
+				})),
+			),
+		truncation: null,
+		userMessageId: input.currentUserMessageId,
+		visibility: {
+			modelVisible: [
+				"current_user_message",
+				"recent_turns",
+				"previous_answer_summary",
+				"previous_evidence_refs",
+				"previous_capability_results",
+				"session_state",
+			],
+			runtimeOnly: [
+				"schema_version",
+				"conversation_id",
+				"user_message_id",
+				"parent_message_id",
+				"memory_recall",
+				"source_attribution",
+				"budget",
+				"truncation",
+			],
+		},
+	};
+}
+
+function extractPreviousEvidenceRefs(
+	message: ChatMessage,
+): CapabilityExecutionPreviousEvidenceRef[] {
+	const refs: CapabilityExecutionPreviousEvidenceRef[] = [];
+	for (const part of message.structuredParts) {
+		if (part.type !== "source_items") {
+			continue;
+		}
+		for (const [index, sourceItem] of part.sourceItems.entries()) {
+			const record = sourceItem as unknown as Record<string, unknown>;
+			const sourceId = readString(record, "sourceId", "source_id");
+			const versionId = readString(record, "versionId", "version_id");
+			const snapshotId = readString(record, "snapshotId", "snapshot_id");
+			const accessScope = readString(record, "accessScope", "access_scope");
+			const contentHash = readString(record, "contentHash", "content_hash");
+			if (!(sourceId && (versionId || snapshotId) && accessScope && contentHash)) {
+				continue;
+			}
+			refs.push({
+				accessScope,
+				collection: readString(record, "collection"),
+				contentHash,
+				documentId: readString(record, "documentId", "document_id"),
+				evidenceId:
+					readString(record, "evidenceId", "evidence_id") ?? `${message.id}:source_items:${index}`,
+				evidenceRole: readString(record, "evidenceRole", "evidence_role"),
+				sectionTitle: sourceItem.sectionTitle || undefined,
+				snapshotId: snapshotId ?? undefined,
+				sourceId,
+				sourceKind: sourceItem.sourceKind,
+				snippet: sourceItem.snippet ?? undefined,
+				title: sourceItem.title || undefined,
+				versionId: versionId ?? undefined,
+			});
+		}
+	}
+	return refs;
+}
+
+function readString(record: Record<string, unknown>, ...keys: string[]): string | undefined {
+	for (const key of keys) {
+		const value = record[key];
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+	}
+	return;
+}
+
+function estimateContextTokens(values: string[]): number {
+	const charCount = values.reduce((total, value) => total + value.trim().length, 0);
+	return Math.ceil(charCount / 4);
+}
+
 export function buildAcceptedWrite(input: {
+	branchId: string;
 	conversation: ChatConversation;
 	conversationSeed?: {
 		id: string;
@@ -74,19 +242,26 @@ export function buildAcceptedWrite(input: {
 	safetyIdentifier: string | null;
 	surface: string;
 	traceId: string;
+	turnSequence: number;
 	userMessageId: string;
 	outboxEventId: string;
 }): AcceptRequestWrite {
+	const parentMessageId = input.conversation.messages.at(-1)?.id ?? null;
 	const userMessage: ChatMessage = {
 		id: input.userMessageId,
 		conversationId: input.conversation.id,
+		branchId: input.branchId,
+		isActiveBranchHead: true,
 		role: "user",
 		kind: null,
 		text: input.prompt,
 		createdAt: input.now,
+		parentMessageId,
 		requestId: null,
 		retryable: null,
+		runId: input.runId,
 		structuredParts: [],
+		turnSequence: input.turnSequence,
 	};
 
 	return {
@@ -99,6 +274,7 @@ export function buildAcceptedWrite(input: {
 			conversationId: input.conversation.id,
 			userMessageId: input.userMessageId,
 			assistantMessageId: null,
+			turnSequence: input.turnSequence,
 			surface: input.surface,
 			actorUserId: input.principal.actor.userId,
 			actorPrincipalId: input.principal.actor.principalId,
@@ -183,6 +359,7 @@ function resolveFinalizedScope(input: {
 
 export function buildFinalizedWrite(input: {
 	assistantMessageId: string;
+	branchId: string;
 	conversation: ChatConversation;
 	conversationTitle: string;
 	completedAt: string;
@@ -199,6 +376,8 @@ export function buildFinalizedWrite(input: {
 	surface: string;
 	startedAt: string;
 	traceId: string;
+	turnSequence: number;
+	userMessageId: string;
 }): {
 	responseBody: ChatCommandResponse;
 	write: FinalizeRequestWrite;
@@ -318,24 +497,31 @@ export function buildFinalizedWrite(input: {
 	const assistantMessage: ChatMessage = {
 		id: input.assistantMessageId,
 		conversationId: input.conversation.id,
+		branchId: input.branchId,
+		isActiveBranchHead: true,
 		role: "assistant",
 		kind: assistantKind,
 		text: assistantText,
 		createdAt: input.completedAt,
+		parentMessageId: input.userMessageId,
 		requestId: input.requestId,
 		retryable,
+		runId: input.runId,
 		structuredParts,
+		turnSequence: input.turnSequence,
 	};
 
 	const write: FinalizeRequestWrite = {
 		assistantMessage,
+		contextSummary: previewText(assistantText, 240),
 		conversationTitle: input.conversationTitle,
 		ownerUserId: input.conversation.ownerUserId,
 		requestExecution: {
 			requestId: input.requestId,
 			conversationId: input.conversation.id,
-			userMessageId: "",
+			userMessageId: input.userMessageId,
 			assistantMessageId: input.assistantMessageId,
+			turnSequence: input.turnSequence,
 			surface: input.surface,
 			actorUserId: input.conversation.ownerUserId,
 			actorPrincipalId: input.conversation.ownerUserId,

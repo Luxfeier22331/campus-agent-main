@@ -32,6 +32,11 @@ export function buildChatMessageInsertValues(
 		createdAt: new Date(input.createdAt),
 		requestId: input.requestId ?? null,
 		retryable: input.retryable ?? null,
+		parentMessageId: input.parentMessageId ?? null,
+		branchId: input.branchId ?? "branch_active",
+		turnSequence: input.turnSequence ?? 0,
+		runId: input.runId ?? null,
+		isActiveBranchHead: input.isActiveBranchHead ?? false,
 	};
 }
 
@@ -41,6 +46,7 @@ export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionW
 		conversationId: input.conversationId,
 		userMessageId: input.userMessageId,
 		assistantMessageId: null,
+		turnSequence: input.turnSequence,
 		surface: input.surface,
 		actorUserId: input.actorUserId,
 		actorPrincipalId: input.actorPrincipalId,
@@ -79,6 +85,7 @@ export function buildAcceptRequestExecutionInsertValues(input: RequestExecutionW
 export function buildFinalizeRequestExecutionUpdateValues(input: RequestExecutionWrite) {
 	return {
 		assistantMessageId: input.assistantMessageId,
+		turnSequence: input.turnSequence,
 		selectedCapability: input.selectedCapability,
 		status: input.status,
 		errorCode: input.errorCode,

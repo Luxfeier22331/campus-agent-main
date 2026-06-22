@@ -26,6 +26,11 @@ const RECONCILABLE_EXTRA_TABLES = new Set([
 	"runtime.lane_budgets",
 	"runtime.worker_heartbeats",
 ]);
+const EXTERNALLY_OWNED_RUNTIME_TABLES = new Set([
+	"runtime.agent_run_steps",
+	"runtime.agent_step_attempts",
+	"runtime.agent_step_results",
+]);
 const EXTRA_TABLE_DROP_ORDER = new Map([
 	["runtime.agent_run_events", 10],
 	["runtime.conversation_run_locks", 20],
@@ -140,6 +145,9 @@ function collectExtraTables(inventory, expectedTables) {
 	const extraTables = [];
 
 	for (const qualifiedName of inventory.tables.keys()) {
+		if (EXTERNALLY_OWNED_RUNTIME_TABLES.has(qualifiedName)) {
+			continue;
+		}
 		if (!expectedTables.has(qualifiedName)) {
 			extraTables.push(qualifiedName);
 		}

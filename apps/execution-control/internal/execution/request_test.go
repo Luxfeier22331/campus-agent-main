@@ -258,6 +258,173 @@ func TestParseAnswerRequestProjectsTrustedWorkerContext(t *testing.T) {
 	}
 }
 
+func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"那大一能不能申请？",
+			"conversation_id":"conv_transfer_001",
+			"request_id":"req-trusted-worker-conversation-context",
+			"requested_capability":"knowledge",
+			"tenant_id":"tenant-main",
+			"context":{
+				"actor":{
+					"user_id":"student@example.edu",
+					"principal_id":"principal-001",
+					"principal_type":"student",
+					"roles":["student"]
+				},
+				"authorization":{
+					"principal_id":"principal-001",
+					"entitlement_groups":["students"],
+					"retrieval_filter":{
+						"entitlement_groups":["students"],
+						"visibility_level":"public",
+						"policy_projection_version":"phase1-authorization-projection-v1"
+					}
+				},
+				"memory":{"enabled":true},
+				"session":{
+					"confirmed_slots":[
+						{"name":"policy_topic","value":"转专业","confirmed":true}
+					],
+					"turn_count":3
+				},
+				"conversation":{
+					"schema_version":"conversation_context.v1",
+					"conversation_id":"conv_transfer_001",
+					"user_message_id":"msg_user_003",
+					"parent_message_id":"msg_assistant_002",
+					"current_user_message":{"role":"user","content":"那大一能不能申请？"},
+					"recent_turns":[
+						{"role":"user","message_id":"msg_user_001","content":"转专业条件是什么？","created_at":"2026-06-21T00:00:00Z"},
+						{"role":"assistant","message_id":"msg_assistant_002","summary":"上一轮回答的是转专业申请条件。","created_at":"2026-06-21T00:00:08Z"}
+					],
+					"previous_answer_summary":"上一轮围绕转专业申请条件回答。",
+					"previous_evidence_refs":[
+						{
+							"evidence_id":"ev_transfer_rule_01",
+							"source_id":"regulations/student_rules/transfer-major/v2026",
+							"document_id":"transfer-major-policy",
+							"version_id":"rule-transfer-major-2026",
+							"snapshot_id":"student-rules-current-2026-06-21",
+							"content_hash":"sha256:transfer-major-evidence-example",
+							"source_kind":"regulation",
+							"collection":"regulations/student_rules",
+							"evidence_role":"condition",
+							"access_scope":"public_student_rule",
+							"title":"本科生转专业管理办法",
+							"section_title":"申请条件",
+							"snippet":"学生申请转专业应符合学校规定的年级、成绩、名额及学院审核要求。"
+						}
+					],
+					"previous_capability_results":[
+						{
+							"request_id":"req_previous_services",
+							"run_id":"run_previous_services",
+							"capability":"campus_services",
+							"result_kind":"final_response",
+							"projection_ref":"projection://runs/run_previous_services/finalization",
+							"content_hash":"sha256:previous-service-result",
+							"status":"completed",
+							"summary":"上一轮查询了图书馆开放状态。"
+						}
+					],
+					"session_state":{"confirmed_slots":[{"name":"policy_topic","value":"转专业","confirmed":true}],"turn_count":3},
+					"visibility":{
+						"model_visible":["current_user_message","recent_turns","previous_answer_summary","previous_evidence_refs","previous_capability_results","session_state"],
+						"runtime_only":["schema_version","conversation_id","user_message_id","parent_message_id","memory_recall","source_attribution","budget","truncation"]
+					},
+					"memory_recall":{"gate_field":"context.memory.enabled","owner":"execution-control","runtime":"hindsight"},
+					"source_attribution":[{"item":"previous_evidence_refs[0]","source":"runtime step/result projection","model_visible":true}],
+					"context_summary":null,
+					"budget":{"token_estimate":320,"recent_turn_limit":6},
+					"truncation":null
+				}
+			}
+		}`),
+		map[string]string{
+			"x-worker-origin-auth": "worker-secret",
+			"x-trace-id":           "trace-worker-conversation-context",
+		},
+		config.Config{
+			AuthMode:           "trusted-worker",
+			WorkerSharedSecret: "worker-secret",
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+
+	payload := decodeExecutionPayload(t, request.Payload)
+	contextRecord := expectExecutionRecord(t, payload["context"], "context")
+	conversation := expectExecutionRecord(t, contextRecord["conversation"], "context.conversation")
+	if conversation["schema_version"] != "conversation_context.v1" {
+		t.Fatalf("schema_version = %v", conversation["schema_version"])
+	}
+	if conversation["conversation_id"] != "conv_transfer_001" {
+		t.Fatalf("conversation_id = %v", conversation["conversation_id"])
+	}
+	evidenceRefs, ok := conversation["previous_evidence_refs"].([]any)
+	if !ok || len(evidenceRefs) != 1 {
+		t.Fatalf("previous_evidence_refs = %#v, want one ref", conversation["previous_evidence_refs"])
+	}
+	capabilityResults, ok := conversation["previous_capability_results"].([]any)
+	if !ok || len(capabilityResults) != 1 {
+		t.Fatalf("previous_capability_results = %#v, want one ref", conversation["previous_capability_results"])
+	}
+	result := expectExecutionRecord(t, capabilityResults[0], "previous_capability_results[0]")
+	if result["projection_ref"] != "projection://runs/run_previous_services/finalization" {
+		t.Fatalf("projection_ref = %v", result["projection_ref"])
+	}
+}
+
+func TestParseAnswerRequestRejectsConversationContextIdentityMismatch(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"那大一能不能申请？",
+			"conversation_id":"conv_outer",
+			"request_id":"req-trusted-worker-conversation-mismatch",
+			"context":{
+				"actor":{"user_id":"student@example.edu","principal_id":"principal-001"},
+				"authorization":{"principal_id":"principal-001"},
+				"session":{"confirmed_slots":[],"turn_count":1},
+				"conversation":{
+					"schema_version":"conversation_context.v1",
+					"conversation_id":"conv_inner",
+					"user_message_id":"msg_user_003",
+					"current_user_message":{"role":"user","content":"那大一能不能申请？"},
+					"recent_turns":[],
+					"previous_evidence_refs":[],
+					"previous_capability_results":[],
+					"session_state":{"confirmed_slots":[],"turn_count":1},
+					"visibility":{"model_visible":["current_user_message"],"runtime_only":["budget"]},
+					"memory_recall":{"gate_field":"context.memory.enabled","owner":"execution-control","runtime":"hindsight"},
+					"source_attribution":[],
+					"context_summary":null,
+					"budget":{"token_estimate":8,"recent_turn_limit":6},
+					"truncation":null
+				}
+			}
+		}`),
+		map[string]string{
+			"x-worker-origin-auth": "worker-secret",
+		},
+		config.Config{
+			AuthMode:           "trusted-worker",
+			WorkerSharedSecret: "worker-secret",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected conversation identity mismatch to fail")
+		return
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	}
+}
+
 func TestParseAnswerRequestRejectsLegacyProfileMemoryContext(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{

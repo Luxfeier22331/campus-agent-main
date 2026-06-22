@@ -133,7 +133,7 @@ func sanitizedCapabilityContext(rawContext any) map[string]any {
 		return map[string]any{}
 	}
 	sanitized := make(map[string]any, len(context))
-	for _, key := range []string{"actor", "authorization", "session"} {
+	for _, key := range []string{"actor", "authorization", "conversation", "session"} {
 		if value, exists := context[key]; exists {
 			sanitized[key] = value
 		}

@@ -44,6 +44,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
 	replanReason := strings.TrimSpace(input.ReplanReason)
+	finalModelContext := primaryAgentFinalModelContextForRun(run, input)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       attempt,
 		Capability:    "primary_agent",
@@ -58,6 +59,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		ProjectionRef: agentResultRef,
 		ReplanReason:  replanReason,
 		Payload: map[string]any{
+			"context_usage":          primaryAgentContextUsageSummary(finalModelContext),
 			"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 			"replan_reason":          replanReason,
@@ -67,7 +69,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
-	output, err := s.callAgentRuntime(ctx, run, input, providerConfig)
+	output, err := s.callAgentRuntime(ctx, run, input, providerConfig, finalModelContext)
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_request_failed", err)
 	}
@@ -148,7 +150,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		CachedInputTokens:     output.Usage.CachedInputTokens,
 		EstimatedCostMicroUSD: output.Usage.EstimatedCostMicroUSD,
 		ReplanReason:          replanReason,
-		Payload:               payload,
+		Payload:               withPrimaryAgentContextUsage(payload, finalModelContext),
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
@@ -417,6 +419,7 @@ func (s *Server) callAgentRuntime(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 	providerConfig providerConfigSnapshot,
+	finalModelContext map[string]any,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
 	timeout := time.Duration(s.config.AgentRuntimeTimeoutMS) * time.Millisecond
 	if timeout <= 0 {
@@ -433,6 +436,9 @@ func (s *Server) callAgentRuntime(
 		"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
+	}
+	if len(finalModelContext) > 0 {
+		payload["final_model_context"] = finalModelContext
 	}
 	if memoryContext := temporalMemoryContextPayload(input.MemoryContext); memoryContext != nil {
 		payload["memory_context"] = memoryContext
@@ -464,74 +470,6 @@ func (s *Server) callAgentRuntime(
 		)
 	}
 	return decoded.toTemporalOutput(), nil
-}
-
-func temporalMemoryContextPayload(context *temporalruntime.MemoryContext) map[string]any {
-	if context == nil || strings.TrimSpace(context.ContextBlock) == "" || strings.TrimSpace(context.MemoryRef) == "" {
-		return nil
-	}
-	return map[string]any{
-		"context_block":         context.ContextBlock,
-		"memory_ref":            context.MemoryRef,
-		"provider":              context.Provider,
-		"retrieval_mode":        context.RetrievalMode,
-		"schema_version":        context.SchemaVersion,
-		"selected_memory_chars": context.SelectedMemoryChars,
-		"selected_memory_count": context.SelectedMemoryCount,
-	}
-}
-
-type agentRuntimeResponse struct {
-	Status             string            `json:"status"`
-	Error              agentRuntimeError `json:"error"`
-	RunID              string            `json:"run_id"`
-	FinalOutput        string            `json:"final_output"`
-	ModelName          string            `json:"model_name"`
-	ModelProvider      string            `json:"model_provider"`
-	ProviderResponseID string            `json:"provider_response_id"`
-	SDKTraceRef        string            `json:"sdk_trace_ref"`
-	SelectedTools      []string          `json:"selected_tools"`
-	ToolResults        []agentToolResult `json:"tool_results"`
-	TerminalEnvelope   map[string]any    `json:"terminal_envelope"`
-	TerminalReason     string            `json:"terminal_reason"`
-	Usage              agentRuntimeUsage `json:"usage"`
-}
-
-type agentToolResult struct {
-	ArgumentsJSON   map[string]any `json:"arguments_json"`
-	Status          string         `json:"status"`
-	ToolName        string         `json:"tool_name"`
-	Capability      string         `json:"capability"`
-	PayloadKind     string         `json:"payload_kind"`
-	Result          map[string]any `json:"result"`
-	ResultRef       string         `json:"result_ref"`
-	FailCloseReason string         `json:"fail_close_reason"`
-}
-
-type agentRuntimeUsage struct {
-	InputTokens           int64 `json:"input_tokens"`
-	OutputTokens          int64 `json:"output_tokens"`
-	CachedInputTokens     int64 `json:"cached_input_tokens"`
-	EstimatedCostMicroUSD int64 `json:"estimated_cost_micro_usd"`
-}
-
-type agentRuntimeError struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
-
-type agentRuntimeHTTPError struct {
-	StatusCode int
-	Code       string
-	Message    string
-}
-
-func (err agentRuntimeHTTPError) Error() string {
-	message := strings.TrimSpace(err.Message)
-	if message == "" {
-		return fmt.Sprintf("agent runtime returned HTTP %d", err.StatusCode)
-	}
-	return message
 }
 
 func agentRuntimeFailureFromResponse(

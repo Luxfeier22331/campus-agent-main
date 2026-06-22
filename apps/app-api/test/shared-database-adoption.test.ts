@@ -576,6 +576,33 @@ DROP COLUMN "actor_groups_json";`),
 		).toBe(false);
 	});
 
+	it("does not replay provider_config one-shot data backfills when latest structure already exists", () => {
+		const inventory = makeInventory({
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName)),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.mismatches).toEqual([]);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "provider_config.connections:data_insert",
+			),
+		).toBe(false);
+		expect(
+			plan.statements.some(
+				(item) => item.target.existsKey === "provider_config.profiles:data_update",
+			),
+		).toBe(false);
+		expect(plan.journalRowsToInsert.map((item: { tag: string }) => item.tag)).toContain(
+			"0046_provider_config_connections",
+		);
+	});
+
 	it("recognizes Postgres-truncated long constraint names as existing constraints", () => {
 		const tableNames = [
 			"official_web.target_jobs",

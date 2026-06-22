@@ -52,8 +52,16 @@ export interface ChatSourceAction {
 }
 
 export interface ChatSourceItem {
+	accessScope?: string;
+	collection?: string;
 	targetKind: ChatSourceTargetKind;
+	contentHash?: string;
+	documentId?: string;
+	evidenceId?: string;
+	evidenceRole?: string;
 	sourceKind: ChatSourceKind;
+	sourceId?: string;
+	snapshotId?: string;
 	title: string;
 	snippet: string | null;
 	primaryAction: ChatSourceAction;
@@ -65,6 +73,7 @@ export interface ChatSourceItem {
 	versionLabel: string;
 	pageLabel: string;
 	trustLabel: string;
+	versionId?: string;
 }
 
 export interface ChatSourceItemsStructuredPart {
@@ -97,14 +106,19 @@ export interface ChatSessionSlot {
 export interface ChatMessage {
 	id: string;
 	conversationId: string;
+	branchId?: string;
+	isActiveBranchHead?: boolean;
 	role: ChatMessageRole;
 	kind: AssistantMessageKind | null;
 	text: string;
 	createdAt: string;
 	feedback?: ChatMessageFeedback | null;
+	parentMessageId?: string | null;
 	requestId: string | null;
 	retryable: boolean | null;
+	runId?: string | null;
 	structuredParts: ChatMessageStructuredPart[];
+	turnSequence?: number;
 }
 
 export interface ChatMessageFeedback {
@@ -122,6 +136,11 @@ export interface ChatConversation {
 	title: string;
 	createdAt: string;
 	updatedAt: string;
+	activeBranchId?: string;
+	activeMessageId?: string | null;
+	activeRunId?: string | null;
+	activeTurnSequence?: number;
+	contextSummary?: string | null;
 	sessionSlots: ChatSessionSlot[];
 	messages: ChatMessage[];
 }
