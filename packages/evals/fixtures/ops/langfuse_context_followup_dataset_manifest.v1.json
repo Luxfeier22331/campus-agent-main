@@ -1,0 +1,13 @@
+{
+	"schema_version": "langfuse_dataset_manifest.v1",
+	"source_git_head": "unknown",
+	"datasets": [
+		{
+			"name": "campus-context-followup-v1",
+			"slug": "campus-context-followup-v1",
+			"kind": "context_followup",
+			"surface_key": "app-api.chat",
+			"fixture_path": "context_followup_sample_batch.valid.v1.json"
+		}
+	]
+}

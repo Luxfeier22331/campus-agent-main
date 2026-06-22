@@ -30,6 +30,7 @@ const METADATA_ALLOWLIST = new Set([
 	"case_id",
 	"collection_key",
 	"dataset_item_id",
+	"dataset_version",
 	"eval_kind",
 	"failure_class",
 	"grader_version",
@@ -56,9 +57,11 @@ const FORBIDDEN_METADATA_KEYS = new Set([
 	"provider_raw_response",
 	"raw_answer",
 	"raw_prompt",
+	"standalone_query",
 	"raw_retrieved_snippet",
 	"raw_transcript",
 	"retrieved_snippet",
+	"source_body",
 	"source_body_text",
 ]);
 
@@ -194,6 +197,164 @@ export function buildScoreReportFromProfileReport(input: {
 		source_result_denominator: rawResults.length,
 		surface_key: profileSurfaceKey(profileId),
 		variant_id: "default",
+	});
+}
+
+export function buildScoreReportFromRagasScoreBatch(input: {
+	environment: string;
+	ragasScoreBatchPath: string;
+	ragasScoreBatchPayload: JsonObject;
+	sourceGitHead?: string | null;
+}): LangfuseScoreReport {
+	const schemaVersion = stringField(input.ragasScoreBatchPayload.schema_version, "schema_version");
+	requireEqual(schemaVersion, "ragas_score_batch.v1", "schema_version");
+	const evalRunId = stringField(input.ragasScoreBatchPayload.eval_run_id, "eval_run_id");
+	const rawItems = mappingList(input.ragasScoreBatchPayload.items, "items");
+	const scoreItems: JsonObject[] = [];
+	const omittedItems: JsonObject[] = [];
+	for (const item of rawItems) {
+		const caseId = stringField(item.case_id, "items[].case_id");
+		const traceId = stringField(item.trace_id, `${caseId}.trace_id`);
+		const observationId = optionalString(item.observation_id);
+		const itemMetadata = mapping(item.metadata ?? {}, `${caseId}.metadata`);
+		const safeMetadata = ragasMetadata({
+			caseId,
+			itemMetadata,
+			ragasScoreBatchPath: input.ragasScoreBatchPath,
+			schemaVersion,
+		});
+		const scores = mapping(item.scores, `${caseId}.scores`);
+		for (const [metricName, value] of Object.entries(scores)) {
+			const name = stringField(metricName, `${caseId}.scores.metric`);
+			scoreItems.push({
+				case_id: caseId,
+				comment: `${name} scored by RAGAS`,
+				data_type: "NUMERIC",
+				dataset_item_id: null,
+				dataset_run_id: null,
+				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
+				metadata: { ...safeMetadata, metric_key: name },
+				name,
+				observation_id: observationId,
+				session_id: null,
+				trace_id: traceId,
+				value,
+			});
+		}
+		for (const error of mappingList(item.errors ?? [], `${caseId}.errors`)) {
+			const metricName = stringField(error.metric_name, `${caseId}.errors[].metric_name`);
+			const reason = stringField(error.reason, `${caseId}.errors[].reason`);
+			omittedItems.push({
+				case_id: caseId,
+				metadata: { ...safeMetadata, metric_key: metricName },
+				reason,
+				source_artifact_ref: input.ragasScoreBatchPath,
+				source_result_id: `${caseId}:${metricName}`,
+			});
+		}
+	}
+	return validateLangfuseScoreReport({
+		environment: stringField(input.environment, "environment"),
+		eval_kind: "ragas",
+		eval_run_id: evalRunId,
+		expected_publish_denominator: scoreItems.length,
+		omitted_items: omittedItems,
+		profile_id: "ragas",
+		release: evalRunId,
+		schema_version: SCORE_REPORT_SCHEMA_VERSION,
+		score_items: scoreItems,
+		source_artifact_path: input.ragasScoreBatchPath,
+		source_git_head: optionalString(input.sourceGitHead) ?? "unknown",
+		source_result_denominator: scoreItems.length + omittedItems.length,
+		surface_key: resolveRagasSurfaceKey(rawItems),
+		variant_id: "default",
+	});
+}
+
+export function buildScoreReportFromContextFollowupScoreBatch(input: {
+	contextFollowupScoreBatchPath: string;
+	contextFollowupScoreBatchPayload: JsonObject;
+	environment: string;
+}): LangfuseScoreReport {
+	const schemaVersion = stringField(
+		input.contextFollowupScoreBatchPayload.schema_version,
+		"schema_version",
+	);
+	requireEqual(schemaVersion, "context_followup_score_batch.v1", "schema_version");
+	const evalRunId = stringField(input.contextFollowupScoreBatchPayload.eval_run_id, "eval_run_id");
+	const datasetVersion = stringField(
+		input.contextFollowupScoreBatchPayload.dataset_version,
+		"dataset_version",
+	);
+	const variantId = stringField(input.contextFollowupScoreBatchPayload.variant_id, "variant_id");
+	const sourceGitHead = stringField(
+		input.contextFollowupScoreBatchPayload.source_git_head,
+		"source_git_head",
+	);
+	const rawItems = mappingList(input.contextFollowupScoreBatchPayload.items, "items");
+	const scoreItems: JsonObject[] = [];
+	const omittedItems: JsonObject[] = [];
+	for (const item of rawItems) {
+		const caseId = stringField(item.case_id, "items[].case_id");
+		const traceId = stringField(item.trace_id, `${caseId}.trace_id`);
+		const observationId = optionalString(item.observation_id);
+		const datasetRunId = optionalString(item.dataset_run_id);
+		const datasetItemId = optionalString(item.dataset_item_id);
+		const itemMetadata = mapping(item.metadata ?? {}, `${caseId}.metadata`);
+		const safeMetadata = contextFollowupMetadata({
+			caseId,
+			contextFollowupScoreBatchPath: input.contextFollowupScoreBatchPath,
+			datasetVersion,
+			itemMetadata,
+			schemaVersion,
+			sourceGitHead,
+			variantId,
+		});
+		const scores = mapping(item.scores, `${caseId}.scores`);
+		for (const [metricName, value] of Object.entries(scores)) {
+			const name = stringField(metricName, `${caseId}.scores.metric`);
+			scoreItems.push({
+				case_id: caseId,
+				comment: `${name} scored by repo-owned context follow-up evaluator`,
+				data_type: "NUMERIC",
+				dataset_item_id: datasetItemId,
+				dataset_run_id: datasetRunId,
+				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
+				metadata: { ...safeMetadata, metric_key: name },
+				name,
+				observation_id: observationId,
+				session_id: null,
+				trace_id: traceId,
+				value,
+			});
+		}
+		for (const error of mappingList(item.errors ?? [], `${caseId}.errors`)) {
+			const metricName = stringField(error.metric_name, `${caseId}.errors[].metric_name`);
+			const reason = stringField(error.reason, `${caseId}.errors[].reason`);
+			omittedItems.push({
+				case_id: caseId,
+				metadata: { ...safeMetadata, metric_key: metricName },
+				reason,
+				source_artifact_ref: input.contextFollowupScoreBatchPath,
+				source_result_id: `${caseId}:${metricName}`,
+			});
+		}
+	}
+	return validateLangfuseScoreReport({
+		environment: stringField(input.environment, "environment"),
+		eval_kind: "context_followup",
+		eval_run_id: evalRunId,
+		expected_publish_denominator: scoreItems.length,
+		omitted_items: omittedItems,
+		profile_id: "context-followup",
+		release: evalRunId,
+		schema_version: SCORE_REPORT_SCHEMA_VERSION,
+		score_items: scoreItems,
+		source_artifact_path: input.contextFollowupScoreBatchPath,
+		source_git_head: sourceGitHead,
+		source_result_denominator: scoreItems.length + omittedItems.length,
+		surface_key: resolveContextFollowupSurfaceKey(rawItems),
+		variant_id: variantId,
 	});
 }
 
@@ -399,6 +560,82 @@ function profileOmittedItem(
 
 function profileSurfaceKey(profileId: string): string {
 	return profileId === "online-answer-path" ? "online-answer-path" : profileId;
+}
+
+function ragasMetadata(input: {
+	caseId: string;
+	itemMetadata: JsonObject;
+	ragasScoreBatchPath: string;
+	schemaVersion: string;
+}): JsonObject {
+	return {
+		case_id: input.caseId,
+		eval_kind: "ragas",
+		schema_version: input.schemaVersion,
+		source_artifact_path: input.ragasScoreBatchPath,
+		...(optionalString(input.itemMetadata.surface_key)
+			? { surface_key: optionalString(input.itemMetadata.surface_key) }
+			: {}),
+		...(optionalString(input.itemMetadata.variant_id)
+			? { variant_id: optionalString(input.itemMetadata.variant_id) }
+			: {}),
+	};
+}
+
+function contextFollowupMetadata(input: {
+	caseId: string;
+	contextFollowupScoreBatchPath: string;
+	datasetVersion: string;
+	itemMetadata: JsonObject;
+	schemaVersion: string;
+	sourceGitHead: string;
+	variantId: string;
+}): JsonObject {
+	assertNoForbiddenLangfuseMetadata(input.itemMetadata, `${input.caseId}.metadata`);
+	return {
+		case_family: optionalString(input.itemMetadata.case_family) ?? "multi_turn_context_followup",
+		case_id: input.caseId,
+		dataset_version: input.datasetVersion,
+		eval_kind: "context_followup",
+		schema_version: input.schemaVersion,
+		source_artifact_path: input.contextFollowupScoreBatchPath,
+		source_git_head: input.sourceGitHead,
+		variant_id: input.variantId,
+		...(optionalString(input.itemMetadata.surface_key)
+			? { surface_key: optionalString(input.itemMetadata.surface_key) }
+			: {}),
+	};
+}
+
+function assertNoForbiddenLangfuseMetadata(metadata: JsonObject, prefix: string): void {
+	for (const key of Object.keys(metadata)) {
+		const normalized = key.trim();
+		if (FORBIDDEN_METADATA_KEYS.has(normalized.toLowerCase())) {
+			throw new Error(`${prefix}.${normalized} is forbidden Langfuse metadata`);
+		}
+	}
+}
+
+function resolveRagasSurfaceKey(items: JsonObject[]): string {
+	for (const item of items) {
+		const metadata = mappingOrNull(item.metadata) ? item.metadata : {};
+		const surfaceKey = optionalString(metadata.surface_key);
+		if (surfaceKey) {
+			return surfaceKey;
+		}
+	}
+	return "ragas";
+}
+
+function resolveContextFollowupSurfaceKey(items: JsonObject[]): string {
+	for (const item of items) {
+		const metadata = mappingOrNull(item.metadata) ? item.metadata : {};
+		const surfaceKey = optionalString(metadata.surface_key);
+		if (surfaceKey) {
+			return surfaceKey;
+		}
+	}
+	return "app-api.chat";
 }
 
 function integerField(value: unknown, field: string): number {

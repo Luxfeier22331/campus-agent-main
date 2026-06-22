@@ -25,6 +25,9 @@ Signal taxonomy, allowed attributes and forbidden fields remain defined in
   sampling, batching, retry and sink fan-out.
 - Sentry, Axiom and Langfuse are sinks. They do not define repo telemetry semantics.
 - Core packages must not import OTel, Sentry, Axiom or Collector-specific types.
+- In this runbook, `Collector` means the OpenTelemetry Collector under
+  `infra/otel`; it does not refer to business ingestion collectors such as
+  `official-web-collector` or `authenticated-notice-collector`.
 
 ## Config Files
 

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { createAppTelemetry } from "../src/modules/telemetry";
 import {
 	createOtlpRuntimeEventSink,
-	sanitizeOtlpEventPayload,
+	sanitizeRuntimeEventPayload,
 } from "../src/modules/telemetry/otlp";
 
 describe("app-api OTLP runtime event sink", () => {
@@ -104,10 +104,10 @@ describe("app-api OTLP runtime event sink", () => {
 		expect(fetchImplementation).not.toHaveBeenCalled();
 	});
 
-	it("uses the same event allowlist as the transitional Axiom path", () => {
-		expect(sanitizeOtlpEventPayload({ event_type: "experimental.debug_dump" })).toBeNull();
+	it("uses the shared runtime event allowlist", () => {
+		expect(sanitizeRuntimeEventPayload({ event_type: "experimental.debug_dump" })).toBeNull();
 		expect(
-			sanitizeOtlpEventPayload({
+			sanitizeRuntimeEventPayload({
 				event_type: "request.transport_error",
 				request_id: "req_01",
 				retryable: true,

@@ -115,7 +115,7 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 - 目标环境名，例如 `staging` 或 `prod`
 - 真实 `campus-web`、`operator-console-web`、`app-api` hostname
 - 当次 Worker release 标识
-- deploy secret store 中的 `SENTRY_*` / `AXIOM_*` 已下发确认
+- deploy secret store 中的 `SENTRY_*` / Collector `OTEL_COLLECTOR_AXIOM_*` 已下发确认
 - repo-local `SENTRY_API_TOKEN` 或等价 Sentry UI access，以及可访问 `Axiom` dataset 的操作权限
 - 执行 smoke 的身份与凭证来源
 

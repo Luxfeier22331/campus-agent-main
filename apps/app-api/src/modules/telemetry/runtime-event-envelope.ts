@@ -1,7 +1,7 @@
 import type { RequestedScope } from "../integration";
 import { toScopeSummary } from "./helpers";
 
-export function buildAxiomEnvelope(
+export function buildRuntimeEventEnvelope(
 	input: {
 		errorCode?: string | null;
 		eventType: string;

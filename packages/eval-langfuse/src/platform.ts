@@ -29,7 +29,9 @@ export function buildLangfuseDatasetItems(input: {
 	sourceGitHead: string;
 }): JsonObject[] {
 	const payload = loadJsonObject(input.fixturePath);
-	const cases = mappingList(payload.cases, "cases");
+	const cases = Array.isArray(payload.cases)
+		? mappingList(payload.cases, "cases")
+		: mappingList(payload.items, "items");
 	return cases.map((item) =>
 		datasetItem({
 			caseItem: item,
@@ -110,6 +112,7 @@ export async function syncLangfuseDatasets(input: {
 				dryRun: input.dryRun,
 				existingNames,
 				fetchImpl: input.fetchImpl,
+				manifestPath: input.manifestPath,
 				settings: input.settings,
 				sourceGitHead,
 			}),
@@ -250,6 +253,13 @@ function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 			user_goal_sha256: sha256Text(stringField(item.user_goal, "user_goal")),
 		};
 	}
+	if (dataset.kind === "context_followup") {
+		return {
+			case_id: caseId,
+			question_sha256: sha256Text(stringField(item.question, "question")),
+			surface_key: stringField(dataset.surface_key, "surface_key"),
+		};
+	}
 	return {
 		case_id: caseId,
 		query_sha256: sha256Text(stringField(item.query, "query")),
@@ -302,11 +312,15 @@ async function syncOneDataset(input: {
 	dryRun: boolean;
 	existingNames: Set<string>;
 	fetchImpl?: typeof fetch;
+	manifestPath: string;
 	settings: LangfuseSettings;
 	sourceGitHead: string;
 }): Promise<JsonObject> {
 	const name = stringField(input.dataset.name, "datasets[].name");
-	const fixturePath = resolve(stringField(input.dataset.fixture_path, "fixture_path"));
+	const rawFixturePath = stringField(input.dataset.fixture_path, "fixture_path");
+	const fixturePath = rawFixturePath.startsWith("/")
+		? rawFixturePath
+		: resolve(input.manifestPath, "..", rawFixturePath);
 	const fixtureHash = sha256Bytes(readFileSync(fixturePath));
 	const desired = buildLangfuseDatasetItems({
 		dataset: input.dataset,

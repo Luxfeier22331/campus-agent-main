@@ -44,7 +44,7 @@ updated: 2026-04-20
 - `app-api` hostname:
 - Worker release:
 - `SENTRY_*` deployed: `yes` | `no`
-- `AXIOM_*` deployed: `yes` | `no`
+- Collector `OTEL_COLLECTOR_AXIOM_*` deployed: `yes` | `no`
 - Sentry access confirmed: `yes` | `no`
 - `check_sentry_lookup_access --json`:
 - Axiom access confirmed: `yes` | `no`

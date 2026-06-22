@@ -4,10 +4,14 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+	buildScoreReportFromContextFollowupScoreBatch,
 	buildScoreReportFromProfileReport,
+	buildScoreReportFromRagasScoreBatch,
 	checkCollectorConfig,
 	deriveLangfuseTraceId,
 	publishLangfuseScoreReport,
+	runLangfuseExperiment,
+	syncLangfuseDatasets,
 	traceParentForLangfuseTraceId,
 	validateLangfuseReleaseEvidence,
 	validateLangfuseScoreReport,
@@ -130,6 +134,161 @@ describe("Langfuse score reports", () => {
 			traceId: deriveLangfuseTraceId("trace-product-001"),
 		});
 	});
+
+	it("builds a score report from RAGAS batch scores", () => {
+		const report = buildScoreReportFromRagasScoreBatch({
+			environment: "staging",
+			ragasScoreBatchPath: "ragas-scores.json",
+			ragasScoreBatchPayload: {
+				schema_version: "ragas_score_batch.v1",
+				eval_run_id: "ragas-smoke-001",
+				items: [
+					{
+						case_id: "case-001",
+						trace_id: "trace-001",
+						observation_id: "obs-001",
+						scores: {
+							"ragas.faithfulness": 0.91,
+							"ragas.answer_relevancy": 0.82,
+						},
+						errors: [
+							{
+								metric_name: "ragas.context_recall",
+								reason: "missing reference contexts",
+							},
+						],
+						metadata: {
+							surface_key: "app-api.chat",
+						},
+					},
+				],
+			},
+		});
+
+		expect(report.schema_version).toBe("langfuse_score_report.v1");
+		expect(report.eval_kind).toBe("ragas");
+		expect(report.expected_publish_denominator).toBe(2);
+		expect(report.source_result_denominator).toBe(3);
+		expect(report.score_items.map((item) => item.name)).toEqual([
+			"ragas.faithfulness",
+			"ragas.answer_relevancy",
+		]);
+		expect(report.score_items[0]).toMatchObject({
+			case_id: "case-001",
+			data_type: "NUMERIC",
+			observation_id: "obs-001",
+			trace_id: "trace-001",
+			value: 0.91,
+		});
+		expect(report.score_items[0]?.metadata).toMatchObject({
+			case_id: "case-001",
+			eval_kind: "ragas",
+			metric_key: "ragas.faithfulness",
+			schema_version: "ragas_score_batch.v1",
+			source_artifact_path: "ragas-scores.json",
+			surface_key: "app-api.chat",
+		});
+		expect(report.omitted_items).toHaveLength(1);
+		expect(report.omitted_items[0]).toMatchObject({
+			case_id: "case-001",
+			reason: "missing reference contexts",
+			source_result_id: "case-001:ragas.context_recall",
+		});
+	});
+
+	it("builds dataset-linked score reports from context follow-up batches", () => {
+		const report = buildScoreReportFromContextFollowupScoreBatch({
+			contextFollowupScoreBatchPath: "context-followup-scores.json",
+			contextFollowupScoreBatchPayload: {
+				schema_version: "context_followup_score_batch.v1",
+				eval_run_id: "context-followup-2026-06-22",
+				dataset_version: "context-followup-fixtures.v1",
+				variant_id: "baseline-context-envelope-v1",
+				source_git_head: "abc123",
+				items: [
+					{
+						case_id: "pronoun-transfer-major",
+						trace_id: "trace-ctx-001",
+						observation_id: "obs-ctx-001",
+						dataset_item_id: "dsitem-pronoun-transfer-major",
+						dataset_run_id: "dsrun-context-followup-001",
+						scores: {
+							"context.pronoun_resolution": 1,
+							"context.previous_evidence_reuse": 1,
+							"context.rag_followup_recall": 1,
+							"context.groundedness": 1,
+						},
+						errors: [
+							{
+								metric_name: "context.rag_followup_precision",
+								reason: "precision not applicable to previous-evidence-only case",
+							},
+						],
+						metadata: {
+							surface_key: "app-api.chat",
+							case_family: "multi_turn_context_followup",
+						},
+					},
+				],
+			},
+			environment: "staging",
+		});
+
+		expect(report.schema_version).toBe("langfuse_score_report.v1");
+		expect(report.eval_kind).toBe("context_followup");
+		expect(report.expected_publish_denominator).toBe(4);
+		expect(report.source_result_denominator).toBe(5);
+		expect(report.variant_id).toBe("baseline-context-envelope-v1");
+		expect(report.source_git_head).toBe("abc123");
+		expect(report.score_items[0]).toMatchObject({
+			case_id: "pronoun-transfer-major",
+			dataset_item_id: "dsitem-pronoun-transfer-major",
+			dataset_run_id: "dsrun-context-followup-001",
+			name: "context.pronoun_resolution",
+			trace_id: "trace-ctx-001",
+		});
+		expect(report.score_items[0]?.metadata).toMatchObject({
+			case_family: "multi_turn_context_followup",
+			dataset_version: "context-followup-fixtures.v1",
+			eval_kind: "context_followup",
+			metric_key: "context.pronoun_resolution",
+			source_git_head: "abc123",
+			variant_id: "baseline-context-envelope-v1",
+		});
+		expect(report.omitted_items[0]).toMatchObject({
+			case_id: "pronoun-transfer-major",
+			reason: "precision not applicable to previous-evidence-only case",
+			source_result_id: "pronoun-transfer-major:context.rag_followup_precision",
+		});
+	});
+
+	it("rejects forbidden context follow-up Langfuse metadata", () => {
+		expect(() =>
+			buildScoreReportFromContextFollowupScoreBatch({
+				contextFollowupScoreBatchPath: "context-followup-scores.json",
+				contextFollowupScoreBatchPayload: {
+					schema_version: "context_followup_score_batch.v1",
+					eval_run_id: "context-followup-2026-06-22",
+					dataset_version: "context-followup-fixtures.v1",
+					variant_id: "baseline-context-envelope-v1",
+					source_git_head: "abc123",
+					items: [
+						{
+							case_id: "forbidden",
+							trace_id: "trace-ctx-001",
+							scores: {
+								"context.pronoun_resolution": 1,
+							},
+							metadata: {
+								raw_transcript: "secret",
+							},
+						},
+					],
+				},
+				environment: "staging",
+			}),
+		).toThrow("raw_transcript is forbidden Langfuse metadata");
+	});
 });
 
 describe("Langfuse trace evidence", () => {
@@ -228,6 +387,85 @@ describe("Langfuse trace evidence", () => {
 });
 
 describe("Langfuse release and collector contracts", () => {
+	it("plans context follow-up dataset sync from repo-owned fixtures", async () => {
+		const manifestPath = resolve(
+			repoRoot,
+			"packages/evals/fixtures/ops/langfuse_context_followup_dataset_manifest.v1.json",
+		);
+		const report = await syncLangfuseDatasets({
+			dryRun: true,
+			fetchImpl: async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
+			manifestPath,
+			settings: {
+				baseUrl: "https://langfuse.example",
+				environment: "staging",
+				publicKey: "pk-test",
+				secretKey: "sk-test",
+			},
+		});
+
+		expect(report.schema_version).toBe("langfuse_dataset_sync_report.v1");
+		const datasets = report.datasets as Array<{ desired_items: Array<{ input: unknown }> }>;
+		const dataset = datasets[0];
+		expect(dataset.desired_items).toHaveLength(2);
+		expect(dataset.desired_items[0]).toMatchObject({
+			datasetName: "campus-context-followup-v1",
+			input: {
+				case_id: "pronoun-transfer-major",
+				surface_key: "app-api.chat",
+			},
+			metadata: {
+				case_id: "pronoun-transfer-major",
+				source_fixture_path: expect.stringContaining("context_followup_sample_batch.valid.v1.json"),
+			},
+		});
+	});
+
+	it("writes context follow-up experiment artifact and dataset-run score report", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "campus-langfuse-context-"));
+		const manifestPath = join(dir, "experiment.json");
+		const artifactPath = join(dir, "artifact.json");
+		const scoreReportPath = join(dir, "score-report.json");
+		const manifest = JSON.parse(
+			readFileSync(
+				resolve(
+					repoRoot,
+					"packages/evals/fixtures/ops/langfuse_context_followup_experiment_manifest.v1.json",
+				),
+				"utf-8",
+			),
+		) as Record<string, unknown>;
+		manifest.artifact_path = artifactPath;
+		manifest.score_report_path = scoreReportPath;
+		writeFileSync(manifestPath, JSON.stringify(manifest), "utf-8");
+
+		const result = await runLangfuseExperiment({
+			fetchImpl: async () => new Response(JSON.stringify({}), { status: 200 }),
+			manifestPath,
+			settings: {
+				baseUrl: "https://langfuse.example",
+				environment: "staging",
+				publicKey: "pk-test",
+				secretKey: "sk-test",
+			},
+		});
+
+		expect(result).toMatchObject({
+			dataset_run_id: "dsrun-context-followup-001",
+			experiment_kind: "context_followup",
+			source_git_head: "unknown",
+			variant_id: "baseline-context-envelope-v1",
+		});
+		const scoreReport = validateLangfuseScoreReport(
+			JSON.parse(readFileSync(scoreReportPath, "utf-8")) as Record<string, unknown>,
+		);
+		expect(scoreReport.score_items).toHaveLength(2);
+		expect(scoreReport.score_items[0]).toMatchObject({
+			dataset_run_id: "dsrun-context-followup-001",
+			name: "context.rag_followup_recall",
+		});
+	});
+
 	it("validates release evidence command outputs", () => {
 		const payload = {
 			schema_version: "langfuse_release_evidence.v1",

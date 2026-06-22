@@ -322,7 +322,6 @@
 		"APP_API_": ["root", "app-api", "campus-web", "staging-local"],
 		"AUTH_": ["app-api", "campus-web"],
 		"AUTHENTICATED_NOTICE_": ["authenticated-notice-collector"],
-		"AXIOM_": ["app-api"],
 		"BETTER_AUTH_": ["app-api"],
 		"CAMPUS_AGENT_": ["root"],
 		"CAMPUS_SHARED_": ["root", "command"],

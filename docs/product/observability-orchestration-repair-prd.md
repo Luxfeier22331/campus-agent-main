@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-19
-updated: 2026-06-20
+updated: 2026-06-22
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -17,8 +17,9 @@ updated: 2026-06-20
 
 - `execution-control` / Temporal workers 基本采用
   `OTel SDK -> Collector -> Sentry / Axiom / Langfuse`。
-- `app-api` 仍直接使用 Sentry Cloudflare SDK，并通过 Worker-local Axiom REST
-  adapter 写入 Axiom。
+- `app-api` 使用 Sentry Cloudflare SDK 处理 Worker runtime exception / request
+  scope，并通过受控 OTLP ingest endpoint 把 runtime lifecycle telemetry 交给
+  Collector。
 - Operator Console 主要读取 app-api / Postgres sanitized projection，但仍需要通过
   `trace_id`、`request_id`、`workflow_id` 与外部 sink 建立可诊断回链。
 - Temporal 记录 workflow history / retry / timeout / cancel / visibility；它不是通用
@@ -36,10 +37,9 @@ operator diagnosis model。
    Sentry、Axiom、Langfuse 与 Temporal 都有查询/观测能力，但 Operator Console
    的请求真相必须来自 repo-owned Postgres projection，而不是直接查询这些外部系统。
 
-1. **Axiom 入口不统一**
-   `execution-control` 侧经 Collector fan-out 到 Axiom；`app-api` 侧直接 REST ingest 到
-   Axiom。虽然字段 allowlist 已存在，但两条写入路径增加了 dataset、字段、trace
-   correlation 与故障诊断心智成本。
+1. **Axiom 入口需要防回归**
+   Axiom runtime 写入已收口到 Collector exporter；`app-api` 侧不应重新引入 direct REST
+   ingest、独立 dataset 或 Worker-local Axiom secret。
 
 1. **跨系统回链还没有形成统一验收口径**
    一次请求应能从 Operator Console detail 出发，稳定关联到 Sentry trace / issue、
@@ -172,19 +172,15 @@ Target:
 - `execution-control` / workers continue to emit OTLP to Collector.
 - Worker surfaces emit telemetry through the controlled OTLP ingest endpoint.
 - Collector exports runtime traces/logs to Axiom.
-- `app-api` Worker-local Axiom REST adapter is retired after equivalent
-  sanitized request lifecycle telemetry is available through controlled OTLP
-  ingest.
+- `app-api` Worker-local Axiom REST adapter is retired; sanitized request
+  lifecycle telemetry flows through controlled OTLP ingest.
 
 Acceptance:
 
-- No new app-api Axiom event types are added to the direct REST adapter.
-- While the transition remains, the direct REST adapter is explicitly marked as
-  transitional and tests prevent event type expansion.
+- app-api does not expose a direct Axiom REST adapter or direct Axiom env vars.
 - Axiom runtime data is written through the Collector exporter after migration.
-- Axiom dataset naming, endpoint edge domain and field allowlist remain shared
-  between transitional Worker-local and Collector paths until the direct adapter
-  is deleted.
+- Axiom dataset naming, endpoint edge domain and field allowlist are owned by
+  the Collector/runtime telemetry configuration.
 - Operator Console never depends on Axiom availability to render request state.
 
 ### 6.4 Sentry Boundary
@@ -264,6 +260,53 @@ Acceptance:
 - External sink errors do not change request truth.
 - Request detail can be understood without opening Sentry, Axiom, Temporal or Langfuse.
 
+### 6.8 Deferred Operator Panel Observability Backlog
+
+当前实现优先级回到 eval 平台与 RAG eval。Operator Console 观测面补全先作为
+product backlog 记录，不进入当前 eval closeout 的阻塞项。
+
+第一批应补的 panel 观测面是 request-centered triage：
+
+- request detail：`GET /api/operator/requests/:requestId`
+- request observability：`GET /api/operator/requests/:requestId/observability`
+- Langfuse eval backlink：`GET /api/operator/langfuse/eval-backlinks`
+- quality / eval summary：`GET /api/operator/quality/summary`、
+  `GET /api/operator/quality/badcases`、
+  `GET /api/operator/quality/eval-candidates`、
+  `GET /api/operator/evals/coverage`
+- runtime pressure：`GET /api/operator/runtime/temporal-task-queues`、
+  `GET /api/operator/runtime/autoscaler/decisions`、
+  `GET /api/operator/runtime/autoscaler/actuations`
+
+第二批再补 overview 聚合面：
+
+- `GET /api/operator/quality/timeseries`
+- `GET /api/operator/intent/summary`
+- `GET /api/operator/intent/timeseries`
+- `GET /api/operator/safety/summary`
+- `GET /api/operator/safety/anomalies`
+- `GET /api/operator/cost/summary`
+- `GET /api/operator/cost/timeseries`
+
+明确不作为第一批观测主面的内容：
+
+- 不把 official-web、wechat、authenticated-notice 或 campus-services domain ops
+  页面混入 answer-path triage。
+- 不在 panel 内直连 Axiom、Sentry、Langfuse 或 Temporal。
+- 不 iframe 或代理 Langfuse UI；panel 只展示 app-api 投影出的 safe deep link。
+- 不展示 raw prompt、raw answer、transcript、retrieved snippet、source body、
+  provider raw response 或 memory text。
+- 不做全局 raw audit browser；request detail 可先按 `request_id` / `trace_id`
+  展示相关 audit 摘要。
+
+Acceptance:
+
+- 当前 eval 工作不被 Operator Console 观测面补全阻塞。
+- 后续实现 panel 观测面时，只增加显式 allowlist proxy，不批量暴露全部
+  app-api operator inventory。
+- 新增 UI 从 request list drill down 到 request detail，并以 app-api sanitized
+  projection 为唯一数据源。
+
 ## 7. Data Policy
 
 All observability paths must enforce the repo forbidden-field policy.
@@ -304,7 +347,7 @@ Allowed examples:
 
 - Update `docs/reference/runtime-otel-telemetry-taxonomy.md`.
 - Update `docs/architecture/system/operator-observability-architecture.md`.
-- Update app-api observability docs to mark direct Axiom REST ingest as transitional.
+- Update app-api observability docs to state direct Axiom REST ingest is retired.
 - Update operator observability docs to reference the PRD acceptance model.
 - Ensure docs consistently state that external sinks are drill-down systems, not product truth.
 
@@ -321,9 +364,8 @@ Allowed examples:
 
 - Inventory all app-api Axiom event types.
 - Map each event type to controlled OTLP ingest.
-- Mark the direct adapter as transitional while migration is incomplete.
-- Add tests preventing new direct Axiom event types.
-- Delete the direct adapter when migrated event coverage is complete.
+- Delete the direct adapter and direct Axiom env surface.
+- Keep tests preventing direct Axiom exports from reappearing.
 
 ### 8.4 Collector Fan-out Validation
 
@@ -370,8 +412,8 @@ This PRD is complete when:
 - `execution-control` runtime telemetry still reaches Collector with forbidden-field deletion.
 - Worker-origin telemetry reaches Collector through controlled OTLP ingest.
 - Axiom runtime data is written through the Collector exporter after migration.
-- app-api direct Axiom writes are retired, or remain only as a marked transitional
-  adapter with tests preventing new event types.
+- app-api direct Axiom writes are retired, with tests preventing the adapter from
+  reappearing.
 - Operator Console request detail renders from app-api projection without requiring Sentry, Axiom,
   Temporal or Langfuse availability.
 - Safe backlinks can connect one request to Sentry, Axiom, Temporal and Langfuse when those sinks

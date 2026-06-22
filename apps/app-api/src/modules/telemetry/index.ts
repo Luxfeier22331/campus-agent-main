@@ -1,10 +1,10 @@
 export { createAppTelemetry } from "./app-telemetry";
+export { createOtlpRuntimeEventSink } from "./otlp";
 export {
-	type AxiomRuntimeEventSink,
-	createAxiomRuntimeEventSink,
-	LEGACY_AXIOM_ALLOWED_EVENT_TYPES,
-	sanitizeAxiomEventPayload,
-} from "./axiom";
-export { createOtlpRuntimeEventSink, sanitizeOtlpEventPayload } from "./otlp";
+	RUNTIME_EVENT_ALLOWED_EVENT_TYPES,
+	type RuntimeEventScalar,
+	type RuntimeEventSink,
+	sanitizeRuntimeEventPayload,
+} from "./runtime-event";
 export type { TracePropagationHeaders } from "./trace";
 export type { ActorTelemetrySummary, AppTelemetry, BaseRequestTelemetry } from "./types";

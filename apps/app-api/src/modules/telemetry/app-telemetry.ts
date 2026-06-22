@@ -1,8 +1,6 @@
 import * as Sentry from "@sentry/cloudflare";
 
 import { type Env, resolveEnvironment } from "../../config";
-import type { AxiomRuntimeEventSink } from "./axiom";
-import { buildAxiomEnvelope } from "./axiom-envelope";
 import {
 	hashIdentifier,
 	normalizeString,
@@ -12,6 +10,8 @@ import {
 	toSourceDocIdsSummary,
 } from "./helpers";
 import { createOtlpRuntimeEventSink } from "./otlp";
+import type { RuntimeEventSink } from "./runtime-event";
+import { buildRuntimeEventEnvelope } from "./runtime-event-envelope";
 import { applyRequestContext, applyRequestTags } from "./sentry-scope";
 import { resolveTracePropagationHeaders, type TraceDataLike } from "./trace";
 import type { AppTelemetry } from "./types";
@@ -27,12 +27,12 @@ export function createAppTelemetry(
 		| "SENTRY_RELEASE"
 	>,
 	input: {
-		axiomSink?: AxiomRuntimeEventSink;
+		runtimeEventSink?: RuntimeEventSink;
 		now?: () => Date;
 		traceDataProvider?: () => TraceDataLike | null | undefined;
 	} = {},
 ): AppTelemetry {
-	const axiomSink = input.axiomSink ?? createOtlpRuntimeEventSink(env);
+	const runtimeEventSink = input.runtimeEventSink ?? createOtlpRuntimeEventSink(env);
 	const now = input.now ?? (() => new Date());
 	const traceDataProvider = input.traceDataProvider ?? (() => Sentry.getTraceData());
 	const telemetryMetadata = {
@@ -110,7 +110,7 @@ export function createAppTelemetry(
 		},
 
 		async recordExecutionAuditEvent(input) {
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				bridge_duration_ms: input.bridgeDurationMs,
 				decision: input.decision,
 				duration_ms: input.durationMs,
@@ -119,7 +119,7 @@ export function createAppTelemetry(
 				lane: input.lane,
 				queue_wait_ms: input.queueWaitMs,
 				retryable: input.retryable,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						eventType: input.eventType,
 						requestId: input.requestId,
@@ -134,10 +134,10 @@ export function createAppTelemetry(
 		},
 
 		async recordIdentityEndpoint(input) {
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				correlation_id: input.correlationId,
 				endpoint: input.endpoint,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						errorCode: input.errorCode,
 						eventType: "identity.endpoint",
@@ -152,13 +152,13 @@ export function createAppTelemetry(
 		},
 
 		async recordProjectionDrain(input) {
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				abandoned_count: input.abandoned ?? 0,
 				failed_count: input.failed,
 				processed_count: input.processed,
 				projector_last_error_code: input.projectorLastErrorCode ?? null,
 				projector_name: input.projector,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						errorCode: input.projectorLastErrorCode ?? null,
 						eventType: "projection.drain",
@@ -170,12 +170,12 @@ export function createAppTelemetry(
 		},
 
 		async recordProjectionEnqueued(input) {
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				conversation_id: input.conversationId,
 				projection_stage: input.projectionStage,
 				resolved_scope_summary: toScopeSummary(input.resolvedScope),
 				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						eventType: "projection.enqueued",
 						principalType: input.principalType,
@@ -208,11 +208,11 @@ export function createAppTelemetry(
 				});
 			});
 
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				actor_id_hash: hashIdentifier(input.actor.subject),
 				conversation_id: input.conversationId,
 				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						eventType: "request.accepted",
 						principalType: input.actor.principalType,
@@ -250,7 +250,7 @@ export function createAppTelemetry(
 				});
 			});
 
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				conversation_id: input.conversationId,
 				duration_ms: input.durationMs,
 				resolved_scope_summary: toScopeSummary(input.resolvedScope),
@@ -258,7 +258,7 @@ export function createAppTelemetry(
 				safety_identifier: input.safetyIdentifier ?? null,
 				source_doc_ids_count: input.sourceDocIds.length,
 				source_doc_ids_summary: toSourceDocIdsSummary(input.sourceDocIds),
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						errorCode: input.errorCode,
 						eventType: "request.finalized",
@@ -295,11 +295,11 @@ export function createAppTelemetry(
 				});
 			});
 
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				conversation_id: input.conversationId,
 				retryable: input.retryable,
 				safety_identifier: input.safetyIdentifier ?? null,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						errorCode: input.errorCode,
 						eventType: "request.transport_error",
@@ -317,7 +317,7 @@ export function createAppTelemetry(
 		},
 
 		async recordQualitySampledGrade(input) {
-			await axiomSink.emit({
+			await runtimeEventSink.emit({
 				collection: input.collection,
 				grade_domain: input.gradeDomain,
 				grade_id: input.gradeId,
@@ -329,7 +329,7 @@ export function createAppTelemetry(
 				sampled_at: input.sampledAt,
 				score_milli: input.scoreMilli,
 				verdict: input.verdict,
-				...buildAxiomEnvelope(
+				...buildRuntimeEventEnvelope(
 					{
 						eventType: "quality.sampled_grade",
 						occurredAt: input.sampledAt,

@@ -627,6 +627,11 @@ supplemental adapter seam：
   评分接线，不影响 `CaseResult.passed`
 - `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate
   分离
+- RAGAS sample batch 的输入只能来自 golden dataset、`GoldenCase + ExecutionResult`
+  或 app-owned safe eval artifact；不得从 Axiom / Langfuse / Sentry raw trace 反向抽取
+  answer、retrieved context 或 reference。
+- 如需从已有 run 生成 RAGAS 样本，命名为 safe sample exporter / batch builder；它只能读取
+  sanitized artifact 或 operator-safe projection，不应命名为 collector。
 
 formal benchmark core：
 
@@ -812,6 +817,9 @@ Langfuse eval platform：
 - generic publish 入口：
   `pnpm --dir packages/eval-langfuse langfuse publish-score-report
   --score-report <langfuse-score-report.json> --dry-run --json`。
+- RAGAS publish 入口消费 safe sample batch，先生成 `ragas_score_batch.v1`，再生成
+  `langfuse_score_report.v1`；它不从 Langfuse trace 或 Axiom events 抽取 scoring 输入。
+  CLI 参数使用 `--sample-batch <ragas-sample-batch.json>`。
 - dataset / experiment / review automation 入口：
   `sync-score-configs`、`sync-datasets`、`run-experiment`、
   `sync-annotation-queue` 与 `export-review-results`。

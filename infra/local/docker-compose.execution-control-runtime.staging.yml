@@ -38,6 +38,20 @@ services:
       - data-plane
       - proxy
 
+  langfuse-web:
+    environment:
+      NEXTAUTH_URL: ${LANGFUSE_NEXTAUTH_URL:-https://langfuse-staging.mucwiki-edge.link}
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: ${EXECUTION_CONTROL_PROXY_NETWORK:-proxy}
+      traefik.http.routers.langfuse-staging.rule: Host(`langfuse-staging.mucwiki-edge.link`)
+      traefik.http.routers.langfuse-staging.entrypoints: websecure
+      traefik.http.routers.langfuse-staging.tls: "true"
+      traefik.http.services.langfuse-staging.loadbalancer.server.port: "3000"
+    networks:
+      - supervisor-runtime
+      - proxy
+
   activity-worker-knowledge-retrieval:
     environment:
       DEPLOYMENT_ENVIRONMENT: ${DEPLOYMENT_ENVIRONMENT:-staging}

@@ -118,8 +118,8 @@ Observability data policy:
 - deployed `app-api` telemetry requires `APP_API_OTEL_INGEST_ENDPOINT` and
   `APP_API_OTEL_INGEST_SHARED_SECRET`; missing values fail closed instead of
   falling back to direct Axiom REST ingest
-- the legacy direct Axiom adapter remains only as a transitional module-level
-  test target and is not the default Worker telemetry path
+- direct Axiom REST ingest is not an app-api runtime surface; Axiom exporter
+  credentials belong to the Collector deployment
 - Operator Console trace / issue links are app-owned projections, not route-time
   sink queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
   `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when Operator Console should show

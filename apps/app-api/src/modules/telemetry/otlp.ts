@@ -1,9 +1,8 @@
 import { createHash } from "node:crypto";
 
 import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "../../config";
-import { type AxiomRuntimeEventSink, sanitizeAxiomEventPayload } from "./axiom";
-
-type OtlpScalar = boolean | number | string | null;
+import type { RuntimeEventScalar, RuntimeEventSink } from "./runtime-event";
+import { sanitizeRuntimeEventPayload as sanitizeSharedRuntimeEventPayload } from "./runtime-event";
 
 const DEFAULT_OTLP_TIMEOUT_MS = 1_000;
 const OTLP_SCOPE_NAME = "campus-agent.app-api.telemetry";
@@ -32,12 +31,6 @@ export interface OtlpRuntimeEventEnv
 		| "APP_API_OTEL_INGEST_SHARED_SECRET"
 	> {}
 
-export function sanitizeOtlpEventPayload(
-	payload: Record<string, unknown>,
-): Record<string, OtlpScalar> | null {
-	return sanitizeAxiomEventPayload(payload);
-}
-
 export function createOtlpRuntimeEventSink(
 	env: OtlpRuntimeEventEnv,
 	input: {
@@ -45,7 +38,7 @@ export function createOtlpRuntimeEventSink(
 		now?: () => Date;
 		timeoutMs?: number;
 	} = {},
-): AxiomRuntimeEventSink {
+): RuntimeEventSink {
 	const environment = resolveEnvironment(env);
 	const endpoint = env.APP_API_OTEL_INGEST_ENDPOINT?.trim().replace(/\/+$/u, "");
 	const sharedSecret = env.APP_API_OTEL_INGEST_SHARED_SECRET?.trim();
@@ -73,7 +66,7 @@ export function createOtlpRuntimeEventSink(
 
 	return {
 		async emit(payload) {
-			const sanitizedPayload = sanitizeOtlpEventPayload(payload);
+			const sanitizedPayload = sanitizeSharedRuntimeEventPayload(payload);
 			if (!sanitizedPayload) {
 				return;
 			}
@@ -197,7 +190,7 @@ async function postOtlp(
 	}
 }
 
-function toOtlpAttributes(input: Record<string, OtlpScalar>): Array<{
+function toOtlpAttributes(input: Record<string, RuntimeEventScalar>): Array<{
 	key: string;
 	value: { boolValue?: boolean; doubleValue?: number; intValue?: string; stringValue?: string };
 }> {
@@ -243,14 +236,16 @@ function unixNano(iso: string): string {
 	return String(BigInt(safeMillis) * 1_000_000n);
 }
 
-function stringValue(value: OtlpScalar | undefined): string | null {
+function stringValue(value: RuntimeEventScalar | undefined): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function statusCodeFor(status: OtlpScalar | undefined): number {
+function statusCodeFor(status: RuntimeEventScalar | undefined): number {
 	return status === "error" ? 2 : 1;
 }
 
-function severityFor(status: OtlpScalar | undefined): string {
+function severityFor(status: RuntimeEventScalar | undefined): string {
 	return status === "error" ? "ERROR" : "INFO";
 }
+
+export { sanitizeRuntimeEventPayload } from "./runtime-event";

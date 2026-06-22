@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-06-21
+updated: 2026-06-22
 ---
 # Documentation Inventory
 
@@ -1525,7 +1525,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `product_requirement`
   - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
   - Owner boundary: `docs/product`
-  - Ledger: `area=product`, `cluster=retrieval`, `state=untracked`, `lines=854`
+  - Ledger: `area=product`, `cluster=retrieval`, `state=untracked`, `lines=860`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/product/observability-orchestration-repair-prd.md`

@@ -21,6 +21,7 @@ const sentryMocks = vi.hoisted(() => ({
 
 vi.mock("@sentry/cloudflare", () => sentryMocks);
 
+import * as telemetryModule from "../src/modules/telemetry";
 import { createAppTelemetry } from "../src/modules/telemetry";
 import {
 	deriveLangfuseTraceId,
@@ -66,7 +67,7 @@ describe("app telemetry", () => {
 			throw new Error("sentry setTag failed");
 		});
 
-		const telemetry = createAppTelemetry({}, { axiomSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
 
 		expect(() =>
 			telemetry.configureChatRequestScope({
@@ -92,7 +93,7 @@ describe("app telemetry", () => {
 			throw new Error("trace data failed");
 		});
 
-		const telemetry = createAppTelemetry({}, { axiomSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
 
 		expect(telemetry.getTraceHeaders()).toEqual({
 			baggage: null,
@@ -102,7 +103,7 @@ describe("app telemetry", () => {
 	});
 
 	it("prefers W3C traceparent while preserving Sentry propagation headers", () => {
-		const telemetry = createAppTelemetry({}, { axiomSink: { emit: vi.fn() } });
+		const telemetry = createAppTelemetry({}, { runtimeEventSink: { emit: vi.fn() } });
 		const request = new Request("https://app-api.internal/api/chat", {
 			headers: {
 				baggage: "session=conv_01",
@@ -152,15 +153,15 @@ describe("app telemetry", () => {
 		});
 	});
 
-	it("moves high-cardinality request identity into sentry context and emits canonical axiom envelope", async () => {
-		const axiomSink = { emit: vi.fn().mockResolvedValue(undefined) };
+	it("moves high-cardinality request identity into sentry context and emits canonical runtime event envelope", async () => {
+		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
 				APP_API_ENVIRONMENT: "staging",
 				SENTRY_RELEASE: "app-api@2026.04.20",
 			},
 			{
-				axiomSink,
+				runtimeEventSink,
 				now: () => new Date("2026-04-20T12:30:00.000Z"),
 			},
 		);
@@ -217,7 +218,7 @@ describe("app telemetry", () => {
 				safety_identifier: safetyIdentifier,
 			}),
 		);
-		expect(axiomSink.emit).toHaveBeenCalledWith(
+		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				environment: "staging",
 				event_type: "request.accepted",
@@ -231,14 +232,14 @@ describe("app telemetry", () => {
 	});
 
 	it("emits identity endpoint telemetry without auth-sensitive fields", async () => {
-		const axiomSink = { emit: vi.fn().mockResolvedValue(undefined) };
+		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(
 			{
 				APP_API_ENVIRONMENT: "staging",
 				SENTRY_RELEASE: "app-api@2026.06.02",
 			},
 			{
-				axiomSink,
+				runtimeEventSink,
 				now: () => new Date("2026-06-02T12:30:00.000Z"),
 			},
 		);
@@ -252,7 +253,7 @@ describe("app telemetry", () => {
 			surface: "campus_web",
 		});
 
-		expect(axiomSink.emit).toHaveBeenCalledWith(
+		expect(runtimeEventSink.emit).toHaveBeenCalledWith(
 			expect.objectContaining({
 				correlation_id: "corr_01HQ",
 				endpoint: "/api/me/identity",
@@ -266,12 +267,18 @@ describe("app telemetry", () => {
 				surface: "campus_web",
 			}),
 		);
-		expect(axiomSink.emit).not.toHaveBeenCalledWith(
+		expect(runtimeEventSink.emit).not.toHaveBeenCalledWith(
 			expect.objectContaining({
 				cookie: expect.anything(),
 				email: expect.anything(),
 				token: expect.anything(),
 			}),
 		);
+	});
+
+	it("does not expose a direct Axiom REST ingest adapter from the telemetry module", () => {
+		expect("createAxiomRuntimeEventSink" in telemetryModule).toBe(false);
+		expect("sanitizeAxiomEventPayload" in telemetryModule).toBe(false);
+		expect("LEGACY_AXIOM_ALLOWED_EVENT_TYPES" in telemetryModule).toBe(false);
 	});
 });

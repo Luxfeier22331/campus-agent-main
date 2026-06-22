@@ -1,0 +1,48 @@
+{
+	"schema_version": "langfuse_experiment_manifest.v1",
+	"artifact_path": "tmp/langfuse-context-followup-experiment-result.json",
+	"score_report_path": "tmp/langfuse-context-followup-score-report.json",
+	"dataset_source": "local",
+	"dataset_name": "campus-context-followup-v1",
+	"dataset_version": "context-followup-fixtures.v1",
+	"dataset_run_id": "dsrun-context-followup-001",
+	"environment": "staging",
+	"experiment_kind": "context_followup",
+	"experiment_run_id": "context-followup-2026-06-22",
+	"release": "execution-control@unknown",
+	"run_description": "Run context envelope and RAG follow-up PRD productized eval.",
+	"run_name": "context-followup-baseline",
+	"source_git_head": "unknown",
+	"surface_key": "app-api.chat",
+	"variant_id": "baseline-context-envelope-v1",
+	"aggregate_scores": [
+		{
+			"name": "context.rag_followup_recall",
+			"data_type": "NUMERIC",
+			"value": 1,
+			"comment": "All fixture expected evidence refs were recovered."
+		},
+		{
+			"name": "context.groundedness",
+			"data_type": "NUMERIC",
+			"value": 1,
+			"comment": "All fixture answers remained grounded."
+		}
+	],
+	"item_results": [
+		{
+			"case_id": "pronoun-transfer-major",
+			"dataset_item_id": "dsitem-pronoun-transfer-major",
+			"observation_id": "obs-context-followup-001",
+			"trace_id": "trace-context-followup-001",
+			"status": "passed"
+		},
+		{
+			"case_id": "previous-evidence-second-point",
+			"dataset_item_id": "dsitem-previous-evidence-second-point",
+			"observation_id": "obs-context-followup-002",
+			"trace_id": "trace-context-followup-002",
+			"status": "passed"
+		}
+	]
+}

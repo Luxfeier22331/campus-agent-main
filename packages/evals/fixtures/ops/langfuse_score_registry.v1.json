@@ -110,6 +110,42 @@
 			"release_gate": false
 		},
 		{
+			"name": "ragas.faithfulness",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS faithfulness score for trace-level RAG evaluation.",
+			"release_gate": false
+		},
+		{
+			"name": "ragas.answer_relevancy",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS answer relevancy score for trace-level RAG evaluation.",
+			"release_gate": false
+		},
+		{
+			"name": "ragas.context_precision",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS context precision score for trace-level RAG evaluation.",
+			"release_gate": false
+		},
+		{
+			"name": "ragas.context_recall",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS context recall score for trace-level RAG evaluation.",
+			"release_gate": false
+		},
+		{
 			"name": "capacity.p95_latency_ms",
 			"data_type": "NUMERIC",
 			"owner": "packages/evals",
@@ -125,6 +161,105 @@
 			"eval_kinds": ["runtime_capacity"],
 			"value_range": [0, null],
 			"description": "Legacy runtime capacity P95 latency score name kept out of release gate.",
+			"release_gate": false
+		},
+		{
+			"name": "context.pronoun_resolution",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Pronoun/deictic follow-up resolution score for run context envelope eval.",
+			"release_gate": false
+		},
+		{
+			"name": "context.previous_evidence_reuse",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Previous evidence proof reuse score for follow-up questions.",
+			"release_gate": false
+		},
+		{
+			"name": "context.rag_followup_recall",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Recall of expected evidence ids in RAG follow-up context.",
+			"release_gate": false
+		},
+		{
+			"name": "context.rag_followup_precision",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Precision of observed evidence ids in RAG follow-up context.",
+			"release_gate": false
+		},
+		{
+			"name": "context.groundedness",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Groundedness verdict for context follow-up answer.",
+			"release_gate": false
+		},
+		{
+			"name": "context.hallucination_free",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Inverse hallucination score for context follow-up answer.",
+			"release_gate": false
+		},
+		{
+			"name": "context.pollution_free",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Context pollution absence score for follow-up answer.",
+			"release_gate": false
+		},
+		{
+			"name": "context.concurrent_turn_order",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Concurrent turn ordering preservation score.",
+			"release_gate": false
+		},
+		{
+			"name": "context.latency_ms",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, null],
+			"description": "End-to-end latency in milliseconds for context follow-up eval case.",
+			"release_gate": false
+		},
+		{
+			"name": "context.token_cost",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, null],
+			"description": "Input plus output token count for context follow-up eval case.",
+			"release_gate": false
+		},
+		{
+			"name": "context.token_budget_ratio",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["context_followup"],
+			"value_range": [0, 1],
+			"description": "Token usage divided by context budget for follow-up eval case.",
 			"release_gate": false
 		}
 	]

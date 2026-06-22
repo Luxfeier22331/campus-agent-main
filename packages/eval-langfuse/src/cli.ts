@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
@@ -15,7 +16,9 @@ import {
 	validateLangfuseReleaseEvidenceFile,
 } from "./release-evidence";
 import {
+	buildScoreReportFromContextFollowupScoreBatch,
 	buildScoreReportFromProfileReport,
+	buildScoreReportFromRagasScoreBatch,
 	loadLangfuseScoreReport,
 	publishLangfuseScoreReport,
 } from "./score-report";
@@ -70,6 +73,46 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			settings: settingsFromEnv(),
 			validateOnly: Boolean(args["validate-only"]),
 		});
+	}
+	if (command === "run-ragas-batch") {
+		const inputPath = optionalArg(args, "sample-batch") ?? stringArg(args, "input");
+		const ragasOutputPath = stringArg(args, "ragas-output");
+		const scoreReportPath = stringArg(args, "score-report");
+		runPythonRagasScoreBatch({ inputPath, outputPath: ragasOutputPath });
+		const settings = settingsFromEnv();
+		const report = buildScoreReportFromRagasScoreBatch({
+			environment: settings.environment,
+			ragasScoreBatchPath: ragasOutputPath,
+			ragasScoreBatchPayload: loadJsonObject(ragasOutputPath),
+		});
+		writeJsonObject(scoreReportPath, report);
+		return {
+			eval_run_id: report.eval_run_id,
+			expected_publish_denominator: report.expected_publish_denominator,
+			ragas_output_path: ragasOutputPath,
+			score_report_path: scoreReportPath,
+			source_result_denominator: report.source_result_denominator,
+		};
+	}
+	if (command === "run-context-followup-batch") {
+		const inputPath = stringArg(args, "input");
+		const contextOutputPath = stringArg(args, "context-output");
+		const scoreReportPath = stringArg(args, "score-report");
+		runPythonContextFollowupScoreBatch({ inputPath, outputPath: contextOutputPath });
+		const settings = settingsFromEnv();
+		const report = buildScoreReportFromContextFollowupScoreBatch({
+			contextFollowupScoreBatchPath: contextOutputPath,
+			contextFollowupScoreBatchPayload: loadJsonObject(contextOutputPath),
+			environment: settings.environment,
+		});
+		writeJsonObject(scoreReportPath, report);
+		return {
+			context_output_path: contextOutputPath,
+			eval_run_id: report.eval_run_id,
+			expected_publish_denominator: report.expected_publish_denominator,
+			score_report_path: scoreReportPath,
+			source_result_denominator: report.source_result_denominator,
+		};
 	}
 	if (command === "verify-trace") {
 		const productTraceId = optionalArg(args, "product-trace-id");
@@ -201,6 +244,53 @@ function parseArgs(argv: string[]): ParsedArgs {
 		index += 1;
 	}
 	return parsed;
+}
+
+function runPythonRagasScoreBatch(input: { inputPath: string; outputPath: string }): void {
+	const result = spawnSync(
+		"uv",
+		[
+			"run",
+			"--all-packages",
+			"python",
+			"-m",
+			"campus_evals.ragas_score_batch",
+			"--input",
+			input.inputPath,
+			"--output",
+			input.outputPath,
+		],
+		{ encoding: "utf-8", stdio: "pipe" },
+	);
+	if (result.status !== 0) {
+		throw new Error(`RAGAS score batch failed: ${(result.stderr || result.stdout || "").trim()}`);
+	}
+}
+
+function runPythonContextFollowupScoreBatch(input: {
+	inputPath: string;
+	outputPath: string;
+}): void {
+	const result = spawnSync(
+		"uv",
+		[
+			"run",
+			"--all-packages",
+			"python",
+			"-m",
+			"campus_evals.context_followup_score_batch",
+			"--input",
+			input.inputPath,
+			"--output",
+			input.outputPath,
+		],
+		{ encoding: "utf-8", stdio: "pipe" },
+	);
+	if (result.status !== 0) {
+		throw new Error(
+			`context follow-up score batch failed: ${(result.stderr || result.stdout || "").trim()}`,
+		);
+	}
 }
 
 function stringArg(args: ParsedArgs, key: string): string {
