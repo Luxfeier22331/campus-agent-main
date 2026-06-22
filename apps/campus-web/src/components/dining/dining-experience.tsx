@@ -9,6 +9,7 @@ import type {
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
+import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 
 export function HallGrid({
@@ -26,15 +27,15 @@ export function HallGrid({
 	return (
 		<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
 			{halls.map((hall) => (
-				<button
+				<Button
 					className={cn(
-						"aspect-square rounded-xl border border-border bg-white p-4 text-left shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--sys-text-strong)]",
+						"flex aspect-square flex-col items-start justify-start rounded-xl border border-border bg-white p-4 text-left whitespace-normal shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--sys-text-strong)]",
 						selectedHallId === hall.hallId &&
 							"border-[var(--sys-text-strong)] bg-[var(--sys-bg-subtle)]",
 					)}
 					key={hall.hallId}
 					onClick={() => onSelectHall(hall)}
-					type="button"
+					variant="secondary"
 				>
 					<span className="text-xs font-medium text-[var(--sys-text-muted)]">{hall.campus}</span>
 					<span className="mt-2 block text-xl font-semibold text-[var(--sys-text-strong)]">
@@ -49,7 +50,7 @@ export function HallGrid({
 					<span className="mt-4 line-clamp-2 text-xs leading-5 text-[var(--sys-text-subtle)]">
 						{hall.tags.slice(0, 5).join(" / ")}
 					</span>
-				</button>
+				</Button>
 			))}
 		</div>
 	);
@@ -66,28 +67,31 @@ export function TagFilters({
 }) {
 	return (
 		<div className="flex flex-wrap gap-2">
-			<button
+			<Button
+				aria-pressed={!selectedTag}
 				className={cn(
-					"min-h-9 rounded-full border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)]",
+					"min-h-9 rounded-full px-3 text-[var(--sys-text-muted)]",
 					!selectedTag && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
 				)}
 				onClick={() => onSelectTag(null)}
-				type="button"
+				variant="secondary"
 			>
 				全部
-			</button>
+			</Button>
 			{tags.map((tag) => (
-				<button
+				<Button
+					aria-pressed={selectedTag === tag}
 					className={cn(
-						"min-h-9 rounded-full border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)]",
-						selectedTag === tag && "border-[var(--sys-text-strong)] text-[var(--sys-text-strong)]",
+						"min-h-9 rounded-full px-3 text-[var(--sys-text-muted)]",
+						selectedTag === tag &&
+							"border-[var(--sys-text-strong)] bg-[var(--sys-brand-interactive-subtle)] text-[var(--sys-text-strong)]",
 					)}
 					key={tag}
 					onClick={() => onSelectTag(tag)}
-					type="button"
+					variant="secondary"
 				>
 					{tag}
-				</button>
+				</Button>
 			))}
 		</div>
 	);
@@ -171,33 +175,36 @@ function DiningFloorplanZoomSurface({
 				role="toolbar"
 				aria-label="平面图视图控制"
 			>
-				<button
+				<Button
 					aria-label="放大平面图"
-					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
 					onClick={() => zoomIn(0.25, 120)}
-					type="button"
+					size="icon"
+					variant="secondary"
 				>
 					<ZoomIn aria-hidden="true" className="size-4" />
-				</button>
-				<button
+				</Button>
+				<Button
 					aria-label="缩小平面图"
-					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
 					onClick={() => zoomOut(0.25, 120)}
-					type="button"
+					size="icon"
+					variant="secondary"
 				>
 					<ZoomOut aria-hidden="true" className="size-4" />
-				</button>
-				<button
+				</Button>
+				<Button
 					aria-label="适配平面图"
-					className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-white text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
 					onClick={() => {
 						resetTransform(0);
 						centerView(1, 120);
 					}}
-					type="button"
+					size="icon"
+					variant="secondary"
 				>
 					<Maximize2 aria-hidden="true" className="size-4" />
-				</button>
+				</Button>
 			</div>
 			<TransformComponent
 				contentClass="min-w-[640px]"
@@ -260,14 +267,14 @@ export function WindowList({
 	return (
 		<div className="max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
 			{windows.map((window) => (
-				<button
+				<Button
 					className={cn(
-						"block w-full border-b border-border px-4 py-3 text-left last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
+						"flex w-full flex-col items-start justify-start rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
 						selectedWindowId === window.windowId && "bg-[var(--sys-brand-interactive-subtle)]",
 					)}
 					key={window.windowId}
 					onClick={() => onSelectWindow(window.windowId)}
-					type="button"
+					variant="ghost"
 				>
 					<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
 						{window.assignment?.stallProfile.displayName ?? window.label}
@@ -275,7 +282,7 @@ export function WindowList({
 					<span className="mt-1 block text-xs text-[var(--sys-text-muted)]">
 						{window.locationLabel}
 					</span>
-				</button>
+				</Button>
 			))}
 		</div>
 	);

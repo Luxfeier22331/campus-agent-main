@@ -18,7 +18,7 @@ describe("campus runtime config", () => {
 
 		expect(config.accountUrl).toBe("https://campus-staging.mucwiki-edge.link/account");
 		expect(buildAccountLoginUrl(config, "https://campus-staging.mucwiki-edge.link/c/conv_01")).toBe(
-			"https://campus-staging.mucwiki-edge.link/account/login?return_to=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Fc%2Fconv_01",
+			"https://campus-staging.mucwiki-edge.link/account/login?redirectTo=https%3A%2F%2Fcampus-staging.mucwiki-edge.link%2Fc%2Fconv_01",
 		);
 	});
 

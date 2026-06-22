@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/operator-console-web
 status: active
 created: 2026-06-08
-updated: 2026-06-18
+updated: 2026-06-22
 ---
 # Operator Console Operations Architecture
 
@@ -104,6 +104,15 @@ Current navigation labels:
 
 - `请求与运行`
 - `模型服务配置`
+
+Current UI implementation rules:
+
+- 通用 buttons、inputs、selects、sheet、card 与 table primitives 使用 shadcn/Radix
+  wrappers
+- provider configuration form 使用 `react-hook-form` + `zod`
+- 页面 copy 只描述 operator 要完成的工作，不暴露 `app-api` projection、Worker
+  proxy、Temporal、internal route 或架构组件名作为用户说明
+- 领域 workspace 被移出当前导航后，对应 proxy route 也必须同时移除
 
 No other page may appear in the navigation, route table, fake status matrix or
 Worker allowlist until the domain has a concrete workflow, current app-api

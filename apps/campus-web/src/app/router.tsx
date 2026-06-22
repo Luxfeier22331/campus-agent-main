@@ -23,32 +23,41 @@ const MapPage = lazy(() =>
 const AccountPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({ default: module.AccountPage })),
 );
-const AccountActionModule = () => import("./routes/account-action-page");
 const AccountLoginPage = lazy(() =>
-	AccountActionModule().then((module) => ({
-		default: () => <module.AccountActionPage kind="login" />,
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="SIGN_IN" />,
 	})),
 );
 const AccountRegisterPage = lazy(() =>
-	AccountActionModule().then((module) => ({
-		default: () => <module.AccountActionPage kind="register" />,
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="SIGN_UP" />,
 	})),
 );
 const AccountForgotPasswordPage = lazy(() =>
-	AccountActionModule().then((module) => ({
-		default: () => <module.AccountActionPage kind="forgot-password" />,
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="FORGOT_PASSWORD" />,
 	})),
 );
 const AccountResetPasswordPage = lazy(() =>
-	AccountActionModule().then((module) => ({
-		default: () => <module.AccountActionPage kind="reset-password" />,
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="RESET_PASSWORD" />,
+	})),
+);
+const AccountSettingsPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountSettingsPage view="SETTINGS" />,
+	})),
+);
+const AccountSecurityPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountSettingsPage view="SECURITY" />,
 	})),
 );
 const FederationConsentPage = lazy(() =>
-	AccountActionModule().then((module) => ({ default: module.FederationConsentPage })),
+	import("./routes/federation-pages").then((module) => ({ default: module.FederationConsentPage })),
 );
 const FederationErrorPage = lazy(() =>
-	AccountActionModule().then((module) => ({ default: module.FederationErrorPage })),
+	import("./routes/federation-pages").then((module) => ({ default: module.FederationErrorPage })),
 );
 const LegalPageModule = () => import("./routes/legal-page");
 const LegalTermsPage = lazy(() =>
@@ -135,6 +144,18 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
+const accountSettingsRoute = createRoute({
+	component: AccountSettingsPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/settings/account",
+});
+
+const accountSecurityRoute = createRoute({
+	component: AccountSecurityPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/settings/security",
+});
+
 const accountFederationConsentRoute = createRoute({
 	component: FederationConsentPage,
 	getParentRoute: () => rootRoute,
@@ -172,6 +193,8 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
+	accountSettingsRoute,
+	accountSecurityRoute,
 	accountFederationConsentRoute,
 	accountFederationErrorRoute,
 	legalTermsRoute,

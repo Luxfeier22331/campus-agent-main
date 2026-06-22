@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/app-api
 status: active
 created: 2026-06-02
-updated: 2026-06-09
+updated: 2026-06-22
 ---
 # Identity Platform Architecture
 
@@ -80,8 +80,8 @@ Identity Platform product contracts remain stable or are explicitly versioned.
 `apps/campus-web` owns only browser product experience:
 
 - student campus experience shell
-- account center shell
-- auth forms
+- account route shell and route composition
+- Better Auth UI provider wiring, localization and minimal app-specific legal gate
 - signed-in continuity
 - return-target handling
 
@@ -246,10 +246,17 @@ Current implemented truth:
   `/api/me/identity`, `/api/me/access`, `/api/me/preferences`, selected
   `/api/auth/*` seams and explicit federation seams to `apps/app-api`; it does
   not expose a generic `/api/*` proxy or federation admin surface.
-- `apps/campus-web/src/app/router.tsx` currently owns `/`, `/account` and
-  auth action routes. The account page consumes account-center projections
-  rather than Better Auth raw payload: overview for the account shell plus
-  scoped identity, access and preferences projections for section-level states.
+- `apps/campus-web/src/app/router.tsx` currently owns `/`, `/account`,
+  `/account/login`, `/account/register`, `/account/forgot-password`,
+  `/account/reset-password`, `/account/settings/account` and
+  `/account/settings/security`. Auth and account settings UI are composed from
+  `better-auth-ui` (`AuthView`, `AccountView`, `UserButton`) with campus-owned
+  route wiring, localization, Turnstile runtime config and non-persistent
+  registration legal gate.
+- Campus identity/access/preferences product projections remain owned by
+  `apps/app-api` (`/api/me/*`). They are not implemented as custom
+  `campus-web` auth/settings components and are not sourced from raw Better
+  Auth rows.
 - `apps/app-api/src/db/schema/profile.ts` and `docs/data/app-api-schema.md`
   currently own profile memory durable truth under `profile.*`.
 

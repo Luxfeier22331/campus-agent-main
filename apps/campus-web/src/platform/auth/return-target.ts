@@ -37,7 +37,7 @@ export function resolveAccountAuthReturnTarget(
 	} = {},
 ): string {
 	const params = typeof search === "string" ? new URLSearchParams(search) : search;
-	const returnTo = params.get("return_to")?.trim();
+	const returnTo = params.get("redirectTo")?.trim();
 	if (!returnTo) {
 		return DEFAULT_RETURN_TARGET;
 	}

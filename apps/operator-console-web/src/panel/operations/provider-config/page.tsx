@@ -1,8 +1,25 @@
+import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { CheckCircle2, KeyRound, Pencil, ShieldCheck, XCircle } from "lucide-react";
 import { useState } from "react";
+import { Controller, useForm } from "react-hook-form";
+import { z } from "zod";
 import { getPanelErrorMessage } from "../../panel-error";
 import { Alert } from "../../ui/alert";
+import { Button } from "../../ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "../../ui/card";
+import { Field, FieldError, FieldLabel } from "../../ui/field";
+import { Input } from "../../ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../ui/select";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableContainer,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "../../ui/table";
 import {
 	activateProviderConfigProfile,
 	createProviderConfigProfile,
@@ -55,6 +72,15 @@ interface ProviderConfigFormState {
 	timeoutMs: string;
 }
 
+const providerConfigFormSchema = z.object({
+	apiKey: z.string(),
+	baseUrl: z.string().url("请输入有效的服务端点。"),
+	dimensions: z.string().regex(/^\d+$/, "请输入数字。"),
+	model: z.string().min(1, "请输入模型名称。"),
+	role: z.enum(["primary_agent", "rag_synthesis", "rag_query_embedding", "index_embedding"]),
+	timeoutMs: z.string().regex(/^\d+$/, "请输入数字。"),
+});
+
 function initialProviderConfigForm(): ProviderConfigFormState {
 	return {
 		apiKey: "",
@@ -69,11 +95,14 @@ function initialProviderConfigForm(): ProviderConfigFormState {
 export function ProviderConfigPage() {
 	const queryClient = useQueryClient();
 	const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-	const [form, setForm] = useState<ProviderConfigFormState>(initialProviderConfigForm);
 	const [formError, setFormError] = useState<string | null>(null);
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [validatingProfileId, setValidatingProfileId] = useState<string | null>(null);
 	const [activatingProfileId, setActivatingProfileId] = useState<string | null>(null);
+	const form = useForm<ProviderConfigFormState>({
+		defaultValues: initialProviderConfigForm(),
+		resolver: zodResolver(providerConfigFormSchema),
+	});
 	const profilesQuery = useQuery({
 		queryFn: ({ signal }) => listProviderConfigProfiles({ signal }),
 		queryKey: ["provider-config", "profiles"],
@@ -87,7 +116,7 @@ export function ProviderConfigPage() {
 			setFormError(getPanelErrorMessage(error, "保存配置失败。"));
 		},
 		onSuccess: () => {
-			setForm(initialProviderConfigForm());
+			form.reset(initialProviderConfigForm());
 			setFormError(null);
 			invalidateProfiles();
 		},
@@ -100,7 +129,7 @@ export function ProviderConfigPage() {
 		},
 		onSuccess: () => {
 			setEditingProfileId(null);
-			setForm(initialProviderConfigForm());
+			form.reset(initialProviderConfigForm());
 			setFormError(null);
 			invalidateProfiles();
 		},
@@ -133,262 +162,265 @@ export function ProviderConfigPage() {
 			invalidateProfiles();
 		},
 	});
-	const selectedKind = kindForRole(form.role);
+	const selectedRole = form.watch("role");
+	const selectedKind = kindForRole(selectedRole);
 	const isEditing = editingProfileId !== null;
-	const missingRequiredApiKey = !(isEditing || form.apiKey.trim());
+	const missingRequiredApiKey = !(isEditing || form.watch("apiKey").trim());
 	const profiles = sortProfiles(profilesQuery.data?.profiles ?? []);
 
 	return (
 		<section className="space-y-4">
-			<div className="ops-panel p-5">
-				<p className="ops-eyebrow">模型服务配置</p>
-				<h2 className="ops-title">OpenAI-compatible 模型端点</h2>
-				<p className="mt-2 text-slate-600 text-sm">
-					配置 OpenAI-compatible 生成模型和向量模型端点。
-				</p>
-				<form
-					className="mt-4 grid gap-3 lg:grid-cols-3"
-					onSubmit={(event) => {
-						event.preventDefault();
-						setFormError(null);
-						if (editingProfileId) {
-							updateMutation.mutate({
-								payload: buildUpdatePayload(form),
-								profileId: editingProfileId,
-							});
-							return;
-						}
-						createMutation.mutate(buildCreatePayload(form));
-					}}
-				>
-					<label className="ops-field">
-						<span>使用位置</span>
-						<select
-							disabled={isEditing}
-							value={form.role}
-							onChange={(event) =>
-								setForm((current) => ({
-									...current,
-									role: event.target.value as ProviderConfigRole,
-								}))
+			<Card>
+				<CardHeader>
+					<p className="font-semibold text-slate-500 text-xs uppercase">模型服务配置</p>
+					<CardTitle>OpenAI-compatible 模型端点</CardTitle>
+					<CardDescription>配置 OpenAI-compatible 生成模型和向量模型端点。</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form
+						className="grid gap-3 lg:grid-cols-3"
+						onSubmit={form.handleSubmit((values) => {
+							setFormError(null);
+							if (editingProfileId) {
+								updateMutation.mutate({
+									payload: buildUpdatePayload(values),
+									profileId: editingProfileId,
+								});
+								return;
 							}
-						>
-							{ROLE_OPTIONS.map((option) => (
-								<option key={option.role} value={option.role}>
-									{ROLE_LABEL[option.role]}
-								</option>
-							))}
-						</select>
-					</label>
-					<label className="ops-field">
-						<span>模型名称</span>
-						<input
-							value={form.model}
-							onChange={(event) =>
-								setForm((current) => ({ ...current, model: event.target.value }))
-							}
+							createMutation.mutate(buildCreatePayload(values));
+						})}
+					>
+						<Controller
+							control={form.control}
+							name="role"
+							render={({ field }) => (
+								<Field>
+									<FieldLabel htmlFor="provider-role">使用位置</FieldLabel>
+									<Select disabled={isEditing} onValueChange={field.onChange} value={field.value}>
+										<SelectTrigger id="provider-role">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{ROLE_OPTIONS.map((option) => (
+												<SelectItem key={option.role} value={option.role}>
+													{ROLE_LABEL[option.role]}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
 						/>
-					</label>
-					<label className="ops-field">
-						<span>服务端点</span>
-						<input
-							value={form.baseUrl}
-							onChange={(event) =>
-								setForm((current) => ({ ...current, baseUrl: event.target.value }))
-							}
-						/>
-					</label>
-					<label className="ops-field">
-						<span>密钥</span>
-						<input
-							autoComplete="off"
-							type="password"
-							value={form.apiKey}
-							placeholder={isEditing ? "留空保留现有密钥" : undefined}
-							onChange={(event) =>
-								setForm((current) => ({ ...current, apiKey: event.target.value }))
-							}
-						/>
-					</label>
-					<label className="ops-field">
-						<span>超时时间</span>
-						<input
-							inputMode="numeric"
-							value={form.timeoutMs}
-							onChange={(event) =>
-								setForm((current) => ({ ...current, timeoutMs: event.target.value }))
-							}
-						/>
-					</label>
-					<label className="ops-field">
-						<span>向量维度</span>
-						<input
-							disabled={selectedKind === "prompt"}
-							inputMode="numeric"
-							value={selectedKind === "prompt" ? "" : form.dimensions}
-							onChange={(event) =>
-								setForm((current) => ({ ...current, dimensions: event.target.value }))
-							}
-						/>
-						{selectedKind === "prompt" ? (
-							<span className="mt-1 text-slate-500 text-xs">生成模型不需要向量维度</span>
-						) : null}
-					</label>
-					<div className="lg:col-span-3">
-						<button
-							className="ops-primary-button"
-							disabled={
-								createMutation.isPending ||
-								updateMutation.isPending ||
-								missingRequiredApiKey ||
-								!form.model.trim()
-							}
-							type="submit"
-						>
-							<KeyRound aria-hidden="true" className="size-4" />
-							{isEditing ? "保存修改" : "保存配置"}
-						</button>
-						{isEditing ? (
-							<button
-								className="ops-secondary-button ml-2"
-								disabled={updateMutation.isPending}
-								onClick={() => {
-									setEditingProfileId(null);
-									setForm(initialProviderConfigForm());
-									setFormError(null);
-								}}
-								type="button"
+						<Field>
+							<FieldLabel htmlFor="provider-model">模型名称</FieldLabel>
+							<Input id="provider-model" {...form.register("model")} />
+							{form.formState.errors.model ? (
+								<FieldError>{form.formState.errors.model.message}</FieldError>
+							) : null}
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="provider-base-url">服务端点</FieldLabel>
+							<Input id="provider-base-url" {...form.register("baseUrl")} />
+							{form.formState.errors.baseUrl ? (
+								<FieldError>{form.formState.errors.baseUrl.message}</FieldError>
+							) : null}
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="provider-api-key">密钥</FieldLabel>
+							<Input
+								autoComplete="off"
+								id="provider-api-key"
+								placeholder={isEditing ? "留空保留现有密钥" : undefined}
+								type="password"
+								{...form.register("apiKey")}
+							/>
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="provider-timeout">超时时间</FieldLabel>
+							<Input id="provider-timeout" inputMode="numeric" {...form.register("timeoutMs")} />
+							{form.formState.errors.timeoutMs ? (
+								<FieldError>{form.formState.errors.timeoutMs.message}</FieldError>
+							) : null}
+						</Field>
+						<Field>
+							<FieldLabel htmlFor="provider-dimensions">向量维度</FieldLabel>
+							<Input
+								disabled={selectedKind === "prompt"}
+								id="provider-dimensions"
+								inputMode="numeric"
+								{...form.register("dimensions")}
+								value={selectedKind === "prompt" ? "" : form.watch("dimensions")}
+							/>
+							{selectedKind === "prompt" ? (
+								<span className="mt-1 text-slate-500 text-xs">生成模型不需要向量维度</span>
+							) : null}
+							{selectedKind === "embedding" && form.formState.errors.dimensions ? (
+								<FieldError>{form.formState.errors.dimensions.message}</FieldError>
+							) : null}
+						</Field>
+						<div className="lg:col-span-3">
+							<Button
+								disabled={
+									createMutation.isPending ||
+									updateMutation.isPending ||
+									missingRequiredApiKey ||
+									!form.watch("model").trim()
+								}
+								type="submit"
+								variant="primary"
 							>
-								<XCircle aria-hidden="true" className="size-4" />
-								取消编辑
-							</button>
+								<KeyRound aria-hidden="true" className="size-4" />
+								{isEditing ? "保存修改" : "保存配置"}
+							</Button>
+							{isEditing ? (
+								<Button
+									className="ml-2"
+									disabled={updateMutation.isPending}
+									onClick={() => {
+										setEditingProfileId(null);
+										form.reset(initialProviderConfigForm());
+										setFormError(null);
+									}}
+									type="button"
+									variant="secondary"
+								>
+									<XCircle aria-hidden="true" className="size-4" />
+									取消编辑
+								</Button>
+							) : null}
+						</div>
+						{formError ? (
+							<Alert className="lg:col-span-3" tone="danger">
+								{formError}
+							</Alert>
 						) : null}
-					</div>
-					{formError ? (
-						<Alert className="lg:col-span-3" tone="danger">
-							{formError}
-						</Alert>
-					) : null}
-				</form>
-			</div>
+					</form>
+				</CardContent>
+			</Card>
 
-			<section className="ops-panel overflow-hidden">
-				<div className="border-slate-200 border-b p-4">
-					<p className="ops-eyebrow">配置档案</p>
-					<h3 className="font-bold text-slate-800">运行配置档案</h3>
-				</div>
-				<div className="overflow-x-auto">
-					<table className="ops-table">
-						<thead>
-							<tr>
-								<th>使用位置</th>
-								<th>类型</th>
-								<th>状态</th>
-								<th>模型名称</th>
-								<th>服务端点</th>
-								<th>密钥</th>
-								<th>校验</th>
-								<th>操作</th>
-							</tr>
-						</thead>
-						<tbody>
-							{profiles.map((profile) => {
-								const isValidating = validatingProfileId === profile.profileId;
-								const isActivating = activatingProfileId === profile.profileId;
-								return (
-									<tr key={profile.profileId}>
-										<td>{ROLE_LABEL[profile.role]}</td>
-										<td>{KIND_LABEL[profile.kind]}</td>
-										<td>
-											<span className="inline-flex items-center gap-1">
-												{profile.active ? (
-													<CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />
-												) : null}
-												{STATUS_LABEL[profile.status]}
-											</span>
-										</td>
-										<td className="font-mono text-xs">{profile.model}</td>
-										<td className="font-mono text-xs">{profile.baseUrl}</td>
-										<td className="font-mono text-xs">****{profile.secretLast4}</td>
-										<td>
-											<div className="space-y-2">
-												{profile.validation?.ok === true ? (
-													<span className="inline-flex items-center gap-1 text-emerald-700">
+			<Card className="overflow-hidden">
+				<CardHeader>
+					<p className="font-semibold text-slate-500 text-xs uppercase">配置档案</p>
+					<CardTitle>运行配置档案</CardTitle>
+				</CardHeader>
+				<CardContent className="p-0">
+					<TableContainer className="rounded-none border-0 border-t">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>使用位置</TableHead>
+									<TableHead>类型</TableHead>
+									<TableHead>状态</TableHead>
+									<TableHead>模型名称</TableHead>
+									<TableHead>服务端点</TableHead>
+									<TableHead>密钥</TableHead>
+									<TableHead>校验</TableHead>
+									<TableHead>操作</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{profiles.map((profile) => {
+									const isValidating = validatingProfileId === profile.profileId;
+									const isActivating = activatingProfileId === profile.profileId;
+									return (
+										<TableRow key={profile.profileId}>
+											<TableCell>{ROLE_LABEL[profile.role]}</TableCell>
+											<TableCell>{KIND_LABEL[profile.kind]}</TableCell>
+											<TableCell>
+												<span className="inline-flex items-center gap-1">
+													{profile.active ? (
+														<CheckCircle2 aria-hidden="true" className="size-4 text-emerald-600" />
+													) : null}
+													{STATUS_LABEL[profile.status]}
+												</span>
+											</TableCell>
+											<TableCell className="font-mono text-xs">{profile.model}</TableCell>
+											<TableCell className="font-mono text-xs">{profile.baseUrl}</TableCell>
+											<TableCell className="font-mono text-xs">****{profile.secretLast4}</TableCell>
+											<TableCell>
+												<div className="space-y-2">
+													{profile.validation?.ok === true ? (
+														<span className="inline-flex items-center gap-1 text-emerald-700">
+															<ShieldCheck aria-hidden="true" className="size-4" />
+															通过
+														</span>
+													) : profile.validation ? (
+														<span className="inline-flex items-center gap-1 text-red-700">
+															<XCircle aria-hidden="true" className="size-4" />
+															{profile.validation.errorCode ?? "失败"}
+														</span>
+													) : (
+														"未校验"
+													)}
+													{rowErrors[profile.profileId] ? (
+														<Alert className="px-3 py-2" tone="danger">
+															{rowErrors[profile.profileId]}
+														</Alert>
+													) : null}
+												</div>
+											</TableCell>
+											<TableCell>
+												<div className="flex flex-wrap gap-2">
+													<Button
+														disabled={profile.active || updateMutation.isPending}
+														onClick={() => {
+															setEditingProfileId(profile.profileId);
+															form.reset(formFromProfile(profile));
+															setFormError(null);
+														}}
+														size="sm"
+														type="button"
+														variant="secondary"
+													>
+														<Pencil aria-hidden="true" className="size-4" />
+														编辑
+													</Button>
+													<Button
+														disabled={isValidating}
+														onClick={() => {
+															setValidatingProfileId(profile.profileId);
+															setRowErrors((current) => omitRecordKey(current, profile.profileId));
+															validateMutation.mutate(profile.profileId);
+														}}
+														size="sm"
+														type="button"
+														variant="secondary"
+													>
 														<ShieldCheck aria-hidden="true" className="size-4" />
-														通过
-													</span>
-												) : profile.validation ? (
-													<span className="inline-flex items-center gap-1 text-red-700">
-														<XCircle aria-hidden="true" className="size-4" />
-														{profile.validation.errorCode ?? "失败"}
-													</span>
-												) : (
-													"未校验"
-												)}
-												{rowErrors[profile.profileId] ? (
-													<Alert className="px-3 py-2" tone="danger">
-														{rowErrors[profile.profileId]}
-													</Alert>
-												) : null}
-											</div>
-										</td>
-										<td>
-											<div className="flex flex-wrap gap-2">
-												<button
-													className="ops-secondary-button"
-													disabled={profile.active || updateMutation.isPending}
-													onClick={() => {
-														setEditingProfileId(profile.profileId);
-														setForm(formFromProfile(profile));
-														setFormError(null);
-													}}
-													type="button"
-												>
-													<Pencil aria-hidden="true" className="size-4" />
-													编辑
-												</button>
-												<button
-													className="ops-secondary-button"
-													disabled={isValidating}
-													onClick={() => {
-														setValidatingProfileId(profile.profileId);
-														setRowErrors((current) => omitRecordKey(current, profile.profileId));
-														validateMutation.mutate(profile.profileId);
-													}}
-													type="button"
-												>
-													<ShieldCheck aria-hidden="true" className="size-4" />
-													{isValidating ? "校验中" : "校验"}
-												</button>
-												<button
-													className="ops-primary-button"
-													disabled={
-														isActivating || profile.active || profile.validation?.ok !== true
-													}
-													onClick={() => {
-														setActivatingProfileId(profile.profileId);
-														setRowErrors((current) => omitRecordKey(current, profile.profileId));
-														activateMutation.mutate(profile.profileId);
-													}}
-													type="button"
-												>
-													<CheckCircle2 aria-hidden="true" className="size-4" />
-													{isActivating ? "启用中" : "启用"}
-												</button>
-											</div>
-										</td>
-									</tr>
-								);
-							})}
-						</tbody>
-					</table>
-				</div>
-				{profilesQuery.data?.profiles.length === 0 ? (
-					<div className="p-6 text-sm text-slate-600">
-						暂无模型服务配置，请先创建主问答生成配置。
-					</div>
-				) : null}
-			</section>
+														{isValidating ? "校验中" : "校验"}
+													</Button>
+													<Button
+														disabled={
+															isActivating || profile.active || profile.validation?.ok !== true
+														}
+														onClick={() => {
+															setActivatingProfileId(profile.profileId);
+															setRowErrors((current) => omitRecordKey(current, profile.profileId));
+															activateMutation.mutate(profile.profileId);
+														}}
+														size="sm"
+														type="button"
+														variant="primary"
+													>
+														<CheckCircle2 aria-hidden="true" className="size-4" />
+														{isActivating ? "启用中" : "启用"}
+													</Button>
+												</div>
+											</TableCell>
+										</TableRow>
+									);
+								})}
+							</TableBody>
+						</Table>
+					</TableContainer>
+					{profilesQuery.data?.profiles.length === 0 ? (
+						<div className="p-6 text-sm text-slate-600">
+							暂无模型服务配置，请先创建主问答生成配置。
+						</div>
+					) : null}
+				</CardContent>
+			</Card>
 		</section>
 	);
 }

@@ -2,18 +2,20 @@ import { Slot } from "@radix-ui/react-slot";
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { cn } from "../lib/cn";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
-type ButtonSize = "sm" | "md" | "icon";
+type ButtonVariant = "primary" | "secondary" | "outline" | "ghost" | "danger";
+type ButtonSize = "sm" | "md" | "icon" | "icon-sm";
 
 const variantClass: Record<ButtonVariant, string> = {
 	danger: "border-transparent bg-red-600 text-white hover:bg-red-700",
 	ghost: "border-transparent bg-transparent text-slate-700 hover:bg-slate-100",
+	outline: "border-slate-300 bg-white text-slate-900 hover:bg-slate-50",
 	primary: "border-transparent bg-slate-950 text-white hover:bg-slate-800",
 	secondary: "border-slate-200 bg-white text-slate-900 hover:bg-slate-50",
 };
 
 const sizeClass: Record<ButtonSize, string> = {
 	icon: "size-10 p-0",
+	"icon-sm": "size-8 p-0",
 	md: "min-h-10 px-4 py-2 text-sm",
 	sm: "min-h-9 px-3 py-1.5 text-sm",
 };

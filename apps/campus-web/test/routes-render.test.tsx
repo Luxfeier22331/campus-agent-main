@@ -8,14 +8,14 @@ import { DiningPage } from "../src/app/routes/dining-page";
 import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
 import { DocsPage } from "../src/app/routes/docs-page";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
+import feedbackPageSource from "../src/app/routes/feedback-page.tsx?raw";
 import { HomePage } from "../src/app/routes/home-page";
 import homePageSource from "../src/app/routes/home-page.tsx?raw";
-import qaAccountEntrySource from "../src/components/conversation/qa-account-entry.tsx?raw";
+import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import supportNavigationSource from "../src/components/conversation/support-navigation.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
-import { UnauthorizedError } from "../src/platform/api/client";
-import { AUTH_RUNTIME_CONFIG_SCRIPT_ID } from "../src/platform/auth/turnstile-runtime-config";
+import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 
@@ -35,23 +35,23 @@ const conversationApiMock = vi.hoisted(() => ({
 	createConversationDraft: vi.fn(),
 	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
-	getSessionPrincipal: vi.fn(),
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
-function installTurnstileRuntimeConfig() {
-	document.body.insertAdjacentHTML(
-		"beforeend",
-		`<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">{"turnstileSiteKey":"test-site-key"}</script>`,
-	);
-}
+vi.mock("@/components/auth/user/user-button", () => ({
+	UserButton: () => (
+		<button aria-label="账号" type="button">
+			账号
+		</button>
+	),
+}));
 
-function openRadixMenu(trigger: HTMLElement) {
-	fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
-}
+vi.mock("@/components/auth/auth-ui-provider", () => ({
+	CampusAuthUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+}));
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -88,7 +88,6 @@ vi.mock("../src/features/conversation/api", () => ({
 	createConversationDraft: conversationApiMock.createConversationDraft,
 	deleteConversation: conversationApiMock.deleteConversation,
 	getConversationDetail: conversationApiMock.getConversationDetail,
-	getSessionPrincipal: conversationApiMock.getSessionPrincipal,
 	listConversations: conversationApiMock.listConversations,
 	renameConversation: conversationApiMock.renameConversation,
 	unarchiveConversation: conversationApiMock.unarchiveConversation,
@@ -101,24 +100,6 @@ vi.mock("../src/features/dining/api", () => diningApiMock);
 
 describe("campus routes", () => {
 	beforeEach(() => {
-		document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID)?.remove();
-		conversationApiMock.getSessionPrincipal.mockReset();
-		conversationApiMock.getSessionPrincipal.mockResolvedValue({
-			permissions: {
-				chat: true,
-				operator: false,
-			},
-			principal: {
-				displayName: "测试用户",
-				email: "user@muc.edu.cn",
-				principalId: "principal_01",
-				type: "campus_member",
-			},
-			session: {
-				expiresAt: "2026-06-09T12:00:00.000Z",
-				sessionId: "session_01",
-			},
-		});
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
 		docsApiMock.getDocsNavigation.mockReset();
@@ -236,20 +217,7 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByRole("textbox", { name: "输入校园问题" })).toBeInTheDocument();
-		expect(await screen.findByText("测试用户")).toBeInTheDocument();
-		expect(screen.getByText("user@muc.edu.cn")).toBeInTheDocument();
-		expect(screen.queryByRole("menu", { name: "账号" })).toBeNull();
-		openRadixMenu(screen.getByRole("button", { name: "测试用户 user@muc.edu.cn" }));
-		expect(screen.getByRole("menu")).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "账号设置" })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "个性化" })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "帮助与反馈" })).toHaveAttribute(
-			"href",
-			"/feedback",
-		);
-		expect(screen.getByRole("menuitem", { name: "退出登录" })).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("menuitem", { name: "账号设置" }));
-		expect(await screen.findByRole("dialog", { name: "账号设置" })).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
 		expect(screen.queryByText("食堂")).toBeNull();
@@ -277,19 +245,12 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(qaAccountEntrySource).not.toContain("rounded-full bg-[var(--sys-brand-identity)]");
-		expect(qaAccountEntrySource).not.toContain(">民<");
-		expect(qaAccountEntrySource).toContain("UserRound");
-		expect(qaAccountEntrySource).toContain("DropdownMenuContent");
-		expect(qaAccountEntrySource).not.toContain('role="menu"');
-		expect(qaAccountEntrySource).toContain("ChevronUp");
-		expect(qaAccountEntrySource).not.toContain("关闭账号面板");
-		expect(qaAccountEntrySource).toContain("const accountEntryButtonClass");
-		expect(qaAccountEntrySource).toContain("const accountMenuItemClass");
-		expect(qaAccountEntrySource).toContain("className={accountMenuItemClass}");
-		expect(qaAccountEntrySource).toContain("accountMenuItemClass,");
 		expect(supportNavigationSource).toContain("饭堂分布图");
 		expect(qaShellSource).toContain("ThreadList");
+		expect(qaShellSource).toContain("@/components/auth/user/user-button");
+		expect(qaShellSource).not.toContain("AccountLoginDialog");
+		expect(qaShellSource).not.toContain("QAAccountEntry");
+		expect(qaShellSource).not.toContain("getSessionPrincipal");
 		expect(qaShellSource).not.toContain("const railActionClass");
 		expect(qaShellSource).not.toContain("const railActionIconClass");
 		expect(qaShellSource).not.toContain("const railActionShortcutClass");
@@ -301,27 +262,23 @@ describe("campus routes", () => {
 		expect(rootLayoutSource).not.toContain("移动端主导航");
 	});
 
-	it("closes the account menu through Radix dismissal", async () => {
-		render(<HomePage />);
-
-		const accountButton = await screen.findByRole("button", {
-			name: "测试用户 user@muc.edu.cn",
-		});
-		openRadixMenu(accountButton);
-
-		expect(screen.getByRole("menu")).toBeInTheDocument();
-		fireEvent.keyDown(document, { key: "Escape" });
-		await waitFor(() => {
-			expect(screen.queryByRole("menu")).toBeNull();
-		});
+	it("keeps product pages on mature UI primitives instead of bespoke controls", () => {
+		expect(feedbackPageSource).toContain("react-hook-form");
+		expect(feedbackPageSource).toContain("zod");
+		expect(feedbackPageSource).not.toContain("<select");
+		expect(feedbackPageSource).not.toContain('type="submit"');
+		expect(authSource).not.toContain("<input");
+		expect(diningPageSource).not.toContain('role="tablist"');
+		expect(mapExperienceSource).not.toContain("handleSearchKeyDown");
+		expect(mapExperienceSource).not.toContain('role="dialog"');
+		expect(mapExperienceSource).toContain("@/components/ui/command");
+		expect(mapExperienceSource).toContain("@/components/ui/popover");
 	});
 
 	it("separates the account entry from the conversation history area", async () => {
 		render(<HomePage />);
 
-		expect(
-			await screen.findByRole("button", { name: "测试用户 user@muc.edu.cn" }),
-		).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
 
@@ -335,42 +292,7 @@ describe("campus routes", () => {
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 	});
 
-	it("opens the same inline login dialog from the signed-out account menu", async () => {
-		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
-		installTurnstileRuntimeConfig();
-		render(<HomePage />);
-
-		openRadixMenu(await screen.findByRole("button", { name: "登录" }));
-		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
-
-		const dialog = await screen.findByRole("dialog", { name: "登录" });
-		expect(dialog).toBeInTheDocument();
-		expect(screen.getByText("登录后可继续提问，并保留聊天记录。")).toBeInTheDocument();
-		expect(screen.getByLabelText("邮箱地址")).toBeInTheDocument();
-		expect(screen.getByLabelText("密码")).toBeInTheDocument();
-		expect(within(dialog).getByRole("button", { name: "登录" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "忘记密码" })).toHaveAttribute(
-			"href",
-			"/account/forgot-password",
-		);
-		expect(screen.getByText("没有账号？")).toBeInTheDocument();
-		expect(screen.queryByText("正在准备安全验证。")).toBeNull();
-		expect(screen.queryByText("正在进行安全验证。")).toBeNull();
-		expect(screen.queryByText("登录后可以继续提问，并保留聊天记录。")).toBeNull();
-		expect(within(dialog).queryByRole("button", { name: "继续" })).toBeNull();
-		expect(within(dialog).queryByRole("button", { name: "登录并继续" })).toBeNull();
-		expect(screen.queryByText("登录后继续提问。")).toBeNull();
-		expect(screen.queryByText("登录或创建账号")).toBeNull();
-		expect(screen.queryByText("输入密码")).toBeNull();
-		expect(screen.queryByRole("button", { name: "更换邮箱" })).toBeNull();
-		expect(screen.getByRole("link", { name: "创建账号" })).toHaveAttribute(
-			"href",
-			"/account/register",
-		);
-	});
-
 	it("keeps the mobile thread list scoped to conversation history", async () => {
-		conversationApiMock.getSessionPrincipal.mockRejectedValue(new UnauthorizedError());
 		render(<HomePage />);
 
 		fireEvent.click(screen.getByRole("button", { name: "打开聊天记录" }));
@@ -405,22 +327,6 @@ describe("campus routes", () => {
 		render(<RootLayout />);
 
 		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
-	});
-
-	it("renders the account menu as same-context login actions when signed out", async () => {
-		conversationApiMock.getSessionPrincipal.mockRejectedValue(new Error("unauthorized"));
-		render(<HomePage />);
-
-		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
-		openRadixMenu(screen.getByRole("button", { name: "账号" }));
-
-		expect(screen.getByRole("menu", { name: "账号" })).toBeInTheDocument();
-		expect(screen.getByRole("menuitem", { name: "登录" })).not.toHaveAttribute("href");
-		expect(screen.getByRole("menuitem", { name: "创建账号" })).toHaveAttribute(
-			"href",
-			"/account/register",
-		);
-		expect(screen.queryByRole("menuitem", { name: "账号设置" })).toBeNull();
 	});
 
 	it("renders global feedback form", () => {

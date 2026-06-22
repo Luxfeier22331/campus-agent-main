@@ -6,6 +6,7 @@
 	"description": "Cloudflare Worker runtime shell for the Operator Console web surface.",
 	"packageManager": "pnpm@10.26.1",
 	"dependencies": {
+		"@hookform/resolvers": "^5.4.0",
 		"@radix-ui/react-slot": "^1.2.4",
 		"@sentry/cloudflare": "^10.46.0",
 		"@tanstack/react-query": "^5.90.5",
@@ -13,10 +14,13 @@
 		"clsx": "^2.1.1",
 		"jose": "^6.0.10",
 		"lucide-react": "^1.7.0",
+		"radix-ui": "^1.6.0",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0",
+		"react-hook-form": "^7.80.0",
 		"react-router-dom": "^7.1.3",
-		"tailwind-merge": "^3.5.0"
+		"tailwind-merge": "^3.5.0",
+		"zod": "^4.4.3"
 	},
 	"scripts": {
 		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",

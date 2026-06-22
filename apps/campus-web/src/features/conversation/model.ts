@@ -1,20 +1,3 @@
-export interface SessionPrincipal {
-	permissions: {
-		chat: boolean;
-		operator: boolean;
-	};
-	principal: {
-		displayName: string;
-		email: string | null;
-		principalId: string;
-		type: "campus_member" | "faculty" | "operator" | "staff" | "student";
-	};
-	session: {
-		expiresAt: string;
-		sessionId: string;
-	} | null;
-}
-
 export type ChatMessageKind = "answer" | "clarification" | "error" | "no_answer";
 
 export interface SourceItemPayload {

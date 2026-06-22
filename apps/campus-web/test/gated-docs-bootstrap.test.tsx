@@ -31,7 +31,7 @@ describe("gated docs bootstrap", () => {
 		expect(`${loginHref.origin}${loginHref.pathname}`).toBe(
 			"https://campus.muc.wiki/account/login",
 		);
-		expect(loginHref.searchParams.get("return_to")).toBe(
+		expect(loginHref.searchParams.get("redirectTo")).toBe(
 			"http://localhost:3000/docs/regulations/scoped_rules/restricted-policy",
 		);
 	});

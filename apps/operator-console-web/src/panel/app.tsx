@@ -1,6 +1,6 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { ClipboardList, KeyRound, LogOut, Menu, RefreshCw, X } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ClipboardList, KeyRound, LogOut, Menu, RefreshCw } from "lucide-react";
+import type { ReactNode } from "react";
 import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
 import { getRequestList } from "./data-provider/requests";
@@ -17,7 +17,16 @@ import { Alert } from "./ui/alert";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
-import { Table, TableWrap, Td, Th } from "./ui/table";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "./ui/sheet";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableContainer,
+	TableHead,
+	TableHeader,
+	TableRow,
+} from "./ui/table";
 
 const queryClient = new QueryClient({
 	defaultOptions: {
@@ -50,7 +59,6 @@ export function OperatorConsoleAdminApp() {
 }
 
 function OperatorConsoleShell({ children }: { children: ReactNode }) {
-	const [navOpen, setNavOpen] = useState(false);
 	const overviewQuery = useQuery({
 		queryFn: ({ signal }) => getPanelOverview({ signal }),
 		queryKey: ["panel-overview"],
@@ -63,15 +71,15 @@ function OperatorConsoleShell({ children }: { children: ReactNode }) {
 		<div className="min-h-dvh bg-slate-100 text-slate-950">
 			<header className="sticky top-0 z-30 border-slate-200 border-b bg-white">
 				<div className="flex min-h-14 items-center gap-3 px-4">
-					<Button
-						aria-label={navOpen ? "关闭导航" : "打开导航"}
-						className="lg:hidden"
-						onClick={() => setNavOpen((current) => !current)}
-						size="icon"
-						variant="ghost"
-					>
-						{navOpen ? <X className="size-5" /> : <Menu className="size-5" />}
-					</Button>
+					<Sheet>
+						<DialogSheetTrigger />
+						<SheetContent className="lg:hidden">
+							<SheetHeader>
+								<SheetTitle>运维导航</SheetTitle>
+							</SheetHeader>
+							<OperatorNav />
+						</SheetContent>
+					</Sheet>
 					<div className="min-w-0 flex-1">
 						<p className="truncate font-semibold">校园助理运维工作台</p>
 					</div>
@@ -97,13 +105,8 @@ function OperatorConsoleShell({ children }: { children: ReactNode }) {
 				</div>
 			</header>
 			<div className="flex">
-				<aside
-					className={[
-						"fixed inset-y-14 left-0 z-20 w-64 border-slate-200 border-r bg-white p-3 transition-transform lg:sticky lg:top-14 lg:block lg:h-[calc(100dvh-3.5rem)] lg:translate-x-0",
-						navOpen ? "translate-x-0" : "-translate-x-full",
-					].join(" ")}
-				>
-					<OperatorNav onNavigate={() => setNavOpen(false)} />
+				<aside className="sticky top-14 hidden h-[calc(100dvh-3.5rem)] w-64 border-slate-200 border-r bg-white p-3 lg:block">
+					<OperatorNav />
 				</aside>
 				<main className="min-w-0 flex-1 p-4 lg:p-6">{children}</main>
 			</div>
@@ -111,7 +114,17 @@ function OperatorConsoleShell({ children }: { children: ReactNode }) {
 	);
 }
 
-function OperatorNav({ onNavigate }: { onNavigate(): void }) {
+function DialogSheetTrigger() {
+	return (
+		<SheetTrigger asChild>
+			<Button aria-label="打开导航" className="lg:hidden" size="icon" variant="ghost">
+				<Menu className="size-5" />
+			</Button>
+		</SheetTrigger>
+	);
+}
+
+function OperatorNav() {
 	const location = useLocation();
 	return (
 		<nav aria-label="运维导航" className="grid gap-1">
@@ -127,7 +140,6 @@ function OperatorNav({ onNavigate }: { onNavigate(): void }) {
 								: "text-slate-700 hover:bg-slate-100",
 						].join(" ")}
 						key={item.to}
-						onClick={onNavigate}
 						to={item.to}
 					>
 						<Icon aria-hidden="true" className="size-4" />
@@ -253,46 +265,46 @@ function RequestsPage() {
 					</CardHeader>
 					<CardContent>
 						{requests.error ? <QueryError error={requests.error} /> : null}
-						<TableWrap>
+						<TableContainer>
 							<Table>
-								<thead>
-									<tr>
-										<Th>问题</Th>
-										<Th>状态</Th>
-										<Th>接入面</Th>
-										<Th>目标</Th>
-										<Th>更新时间</Th>
-									</tr>
-								</thead>
-								<tbody>
+								<TableHeader>
+									<TableRow>
+										<TableHead>问题</TableHead>
+										<TableHead>状态</TableHead>
+										<TableHead>接入面</TableHead>
+										<TableHead>目标</TableHead>
+										<TableHead>更新时间</TableHead>
+									</TableRow>
+								</TableHeader>
+								<TableBody>
 									{requests.data?.data.map((request) => (
-										<tr key={request.requestId}>
-											<Td className="max-w-[420px]">
+										<TableRow key={request.requestId}>
+											<TableCell className="max-w-[420px]">
 												<p className="line-clamp-2 font-medium">{request.questionPreview}</p>
 												<p className="text-slate-500 text-xs">{request.requestId}</p>
-											</Td>
-											<Td>
+											</TableCell>
+											<TableCell>
 												<Badge tone={request.status === "completed" ? "success" : "warning"}>
 													{request.status}
 												</Badge>
-											</Td>
-											<Td>{request.surface}</Td>
-											<Td>
+											</TableCell>
+											<TableCell>{request.surface}</TableCell>
+											<TableCell>
 												{request.selectedCapability || request.requestedCapability || "未指定"}
-											</Td>
-											<Td>{formatPanelTimestamp(request.projectedAt)}</Td>
-										</tr>
+											</TableCell>
+											<TableCell>{formatPanelTimestamp(request.projectedAt)}</TableCell>
+										</TableRow>
 									))}
 									{requests.data?.data.length === 0 ? (
-										<tr>
-											<Td className="text-slate-500" colSpan={5}>
+										<TableRow>
+											<TableCell className="text-slate-500" colSpan={5}>
 												当前没有请求记录。
-											</Td>
-										</tr>
+											</TableCell>
+										</TableRow>
 									) : null}
-								</tbody>
+								</TableBody>
 							</Table>
-						</TableWrap>
+						</TableContainer>
 					</CardContent>
 				</Card>
 			</div>

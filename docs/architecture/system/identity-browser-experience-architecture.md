@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: apps/campus-web
 status: active
 created: 2026-06-02
-updated: 2026-06-09
+updated: 2026-06-22
 ---
 # Identity Browser Experience Architecture
 
@@ -16,6 +16,7 @@ updated: 2026-06-09
 
 - `campus-web` account center 应消费什么 product projection
 - `campus-web` 拥有哪些 account browser shell responsibility
+- account browser UI 哪些部分由 Better Auth UI / shadcn 组件承接
 - browser shell 不应拥有哪些 auth、identity、access 或 federation truth
 
 本文不定义 app-api canonical identity schema，不定义 Better Auth runtime config，
@@ -31,27 +32,38 @@ updated: 2026-06-09
 - `/account/register`
 - `/account/forgot-password`
 - `/account/reset-password`
+- `/account/settings/account`
+- `/account/settings/security`
 - `/account/federation/consent`
 - `/account/federation/error`
 - same-origin allowlisted app-api seams for `/api/me/*`, selected `/api/auth/*`
   and implemented `/api/federation/*`
 
+Account browser UI 当前形态：
+
+- `/account/login`、`/account/register`、`/account/forgot-password` 和
+  `/account/reset-password` 由 `better-auth-ui` 的 `AuthView` 承接
+- `/account`、`/account/settings/account` 和 `/account/settings/security` 由
+  `better-auth-ui` 的 `AccountView` 承接
+- Q&A 顶栏账号入口由 `better-auth-ui` 的 `UserButton` 承接
+- `campus-web` 只保留 route composition、中文文案、Turnstile runtime config、
+  return target 和注册前用户协议 / 隐私政策勾选 gate
+- 账号 surface 的通用按钮、卡片、勾选框与弹层 primitive 通过 shadcn/Radix
+  wrappers 承接；`campus-web` 不再维护第二套账号表单、登录弹窗或账号设置产品组件
+
 ## Target Account Center IA
 
-目标 account center 固定为 Identity Platform projection consumer。
+目标 account center 固定为 auth runtime UI + Identity Platform projection
+consumer 的组合，而不是 `campus-web` 自研账号产品组件。
 
-Recommended route shape:
+Current route shape:
 
 - `/account`
-  - account overview
-- `/account/identity`
-  - campus identity and verification state
-- `/account/access`
-  - available apps, permissions and entitlement summary
-- `/account/preferences`
-  - profile memory and user preferences
-- `/account/security`
-  - password, sessions and sign-out actions
+  - account settings landing
+- `/account/settings/account`
+  - account profile settings
+- `/account/settings/security`
+  - password and session security settings
 
 Existing auth action routes remain:
 
@@ -60,13 +72,15 @@ Existing auth action routes remain:
 - `/account/forgot-password`
 - `/account/reset-password`
 
-Implementation may stage these pages, but the IA must not collapse
-identity/access/preferences into a raw session object.
+If the product later needs campus identity, access or preferences views, those
+sections must be added as separate product projection pages. They must not be
+implemented by expanding Better Auth UI raw session payloads, and they must not
+reintroduce a second self-built auth/settings UI.
 
 ## Product Projection
 
-Target account pages should consume `apps/app-api` product projections,
-starting with:
+Campus identity/access/preferences product pages, when implemented, consume
+`apps/app-api` product projections:
 
 - `GET /api/me/overview` for the account shell and session/federation summary
 - `GET /api/me/identity` for the identity section
@@ -74,10 +88,10 @@ starting with:
 - `GET /api/me/preferences` and `PATCH /api/me/preferences` for preference
   read/write state
 
-The browser shell should not call Better Auth internals directly for account
-overview state. Better Auth client calls
-remain acceptable for auth actions such as sign-in, sign-up, password reset and
-sign-out.
+Auth/settings UI may call Better Auth client APIs through `better-auth-ui` for
+auth runtime actions such as sign-in, sign-up, password reset, sign-out,
+password change and session management. Product identity/access/preference truth
+still belongs to `apps/app-api` projections.
 
 ## Signed-In Continuity
 
@@ -97,8 +111,8 @@ browser-shell-local policy duplication.
 `campus-web` owns:
 
 - browser route shell for campus/account routes
-- account center UI composition
-- auth form UX
+- account route composition
+- Better Auth UI provider wiring, localization and minimal app-specific legal gate
 - return target validation for browser navigation
 - campus app grid/navigation presentation
 
@@ -112,6 +126,7 @@ browser-shell-local policy duplication.
 - profile memory durable truth
 - federation client registry
 - MediaWiki account mapping
+- long-lived consent ledger or audit log for registration legal acceptance
 
 ## MediaWiki Boundary
 

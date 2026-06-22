@@ -11,6 +11,7 @@ import {
 import { EmptyPanel, ErrorPanel, LoadingPanel } from "@/components/shell/state-panels";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { getDiningFloor, getDiningHalls } from "@/features/dining/api";
 import type {
 	DiningFloorResponse,
@@ -123,30 +124,35 @@ export function DiningPage() {
 							value={query}
 						/>
 					</label>
-					<div className="flex flex-wrap gap-2" role="tablist" aria-label="校区">
+					<ToggleGroup
+						aria-label="校区"
+						onValueChange={(campus) => {
+							if (!campus) {
+								return;
+							}
+							setSelectedCampus(campus);
+							const hall = halls.find((item) => item.campus === campus);
+							if (hall) {
+								selectHall(hall);
+							}
+						}}
+						type="single"
+						value={selectedCampus}
+					>
 						{campuses.map((campus) => (
-							<button
+							<ToggleGroupItem
 								className={cn(
-									"min-h-11 rounded-lg border border-border bg-white px-4 text-sm text-[var(--sys-text-muted)]",
+									"min-h-11 rounded-lg px-4 text-[var(--sys-text-muted)]",
 									selectedCampus === campus &&
 										"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white",
 								)}
 								key={campus}
-								onClick={() => {
-									setSelectedCampus(campus);
-									const hall = halls.find((item) => item.campus === campus);
-									if (hall) {
-										selectHall(hall);
-									}
-								}}
-								aria-selected={selectedCampus === campus}
-								role="tab"
-								type="button"
+								value={campus}
 							>
 								{campus}
-							</button>
+							</ToggleGroupItem>
 						))}
-					</div>
+					</ToggleGroup>
 				</div>
 			</div>
 
@@ -175,22 +181,30 @@ export function DiningPage() {
 											{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
 										</p>
 									</div>
-									<div className="flex flex-wrap gap-2">
+									<ToggleGroup
+										aria-label="楼层"
+										onValueChange={(floorId) => {
+											if (floorId) {
+												setSelectedFloorId(floorId);
+											}
+										}}
+										type="single"
+										value={selectedFloorId}
+									>
 										{selectedHall.floors.map((item) => (
-											<button
+											<ToggleGroupItem
 												className={cn(
-													"min-h-9 rounded-md border border-border bg-white px-3 text-sm text-[var(--sys-text-muted)]",
+													"min-h-9 text-[var(--sys-text-muted)]",
 													selectedFloorId === item.floorId &&
 														"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
 												)}
 												key={item.floorId}
-												onClick={() => setSelectedFloorId(item.floorId)}
-												type="button"
+												value={item.floorId}
 											>
 												{item.label}
-											</button>
+											</ToggleGroupItem>
 										))}
-									</div>
+									</ToggleGroup>
 								</div>
 								<TagFilters
 									onSelectTag={setSelectedTag}

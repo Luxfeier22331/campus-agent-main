@@ -1,6 +1,7 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { type ReactNode, Suspense } from "react";
 
+import { CampusAuthUIProvider } from "@/components/auth/auth-ui-provider";
 import { SupportNavigation } from "@/components/conversation/support-navigation";
 import { cn } from "@/lib/utils";
 
@@ -11,11 +12,13 @@ export function RootLayout() {
 	return (
 		<div className="min-h-dvh bg-background text-foreground">
 			{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
-			<main>
-				<Suspense fallback={<RoutePending />}>
-					<Outlet />
-				</Suspense>
-			</main>
+			<CampusAuthUIProvider>
+				<main>
+					<Suspense fallback={<RoutePending />}>
+						<Outlet />
+					</Suspense>
+				</main>
+			</CampusAuthUIProvider>
 		</div>
 	);
 }

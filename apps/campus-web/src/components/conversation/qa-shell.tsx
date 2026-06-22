@@ -3,17 +3,13 @@ import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
 import { useNavigate } from "@tanstack/react-router";
 import { Menu } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
-
-import { AccountLoginDialog } from "@/app/routes/account-action-page";
 import { ThreadList } from "@/components/assistant-ui/thread-list";
+import { UserButton } from "@/components/auth/user/user-button";
 import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
-import { type AccountEntryState, QAAccountEntry } from "@/components/conversation/qa-account-entry";
 import { SupportNavigation } from "@/components/conversation/support-navigation";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { getSessionPrincipal } from "@/features/conversation/api";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
-import { UnauthorizedError } from "@/platform/api/client";
 
 export function QAShell({
 	assistantThreadId,
@@ -26,43 +22,19 @@ export function QAShell({
 }) {
 	const navigate = useNavigate();
 	const [mobileThreadListOpen, setMobileThreadListOpen] = useState(false);
-	const [loginOpen, setLoginOpen] = useState(false);
-	const [loginReturnFocusElement, setLoginReturnFocusElement] = useState<HTMLElement | null>(null);
-	const [accountEntry, setAccountEntry] = useState<AccountEntryState>({ status: "loading" });
-
-	const openLoginDialog = useCallback(() => {
-		setLoginReturnFocusElement(
-			document.activeElement instanceof HTMLElement ? document.activeElement : null,
-		);
+	const navigateToLogin = useCallback(() => {
 		setMobileThreadListOpen(false);
-		setLoginOpen(true);
-	}, []);
-
-	const refreshAccountEntry = useCallback(async () => {
-		setAccountEntry({ status: "loading" });
-		try {
-			const session = await getSessionPrincipal();
-			setAccountEntry({
-				displayName: session.principal.displayName,
-				email: session.principal.email,
-				status: session.session ? "authenticated" : "unauthenticated",
-			});
-		} catch (reason: unknown) {
-			setAccountEntry({
-				status: reason instanceof UnauthorizedError ? "unauthenticated" : "unavailable",
-			});
-		}
-	}, []);
-
-	useEffect(() => {
-		void refreshAccountEntry();
-	}, [refreshAccountEntry]);
+		void navigate({
+			search: { redirectTo: readCurrentRouteTarget() },
+			to: "/account/login",
+		});
+	}, [navigate]);
 
 	useEffect(() => {
 		if (loginRequested) {
-			setLoginOpen(true);
+			navigateToLogin();
 		}
-	}, [loginRequested]);
+	}, [loginRequested, navigateToLogin]);
 
 	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
@@ -77,7 +49,7 @@ export function QAShell({
 	}, [navigate]);
 
 	return (
-		<AssistantRemoteRuntimeFrame onLoginRequired={openLoginDialog} threadId={assistantThreadId}>
+		<AssistantRemoteRuntimeFrame onLoginRequired={navigateToLogin} threadId={assistantThreadId}>
 			<div className="flex min-h-dvh flex-col bg-background text-foreground">
 				<header className="shrink-0 border-b bg-background/95 px-4 backdrop-blur-sm lg:px-5">
 					<div className="flex min-h-14 items-center justify-between gap-3">
@@ -101,11 +73,7 @@ export function QAShell({
 						</div>
 						<div className="flex min-w-0 items-center gap-3">
 							<SupportNavigation className="hidden md:flex" />
-							<QAAccountEntry
-								onLoginRequest={openLoginDialog}
-								placement="topbar"
-								state={accountEntry}
-							/>
+							<UserButton />
 						</div>
 					</div>
 				</header>
@@ -119,21 +87,16 @@ export function QAShell({
 					</main>
 				</div>
 				<MobileThreadList onOpenChange={setMobileThreadListOpen} open={mobileThreadListOpen} />
-				{loginOpen ? (
-					<AccountLoginDialog
-						onAuthenticated={async () => {
-							await refreshAccountEntry();
-							setLoginOpen(false);
-						}}
-						onClose={() => {
-							setLoginOpen(false);
-						}}
-						returnFocusElement={loginReturnFocusElement}
-					/>
-				) : null}
 			</div>
 		</AssistantRemoteRuntimeFrame>
 	);
+}
+
+function readCurrentRouteTarget(): string {
+	if (typeof window === "undefined") {
+		return "/";
+	}
+	return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
 function AssistantRemoteRuntimeFrame({

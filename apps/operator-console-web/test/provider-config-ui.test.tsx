@@ -97,10 +97,10 @@ describe("provider config UI", () => {
 		expect(screen.getByText("超时时间")).toBeInTheDocument();
 		expect(screen.getByText("配置档案")).toBeInTheDocument();
 		expect(screen.getByText("生成模型不需要向量维度")).toBeInTheDocument();
-		expect(screen.getByText("主问答生成")).toBeInTheDocument();
-		expect(screen.getByText("知识问答生成")).toBeInTheDocument();
-		expect(screen.getByText("知识检索向量化")).toBeInTheDocument();
-		expect(screen.getByText("索引构建向量化")).toBeInTheDocument();
+		expect(screen.getAllByText("主问答生成").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("知识问答生成").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("知识检索向量化").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("索引构建向量化").length).toBeGreaterThan(0);
 		expect(screen.queryByText("角色")).not.toBeInTheDocument();
 		expect(screen.queryByText("Base URL")).not.toBeInTheDocument();
 		expect(screen.queryByText("Model")).not.toBeInTheDocument();

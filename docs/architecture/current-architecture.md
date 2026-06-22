@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-17
+updated: 2026-06-22
 ---
 # 当前架构
 
@@ -196,6 +196,10 @@ document/index release`
 - Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
   primitives 承担；conversation/message/title truth、stream command 与历史读写仍属于
   `apps/app-api`
+- account/auth UI 由 `better-auth-ui` 承接；通用控件使用 shadcn/Radix wrappers，
+  表单状态与校验使用 `react-hook-form` + `zod`
+- map / dining 只保留领域数据渲染、地图/楼层 adapter 与交互 glue；其通用按钮、
+  弹层、切换、搜索输入等 primitive 不再自研
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
 - 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
@@ -214,17 +218,15 @@ document/index release`
 ### `apps/operator-console-web`
 
 - protected Worker web surface
-- 负责 Operator Console 当前 operator domains 的 UI，包括 read-only
-  observability / projection domains 与 dining operations workspace
-- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query
-  surfaces 和 allowlisted operations routes
-- 当前已接入 read-only observability、runtime health、`Requests`、`Official Web`、
-  authenticated notice processing、dining operations 与 provider configuration surfaces
-- 当前只 proxy explicitly allowlisted `/api/operator/*`、`/api/requests*`、
-  `/api/official-web/*`、`/api/authenticated-notices/*` 与 `/api/ops/dining/*`
-  routes into `apps/app-api`，不开放 generic `/api/*`
-- 承载 dining draft / release candidate / release / audit workspace；不拥有 dining truth、
-  auth/session truth 或第二套 operator backend
+- 负责 Operator Console 当前最小 UI：`/requests` 请求与运行值班台、
+  `/operations/provider-config` 模型服务配置
+- 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned request /
+  runtime health / provider configuration routes
+- 当前不承载 Official Web、authenticated notice processing、dining operations、Quality、
+  Safety、Cost、standalone Audit 或离线 Eval 页面
+- 当前不 proxy `/api/official-web/*`、`/api/authenticated-notices/*`、
+  `/api/ops/dining/*` 或 generic `/api/*`
+- 不拥有 dining truth、auth/session truth 或第二套 operator backend
 - `apps/app-api` 已有 `campus-services` operator routes，但当前 `operator-console-web`
   不承载校园服务校对与发布 workspace
 - 它是唯一当前 Operator Console implementation package，不定义第二个长期后台产品概念

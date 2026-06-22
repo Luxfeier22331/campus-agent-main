@@ -8,14 +8,7 @@ import type {
 	MessageFeedbackReasonCode,
 	MessageFeedbackResult,
 	MessageFeedbackVote,
-	SessionPrincipal,
 } from "./model";
-
-export async function getSessionPrincipal(): Promise<SessionPrincipal> {
-	return requestJson<SessionPrincipal>({
-		path: "/api/me",
-	});
-}
 
 export async function listConversations(
 	input: { limit?: number; view?: "active" | "archived" } = {},

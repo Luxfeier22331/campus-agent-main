@@ -197,7 +197,7 @@ describe("campus map page", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "海淀校区" }));
 		fireEvent.click(screen.getByRole("button", { name: "展开地点结果" }));
 		expect(await screen.findByRole("button", { name: "选择图书馆" })).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
+		fireEvent.change(screen.getByRole("combobox", { name: "搜索地点" }), {
 			target: { value: "学生" },
 		});
 
@@ -253,7 +253,7 @@ describe("campus map page", () => {
 			"bg-white/78",
 			"backdrop-blur-md",
 		);
-		expect(screen.getByRole("searchbox", { name: "搜索地点" })).toHaveClass("min-h-10");
+		expect(screen.getByRole("combobox", { name: "搜索地点" })).toHaveClass("min-h-10");
 		expect(screen.getByRole("heading", { name: "地点" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "丰台校区" })).toHaveClass("min-h-9", "text-sm");
 		expect(screen.getByRole("button", { name: "丰台校区" })).toHaveAttribute(
@@ -280,7 +280,7 @@ describe("campus map page", () => {
 		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
-		expect(await screen.findByRole("searchbox", { name: "搜索地点" })).toBeInTheDocument();
+		expect(await screen.findByRole("combobox", { name: "搜索地点" })).toBeInTheDocument();
 		const resultPanel = screen.getByRole("complementary", { name: "地点搜索与结果" });
 		expect(resultPanel.className).toContain("max-h-[min(34dvh,220px)]");
 		expect(screen.getByRole("button", { name: "展开地点结果" })).toHaveAttribute(
@@ -290,7 +290,7 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("heading", { name: "地点" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择荟贤食堂" })).toBeNull();
 
-		fireEvent.focus(screen.getByRole("searchbox", { name: "搜索地点" }));
+		fireEvent.focus(screen.getByRole("combobox", { name: "搜索地点" }));
 
 		expect(screen.getByRole("button", { name: "收起地点结果" })).toHaveAttribute(
 			"aria-expanded",
@@ -305,7 +305,7 @@ describe("campus map page", () => {
 		window.history.pushState({}, "", "/map?campus=fengtai");
 		render(<MapPage />);
 
-		expect(await screen.findByRole("searchbox", { name: "搜索地点" })).toBeInTheDocument();
+		expect(await screen.findByRole("combobox", { name: "搜索地点" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "展开地点结果" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "丰台校区" })).toHaveAttribute(
 			"aria-pressed",
@@ -623,7 +623,7 @@ describe("campus map page", () => {
 			"aria-pressed",
 			"true",
 		);
-		expect(screen.getByPlaceholderText("搜索地点")).toHaveValue("学生");
+		expect(screen.getByRole("combobox", { name: "搜索地点" })).toHaveValue("学生");
 		expect(screen.getByRole("button", { name: "海淀校区" })).toHaveAttribute(
 			"aria-pressed",
 			"true",
@@ -644,7 +644,7 @@ describe("campus map page", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "海淀校区" }));
 		await expandMapResults();
 		expect(await screen.findByRole("button", { name: "选择图书馆" })).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
+		fireEvent.change(screen.getByRole("combobox", { name: "搜索地点" }), {
 			target: { value: "projection" },
 		});
 
@@ -659,7 +659,7 @@ describe("campus map page", () => {
 		fireEvent.click(await screen.findByRole("button", { name: "海淀校区" }));
 		await expandMapResults();
 		expect(await screen.findByRole("button", { name: "选择图书馆" })).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索地点"), {
+		fireEvent.change(screen.getByRole("combobox", { name: "搜索地点" }), {
 			target: { value: "建筑" },
 		});
 

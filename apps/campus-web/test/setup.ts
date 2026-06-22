@@ -19,6 +19,9 @@ if (typeof Element !== "undefined") {
 	Element.prototype.scrollTo ??= function scrollTo() {
 		return;
 	};
+	Element.prototype.scrollIntoView ??= function scrollIntoView() {
+		return;
+	};
 }
 
 afterEach(() => {

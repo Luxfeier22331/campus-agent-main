@@ -17,6 +17,42 @@ export function Card({
 	);
 }
 
+export function CardHeader({
+	children,
+	className,
+	...props
+}: PropsWithChildren<HTMLAttributes<HTMLDivElement>>) {
+	return (
+		<div className={cn("flex flex-col gap-1.5 p-5 pb-3", className)} {...props}>
+			{children}
+		</div>
+	);
+}
+
+export function CardTitle({
+	children,
+	className,
+	...props
+}: PropsWithChildren<HTMLAttributes<HTMLHeadingElement>>) {
+	return (
+		<h2 className={cn("font-semibold text-base text-foreground", className)} {...props}>
+			{children}
+		</h2>
+	);
+}
+
+export function CardDescription({
+	children,
+	className,
+	...props
+}: PropsWithChildren<HTMLAttributes<HTMLParagraphElement>>) {
+	return (
+		<p className={cn("text-muted-foreground text-sm", className)} {...props}>
+			{children}
+		</p>
+	);
+}
+
 export function CardContent({
 	children,
 	className,

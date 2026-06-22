@@ -4,7 +4,7 @@ truth_scope: product
 owner_boundary: app-api
 status: active
 created: 2026-04-02
-updated: 2026-06-13
+updated: 2026-06-22
 ---
 # Product Runtime Architecture
 
@@ -93,6 +93,10 @@ projection / operator read model / operator-safe operations domains`
   - Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
     primitives 承担；conversation truth、message truth、title truth、run truth 和
     execution truth 仍属于 `apps/app-api` / execution plane
+  - account/auth UI 由 `better-auth-ui` 承接；通用控件使用 shadcn/Radix
+    wrappers，表单状态与校验使用 `react-hook-form` + `zod`
+  - map / dining 保留领域数据渲染、地图/楼层 adapter 与交互 glue；这些不是可替换的通用
+    UI 产品组件，但其按钮、弹层、切换、搜索输入等通用 primitive 仍使用成熟组件库承接
   - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth
     endpoints、implemented federation endpoints、`/api/chat/assistant-ui`、
     `/api/chat/conversations*`、`/api/docs/*` 与 campus experience endpoints
@@ -111,12 +115,15 @@ projection / operator read model / operator-safe operations domains`
   - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
     operations domains
   - 当前唯一 implementation surface 是 `operator-console-web`
-  - 当前已承接 read-only observability、runtime health、`Requests`、`Official Web`、
-    `Authenticated Notice Processing`、dining operations workspace 与 provider
-    configuration
-  - 当前只通过 explicitly allowlisted `/api/operator/*`、`/api/requests*`、
-    `/api/official-web/*`、`/api/authenticated-notices/*` 与 `/api/ops/dining/*`
-    routes 消费 `apps/app-api`
+  - 当前最小 implementation surface 只承载 `/requests` 与
+    `/operations/provider-config`
+  - 当前只通过 explicitly allowlisted request / runtime health / provider
+    configuration routes 消费 `apps/app-api`
+  - 通用控件使用 shadcn/Radix wrappers，配置表单使用 `react-hook-form` + `zod`，
+    简单列表使用 shadcn-style table primitive；不维护第二套自研表单、select、button
+    或 table widget
+  - Official Web、Authenticated Notice、dining、Quality、Safety、Cost、standalone
+    Audit 与离线 Eval 不是当前 `operator-console-web` 导航、路由或 proxy surface
   - `apps/app-api` 已有 `campus-services` operator routes，但当前
     `operator-console-web` 不承载校园服务校对与发布 workspace
   - 泛化 `Jobs` 不属于当前 Operator Console rollout；后台任务观察必须落到具体
@@ -172,8 +179,7 @@ projection / operator read model / operator-safe operations domains`
 ### Operator Console implementation surfaces
 
 - `apps/operator-console-web` 是当前唯一 Operator Console Worker shell
-- read-only observability / projection domains 与 dining operations workspace 都在该
-  shell 内通过明确 route 和导航分区承载
+- 当前 shell 只承载请求与运行值班台、模型服务配置两个最小上线 workflow
 - 该 shell 只消费 `apps/app-api` runtime-owned APIs
 - fail-closed by default
 - 不导入 `packages/*`，不把自己做成 `apps/execution-control` 的 hidden admin mode，

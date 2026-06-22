@@ -33,7 +33,7 @@ export function getCampusRuntimeConfig(): CampusRuntimeConfig {
 
 export function buildAccountLoginUrl(config: CampusRuntimeConfig, returnTo: string): string {
 	const url = new URL(config.loginUrl);
-	url.searchParams.set("return_to", returnTo);
+	url.searchParams.set("redirectTo", returnTo);
 	return url.toString();
 }
 

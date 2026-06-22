@@ -144,7 +144,7 @@ describe("campus map product experience", () => {
 		render(<MapPage />);
 
 		await expandMapResults();
-		const search = await screen.findByRole("searchbox", { name: "搜索地点" });
+		const search = await screen.findByRole("combobox", { name: "搜索地点" });
 		fireEvent.change(search, { target: { value: "食堂" } });
 
 		const results = within(screen.getByRole("region", { name: "地点结果" })).getAllByRole(
@@ -167,7 +167,7 @@ describe("campus map product experience", () => {
 		render(<MapPage />);
 
 		await expandMapResults();
-		const search = await screen.findByRole("searchbox", { name: "搜索地点" });
+		const search = await screen.findByRole("combobox", { name: "搜索地点" });
 		fireEvent.change(search, { target: { value: "食堂" } });
 		fireEvent.keyDown(search, { key: "ArrowDown" });
 		fireEvent.keyDown(search, { key: "ArrowDown" });

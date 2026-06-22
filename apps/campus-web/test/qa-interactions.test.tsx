@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationPage } from "../src/app/routes/conversation-page";
 import { HomePage } from "../src/app/routes/home-page";
-import { UnauthorizedError } from "../src/platform/api/client";
+import { QAShell } from "../src/components/conversation/qa-shell";
 
 const designTokensSource = readFileSync("src/design/tokens.css", "utf8");
 
@@ -13,34 +13,17 @@ const conversationApiMock = vi.hoisted(() => ({
 	createConversationDraft: vi.fn(),
 	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
-	getSessionPrincipal: vi.fn(),
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/app/routes/account-action-page", () => ({
-	AccountLoginDialog: ({
-		onAuthenticated,
-		onClose,
-	}: {
-		onAuthenticated?: () => Promise<void> | void;
-		onClose: () => void;
-	}) => (
-		<div aria-label="登录" role="dialog">
-			<button onClick={onClose} type="button">
-				关闭登录
-			</button>
-			<button
-				onClick={() => {
-					void onAuthenticated?.();
-				}}
-				type="button"
-			>
-				模拟登录成功
-			</button>
-		</div>
+vi.mock("@/components/auth/user/user-button", () => ({
+	UserButton: () => (
+		<button aria-label="账号" type="button">
+			账号
+		</button>
 	),
 }));
 
@@ -69,10 +52,6 @@ vi.mock("@tanstack/react-router", async () => {
 });
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
-
-function openRadixMenu(trigger: HTMLElement) {
-	fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
-}
 
 describe("Q&A product interactions", () => {
 	beforeEach(() => {
@@ -125,20 +104,6 @@ describe("Q&A product interactions", () => {
 							],
 				),
 		);
-		conversationApiMock.getSessionPrincipal.mockReset();
-		conversationApiMock.getSessionPrincipal.mockResolvedValue({
-			permissions: { chat: true, operator: false },
-			principal: {
-				displayName: "测试用户",
-				email: "user@muc.edu.cn",
-				principalId: "principal_01",
-				type: "campus_member",
-			},
-			session: {
-				expiresAt: "2026-06-09T12:00:00.000Z",
-				sessionId: "session_01",
-			},
-		});
 	});
 
 	it("does not expose a local conversation search surface", async () => {
@@ -190,40 +155,16 @@ describe("Q&A product interactions", () => {
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 
-	it("refreshes the account entry after the login modal succeeds", async () => {
-		conversationApiMock.getSessionPrincipal
-			.mockRejectedValueOnce(new UnauthorizedError())
-			.mockResolvedValueOnce({
-				permissions: { chat: true, operator: false },
-				principal: {
-					displayName: "刷新用户",
-					email: "fresh@muc.edu.cn",
-					principalId: "principal_fresh",
-					type: "campus_member",
-				},
-				session: {
-					expiresAt: "2026-06-09T12:00:00.000Z",
-					sessionId: "session_fresh",
-				},
-			});
-		render(<HomePage />);
+	it("navigates to the account login route when the chat runtime requires login", async () => {
+		window.history.pushState({}, "", "/c/conv_01?from=test#turn");
 
-		await screen.findByTestId("assistant-chat");
-		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
+		render(<QAShell assistantThreadId="conv_01" loginRequested topTitle="会话" />);
 
-		openRadixMenu(screen.getByRole("button", { name: "登录" }));
-		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
-		expect(await screen.findByRole("dialog", { name: "登录" })).toBeInTheDocument();
-
-		fireEvent.click(screen.getByRole("button", { name: "关闭登录" }));
-		expect(screen.queryByRole("dialog", { name: "登录" })).toBeNull();
-
-		openRadixMenu(screen.getByRole("button", { name: "登录" }));
-		fireEvent.click(screen.getByRole("menuitem", { name: "登录" }));
-		fireEvent.click(await screen.findByRole("button", { name: "模拟登录成功" }));
 		await waitFor(() => {
-			expect(screen.getByRole("button", { name: "刷新用户 fresh@muc.edu.cn" })).toBeInTheDocument();
+			expect(navigateMock).toHaveBeenCalledWith({
+				search: { redirectTo: "/c/conv_01?from=test#turn" },
+				to: "/account/login",
+			});
 		});
-		expect(conversationApiMock.getSessionPrincipal).toHaveBeenCalledTimes(2);
 	});
 });

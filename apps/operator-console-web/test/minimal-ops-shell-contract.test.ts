@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import packageManifest from "../package.json" with { type: "json" };
 import workerSource from "../src/index/worker.ts?raw";
 import appSource from "../src/panel/app.tsx?raw";
+import providerConfigSource from "../src/panel/operations/provider-config/page.tsx?raw";
 
 describe("minimal Operator Console shell contract", () => {
 	it("does not ship react-admin or MUI as the operator shell foundation", () => {
@@ -50,5 +51,20 @@ describe("minimal Operator Console shell contract", () => {
 		expect(workerSource).not.toContain("/api/ops/dining");
 		expect(workerSource).not.toContain("/api/official-web");
 		expect(workerSource).not.toContain("/api/operator/audit");
+	});
+
+	it("uses mature UI primitives instead of local form and table widgets", () => {
+		expect(appSource).not.toContain("TableWrap");
+		expect(appSource).not.toContain(" Td,");
+		expect(appSource).not.toContain(" Th,");
+		expect(providerConfigSource).not.toContain("<select");
+		expect(providerConfigSource).not.toContain("<input");
+		expect(providerConfigSource).not.toContain("<button");
+		expect(providerConfigSource).not.toContain("ops-primary-button");
+		expect(providerConfigSource).not.toContain("ops-secondary-button");
+		expect(providerConfigSource).not.toContain("ops-table");
+		expect(packageManifest.dependencies).toHaveProperty("react-hook-form");
+		expect(packageManifest.dependencies).toHaveProperty("zod");
+		expect(packageManifest.dependencies).toHaveProperty("@hookform/resolvers");
 	});
 });
