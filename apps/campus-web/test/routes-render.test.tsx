@@ -336,6 +336,39 @@ describe("campus routes", () => {
 		expect(screen.queryByText("民")).toBeNull();
 	});
 
+	it("does not wrap account routes in the generic support page header", () => {
+		window.history.pushState({}, "", "/account/login");
+		render(<RootLayout />);
+
+		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
+		expect(screen.queryByText("中央民族大学校园问答")).toBeNull();
+		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
+		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
+	});
+
+	it("keeps account UI provider out of the root shell bundle", () => {
+		expect(rootLayoutSource).not.toContain("CampusAuthUIProvider");
+		expect(rootLayoutSource).not.toContain("@/components/auth/auth-ui-provider");
+	});
+
+	it("does not wrap legal routes in the generic support page header", () => {
+		window.history.pushState({}, "", "/legal/terms");
+		render(<RootLayout />);
+
+		expect(screen.getByText("支撑页面内容")).toBeInTheDocument();
+		expect(screen.queryByText("中央民族大学校园问答")).toBeNull();
+		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
+		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
+	});
+
 	it("keeps feedback navigation visible on non-map support pages", () => {
 		window.history.pushState({}, "", "/docs/regulations/student_rules/中央民族大学学生管理规定");
 		render(<RootLayout />);

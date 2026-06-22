@@ -1,19 +1,11 @@
-import { UserButton as BetterAuthUserButton } from "better-auth-ui";
-import { UserRound } from "lucide-react";
+import { UserButton as BetterAuthHeroUIUserButton } from "@better-auth-ui/heroui";
 
-import { Button } from "@/components/ui/button";
+import { CampusAuthUIProvider } from "../auth-ui-provider";
 
 export function UserButton() {
 	return (
-		<BetterAuthUserButton
-			align="end"
-			size="icon"
-			sideOffset={8}
-			trigger={
-				<Button aria-label="账号" className="size-10" size="icon" type="button" variant="ghost">
-					<UserRound aria-hidden="true" className="size-5" />
-				</Button>
-			}
-		/>
+		<CampusAuthUIProvider>
+			<BetterAuthHeroUIUserButton placement="bottom end" size="icon" variant="ghost" />
+		</CampusAuthUIProvider>
 	);
 }

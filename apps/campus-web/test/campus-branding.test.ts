@@ -11,6 +11,7 @@ describe("Campus web branding assets", () => {
 	it("pins the shared MUC Wiki favicon in the shell and build pipeline", () => {
 		expect(indexHtmlSource).toContain('href="/favicon.ico"');
 		expect(viteConfigSource).toContain("configs/branding/web-public/favicon.ico");
+		expect(viteConfigSource).toContain('dedupe: ["react", "react-dom"]');
 		expect(existsSync(canonicalFaviconPath)).toBe(true);
 	});
 });

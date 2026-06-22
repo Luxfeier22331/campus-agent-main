@@ -1,4 +1,5 @@
-@import "tailwindcss";
+@import "@heroui/styles";
+@import "@better-auth-ui/heroui/styles";
 @import "./design/tokens.css";
 @import "tw-shimmer";
 

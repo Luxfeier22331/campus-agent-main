@@ -1,7 +1,6 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Suspense } from "react";
 
-import { CampusAuthUIProvider } from "@/components/auth/auth-ui-provider";
 import { Button } from "@/components/ui/button";
 
 const supportNavItems = [
@@ -15,16 +14,17 @@ export function RootLayout() {
 	const location = useLocation();
 	const isQaRoute = location.pathname === "/" || location.pathname.startsWith("/c/");
 	const isMapRoute = location.pathname === "/map";
+	const isAccountRoute = location.pathname.startsWith("/account");
+	const isLegalRoute = location.pathname.startsWith("/legal");
+	const shouldHideSupportHeader = isQaRoute || isMapRoute || isAccountRoute || isLegalRoute;
 	return (
 		<div className="min-h-dvh bg-background text-foreground">
-			{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
-			<CampusAuthUIProvider>
-				<main>
-					<Suspense fallback={<RoutePending />}>
-						<Outlet />
-					</Suspense>
-				</main>
-			</CampusAuthUIProvider>
+			{shouldHideSupportHeader ? null : <SupportPageHeader activePath={location.pathname} />}
+			<main>
+				<Suspense fallback={<RoutePending />}>
+					<Outlet />
+				</Suspense>
+			</main>
 		</div>
 	);
 }

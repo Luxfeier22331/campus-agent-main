@@ -25,32 +25,32 @@ const AccountPage = lazy(() =>
 );
 const AccountLoginPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="SIGN_IN" />,
+		default: () => <module.AccountAuthPage view="signIn" />,
 	})),
 );
 const AccountRegisterPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="SIGN_UP" />,
+		default: () => <module.AccountAuthPage view="signUp" />,
 	})),
 );
 const AccountForgotPasswordPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="FORGOT_PASSWORD" />,
+		default: () => <module.AccountAuthPage view="forgotPassword" />,
 	})),
 );
 const AccountResetPasswordPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountAuthPage view="RESET_PASSWORD" />,
+		default: () => <module.AccountAuthPage view="resetPassword" />,
 	})),
 );
 const AccountSettingsPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountSettingsPage view="SETTINGS" />,
+		default: () => <module.AccountSettingsPage view="account" />,
 	})),
 );
 const AccountSecurityPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
-		default: () => <module.AccountSettingsPage view="SECURITY" />,
+		default: () => <module.AccountSettingsPage view="security" />,
 	})),
 );
 const FederationConsentPage = lazy(() =>

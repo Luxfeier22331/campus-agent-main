@@ -1,6 +1,9 @@
+import { AuthProvider } from "@better-auth-ui/heroui";
+import { type CaptchaRenderProps, captchaPlugin } from "@better-auth-ui/react/plugins";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Link, useNavigate } from "@tanstack/react-router";
-import { AuthUIProvider } from "better-auth-ui";
 import type { ComponentProps, ReactNode } from "react";
+import { useEffect, useRef } from "react";
 import { Toaster } from "sonner";
 
 import { campusAuthClient } from "@/platform/auth/client";
@@ -27,12 +30,12 @@ function AuthLink({
 	);
 }
 
-function readTurnstileSiteKey(): string | null {
+function readTurnstileRuntimeConfig() {
 	if (typeof document === "undefined") {
-		return null;
+		return parseTurnstileRuntimeConfigSource(null);
 	}
 	const source = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID)?.textContent;
-	return parseTurnstileRuntimeConfigSource(source).turnstileSiteKey;
+	return parseTurnstileRuntimeConfigSource(source);
 }
 
 function resolveRedirectTo(): string {
@@ -46,112 +49,158 @@ function resolveRedirectTo(): string {
 
 export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 	const navigate = useNavigate();
-	const turnstileSiteKey = readTurnstileSiteKey();
+	const turnstileRuntimeConfig = readTurnstileRuntimeConfig();
 	const commonProps = {
-		account: {
-			basePath: "/account",
-			fields: ["name"],
-			viewPaths: {
-				SECURITY: "settings/security",
-				SETTINGS: "settings/account",
-			},
-		},
-		additionalFields: {
-			[SIGNUP_LEGAL_CONSENT_FIELD_NAME]: {
+		additionalFields: [
+			{
 				label: <SignupLegalConsentLabel />,
+				name: SIGNUP_LEGAL_CONSENT_FIELD_NAME,
+				profile: false,
 				required: true,
+				signUp: true,
 				type: "boolean" as const,
 			},
-		},
+		],
 		authClient: campusAuthClient,
-		basePath: "/account",
-		captcha: turnstileSiteKey
-			? {
-					endpoints: ["/sign-up/email", "/sign-in/email", "/forget-password"],
-					provider: "cloudflare-turnstile" as const,
-					siteKey: turnstileSiteKey,
-				}
-			: undefined,
-		changeEmail: false,
-		credentials: {
+		basePaths: {
+			auth: "/account",
+			organization: "/account/organization",
+			settings: "/account/settings",
+		},
+		emailAndPassword: {
 			confirmPassword: true,
+			enabled: true,
 			forgotPassword: true,
-			passwordValidation: {
-				maxLength: 128,
-				minLength: 10,
-			},
+			maxPasswordLength: 128,
+			minPasswordLength: 10,
+			name: true,
 			rememberMe: true,
-			username: false,
 		},
-		deleteUser: false,
-		emailVerification: false,
-		Link: AuthLink,
 		localization: {
-			ACCOUNT: "账号",
-			ACCOUNTS: "账号",
-			ACCOUNTS_DESCRIPTION: "管理当前登录的账号。",
-			ADD_ACCOUNT: "添加账号",
-			ALREADY_HAVE_AN_ACCOUNT: "已有账号？",
-			APP: "校园问答",
-			BY_CONTINUING_YOU_AGREE: "继续使用即表示你了解",
-			CHANGE_PASSWORD: "修改密码",
-			CONFIRM_PASSWORD: "确认密码",
-			CONFIRM_PASSWORD_PLACEHOLDER: "再次输入密码",
-			CURRENT_PASSWORD: "当前密码",
-			DONT_HAVE_AN_ACCOUNT: "还没有账号？",
-			EMAIL: "邮箱",
-			EMAIL_PLACEHOLDER: "请输入邮箱地址",
-			FORGOT_PASSWORD: "找回密码",
-			FORGOT_PASSWORD_ACTION: "发送重置链接",
-			FORGOT_PASSWORD_DESCRIPTION: "输入邮箱地址，我们会发送密码重置链接。",
-			FORGOT_PASSWORD_LINK: "忘记密码？",
-			NAME: "姓名",
-			NAME_PLACEHOLDER: "请输入姓名或昵称",
-			NEW_PASSWORD: "新密码",
-			NEW_PASSWORD_PLACEHOLDER: "至少 10 位",
-			PASSWORD: "密码",
-			PASSWORD_PLACEHOLDER: "请输入密码",
-			PRIVACY_POLICY: "隐私政策",
-			REMEMBER_ME: "保持登录",
-			RESET_PASSWORD: "设置新密码",
-			RESET_PASSWORD_ACTION: "更新密码",
-			RESET_PASSWORD_DESCRIPTION: "请为账号输入新的安全密码。",
-			SECURITY: "安全",
-			SESSIONS: "登录设备",
-			SETTINGS: "账号设置",
-			SIGN_IN: "登录校园问答",
-			SIGN_IN_ACTION: "登录",
-			SIGN_IN_DESCRIPTION: "登录后继续使用校园问答与账号服务。",
-			SIGN_OUT: "退出登录",
-			SIGN_UP: "创建账号",
-			SIGN_UP_ACTION: "注册",
-			SIGN_UP_DESCRIPTION: "创建账号后可继续提问、保留聊天记录并管理账号。",
-			TERMS_OF_SERVICE: "用户服务协议",
-			USER: "账号",
+			auth: {
+				account: "账号",
+				alreadyHaveAnAccount: "已有账号？",
+				alreadyVerifiedYourEmail: "邮箱已验证？",
+				checkYourEmail: "请查看邮箱中的验证链接",
+				confirmPassword: "确认密码",
+				confirmPasswordPlaceholder: "再次输入密码",
+				continueWith: "使用 {{provider}} 继续",
+				email: "邮箱",
+				emailPlaceholder: "请输入邮箱地址",
+				fieldRequired: "此项必填",
+				forgotPassword: "找回密码",
+				forgotPasswordLink: "忘记密码？",
+				hidePassword: "隐藏密码",
+				invalidEmail: "请输入有效的邮箱地址",
+				invalidResetPasswordToken: "密码重置链接无效",
+				name: "姓名",
+				namePlaceholder: "请输入姓名或昵称",
+				needToCreateAnAccount: "还没有账号？",
+				newPassword: "新密码",
+				newPasswordPlaceholder: "至少 10 位",
+				openEmailProvider: "打开 {{provider}}",
+				or: "或",
+				password: "密码",
+				passwordPlaceholder: "请输入密码",
+				passwordResetEmailSent: "密码重置邮件已发送",
+				passwordResetSuccess: "密码已更新",
+				passwordsDoNotMatch: "两次输入的密码不一致",
+				rememberMe: "保持登录",
+				rememberYourPassword: "想起密码了？",
+				resend: "重新发送",
+				resendIn: "{{seconds}} 秒后重新发送",
+				resetPassword: "设置新密码",
+				sendResetLink: "发送重置链接",
+				showPassword: "显示密码",
+				signIn: "登录校园问答",
+				signOut: "退出登录",
+				signUp: "创建账号",
+				tooLong: "最多 {{max}} 个字符",
+				tooShort: "至少 {{min}} 个字符",
+				verificationEmailSent: "验证邮件已发送",
+				verifyEmail: "验证邮箱",
+			},
+			settings: {
+				account: "账号",
+				accountUnlinked: "账号已解绑",
+				active: "当前",
+				activeSessions: "登录设备",
+				avatar: "头像",
+				avatarChangedSuccess: "头像已更新",
+				avatarDeletedSuccess: "头像已删除",
+				cancel: "取消",
+				changeAvatar: "更换头像",
+				changeEmail: "修改邮箱",
+				changeEmailSuccess: "请查看邮箱确认修改",
+				changePassword: "修改密码",
+				changePasswordSuccess: "密码已更新",
+				copyToClipboard: "复制",
+				currentPassword: "当前密码",
+				currentPasswordPlaceholder: "请输入当前密码",
+				currentSession: "当前设备",
+				dangerZone: "危险操作",
+				delete: "删除",
+				deleteAvatar: "删除头像",
+				link: "绑定",
+				linkedAccounts: "已绑定账号",
+				linkProvider: "绑定 {{provider}} 账号",
+				optional: "可选",
+				profileUpdatedSuccess: "账号资料已保存",
+				revoke: "移除",
+				revokeSession: "移除登录设备",
+				revokeSessionSuccess: "登录设备已移除",
+				saveChanges: "保存",
+				security: "安全",
+				setPassword: "设置密码",
+				setPasswordDescription: "当前账号还没有密码。请通过重置链接设置密码。",
+				settings: "账号设置",
+				time: "时间",
+				unlinkProvider: "解绑 {{provider}}",
+				updateEmail: "更新邮箱",
+				updatePassword: "更新密码",
+				uploadAvatar: "上传头像",
+				userProfile: "账号资料",
+			},
 		},
-		navigate: (href: string) => {
-			void navigate({ to: href });
+		navigate: ({ replace, to }: { replace?: boolean; to: string }) => {
+			void navigate({ replace, to });
 		},
+		plugins: turnstileRuntimeConfig.turnstileSiteKey
+			? [
+					captchaPlugin({
+						render: (props) => (
+							<TurnstileCaptcha
+								{...props}
+								appearance={turnstileRuntimeConfig.turnstileAppearance}
+								execution={turnstileRuntimeConfig.turnstileExecution}
+								siteKey={turnstileRuntimeConfig.turnstileSiteKey ?? ""}
+							/>
+						),
+					}),
+				]
+			: [],
 		redirectTo: resolveRedirectTo(),
-		replace: (href: string) => {
-			void navigate({ replace: true, to: href });
-		},
-		signUp: {
-			fields: ["name", SIGNUP_LEGAL_CONSENT_FIELD_NAME],
-		},
 		viewPaths: {
-			FORGOT_PASSWORD: "forgot-password",
-			RESET_PASSWORD: "reset-password",
-			SIGN_IN: "login",
-			SIGN_UP: "register",
+			auth: {
+				forgotPassword: "forgot-password",
+				resetPassword: "reset-password",
+				signIn: "login",
+				signOut: "sign-out",
+				signUp: "register",
+				verifyEmail: "verify-email",
+			},
+			settings: {
+				account: "account",
+				security: "security",
+			},
 		},
-	} satisfies Omit<ComponentProps<typeof AuthUIProvider>, "children">;
+	} satisfies Omit<ComponentProps<typeof AuthProvider>, "children">;
 
 	return (
-		<AuthUIProvider {...commonProps}>
+		<AuthProvider {...commonProps}>
 			{children}
 			<Toaster position="top-center" richColors />
-		</AuthUIProvider>
+		</AuthProvider>
 	);
 }
 
@@ -171,5 +220,37 @@ function SignupLegalConsentLabel() {
 			</AuthLink>
 			。
 		</span>
+	);
+}
+
+function TurnstileCaptcha({
+	appearance,
+	clearToken,
+	execution,
+	setReset,
+	setToken,
+	siteKey,
+}: CaptchaRenderProps & {
+	appearance: NonNullable<ComponentProps<typeof Turnstile>["options"]>["appearance"];
+	execution: NonNullable<ComponentProps<typeof Turnstile>["options"]>["execution"];
+	siteKey: string;
+}) {
+	const turnstileRef = useRef<TurnstileInstance>(undefined);
+
+	useEffect(() => {
+		setReset(() => turnstileRef.current?.reset());
+		return () => setReset(null);
+	}, [setReset]);
+
+	return (
+		<Turnstile
+			className="my-2"
+			onError={() => clearToken()}
+			onExpire={() => clearToken()}
+			onSuccess={(token) => setToken(token)}
+			options={{ appearance, execution }}
+			ref={turnstileRef}
+			siteKey={siteKey}
+		/>
 	);
 }

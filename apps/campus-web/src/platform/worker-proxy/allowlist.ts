@@ -15,6 +15,8 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/auth/sign-up/email",
 	"/api/auth/sign-out",
 	"/api/auth/get-session",
+	"/api/auth/list-accounts",
+	"/api/auth/list-sessions",
 	"/api/auth/request-password-reset",
 	"/api/auth/reset-password",
 	"/api/federation/authorize",

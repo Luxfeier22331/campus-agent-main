@@ -58,31 +58,31 @@ describe("campus account pages", () => {
 		cleanup();
 	});
 
-	it("routes auth actions through Better Auth UI shadcn components", () => {
-		const { unmount } = render(<AccountAuthPage view="SIGN_IN" />);
+	it("routes auth actions through Better Auth UI HeroUI components", () => {
+		const { unmount } = render(<AccountAuthPage view="signIn" />);
 
-		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "SIGN_IN");
+		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signIn");
 
 		unmount();
-		render(<AccountAuthPage view="SIGN_UP" />);
+		render(<AccountAuthPage view="signUp" />);
 
-		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "SIGN_UP");
+		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signUp");
 	});
 
 	it("routes account settings through Better Auth UI settings components", () => {
-		const { unmount } = render(<AccountSettingsPage view="SETTINGS" />);
+		const { unmount } = render(<AccountSettingsPage view="account" />);
 
 		expect(screen.getByLabelText("better-auth-ui-settings")).toHaveAttribute(
 			"data-view",
-			"SETTINGS",
+			"account",
 		);
 
 		unmount();
-		render(<AccountSettingsPage view="SECURITY" />);
+		render(<AccountSettingsPage view="security" />);
 
 		expect(screen.getByLabelText("better-auth-ui-settings")).toHaveAttribute(
 			"data-view",
-			"SECURITY",
+			"security",
 		);
 	});
 

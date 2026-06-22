@@ -1,12 +1,16 @@
-import { AccountView, type AccountViewPath } from "better-auth-ui";
+import type { SettingsView } from "@better-auth-ui/core";
+import { Settings as BetterAuthHeroUISettings } from "@better-auth-ui/heroui";
 
-export function Settings({ view }: { view?: AccountViewPath }) {
+import { CampusAuthUIProvider } from "../auth-ui-provider";
+
+export type CampusAccountSettingsView = SettingsView;
+
+export function Settings({ view }: { view?: CampusAccountSettingsView }) {
 	return (
-		<section className="mx-auto min-h-[calc(100dvh-4rem)] max-w-5xl px-5 py-8 lg:px-8">
-			<AccountView
-				className="rounded-lg border border-border bg-card p-4 shadow-[var(--shadow-xs)]"
-				view={view}
-			/>
-		</section>
+		<CampusAuthUIProvider>
+			<section aria-label="account-settings-layout" className="min-h-dvh px-4 py-8 lg:px-8">
+				<BetterAuthHeroUISettings className="mx-auto w-full max-w-4xl" view={view} />
+			</section>
+		</CampusAuthUIProvider>
 	);
 }

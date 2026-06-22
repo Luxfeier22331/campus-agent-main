@@ -16,7 +16,7 @@ updated: 2026-06-22
 
 - `campus-web` account center 应消费什么 product projection
 - `campus-web` 拥有哪些 account browser shell responsibility
-- account browser UI 哪些部分由 Better Auth UI / shadcn 组件承接
+- account browser UI 哪些部分由 Better Auth UI HeroUI 组件承接
 - browser shell 不应拥有哪些 auth、identity、access 或 federation truth
 
 本文不定义 app-api canonical identity schema，不定义 Better Auth runtime config，
@@ -42,14 +42,14 @@ updated: 2026-06-22
 Account browser UI 当前形态：
 
 - `/account/login`、`/account/register`、`/account/forgot-password` 和
-  `/account/reset-password` 由 `better-auth-ui` 的 `AuthView` 承接
+  `/account/reset-password` 由 `@better-auth-ui/heroui` 的 `Auth` 承接
 - `/account`、`/account/settings/account` 和 `/account/settings/security` 由
-  `better-auth-ui` 的 `AccountView` 承接
-- Q&A 顶栏账号入口由 `better-auth-ui` 的 `UserButton` 承接
+  `@better-auth-ui/heroui` 的 `Settings` 承接
+- Q&A 顶栏账号入口由 `@better-auth-ui/heroui` 的 `UserButton` 承接
 - `campus-web` 只保留 route composition、中文文案、Turnstile runtime config、
   return target，以及通过 Better Auth UI required field 注入的注册协议确认
-- 账号 surface 的通用按钮、卡片、勾选框与弹层 primitive 通过 shadcn/Radix
-  wrappers 承接；`campus-web` 不再维护第二套账号表单、登录弹窗或账号设置产品组件
+- 账号 surface 的 auth/settings/product UI primitive 由 Better Auth UI HeroUI
+  stack 承接；`campus-web` 不再维护第二套账号表单、登录弹窗或账号设置产品组件
 
 ## Target Account Center IA
 
@@ -88,8 +88,8 @@ Campus identity/access/preferences product pages, when implemented, consume
 - `GET /api/me/preferences` and `PATCH /api/me/preferences` for preference
   read/write state
 
-Auth/settings UI may call Better Auth client APIs through `better-auth-ui` for
-auth runtime actions such as sign-in, sign-up, password reset, sign-out,
+Auth/settings UI may call Better Auth client APIs through Better Auth UI HeroUI
+for auth runtime actions such as sign-in, sign-up, password reset, sign-out,
 password change and session management. Product identity/access/preference truth
 still belongs to `apps/app-api` projections.
 
