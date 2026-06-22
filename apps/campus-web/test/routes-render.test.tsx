@@ -15,6 +15,7 @@ import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
+import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
 
@@ -245,7 +246,9 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
 		expect(qaShellSource).toContain("饭堂分布图");
-		expect(qaShellSource).toContain("ThreadList");
+		expect(qaShellSource).toContain("ThreadListSidebar");
+		expect(qaShellSource).toContain("@/components/assistant-ui/threadlist-sidebar");
+		expect(qaShellSource).not.toContain("@assistant-ui/react-ui");
 		expect(qaShellSource).toContain("@/components/auth/user/user-button");
 		expect(qaShellSource).not.toContain("SupportNavigation");
 		expect(qaShellSource).not.toContain("AccountLoginDialog");
@@ -282,6 +285,16 @@ describe("campus routes", () => {
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
 
+	it("keeps the desktop topbar inside the assistant content inset", async () => {
+		render(<HomePage />);
+
+		const assistantChat = await screen.findByTestId("assistant-chat");
+
+		expect(within(assistantChat).getByText("中央民族大学校园问答")).toBeInTheDocument();
+		expect(within(assistantChat).getByRole("region", { name: "校园问答" })).toBeInTheDocument();
+		expect(within(assistantChat).queryByRole("heading", { name: "聊天记录" })).toBeNull();
+	});
+
 	it("keeps the sidebar free of local chat search", async () => {
 		render(<HomePage />);
 
@@ -293,6 +306,7 @@ describe("campus routes", () => {
 	});
 
 	it("keeps the mobile thread list scoped to conversation history", async () => {
+		mockMapWorkspaceWidth(false, vi.fn);
 		render(<HomePage />);
 
 		fireEvent.click(screen.getByRole("button", { name: "打开聊天记录" }));
@@ -505,7 +519,7 @@ describe("campus routes", () => {
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
 		expect(screen.queryByText("没有匹配的食堂。")).not.toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("button", { name: "热餐" }));
+		fireEvent.click(screen.getByRole("radio", { name: "热餐" }));
 		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);

@@ -10,7 +10,6 @@ import {
 } from "@/components/dining/dining-experience";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
@@ -166,12 +165,10 @@ export function DiningPage() {
 				</div>
 			) : null}
 			{!isLoadingHalls && halls.length === 0 && !error ? (
-				<Empty>
-					<EmptyHeader>
-						<EmptyTitle>暂无内容</EmptyTitle>
-						<EmptyDescription>当前没有已发布的食堂数据。</EmptyDescription>
-					</EmptyHeader>
-				</Empty>
+				<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
+					<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
+					<p className="mt-1 max-w-sm text-muted-foreground text-sm">当前没有已发布的食堂数据。</p>
+				</Card>
 			) : null}
 			{halls.length > 0 ? (
 				<div className="space-y-5">
@@ -240,12 +237,12 @@ export function DiningPage() {
 							<WindowDetail window={selectedWindow} />
 						</div>
 					) : (
-						<Empty>
-							<EmptyHeader>
-								<EmptyTitle>暂无内容</EmptyTitle>
-								<EmptyDescription>当前没有已发布的食堂楼层数据。</EmptyDescription>
-							</EmptyHeader>
-						</Empty>
+						<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
+							<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
+							<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+								当前没有已发布的食堂楼层数据。
+							</p>
+						</Card>
 					)}
 				</div>
 			) : null}

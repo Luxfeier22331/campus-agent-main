@@ -3,35 +3,27 @@ import { describe, expect, it, vi } from "vitest";
 
 import { AssistantConversationSurface } from "../src/components/conversation/assistant-conversation-surface";
 
-vi.mock("@assistant-ui/react-ui", () => ({
+vi.mock("@/components/assistant-ui/thread", () => ({
 	Thread: ({
-		assistantMessage,
-		composer,
-		strings,
-		welcome,
+		allowAttachments,
+		assistantAvatarFallback,
+		components,
+		composerPlaceholder,
+		welcomeMessage,
 	}: {
-		assistantMessage?: {
-			allowFeedbackNegative?: boolean;
-			allowFeedbackPositive?: boolean;
-			allowSpeak?: boolean;
-			components?: { ToolFallback?: unknown };
-		};
-		composer?: { allowAttachments?: boolean };
-		strings?: {
-			composer?: { input?: { placeholder?: string } };
-			welcome?: { message?: string };
-		};
-		welcome?: { message?: string };
+		allowAttachments?: boolean;
+		assistantAvatarFallback?: string;
+		components?: { ToolFallback?: unknown };
+		composerPlaceholder?: string;
+		welcomeMessage?: string;
 	}) => (
 		<div
-			data-allow-attachments={String(composer?.allowAttachments ?? false)}
-			data-allow-feedback-negative={String(assistantMessage?.allowFeedbackNegative ?? true)}
-			data-allow-feedback-positive={String(assistantMessage?.allowFeedbackPositive ?? true)}
-			data-allow-speak={String(assistantMessage?.allowSpeak ?? true)}
-			data-has-tool-fallback={String(Boolean(assistantMessage?.components?.ToolFallback))}
-			data-placeholder={strings?.composer?.input?.placeholder ?? ""}
-			data-testid="official-assistant-ui-thread"
-			data-welcome={welcome?.message ?? strings?.welcome?.message ?? ""}
+			data-allow-attachments={String(allowAttachments ?? false)}
+			data-assistant-avatar={assistantAvatarFallback ?? ""}
+			data-has-tool-fallback={String(Boolean(components?.ToolFallback))}
+			data-placeholder={composerPlaceholder ?? ""}
+			data-testid="assistant-ui-registry-thread"
+			data-welcome={welcomeMessage ?? ""}
 		/>
 	),
 }));
@@ -41,19 +33,17 @@ describe("AssistantConversationSurface", () => {
 		render(<AssistantConversationSurface />);
 
 		expect(screen.getByRole("region", { name: "校园问答" })).toBeInTheDocument();
-		expect(screen.getByTestId("official-assistant-ui-thread")).toBeInTheDocument();
+		expect(screen.getByTestId("assistant-ui-registry-thread")).toBeInTheDocument();
 	});
 
 	it("configures official assistant-ui Thread for campus copy and domain tool rendering", () => {
 		render(<AssistantConversationSurface />);
 
-		const thread = screen.getByTestId("official-assistant-ui-thread");
+		const thread = screen.getByTestId("assistant-ui-registry-thread");
 		expect(thread).toHaveAttribute("data-welcome", "今天想了解什么校园信息？");
 		expect(thread).toHaveAttribute("data-placeholder", "输入校园问题");
+		expect(thread).toHaveAttribute("data-assistant-avatar", "问");
 		expect(thread).toHaveAttribute("data-has-tool-fallback", "true");
-		expect(thread).toHaveAttribute("data-allow-speak", "false");
-		expect(thread).toHaveAttribute("data-allow-feedback-positive", "false");
-		expect(thread).toHaveAttribute("data-allow-feedback-negative", "false");
 		expect(thread).toHaveAttribute("data-allow-attachments", "true");
 	});
 });

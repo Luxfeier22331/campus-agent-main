@@ -4,11 +4,16 @@ import type { Mock } from "vitest";
 interface MatchMediaMock extends Mock<(query: string) => MediaQueryList> {}
 
 export function mockMapWorkspaceWidth(matches: boolean, createMock: () => Mock) {
+	Object.defineProperty(window, "innerWidth", {
+		configurable: true,
+		value: matches ? 1024 : 390,
+	});
 	window.matchMedia = createMock().mockImplementation((query: string) => ({
 		addEventListener: createMock(),
 		addListener: createMock(),
 		dispatchEvent: createMock().mockReturnValue(false),
-		matches: query === "(min-width: 960px)" ? matches : false,
+		matches:
+			query === "(min-width: 960px)" ? matches : query === "(max-width: 767px)" ? !matches : false,
 		media: query,
 		onchange: null,
 		removeEventListener: createMock(),

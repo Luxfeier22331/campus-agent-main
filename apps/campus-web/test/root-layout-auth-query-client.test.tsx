@@ -41,7 +41,7 @@ vi.mock("@/components/auth/user/user-button", () => ({
 }));
 
 describe("root layout auth provider integration", () => {
-	it("provides TanStack Query context required by Better Auth UI", async () => {
+	it("mounts the real Better Auth UI provider without crashing the app shell", async () => {
 		render(<RootLayout />);
 
 		expect(await screen.findByText("route outlet")).toBeInTheDocument();

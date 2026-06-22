@@ -221,19 +221,19 @@ describe("campus map product experience", () => {
 		render(<MapPage />);
 
 		await expandMapResults();
-		const typeFilters = screen.getByRole("group", { name: "地点类型" });
+		const typeFilters = screen.getByRole("radiogroup", { name: "地点类型" });
 
 		expect(
 			within(typeFilters)
-				.getAllByRole("button")
+				.getAllByRole("radio")
 				.map((button) => button.textContent),
 		).toEqual(["全部", "食堂", "教学楼", "宿舍", "出入口", "服务", "运动"]);
-		expect(within(typeFilters).queryByRole("button", { name: "建筑" })).toBeNull();
-		expect(within(typeFilters).queryByRole("button", { name: "校门" })).toBeNull();
-		expect(within(typeFilters).queryByRole("button", { name: "地标" })).toBeNull();
-		expect(within(typeFilters).queryByRole("button", { name: "交通" })).toBeNull();
+		expect(within(typeFilters).queryByRole("radio", { name: "建筑" })).toBeNull();
+		expect(within(typeFilters).queryByRole("radio", { name: "校门" })).toBeNull();
+		expect(within(typeFilters).queryByRole("radio", { name: "地标" })).toBeNull();
+		expect(within(typeFilters).queryByRole("radio", { name: "交通" })).toBeNull();
 
-		fireEvent.click(within(typeFilters).getByRole("button", { name: "食堂" }));
+		fireEvent.click(within(typeFilters).getByRole("radio", { name: "食堂" }));
 
 		expect(screen.getByRole("button", { name: "选择聚雅食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toBeInTheDocument();
@@ -294,7 +294,7 @@ describe("campus map product experience", () => {
 	it("uses product copy for Haidian basic reference state", async () => {
 		render(<MapPage />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "海淀校区" }));
+		fireEvent.click(await screen.findByRole("radio", { name: "海淀校区" }));
 
 		expect(await screen.findByText("海淀校区当前提供基础地点参考。")).toBeInTheDocument();
 		expect(screen.queryByText("开发中")).toBeNull();

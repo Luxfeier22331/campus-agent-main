@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "../ui/empty";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 export function HallGrid({
@@ -26,12 +25,10 @@ export function HallGrid({
 }) {
 	if (halls.length === 0) {
 		return (
-			<Empty>
-				<EmptyHeader>
-					<EmptyTitle>没有匹配的食堂</EmptyTitle>
-					<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
-				</EmptyHeader>
-			</Empty>
+			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
+				<h3 className="font-medium text-foreground text-sm">没有匹配的食堂</h3>
+				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
+			</Card>
 		);
 	}
 	return (
@@ -105,12 +102,10 @@ export function WindowList({
 }) {
 	if (windows.length === 0) {
 		return (
-			<Empty className="bg-white">
-				<EmptyHeader>
-					<EmptyTitle>没有匹配的餐饮点</EmptyTitle>
-					<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
-				</EmptyHeader>
-			</Empty>
+			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
+				<h3 className="font-medium text-foreground text-sm">没有匹配的餐饮点</h3>
+				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
+			</Card>
 		);
 	}
 	return (
@@ -293,12 +288,10 @@ function DiningFloorplanZoomSurface({
 export function WindowDetail({ window }: { window: DiningWindowProjection | null }) {
 	if (!window) {
 		return (
-			<Empty className="bg-white">
-				<EmptyHeader>
-					<EmptyTitle>选择餐饮点</EmptyTitle>
-					<EmptyDescription>选择餐饮点后查看菜品和价格。</EmptyDescription>
-				</EmptyHeader>
-			</Empty>
+			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
+				<h3 className="font-medium text-foreground text-sm">选择餐饮点</h3>
+				<p className="mt-1 max-w-sm text-muted-foreground text-sm">选择餐饮点后查看菜品和价格。</p>
+			</Card>
 		);
 	}
 	const offerings = window.assignment?.offerings ?? [];
@@ -311,7 +304,7 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 				</h2>
 				<div className="mt-3 flex flex-wrap gap-2">
 					{window.tags.map((tag) => (
-						<Badge key={tag} variant="muted">
+						<Badge className="bg-muted text-muted-foreground" key={tag} variant="secondary">
 							{tag}
 						</Badge>
 					))}
@@ -331,12 +324,12 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 						</div>
 					))
 				) : (
-					<Empty className="m-4 min-h-24">
-						<EmptyHeader>
-							<EmptyTitle>暂无菜品</EmptyTitle>
-							<EmptyDescription>当前餐饮点没有已发布菜品。</EmptyDescription>
-						</EmptyHeader>
-					</Empty>
+					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
+						<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
+						<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+							当前餐饮点没有已发布菜品。
+						</p>
+					</div>
 				)}
 			</div>
 		</Card>

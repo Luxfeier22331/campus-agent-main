@@ -5,8 +5,8 @@ import { z } from "zod";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	Select,
 	SelectContent,
@@ -87,7 +87,9 @@ export function FeedbackPage() {
 			<Separator className="mt-5" />
 			<Card className="mt-5">
 				<CardHeader>
-					<CardTitle>提交反馈</CardTitle>
+					<CardTitle asChild>
+						<h2>提交反馈</h2>
+					</CardTitle>
 				</CardHeader>
 				<CardContent>
 					<form className="space-y-5">
@@ -95,8 +97,8 @@ export function FeedbackPage() {
 							control={form.control}
 							name="category"
 							render={({ field }) => (
-								<Field>
-									<FieldLabel htmlFor="feedback-category">问题类型</FieldLabel>
+								<div className="grid gap-2">
+									<Label htmlFor="feedback-category">问题类型</Label>
 									<Select onValueChange={field.onChange} value={field.value}>
 										<SelectTrigger id="feedback-category">
 											<SelectValue />
@@ -109,30 +111,32 @@ export function FeedbackPage() {
 											))}
 										</SelectContent>
 									</Select>
-								</Field>
+								</div>
 							)}
 						/>
-						<Field>
-							<FieldLabel htmlFor="feedback-route-context">当前页面</FieldLabel>
+						<div className="grid gap-2">
+							<Label htmlFor="feedback-route-context">当前页面</Label>
 							<Input id="feedback-route-context" {...form.register("routeContext")} />
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="feedback-body">问题描述</FieldLabel>
+						</div>
+						<div className="grid gap-2">
+							<Label htmlFor="feedback-body">问题描述</Label>
 							<Textarea id="feedback-body" {...form.register("body")} />
 							{form.formState.errors.body ? (
-								<FieldError>{form.formState.errors.body.message ?? "请填写问题描述。"}</FieldError>
+								<p className="text-destructive text-xs" role="alert">
+									{form.formState.errors.body.message ?? "请填写问题描述。"}
+								</p>
 							) : null}
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="feedback-contact">联系方式（可选）</FieldLabel>
+						</div>
+						<div className="grid gap-2">
+							<Label htmlFor="feedback-contact">联系方式（可选）</Label>
 							<Input
 								id="feedback-contact"
 								placeholder="邮箱或其他联系方式"
 								{...form.register("contact")}
 							/>
-						</Field>
+						</div>
 						{error ? <Alert variant="destructive">{error}</Alert> : null}
-						{receivedId ? <Alert variant="success">已收到：{receivedId}</Alert> : null}
+						{receivedId ? <Alert>已收到：{receivedId}</Alert> : null}
 						<Button
 							disabled={submitting || !body.trim()}
 							onClick={form.handleSubmit(handleSubmit)}

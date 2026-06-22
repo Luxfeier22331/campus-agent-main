@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "@tanstack/react-router";
-import { AuthUIProviderTanstack } from "better-auth-ui/tanstack";
+import { AuthUIProvider } from "better-auth-ui";
 import type { ComponentProps, ReactNode } from "react";
 import { Toaster } from "sonner";
 
@@ -145,13 +145,13 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 			SIGN_IN: "login",
 			SIGN_UP: "register",
 		},
-	} satisfies Omit<ComponentProps<typeof AuthUIProviderTanstack>, "children">;
+	} satisfies Omit<ComponentProps<typeof AuthUIProvider>, "children">;
 
 	return (
-		<AuthUIProviderTanstack {...commonProps}>
+		<AuthUIProvider {...commonProps}>
 			{children}
 			<Toaster position="top-center" richColors />
-		</AuthUIProviderTanstack>
+		</AuthUIProvider>
 	);
 }
 

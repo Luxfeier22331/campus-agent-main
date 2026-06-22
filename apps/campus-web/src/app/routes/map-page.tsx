@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MapExperience } from "@/components/map/map-experience";
 import { Alert } from "@/components/ui/alert";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCampusMapPlaces } from "@/features/map/api";
 import {
@@ -379,12 +378,12 @@ export function MapPage() {
 				/>
 			) : (
 				<MapStateShell>
-					<Empty>
-						<EmptyHeader>
-							<EmptyTitle>暂无内容</EmptyTitle>
-							<EmptyDescription>当前没有可展示的地图地点。</EmptyDescription>
-						</EmptyHeader>
-					</Empty>
+					<div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card px-6 py-8 text-center">
+						<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
+						<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+							当前没有可展示的地图地点。
+						</p>
+					</div>
 				</MapStateShell>
 			)}
 		</>

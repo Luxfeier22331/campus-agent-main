@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -272,7 +271,7 @@ function MapSearchPanel({
 											onQueryChange("");
 											onListExpandedChange(true);
 										}}
-										size="icon-sm"
+										size="icon"
 										variant="ghost"
 									>
 										<X aria-hidden="true" className="size-4" />
@@ -436,12 +435,12 @@ function PlaceList({
 	if (places.length === 0) {
 		return (
 			<section aria-label="地点结果">
-				<Empty className="border-transparent bg-transparent">
-					<EmptyHeader>
-						<EmptyTitle>没有找到匹配地点。</EmptyTitle>
-						<EmptyDescription>调整搜索词或筛选条件后再试。</EmptyDescription>
-					</EmptyHeader>
-				</Empty>
+				<div className="flex min-h-32 flex-col items-center justify-center rounded-lg px-6 py-8 text-center">
+					<h3 className="font-medium text-foreground text-sm">没有找到匹配地点。</h3>
+					<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+						调整搜索词或筛选条件后再试。
+					</p>
+				</div>
 			</section>
 		);
 	}
@@ -577,7 +576,7 @@ function MapPlacePopover({
 					</div>
 					<div className="mt-3 flex flex-wrap gap-2">
 						{place.displayTags.map((tag) => (
-							<Badge key={tag} variant="muted">
+							<Badge className="bg-muted text-muted-foreground" key={tag} variant="secondary">
 								{tag}
 							</Badge>
 						))}
@@ -601,9 +600,9 @@ function MapPlacePopover({
 				>
 					<Button
 						aria-label="关闭地点详情"
-						className="absolute right-3 top-3 z-10"
+						className="absolute right-3 top-3 z-10 size-10"
 						onClick={onClose}
-						size="icon-lg"
+						size="icon"
 						variant="ghost"
 					>
 						<X aria-hidden="true" className="size-4" />
@@ -619,7 +618,6 @@ function MapPlacePopover({
 				aria-label={place.place.title}
 				className="pointer-events-auto inset-x-3 bottom-3 top-auto left-auto max-h-[48dvh] w-auto translate-x-0 translate-y-0 overflow-y-auto rounded-2xl border-white/70 bg-white/86 p-0 pb-[max(0px,env(safe-area-inset-bottom))] shadow-[var(--shadow-sm)] backdrop-blur-md"
 				data-variant="sheet"
-				showCloseButton={false}
 			>
 				<Button
 					aria-label="拖动关闭地点详情"
@@ -633,9 +631,9 @@ function MapPlacePopover({
 					<DetailCard titleKind="dialog" />
 					<Button
 						aria-label="关闭地点详情"
-						className="absolute right-3 top-3"
+						className="absolute right-3 top-3 size-10"
 						onClick={onClose}
-						size="icon-lg"
+						size="icon"
 						variant="ghost"
 					>
 						<X aria-hidden="true" className="size-4" />

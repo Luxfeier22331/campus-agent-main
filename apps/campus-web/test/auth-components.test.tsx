@@ -5,13 +5,7 @@ import { Auth } from "../src/components/auth/auth";
 import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 
 vi.mock("better-auth-ui", () => ({
-	AuthView: ({ redirectTo, view }: { redirectTo?: string; view?: string }) => (
-		<section aria-label="auth-view" data-redirect-to={redirectTo ?? ""} data-view={view} />
-	),
-}));
-
-vi.mock("better-auth-ui/tanstack", () => ({
-	AuthUIProviderTanstack: ({
+	AuthUIProvider: ({
 		additionalFields,
 		children,
 		redirectTo,
@@ -35,6 +29,9 @@ vi.mock("better-auth-ui/tanstack", () => ({
 			<div data-testid="consent-label">{additionalFields?.legalConsentAccepted?.label}</div>
 			{children}
 		</section>
+	),
+	AuthView: ({ redirectTo, view }: { redirectTo?: string; view?: string }) => (
+		<section aria-label="auth-view" data-redirect-to={redirectTo ?? ""} data-view={view} />
 	),
 }));
 

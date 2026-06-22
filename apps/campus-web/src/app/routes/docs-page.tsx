@@ -5,7 +5,6 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getDocsNavigation, resolveDocument } from "@/features/docs/api";
@@ -152,12 +151,10 @@ function CollectionDirectory({ navigation }: { navigation: DocsNavigationRespons
 					))}
 				</ul>
 			) : (
-				<Empty className="mt-5">
-					<EmptyHeader>
-						<EmptyTitle>暂无文档</EmptyTitle>
-						<EmptyDescription>当前没有可阅读的文档。</EmptyDescription>
-					</EmptyHeader>
-				</Empty>
+				<div className="mt-5 flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
+					<h3 className="font-medium text-foreground text-sm">暂无文档</h3>
+					<p className="mt-1 max-w-sm text-muted-foreground text-sm">当前没有可阅读的文档。</p>
+				</div>
 			)}
 		</>
 	);

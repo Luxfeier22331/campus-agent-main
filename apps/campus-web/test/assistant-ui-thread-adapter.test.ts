@@ -101,6 +101,23 @@ describe("assistant-ui thread adapter", () => {
 		expect(conversationApiMock.createConversationDraft).toHaveBeenCalledOnce();
 	});
 
+	it("routes assistant-ui thread mutations to app-api conversation actions", async () => {
+		const adapter = createCampusAssistantThreadListAdapter();
+
+		await adapter.archive("conv_01");
+		await adapter.unarchive("conv_01");
+		await adapter.delete("conv_01");
+		await adapter.rename("conv_01", "奖学金申请");
+
+		expect(conversationApiMock.archiveConversation).toHaveBeenCalledWith("conv_01");
+		expect(conversationApiMock.unarchiveConversation).toHaveBeenCalledWith("conv_01");
+		expect(conversationApiMock.deleteConversation).toHaveBeenCalledWith("conv_01");
+		expect(conversationApiMock.renameConversation).toHaveBeenCalledWith({
+			conversationId: "conv_01",
+			title: "奖学金申请",
+		});
+	});
+
 	it("loads assistant-ui message history from app-api conversation detail", async () => {
 		conversationApiMock.getConversationDetail.mockResolvedValue(
 			detail({

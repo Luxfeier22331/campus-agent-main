@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Suspense } from "react";
 
@@ -12,33 +11,21 @@ const supportNavItems = [
 	{ emphasis: true, label: "反馈", to: "/feedback" },
 ] as const;
 
-const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			refetchOnWindowFocus: false,
-			retry: false,
-			staleTime: 30_000,
-		},
-	},
-});
-
 export function RootLayout() {
 	const location = useLocation();
 	const isQaRoute = location.pathname === "/" || location.pathname.startsWith("/c/");
 	const isMapRoute = location.pathname === "/map";
 	return (
-		<QueryClientProvider client={queryClient}>
-			<div className="min-h-dvh bg-background text-foreground">
-				{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
-				<CampusAuthUIProvider>
-					<main>
-						<Suspense fallback={<RoutePending />}>
-							<Outlet />
-						</Suspense>
-					</main>
-				</CampusAuthUIProvider>
-			</div>
-		</QueryClientProvider>
+		<div className="min-h-dvh bg-background text-foreground">
+			{isQaRoute || isMapRoute ? null : <SupportPageHeader activePath={location.pathname} />}
+			<CampusAuthUIProvider>
+				<main>
+					<Suspense fallback={<RoutePending />}>
+						<Outlet />
+					</Suspense>
+				</main>
+			</CampusAuthUIProvider>
+		</div>
 	);
 }
 

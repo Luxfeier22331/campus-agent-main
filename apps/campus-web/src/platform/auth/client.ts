@@ -1,5 +1,4 @@
 import { oauthProviderClient } from "@better-auth/oauth-provider/client";
-import { passkeyClient } from "@better-auth/passkey/client";
 import { createAuthClient } from "better-auth/react";
 
 import {
@@ -9,7 +8,7 @@ import {
 } from "./legal-consent";
 
 const betterAuthClient = createAuthClient({
-	plugins: [oauthProviderClient(), passkeyClient()],
+	plugins: [oauthProviderClient()],
 });
 
 export {
@@ -42,32 +41,44 @@ function headersInitFromUnknown(headers: unknown): HeadersInit | undefined {
 	return;
 }
 
-export const campusAuthClient: CampusAuthClient = {
-	...betterAuthClient,
-	signUp: {
-		...betterAuthClient.signUp,
-		email: async (input: CampusSignUpEmailInput) => {
-			const { [SIGNUP_LEGAL_CONSENT_FIELD_NAME]: legalConsentAccepted, ...signUpInput } =
-				input as CampusSignUpEmailInput;
-			if (legalConsentAccepted !== true) {
-				return {
-					data: null,
-					error: {
-						code: "legal_consent_required",
-						message: SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
-						status: 400,
-						statusText: "Bad Request",
-					},
-				} as Awaited<ReturnType<CampusAuthClient["signUp"]["email"]>>;
-			}
-			const fetchOptions = signUpInput.fetchOptions ?? {};
-			return betterAuthClient.signUp.email({
-				...signUpInput,
-				fetchOptions: {
-					...fetchOptions,
-					headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),
-				},
-			});
+async function campusSignUpEmail(input: CampusSignUpEmailInput) {
+	const { [SIGNUP_LEGAL_CONSENT_FIELD_NAME]: legalConsentAccepted, ...signUpInput } =
+		input as CampusSignUpEmailInput;
+	if (legalConsentAccepted !== true) {
+		return {
+			data: null,
+			error: {
+				code: "legal_consent_required",
+				message: SIGNUP_LEGAL_CONSENT_REQUIRED_MESSAGE,
+				status: 400,
+				statusText: "Bad Request",
+			},
+		} as Awaited<ReturnType<CampusAuthClient["signUp"]["email"]>>;
+	}
+	const fetchOptions = signUpInput.fetchOptions ?? {};
+	return betterAuthClient.signUp.email({
+		...signUpInput,
+		fetchOptions: {
+			...fetchOptions,
+			headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),
 		},
+	});
+}
+
+const campusSignUp = new Proxy(betterAuthClient.signUp, {
+	get(target, property, receiver) {
+		if (property === "email") {
+			return campusSignUpEmail;
+		}
+		return Reflect.get(target, property, receiver);
 	},
-};
+}) as CampusAuthClient["signUp"];
+
+export const campusAuthClient = new Proxy(betterAuthClient, {
+	get(target, property, receiver) {
+		if (property === "signUp") {
+			return campusSignUp;
+		}
+		return Reflect.get(target, property, receiver);
+	},
+}) as CampusAuthClient;
