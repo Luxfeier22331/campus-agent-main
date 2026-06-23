@@ -65,6 +65,22 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             core_script,
         )
 
+    def test_hindsight_password_reconcile_feeds_psql_statement_on_stdin(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_reconcile_hindsight_postgres_password() {"
+            ) : core_script.index("execution_control_staging_personal_memory_runtime_command() {")
+        ]
+
+        self.assertIn('printf "%s\\n" "ALTER ROLE hindsight PASSWORD', command_body)
+        self.assertIn(
+            "psql -U hindsight -d hindsight -v ON_ERROR_STOP=1 -v password=", command_body
+        )
+        self.assertNotIn('-c "ALTER ROLE hindsight PASSWORD', command_body)
+
     def test_canonical_compose_defaults_include_langfuse_runtime(self) -> None:
         common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
             encoding="utf-8"
