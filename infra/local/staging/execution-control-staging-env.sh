@@ -165,6 +165,7 @@ const keys = [
   "EXECUTION_CONTROL_APP_API_BASE_URL",
   "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH",
+  "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID",
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_RUNTIME_PROFILE",
@@ -524,7 +525,10 @@ function projectProviderConfigProjection() {
     resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
     `${resolvedValue("EXECUTION_CONTROL_STAGING_RUNTIME_DIR") || "."}/provider-config-projection.json`;
   const snapshotPath = "/run/campus-agent/provider-config-projection.json";
+  const snapshotStat = fs.statSync(snapshotHostPath);
+  fs.chmodSync(snapshotHostPath, 0o640);
   setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH", snapshotHostPath);
+  setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID", String(snapshotStat.gid));
   setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
   setValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
 }

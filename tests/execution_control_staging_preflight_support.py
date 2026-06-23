@@ -51,6 +51,7 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_APP_API_BASE_URL",
     "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH",
+    "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_COMPOSE_PROJECT_DIRECTORY",
@@ -152,6 +153,7 @@ _PROJECTED_LOCAL_RUNTIME_KEYS = [
     "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL",
     "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH",
+    "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID",
     "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
     "DOCUMENT_REGISTRY_DATABASE_URL",
@@ -370,6 +372,7 @@ def run_local_runtime_script_with_env(*, repo_env: str) -> subprocess.CompletedP
         scripts_dir.mkdir(parents=True)
         for script_name in (
             "ensure-runtime-secrets.mjs",
+            "project-local-runtime-env-keys.mjs",
             "project-local-runtime-env.mjs",
         ):
             source_path = ROOT / "infra/local/scripts" / script_name

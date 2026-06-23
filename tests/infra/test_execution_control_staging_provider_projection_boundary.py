@@ -17,6 +17,8 @@ from tests.execution_control_staging_preflight_support import (
     write_provider_config_projection_for_tests,
 )
 
+ROOT = Path(__file__).resolve().parents[2]
+
 
 class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
     def test_env_loader_defaults_provider_projection_to_canonical_runtime_dir(self) -> None:
@@ -32,11 +34,13 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
             projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             "/run/campus-agent/provider-config-projection.json",
         )
+        self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID"].isdigit())
         self.assertEqual(
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             "/run/campus-agent/provider-config-projection.json",
         )
         self.assertEqual(projected["hindsightModel"], "gpt-test")
+        self.assertEqual(projected["projectionMode"], "640")
 
     def test_env_loader_syncs_provider_projection_when_canonical_artifact_is_missing(
         self,
@@ -55,13 +59,34 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
                 projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
                 "/run/campus-agent/provider-config-projection.json",
             )
+            self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID"].isdigit())
             self.assertEqual(projected["hindsightModel"], "gpt-5.4")
             self.assertEqual(projected["hindsightEmbeddingModel"], "Qwen3-Embedding-4B")
             self.assertEqual(projected["profileRoles"], server.roles)
             self.assertTrue(projected["projectionExists"])
+            self.assertEqual(projected["projectionMode"], "640")
             self.assertTrue(all(header == "internal-secret" for header in server.auth_headers))
         finally:
             server.close()
+
+    def test_compose_adds_provider_projection_group_to_consuming_containers(self) -> None:
+        compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
+            encoding="utf-8"
+        )
+
+        for service in (
+            "execution-control",
+            "activity-worker-agent",
+            "activity-worker-knowledge-retrieval",
+            "activity-worker-knowledge-synthesis",
+        ):
+            with self.subTest(service=service):
+                block = _compose_service_block(compose, service)
+                self.assertIn("group_add:", block)
+                self.assertIn(
+                    "${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}",
+                    block,
+                )
 
 
 def _run_env_loader_with_default_provider_projection_path() -> subprocess.CompletedProcess[str]:
@@ -84,14 +109,18 @@ def _run_env_loader_with_default_provider_projection_path() -> subprocess.Comple
         source {shlex.quote(str(common_path))}
         execution_control_staging_load_env
         node - <<'NODE'
+        const fs = require("node:fs");
         console.log(JSON.stringify({{
           expectedProjectionPath: {json.dumps(str(projection_path))},
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:
             process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:
             process.env.EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH,
           hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
+          projectionMode: (fs.statSync(process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH).mode & 0o777).toString(8),
         }}));
         NODE
         """
@@ -139,11 +168,14 @@ def _run_env_loader_with_missing_provider_projection(
         console.log(JSON.stringify({{
           expected: {json.dumps(str(projection_path))},
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH: projectionPath,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
           hindsightEmbeddingModel: process.env.HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL,
           profileRoles: projection.source.roles,
           projectionExists: fs.existsSync(projectionPath),
+          projectionMode: (fs.statSync(projectionPath).mode & 0o777).toString(8),
         }}));
         NODE
         """
@@ -211,6 +243,19 @@ def _profile_for_role(role: str) -> dict[str, object]:
     if kind == "embedding":
         profile["dimensions"] = 2560
     return profile
+
+
+def _compose_service_block(compose: str, service: str) -> str:
+    marker = f"  {service}:\n"
+    start = compose.find(marker)
+    if start < 0:
+        return ""
+    next_service = compose.find("\n  ", start + len(marker))
+    while next_service >= 0 and compose[next_service + 3 : next_service + 4] == " ":
+        next_service = compose.find("\n  ", next_service + 1)
+    if next_service < 0:
+        return compose[start:]
+    return compose[start:next_service]
 
 
 if __name__ == "__main__":

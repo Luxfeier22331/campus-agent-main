@@ -286,6 +286,8 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    group_add:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
     logging:
       driver: json-file
       options:
@@ -474,6 +476,8 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    group_add:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
     logging:
       driver: json-file
       options:
@@ -608,6 +612,8 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    group_add:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
     logging:
       driver: json-file
       options:
@@ -669,6 +675,8 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
+    group_add:
+      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
     logging:
       driver: json-file
       options:

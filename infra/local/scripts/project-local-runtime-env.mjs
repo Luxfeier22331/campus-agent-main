@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { chmodSync, statSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -92,6 +93,7 @@ function deriveRuntimeEnv(env, input) {
 		"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
 		read(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"),
 	);
+	projectProviderConfigProjectionFile(env, providerConfigSnapshotHostPath);
 
 	const workerSharedSecret =
 		read(env, "API_WORKER_SHARED_SECRET") ||
@@ -262,6 +264,19 @@ function deriveRuntimeEnv(env, input) {
 	setDefault(env, "PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 	setDefault(env, "HINDSIGHT_API_IMAGE", "ghcr.io/vectorize-io/hindsight-api:0.8.2");
 	setDefault(env, "HINDSIGHT_API_RERANKER_PROVIDER", "rrf");
+}
+
+function projectProviderConfigProjectionFile(env, providerConfigSnapshotHostPath) {
+	try {
+		chmodSync(providerConfigSnapshotHostPath, 0o640);
+		setValue(
+			env,
+			"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID",
+			String(statSync(providerConfigSnapshotHostPath).gid),
+		);
+	} catch {
+		return;
+	}
 }
 
 async function projectHindsightProviderConfig(env) {
