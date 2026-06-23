@@ -207,6 +207,36 @@ class AppApiEvalClient:
             self._conversation_ids[resolved_conversation_key] = execution.conversation_id
         return execution
 
+    def get_runtime_readiness(self) -> dict[str, object]:
+        if self._client is not None:
+            response = self._client.get("/readyz")
+        else:
+            with httpx.Client(
+                base_url=self.settings.app_api_base_url.rstrip("/"),
+                timeout=self.settings.timeout_seconds,
+            ) as client:
+                response = client.get("/readyz")
+        payload = _decode_json(response)
+        if response.status_code < 400:
+            return dict(payload)
+        error_payload = dict(payload.get("error") or {})
+        details = error_payload.get("details")
+        if isinstance(details, dict):
+            return {
+                "status": "blocked",
+                "error": {
+                    "code": str(error_payload.get("code") or "dependency_not_ready"),
+                    "message": str(error_payload.get("message") or response.text or ""),
+                    "details": details,
+                },
+            }
+        raise AppApiEvalClientError(
+            status_code=response.status_code,
+            code=str(error_payload.get("code") or "app_api_readiness_failed"),
+            message=str(error_payload.get("message") or response.text or "readiness failed"),
+            details=error_payload.get("details"),
+        )
+
     def _build_version_query_body(self, case: GoldenCase) -> dict[str, object] | None:
         version_query = case.version_query
         if version_query.mode == "current":

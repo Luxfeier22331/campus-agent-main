@@ -13,7 +13,8 @@ ONLINE_ANSWER_PATH_CASES_PATH = fixture_path("e2e.online_answer_path.product_pat
 @dataclass(frozen=True, slots=True)
 class OnlineAnswerPathExpected:
     selected_capability: str
-    terminal_outcome: str
+    terminal_status: str
+    semantic_outcome: str
     fail_close_reason: str = ""
     response_contract: dict[str, object] = field(default_factory=dict)
     operator_backflow: dict[str, object] = field(default_factory=dict)
@@ -40,7 +41,8 @@ class OnlineAnswerPathObservation:
     request_id: str
     trace_id: str
     selected_capability: str
-    terminal_outcome: str
+    terminal_status: str
+    semantic_outcome: str
     fail_close_reason: str = ""
     response_contract: dict[str, object] = field(default_factory=dict)
     operator_backflow: dict[str, object] = field(default_factory=dict)
@@ -149,9 +151,13 @@ def _evaluate_case(
         failures.append(
             f"selected_capability expected {case.expected.selected_capability!r}, got {observation.selected_capability!r}"
         )
-    if observation.terminal_outcome != case.expected.terminal_outcome:
+    if observation.terminal_status != case.expected.terminal_status:
         failures.append(
-            f"terminal_outcome expected {case.expected.terminal_outcome!r}, got {observation.terminal_outcome!r}"
+            f"terminal_status expected {case.expected.terminal_status!r}, got {observation.terminal_status!r}"
+        )
+    if observation.semantic_outcome != case.expected.semantic_outcome:
+        failures.append(
+            f"semantic_outcome expected {case.expected.semantic_outcome!r}, got {observation.semantic_outcome!r}"
         )
     if (
         case.expected.fail_close_reason
@@ -195,9 +201,13 @@ def _parse_case(payload: object) -> OnlineAnswerPathCase:
             selected_capability=_required_string(
                 expected.get("selected_capability"), "selected_capability"
             ),
-            terminal_outcome=_required_string(
-                expected.get("terminal_outcome"),
-                "terminal_outcome",
+            terminal_status=_required_string(
+                expected.get("terminal_status"),
+                "terminal_status",
+            ),
+            semantic_outcome=_required_string(
+                expected.get("semantic_outcome"),
+                "semantic_outcome",
             ),
             fail_close_reason=str(expected.get("fail_close_reason") or ""),
             response_contract=_mapping(
@@ -239,7 +249,7 @@ def _workflow_trace_mismatch_reasons(
             f"{observation.selected_capability!r}, got {trace_target!r}"
         )
     branch = str(trace.get("direct_vs_delegate_branch") or "").strip()
-    expected_branches = _expected_trace_branches(case.expected.terminal_outcome)
+    expected_branches = _expected_trace_branches(case.expected.semantic_outcome)
     if expected_branches and branch not in expected_branches:
         failures.append(
             "workflow_trace_summary.direct_vs_delegate_branch expected one of "
@@ -262,12 +272,12 @@ def _normalized_trace_target(value: object) -> str:
     return normalized or "none"
 
 
-def _expected_trace_branches(terminal_outcome: str) -> set[str]:
-    if terminal_outcome == "completed":
-        return {"delegate", "direct"}
-    if terminal_outcome == "clarification":
+def _expected_trace_branches(semantic_outcome: str) -> set[str]:
+    if semantic_outcome == "answered":
+        return {"delegate", "direct", "direct_answer", "tool"}
+    if semantic_outcome == "clarification":
         return {"clarification"}
-    if terminal_outcome == "fail_close":
+    if semantic_outcome == "fail_close":
         return {"fail_close"}
     return set()
 

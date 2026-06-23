@@ -6,12 +6,14 @@ import unittest
 from pathlib import Path
 
 import httpx
+from campus_evals.app_api_chat_runtime_client import AppApiEvalClientSettings
 from campus_evals.eval_operations_governance import (
     evaluate_eval_operations_governance,
     load_eval_operations_profile_policy,
 )
 from campus_evals.eval_profile_gate import (
     collect_document_quality_runtime_observations,
+    collect_online_answer_path_runtime_observations,
     derive_eval_operations_observations_from_artifacts,
     run_online_answer_path_profile_gate,
 )
@@ -27,7 +29,8 @@ class EvalProfileGateSuite(unittest.TestCase):
                 "request_id": f"request-{case.case_id}",
                 "trace_id": f"trace-{case.case_id}",
                 "selected_capability": case.expected.selected_capability,
-                "terminal_outcome": case.expected.terminal_outcome,
+                "terminal_status": case.expected.terminal_status,
+                "semantic_outcome": case.expected.semantic_outcome,
                 "fail_close_reason": case.expected.fail_close_reason,
                 "response_contract": case.expected.response_contract,
                 "operator_backflow": case.expected.operator_backflow,
@@ -158,7 +161,8 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "request_id": "req_public_01",
                                 "trace_id": "trace_public_01",
                                 "selected_capability": case.expected.selected_capability,
-                                "terminal_outcome": case.expected.terminal_outcome,
+                                "terminal_status": case.expected.terminal_status,
+                                "semantic_outcome": case.expected.semantic_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
                                 "response_contract": case.expected.response_contract,
                                 "operator_backflow": case.expected.operator_backflow,
@@ -204,7 +208,7 @@ class EvalProfileGateSuite(unittest.TestCase):
             item
             for item in case_set.cases
             if item.expected.selected_capability == "campus_services"
-            and item.expected.terminal_outcome == "completed"
+            and item.expected.terminal_status == "completed"
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -219,7 +223,8 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "request_id": "req_public_trace_replay",
                                 "trace_id": "trace_public_trace_replay",
                                 "selected_capability": case.expected.selected_capability,
-                                "terminal_outcome": case.expected.terminal_outcome,
+                                "terminal_status": case.expected.terminal_status,
+                                "semantic_outcome": case.expected.semantic_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
                                 "response_contract": case.expected.response_contract,
                                 "operator_backflow": case.expected.operator_backflow,
@@ -249,6 +254,64 @@ class EvalProfileGateSuite(unittest.TestCase):
             "workflow_trace_summary.selected_capability expected",
             payload["sanitized_results"][0]["reason"],
         )
+
+    def test_online_answer_runtime_collection_blocks_when_campus_services_readiness_is_closed(
+        self,
+    ) -> None:
+        case_set = load_online_answer_path_cases()
+        case = next(
+            item
+            for item in case_set.cases
+            if item.expected.selected_capability == "campus_services"
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = _single_online_answer_case_path(Path(tmpdir), case)
+            single_case_set = load_online_answer_path_cases(path)
+
+            def handler(request: httpx.Request) -> httpx.Response:
+                if request.url.path == "/readyz":
+                    return httpx.Response(
+                        503,
+                        json={
+                            "error": {
+                                "code": "dependency_not_ready",
+                                "details": {
+                                    "preflight": {
+                                        "campusServicesProductPath": {
+                                            "status": "blocked",
+                                            "blockers": {
+                                                "capabilityGate": "campus_services capability gate is closed"
+                                            },
+                                        },
+                                        "executionRuntime": {
+                                            "status": "ready",
+                                            "blockers": {},
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                    )
+                raise AssertionError(f"unexpected request path: {request.url.path}")
+
+            observations = collect_online_answer_path_runtime_observations(
+                single_case_set,
+                settings=AppApiEvalClientSettings(
+                    app_api_base_url="https://app-api.example",
+                    internal_shared_secret="shared-secret",
+                    eval_user_email="eval@example.edu",
+                ),
+                client=httpx.Client(
+                    base_url="https://app-api.example",
+                    transport=httpx.MockTransport(handler),
+                ),
+            )
+
+        observation = observations[case.case_id]
+        self.assertEqual(observation.terminal_status, "error")
+        self.assertEqual(observation.semantic_outcome, "blocked")
+        self.assertEqual(observation.fail_close_reason, "runtime_preflight_blocked")
+        self.assertIn("campusServicesProductPath", observation.operator_backflow)
 
     def test_runtime_metrics_missing_from_profile_artifact_fails_operations_governance(
         self,
@@ -598,7 +661,8 @@ def _single_online_answer_case_path(root: Path, case) -> Path:
                         "split": case.split,
                         "expected": {
                             "selected_capability": case.expected.selected_capability,
-                            "terminal_outcome": case.expected.terminal_outcome,
+                            "terminal_status": case.expected.terminal_status,
+                            "semantic_outcome": case.expected.semantic_outcome,
                             "fail_close_reason": case.expected.fail_close_reason,
                             "response_contract": case.expected.response_contract,
                             "operator_backflow": case.expected.operator_backflow,

@@ -9,7 +9,6 @@
 			"split": "smoke",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -19,7 +18,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -28,7 +29,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -38,7 +38,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -47,7 +49,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -57,7 +58,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -66,7 +69,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -76,7 +78,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -85,7 +89,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -95,7 +98,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -104,7 +109,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -114,7 +118,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -123,7 +129,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -133,7 +138,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -142,7 +149,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -152,7 +158,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -161,7 +169,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "notice",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": false,
@@ -171,7 +178,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -180,7 +189,6 @@
 			"split": "clarification",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "clarification",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": false,
@@ -190,7 +198,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "needs_clarification",
+				"semantic_outcome": "clarification"
 			}
 		},
 		{
@@ -199,7 +209,6 @@
 			"split": "regression_locked",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -209,7 +218,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -218,7 +229,6 @@
 			"split": "release_gate",
 			"expected": {
 				"selected_capability": "notice",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": false,
@@ -228,7 +238,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -237,7 +249,6 @@
 			"split": "regression_locked",
 			"expected": {
 				"selected_capability": "notice",
-				"terminal_outcome": "completed",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": true,
@@ -247,7 +258,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "completed",
+				"semantic_outcome": "answered"
 			}
 		},
 		{
@@ -256,7 +269,6 @@
 			"split": "fail_close",
 			"expected": {
 				"selected_capability": "none",
-				"terminal_outcome": "fail_close",
 				"fail_close_reason": "transactional_action_not_supported",
 				"response_contract": {
 					"answer_text_present": true,
@@ -267,7 +279,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "error",
+				"semantic_outcome": "fail_close"
 			}
 		},
 		{
@@ -276,7 +290,6 @@
 			"split": "no_hit",
 			"expected": {
 				"selected_capability": "campus_services",
-				"terminal_outcome": "no_hit",
 				"response_contract": {
 					"answer_text_present": true,
 					"citations_present": false,
@@ -286,7 +299,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "no_answer",
+				"semantic_outcome": "no_hit"
 			}
 		},
 		{
@@ -295,7 +310,6 @@
 			"split": "fail_close",
 			"expected": {
 				"selected_capability": "none",
-				"terminal_outcome": "fail_close",
 				"fail_close_reason": "policy_unavailable",
 				"response_contract": {
 					"answer_text_present": false,
@@ -306,7 +320,9 @@
 				"operator_backflow": {
 					"quality_candidate_supported": true,
 					"trace_backlink_present": true
-				}
+				},
+				"terminal_status": "error",
+				"semantic_outcome": "fail_close"
 			}
 		}
 	]

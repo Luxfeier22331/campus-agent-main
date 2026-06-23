@@ -37,7 +37,11 @@ def _load_online_answer_observations(
             selected_capability=_required_string(
                 item.get("selected_capability"), "selected_capability"
             ),
-            terminal_outcome=_required_string(item.get("terminal_outcome"), "terminal_outcome"),
+            terminal_status=_required_string(item.get("terminal_status"), "terminal_status"),
+            semantic_outcome=_required_string(
+                item.get("semantic_outcome"),
+                "semantic_outcome",
+            ),
             fail_close_reason=str(item.get("fail_close_reason") or ""),
             response_contract=_mapping(item.get("response_contract") or {}, "response_contract"),
             operator_backflow=_mapping(item.get("operator_backflow") or {}, "operator_backflow"),
@@ -183,7 +187,7 @@ def _online_answer_observation_from_response(
         or result.get("selected_capability")
         or "none"
     )
-    terminal_outcome = str(supervisor.get("status") or result.get("status") or "")
+    terminal_status = str(supervisor.get("status") or result.get("status") or "")
     fail_close_reason = str(
         supervisor.get("failCloseReason")
         or supervisor.get("fail_close_reason")
@@ -196,7 +200,13 @@ def _online_answer_observation_from_response(
         request_id=request_id,
         trace_id=trace_id,
         selected_capability=selected_capability,
-        terminal_outcome=terminal_outcome,
+        terminal_status=terminal_status,
+        semantic_outcome=_semantic_outcome_from_status(
+            terminal_status=terminal_status,
+            fail_close_reason=fail_close_reason,
+            tool_business_outcome="",
+            explicit_semantic_outcome="",
+        ),
         fail_close_reason=fail_close_reason,
         response_contract={
             "answer_text_present": _has_answer_text(result),
@@ -209,6 +219,36 @@ def _online_answer_observation_from_response(
             "trace_backlink_present": bool(trace_id),
         },
     )
+
+
+def _semantic_outcome_from_status(
+    *,
+    terminal_status: str,
+    fail_close_reason: str,
+    tool_business_outcome: str,
+    explicit_semantic_outcome: str,
+) -> str:
+    explicit = str(explicit_semantic_outcome or "").strip()
+    if explicit:
+        return explicit
+    tool_outcome = str(tool_business_outcome or "").strip()
+    if tool_outcome == "not_found":
+        return "no_hit"
+    if tool_outcome == "clarification_required":
+        return "clarification"
+    if tool_outcome:
+        return "answered"
+    if str(fail_close_reason or "").strip():
+        return "fail_close"
+    if terminal_status == "needs_clarification":
+        return "clarification"
+    if terminal_status == "no_answer":
+        return "no_hit"
+    if terminal_status in {"error", "rejected", "approval_required"}:
+        return "fail_close"
+    if terminal_status == "completed":
+        return "answered"
+    return terminal_status
 
 
 def _has_answer_text(result: dict[str, object]) -> bool:

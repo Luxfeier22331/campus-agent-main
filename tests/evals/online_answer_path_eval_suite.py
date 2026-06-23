@@ -50,10 +50,18 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
                 "online-answer-policy-unavailable-fail-close",
             }.issubset(case_ids)
         )
-        outcomes = {case.expected.terminal_outcome for case in case_set.cases}
-        self.assertTrue({"completed", "clarification", "fail_close", "no_hit"}.issubset(outcomes))
+        terminal_statuses = {case.expected.terminal_status for case in case_set.cases}
+        semantic_outcomes = {case.expected.semantic_outcome for case in case_set.cases}
+        self.assertTrue(
+            {"completed", "needs_clarification", "no_answer", "error"}.issubset(terminal_statuses)
+        )
+        self.assertTrue(
+            {"answered", "clarification", "fail_close", "no_hit"}.issubset(semantic_outcomes)
+        )
 
-    def test_report_requires_request_trace_target_and_terminal_outcome(self) -> None:
+    def test_report_requires_request_trace_target_terminal_status_and_semantic_outcome(
+        self,
+    ) -> None:
         case_set = load_online_answer_path_cases()
         observations = {
             case.case_id: OnlineAnswerPathObservation(
@@ -61,7 +69,8 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
                 request_id=f"req_{index}",
                 trace_id=f"trace_{index}",
                 selected_capability=case.expected.selected_capability,
-                terminal_outcome=case.expected.terminal_outcome,
+                terminal_status=case.expected.terminal_status,
+                semantic_outcome=case.expected.semantic_outcome,
                 fail_close_reason=case.expected.fail_close_reason,
                 response_contract=dict(case.expected.response_contract),
                 operator_backflow=dict(case.expected.operator_backflow),
@@ -85,7 +94,8 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
                 request_id="req_service_guide_001",
                 trace_id="trace_service_guide_001",
                 selected_capability="campus_services",
-                terminal_outcome="completed",
+                terminal_status="completed",
+                semantic_outcome="answered",
                 response_contract={
                     "answer_text_present": True,
                     "citations_present": True,
@@ -119,7 +129,8 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
                 request_id="req_service_guide_001",
                 trace_id="trace_service_guide_001",
                 selected_capability="campus_services",
-                terminal_outcome="completed",
+                terminal_status="completed",
+                semantic_outcome="answered",
                 response_contract={"rawTranscript": "do not persist"},
             )
 
@@ -131,7 +142,8 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
                 request_id=f"req_{index}",
                 trace_id=f"trace_{index}",
                 selected_capability=case.expected.selected_capability,
-                terminal_outcome=case.expected.terminal_outcome,
+                terminal_status=case.expected.terminal_status,
+                semantic_outcome=case.expected.semantic_outcome,
                 fail_close_reason=case.expected.fail_close_reason,
                 response_contract=dict(case.expected.response_contract),
                 operator_backflow=dict(case.expected.operator_backflow),
