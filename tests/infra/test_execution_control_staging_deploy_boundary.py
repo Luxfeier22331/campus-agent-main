@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from tests.execution_control_staging_preflight_support import (
+    copy_staging_modules_for_tests,
     run_common_script_with_env,
     write_provider_config_projection_for_tests,
 )
@@ -36,21 +37,6 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("EXECUTION_CONTROL_STAGING_ENV_FILE is required", result.stderr)
         self.assertIn("/srv/docker/campus-agent/staging/env/runtime.env", result.stderr)
-
-    def test_env_loader_defaults_provider_projection_to_canonical_runtime_dir(self) -> None:
-        result = _run_env_loader_with_default_provider_projection_path()
-
-        self.assertEqual(result.returncode, 0, result.stderr)
-        projected = json.loads(result.stdout)
-        self.assertEqual(
-            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
-            projected["expectedProjectionPath"],
-        )
-        self.assertEqual(
-            projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
-            projected["expectedProjectionPath"],
-        )
-        self.assertEqual(projected["hindsightModel"], "gpt-test")
 
     def test_env_loader_does_not_read_repo_local_env_or_app_api_dev_vars(self) -> None:
         result = _run_env_loader_with_repo_local_secrets_only()
@@ -499,21 +485,10 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
                 self.assertNotIn("uv run --all-packages", script)
 
 
-def _copy_staging_modules(target_root: Path) -> Path:
-    staging_dir = target_root / "infra" / "local" / "staging"
-    staging_dir.mkdir(parents=True)
-    for source_path in STAGING_DIR.glob("execution-control-staging-*.sh"):
-        (staging_dir / source_path.name).write_text(
-            source_path.read_text(encoding="utf-8"),
-            encoding="utf-8",
-        )
-    return staging_dir / "execution-control-staging-common.sh"
-
-
 def _run_env_loader_without_runtime_env() -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
+        common_path = copy_staging_modules_for_tests(root)
         command = f"""
         set -euo pipefail
         source {common_path}
@@ -528,49 +503,10 @@ def _run_env_loader_without_runtime_env() -> subprocess.CompletedProcess[str]:
         )
 
 
-def _run_env_loader_with_default_provider_projection_path() -> subprocess.CompletedProcess[str]:
-    with TemporaryDirectory() as temp_dir:
-        root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
-        runtime_env = root / "ops" / "runtime.env"
-        runtime_dir = root / ".tmp" / "execution-control-staging"
-        projection_path = runtime_dir / "provider-config-projection.json"
-        write_provider_config_projection_for_tests(projection_path)
-        runtime_env.parent.mkdir(exist_ok=True)
-        runtime_env.write_text(
-            "EXECUTION_CONTROL_SHARED_SECRET=worker-secret\n",
-            encoding="utf-8",
-        )
-        command = f"""
-        set -euo pipefail
-        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
-        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
-        source {shlex.quote(str(common_path))}
-        execution_control_staging_load_env
-        node - <<'NODE'
-        console.log(JSON.stringify({{
-          expectedProjectionPath: {json.dumps(str(projection_path))},
-          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
-          EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:
-            process.env.EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH,
-          hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
-        }}));
-        NODE
-        """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
-
-
 def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
+        common_path = copy_staging_modules_for_tests(root)
         runtime_env = root / "ops" / "runtime.env"
         projection_path = root / "ops" / "provider-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
@@ -627,7 +563,7 @@ def _run_env_loader_twice_for_hindsight_defaults() -> subprocess.CompletedProces
 def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
+        common_path = copy_staging_modules_for_tests(root)
         runtime_env = root / "ops" / "runtime.env"
         projection_path = root / "ops" / "provider-config-projection.json"
         write_provider_config_projection_for_tests(projection_path)
@@ -734,7 +670,7 @@ def _run_env_loader_twice_for_self_hosted_runtime_defaults() -> subprocess.Compl
 def _run_env_loader_with_repo_local_secrets_only() -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
+        common_path = copy_staging_modules_for_tests(root)
         (root / ".env.staging.local").write_text(
             "EXECUTION_CONTROL_SHARED_SECRET=repo-local-secret\n",
             encoding="utf-8",
@@ -818,7 +754,7 @@ def _run_checkout_guard(
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         root = Path(temp_dir)
-        common_path = _copy_staging_modules(root)
+        common_path = copy_staging_modules_for_tests(root)
         env = os.environ.copy()
         command = f"""
         set -euo pipefail

@@ -10,6 +10,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[1]
+STAGING_DIR = ROOT / "infra/local/staging"
 
 _PROJECTED_STAGING_KEYS = [
     "CAMPUS_SHARED_POSTGRES_URL",
@@ -232,6 +233,17 @@ _VALID_STAGING_PROVIDER_ENV = {
 }
 
 
+def copy_staging_modules_for_tests(target_root: Path) -> Path:
+    staging_dir = target_root / "infra" / "local" / "staging"
+    staging_dir.mkdir(parents=True)
+    for source_path in STAGING_DIR.glob("execution-control-staging-*.sh"):
+        (staging_dir / source_path.name).write_text(
+            source_path.read_text(encoding="utf-8"),
+            encoding="utf-8",
+        )
+    return staging_dir / "execution-control-staging-common.sh"
+
+
 def run_common_script_with_env(
     *,
     repo_env: str,
@@ -241,14 +253,7 @@ def run_common_script_with_env(
 ) -> subprocess.CompletedProcess[str]:
     with TemporaryDirectory() as temp_dir:
         temp_root = Path(temp_dir)
-        staging_dir = temp_root / "infra" / "local" / "staging"
-        staging_dir.mkdir(parents=True)
-        for source_path in (ROOT / "infra/local/staging").glob("execution-control-staging-*.sh"):
-            (staging_dir / source_path.name).write_text(
-                source_path.read_text(encoding="utf-8"),
-                encoding="utf-8",
-            )
-        common_path = staging_dir / "execution-control-staging-common.sh"
+        common_path = copy_staging_modules_for_tests(temp_root)
         if repo_env:
             (temp_root / ".env").write_text(repo_env + "\n", encoding="utf-8")
         runtime_env_path = temp_root / "ops" / "staging" / "runtime.env"
