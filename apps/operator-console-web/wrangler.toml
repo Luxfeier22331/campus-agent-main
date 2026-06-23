@@ -35,7 +35,7 @@ SENTRY_ENVIRONMENT = "staging"
 required = ["OPERATOR_CONSOLE_APP_API_SHARED_SECRET", "SENTRY_DSN"]
 
 [[env.staging.routes]]
-pattern = "operator-console-staging.mucwiki-edge.link"
+pattern = "panel-staging.mucwiki-edge.link"
 custom_domain = true
 
 [[env.staging.services]]

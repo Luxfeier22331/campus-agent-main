@@ -261,7 +261,7 @@ evidence is the governed diagnostic state above, not synthesized frontend data.
 - `https://campus-staging.mucwiki-edge.link/docs/`
   - 首页、分类、reader 页面可打开
   - gated 文档未授权不可读，授权后可读
-- `https://operator-console-staging.mucwiki-edge.link`
+- `https://panel-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
   - Overview、Runtime Health、Eval Coverage、Requests、Provider Config、

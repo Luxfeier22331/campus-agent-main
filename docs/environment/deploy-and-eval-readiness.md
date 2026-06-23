@@ -105,7 +105,7 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>，承载 student
   Q&A、account、docs、map、dining 与 feedback
-- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://panel-staging.mucwiki-edge.link`>
 - `apps/public-docs` 已删除；docs staging browser surface 由 `apps/campus-web`
   `/docs/*` 承担
 

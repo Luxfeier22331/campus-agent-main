@@ -44,7 +44,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
 - `apps/campus-web`、Operator Console implementation surfaces、`apps/app-api` 必须共享一套
   release hardening discipline，但仍保持独立 deploy unit
 - staging browser baseline 当前固定为 `campus-staging.mucwiki-edge.link` 与
-  `operator-console-staging.mucwiki-edge.link`；docs 作为
+  `panel-staging.mucwiki-edge.link`；docs 作为
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
 - `apps/execution-control` 的当前 accepted deploy substrate 是 Docker-first internal
@@ -75,7 +75,7 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   Binding 调用
 - `apps/app-api` optional machine / ops ingress -> `<https://api-staging.mucwiki-edge.link`>
 - `apps/campus-web` -> `<https://campus-staging.mucwiki-edge.link`>
-- `apps/operator-console-web` -> `<https://operator-console-staging.mucwiki-edge.link`>
+- `apps/operator-console-web` -> `<https://panel-staging.mucwiki-edge.link`>
 - `apps/public-docs` -> removed; docs staging surface is `apps/campus-web /docs/*`
 
 长期规则：

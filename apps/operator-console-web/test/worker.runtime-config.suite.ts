@@ -19,7 +19,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(wranglerConfig).toContain("preview_urls = false");
 		expect(wranglerConfig).toContain('compatibility_flags = ["nodejs_compat"]');
 		expect(wranglerConfig).toContain("[[env.staging.routes]]");
-		expect(wranglerConfig).toContain('pattern = "operator-console-staging.mucwiki-edge.link"');
+		expect(wranglerConfig).toContain('pattern = "panel-staging.mucwiki-edge.link"');
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[env.local.vars]");
 		expect(wranglerConfig).toContain(

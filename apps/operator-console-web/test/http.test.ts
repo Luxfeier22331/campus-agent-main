@@ -78,9 +78,7 @@ describe("Operator Console http copy", () => {
 
 	it("maps opaque access redirects to a login reentry error", async () => {
 		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			createOpaqueRedirectResponse(
-				"https://operator-console-staging.mucwiki-edge.link/api/requests?limit=20",
-			),
+			createOpaqueRedirectResponse("https://panel-staging.mucwiki-edge.link/api/requests?limit=20"),
 		);
 
 		await expect(fetchJson("/api/requests?limit=20")).rejects.toMatchObject({

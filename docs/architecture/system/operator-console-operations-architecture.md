@@ -228,7 +228,7 @@ and the generated floorplan manifest, not through an operator upload control.
 
 ## Staging Surface
 
-Staging route target is `https://operator-console-staging.mucwiki-edge.link`.
+Staging route target is `https://panel-staging.mucwiki-edge.link`.
 
 Current minimal staging acceptance requires:
 
