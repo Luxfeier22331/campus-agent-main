@@ -35,17 +35,17 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 299
+- Current-worktree docs Markdown files: 300
 - Git tracked docs Markdown files: 289
 - Untracked docs Markdown files included: 8
 - Generated on: 2026-06-21
 
 ### By Directory Area
 
-- `reference`: 53
+- `reference`: 55
 - `runbooks`: 53
 - `decisions`: 56
-- `contracts`: 44
+- `contracts`: 43
 - `architecture`: 40
 - `data`: 21
 - `domains`: 8
@@ -57,10 +57,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `doc_type`
 
-- `reference`: 47
+- `reference`: 49
 - `runbook`: 46
 - `decision`: 51
-- `contract`: 36
+- `contract`: 35
 - `index`: 32
 - `architecture`: 33
 - `data`: 18
@@ -81,10 +81,10 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Owner Class
 
-- `reference`: 50
+- `reference`: 52
 - `operational_truth`: 48
 - `decision_record`: 51
-- `contract_truth`: 36
+- `contract_truth`: 35
 - `reference_index`: 32
 - `supporting_architecture`: 24
 - `data_truth`: 18
@@ -97,12 +97,12 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Governance Action
 
-- `keep_executable_truth`: 53
+- `keep_executable_truth`: 52
 - `keep_ops_procedure`: 47
 - `preserve_adr`: 49
 - `keep_owner_truth`: 36
 - `keep_reference_truth`: 26
-- `keep_archive_historical`: 23
+- `keep_archive_historical`: 25
 - `keep_thin_index`: 26
 - `keep_large_owner_truth`: 6
 - `keep_thin_domain_hub`: 6
@@ -1504,13 +1504,21 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=product`, `cluster=account`, `state=untracked`, `lines=150`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
-- `docs/product/chatkit-runtime-self-host-prd.md`
+- `docs/reference/archive/chatkit-runtime-self-host-prd.md`
   - Title: ChatKit Runtime Self-host PRD
-  - Owner class: `product_requirement`
-  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=historical`
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
   - Owner boundary: `docs/product`
-  - Ledger: `area=product`, `cluster=chatkit`, `state=untracked`, `lines=207`
-  - Governance action: `keep_historical_reference`
+  - Ledger: `area=reference`, `cluster=chatkit`, `state=untracked`, `lines=209`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/product/conversation-attachment-upload-prd.md`
+  - Title: Conversation Attachment Upload PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=conversation`, `state=untracked`, `lines=264`
+  - Governance action: `keep_owner_truth`
   - Drift signal: `ok`
 - `docs/product/langfuse-eval-platform-completion-prd.md`
   - Title: Langfuse Eval Platform Completion PRD
@@ -2457,14 +2465,14 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=contracts`, `cluster=identity`, `state=tracked`, `lines=405`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
-- `docs/contracts/campus-web-chatkit-adapter.md`
+- `docs/reference/archive/chatkit-adapter-contract.md`
   - Title: Campus Web ChatKit Adapter Contract
-  - Owner class: `contract_truth`
-  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=historical`
   - Owner boundary: `apps/chatkit-adapter`
-  - Ledger: `area=contracts`, `cluster=chat`, `state=tracked`, `lines=186`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
+  - Ledger: `area=reference`, `cluster=chatkit`, `state=tracked`, `lines=191`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
 - `docs/data/dining-operations-schema.md`
   - Title: Dining Operations Schema
   - Owner class: `data_truth`

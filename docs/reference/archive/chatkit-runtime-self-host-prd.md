@@ -1,10 +1,10 @@
 ---
-doc_type: product_requirement
+doc_type: reference
 truth_scope: product
 owner_boundary: docs/product
 status: historical
 created: 2026-06-19
-updated: 2026-06-21
+updated: 2026-06-23
 ---
 
 # ChatKit Runtime Self-host PRD

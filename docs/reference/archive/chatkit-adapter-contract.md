@@ -1,16 +1,16 @@
 ---
-doc_type: contract
+doc_type: reference
 truth_scope: product
 owner_boundary: apps/chatkit-adapter
 status: historical
 created: 2026-06-12
-updated: 2026-06-21
+updated: 2026-06-23
 ---
 # Campus Web ChatKit Adapter Contract
 
 > Legacy: `campus-web` Q&A no longer consumes `/api/chatkit` or the ChatKit
 > browser runtime. Current student Q&A uses `/api/chat/assistant-ui`. This file
-> only documents the retained backend adapter seam until it is removed.
+> only documents the retired backend adapter seam.
 
 ## Boundary
 

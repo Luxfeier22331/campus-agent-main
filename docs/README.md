@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-21
+updated: 2026-06-23
 ---
 
 # Docs
@@ -22,6 +22,7 @@ class owns a fact.
 - Feature-level product requirements:
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
+  - [product/conversation-attachment-upload-prd.md](./product/conversation-attachment-upload-prd.md)
   - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
   - [product/multi-turn-context-and-rag-followup-prd.md](./product/multi-turn-context-and-rag-followup-prd.md)
 - Current accepted merged truth:

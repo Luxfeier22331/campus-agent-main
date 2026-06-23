@@ -82,6 +82,13 @@ status as current project truth.
   published current-effective release snapshots. Remaining staging/runtime proof
   and capability-opening work belong to capability/ops tracking, not main-chain
   completion.
+- Product-plane signal: conversation attachment upload is now captured as a
+  proposed PRD in `docs/product/conversation-attachment-upload-prd.md`. It is a
+  per-message user-provided image/document context feature for `campus-web` Q&A,
+  not an institution RAG ingestion path, notice/source-truth path, release
+  evidence path or long-term personal file library. Until the backend contract
+  and execution projection are implemented, the browser attachment entry must
+  remain hidden or fail closed.
 - Document reader appendix / form downloads are deferred backlog, not part of
   the current docs hardening closeout. Current reader delivery renders appendix
   tables as reader sections/blocks. Future work should expose "download original

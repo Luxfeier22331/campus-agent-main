@@ -70,12 +70,6 @@ updated: 2026-06-13
 
 - `knowledge-retrieval-plan-contract.md`
 
-## Legacy contract
-
-- `campus-web-chatkit-adapter.md`
-  - legacy ChatKit protocol adapter; current `campus-web` Q&A no longer
-    consumes it
-
 ## 使用规则
 
 - contract 只写稳定 seam，不写执行历史
