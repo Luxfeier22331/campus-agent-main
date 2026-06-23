@@ -627,11 +627,10 @@ supplemental adapter seam：
   评分接线，不影响 `CaseResult.passed`
 - `RunReport.by_supplemental` 单独聚合 adapter 指标，和 `by_metric` 的 deterministic gate
   分离
-- RAGAS sample batch 的输入只能来自 golden dataset、`GoldenCase + ExecutionResult`
-  或 app-owned safe eval artifact；不得从 Axiom / Langfuse / Sentry raw trace 反向抽取
-  answer、retrieved context 或 reference。
-- 如需从已有 run 生成 RAGAS 样本，命名为 safe sample exporter / batch builder；它只能读取
-  sanitized artifact 或 operator-safe projection，不应命名为 collector。
+- RAGAS offline scoring 主路径消费现有 golden dataset 与线上执行结果：
+  `GoldenCase + ExecutionResult -> build_ragas_projection() -> ragas.evaluate(...)`。
+- RAGAS sample batch 只作为后续 Langfuse publish bridge 的输入格式，不是跑 RAGAS 的主入口；
+  不从 Axiom / Langfuse / Sentry raw trace 反向抽取 answer、retrieved context 或 reference。
 
 formal benchmark core：
 
@@ -826,6 +825,20 @@ Langfuse eval platform：
 - RAGAS publish 入口消费 safe sample batch，先生成 `ragas_score_batch.v1`，再生成
   `langfuse_score_report.v1`；它不从 Langfuse trace 或 Axiom events 抽取 scoring 输入。
   CLI 参数使用 `--sample-batch <ragas-sample-batch.json>`。
+- 当前 offline RAGAS 评分入口直接跑现有 golden cases，通过 app-api internal eval ingress
+  产生 `ExecutionResult`，再由 `RagasSupplementalAdapter` 写入 formal benchmark artifact：
+
+```bash
+uv run --all-packages python -m campus_evals.ragas_offline_benchmark run \
+  --surface student_rules \
+  --split smoke \
+  --metrics faithfulness,answer_relevancy \
+  --reruns 1 \
+  --output-dir .tmp/evals/ragas-student-rules-smoke
+```
+
+- 首批默认指标为 `faithfulness,answer_relevancy`，不依赖 curated reference context；等
+  reference truth 完整后再显式加入 context precision / recall。
 - dataset / experiment / review automation 入口：
   `sync-score-configs`、`sync-datasets`、`run-experiment`、
   `sync-annotation-queue` 与 `export-review-results`。
