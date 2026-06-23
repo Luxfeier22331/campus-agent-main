@@ -894,8 +894,9 @@ services:
       - data-plane
 
   temporal-task-queue-sampler:
+    profiles: ["ops-proof"]
     init: true
-    restart: unless-stopped
+    restart: "no"
     extra_hosts: *host-gateway
     build:
       context: ../..
@@ -908,11 +909,8 @@ services:
       - -ec
     command:
       - |
-        while true; do
-          /usr/local/bin/temporal-task-queue-sampler \
-            --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
-          sleep "$${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_INTERVAL_SECONDS:-30}"
-        done
+        /usr/local/bin/temporal-task-queue-sampler \
+          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
     depends_on:
       temporal-namespace-setup:
         condition: service_completed_successfully
@@ -931,13 +929,13 @@ services:
       EXECUTION_CONTROL_TEMPORAL_NAMESPACE: ${EXECUTION_CONTROL_TEMPORAL_NAMESPACE:?set EXECUTION_CONTROL_TEMPORAL_NAMESPACE}
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY}
-      EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_INTERVAL_SECONDS: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_INTERVAL_SECONDS:-30}
     networks:
       - supervisor-runtime
 
   worker-autoscaler:
+    profiles: ["ops-proof"]
     init: true
-    restart: unless-stopped
+    restart: "no"
     image: docker:28-cli
     extra_hosts: *host-gateway
     entrypoint:
@@ -946,11 +944,8 @@ services:
     command:
       - |
         install -m 0755 /runtime-bin/worker-autoscaler /usr/local/bin/worker-autoscaler
-        while true; do
-          /usr/local/bin/worker-autoscaler \
-            --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
-          sleep "$${EXECUTION_CONTROL_WORKER_AUTOSCALER_INTERVAL_SECONDS:-60}"
-        done
+        /usr/local/bin/worker-autoscaler \
+          --timeout-ms "$${EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS:-30000}"
     depends_on:
       worker-autoscaler-bin:
         condition: service_completed_successfully

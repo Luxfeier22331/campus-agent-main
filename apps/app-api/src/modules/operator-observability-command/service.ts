@@ -116,7 +116,10 @@ export interface OperatorObservabilityCommandService {
 	ingestTraceBacklinks(input: {
 		payload: OperatorTraceBacklinksPayload;
 	}): Promise<{ accepted: number }>;
-	ingestTemporalTaskQueueSnapshots(input: { payload: TemporalTaskQueueRuntimePayload }): Promise<{
+	ingestTemporalTaskQueueSnapshots(input: {
+		payload: TemporalTaskQueueRuntimePayload;
+		persistHistory?: boolean;
+	}): Promise<{
 		acceptedActuations: number;
 		acceptedDecisions: number;
 		acceptedSnapshots: number;
@@ -704,7 +707,10 @@ export function buildOperatorObservabilityCommandService(
 			const projections = normalizeTemporalTaskQueueRuntimePayload(input.payload, {
 				projectedAt: now().toISOString(),
 			});
-			await dependencies.store.upsertTemporalTaskQueueRuntime(projections);
+			await dependencies.store.upsertTemporalTaskQueueRuntime({
+				...projections,
+				persistHistory: input.persistHistory === true,
+			});
 			return {
 				acceptedActuations: projections.actuations.length,
 				acceptedDecisions: projections.decisions.length,

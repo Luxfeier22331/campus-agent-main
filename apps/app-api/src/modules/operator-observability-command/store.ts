@@ -9,10 +9,12 @@ import {
 	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
+	temporalTaskQueueCurrent,
 	temporalTaskQueueSnapshot,
 	traceBacklinkProjection,
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
 } from "../../db/schema";
 import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
 import type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
@@ -92,6 +94,7 @@ export interface ExecutionAuditEventWrite {
 export interface TemporalTaskQueueRuntimeProjectionWrite {
 	actuations: WorkerAutoscalerActuationWrite[];
 	decisions: WorkerAutoscalerDecisionWrite[];
+	persistHistory?: boolean;
 	snapshots: TemporalTaskQueueSnapshotWrite[];
 }
 
@@ -126,6 +129,14 @@ function toStoredRequestObservabilitySeed(
 		surface: row.surface,
 		traceId: row.traceId,
 	};
+}
+
+function buildTemporalTaskQueueCurrentId(snapshot: TemporalTaskQueueSnapshotWrite): string {
+	return `${snapshot.namespace}:${snapshot.taskQueueKind}:${snapshot.taskQueue}`;
+}
+
+function buildWorkerAutoscalerDecisionCurrentId(decision: WorkerAutoscalerDecisionWrite): string {
+	return decision.targetService;
 }
 
 export function createPgOperatorObservabilityCommandStore(
@@ -306,6 +317,42 @@ export function createPgOperatorObservabilityCommandStore(
 			await db.transaction(async (tx) => {
 				for (const snapshot of input.snapshots) {
 					await tx
+						.insert(temporalTaskQueueCurrent)
+						.values({
+							backlogJson: snapshot.backlog,
+							currentId: buildTemporalTaskQueueCurrentId(snapshot),
+							namespace: snapshot.namespace,
+							oldestTaskAgeJson: snapshot.oldestTaskAge,
+							pollerCount: snapshot.pollerCount,
+							pollerIdentitiesJson: snapshot.pollerIdentities,
+							projectedAt: new Date(snapshot.projectedAt),
+							sampledAt: new Date(snapshot.sampledAt),
+							scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+							snapshotId: snapshot.snapshotId,
+							source: snapshot.source,
+							taskQueue: snapshot.taskQueue,
+							taskQueueKind: snapshot.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								backlogJson: snapshot.backlog,
+								namespace: snapshot.namespace,
+								oldestTaskAgeJson: snapshot.oldestTaskAge,
+								pollerCount: snapshot.pollerCount,
+								pollerIdentitiesJson: snapshot.pollerIdentities,
+								projectedAt: new Date(snapshot.projectedAt),
+								sampledAt: new Date(snapshot.sampledAt),
+								scheduleToStartLatencyJson: snapshot.scheduleToStartLatency,
+								source: snapshot.source,
+								taskQueue: snapshot.taskQueue,
+								taskQueueKind: snapshot.taskQueueKind,
+							},
+							target: temporalTaskQueueCurrent.currentId,
+						});
+					if (input.persistHistory !== true) {
+						continue;
+					}
+					await tx
 						.insert(temporalTaskQueueSnapshot)
 						.values({
 							backlogJson: snapshot.backlog,
@@ -340,6 +387,44 @@ export function createPgOperatorObservabilityCommandStore(
 				}
 
 				for (const decision of input.decisions) {
+					await tx
+						.insert(workerAutoscalerDecisionCurrent)
+						.values({
+							budgetState: decision.budgetState,
+							currentId: buildWorkerAutoscalerDecisionCurrentId(decision),
+							currentReplicas: decision.currentReplicas,
+							decidedAt: new Date(decision.decidedAt),
+							decision: decision.decision,
+							decisionId: decision.decisionId,
+							desiredReplicas: decision.desiredReplicas,
+							evidenceJson: decision.evidence,
+							projectedAt: new Date(decision.projectedAt),
+							reason: decision.reason,
+							sourceSnapshotId: decision.sourceSnapshotId,
+							targetService: decision.targetService,
+							taskQueue: decision.taskQueue,
+							taskQueueKind: decision.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								budgetState: decision.budgetState,
+								currentReplicas: decision.currentReplicas,
+								decidedAt: new Date(decision.decidedAt),
+								decision: decision.decision,
+								desiredReplicas: decision.desiredReplicas,
+								evidenceJson: decision.evidence,
+								projectedAt: new Date(decision.projectedAt),
+								reason: decision.reason,
+								sourceSnapshotId: decision.sourceSnapshotId,
+								targetService: decision.targetService,
+								taskQueue: decision.taskQueue,
+								taskQueueKind: decision.taskQueueKind,
+							},
+							target: workerAutoscalerDecisionCurrent.currentId,
+						});
+					if (input.persistHistory !== true) {
+						continue;
+					}
 					await tx
 						.insert(workerAutoscalerDecision)
 						.values({

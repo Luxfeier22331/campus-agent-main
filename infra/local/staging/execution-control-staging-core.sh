@@ -484,15 +484,11 @@ execution_control_staging_ensure_run_projection_store_schema() {
 execution_control_staging_reconcile_hindsight_postgres_password() {
   local hindsight_password="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}"
 
-  execution_control_staging_compose exec \
-    -T \
-    hindsight-postgres \
-    psql \
-      -U hindsight \
-      -d hindsight \
-      -v ON_ERROR_STOP=1 \
-      -v password="${hindsight_password}" \
-      -c "ALTER ROLE hindsight PASSWORD :'password';"
+  printf "%s\n" "ALTER ROLE hindsight PASSWORD :'password';" |
+    execution_control_staging_compose exec \
+      -T \
+      hindsight-postgres \
+      psql -U hindsight -d hindsight -v ON_ERROR_STOP=1 -v password="${hindsight_password}"
   if execution_control_staging_compose ps --services --status running | grep -Fxq "hindsight-api"; then
     execution_control_staging_compose restart hindsight-api
   fi
@@ -554,6 +550,19 @@ execution_control_staging_ensure_personal_memory_runtime() {
 
 execution_control_staging_temporal_namespace_setup() {
   execution_control_staging_compose up temporal-namespace-setup
+}
+
+execution_control_staging_run_ops_proof() {
+  echo "running execution-control ops proof: temporal task queue sampler"
+  execution_control_staging_compose --profile ops-proof run --rm temporal-task-queue-sampler
+
+  echo "running execution-control ops proof: worker autoscaler dry-run"
+  EXECUTION_CONTROL_WORKER_AUTOSCALER_MODE=dry-run \
+    execution_control_staging_compose --profile ops-proof run --rm worker-autoscaler
+
+  echo "ops proof projections:"
+  echo "  ${execution_control_staging_app_api_base_url%/}/api/operator/runtime/temporal-task-queues"
+  echo "  ${execution_control_staging_app_api_base_url%/}/api/operator/runtime/autoscaler/decisions?limit=8"
 }
 
 execution_control_staging_resolve_uv_bin() {

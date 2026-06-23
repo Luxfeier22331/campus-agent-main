@@ -86,9 +86,11 @@ export {
 	traceBacklinkProjection,
 } from "./operator";
 export {
+	temporalTaskQueueCurrent,
 	temporalTaskQueueSnapshot,
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
 } from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
@@ -186,9 +188,11 @@ import {
 	traceBacklinkProjection,
 } from "./operator";
 import {
+	temporalTaskQueueCurrent,
 	temporalTaskQueueSnapshot,
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
 } from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
@@ -282,8 +286,10 @@ export const appApiSchema = {
 	authenticatedNoticeRunProcessingEventProjection,
 	evalDiagnosticBadcaseProjection,
 	evalCoverageSnapshot,
+	temporalTaskQueueCurrent,
 	temporalTaskQueueSnapshot,
 	workerAutoscalerActuation,
+	workerAutoscalerDecisionCurrent,
 	workerAutoscalerDecision,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,

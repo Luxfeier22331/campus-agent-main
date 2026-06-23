@@ -26,6 +26,7 @@ owns this section group; the original path remains the stable index.
 - `POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
 - `GET /api/internal/operator/runtime/temporal-task-queues`
 - `GET /api/internal/operator/runtime/autoscaler/actuations`
+- `GET /api/internal/operator/runtime/autoscaler/decisions`
 
 适用前提：
 
@@ -54,8 +55,17 @@ Rules:
 
 - task queue snapshots and autoscaler projections use
   `temporal_task_queue_metrics_snapshot.v1`
+- default ingest updates bounded current projections:
+  `operator.temporal_task_queue_current` and
+  `operator.worker_autoscaler_decision_current`
+- history rows in `operator.temporal_task_queue_snapshot` and
+  `operator.worker_autoscaler_decision` are written only when the producer calls
+  `POST /api/internal/operator/runtime/temporal-task-queue-snapshots?history=1`
+  during an explicit proof run
 - autoscaler cooldown reads recent `worker_autoscaler_actuation.v1` projection
   through the internal actuation query endpoint
+- operator/runtime task queue and autoscaler decision query endpoints read the
+  bounded current projection by default
 - query responses are operator-safe projections only; they must not include raw
   Temporal responses, raw Docker Compose output, provider traces, credentials,
   cookies or tokens

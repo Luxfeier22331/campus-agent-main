@@ -324,6 +324,61 @@ describe("operator observability internal ingest routes", () => {
 		});
 		expect(service.ingestTemporalTaskQueueSnapshots).toHaveBeenCalledWith({
 			payload,
+			persistHistory: false,
+		});
+	});
+
+	it("marks Temporal runtime ingest as history only for explicit proof requests", async () => {
+		const service = {
+			ingestExecutionAuditEvents: vi.fn(),
+			ingestTemporalTaskQueueSnapshots: vi.fn().mockResolvedValue({
+				acceptedActuations: 0,
+				acceptedDecisions: 0,
+				acceptedSnapshots: 1,
+			}),
+			ingestGrades: vi.fn(),
+			ingestTraceBacklinks: vi.fn(),
+		};
+		const app = createApp(env as never, {
+			operatorObservabilityCommandService: service as never,
+		});
+		const payload = {
+			schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
+			snapshots: [
+				{
+					backlog: { state: "unsupported_by_source" },
+					namespace: "default",
+					oldestTaskAge: { state: "unsupported_by_source" },
+					pollerCount: 0,
+					pollerIdentities: [],
+					sampledAt: "2026-06-15T10:00:00.000Z",
+					scheduleToStartLatency: { state: "unsupported_by_source" },
+					snapshotId: "temporal-snapshot-proof",
+					source: "execution-control.temporal-task-queue-sampler",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueueKind: "activity",
+				},
+			],
+		};
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/internal/operator/runtime/temporal-task-queue-snapshots?history=1",
+				{
+					body: JSON.stringify(payload),
+					headers: {
+						"content-type": "application/json",
+						"x-app-internal-auth": "trusted-secret",
+					},
+					method: "POST",
+				},
+			),
+		);
+
+		expect(response.status).toBe(200);
+		expect(service.ingestTemporalTaskQueueSnapshots).toHaveBeenCalledWith({
+			payload,
+			persistHistory: true,
 		});
 	});
 

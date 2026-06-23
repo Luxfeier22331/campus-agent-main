@@ -98,7 +98,18 @@ autoscaler proof 使用真实 app-api operator runtime projection，不再使用
 4. dry-run 发布 decision projection；apply mode 通过 Docker Compose actuator 调整
    allowlisted service replica，并发布 actuation projection。
 
-运行 sampler：
+在 `nc-arm-6c` 的 pinned staging checkout 中，首选运行一次性 ops proof 脚本。该脚本运行
+sampler 一次，再以 dry-run 运行 autoscaler 一次；它不会把两者作为常驻服务启动：
+
+```bash
+infra/local/staging/run-execution-control-ops-proof.sh
+```
+
+该脚本使用 Docker Compose `ops-proof` profile。正常
+`infra/local/staging/start-execution-control-staging.sh` serving 启动不会包含
+`temporal-task-queue-sampler` 或 `worker-autoscaler`。
+
+如果需要在 `apps/execution-control` 内手动运行等价 proof，运行 sampler：
 
 ```bash
 cd apps/execution-control
@@ -142,4 +153,7 @@ go run ./cmd/worker-autoscaler \
 - backlog 与 oldest task age 在当前 sampler 下必须是 observed Temporal stats；
   schedule-to-start latency 必须显式为 `unsupported_by_source`
 - apply mode 只允许 contract 中列出的 Docker Compose worker service
-- 该命令不得写 PG projection、Temporal workflow history 或 downstream budget
+- 默认 ingest 只更新 app-api bounded current projection；只有带 explicit history
+  proof 参数时才写 task queue / autoscaler history rows
+- 该命令不得写 execution run / step / terminal truth、Temporal workflow history 或
+  downstream budget

@@ -19,6 +19,17 @@ ROOT = Path(__file__).resolve().parents[2]
 STAGING_DIR = ROOT / "infra" / "local" / "staging"
 
 
+def _compose_service_block(compose_source: str, service_name: str) -> str:
+    service_header = f"  {service_name}:"
+    start = compose_source.index(service_header)
+    next_service = compose_source.find("\n  ", start + len(service_header))
+    while next_service != -1 and compose_source[next_service + 3].isspace():
+        next_service = compose_source.find("\n  ", next_service + 1)
+    if next_service == -1:
+        return compose_source[start:]
+    return compose_source[start:next_service]
+
+
 class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
     def test_common_defaults_runtime_env_to_ops_owned_path(self) -> None:
         common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
@@ -54,6 +65,29 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
 
         self.assertIn("--env-file", core_script)
         self.assertIn('"${execution_control_staging_env_file}"', core_script)
+
+    def test_default_runtime_compose_keeps_ops_proof_services_out_of_serving_path(
+        self,
+    ) -> None:
+        compose_file = ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+        compose_source = compose_file.read_text(encoding="utf-8")
+
+        for service_name in ("temporal-task-queue-sampler", "worker-autoscaler"):
+            with self.subTest(service=service_name):
+                service_block = _compose_service_block(compose_source, service_name)
+                self.assertIn('profiles: ["ops-proof"]', service_block)
+                self.assertIn('restart: "no"', service_block)
+                self.assertNotIn("while true", service_block)
+                self.assertNotIn('sleep "$${', service_block)
+
+    def test_staging_helper_exposes_explicit_ops_proof_command(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("execution_control_staging_run_ops_proof()", core_script)
+        self.assertIn("--profile ops-proof run --rm temporal-task-queue-sampler", core_script)
+        self.assertIn("--profile ops-proof run --rm worker-autoscaler", core_script)
 
     def test_compose_wrapper_projects_hindsight_postgres_password(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(

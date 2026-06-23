@@ -306,6 +306,16 @@ projection drain 时间段，并保存：
 上线前必须验证 operator-safe runtime projection，而不是回读 Temporal history、
 Docker state 或本地证据文件。
 
+先在 `nc-arm-6c` 的 pinned staging checkout 中运行一次显式 ops proof，刷新 bounded
+current projection。该步骤不启动常驻 sampler/autoscaler loop：
+
+```bash
+ssh nc-arm-6c \
+  'cd /srv/apps/campus-agent && \
+    ./infra/local/staging/run-execution-control-ops-proof.sh' \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-ops-proof.txt"
+```
+
 检查 Temporal task queue snapshot：
 
 ```bash
@@ -338,13 +348,15 @@ curl --noproxy '*' -sS \
 
 通过标准：
 
-- task queue snapshot 覆盖 workflow worker 与 opened activity workers
+- task queue current projection 覆盖 workflow worker 与 opened activity workers
 - `pollerCount`、`pollerIdentities`、`backlog` 与 `oldestTaskAge` 来自 Temporal
   `DescribeTaskQueue(report_stats=true)`
 - 当前 sampler 下 `scheduleToStartLatency` 必须显式为 `unsupported_by_source`
 - autoscaler decision 包含 `sourceSnapshotId`、`currentReplicas`、`desiredReplicas`
   与 `budgetState`
 - apply mode 下 autoscaler actuation 只允许 `applied`、`skipped` 或 `failed`
+- explicit proof 如需保留历史行，producer 必须使用 `history=1`；release QA 默认只要求
+  current projection evidence
 
 Eval diagnostic release closeout 必须从 app-api operator observability detail 注入
 `runtimeRun.operatorStepTrajectory`，再生成 badcase projection。release mode 必须设置

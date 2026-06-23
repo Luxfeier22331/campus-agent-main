@@ -1,4 +1,13 @@
-import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	foreignKey,
+	index,
+	integer,
+	jsonb,
+	pgSchema,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
 
 import type {
 	ProviderConfigActor,
@@ -41,9 +50,7 @@ export const providerConfigProfiles = providerConfig.table(
 		profileId: text("profile_id").primaryKey(),
 		kind: text("kind").notNull(),
 		role: text("role").notNull(),
-		connectionId: text("connection_id")
-			.notNull()
-			.references(() => providerConfigConnections.connectionId),
+		connectionId: text("connection_id").notNull(),
 		provider: text("provider"),
 		transport: text("transport").notNull(),
 		baseUrl: text("base_url"),
@@ -66,6 +73,11 @@ export const providerConfigProfiles = providerConfig.table(
 			table.active,
 			table.updatedAt,
 		),
+		connectionFk: foreignKey({
+			columns: [table.connectionId],
+			foreignColumns: [providerConfigConnections.connectionId],
+			name: "provider_config_profiles_connection_id_connections_connection_id_fk",
+		}),
 		kindRoleUpdatedAtIndex: index("provider_config_profiles_kind_role_updated_idx").on(
 			table.kind,
 			table.role,

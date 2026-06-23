@@ -48,6 +48,7 @@ export const OFFICIAL_WEB_E2E_ENV = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "trusted-collector-token",
+	APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED: "true",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",

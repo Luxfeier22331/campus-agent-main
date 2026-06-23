@@ -562,6 +562,7 @@ describe("operator observability command service", () => {
 					taskQueueKind: "activity",
 				},
 			],
+			persistHistory: false,
 			snapshots: [
 				{
 					backlog: { count: 12, state: "observed" },
@@ -579,6 +580,50 @@ describe("operator observability command service", () => {
 				},
 			],
 		});
+	});
+
+	it("marks Temporal runtime projections as history only for explicit proof ingestion", async () => {
+		const store = {
+			enqueueExecutionAuditEvents: vi.fn().mockResolvedValue(undefined),
+			getRequestObservabilitySeed: vi.fn(),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+			upsertEvalDiagnosticBadcases: vi.fn().mockResolvedValue(undefined),
+			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
+			upsertTemporalTaskQueueRuntime: vi.fn().mockResolvedValue(undefined),
+			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
+		};
+		const service = buildOperatorObservabilityCommandService({
+			now: () => new Date("2026-06-15T10:00:02.000Z"),
+			store,
+		});
+
+		await service.ingestTemporalTaskQueueSnapshots({
+			payload: {
+				schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
+				snapshots: [
+					{
+						backlog: { state: "unsupported_by_source" },
+						namespace: "default",
+						oldestTaskAge: { state: "unsupported_by_source" },
+						pollerCount: 0,
+						pollerIdentities: [],
+						sampledAt: "2026-06-15T10:00:00.000Z",
+						scheduleToStartLatency: { state: "unsupported_by_source" },
+						snapshotId: "temporal-snapshot-proof",
+						source: "execution-control.temporal-task-queue-sampler",
+						taskQueue: "campus-agent.activity.knowledge.retrieval",
+						taskQueueKind: "activity",
+					},
+				],
+			},
+			persistHistory: true,
+		});
+
+		expect(store.upsertTemporalTaskQueueRuntime).toHaveBeenCalledWith(
+			expect.objectContaining({
+				persistHistory: true,
+			}),
+		);
 	});
 
 	it("rejects autoscaler actuations with unknown statuses", async () => {

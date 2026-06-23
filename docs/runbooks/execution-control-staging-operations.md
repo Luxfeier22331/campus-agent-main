@@ -46,8 +46,8 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-navigation`
   - `activity-worker-finalization`
 - `worker-autoscaler`
-  - current Docker Compose transitional autoscaler evidence producer
-  - Temporal
+  - explicit Docker Compose transitional autoscaler proof command
+  - not part of default serving startup
 - `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
   与 chat 只进入 browser surface 或 `app-api`
 - `execution-control` 是 app-api-only trusted machine upstream。当前 machine
@@ -117,9 +117,13 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-finalization`
     - Go-owned finalization activity poller for `campus-agent.activity.finalization`
   - `worker-autoscaler`
-    - current Docker Compose dry-run / apply evidence producer; does not write
-      workflow/run/step/event or terminal state. It is not the production target
-      autoscaling controller once KEDA/HPA manages worker Deployments.
+    - explicit Docker Compose dry-run / apply evidence producer behind the
+      `ops-proof` Compose profile; it does not write workflow/run/step/event or
+      terminal state, and it is not started by the normal staging serving
+      command.
+  - `temporal-task-queue-sampler`
+    - explicit `ops-proof` evidence producer that samples Temporal task queues
+      and updates bounded operator runtime current projections.
   - `temporal`
     - self-hosted Temporal frontend/history/matching/worker service
     - dedicated Temporal Postgres persistence / visibility store
@@ -157,6 +161,10 @@ owns the current truth summary and links to executable procedure groups.
 - staging 的 Docker Compose、origin reverse proxy、Cloudflare DNS 与 Cloudflare Access
   只负责部署与连接；不拥有 workflow history、task queue、run projection、event 或
   terminal truth。
+- Temporal task queue sampler 与 worker autoscaler 是显式 ops proof，不是常驻
+  serving loop。需要采集 proof 时运行
+  `infra/local/staging/run-execution-control-ops-proof.sh`；默认
+  `start-execution-control-staging.sh` 不启动它们。
 - K8s/KEDA target runtime 的 deployment 和 autoscaling 设计见
   `../architecture/system/kubernetes-execution-runtime-architecture.md`；本 runbook 在
   切换前继续描述当前 Docker Compose staging baseline。

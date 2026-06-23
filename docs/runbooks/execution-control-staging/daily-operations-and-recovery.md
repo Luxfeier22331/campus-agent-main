@@ -36,7 +36,7 @@ infra/local/staging/status-execution-control-staging.sh --check
   `activity-worker-knowledge-synthesis`、
   `activity-worker-campus-services`、`activity-worker-notice`、
   `activity-worker-navigation`、`activity-worker-finalization`、
-  `worker-autoscaler` 与 `temporal` 都在当前 compose project 中运行
+  `temporal` 都在当前 compose project 中运行
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
   且 payload 明确报告：
@@ -58,8 +58,9 @@ infra/local/staging/status-execution-control-staging.sh --check
   都是 `ready`
 
 当前 strict check 证明的是 Temporal execution plane + projection store + split
-worker process readiness；它不等于 worker autoscaler 已完成。上线证据需要另行
-记录 autoscaler proof 与 step trajectory projection。Temporal 通用运维证据要求见
+worker process readiness；它不等于 worker autoscaler proof 已完成。上线证据需要另行
+通过 `infra/local/staging/run-execution-control-ops-proof.sh` 记录一次性
+sampler/autoscaler proof 与 step trajectory projection。Temporal 通用运维证据要求见
 `temporal-self-host-operations.md`。
 
 补充约束：
@@ -208,7 +209,7 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
 - `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
 - `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
-- `.tmp/execution-control-staging/logs/worker-autoscaler.log`
+- ops proof 输出应写入本轮 evidence 目录，不作为常驻日志文件依赖
 
 轮转规则：
 
@@ -290,8 +291,9 @@ curl -sS http://127.0.0.1:27051/metrics | grep execution_audit
   `EXECUTION_CONTROL_STAGING_APP_API_BASE_URL` 与 `APP_API_INTERNAL_SHARED_SECRET`
   派生 internal ingest URL 和 shared secret。execution audit 是否启用与 timeout
   由 runtime profile 管理。
-- 如果 emitted 增加但 panel 未出现，检查 `app-api` scheduled projector drain；
-  internal ingest 成功时也会触发 request-scoped drain，cron 只承担周期性一致性检查
+- 如果 emitted 增加但 panel 未出现，优先检查 request-scoped drain evidence；
+  `app-api` scheduled projector drain 默认关闭，只在显式 `APP_API_*_SWEEPER_ENABLED=true`
+  的周期性一致性检查 lane 中运行
 
 - 如果变量缺失，重新执行：
 

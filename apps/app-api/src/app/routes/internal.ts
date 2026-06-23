@@ -416,6 +416,7 @@ export function registerInternalRoutes(input: {
 		return jsonResponse(
 			await scope.resolveOperatorObservabilityCommandService().ingestTemporalTaskQueueSnapshots({
 				payload: await readJsonRequestBody(c.req.raw),
+				persistHistory: c.req.query("history") === "1",
 			}),
 		);
 	});

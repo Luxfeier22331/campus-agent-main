@@ -68,8 +68,8 @@ Current runtime scope:
 - `GET /api/operator/official-web/runs`
 - `GET /api/operator/official-web/runs/:runId`
 - `POST /api/internal/staging-smoke/auth/session` (`staging` only)
-- scheduled request-projection projector
-- scheduled `official_web` projection + handoff dispatcher
+- optional scheduled request-projection projector
+- optional scheduled `official_web` projection + handoff dispatcher
 
 Runtime hardening baseline:
 
@@ -89,8 +89,9 @@ Runtime hardening baseline:
 - `app-api -> execution-control` uses a bounded timeout budget and typed
   invalid-response handling
 - successful chat/eval request ingress now opportunistically triggers a bounded
-  request-projection drain via Worker `waitUntil`; scheduled drain remains the
-  recovery/backstop path
+  request-projection drain via Worker `waitUntil`; scheduled DB sweepers are
+  disabled by default and only run when their explicit `APP_API_*_SWEEPER_ENABLED`
+  env gate is set to `true`
 - the request projector now retries with backoff and marks exhausted events
   terminally instead of spinning forever
 - the `official_web` projector now dispatches terminal run handoff payloads
@@ -106,6 +107,9 @@ Runtime hardening baseline:
   execution-control` and `operator-console-web -> app-api`
 - observability sinks are never the panel request truth source;
   `operator.request_projection` remains canonical
+- operator runtime pressure APIs read bounded current projections by default;
+  Temporal task queue and autoscaler history rows are written only by explicit
+  proof ingestion, not by default staging runtime loops
 
 Observability data policy:
 
@@ -156,6 +160,10 @@ Database baseline:
   the shared repo Postgres
 - runtime now distinguishes `APP_API_DB` for cached/read-mostly access and
   optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
+- `APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED`,
+  `APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED`, and
+  `APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED` default to disabled; set
+  exactly `true` only for a deliberate scheduled drain lane
 - migration / schema management uses canonical `APP_API_OPERATOR_DATABASE_URL`
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`,
   `runtime.*`, `operator.*`, `official_web.*`, and `profile.*`

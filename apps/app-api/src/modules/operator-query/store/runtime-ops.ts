@@ -1,9 +1,9 @@
 import { and, desc, eq, lt, or, type SQL } from "drizzle-orm";
 
 import {
-	temporalTaskQueueSnapshot,
+	temporalTaskQueueCurrent,
 	workerAutoscalerActuation,
-	workerAutoscalerDecision,
+	workerAutoscalerDecisionCurrent,
 } from "../../../db/schema";
 import type {
 	NormalizedTemporalTaskQueueListFilters,
@@ -19,13 +19,13 @@ import type {
 import { decodeRuntimeProjectionCursor, encodeRuntimeProjectionCursor } from "./cursors";
 import type {
 	OperatorQueryRuntime,
-	TemporalTaskQueueSnapshotRow,
+	TemporalTaskQueueCurrentRow,
 	WorkerAutoscalerActuationRow,
-	WorkerAutoscalerDecisionRow,
+	WorkerAutoscalerDecisionCurrentRow,
 } from "./runtime";
 
 function toTemporalTaskQueueSnapshotRecord(
-	row: TemporalTaskQueueSnapshotRow,
+	row: TemporalTaskQueueCurrentRow,
 ): TemporalTaskQueueSnapshotRecord {
 	return {
 		backlog: row.backlogJson,
@@ -44,7 +44,7 @@ function toTemporalTaskQueueSnapshotRecord(
 }
 
 function toWorkerAutoscalerDecisionRecord(
-	row: WorkerAutoscalerDecisionRow,
+	row: WorkerAutoscalerDecisionCurrentRow,
 ): WorkerAutoscalerDecisionRecord {
 	return {
 		budgetState: row.budgetState,
@@ -88,19 +88,19 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 			const db = await runtime.getDb();
 			const conditions: SQL[] = [];
 			if (filters.taskQueue) {
-				conditions.push(eq(temporalTaskQueueSnapshot.taskQueue, filters.taskQueue));
+				conditions.push(eq(temporalTaskQueueCurrent.taskQueue, filters.taskQueue));
 			}
 			if (filters.taskQueueKind) {
-				conditions.push(eq(temporalTaskQueueSnapshot.taskQueueKind, filters.taskQueueKind));
+				conditions.push(eq(temporalTaskQueueCurrent.taskQueueKind, filters.taskQueueKind));
 			}
 			const cursor = filters.cursor ? decodeRuntimeProjectionCursor(filters.cursor) : null;
 			if (cursor) {
 				const cursorSampledAt = new Date(cursor.timestamp);
 				const cursorCondition = or(
-					lt(temporalTaskQueueSnapshot.sampledAt, cursorSampledAt),
+					lt(temporalTaskQueueCurrent.sampledAt, cursorSampledAt),
 					and(
-						eq(temporalTaskQueueSnapshot.sampledAt, cursorSampledAt),
-						lt(temporalTaskQueueSnapshot.snapshotId, cursor.id),
+						eq(temporalTaskQueueCurrent.sampledAt, cursorSampledAt),
+						lt(temporalTaskQueueCurrent.currentId, cursor.id),
 					),
 				);
 				if (cursorCondition) {
@@ -111,14 +111,11 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 			const rows = await (conditions.length > 0
 				? db
 						.select()
-						.from(temporalTaskQueueSnapshot)
+						.from(temporalTaskQueueCurrent)
 						.where(and(...conditions))
-				: db.select().from(temporalTaskQueueSnapshot)
+				: db.select().from(temporalTaskQueueCurrent)
 			)
-				.orderBy(
-					desc(temporalTaskQueueSnapshot.sampledAt),
-					desc(temporalTaskQueueSnapshot.snapshotId),
-				)
+				.orderBy(desc(temporalTaskQueueCurrent.sampledAt), desc(temporalTaskQueueCurrent.currentId))
 				.limit(filters.limit + 1);
 			const visibleRows = rows.slice(0, filters.limit);
 			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
@@ -126,7 +123,7 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 				page: {
 					nextCursor: cursorRow
 						? encodeRuntimeProjectionCursor({
-								id: cursorRow.snapshotId,
+								id: cursorRow.currentId,
 								timestamp: cursorRow.sampledAt.toISOString(),
 							})
 						: null,
@@ -141,19 +138,19 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 			const db = await runtime.getDb();
 			const conditions: SQL[] = [];
 			if (filters.targetService) {
-				conditions.push(eq(workerAutoscalerDecision.targetService, filters.targetService));
+				conditions.push(eq(workerAutoscalerDecisionCurrent.targetService, filters.targetService));
 			}
 			if (filters.decision) {
-				conditions.push(eq(workerAutoscalerDecision.decision, filters.decision));
+				conditions.push(eq(workerAutoscalerDecisionCurrent.decision, filters.decision));
 			}
 			const cursor = filters.cursor ? decodeRuntimeProjectionCursor(filters.cursor) : null;
 			if (cursor) {
 				const cursorDecidedAt = new Date(cursor.timestamp);
 				const cursorCondition = or(
-					lt(workerAutoscalerDecision.decidedAt, cursorDecidedAt),
+					lt(workerAutoscalerDecisionCurrent.decidedAt, cursorDecidedAt),
 					and(
-						eq(workerAutoscalerDecision.decidedAt, cursorDecidedAt),
-						lt(workerAutoscalerDecision.decisionId, cursor.id),
+						eq(workerAutoscalerDecisionCurrent.decidedAt, cursorDecidedAt),
+						lt(workerAutoscalerDecisionCurrent.currentId, cursor.id),
 					),
 				);
 				if (cursorCondition) {
@@ -164,13 +161,13 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 			const rows = await (conditions.length > 0
 				? db
 						.select()
-						.from(workerAutoscalerDecision)
+						.from(workerAutoscalerDecisionCurrent)
 						.where(and(...conditions))
-				: db.select().from(workerAutoscalerDecision)
+				: db.select().from(workerAutoscalerDecisionCurrent)
 			)
 				.orderBy(
-					desc(workerAutoscalerDecision.decidedAt),
-					desc(workerAutoscalerDecision.decisionId),
+					desc(workerAutoscalerDecisionCurrent.decidedAt),
+					desc(workerAutoscalerDecisionCurrent.currentId),
 				)
 				.limit(filters.limit + 1);
 			const visibleRows = rows.slice(0, filters.limit);
@@ -180,7 +177,7 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 				page: {
 					nextCursor: cursorRow
 						? encodeRuntimeProjectionCursor({
-								id: cursorRow.decisionId,
+								id: cursorRow.currentId,
 								timestamp: cursorRow.decidedAt.toISOString(),
 							})
 						: null,

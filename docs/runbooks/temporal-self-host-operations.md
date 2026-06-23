@@ -146,9 +146,15 @@ The worker autoscaler belongs to the Execution Operations Plane. It reads
 app-api operator runtime task queue projections, reads Docker Compose replica
 state, computes desired worker replicas, and publishes sanitized decision /
 actuation projections back to app-api. It does not read app-api Postgres
-directly.
+directly, and it is not a default serving-loop component.
 
-First run the task queue sampler:
+On the staging host, prefer the explicit one-shot proof entrypoint:
+
+```bash
+infra/local/staging/run-execution-control-ops-proof.sh
+```
+
+For manual local proof, first run the task queue sampler:
 
 ```bash
 cd apps/execution-control
@@ -174,7 +180,7 @@ go run ./cmd/worker-autoscaler \
 
 The app-api operator runtime projection must include:
 
-- latest Temporal task queue snapshots for each autoscaled service policy
+- current Temporal task queue projections for each autoscaled service policy
 - one autoscaler decision per target service
 - `sourceSnapshotId` linking each decision to a task queue snapshot
 - observed `backlog` and `oldestTaskAge` from Temporal

@@ -102,6 +102,10 @@ function createSentryOptions(env: Env): CloudflareOptions | undefined {
 	};
 }
 
+function isExplicitlyEnabled(value: string | undefined): boolean {
+	return value?.trim().toLowerCase() === "true";
+}
+
 async function drainRequestProjection(input: {
 	op: "cron" | "task";
 	requestProjector: RequestProjectionProjector;
@@ -246,26 +250,35 @@ export function createWorkerRuntime(
 			return app.fetch(request, env, executionCtx as ExecutionContext | undefined);
 		},
 		async scheduled(): Promise<void> {
-			const closeoutResult = await Sentry.startSpan(
-				{
-					name: "app-api.durable-closeout.reconcile",
-					op: "cron",
-				},
-				() =>
-					resolveDurableCloseoutService().reconcileDurableCloseouts?.() ?? Promise.resolve(null),
-			);
-			const requestResult = await drainRequestProjection({
-				op: "cron",
-				requestProjector,
-				telemetry,
-			});
-			const officialWebResult = await Sentry.startSpan(
-				{
-					name: "app-api.official-web-projection.drain",
-					op: "cron",
-				},
-				() => officialWebProjector.drain(),
-			);
+			const closeoutResult = isExplicitlyEnabled(env.APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED)
+				? await Sentry.startSpan(
+						{
+							name: "app-api.durable-closeout.reconcile",
+							op: "cron",
+						},
+						() =>
+							resolveDurableCloseoutService().reconcileDurableCloseouts?.() ??
+							Promise.resolve(null),
+					)
+				: null;
+			const requestResult = isExplicitlyEnabled(env.APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED)
+				? await drainRequestProjection({
+						op: "cron",
+						requestProjector,
+						telemetry,
+					})
+				: { failed: 0, processed: 0 };
+			const officialWebResult = isExplicitlyEnabled(
+				env.APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED,
+			)
+				? await Sentry.startSpan(
+						{
+							name: "app-api.official-web-projection.drain",
+							op: "cron",
+						},
+						() => officialWebProjector.drain(),
+					)
+				: { abandoned: 0, failed: 0, processed: 0 };
 			if (
 				officialWebResult.processed > 0 ||
 				officialWebResult.failed > 0 ||
