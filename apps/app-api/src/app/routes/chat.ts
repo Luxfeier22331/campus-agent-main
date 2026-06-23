@@ -17,11 +17,7 @@ import {
 } from "../responses";
 import type { AppRequestScope } from "../types";
 import { registerChatRunRoutes } from "./chat-run-routes";
-import {
-	createAssistantUiDataStreamResponse,
-	createChatSseResponse,
-	readAssistantUiPrompt,
-} from "./chat-stream-responses";
+import { createChatSseResponse } from "./chat-stream-responses";
 
 function requireConversationId(conversationId: string | null | undefined) {
 	if (conversationId) {
@@ -198,76 +194,6 @@ export function registerChatRoutes(input: {
 					status: 200,
 				},
 			);
-		} catch (error) {
-			const response = routeChatErrorResponse(error, routeErrorCorrelation);
-			if (response) {
-				return response;
-			}
-			throw error;
-		}
-	});
-
-	input.app.post("/api/chat/assistant-ui", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireSessionPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		const routeErrorCorrelation = createRouteErrorCorrelation();
-
-		try {
-			const service = scope.resolveChatCommandService();
-			if (!service.submitStream) {
-				throw new AppApiRouteError({
-					code: "dependency_not_ready",
-					message: "Chat lifecycle stream is not configured.",
-					retryable: true,
-					status: 503,
-				});
-			}
-
-			const assistantRequest = readAssistantUiPrompt(
-				requireObjectBody(await readJsonRequestBody(c.req.raw)),
-			);
-			const iterator = service
-				.submitStream({
-					idempotencyKey: c.req.header("idempotency-key") ?? null,
-					payload: {
-						conversationId: assistantRequest.conversationId,
-						prompt: assistantRequest.prompt,
-					},
-					principal: resolved.principal,
-					surface: "campus_web",
-					traceHeaders: scope.telemetry.getTraceHeaders({ request: c.req.raw }),
-					waitUntil: resolveWaitUntil(c),
-				})
-				[Symbol.asyncIterator]();
-			const first = await iterator.next();
-			if (first.done) {
-				throw new AppApiRouteError({
-					code: "empty_lifecycle_stream",
-					message: "Chat lifecycle stream ended before emitting a request event.",
-					retryable: true,
-					status: 502,
-				});
-			}
-
-			return createAssistantUiDataStreamResponse({
-				first: first.value,
-				iterator,
-				onTerminal: (event) => {
-					input.scheduleRequestProjectionDrain?.({
-						requestId: event.data.requestId,
-						waitUntil: resolveWaitUntil(c),
-					});
-				},
-			});
 		} catch (error) {
 			const response = routeChatErrorResponse(error, routeErrorCorrelation);
 			if (response) {

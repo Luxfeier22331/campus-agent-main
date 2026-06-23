@@ -8,15 +8,15 @@ updated: 2026-06-23
 ---
 # Campus Web ChatKit Adapter Contract
 
-> Legacy: `campus-web` Q&A no longer consumes `/api/chatkit` or the ChatKit
-> browser runtime. Current student Q&A uses `/api/chat/assistant-ui`. This file
-> only documents the retired backend adapter seam.
+> Legacy: `campus-web` Q&A no longer consumes `/api/chatkit`, the ChatKit
+> browser runtime, or `/api/chat/assistant-ui`. This file only documents the
+> retired backend adapter seam.
 
 ## Boundary
 
 This is a historical contract for the retired ChatKit experiment. It does not
-describe the current `campus-web` Q&A runtime, which uses assistant-ui primitives
-and `/api/chat/assistant-ui`.
+describe the current `campus-web` Q&A runtime, which uses assistant-ui
+primitives with app-api durable chat lifecycle SSE.
 
 The retired browser path called:
 

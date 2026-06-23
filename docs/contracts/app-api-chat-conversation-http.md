@@ -15,11 +15,12 @@ association, user-side archive/pin/delete state, answer feedback, and edit
 truncation. Browser surfaces, including `campus-web`, only render a UI
 projection and send commands through this contract.
 
-`campus-web` Q&A uses the first-party assistant chat surface through
-`/api/chat/assistant-ui` for message submission and data-stream response
-projection. Conversation list/detail/search, feedback, run events and cancel
-remain explicit app-api routes; they are not a second browser-side conversation
-truth.
+`campus-web` Q&A uses assistant-ui primitives for the browser experience, but
+the wire contract is app-api-owned durable lifecycle SSE:
+`POST /api/chat/requests/stream` creates or continues a run, and
+`GET /api/chat/runs/:runId/events/stream` resumes run event consumption.
+Conversation list/detail/search, feedback, run events and cancel remain
+explicit app-api routes; they are not a second browser-side conversation truth.
 
 This contract does not define token delta streaming, share/export, file upload,
 batch management, or local browser-only conversation truth.

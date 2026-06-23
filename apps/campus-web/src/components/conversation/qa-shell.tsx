@@ -1,5 +1,4 @@
 import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant-ui/react";
-import { useDataStreamRuntime } from "@assistant-ui/react-data-stream";
 import { Link, useNavigate } from "@tanstack/react-router";
 import { BookOpen, MapIcon, Send, Utensils } from "lucide-react";
 import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo } from "react";
@@ -8,13 +7,24 @@ import { UserButton } from "@/components/auth/user/user-button";
 import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
 import { Button } from "@/components/ui/button";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { createCampusAssistantRuntimeHook } from "@/features/conversation/assistant-ui-runtime";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
 
-const supportNavItems = [
-	{ icon: BookOpen, label: "文档", to: "/docs" },
-	{ icon: MapIcon, label: "校园地图", to: "/map" },
-	{ icon: Utensils, label: "食堂", to: "/dining" },
-	{ emphasis: true, icon: Send, label: "反馈", to: "/feedback" },
+type SupportNavItem =
+	| { icon: typeof BookOpen; kind: "external"; label: string; to: "/docs/" }
+	| {
+			emphasis?: true;
+			icon: typeof MapIcon | typeof Send | typeof Utensils;
+			kind: "route";
+			label: string;
+			to: "/dining" | "/feedback" | "/map";
+	  };
+
+const supportNavItems: readonly SupportNavItem[] = [
+	{ icon: BookOpen, kind: "external", label: "文档", to: "/docs/" },
+	{ icon: MapIcon, kind: "route", label: "校园地图", to: "/map" },
+	{ icon: Utensils, kind: "route", label: "食堂", to: "/dining" },
+	{ emphasis: true, icon: Send, kind: "route", label: "反馈", to: "/feedback" },
 ] as const;
 
 export function QAShell({
@@ -80,23 +90,11 @@ export function QAShell({
 								<div className="flex min-w-0 items-center gap-1 sm:gap-2">
 									<nav aria-label="支撑页面导航" className="hidden items-center gap-1 md:flex">
 										{supportNavItems.map((item) => (
-											<Button
-												asChild
-												className={[
-													"min-h-8 rounded-md px-2 text-xs text-muted-foreground",
-													"emphasis" in item && item.emphasis
-														? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
-														: "",
-												].join(" ")}
+											<SupportNavButton
+												className={supportNavButtonClassName(item)}
+												item={item}
 												key={item.to}
-												size="sm"
-												variant="ghost"
-											>
-												<Link to={item.to}>
-													<item.icon aria-hidden="true" className="size-4" />
-													<span>{item.label}</span>
-												</Link>
-											</Button>
+											/>
 										))}
 									</nav>
 									<UserButton />
@@ -111,6 +109,37 @@ export function QAShell({
 			</SidebarProvider>
 		</AssistantRemoteRuntimeFrame>
 	);
+}
+
+function SupportNavButton({ className, item }: { className: string; item: SupportNavItem }) {
+	const Icon = item.icon;
+	if (item.kind === "external") {
+		return (
+			<Button asChild className={className} size="sm" variant="ghost">
+				<a href={item.to}>
+					<Icon aria-hidden="true" className="size-4" />
+					<span>{item.label}</span>
+				</a>
+			</Button>
+		);
+	}
+	return (
+		<Button asChild className={className} size="sm" variant="ghost">
+			<Link to={item.to}>
+				<Icon aria-hidden="true" className="size-4" />
+				<span>{item.label}</span>
+			</Link>
+		</Button>
+	);
+}
+
+function supportNavButtonClassName(item: SupportNavItem): string {
+	return [
+		"min-h-8 rounded-md px-2 text-xs text-muted-foreground",
+		"emphasis" in item && item.emphasis
+			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+			: "",
+	].join(" ");
 }
 
 function readCurrentRouteTarget(): string {
@@ -131,7 +160,7 @@ function AssistantRemoteRuntimeFrame({
 }) {
 	const adapter = useMemo(() => createCampusAssistantThreadListAdapter(), []);
 	const runtimeHook = useMemo(
-		() => createCampusDataStreamRuntimeHook(onLoginRequired),
+		() => createCampusAssistantRuntimeHook({ onLoginRequired }),
 		[onLoginRequired],
 	);
 	const runtime = useRemoteThreadListRuntime({
@@ -141,20 +170,4 @@ function AssistantRemoteRuntimeFrame({
 	});
 
 	return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
-}
-
-function createCampusDataStreamRuntimeHook(onLoginRequired: () => void) {
-	return function useCampusDataStreamRuntime() {
-		return useDataStreamRuntime({
-			api: "/api/chat/assistant-ui",
-			credentials: "same-origin",
-			onResponse: (response) => {
-				if (response.status === 401) {
-					onLoginRequired();
-				}
-			},
-			protocol: "data-stream",
-			sendExtraMessageFields: true,
-		});
-	};
 }

@@ -52,6 +52,8 @@ const AUTH_FORWARDED_HEADERS = [
 const FEDERATION_CREDENTIAL_FORWARDED_HEADERS = [...FORWARDED_HEADERS, "authorization"] as const;
 const FEDERATION_CREDENTIAL_PATHS = new Set(["/api/federation/token", "/api/federation/userinfo"]);
 const PUBLIC_READER_ASSET_PREFIX = "/_docs/";
+const PUBLIC_DOCS_STATIC_ASSET_PREFIX = "/_docs-static/";
+const PUBLIC_DOCS_ROUTE_PREFIX = "/docs";
 const GATED_READER_ASSET_PREFIX = "/_gated-docs/";
 const PROTECTED_READER_SEARCH_PREFIX = "/_gated-docs-search/";
 const PUBLIC_MAP_ASSET_PREFIX = "/map-assets/";
@@ -66,10 +68,9 @@ const VITE_DEV_ASSET_PREFIXES = [
 	"/src/",
 ] as const;
 
-const SHELL_PATH_PREFIXES = ["/c/", "/docs/"] as const;
+const SHELL_PATH_PREFIXES = ["/c/"] as const;
 const SHELL_EXACT_PATHS = new Set([
 	"/",
-	"/docs",
 	"/map",
 	"/dining",
 	"/feedback",
@@ -163,6 +164,14 @@ const worker = {
 		if (request.method === "GET" || request.method === "HEAD") {
 			if (url.pathname.startsWith(PUBLIC_READER_ASSET_PREFIX)) {
 				return serveStaticAsset(request, env);
+			}
+
+			if (url.pathname.startsWith(PUBLIC_DOCS_STATIC_ASSET_PREFIX)) {
+				return serveStaticAsset(request, env);
+			}
+
+			if (isPublicDocsReaderPath(url.pathname)) {
+				return servePublicDocsReader(request, env);
 			}
 
 			if (url.pathname.startsWith(PUBLIC_MAP_ASSET_PREFIX)) {
@@ -333,6 +342,38 @@ async function serveStaticAsset(request: Request, env: Env): Promise<Response> {
 	return response;
 }
 
+async function servePublicDocsReader(request: Request, env: Env): Promise<Response> {
+	for (const pathname of getPublicDocsAssetCandidates(new URL(request.url).pathname)) {
+		const assetRequest = rewriteRequestPathname(
+			request,
+			pathname,
+			request.method === "HEAD" ? "GET" : request.method,
+		);
+		const response = await fetchStaticAsset(assetRequest, env);
+		if (await isRspressReaderHtmlResponse(response)) {
+			const securedResponse = responseWithSecurityHeaders(response);
+			if (request.method === "HEAD") {
+				return new Response(null, {
+					headers: securedResponse.headers,
+					status: securedResponse.status,
+					statusText: securedResponse.statusText,
+				});
+			}
+			return securedResponse;
+		}
+		if (response.status === 503) {
+			return responseWithSecurityHeaders(response);
+		}
+	}
+
+	return jsonResponse(404, {
+		error: {
+			code: "not_found",
+			message: "Route not found.",
+		},
+	});
+}
+
 async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 	if (!env.ASSETS) {
 		return jsonResponse(503, {
@@ -345,6 +386,45 @@ async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 
 	const response = await env.ASSETS.fetch(request);
 	return response;
+}
+
+function isPublicDocsReaderPath(pathname: string): boolean {
+	return pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`);
+}
+
+function getPublicDocsAssetCandidates(pathname: string): string[] {
+	if (pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname === `${PUBLIC_DOCS_ROUTE_PREFIX}/`) {
+		return [`${PUBLIC_DOCS_ROUTE_PREFIX}/index.html`];
+	}
+
+	const cleanPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+	if (cleanPathname.endsWith(".html")) {
+		return [cleanPathname];
+	}
+
+	if (pathname.endsWith("/")) {
+		return [`${cleanPathname}/index.html`];
+	}
+
+	return [`${cleanPathname}.html`, `${cleanPathname}/index.html`];
+}
+
+function rewriteRequestPathname(request: Request, pathname: string, method: string): Request {
+	const url = new URL(request.url);
+	url.pathname = pathname;
+	return new Request(url.toString(), { headers: request.headers, method });
+}
+
+async function isRspressReaderHtmlResponse(response: Response): Promise<boolean> {
+	if (response.status !== 200) {
+		return false;
+	}
+	const contentType = response.headers.get("content-type") ?? "";
+	if (!contentType.toLowerCase().includes("text/html")) {
+		return false;
+	}
+	const body = await response.clone().text();
+	return body.includes('id="__rspress_root"') || body.includes("id='__rspress_root'");
 }
 
 async function serveGatedReaderAsset(request: Request, env: Env): Promise<Response> {

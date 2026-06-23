@@ -107,7 +107,7 @@ function MapProductNav() {
 			className="pointer-events-auto absolute right-3 top-3 z-30 hidden rounded-full border border-white/65 bg-white/78 px-1.5 py-1 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] backdrop-blur-md md:flex md:items-center"
 		>
 			<MapNavLink href="/">问答</MapNavLink>
-			<MapNavLink href="/docs">文档</MapNavLink>
+			<MapNavLink href="/docs/">文档</MapNavLink>
 			<MapNavLink href="/dining">食堂</MapNavLink>
 			<MapNavLink href="/feedback">反馈</MapNavLink>
 		</nav>

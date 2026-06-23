@@ -57,6 +57,9 @@ export default defineConfig({
 	logoText: "中央民族大学校园问答",
 	plugins: [campusDocsSearchIndexPlugin()],
 	root: docsRoot,
+	route: {
+		cleanUrls: true,
+	},
 	search: {
 		mode: "local",
 		searchHooks: path.join(__dirname, "src/docs/search/rspress-search-hooks.tsx"),

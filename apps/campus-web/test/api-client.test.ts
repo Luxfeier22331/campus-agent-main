@@ -11,6 +11,7 @@ import {
 	renameConversation,
 	resumeRunEventsStream,
 	searchConversations,
+	submitChatRequestStream,
 	submitMessageFeedback,
 	unarchiveConversation,
 	unpinConversation,
@@ -156,6 +157,42 @@ describe("campus app-api client", () => {
 
 		await expect(listConversations({ limit: 50, view: "archived" })).resolves.toEqual([summary]);
 		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/chat/conversations?view=archived&limit=50");
+	});
+
+	it("submits chat prompts through the durable lifecycle SSE route", async () => {
+		const fetchMock = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				[
+					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
+					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
+					"",
+				].join("\n\n"),
+				{
+					headers: { "content-type": "text/event-stream" },
+				},
+			),
+		);
+
+		const events: ChatRequestStreamEvent[] = [];
+		for await (const event of submitChatRequestStream({
+			conversationId: "conv_01",
+			prompt: " 图书馆几点关门？ ",
+		})) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toEqual(["request.accepted", "request.completed"]);
+		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/chat/requests/stream");
+		expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
+			body: JSON.stringify({ conversationId: "conv_01", prompt: "图书馆几点关门？" }),
+			credentials: "same-origin",
+			method: "POST",
+		});
+		expect(fetchMock.mock.calls[0]?.[1]?.headers).toMatchObject({
+			accept: "text/event-stream",
+			"content-type": "application/json",
+		});
+		expect(fetchMock.mock.calls[0]?.[1]?.headers).toHaveProperty("idempotency-key");
 	});
 
 	it("calls run control and trailing delete routes explicitly", async () => {

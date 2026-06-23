@@ -3,11 +3,15 @@ import { Suspense } from "react";
 
 import { Button } from "@/components/ui/button";
 
-const supportNavItems = [
-	{ label: "文档", to: "/docs" },
-	{ label: "校园地图", to: "/map" },
-	{ label: "食堂", to: "/dining" },
-	{ emphasis: true, label: "反馈", to: "/feedback" },
+type SupportNavItem =
+	| { kind: "external"; label: string; to: "/docs/" }
+	| { emphasis?: true; kind: "route"; label: string; to: "/dining" | "/feedback" | "/map" };
+
+const supportNavItems: readonly SupportNavItem[] = [
+	{ kind: "external", label: "文档", to: "/docs/" },
+	{ kind: "route", label: "校园地图", to: "/map" },
+	{ kind: "route", label: "食堂", to: "/dining" },
+	{ emphasis: true, kind: "route", label: "反馈", to: "/feedback" },
 ] as const;
 
 export function RootLayout() {
@@ -48,21 +52,11 @@ function SupportPageHeader({ activePath }: { activePath: string }) {
 				</Link>
 				<nav aria-label="支撑页面导航" className="hidden items-center gap-3 md:flex">
 					{visibleItems.map((item) => (
-						<Button
-							asChild
-							className={[
-								"min-h-8 rounded-md px-2.5 text-xs",
-								isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
-								"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
-									? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
-									: "",
-							].join(" ")}
+						<SupportNavButton
+							className={supportNavButtonClassName(activePath, item)}
+							item={item}
 							key={item.to}
-							size="sm"
-							variant="ghost"
-						>
-							<Link to={item.to}>{item.label}</Link>
-						</Button>
+						/>
 					))}
 				</nav>
 			</div>
@@ -72,21 +66,11 @@ function SupportPageHeader({ activePath }: { activePath: string }) {
 					className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden"
 				>
 					{visibleItems.map((item) => (
-						<Button
-							asChild
-							className={[
-								"min-h-8 rounded-md px-2.5 text-xs",
-								isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
-								"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
-									? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
-									: "",
-							].join(" ")}
+						<SupportNavButton
+							className={supportNavButtonClassName(activePath, item)}
+							item={item}
 							key={item.to}
-							size="sm"
-							variant="ghost"
-						>
-							<Link to={item.to}>{item.label}</Link>
-						</Button>
+						/>
 					))}
 				</nav>
 			</div>
@@ -94,8 +78,39 @@ function SupportPageHeader({ activePath }: { activePath: string }) {
 	);
 }
 
+function SupportNavButton({
+	className,
+	item,
+}: {
+	className: string;
+	item: SupportNavItem;
+}) {
+	if (item.kind === "external") {
+		return (
+			<Button asChild className={className} size="sm" variant="ghost">
+				<a href={item.to}>{item.label}</a>
+			</Button>
+		);
+	}
+	return (
+		<Button asChild className={className} size="sm" variant="ghost">
+			<Link to={item.to}>{item.label}</Link>
+		</Button>
+	);
+}
+
+function supportNavButtonClassName(activePath: string, item: SupportNavItem): string {
+	return [
+		"min-h-8 rounded-md px-2.5 text-xs",
+		isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
+		"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
+			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
+			: "",
+	].join(" ");
+}
+
 function isSupportNavActive(activePath: string, itemPath: string) {
-	return itemPath === "/docs" ? activePath.startsWith("/docs") : activePath === itemPath;
+	return itemPath === "/docs/" ? activePath.startsWith("/docs") : activePath === itemPath;
 }
 
 function RoutePending() {

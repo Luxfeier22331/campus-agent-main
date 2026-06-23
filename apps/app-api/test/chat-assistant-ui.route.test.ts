@@ -41,7 +41,7 @@ function createCampusPrincipal() {
 }
 
 describe("assistant-ui chat route", () => {
-	it("streams a completed assistant-ui response from the existing chat command service", async () => {
+	it("does not expose assistant-ui data-stream as a browser product route", async () => {
 		const submitStream = vi.fn().mockReturnValue(
 			(async function* () {
 				yield {
@@ -117,24 +117,7 @@ describe("assistant-ui chat route", () => {
 			}),
 		);
 
-		expect(response.status).toBe(200);
-		expect(response.headers.get("content-type")).toContain("text");
-		const body = await response.text();
-		expect(body).toContain("国家奖学金每学年评审一次。");
-		expect(body).toContain(
-			`aui-data:{"data":{"sourceItems":[],"type":"source_items"},"name":"source_items"}`,
-		);
-		expect(response.headers.get("x-request-id")).toBe("req_01HQ");
-		expect(response.headers.get("x-trace-id")).toBe("trace_01HQ");
-		expect(submitStream).toHaveBeenCalledWith(
-			expect.objectContaining({
-				idempotencyKey: "idem_01HQ",
-				payload: {
-					conversationId: "conv_01HQ",
-					prompt: "国家奖学金什么时候评审？",
-				},
-				surface: "campus_web",
-			}),
-		);
+		expect(response.status).toBe(404);
+		expect(submitStream).not.toHaveBeenCalled();
 	});
 });

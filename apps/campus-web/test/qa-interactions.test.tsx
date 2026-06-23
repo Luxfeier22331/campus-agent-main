@@ -10,11 +10,14 @@ const designTokensSource = readFileSync("src/design/tokens.css", "utf8");
 
 const conversationApiMock = vi.hoisted(() => ({
 	archiveConversation: vi.fn(),
+	cancelRun: vi.fn(),
 	createConversationDraft: vi.fn(),
 	deleteConversation: vi.fn(),
 	getConversationDetail: vi.fn(),
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
+	resumeRunEventsStream: vi.fn(),
+	submitChatRequestStream: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
 const navigateMock = vi.hoisted(() => vi.fn());

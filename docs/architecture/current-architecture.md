@@ -35,7 +35,8 @@ updated: 2026-06-22
 
 `campus-web same-origin allowlisted /api/* -> app-api`
 
-`browser -> campus-web Q&A -> app-api /api/chat/assistant-ui ->
+`browser -> campus-web Q&A -> app-api durable chat lifecycle SSE
+(/api/chat/requests/stream, /api/chat/runs/:runId/events/stream) ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
 activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
@@ -191,8 +192,9 @@ document/index release`
   的临时错误/empty path
 - 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
-  docs/chat/map/dining/feedback endpoints；Q&A 主线程通过 `/api/chat/assistant-ui`
-  接入 app-api chat command stream
+  docs/chat/map/dining/feedback endpoints；Q&A 主线程通过
+  `/api/chat/requests/stream` 与 `/api/chat/runs/:runId/events/stream`
+  接入 app-api durable chat lifecycle stream
 - Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
   primitives 承担；conversation/message/title truth、stream command 与历史读写仍属于
   `apps/app-api`

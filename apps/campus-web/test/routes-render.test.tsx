@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
 import rootLayoutSource from "../src/app/root-layout.tsx?raw";
 import { ConversationPage } from "../src/app/routes/conversation-page";
 import { DiningPage } from "../src/app/routes/dining-page";
 import diningPageSource from "../src/app/routes/dining-page.tsx?raw";
-import { DocsPage } from "../src/app/routes/docs-page";
 import { FeedbackPage } from "../src/app/routes/feedback-page";
 import feedbackPageSource from "../src/app/routes/feedback-page.tsx?raw";
 import { HomePage } from "../src/app/routes/home-page";
@@ -14,6 +13,7 @@ import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
+import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
 import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
@@ -22,10 +22,6 @@ const stylesSource = readFileSync("src/styles.css", "utf8");
 const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
 	getDiningHalls: vi.fn(),
-}));
-const docsApiMock = vi.hoisted(() => ({
-	getDocsNavigation: vi.fn(),
-	resolveDocument: vi.fn(),
 }));
 const feedbackApiMock = vi.hoisted(() => ({
 	submitFeedback: vi.fn(),
@@ -93,7 +89,6 @@ vi.mock("../src/features/conversation/api", () => ({
 	unarchiveConversation: conversationApiMock.unarchiveConversation,
 }));
 
-vi.mock("../src/features/docs/api", () => docsApiMock);
 vi.mock("../src/features/feedback/api", () => feedbackApiMock);
 
 vi.mock("../src/features/dining/api", () => diningApiMock);
@@ -102,54 +97,6 @@ describe("campus routes", () => {
 	beforeEach(() => {
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
-		docsApiMock.getDocsNavigation.mockReset();
-		docsApiMock.resolveDocument.mockReset();
-		docsApiMock.getDocsNavigation.mockResolvedValue({
-			collection: {
-				collection: "student_rules",
-				corpus: "regulations",
-				description: "当前公开的学生手册与学生管理规章。",
-				displayName: "学生手册",
-			},
-			nodes: [
-				{
-					canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
-					documentSlug: "中央民族大学学生管理规定",
-					isCurrent: true,
-					kind: "document",
-					title: "中央民族大学学生管理规定",
-				},
-			],
-		});
-		docsApiMock.resolveDocument.mockResolvedValue({
-			document: {
-				canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
-				collection: "student_rules",
-				corpus: "regulations",
-				docId: "doc_01",
-				documentSlug: "中央民族大学学生管理规定",
-				title: "中央民族大学学生管理规定",
-				updatedAt: "2026-06-08T00:00:00.000Z",
-				versionId: "version_01",
-				versionSlug: "2026",
-			},
-			readerAsset: {
-				canonicalUrl: "/docs/regulations/student_rules/中央民族大学学生管理规定",
-				contentUrl: "/assets/docs/student-rules.html",
-				deliveryMode: "public_static_asset",
-				outlineUrl: "/assets/docs/student-rules-outline.json",
-			},
-			readerState: {
-				anchor: "general",
-				highlightRootUnitIds: ["unit_award"],
-			},
-			resolvedVersion: {
-				isCurrent: true,
-				label: "2026",
-				versionId: "version_01",
-				versionSlug: "2026",
-			},
-		});
 		feedbackApiMock.submitFeedback.mockReset();
 		feedbackApiMock.submitFeedback.mockResolvedValue({
 			feedback: {
@@ -248,6 +195,12 @@ describe("campus routes", () => {
 		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(qaShellSource).toContain("@/components/assistant-ui/threadlist-sidebar");
 		expect(qaShellSource).not.toContain("@assistant-ui/react-ui");
+		expect(qaShellSource).not.toContain("@assistant-ui/react-data-stream");
+		expect(qaShellSource).not.toContain("/api/chat/assistant-ui");
+		expect(assistantRuntimeSource).toContain("useExternalStoreRuntime");
+		expect(assistantRuntimeSource).toContain("submitChatRequestStream");
+		expect(assistantRuntimeSource).not.toContain("@assistant-ui/react-data-stream");
+		expect(assistantRuntimeSource).not.toContain("/api/chat/assistant-ui");
 		expect(qaShellSource).toContain("@/components/auth/user/user-button");
 		expect(qaShellSource).not.toContain("SupportNavigation");
 		expect(qaShellSource).not.toContain("AccountLoginDialog");
@@ -262,6 +215,15 @@ describe("campus routes", () => {
 		expect(stylesSource).toContain("@layer base");
 		expect(stylesSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
+	});
+
+	it("does not register the canonical docs reader as a React route", () => {
+		const routerSource = readFileSync("src/app/router.tsx", "utf8");
+
+		expect(routerSource).not.toContain("DocsPage");
+		expect(routerSource).not.toContain('path: "/docs"');
+		expect(routerSource).not.toContain('path: "/docs/$"');
+		expect(routerSource).not.toContain("./routes/docs-page");
 	});
 
 	it("keeps product pages on mature UI primitives instead of bespoke controls", () => {
@@ -369,7 +331,7 @@ describe("campus routes", () => {
 	});
 
 	it("keeps feedback navigation visible on non-map support pages", () => {
-		window.history.pushState({}, "", "/docs/regulations/student_rules/中央民族大学学生管理规定");
+		window.history.pushState({}, "", "/feedback");
 		render(<RootLayout />);
 
 		expect(screen.getAllByRole("link", { name: "反馈" })).toHaveLength(2);
@@ -407,65 +369,6 @@ describe("campus routes", () => {
 				routeContext: "/feedback?source=map",
 			}),
 		);
-	});
-
-	it("renders the default docs route as a collection directory", async () => {
-		window.history.pushState({}, "", "/docs");
-		render(<DocsPage />);
-
-		expect(await screen.findByRole("heading", { name: "学生手册" })).toBeInTheDocument();
-		expect(screen.getByText("当前公开的学生手册与学生管理规章。")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "中央民族大学学生管理规定" })).toHaveAttribute(
-			"href",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定",
-		);
-		expect(docsApiMock.getDocsNavigation).toHaveBeenCalledWith({
-			collection: "student_rules",
-			corpus: "regulations",
-		});
-		expect(docsApiMock.resolveDocument).not.toHaveBeenCalled();
-	});
-
-	it("keeps docs document routes as reader handoffs without custom search or developer targets", async () => {
-		window.history.pushState(
-			{},
-			"",
-			"/docs/regulations/student_rules/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%AD%A6%E7%94%9F%E7%AE%A1%E7%90%86%E8%A7%84%E5%AE%9A/v/2025-history?hl=unit_award#general",
-		);
-		const { unmount } = render(<DocsPage />);
-
-		expect(await screen.findByText("正在打开文档")).toBeInTheDocument();
-		await waitFor(() =>
-			expect(docsApiMock.resolveDocument).toHaveBeenCalledWith(
-				expect.objectContaining({
-					anchor: "general",
-					documentSlug: "中央民族大学学生管理规定",
-					highlightRootUnitIds: ["unit_award"],
-					versionSlug: "2025-history",
-				}),
-			),
-		);
-		expect(screen.queryByText("学生应按时参加教学活动。")).toBeNull();
-		expect(screen.queryByText("奖学金评定需要满足对应条件。")).toBeNull();
-		expect(screen.getByRole("link", { name: "继续打开" })).toHaveAttribute(
-			"href",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定?hl=unit_award#general",
-		);
-		expect(screen.queryByText("阅读目标")).toBeNull();
-		expect(
-			screen.queryByText("/docs/regulations/student_rules/中央民族大学学生管理规定"),
-		).toBeNull();
-		expect(screen.queryByLabelText("搜索文档")).toBeNull();
-		expect(screen.queryByRole("button", { name: "搜索" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "打开原文" })).toBeNull();
-		expect(screen.queryByText("完整正文可在文档页面中查看。")).toBeNull();
-
-		docsApiMock.getDocsNavigation.mockRejectedValueOnce(new Error("network"));
-		docsApiMock.resolveDocument.mockRejectedValueOnce(new Error("network"));
-		unmount();
-		render(<DocsPage />);
-		expect(await screen.findByText("文档暂时无法打开。")).toBeInTheDocument();
-		expect(screen.queryByText("正在读取文档")).not.toBeInTheDocument();
 	});
 
 	it("keeps dining floor rendering driven by the floor projection contract", () => {

@@ -8,9 +8,6 @@ const ConversationPage = lazy(() =>
 const DiningPage = lazy(() =>
 	import("./routes/dining-page").then((module) => ({ default: module.DiningPage })),
 );
-const DocsPage = lazy(() =>
-	import("./routes/docs-page").then((module) => ({ default: module.DocsPage })),
-);
 const FeedbackPage = lazy(() =>
 	import("./routes/feedback-page").then((module) => ({ default: module.FeedbackPage })),
 );
@@ -82,18 +79,6 @@ const conversationRoute = createRoute({
 	component: ConversationPage,
 	getParentRoute: () => rootRoute,
 	path: "/c/$conversationId",
-});
-
-const docsIndexRoute = createRoute({
-	component: DocsPage,
-	getParentRoute: () => rootRoute,
-	path: "/docs",
-});
-
-const docsRoute = createRoute({
-	component: DocsPage,
-	getParentRoute: () => rootRoute,
-	path: "/docs/$",
 });
 
 const mapRoute = createRoute({
@@ -183,8 +168,6 @@ const legalPrivacyRoute = createRoute({
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	conversationRoute,
-	docsIndexRoute,
-	docsRoute,
 	mapRoute,
 	diningRoute,
 	feedbackRoute,

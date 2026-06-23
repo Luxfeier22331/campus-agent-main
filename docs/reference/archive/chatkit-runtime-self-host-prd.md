@@ -9,9 +9,9 @@ updated: 2026-06-23
 
 # ChatKit Runtime Self-host PRD
 
-> Retired: `campus-web` Q&A 已切换为 first-party assistant chat surface，经由
-> `/api/chat/assistant-ui` 进入 `apps/app-api`。本 PRD 只保留为历史背景，不再代表
-> 当前 product requirement。
+> Retired: `campus-web` Q&A 已切换为 first-party assistant chat surface，并通过
+> app-api durable chat lifecycle SSE 进入 `apps/app-api`。本 PRD 只保留为历史背景，
+> 不再代表当前 product requirement。
 
 ## 1. 背景
 

@@ -9,7 +9,6 @@ describe("user-facing copy guard", () => {
 		const routeFiles = [
 			"home-page.tsx",
 			"conversation-page.tsx",
-			"docs-page.tsx",
 			"map-page.tsx",
 			"dining-page.tsx",
 			"feedback-page.tsx",
@@ -53,17 +52,6 @@ describe("user-facing copy guard", () => {
 					"回答会在对话中给出，并在需要时打开文档、校园地图或食堂。",
 					"信息以原始来源和现场情况为准。",
 					"暂时无法读取历史会话。",
-				],
-				sourcePath: ["src", "app", "routes"],
-			},
-			{
-				fileName: "docs-page.tsx",
-				phrases: [
-					"reader asset",
-					"reader 内容",
-					'deliveryMode ?? "reader"',
-					"完整正文可在文档页面中查看。",
-					"打开文档正文",
 				],
 				sourcePath: ["src", "app", "routes"],
 			},

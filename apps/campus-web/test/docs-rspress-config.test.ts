@@ -52,6 +52,8 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).toContain('label: "中文"');
 		expect(configSource).toContain("search:");
 		expect(configSource).toContain('mode: "local"');
+		expect(configSource).toContain("route:");
+		expect(configSource).toContain("cleanUrls: true");
 		expect(configSource).toContain("rspress-search-hooks");
 		expect(configSource).toContain("campusDocsSearchIndexPlugin");
 		expect(configSource).toContain("buildRspressSidebarConfig");

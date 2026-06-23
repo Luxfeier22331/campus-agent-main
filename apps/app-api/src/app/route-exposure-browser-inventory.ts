@@ -68,12 +68,6 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "session principal plus chat access required; forwards to internal ChatKit adapter",
 	},
 	{
-		method: "POST",
-		path: "/api/chat/assistant-ui",
-		callerClass: "browser-surface",
-		admission: "session principal plus chat access required; emits assistant-ui data stream",
-	},
-	{
 		method: "GET",
 		path: "/api/chat/conversations",
 		callerClass: "browser-surface",

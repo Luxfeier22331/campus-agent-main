@@ -151,9 +151,6 @@ importers:
       '@assistant-ui/react':
         specifier: 0.14.23
         version: 0.14.23(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7))
-      '@assistant-ui/react-data-stream':
-        specifier: 0.12.17
-        version: 0.12.17(@assistant-ui/store@0.2.18(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(react@19.2.7))(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(react@19.2.7)(zustand@5.0.14(@types/react@19.2.14)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))
       '@assistant-ui/react-markdown':
         specifier: ^0.14.4
         version: 0.14.4(@assistant-ui/react@0.14.23(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -650,10 +647,6 @@ packages:
       react: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
       react-dom: ^16.8.0 || ^17.0.0-rc.1 || ^18.0.0 || ^19.0.0-rc.1
 
-  '@ai-sdk/provider@3.0.10':
-    resolution: {integrity: sha512-Q3BZ27qfpYqnCYGvE3vt+Qi6LGOF9R5Nmzn+9JoM1lCRsD9mYaIhfJLkSunN48nfGXJ6n+XNV0J/XVpqGQl7Dw==}
-    engines: {node: '>=18'}
-
   '@apify/consts@2.51.1':
     resolution: {integrity: sha512-QV16f41BjmE7uYQgB+JeS5bhbEdFvP8eF1R5LiKlvGkERckSlMl1JIIaW1b/XwJdp3bEBKBGPtNlvYa06wyhwg==}
 
@@ -706,15 +699,6 @@ packages:
       react:
         optional: true
       zustand:
-        optional: true
-
-  '@assistant-ui/react-data-stream@0.12.17':
-    resolution: {integrity: sha512-9BmuuMU80MqqJ7dEBVu4lJ1oPHV5N+opDRXZ1P2VeJi1XYIodtBR0R1tKlHV18LCAk1hanslnmriX1WtLVzWmQ==}
-    peerDependencies:
-      '@types/react': '*'
-      react: ^18 || ^19
-    peerDependenciesMeta:
-      '@types/react':
         optional: true
 
   '@assistant-ui/react-markdown@0.14.4':
@@ -5949,9 +5933,6 @@ packages:
   json-schema-typed@8.0.2:
     resolution: {integrity: sha512-fQhoXdcvc3V28x7C7BMs4P5+kNlgUURe2jmUT1T//oBRMDrqy1QPelJimwZGo7Hg9VPV3EQV5Bnq4hbFy2vetA==}
 
-  json-schema@0.4.0:
-    resolution: {integrity: sha512-es94M3nTIfsEPisRafak+HDLfHXnKBhV3vU5eqPcS3flIWqcxJWgXHXiey3YrpaNsanY5ei1VoYEbOzijuq9BA==}
-
   json-stringify-pretty-compact@4.0.0:
     resolution: {integrity: sha512-3CNZ2DnrpByG9Nqj6Xo8vqbjT4F6N+tb4Gb28ESAZjYZ5yqvmc56J+/kuIwkaAMOyblTQhUW7PxMkUb8Q36N3Q==}
 
@@ -7984,10 +7965,6 @@ snapshots:
       react-transition-group: 4.4.5(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       use-sync-external-store: 1.6.0(react@19.2.7)
 
-  '@ai-sdk/provider@3.0.10':
-    dependencies:
-      json-schema: 0.4.0
-
   '@apify/consts@2.51.1': {}
 
   '@apify/datastructures@2.0.3': {}
@@ -8052,22 +8029,6 @@ snapshots:
     transitivePeerDependencies:
       - ioredis
       - redis
-
-  '@assistant-ui/react-data-stream@0.12.17(@assistant-ui/store@0.2.18(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(react@19.2.7))(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(react@19.2.7)(zustand@5.0.14(@types/react@19.2.14)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))':
-    dependencies:
-      '@ai-sdk/provider': 3.0.10
-      '@assistant-ui/core': 0.2.18(@assistant-ui/store@0.2.18(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(react@19.2.7))(@assistant-ui/tap@0.9.2(@types/react@19.2.14)(react@19.2.7))(@types/react@19.2.14)(assistant-cloud@0.1.33)(react@19.2.7)(zustand@5.0.14(@types/react@19.2.14)(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))
-      assistant-cloud: 0.1.33
-      assistant-stream: 0.3.23
-      react: 19.2.7
-    optionalDependencies:
-      '@types/react': 19.2.14
-    transitivePeerDependencies:
-      - '@assistant-ui/store'
-      - '@assistant-ui/tap'
-      - ioredis
-      - redis
-      - zustand
 
   '@assistant-ui/react-markdown@0.14.4(@assistant-ui/react@0.14.23(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)(use-sync-external-store@1.6.0(react@19.2.7)))(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
@@ -14804,8 +14765,6 @@ snapshots:
 
   json-schema-typed@8.0.2:
     optional: true
-
-  json-schema@0.4.0: {}
 
   json-stringify-pretty-compact@4.0.0: {}
 

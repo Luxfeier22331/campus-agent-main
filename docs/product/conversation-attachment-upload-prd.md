@@ -12,7 +12,7 @@ updated: 2026-06-23
 ## 1. 背景
 
 `campus-web` 问答页已经使用 assistant-ui composer。当前 UI 可以显示附件入口和本地附件预览，但服务端
-`/api/chat/assistant-ui` 只解析最后一条用户消息的文本，并只向 app-api chat command
+durable chat lifecycle SSE 请求只接收当前用户消息文本，并只向 app-api chat command
 链路提交 `prompt`。
 
 这意味着当前附件按钮只是前端展示能力，不是已闭环的产品能力。正式上线附件前，系统必须把附件上传、
@@ -87,7 +87,7 @@ campus-web composer
 -> app-api attachment upload
 -> object storage raw object
 -> app-api attachment metadata
--> /api/chat/assistant-ui text + attachment_refs
+-> /api/chat/requests/stream text + attachment_refs
 -> execution-control bounded attachment projection
 -> agent.primary / typed capability / provider-facing activity
 -> finalization.write
@@ -166,7 +166,7 @@ app-api 应提供受 session 保护的附件上传入口。
 
 ### 6.3 chat request 准入
 
-`/api/chat/assistant-ui` 应接受当前消息文本和 attachment refs。
+`/api/chat/requests/stream` 应接受当前消息文本和 attachment refs。
 
 要求：
 

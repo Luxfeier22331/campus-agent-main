@@ -28,7 +28,8 @@ supporting architecture。
 
 `campus-web same-origin allowlisted /api/* -> app-api`
 
-`browser -> campus-web Q&A -> app-api /api/chat/assistant-ui ->
+`browser -> campus-web Q&A -> app-api durable chat lifecycle SSE
+(/api/chat/requests/stream, /api/chat/runs/:runId/events/stream) ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
 workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
 activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
@@ -52,7 +53,8 @@ projection / operator read model / operator-safe operations domains`
   `/docs/*` reader delivery、first-party Q&A assistant surface 与 same-origin app-api
   seam，但不拥有 backend truth
 - `campus-web` Q&A 不再加载 ChatKit browser runtime；Q&A browser path 只消费
-  `/api/chat/assistant-ui`、conversation read model 与明确 allowlisted support endpoints
+  durable chat lifecycle SSE、conversation read model 与明确 allowlisted support
+  endpoints
 - `apps/chatkit-adapter` 是 legacy internal ChatKit protocol adapter；当前
   `campus-web` 不消费它，它不拥有 product backend、conversation truth 或 execution
   engine 责任
@@ -88,8 +90,9 @@ projection / operator read model / operator-safe operations domains`
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
   - 为 `/`、`/c/:conversationId`、`/map`、`/dining`、`/feedback` 与
     `/account/*` 交付 SPA shell，并为 `/docs/*` 交付 Rspress-powered canonical reader
-  - Q&A 主体验使用 first-party assistant chat surface，经由 `/api/chat/assistant-ui`
-    进入 app-api/session gate 与 chat command stream
+  - Q&A 主体验使用 first-party assistant chat surface，经由
+    `/api/chat/requests/stream` 与 `/api/chat/runs/:runId/events/stream`
+    进入 app-api/session gate 与 durable chat lifecycle stream
   - Q&A 主线程、composer 与会话历史 UI 由 `campus-web` 通过 assistant-ui
     primitives 承担；conversation truth、message truth、title truth、run truth 和
     execution truth 仍属于 `apps/app-api` / execution plane
@@ -98,7 +101,7 @@ projection / operator read model / operator-safe operations domains`
   - map / dining 保留领域数据渲染、地图/楼层 adapter 与交互 glue；这些不是可替换的通用
     UI 产品组件，但其按钮、弹层、切换、搜索输入等通用 primitive 仍使用成熟组件库承接
   - 只通过 allowlisted same-origin app-api seams 消费 `/api/me/*`、必要 auth
-    endpoints、implemented federation endpoints、`/api/chat/assistant-ui`、
+    endpoints、implemented federation endpoints、durable chat lifecycle SSE、
     `/api/chat/conversations*`、`/api/docs/*` 与 campus experience endpoints
   - account browser shape 消费 Identity Platform product projection，不消费 Better Auth
     raw records

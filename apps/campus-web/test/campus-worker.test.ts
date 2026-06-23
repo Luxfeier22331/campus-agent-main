@@ -74,7 +74,6 @@ describe("campus worker boundary", () => {
 			"/api/federation/logout",
 			"/api/chat/conversations",
 			"/api/chat/conversations/search",
-			"/api/chat/assistant-ui",
 			"/api/chat/conversations/conv_1",
 			"/api/chat/conversations/conv_1/archive",
 			"/api/chat/conversations/conv_1/pin",
@@ -116,9 +115,6 @@ describe("campus worker boundary", () => {
 		for (const path of [
 			"/",
 			"/c/conv_1",
-			"/docs",
-			"/docs/",
-			"/docs/student_rules",
 			"/map",
 			"/dining",
 			"/feedback",
@@ -145,6 +141,82 @@ describe("campus worker boundary", () => {
 		}
 	});
 
+	it("serves materialized Rspress reader pages under /docs clean URLs", async () => {
+		const seenAssetPaths: string[] = [];
+		const env = createEnv(undefined, {
+			fetch: (request) => {
+				const pathname = decodeURIComponent(new URL(request.url).pathname);
+				seenAssetPaths.push(pathname);
+				if (
+					pathname === "/docs/index.html" ||
+					pathname === "/docs/regulations/student_rules/index.html" ||
+					pathname === "/docs/regulations/student_rules/中央民族大学学生管理规定.html" ||
+					pathname ===
+						"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current.html"
+				) {
+					return new Response(
+						'<!doctype html><html><body><div id="__rspress_root">Rspress canonical reader</div></body></html>',
+						{ headers: { "content-type": "text/html; charset=utf-8" } },
+					);
+				}
+				return new Response("<!doctype html><div id=\"root\"></div>", {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 404,
+				});
+			},
+		});
+
+		for (const path of [
+			"/docs",
+			"/docs/",
+			"/docs/regulations/student_rules",
+			"/docs/regulations/student_rules/",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current",
+		]) {
+			const response = await worker.fetch(
+				new Request(`https://campus.muc.wiki${path}`, {
+					headers: { accept: "text/html" },
+				}),
+				env,
+			);
+			expect(response.status).toBe(200);
+			expect(response.headers.get("content-type")).toContain("text/html");
+			await expect(response.text()).resolves.toContain("__rspress_root");
+		}
+
+		expect(seenAssetPaths).toEqual([
+			"/docs/index.html",
+			"/docs/index.html",
+			"/docs/regulations/student_rules.html",
+			"/docs/regulations/student_rules/index.html",
+			"/docs/regulations/student_rules/index.html",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定.html",
+			"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current.html",
+		]);
+	});
+
+	it("fails closed for missing docs clean URLs instead of falling back to the React shell", async () => {
+		const env = createEnv(undefined, {
+			fetch: () =>
+				new Response('<!doctype html><div id="root"></div>', {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 404,
+				}),
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/docs/regulations/student_rules/missing-doc", {
+				headers: { accept: "text/html" },
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("content-type")).toContain("application/json");
+		await expect(response.text()).resolves.not.toContain('id="root"');
+	});
+
 	it("keeps the Q&A shell CSP first-party for assistant chat", async () => {
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/", {
@@ -159,7 +231,7 @@ describe("campus worker boundary", () => {
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
 	});
 
-	it("forwards browser trace context headers into app-api chat requests", async () => {
+	it("forwards browser trace context headers into canonical app-api chat streams", async () => {
 		const forwardedRequests: Request[] = [];
 		const env = createEnv({
 			fetch(request) {
@@ -171,8 +243,8 @@ describe("campus worker boundary", () => {
 		});
 
 		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/api/chat/assistant-ui", {
-				body: JSON.stringify({ messages: [] }),
+			new Request("https://campus.muc.wiki/api/chat/requests/stream", {
+				body: JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
 				headers: {
 					baggage: "sentry-environment=staging",
 					"content-type": "application/json",
@@ -247,8 +319,8 @@ describe("campus worker boundary", () => {
 		vi.stubGlobal("fetch", fetchMock);
 
 		const response = await worker.fetch(
-			new Request("http://127.0.0.1:27014/api/chat/assistant-ui", {
-				body: JSON.stringify({ messages: [] }),
+			new Request("http://127.0.0.1:27014/api/chat/requests/stream", {
+				body: JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
 				headers: { "content-type": "application/json" },
 				method: "POST",
 			}),
@@ -258,9 +330,11 @@ describe("campus worker boundary", () => {
 		expect(response.status).toBe(401);
 		expect(fetchMock).toHaveBeenCalledOnce();
 		const forwarded = fetchMock.mock.calls[0][0] as Request;
-		expect(forwarded.url).toBe("http://127.0.0.1:27031/api/chat/assistant-ui");
+		expect(forwarded.url).toBe("http://127.0.0.1:27031/api/chat/requests/stream");
 		expect(forwarded.headers.get("content-type")).toBe("application/json");
-		await expect(forwarded.text()).resolves.toBe(JSON.stringify({ messages: [] }));
+		await expect(forwarded.text()).resolves.toBe(
+			JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
+		);
 		await expect(response.text()).resolves.toContain("请先登录。");
 	});
 
@@ -293,29 +367,27 @@ describe("campus worker boundary", () => {
 		});
 	});
 
-	it("serves Rspress-built docs assets under the campus docs route", async () => {
+	it("serves static Rspress runtime assets under the docs-owned static namespace", async () => {
 		const env = createEnv();
 		env.ASSETS = {
 			fetch: (request) => {
 				const pathname = new URL(request.url).pathname;
 				return new Response(
-					pathname.startsWith("/docs/")
-						? "<!doctype html><main>Rspress canonical reader</main>"
+					pathname.startsWith("/_docs-static/")
+						? "console.log('Rspress runtime')"
 						: '<!doctype html><div id="root"></div>',
-					{ headers: { "content-type": "text/html" } },
+					{ headers: { "content-type": "application/javascript" } },
 				);
 			},
 		};
 
 		const response = await worker.fetch(
-			new Request("https://campus.muc.wiki/docs/regulations/student_rules/sample", {
-				headers: { accept: "text/html" },
-			}),
+			new Request("https://campus.muc.wiki/_docs-static/js/index.js"),
 			env,
 		);
 
 		expect(response.status).toBe(200);
-		await expect(response.text()).resolves.toContain("Rspress canonical reader");
+		await expect(response.text()).resolves.toContain("Rspress runtime");
 	});
 
 	it("does not expose Pagefind as a public docs search asset path", async () => {
