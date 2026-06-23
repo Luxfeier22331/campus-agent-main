@@ -54,6 +54,11 @@ const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
 	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/activate$/,
 ] as const;
 
+const REQUEST_DYNAMIC_PROXY_ROUTES = [
+	/^GET \/api\/requests\/[^/]+$/,
+	/^GET \/api\/requests\/[^/]+\/observability$/,
+] as const;
+
 function matchProxyRoute(
 	request: Request,
 	url: URL,
@@ -79,6 +84,13 @@ function matchProxyRoute(
 		return {
 			identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
 			targetPath: `${url.pathname}${url.search}`,
+		};
+	}
+
+	if (REQUEST_DYNAMIC_PROXY_ROUTES.some((pattern) => pattern.test(routeKey))) {
+		return {
+			identityMessage: REQUEST_IDENTITY_MESSAGE,
+			targetPath: `/api/operator${url.pathname.slice("/api".length)}${url.search}`,
 		};
 	}
 

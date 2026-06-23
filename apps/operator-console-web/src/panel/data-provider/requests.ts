@@ -1,6 +1,9 @@
+import { fetchJson } from "../http";
 import {
 	normalizeRequestRecord,
+	type RawRequestDetailResponse,
 	type RawRequestListResponse,
+	type RawRequestObservabilityResponse,
 	type RequestProjectionRecord,
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
@@ -42,4 +45,25 @@ export async function getRequestList(params: CursorListParams = {}): Promise<{
 		signal: params.signal,
 		sourcePath: "/api/requests",
 	});
+}
+
+export async function getRequestDetail(input: {
+	requestId: string;
+	signal?: AbortSignal;
+}): Promise<RequestProjectionRecord | null> {
+	const payload = await fetchJson<RawRequestDetailResponse>(
+		`/api/requests/${encodeURIComponent(input.requestId)}`,
+		{ signal: input.signal },
+	);
+	return payload.request ? normalizeRequestRecord(payload.request) : null;
+}
+
+export async function getRequestObservability(input: {
+	requestId: string;
+	signal?: AbortSignal;
+}): Promise<RawRequestObservabilityResponse | null> {
+	return fetchJson<RawRequestObservabilityResponse | null>(
+		`/api/requests/${encodeURIComponent(input.requestId)}/observability`,
+		{ signal: input.signal },
+	);
 }

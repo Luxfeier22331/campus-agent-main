@@ -665,12 +665,23 @@ export function registerOperatorRoutes(input: {
 			return resolved.response;
 		}
 
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getObservabilityById({
-				principal: resolved.principal,
-				requestId: c.req.param("requestId"),
-			}),
-		);
+		const service = scope.resolveOperatorQueryService();
+		const projection = await service.getObservabilityById({
+			principal: resolved.principal,
+			requestId: c.req.param("requestId"),
+		});
+		const langfuseEvalBacklinks = await service.getLangfuseEvalBacklinksByTraceId({
+			principal: resolved.principal,
+			traceId: projection.request.traceId,
+		});
+
+		return jsonResponse({
+			...projection,
+			links: {
+				...projection.links,
+				langfuseEvalBacklinks: langfuseEvalBacklinks.backlinks,
+			},
+		});
 	});
 
 	input.app.get("/api/operator/langfuse/eval-backlinks", async (c) => {

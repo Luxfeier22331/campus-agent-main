@@ -1,9 +1,13 @@
 import { QueryClient, QueryClientProvider, useQuery } from "@tanstack/react-query";
-import { ClipboardList, KeyRound, LogOut, RefreshCw } from "lucide-react";
+import { ArrowLeft, ClipboardList, ExternalLink, KeyRound, LogOut, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
-import { Link, Navigate, Route, Routes, useLocation } from "react-router-dom";
+import { Link, Navigate, Route, Routes, useLocation, useParams } from "react-router-dom";
 import { getOperatorOverview, getOperatorRuntimeHealth } from "./data-provider/operator";
-import { getRequestList } from "./data-provider/requests";
+import {
+	getRequestDetail,
+	getRequestList,
+	getRequestObservability,
+} from "./data-provider/requests";
 import { fetchJson } from "./http";
 import { ProviderConfigPage } from "./operations/provider-config/page";
 import { formatPanelTimestamp } from "./panel-copy";
@@ -55,6 +59,7 @@ export function OperatorConsoleAdminApp() {
 				<Routes>
 					<Route element={<Navigate replace to="/requests" />} path="/" />
 					<Route element={<RequestsPage />} path="/requests" />
+					<Route element={<RequestDetailPage />} path="/requests/:requestId" />
 					<Route element={<ProviderConfigPage />} path="/operations/provider-config" />
 					<Route element={<Navigate replace to="/requests" />} path="*" />
 				</Routes>
@@ -309,8 +314,13 @@ function RequestsPage() {
 									{requests.data?.data.map((request) => (
 										<TableRow key={request.requestId}>
 											<TableCell className="max-w-[420px]">
-												<p className="line-clamp-2 font-medium">{request.questionPreview}</p>
-												<p className="text-slate-500 text-xs">{request.requestId}</p>
+												<Link
+													className="block hover:text-slate-700"
+													to={`/requests/${request.requestId}`}
+												>
+													<p className="line-clamp-2 font-medium">{request.questionPreview}</p>
+													<p className="text-slate-500 text-xs">{request.requestId}</p>
+												</Link>
 											</TableCell>
 											<TableCell>
 												<Badge tone={request.status === "completed" ? "success" : "warning"}>
@@ -344,8 +354,237 @@ function RequestsPage() {
 	);
 }
 
+function RequestDetailPage() {
+	const { requestId = "" } = useParams();
+	const detail = useQuery({
+		enabled: requestId.length > 0,
+		queryFn: ({ signal }) => getRequestDetail({ requestId, signal }),
+		queryKey: ["request-detail", requestId],
+	});
+	const observability = useQuery({
+		enabled: requestId.length > 0,
+		queryFn: ({ signal }) => getRequestObservability({ requestId, signal }),
+		queryKey: ["request-observability", requestId],
+	});
+	const request = observability.data?.request ?? detail.data;
+	const facts = observability.data?.observability;
+	const runtimeSteps = observability.data?.runtimeRun?.stepTrajectory?.steps ?? [];
+	const links = observability.data?.links;
+
+	return (
+		<section>
+			<div className="mb-4">
+				<Button asChild size="sm" variant="ghost">
+					<Link to="/requests">
+						<ArrowLeft className="size-4" />
+						返回请求列表
+					</Link>
+				</Button>
+			</div>
+			<PageHeader description={requestId} title="请求详情" />
+			{detail.error ? <QueryError error={detail.error} /> : null}
+			{observability.error ? <QueryError error={observability.error} /> : null}
+			{detail.isLoading || observability.isLoading ? (
+				<div className="grid gap-4">
+					<Skeleton className="h-28 w-full" />
+					<Skeleton className="h-48 w-full" />
+				</div>
+			) : null}
+			{request ? (
+				<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+					<Card>
+						<CardHeader>
+							<CardTitle>请求摘要</CardTitle>
+							<CardDescription>{request.questionPreview}</CardDescription>
+						</CardHeader>
+						<CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+							<Fact
+								label="状态"
+								value={<Badge tone={statusTone(request.status)}>{request.status}</Badge>}
+							/>
+							<Fact label="接入面" value={request.surface} />
+							<Fact
+								label="能力"
+								value={request.selectedCapability || request.requestedCapability || "未指定"}
+							/>
+							<Fact label="Trace ID" value={request.traceId} />
+							<Fact label="会话" value={request.conversationId} />
+							<Fact label="更新时间" value={formatPanelTimestamp(request.projectedAt)} />
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle>外部定位</CardTitle>
+							<CardDescription>只显示安全 deep link 和 fingerprint。</CardDescription>
+						</CardHeader>
+						<CardContent className="space-y-3">
+							<ExternalSafeLink href={links?.traceLink} label="Trace" />
+							<ExternalSafeLink href={links?.issueLink} label="Issue" />
+							<Fact label="Issue Fingerprint" value={links?.issueFingerprint || "无"} />
+							<Separator />
+							<div className="space-y-2">
+								<p className="text-slate-500 text-xs">Langfuse Eval</p>
+								{links?.langfuseEvalBacklinks && links.langfuseEvalBacklinks.length > 0 ? (
+									<div className="space-y-2">
+										{links.langfuseEvalBacklinks.map((backlink) => (
+											<a
+												className="block rounded-md border border-slate-200 p-2 hover:bg-slate-50"
+												href={backlink.langfuseUrl}
+												key={`${backlink.evalRunId}:${backlink.scoreName}`}
+												rel="noreferrer"
+												target="_blank"
+											>
+												<span className="flex items-center justify-between gap-2">
+													<span className="truncate font-medium text-sm">{backlink.scoreName}</span>
+													<ExternalLink className="size-3.5 shrink-0" />
+												</span>
+												<span className="mt-1 block text-slate-500 text-xs">
+													{String(backlink.scoreValue)} · {backlink.environment}
+												</span>
+											</a>
+										))}
+									</div>
+								) : (
+									<p className="text-slate-500 text-sm">无</p>
+								)}
+							</div>
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle>观测摘要</CardTitle>
+						</CardHeader>
+						<CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+							<Fact label="耗时" value={formatDuration(facts?.durationMs)} />
+							<Fact label="投影延迟" value={formatDuration(facts?.projectionLagMs)} />
+							<Fact label="检索候选" value={formatNumber(facts?.candidateCount)} />
+							<Fact label="引用数量" value={formatNumber(facts?.citationCount)} />
+							<Fact label="引用缺失" value={formatBoolean(facts?.citationMissing)} />
+							<Fact label="Fail closed" value={formatBoolean(facts?.failClosed)} />
+							<Fact label="模型" value={formatModel(facts?.model)} />
+							<Fact label="输入 Token" value={formatNumber(facts?.inputTokens)} />
+							<Fact label="输出 Token" value={formatNumber(facts?.outputTokens)} />
+							<Fact label="成本" value={formatCost(facts?.estimatedCost?.microusd)} />
+							<Fact label="检索充分性" value={facts?.retrievalAdequacyVerdict || "未上报"} />
+							<Fact label="ACL" value={facts?.aclDecision || "未上报"} />
+						</CardContent>
+					</Card>
+					<Card>
+						<CardHeader>
+							<CardTitle>运行步骤</CardTitle>
+						</CardHeader>
+						<CardContent>
+							<TableContainer>
+								<Table>
+									<TableHeader>
+										<TableRow>
+											<TableHead>步骤</TableHead>
+											<TableHead>状态</TableHead>
+											<TableHead>队列</TableHead>
+											<TableHead>耗时</TableHead>
+										</TableRow>
+									</TableHeader>
+									<TableBody>
+										{runtimeSteps.map((step) => (
+											<TableRow key={step.stepId}>
+												<TableCell>
+													<p className="font-medium">{step.stepId}</p>
+													<p className="text-slate-500 text-xs">{step.stepKind}</p>
+												</TableCell>
+												<TableCell>
+													<Badge tone={statusTone(step.status)}>{step.status}</Badge>
+												</TableCell>
+												<TableCell>{step.taskQueue || "未上报"}</TableCell>
+												<TableCell>{formatDuration(step.durationMs)}</TableCell>
+											</TableRow>
+										))}
+										{runtimeSteps.length === 0 ? (
+											<TableRow>
+												<TableCell className="text-slate-500" colSpan={4}>
+													暂无运行步骤投影。
+												</TableCell>
+											</TableRow>
+										) : null}
+									</TableBody>
+								</Table>
+							</TableContainer>
+						</CardContent>
+					</Card>
+				</div>
+			) : detail.isLoading || observability.isLoading ? null : (
+				<Empty className="min-h-40">
+					<EmptyTitle>未找到请求</EmptyTitle>
+					<EmptyDescription>当前请求投影不存在或不可见。</EmptyDescription>
+				</Empty>
+			)}
+		</section>
+	);
+}
+
+function Fact({ label, value }: { label: string; value: ReactNode }) {
+	return (
+		<div className="min-w-0">
+			<p className="text-slate-500 text-xs">{label}</p>
+			<div className="mt-1 break-words font-medium text-sm">{value}</div>
+		</div>
+	);
+}
+
+function ExternalSafeLink({ href, label }: { href?: string | null; label: string }) {
+	if (!href) {
+		return <Fact label={label} value="无" />;
+	}
+	return (
+		<Fact
+			label={label}
+			value={
+				<a
+					className="inline-flex items-center gap-1 text-slate-900 underline-offset-4 hover:underline"
+					href={href}
+					rel="noreferrer"
+					target="_blank"
+				>
+					打开
+					<ExternalLink className="size-3.5" />
+				</a>
+			}
+		/>
+	);
+}
+
 function getStatusTone(status: string) {
 	return status === "ready" ? "success" : status === "not_reported" ? "muted" : "warning";
+}
+
+function statusTone(status: string) {
+	return status === "completed" || status === "ready"
+		? "success"
+		: status === "failed" || status === "error"
+			? "danger"
+			: "warning";
+}
+
+function formatDuration(value: number | null | undefined) {
+	return typeof value === "number" ? `${value} ms` : "未上报";
+}
+
+function formatNumber(value: number | null | undefined) {
+	return typeof value === "number" ? value.toLocaleString("en-US") : "未上报";
+}
+
+function formatBoolean(value: boolean | null | undefined) {
+	return typeof value === "boolean" ? (value ? "是" : "否") : "未上报";
+}
+
+function formatCost(microusd: number | null | undefined) {
+	return typeof microusd === "number" ? `$${(microusd / 1_000_000).toFixed(6)}` : "未上报";
+}
+
+function formatModel(model: { name: string | null; provider: string | null } | null | undefined) {
+	if (!(model?.name || model?.provider)) {
+		return "未上报";
+	}
+	return [model.provider, model.name].filter(Boolean).join(" / ");
 }
 
 function formatStatus(status: string) {

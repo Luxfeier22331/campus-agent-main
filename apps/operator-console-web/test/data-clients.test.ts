@@ -1,7 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getOperatorOverview, getOperatorRuntimeHealth } from "../src/panel/data-provider/operator";
-import { getRequestList } from "../src/panel/data-provider/requests";
+import {
+	getRequestDetail,
+	getRequestList,
+	getRequestObservability,
+} from "../src/panel/data-provider/requests";
 import { mockJsonFetch } from "./data-provider.test-support";
 
 describe("Operator Console minimal data clients", () => {
@@ -100,6 +104,91 @@ describe("Operator Console minimal data clients", () => {
 		expect(fetchSpy.mock.calls.map((call) => call[0])).toEqual([
 			"/api/operator/overview?window=24h",
 			"/api/operator/runtime/health",
+		]);
+	});
+
+	it("loads request detail and observability through same-site panel routes", async () => {
+		const fetchSpy = mockJsonFetch(
+			{
+				request: {
+					answerPreview: "图书馆开放到 22:00。",
+					completedAt: "2026-03-28T08:00:01.000Z",
+					conversationId: "conv_01HQ",
+					durationMs: 812,
+					errorCode: null,
+					principalId: "user_01HQ",
+					principalLabel: "Jane Doe",
+					principalType: "campus_member",
+					projectedAt: "2026-03-28T08:00:02.000Z",
+					questionPreview: "图书馆开放到几点？",
+					requestId: "req_01HQ",
+					requestedCapability: "knowledge",
+					requestedScope: null,
+					selectedCapability: "knowledge",
+					sourceDocIds: [],
+					startedAt: "2026-03-28T08:00:00.000Z",
+					status: "completed",
+					surface: "campus_web",
+					traceId: "trace_01HQ",
+				},
+			},
+			{
+				links: {
+					issueFingerprint: "timeout:execution-control",
+					issueLink: "https://sentry.example/issues/123",
+					traceLink: "https://sentry.example/traces/trace_01HQ",
+				},
+				observability: {
+					aclDecision: "allowed",
+					candidateCount: 4,
+					citationCount: 2,
+					citationExpected: true,
+					citationMissing: false,
+					durationMs: 812,
+					estimatedCost: { currency: "USD", microusd: 1200 },
+					failClosed: false,
+					inputTokens: 100,
+					measuredAt: "2026-03-28T08:00:02.000Z",
+					model: { name: "gpt-5.4", provider: "openai" },
+					outputTokens: 20,
+					projectionLagMs: 100,
+					prompt: {
+						id: "primary_agent_v1",
+						runtimeDetail: null,
+						runtimeState: null,
+						templateSha256: null,
+						version: "v1",
+					},
+					retrievalAdequacyReason: null,
+					retrievalAdequacyVerdict: null,
+					retrievalAttempted: true,
+					retrievedSourceCount: 2,
+					traceAvailable: true,
+				},
+				request: {
+					conversationId: "conv_01HQ",
+					projectedAt: "2026-03-28T08:00:02.000Z",
+					questionPreview: "图书馆开放到几点？",
+					requestId: "req_01HQ",
+					status: "completed",
+					surface: "campus_web",
+					traceId: "trace_01HQ",
+				},
+			},
+		);
+
+		await expect(getRequestDetail({ requestId: "req_01HQ" })).resolves.toMatchObject({
+			id: "req_01HQ",
+			requestId: "req_01HQ",
+		});
+		await expect(getRequestObservability({ requestId: "req_01HQ" })).resolves.toMatchObject({
+			links: {
+				traceLink: "https://sentry.example/traces/trace_01HQ",
+			},
+		});
+		expect(fetchSpy.mock.calls.map((call) => call[0])).toEqual([
+			"/api/requests/req_01HQ",
+			"/api/requests/req_01HQ/observability",
 		]);
 	});
 });

@@ -87,7 +87,7 @@ export function registerWorkerRequestProxySuite() {
 		);
 	});
 
-	it("does not expose request detail or observability proxy routes from the minimal panel", async () => {
+	it("proxies request detail and observability routes to app-api", async () => {
 		await withAccessAssertion(
 			{
 				accessTeamDomain: "https://team-request-detail.cloudflareaccess.com",
@@ -100,7 +100,10 @@ export function registerWorkerRequestProxySuite() {
 					APP_API: {
 						fetch: async (request: Request) => {
 							forwarded.push(request.url);
-							return new Response("unexpected request detail proxy", { status: 500 });
+							return new Response(JSON.stringify({ ok: true }), {
+								headers: { "content-type": "application/json; charset=utf-8" },
+								status: 200,
+							});
 						},
 					},
 					OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
@@ -118,9 +121,12 @@ export function registerWorkerRequestProxySuite() {
 						workerEnv,
 					);
 
-					expect(response.status, path).toBe(404);
+					expect(response.status, path).toBe(200);
 				}
-				expect(forwarded).toEqual([]);
+				expect(forwarded).toEqual([
+					"https://app-api.internal/api/operator/requests/req_01HQ",
+					"https://app-api.internal/api/operator/requests/req_01HQ/observability",
+				]);
 			},
 		);
 	});
