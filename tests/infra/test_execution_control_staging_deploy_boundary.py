@@ -55,6 +55,16 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("--env-file", core_script)
         self.assertIn('"${execution_control_staging_env_file}"', core_script)
 
+    def test_compose_wrapper_projects_hindsight_postgres_password(self) -> None:
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'HINDSIGHT_POSTGRES_PASSWORD="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}"',
+            core_script,
+        )
+
     def test_canonical_compose_defaults_include_langfuse_runtime(self) -> None:
         common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
             encoding="utf-8"
@@ -342,6 +352,18 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
 
         self.assertLess(
             script.index("execution_control_staging_compose up -d --build --remove-orphans"),
+            script.index("execution_control_staging_ensure_personal_memory_runtime"),
+        )
+
+    def test_start_reconciles_hindsight_password_before_personal_memory_check(self) -> None:
+        script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")
+
+        self.assertLess(
+            script.index("execution_control_staging_compose up -d --build --remove-orphans"),
+            script.index("execution_control_staging_reconcile_hindsight_postgres_password"),
+        )
+        self.assertLess(
+            script.index("execution_control_staging_reconcile_hindsight_postgres_password"),
             script.index("execution_control_staging_ensure_personal_memory_runtime"),
         )
 

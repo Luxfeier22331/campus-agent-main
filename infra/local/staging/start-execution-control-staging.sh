@@ -26,6 +26,7 @@ fi
 "${script_dir}/preflight-execution-control-staging.sh"
 execution_control_staging_compose up -d --build --remove-orphans
 
+execution_control_staging_reconcile_hindsight_postgres_password
 execution_control_staging_ensure_personal_memory_runtime
 execution_control_staging_temporal_namespace_setup
 execution_control_staging_wait_for_http_ok "${execution_control_staging_local_healthz_url}" 45 2

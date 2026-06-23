@@ -410,6 +410,7 @@ execution_control_staging_compose() {
     EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT="${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT is required}" \
     EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS="${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-5000}" \
     TEMPORAL_POSTGRES_PASSWORD="${TEMPORAL_POSTGRES_PASSWORD:?TEMPORAL_POSTGRES_PASSWORD is required}" \
+    HINDSIGHT_POSTGRES_PASSWORD="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}" \
     "${docker_bin}" compose --env-file "${execution_control_staging_env_file}" "${compose_args[@]}" "$@"
   )
 }
@@ -478,6 +479,16 @@ execution_control_staging_ensure_run_projection_store_schema() {
   execution_control_staging_run_projection_schema_command \
     check \
     "${evidence_dir}/run-projection-schema-check.json"
+}
+
+execution_control_staging_reconcile_hindsight_postgres_password() {
+  CAMPUS_HINDSIGHT_POSTGRES_PASSWORD="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}" \
+    execution_control_staging_compose exec \
+      -T \
+      -e CAMPUS_HINDSIGHT_POSTGRES_PASSWORD \
+      hindsight-postgres \
+      sh -ceu 'psql -U hindsight -d hindsight -v ON_ERROR_STOP=1 -v password="${CAMPUS_HINDSIGHT_POSTGRES_PASSWORD}" -c "ALTER ROLE hindsight PASSWORD :'\''password'\'';"'
+  execution_control_staging_compose restart hindsight-api
 }
 
 execution_control_staging_personal_memory_runtime_command() {
