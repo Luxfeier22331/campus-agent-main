@@ -42,7 +42,13 @@
 		"synthesis_max_concurrent": 2,
 		"embedding_timeout_ms": 10000,
 		"qdrant_timeout_ms": 60000,
-		"provider_timeout_ms": 60000
+		"provider_timeout_ms": 60000,
+		"synthesis_generation": {
+			"max_output_tokens": 900,
+			"reasoning_effort": "low",
+			"store_provider_output": false,
+			"text_verbosity": "low"
+		}
 	},
 	"personal_memory": {
 		"runtime": "hindsight",

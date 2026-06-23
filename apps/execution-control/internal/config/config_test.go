@@ -7,67 +7,17 @@ import (
 	"testing"
 )
 
-const testDefaultRuntimeConfigProfile = `{
-  "schema_version": "campus_execution_control_runtime_profile.v1",
-  "max_concurrent_answers": 8,
-  "queue_capacity": 24,
-  "queue_timeout_ms": 3000,
-  "request_timeout_ms": 45000,
-  "request_body_limit_bytes": 1048576,
-  "shutdown_grace_ms": 45000,
-  "intent_policy_path": "../../configs/runtime/intent-policy.v1.json",
-  "provider_pricing_path": "../../configs/runtime/provider-pricing.v1.json",
-  "query_serving_scopes_path": "../../configs/runtime/query-serving-scopes.v1.json",
-  "structured_query_timeout_ms": 1000,
-  "open_capabilities": [],
-  "multi_step_workflow_enabled": false,
-  "otel": {
-    "enabled": false,
-    "endpoint": "http://otel-collector:4318/v1/traces",
-    "metrics_enabled": false,
-    "metrics_endpoint": "http://otel-collector:4318/v1/metrics",
-    "service_name": "campus-execution-control",
-    "export_timeout_ms": 1000,
-    "export_interval_ms": 15000,
-    "sample_ratio": 1,
-    "allowed_attributes_version": "execution-control-otel-attrs-v1",
-    "temporal_tracing_enabled": false
-  },
-  "execution_audit": {
-    "enabled": false,
-    "timeout_ms": 500
-  },
-  "lane_budgets": {
-    "rag": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
-    "navigation": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
-    "campus_services": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
-    "notice": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000},
-    "default": {"max_concurrent": 8, "queue_capacity": 24, "queue_timeout_ms": 3000}
-  },
-  "rag": {
-    "top_k_max": 8,
-    "selected_evidence_max": 8,
-    "retrieval_max_concurrent": 4,
-    "synthesis_max_concurrent": 2,
-    "embedding_timeout_ms": 10000,
-    "qdrant_timeout_ms": 10000,
-    "provider_timeout_ms": 60000
-  },
-  "personal_memory": {
-    "runtime": "hindsight",
-    "timeout_seconds": 10,
-    "recall_limit": 8,
-    "recall_max_chars": 2500
-  }
-}`
-
 func TestMain(m *testing.M) {
 	dir, err := os.MkdirTemp("", "campus-execution-control-config-test-")
 	if err != nil {
 		panic(err)
 	}
+	profile, err := readDefaultRuntimeConfigProfileFile()
+	if err != nil {
+		panic(err)
+	}
 	profilePath := filepath.Join(dir, "runtime-profile.json")
-	if err := os.WriteFile(profilePath, []byte(testDefaultRuntimeConfigProfile), 0o600); err != nil {
+	if err := os.WriteFile(profilePath, profile, 0o600); err != nil {
 		panic(err)
 	}
 	if os.Getenv("EXECUTION_CONTROL_RUNTIME_CONFIG_PATH") == "" {
@@ -257,7 +207,11 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.RAGSynthesisMaxConcurrent != 2 ||
 		cfg.RAGEmbeddingTimeoutMS != 10_000 ||
 		cfg.RAGQdrantTimeoutMS != 10_000 ||
-		cfg.RAGProviderTimeoutMS != 60_000 {
+		cfg.RAGProviderTimeoutMS != 60_000 ||
+		cfg.RAGSynthesisMaxOutputTokens != 900 ||
+		cfg.RAGSynthesisReasoningEffort != "low" ||
+		cfg.RAGSynthesisStoreProviderOutput ||
+		cfg.RAGSynthesisTextVerbosity != "low" {
 		t.Fatalf("unexpected rag budget defaults: %#v", cfg)
 	}
 	if cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivitySlots != 4 ||

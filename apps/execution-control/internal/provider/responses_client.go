@@ -13,21 +13,30 @@ import (
 )
 
 type ResponsesClientConfig struct {
-	APIKey        string
-	BaseURL       string
-	HTTPClient    *http.Client
-	ModelName     string
-	ModelProvider string
-	Pricing       PricingCatalog
+	APIKey             string
+	BaseURL            string
+	GenerationControls ResponsesGenerationControls
+	HTTPClient         *http.Client
+	ModelName          string
+	ModelProvider      string
+	Pricing            PricingCatalog
+}
+
+type ResponsesGenerationControls struct {
+	MaxOutputTokens int
+	ReasoningEffort string
+	Store           *bool
+	TextVerbosity   string
 }
 
 type ResponsesClient struct {
-	apiKey        string
-	baseURL       string
-	httpClient    *http.Client
-	modelName     string
-	modelProvider string
-	pricing       PricingCatalog
+	apiKey             string
+	baseURL            string
+	generationControls ResponsesGenerationControls
+	httpClient         *http.Client
+	modelName          string
+	modelProvider      string
+	pricing            PricingCatalog
 }
 
 type ResponsesRequest struct {
@@ -49,12 +58,13 @@ func NewResponsesClient(config ResponsesClientConfig) *ResponsesClient {
 		httpClient = &http.Client{Timeout: 60 * time.Second}
 	}
 	return &ResponsesClient{
-		apiKey:        strings.TrimSpace(config.APIKey),
-		baseURL:       strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"),
-		httpClient:    httpClient,
-		modelName:     strings.TrimSpace(config.ModelName),
-		modelProvider: strings.TrimSpace(config.ModelProvider),
-		pricing:       config.Pricing,
+		apiKey:             strings.TrimSpace(config.APIKey),
+		baseURL:            strings.TrimRight(strings.TrimSpace(config.BaseURL), "/"),
+		generationControls: normalizeResponsesGenerationControls(config.GenerationControls),
+		httpClient:         httpClient,
+		modelName:          strings.TrimSpace(config.ModelName),
+		modelProvider:      strings.TrimSpace(config.ModelProvider),
+		pricing:            config.Pricing,
 	}
 }
 
@@ -148,8 +158,41 @@ func (c *ResponsesClient) requestPayload(request ResponsesRequest) map[string]an
 		"stream": false,
 		"input":  request.Input,
 	}
+	if c.generationControls.MaxOutputTokens > 0 {
+		payload["max_output_tokens"] = c.generationControls.MaxOutputTokens
+	}
+	if strings.TrimSpace(c.generationControls.ReasoningEffort) != "" {
+		payload["reasoning"] = map[string]any{"effort": c.generationControls.ReasoningEffort}
+	}
+	if c.generationControls.Store != nil {
+		payload["store"] = *c.generationControls.Store
+	}
 	if request.Text != nil {
-		payload["text"] = request.Text
+		text := cloneMap(request.Text)
+		if strings.TrimSpace(c.generationControls.TextVerbosity) != "" {
+			text["verbosity"] = c.generationControls.TextVerbosity
+		}
+		payload["text"] = text
 	}
 	return payload
+}
+
+func normalizeResponsesGenerationControls(value ResponsesGenerationControls) ResponsesGenerationControls {
+	return ResponsesGenerationControls{
+		MaxOutputTokens: value.MaxOutputTokens,
+		ReasoningEffort: strings.TrimSpace(value.ReasoningEffort),
+		Store:           value.Store,
+		TextVerbosity:   strings.TrimSpace(value.TextVerbosity),
+	}
+}
+
+func cloneMap(value map[string]any) map[string]any {
+	if value == nil {
+		return nil
+	}
+	cloned := make(map[string]any, len(value))
+	for key, item := range value {
+		cloned[key] = item
+	}
+	return cloned
 }

@@ -95,6 +95,10 @@ type Config struct {
 	RAGEmbeddingTimeoutMS               int
 	RAGQdrantTimeoutMS                  int
 	RAGProviderTimeoutMS                int
+	RAGSynthesisMaxOutputTokens         int
+	RAGSynthesisReasoningEffort         string
+	RAGSynthesisStoreProviderOutput     bool
+	RAGSynthesisTextVerbosity           string
 	WorkerProfiles                      map[string]WorkerProfile
 	PersonalMemoryRuntime               string
 	PersonalMemoryBaseURL               string
@@ -196,6 +200,10 @@ type envValues struct {
 	RAGEmbeddingTimeoutMS               int
 	RAGQdrantTimeoutMS                  int
 	RAGProviderTimeoutMS                int
+	RAGSynthesisMaxOutputTokens         int
+	RAGSynthesisReasoningEffort         string
+	RAGSynthesisStoreProviderOutput     bool
+	RAGSynthesisTextVerbosity           string
 	PersonalMemoryRuntime               string
 	PersonalMemoryBaseURL               string `env:"PERSONAL_MEMORY_BASE_URL"`
 	PersonalMemoryAPISecret             string `env:"PERSONAL_MEMORY_API_SECRET"`
@@ -399,6 +407,10 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		RAGEmbeddingTimeoutMS:               values.RAGEmbeddingTimeoutMS,
 		RAGQdrantTimeoutMS:                  values.RAGQdrantTimeoutMS,
 		RAGProviderTimeoutMS:                values.RAGProviderTimeoutMS,
+		RAGSynthesisMaxOutputTokens:         values.RAGSynthesisMaxOutputTokens,
+		RAGSynthesisReasoningEffort:         strings.TrimSpace(values.RAGSynthesisReasoningEffort),
+		RAGSynthesisStoreProviderOutput:     values.RAGSynthesisStoreProviderOutput,
+		RAGSynthesisTextVerbosity:           strings.TrimSpace(values.RAGSynthesisTextVerbosity),
 		WorkerProfiles:                      workerProfiles,
 		PersonalMemoryRuntime:               defaultString(strings.TrimSpace(values.PersonalMemoryRuntime), "hindsight"),
 		PersonalMemoryBaseURL:               strings.TrimRight(strings.TrimSpace(values.PersonalMemoryBaseURL), "/"),
@@ -446,6 +458,7 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 		{"runtime profile rag.embedding_timeout_ms", values.RAGEmbeddingTimeoutMS},
 		{"runtime profile rag.qdrant_timeout_ms", values.RAGQdrantTimeoutMS},
 		{"runtime profile rag.provider_timeout_ms", values.RAGProviderTimeoutMS},
+		{"runtime profile rag.synthesis_generation.max_output_tokens", values.RAGSynthesisMaxOutputTokens},
 		{"EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", values.AppAPIInternalTimeoutMS},
 	}
 	for _, check := range checks {
@@ -476,6 +489,16 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("runtime profile otel.sample_ratio must be a number between 0 and 1")
+	}
+	switch strings.TrimSpace(values.RAGSynthesisReasoningEffort) {
+	case "none", "minimal", "low", "medium", "high", "xhigh":
+	default:
+		return fmt.Errorf("runtime profile rag.synthesis_generation.reasoning_effort is unsupported")
+	}
+	switch strings.TrimSpace(values.RAGSynthesisTextVerbosity) {
+	case "low", "medium", "high":
+	default:
+		return fmt.Errorf("runtime profile rag.synthesis_generation.text_verbosity is unsupported")
 	}
 	if values.TemporalTracingEnabled && !otelEnabled {
 		return fmt.Errorf("runtime profile otel.enabled=true is required when otel.temporal_tracing_enabled=true")

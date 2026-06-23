@@ -304,8 +304,15 @@ func newRAGSynthesisExecutor(
 	if providerTimeout <= 0 {
 		providerTimeout = 60 * time.Second
 	}
+	storeProviderOutput := cfg.RAGSynthesisStoreProviderOutput
 	return providerBackedRAGSynthesisExecutor{
-		configResolver:  configResolver,
+		configResolver: configResolver,
+		generationControls: provider.ResponsesGenerationControls{
+			MaxOutputTokens: cfg.RAGSynthesisMaxOutputTokens,
+			ReasoningEffort: cfg.RAGSynthesisReasoningEffort,
+			Store:           &storeProviderOutput,
+			TextVerbosity:   cfg.RAGSynthesisTextVerbosity,
+		},
 		pricing:         catalog,
 		providerTimeout: providerTimeout,
 	}, nil

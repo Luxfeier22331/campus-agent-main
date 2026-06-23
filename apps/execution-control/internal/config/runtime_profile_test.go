@@ -30,7 +30,7 @@ func setRawRuntimeConfigProfile(t *testing.T, content string) {
 func mergeRuntimeConfigProfileForTest(t *testing.T, override string) string {
 	t.Helper()
 	base := map[string]any{}
-	if err := json.Unmarshal([]byte(testDefaultRuntimeConfigProfile), &base); err != nil {
+	if err := json.Unmarshal(readDefaultRuntimeConfigProfileForTest(t), &base); err != nil {
 		t.Fatalf("decode base runtime profile: %v", err)
 	}
 	overlay := map[string]any{}
@@ -67,7 +67,13 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
     "synthesis_max_concurrent": 1,
     "embedding_timeout_ms": 7000,
     "qdrant_timeout_ms": 8000,
-    "provider_timeout_ms": 45000
+    "provider_timeout_ms": 45000,
+    "synthesis_generation": {
+      "max_output_tokens": 720,
+      "reasoning_effort": "minimal",
+      "store_provider_output": false,
+      "text_verbosity": "low"
+    }
   },
   "worker_profiles": {
     "activity-knowledge-plan": {"activity_slots": 12},
@@ -86,7 +92,11 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
 		cfg.RAGSynthesisMaxConcurrent != 1 ||
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
 		cfg.RAGQdrantTimeoutMS != 8000 ||
-		cfg.RAGProviderTimeoutMS != 45000 {
+		cfg.RAGProviderTimeoutMS != 45000 ||
+		cfg.RAGSynthesisMaxOutputTokens != 720 ||
+		cfg.RAGSynthesisReasoningEffort != "minimal" ||
+		cfg.RAGSynthesisStoreProviderOutput ||
+		cfg.RAGSynthesisTextVerbosity != "low" {
 		t.Fatalf("unexpected rag budgets: %#v", cfg)
 	}
 	if cfg.WorkerProfiles["activity-knowledge-plan"].ActivitySlots != 12 ||
@@ -138,7 +148,13 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "synthesis_max_concurrent": 1,
     "embedding_timeout_ms": 7000,
     "qdrant_timeout_ms": 8000,
-    "provider_timeout_ms": 45000
+    "provider_timeout_ms": 45000,
+    "synthesis_generation": {
+      "max_output_tokens": 960,
+      "reasoning_effort": "low",
+      "store_provider_output": false,
+      "text_verbosity": "medium"
+    }
   },
   "personal_memory": {
     "runtime": "hindsight",
@@ -194,6 +210,10 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.RAGEmbeddingTimeoutMS != 7000 ||
 		cfg.RAGQdrantTimeoutMS != 8000 ||
 		cfg.RAGProviderTimeoutMS != 45000 ||
+		cfg.RAGSynthesisMaxOutputTokens != 960 ||
+		cfg.RAGSynthesisReasoningEffort != "low" ||
+		cfg.RAGSynthesisStoreProviderOutput ||
+		cfg.RAGSynthesisTextVerbosity != "medium" ||
 		cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryTimeoutSeconds != 7 ||
 		cfg.PersonalMemoryRecallLimit != 4 ||

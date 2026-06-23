@@ -59,13 +59,21 @@ type runtimeProfileBudget struct {
 }
 
 type runtimeConfigProfileRAG struct {
-	TopKMax                *int `json:"top_k_max,omitempty"`
-	SelectedEvidenceMax    *int `json:"selected_evidence_max,omitempty"`
-	RetrievalMaxConcurrent *int `json:"retrieval_max_concurrent,omitempty"`
-	SynthesisMaxConcurrent *int `json:"synthesis_max_concurrent,omitempty"`
-	EmbeddingTimeoutMS     *int `json:"embedding_timeout_ms,omitempty"`
-	QdrantTimeoutMS        *int `json:"qdrant_timeout_ms,omitempty"`
-	ProviderTimeoutMS      *int `json:"provider_timeout_ms,omitempty"`
+	TopKMax                *int                                        `json:"top_k_max,omitempty"`
+	SelectedEvidenceMax    *int                                        `json:"selected_evidence_max,omitempty"`
+	RetrievalMaxConcurrent *int                                        `json:"retrieval_max_concurrent,omitempty"`
+	SynthesisMaxConcurrent *int                                        `json:"synthesis_max_concurrent,omitempty"`
+	EmbeddingTimeoutMS     *int                                        `json:"embedding_timeout_ms,omitempty"`
+	QdrantTimeoutMS        *int                                        `json:"qdrant_timeout_ms,omitempty"`
+	ProviderTimeoutMS      *int                                        `json:"provider_timeout_ms,omitempty"`
+	SynthesisGeneration    *runtimeConfigProfileRAGSynthesisGeneration `json:"synthesis_generation,omitempty"`
+}
+
+type runtimeConfigProfileRAGSynthesisGeneration struct {
+	MaxOutputTokens     *int    `json:"max_output_tokens,omitempty"`
+	ReasoningEffort     *string `json:"reasoning_effort,omitempty"`
+	StoreProviderOutput *bool   `json:"store_provider_output,omitempty"`
+	TextVerbosity       *string `json:"text_verbosity,omitempty"`
 }
 
 type runtimeConfigProfileMemory struct {
@@ -282,6 +290,30 @@ func validateRuntimeConfigProfileRAGCompleteness(value *runtimeConfigProfileRAG)
 			return fmt.Errorf("execution-control runtime profile missing required rag.%s", item.name)
 		}
 	}
+	if err := validateRuntimeConfigProfileRAGSynthesisGenerationCompleteness(value.SynthesisGeneration); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRuntimeConfigProfileRAGSynthesisGenerationCompleteness(
+	value *runtimeConfigProfileRAGSynthesisGeneration,
+) error {
+	if value == nil {
+		return fmt.Errorf("execution-control runtime profile missing required field rag.synthesis_generation")
+	}
+	if value.MaxOutputTokens == nil {
+		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.max_output_tokens")
+	}
+	if value.ReasoningEffort == nil || strings.TrimSpace(*value.ReasoningEffort) == "" {
+		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.reasoning_effort")
+	}
+	if value.StoreProviderOutput == nil {
+		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.store_provider_output")
+	}
+	if value.TextVerbosity == nil || strings.TrimSpace(*value.TextVerbosity) == "" {
+		return fmt.Errorf("execution-control runtime profile missing required rag.synthesis_generation.text_verbosity")
+	}
 	return nil
 }
 
@@ -351,6 +383,15 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		applyInt(&values.RAGEmbeddingTimeoutMS, profile.RAG.EmbeddingTimeoutMS)
 		applyInt(&values.RAGQdrantTimeoutMS, profile.RAG.QdrantTimeoutMS)
 		applyInt(&values.RAGProviderTimeoutMS, profile.RAG.ProviderTimeoutMS)
+		if profile.RAG.SynthesisGeneration != nil {
+			applyInt(&values.RAGSynthesisMaxOutputTokens, profile.RAG.SynthesisGeneration.MaxOutputTokens)
+			applyString(&values.RAGSynthesisReasoningEffort, profile.RAG.SynthesisGeneration.ReasoningEffort)
+			values.RAGSynthesisStoreProviderOutput = boolFromRuntimeProfile(
+				profile.RAG.SynthesisGeneration.StoreProviderOutput,
+				values.RAGSynthesisStoreProviderOutput,
+			)
+			applyString(&values.RAGSynthesisTextVerbosity, profile.RAG.SynthesisGeneration.TextVerbosity)
+		}
 	}
 	if profile.PersonalMemory != nil {
 		applyString(&values.PersonalMemoryRuntime, profile.PersonalMemory.Runtime)

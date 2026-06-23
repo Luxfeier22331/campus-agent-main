@@ -257,3 +257,82 @@ func TestResponsesClientBuildsProviderExecutionSummary(t *testing.T) {
 		t.Fatalf("cancel outcome = %q", result.Summary.CancelOutcome)
 	}
 }
+
+func TestResponsesClientAppliesGenerationControls(t *testing.T) {
+	store := false
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request body: %v", err)
+		}
+		if body["max_output_tokens"] != float64(900) {
+			t.Fatalf("max_output_tokens = %#v", body["max_output_tokens"])
+		}
+		if body["store"] != false {
+			t.Fatalf("store = %#v", body["store"])
+		}
+		reasoning, ok := body["reasoning"].(map[string]any)
+		if !ok || reasoning["effort"] != "low" {
+			t.Fatalf("reasoning = %#v", body["reasoning"])
+		}
+		text, ok := body["text"].(map[string]any)
+		if !ok {
+			t.Fatalf("text = %#v", body["text"])
+		}
+		if text["verbosity"] != "low" {
+			t.Fatalf("text verbosity = %#v", text["verbosity"])
+		}
+		format, ok := text["format"].(map[string]any)
+		if !ok || format["type"] != "json_schema" {
+			t.Fatalf("text format = %#v", text["format"])
+		}
+		response.Header().Set("content-type", "application/json")
+		_, _ = response.Write([]byte(`{
+			"id":"resp_123",
+			"model":"gpt-5-mini",
+			"status":"completed",
+			"usage":{
+				"input_tokens":1,
+				"output_tokens":1,
+				"input_tokens_details":{"cached_tokens":0}
+			}
+		}`))
+	}))
+	defer server.Close()
+	catalog, err := LoadPricingCatalog(writePricingCatalogForTest(t, `{
+		"schema_version":"provider-pricing-v1",
+		"currency":"USD",
+		"models":[{
+			"provider":"openai",
+			"model":"gpt-5-mini",
+			"input_microusd_per_1k_tokens":250,
+			"cached_input_microusd_per_1k_tokens":25,
+			"output_microusd_per_1k_tokens":2000
+		}]
+	}`))
+	if err != nil {
+		t.Fatalf("load catalog: %v", err)
+	}
+	client := NewResponsesClient(ResponsesClientConfig{
+		APIKey:  "test-key",
+		BaseURL: server.URL,
+		GenerationControls: ResponsesGenerationControls{
+			MaxOutputTokens: 900,
+			ReasoningEffort: "low",
+			Store:           &store,
+			TextVerbosity:   "low",
+		},
+		HTTPClient:    server.Client(),
+		ModelName:     "gpt-5-mini",
+		ModelProvider: "openai",
+		Pricing:       catalog,
+	})
+
+	result := client.Execute(context.Background(), ResponsesRequest{
+		Input: []map[string]any{{"role": "user", "content": "hello"}},
+		Text:  map[string]any{"format": map[string]any{"type": "json_schema"}},
+	})
+	if result.Err != nil {
+		t.Fatalf("execute responses request: %v", result.Err)
+	}
+}

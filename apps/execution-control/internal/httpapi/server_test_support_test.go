@@ -35,8 +35,12 @@ func newTestRequest(method string, target string, body io.Reader) *http.Request 
 
 func newServerForTest() *Server {
 	return NewServer(config.Config{
-		RAGSelectedEvidenceMax: 8,
-		RAGTopKMax:             8,
+		RAGSelectedEvidenceMax:          8,
+		RAGSynthesisMaxOutputTokens:     900,
+		RAGSynthesisReasoningEffort:     "low",
+		RAGSynthesisStoreProviderOutput: false,
+		RAGSynthesisTextVerbosity:       "low",
+		RAGTopKMax:                      8,
 	})
 }
 
@@ -50,6 +54,10 @@ func newStructuredQueryAuthServerForTest() *Server {
 	return NewServer(config.Config{
 		InternalQuerySharedSecret:         "query-secret",
 		RAGSelectedEvidenceMax:            8,
+		RAGSynthesisMaxOutputTokens:       900,
+		RAGSynthesisReasoningEffort:       "low",
+		RAGSynthesisStoreProviderOutput:   false,
+		RAGSynthesisTextVerbosity:         "low",
 		RAGTopKMax:                        8,
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})

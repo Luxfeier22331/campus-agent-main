@@ -193,7 +193,11 @@ func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
 				"output_microusd_per_1k_tokens":2000
 			}]
 		}`),
-		RAGProviderTimeoutMS: 4500,
+		RAGProviderTimeoutMS:            4500,
+		RAGSynthesisMaxOutputTokens:     900,
+		RAGSynthesisReasoningEffort:     "low",
+		RAGSynthesisStoreProviderOutput: false,
+		RAGSynthesisTextVerbosity:       "low",
 	}, staticProviderConfigResolver{
 		string(providerConfigRoleRAGSynthesis): {
 			APIKey:    "test-key",
@@ -216,6 +220,13 @@ func TestNewRAGSynthesisExecutorUsesProviderTimeout(t *testing.T) {
 	}
 	if providerExecutor.providerTimeout.String() != "4.5s" {
 		t.Fatalf("provider timeout = %s, want 4.5s", providerExecutor.providerTimeout)
+	}
+	if providerExecutor.generationControls.MaxOutputTokens != 900 ||
+		providerExecutor.generationControls.ReasoningEffort != "low" ||
+		providerExecutor.generationControls.Store == nil ||
+		*providerExecutor.generationControls.Store ||
+		providerExecutor.generationControls.TextVerbosity != "low" {
+		t.Fatalf("generation controls = %#v", providerExecutor.generationControls)
 	}
 }
 

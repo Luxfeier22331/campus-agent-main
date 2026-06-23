@@ -34,10 +34,11 @@ type ragSynthesisExecutor interface {
 }
 
 type providerBackedRAGSynthesisExecutor struct {
-	clientFactory   func(providerConfigSnapshot) *provider.ResponsesClient
-	configResolver  providerConfigResolver
-	pricing         provider.PricingCatalog
-	providerTimeout time.Duration
+	clientFactory      func(providerConfigSnapshot) *provider.ResponsesClient
+	configResolver     providerConfigResolver
+	generationControls provider.ResponsesGenerationControls
+	pricing            provider.PricingCatalog
+	providerTimeout    time.Duration
 }
 
 func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
@@ -112,11 +113,12 @@ func (e providerBackedRAGSynthesisExecutor) resolveClient(
 		return client, nil
 	}
 	return provider.NewResponsesClient(provider.ResponsesClientConfig{
-		APIKey:        snapshot.APIKey,
-		BaseURL:       snapshot.BaseURL,
-		ModelName:     snapshot.Model,
-		ModelProvider: snapshot.Provider,
-		Pricing:       e.pricing,
+		APIKey:             snapshot.APIKey,
+		BaseURL:            snapshot.BaseURL,
+		GenerationControls: e.generationControls,
+		ModelName:          snapshot.Model,
+		ModelProvider:      snapshot.Provider,
+		Pricing:            e.pricing,
 	}), nil
 }
 
@@ -234,6 +236,19 @@ func ragProviderTextSchema(packet ragSynthesisPacket) map[string]any {
 				},
 			},
 		},
+	}
+}
+
+func ragSynthesisPacketSummary(packet ragSynthesisPacket) map[string]any {
+	return map[string]any{
+		"evidence_count":         len(packet.SelectedEvidence),
+		"memory_context_count":   len(packet.MemoryContext),
+		"output_schema_id":       strings.TrimSpace(packet.OutputSchemaID),
+		"packet_ref":             temporalProjectionRef(packet.RunID, "synthesis/packet"),
+		"payload_sha256":         strings.TrimSpace(packet.PayloadSHA256),
+		"previous_context_count": len(packet.PreviousEvidenceContext),
+		"prompt_refs":            append([]string{}, packet.PromptRefs...),
+		"query_intent_chars":     len([]rune(packet.QueryIntent)),
 	}
 }
 
