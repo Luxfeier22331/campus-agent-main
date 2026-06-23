@@ -20,7 +20,8 @@ execution_control_staging_load_env() {
 
   node_bin="$(execution_control_staging_require_command node)"
   export_script="$(
-    "${node_bin}" - "${runtime_env_path}" "${runtime_secrets_env_path}" <<'NODE'
+    EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}" \
+      "${node_bin}" - "${runtime_env_path}" "${runtime_secrets_env_path}" <<'NODE'
 const [runtimeEnvPath, runtimeSecretsEnvPath] = process.argv.slice(2);
 const loadedPaths = [];
 const fs = require("node:fs");
