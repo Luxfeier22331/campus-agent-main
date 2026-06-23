@@ -159,7 +159,7 @@ describe("campus worker boundary", () => {
 						{ headers: { "content-type": "text/html; charset=utf-8" } },
 					);
 				}
-				return new Response("<!doctype html><div id=\"root\"></div>", {
+				return new Response('<!doctype html><div id="root"></div>', {
 					headers: { "content-type": "text/html; charset=utf-8" },
 					status: 404,
 				});

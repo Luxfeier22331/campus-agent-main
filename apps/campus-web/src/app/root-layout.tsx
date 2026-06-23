@@ -78,13 +78,7 @@ function SupportPageHeader({ activePath }: { activePath: string }) {
 	);
 }
 
-function SupportNavButton({
-	className,
-	item,
-}: {
-	className: string;
-	item: SupportNavItem;
-}) {
+function SupportNavButton({ className, item }: { className: string; item: SupportNavItem }) {
 	if (item.kind === "external") {
 		return (
 			<Button asChild className={className} size="sm" variant="ghost">

@@ -62,7 +62,7 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 	});
 
 	it("submits new assistant-ui messages through the durable lifecycle SSE contract", async () => {
-		conversationApiMock.submitChatRequestStream.mockImplementation((input) =>
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
 			streamEvents([
 				{
 					data: {

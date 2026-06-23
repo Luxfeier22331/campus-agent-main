@@ -14,21 +14,19 @@ import {
 	submitChatRequestStream,
 } from "./api";
 import { toAssistantThreadMessages } from "./assistant-ui-mappers";
-import type { ChatRequestStreamEvent, ConversationDetail } from "./model";
+import type { ChatRequestStreamEvent } from "./model";
 
 type RuntimeMessages = ThreadMessageLike[];
 
-type ActiveRun = {
+interface ActiveRun {
 	conversationId?: string;
 	requestId: string;
 	runId: string;
 	sequence?: number;
 	traceId: string;
-};
+}
 
-export function createCampusAssistantRuntimeHook(input: {
-	onLoginRequired: () => void;
-}) {
+export function createCampusAssistantRuntimeHook(input: { onLoginRequired: () => void }) {
 	return function useCampusAssistantExternalStoreRuntime() {
 		return useCampusAssistantRuntimeState({
 			onLoginRequired: input.onLoginRequired,
@@ -36,11 +34,7 @@ export function createCampusAssistantRuntimeHook(input: {
 	};
 }
 
-function useCampusAssistantRuntimeState({
-	onLoginRequired,
-}: {
-	onLoginRequired: () => void;
-}) {
+function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: () => void }) {
 	const aui = useAui();
 	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
 	const [isLoading, setIsLoading] = useState(false);
@@ -49,13 +43,10 @@ function useCampusAssistantRuntimeState({
 	const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 
-	const fetchConversationMessages = useCallback(
-		async (conversationId: string) => {
-			const conversation = await getConversationDetail(conversationId);
-			return toAssistantThreadMessages(conversation);
-		},
-		[],
-	);
+	const fetchConversationMessages = useCallback(async (conversationId: string) => {
+		const conversation = await getConversationDetail(conversationId);
+		return toAssistantThreadMessages(conversation);
+	}, []);
 
 	useEffect(() => {
 		abortControllerRef.current?.abort();
@@ -94,7 +85,8 @@ function useCampusAssistantRuntimeState({
 
 	const applyTerminalEvent = useCallback(
 		async (event: ChatRequestStreamEvent) => {
-			const conversationId = event.data.answer?.conversation.id ?? activeRun?.conversationId ?? remoteId;
+			const conversationId =
+				event.data.answer?.conversation.id ?? activeRun?.conversationId ?? remoteId;
 			if (event.data.answer) {
 				setMessages(toAssistantThreadMessages(event.data.answer.conversation));
 			} else if (conversationId) {
@@ -184,7 +176,7 @@ function useCampusAssistantRuntimeState({
 				throw error;
 			}
 		},
-		[consumeLifecycleStream, onLoginRequired, remoteId],
+		[aui.threadListItem, consumeLifecycleStream, onLoginRequired, remoteId],
 	);
 
 	const onCancel = useCallback(async () => {
@@ -243,9 +235,7 @@ function readTextContent(message: AppendMessage): string {
 	if (typeof message.content === "string") {
 		return message.content;
 	}
-	return message.content
-		.map((part) => (part.type === "text" ? part.text : ""))
-		.join("");
+	return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
 function isAbortError(error: unknown): boolean {

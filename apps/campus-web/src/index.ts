@@ -389,7 +389,9 @@ async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 }
 
 function isPublicDocsReaderPath(pathname: string): boolean {
-	return pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`);
+	return (
+		pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`)
+	);
 }
 
 function getPublicDocsAssetCandidates(pathname: string): string[] {

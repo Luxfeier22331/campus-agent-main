@@ -482,12 +482,17 @@ execution_control_staging_ensure_run_projection_store_schema() {
 }
 
 execution_control_staging_reconcile_hindsight_postgres_password() {
-  CAMPUS_HINDSIGHT_POSTGRES_PASSWORD="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}" \
-    execution_control_staging_compose exec \
-      -T \
-      -e CAMPUS_HINDSIGHT_POSTGRES_PASSWORD \
-      hindsight-postgres \
-      sh -ceu 'printf "%s\n" "ALTER ROLE hindsight PASSWORD :'\''password'\'';" | psql -U hindsight -d hindsight -v ON_ERROR_STOP=1 -v password="${CAMPUS_HINDSIGHT_POSTGRES_PASSWORD}"'
+  local hindsight_password="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}"
+
+  execution_control_staging_compose exec \
+    -T \
+    hindsight-postgres \
+    psql \
+      -U hindsight \
+      -d hindsight \
+      -v ON_ERROR_STOP=1 \
+      -v password="${hindsight_password}" \
+      -c "ALTER ROLE hindsight PASSWORD :'password';"
   if execution_control_staging_compose ps --services --status running | grep -Fxq "hindsight-api"; then
     execution_control_staging_compose restart hindsight-api
   fi
