@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 const supportNavItems = [
 	{ label: "文档", to: "/docs" },
 	{ label: "校园地图", to: "/map" },
-	{ label: "饭堂分布图", to: "/dining" },
+	{ label: "食堂", to: "/dining" },
 	{ emphasis: true, label: "反馈", to: "/feedback" },
 ] as const;
 

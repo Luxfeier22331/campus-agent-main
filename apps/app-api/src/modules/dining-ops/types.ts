@@ -9,8 +9,6 @@ import type {
 } from "./release-types";
 
 export type DiningWindowStatus = "active" | "closed" | "maintenance";
-export type DiningSaleStatus = "available" | "paused" | "seasonal" | "removed";
-export type DiningPublicSaleStatus = Exclude<DiningSaleStatus, "removed">;
 export type DiningReleaseStatus = "published";
 
 export interface DiningOpsActor {
@@ -62,8 +60,6 @@ export interface DiningMenuOffering {
 	menuItemId: string;
 	offeringId: string;
 	priceLabel: string;
-	saleStatus: DiningSaleStatus;
-	specLabel: string | null;
 }
 
 export interface DiningAuditEvent {
@@ -180,8 +176,6 @@ export interface DiningOperationsService {
 			assignmentId: string;
 			menuItemId: string;
 			priceLabel: string;
-			saleStatus: DiningSaleStatus;
-			specLabel: string | null;
 		};
 	}): Promise<{ offering: DiningMenuOffering }>;
 	getFloor(input: { floorId: string; hallId: string }): Promise<DiningOpsFloorResponse>;
@@ -197,7 +191,7 @@ export interface DiningOperationsService {
 			label: string;
 			svgAssetUrl: string;
 		};
-		source: { label: string; releaseId: string; updatedAt: string };
+		source: { label: string; updatedAt: string };
 		windows: Array<{
 			assignment: null | {
 				assignmentId: string;
@@ -206,8 +200,6 @@ export interface DiningOperationsService {
 					name: string;
 					offeringId: string;
 					priceLabel: string;
-					saleStatus: DiningPublicSaleStatus;
-					specLabel: string | null;
 					tags: string[];
 				}>;
 				stallProfile: {
@@ -232,10 +224,6 @@ export interface DiningOperationsService {
 			floors: Array<{ floorId: string; label: string }>;
 			hallId: string;
 			name: string;
-			offeringCount: number;
-			priceRangeLabel: string | null;
-			stallCount: number;
-			tags: string[];
 		}>;
 	}>;
 	listAuditEvents(): Promise<{ events: DiningAuditEvent[] }>;
@@ -285,7 +273,7 @@ export interface DiningOperationsService {
 	}): Promise<{ menuItem: DiningMenuItem }>;
 	updateMenuOffering(input: {
 		actor: DiningOpsActor;
-		input: { priceLabel?: string; saleStatus?: DiningSaleStatus; specLabel?: string | null };
+		input: { priceLabel?: string };
 		offeringId: string;
 	}): Promise<{ offering: DiningMenuOffering }>;
 	updateWindow(input: {

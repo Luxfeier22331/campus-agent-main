@@ -6,10 +6,6 @@ export interface DiningHallSummary {
 	}>;
 	hallId: string;
 	name: string;
-	offeringCount: number;
-	priceRangeLabel: string | null;
-	stallCount: number;
-	tags: string[];
 }
 
 export interface DiningHallsResponse {
@@ -44,7 +40,6 @@ export interface DiningFloorResponse {
 	};
 	source: {
 		label: string;
-		releaseId: string;
 		updatedAt: string;
 	};
 	windows: DiningWindowProjection[];
@@ -80,7 +75,5 @@ export interface DiningOfferingProjection {
 	name: string;
 	offeringId: string;
 	priceLabel: string;
-	saleStatus: "available" | "paused" | "seasonal";
-	specLabel: string | null;
 	tags: string[];
 }

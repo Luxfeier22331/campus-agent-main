@@ -213,22 +213,20 @@ describe("campus routes", () => {
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "校园地图" })).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "饭堂分布图" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
-		expect(screen.queryByText("食堂")).toBeNull();
+		expect(screen.queryByText("查饭堂")).toBeNull();
 		expect(screen.queryByText("找地点")).toBeNull();
 		expect(
-			screen.queryByText(
-				"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
-			),
+			screen.queryByText("历史会话只用于找回之前的问题；文档、校园地图和食堂保留在顶部导航中。"),
 		).toBeNull();
 		expect(
-			screen.queryByText("回答会在对话中给出，并在需要时打开文档、校园地图或饭堂分布图。"),
+			screen.queryByText("回答会在对话中给出，并在需要时打开文档、校园地图或食堂。"),
 		).toBeNull();
 		expect(screen.queryByText("登录后会在这里显示历史会话。")).toBeNull();
 		expect(screen.queryByText("信息以原始来源和现场情况为准。")).toBeNull();
@@ -245,7 +243,8 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(qaShellSource).toContain("饭堂分布图");
+		expect(qaShellSource).toContain("食堂");
+		expect(qaShellSource).not.toContain("饭堂分布图");
 		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(qaShellSource).toContain("@/components/assistant-ui/threadlist-sidebar");
 		expect(qaShellSource).not.toContain("@assistant-ui/react-ui");
@@ -331,7 +330,7 @@ describe("campus routes", () => {
 		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();
 		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "食堂" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 		expect(screen.queryByText("民")).toBeNull();
 	});
@@ -346,7 +345,7 @@ describe("campus routes", () => {
 		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "食堂" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 	});
 
@@ -365,7 +364,7 @@ describe("campus routes", () => {
 		expect(screen.queryByRole("navigation", { name: "支撑页面导航" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "文档" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "校园地图" })).toBeNull();
-		expect(screen.queryByRole("link", { name: "饭堂分布图" })).toBeNull();
+		expect(screen.queryByRole("link", { name: "食堂" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈" })).toBeNull();
 	});
 
@@ -474,13 +473,20 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("floor.floor.floorplan.floorplanId");
 		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
 		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
-		expect(diningExperienceSource).toContain("h-full min-h-36");
+		expect(diningExperienceSource).not.toContain("h-full min-h-36");
 		expect(diningExperienceSource).toContain("min-h-16");
 		expect(diningExperienceSource).toContain("flex-wrap justify-start");
 		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
 		expect(diningExperienceSource).toContain("min-w-0 max-h-[520px]");
 		expect(diningExperienceSource).toContain("!w-full !max-w-full");
+		expect(diningExperienceSource).toContain("floorplanKey");
+		expect(diningExperienceSource).toContain("key={floorplanKey}");
+		expect(diningExperienceSource).toContain("maxScale={1.7}");
+		expect(diningExperienceSource).toContain("zoomToElement(selector, 1.15");
+		expect(diningExperienceSource).not.toContain("maxScale={3}");
+		expect(diningExperienceSource).not.toContain("zoomToElement(selector, 1.35");
 		expect(diningExperienceSource).not.toContain("min-w-[640px]");
+		expect(diningExperienceSource).not.toContain("<fieldset");
 		expect(diningExperienceSource).not.toContain("<img");
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
@@ -493,7 +499,7 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).not.toContain('?? "标准"');
 	});
 
-	it("renders dining hall grid, floor tabs, interactive windows, and menu offerings", async () => {
+	it("renders dining map-first hall selector, interactive stalls, and menu references", async () => {
 		diningApiMock.getDiningHalls.mockResolvedValue({
 			halls: [
 				{
@@ -501,10 +507,6 @@ describe("campus routes", () => {
 					floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
 					hallId: "haidian-canteen-1",
 					name: "海淀一食堂",
-					offeringCount: 2,
-					priceRangeLabel: "9-18 元",
-					stallCount: 1,
-					tags: ["主食", "热餐"],
 				},
 				{
 					campus: "丰台校区",
@@ -514,10 +516,6 @@ describe("campus routes", () => {
 					],
 					hallId: "fengtai-huixian-canteen",
 					name: "荟贤食堂",
-					offeringCount: 1,
-					priceRangeLabel: "12 元",
-					stallCount: 1,
-					tags: ["面食"],
 				},
 			],
 		});
@@ -538,11 +536,20 @@ describe("campus routes", () => {
 		render(<DiningPage />);
 
 		expect(await screen.findByText("食堂")).toBeInTheDocument();
+		expect(screen.getByRole("radio", { name: "全部校区" })).toHaveAttribute("aria-checked", "true");
 		expect(await screen.findByText("海淀一食堂")).toBeInTheDocument();
-		expect(screen.getByText("1 层 · 1 个餐饮点")).toBeInTheDocument();
+		expect(await screen.findByText("荟贤食堂")).toBeInTheDocument();
+		expect(screen.queryByText("1 层 · 1 个餐饮点")).toBeNull();
+		expect(screen.queryByText("9-18 元")).toBeNull();
 		expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "盖饭窗口" })).toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		expect(screen.getAllByText("参考价格").length).toBeGreaterThan(0);
 		expect(screen.getByText("18 元")).toBeInTheDocument();
+		expect(screen.queryByText("标准份")).toBeNull();
+		expect(screen.queryByText("可售")).toBeNull();
+		expect(screen.queryByText("季节供应")).toBeNull();
+		expect(screen.queryByText("dining_release:initial")).toBeNull();
 		expect(screen.getByLabelText("选择盖饭窗口")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
 		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
@@ -550,27 +557,36 @@ describe("campus routes", () => {
 		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
-		expect(screen.getAllByText("入口侧")[0]?.closest("button")).toHaveClass(
+		expect(screen.getByRole("button", { name: "盖饭窗口" })).toHaveClass(
 			"bg-[var(--sys-brand-interactive-subtle)]",
 		);
-		fireEvent.change(screen.getByPlaceholderText("搜索食堂、餐饮点、菜品"), {
+		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
 			target: { value: "牛腩" },
 		});
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
-		expect(screen.queryByText("没有匹配的食堂。")).not.toBeInTheDocument();
+		expect(screen.queryByText("没有匹配的食堂或档口")).not.toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
+			target: { value: "不存在的菜" },
+		});
+		expect(screen.getByText("没有匹配的食堂或档口")).toBeInTheDocument();
+		expect(screen.queryByTestId("dining-inline-floorplan")).toBeNull();
+		expect(screen.queryByText("番茄牛腩饭")).toBeNull();
+		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
+			target: { value: "" },
+		});
 		fireEvent.click(screen.getByRole("radio", { name: "热餐" }));
 		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
 		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
-		fireEvent.click(screen.getByText("丰台校区"));
+		fireEvent.click(screen.getByRole("radio", { name: "丰台校区" }));
 
 		expect((await screen.findAllByText("荟贤食堂一层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByText("二层"));
 		expect((await screen.findAllByText("荟贤食堂二层")).length).toBeGreaterThan(0);
-		fireEvent.click(screen.getByText("海淀校区"));
+		fireEvent.click(screen.getByRole("radio", { name: "海淀校区" }));
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
@@ -619,7 +635,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 		},
 		source: {
 			label: "校园食堂平面图整理",
-			releaseId: "dining_release:initial",
 			updatedAt: "2026-06-08T00:00:00.000Z",
 		},
 		windows: [
@@ -632,8 +647,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 							name: "番茄牛腩饭",
 							offeringId: "offering:rice:1",
 							priceLabel: "18 元",
-							saleStatus: "available",
-							specLabel: "标准份",
 							tags: ["主食", "热餐"],
 						},
 						{
@@ -641,8 +654,6 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 							name: "鸡腿盖饭",
 							offeringId: "offering:rice:2",
 							priceLabel: "16 元",
-							saleStatus: "seasonal",
-							specLabel: "标准份",
 							tags: ["主食"],
 						},
 					],

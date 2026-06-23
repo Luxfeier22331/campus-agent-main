@@ -64,9 +64,9 @@ The domain intentionally separates physical window, stall assignment, and menu o
 
 - a window is a physical floorplan object
 - an assignment places a stall profile at a window
-- a menu offering places item/price/status under an assignment
+- a menu offering places item and display price reference under an assignment
 
-This allows operators to change a stall, move a menu, or update a price without
+This allows operators to update stall display data or price references without
 rewriting physical space truth.
 
 ## Floorplan SVG Architecture
@@ -121,8 +121,8 @@ windowId <-> svgAnchorId
 ```
 
 The SVG may contain visual structure, labels, entrances, seating areas and
-semantic roles. It must not contain menu, price, curated sale status, release
-status or operator-only data.
+semantic roles. It must not contain menu, price, sale status, release status or
+operator-only data.
 
 SVG floorplans are repo-owned versioned static assets. A floorplan replacement
 is an application release, not an operator draft edit. Each accepted SVG has a
@@ -215,12 +215,13 @@ GET /api/dining/halls/:hallId/floors/:floorId
 They return published hall summaries and floor projections suitable for
 `campus-web`:
 
-- hall summary includes campus, floors, stall count, offering count, tags and
-  price range label
-- floor projection includes versioned floorplan metadata/markup, SVG anchors, windows,
-  assignment, stall profile, offerings and API-provided filter tags
-- window `svgAnchorId` is rendered as student-facing floorplan selection, not
-  as navigation spatial truth
+- hall summary includes only campus, hall identity and floor selector fields;
+  it does not expose collection statistics, stall count, offering count, tag
+  summaries or hall-level price ranges
+- floor projection includes versioned floorplan metadata/markup, SVG anchors,
+  windows, assignment, stall profile, offerings and API-provided filter tags
+- window/stall is one student-facing "档口" concept; `svgAnchorId` is rendered
+  as the primary floorplan selection anchor, not as navigation spatial truth
 - offerings are nested under assignment, not physical window
 
 They do not expose:
@@ -232,6 +233,9 @@ They do not expose:
 - internal DB row metadata
 - unpublished menu offering
 - release candidate
+- release id
+- menu spec labels or sale status
+- source remarks/notes, collection coverage metrics or hall-level price ranges
 
 If no published release exists, the student route must return explicit empty or
 typed not-found behavior. It must not silently fall back to in-memory seed data.
@@ -253,11 +257,12 @@ launcher surfaces. The current implementation surface is `apps/operator-console-
 
 ## Source Observation Boundary
 
-Source observation is a reserved proposal/input boundary for crawled, uploaded,
-or manually observed dining facts. It is not part of the current implemented
-route surface.
+Source observation is a reserved storage boundary for possible collected or
+manually observed dining facts. It is not part of the current implemented route
+surface or current planned development cycle.
 
-Observation lifecycle:
+If source observation is reintroduced later, its lifecycle must be explicitly
+designed before implementation:
 
 ```text
 observation captured
@@ -267,9 +272,9 @@ observation captured
 -> optional publish
 ```
 
-Observation does not become student-visible data until a review/apply command
-exists and a release is explicitly published. The current worktree does not
-implement observation listing, apply, or reject routes.
+Observation does not become student-visible data until a future explicit
+operator command writes draft data and a release is explicitly published. The
+current worktree does not implement observation listing, apply, or reject routes.
 
 ## Navigation Boundary
 
@@ -295,7 +300,7 @@ The initial release covers:
 - 海淀校区 1-5 食堂，每个单层
 - 丰台校区 荟贤、聚雅，每个两层
 - 每层至少 5 个窗口
-- 部分窗口包含多个 offering，用于验证一个档口多个菜品/价格的学生端与 ops 端体验
+- 部分窗口包含多个 offering，用于验证一个档口多个菜品/价格参考的学生端体验
 
 This is a seeded initial release, not a claim that all real dining data
 collection is complete.
@@ -311,11 +316,8 @@ development cycle:
 
 - merchant self-service
 - real-time queue or live opening status
+- menu portion/spec labels or sale status
 - payment/order integration
-
-`window.status` and `offering.saleStatus` are curated projection fields for the
-published dining view; they are not live shop operation, queue, inventory or
-opening-state signals.
 
 Current worktree scope also does not include:
 

@@ -169,9 +169,7 @@ navigation route graph truth.
   "assignmentId": "assignment:haidian-canteen-1:haidian-canteen-1-1f:haidian-canteen-1:haidian-canteen-1-1f:window-01",
   "menuItemId": "menu:haidian-canteen-1:haidian-canteen-1-1f:rice",
   "offeringId": "offering:assignment:...:menu:...",
-  "priceLabel": "12-18 元",
-  "saleStatus": "available",
-  "specLabel": null
+  "priceLabel": "12-18 元"
 }
 ```
 
@@ -349,9 +347,7 @@ navigation route graph truth.
 {
   "assignmentId": "assignment:...",
   "menuItemId": "menu:...",
-  "priceLabel": "18 元",
-  "saleStatus": "available",
-  "specLabel": "标准份"
+  "priceLabel": "18 元"
 }
 ```
 
@@ -369,9 +365,7 @@ navigation route graph truth.
 
 ```json
 {
-  "priceLabel": "16 元",
-  "saleStatus": "seasonal",
-  "specLabel": "标准份"
+  "priceLabel": "16 元"
 }
 ```
 
@@ -578,6 +572,5 @@ POST /api/ops/dining/source-observations/:observationId/reject
 规则：
 
 - source observation 只代表采集或人工观测，不代表线上事实
-- apply/reject 必须写 audit event
-- apply 只能显式写入 draft，不能直接发布
-- reject 必须保留 reviewed metadata，不能删除 observation 证据
+- apply/reject 不属于当前 implemented endpoint，也不属于当前计划开发周期承诺
+- 如后续重新启用 apply/reject，必须先更新本 contract，再实现显式 operator command

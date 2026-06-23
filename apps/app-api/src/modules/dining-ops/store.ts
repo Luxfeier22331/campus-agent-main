@@ -47,7 +47,6 @@ import type {
 	DiningPublishedSnapshot,
 	DiningRelease,
 	DiningReleaseStatus,
-	DiningSaleStatus,
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
@@ -325,8 +324,6 @@ async function saveDiningOperationsState(
 					menuItemId: offering.menuItemId,
 					offeringId: offering.offeringId,
 					priceLabel: offering.priceLabel,
-					saleStatus: offering.saleStatus,
-					specLabel: offering.specLabel,
 					updatedAt: now,
 				})),
 			);
@@ -617,8 +614,6 @@ function toMenuOffering(row: typeof diningMenuOfferings.$inferSelect): DiningMen
 		menuItemId: row.menuItemId,
 		offeringId: row.offeringId,
 		priceLabel: row.priceLabel,
-		saleStatus: row.saleStatus as DiningSaleStatus,
-		specLabel: row.specLabel,
 	};
 }
 

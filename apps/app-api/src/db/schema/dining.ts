@@ -112,8 +112,6 @@ export const diningMenuOfferings = dining.table(
 		assignmentId: text("assignment_id").notNull(),
 		menuItemId: text("menu_item_id").notNull(),
 		priceLabel: text("price_label").notNull(),
-		specLabel: text("spec_label"),
-		saleStatus: text("sale_status").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
 		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
 	},

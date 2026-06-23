@@ -50,7 +50,7 @@ describe("user-facing copy guard", () => {
 			{
 				fileName: "home-page.tsx",
 				phrases: [
-					"回答会在对话中给出，并在需要时打开文档、校园地图或饭堂分布图。",
+					"回答会在对话中给出，并在需要时打开文档、校园地图或食堂。",
 					"信息以原始来源和现场情况为准。",
 					"暂时无法读取历史会话。",
 				],
@@ -88,7 +88,7 @@ describe("user-facing copy guard", () => {
 				fileName: "qa-shell.tsx",
 				phrases: [
 					"登录后会在这里显示历史会话。",
-					"历史会话只用于找回之前的问题；文档、校园地图和饭堂分布图保留在顶部导航中。",
+					"历史会话只用于找回之前的问题；文档、校园地图和食堂保留在顶部导航中。",
 					"ChatKit 管理",
 					"showArchivedConversations",
 					"historyView",

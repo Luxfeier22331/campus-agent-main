@@ -351,6 +351,13 @@
       "when": 1782111391880,
       "tag": "0049_context_turn_branch_control",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1782172800000,
+      "tag": "0050_simplify_dining_offerings",
+      "breakpoints": true
     }
   ]
 }

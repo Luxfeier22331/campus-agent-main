@@ -108,7 +108,7 @@ function MapProductNav() {
 		>
 			<MapNavLink href="/">问答</MapNavLink>
 			<MapNavLink href="/docs">文档</MapNavLink>
-			<MapNavLink href="/dining">饭堂分布图</MapNavLink>
+			<MapNavLink href="/dining">食堂</MapNavLink>
 			<MapNavLink href="/feedback">反馈</MapNavLink>
 		</nav>
 	);

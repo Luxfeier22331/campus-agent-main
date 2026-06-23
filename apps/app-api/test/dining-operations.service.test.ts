@@ -57,6 +57,28 @@ describe("dining operations service", () => {
 		expect(JSON.stringify(floor.floor)).not.toContain("floorplanAsset");
 	});
 
+	it("keeps public dining hall summaries focused on selection identity", async () => {
+		const service = createTestDiningOperationsService();
+
+		const halls = await service.getPublishedHalls();
+
+		expect(halls.halls[0]).toMatchObject({
+			campus: expect.any(String),
+			floors: expect.arrayContaining([
+				expect.objectContaining({
+					floorId: expect.any(String),
+					label: expect.any(String),
+				}),
+			]),
+			hallId: expect.any(String),
+			name: expect.any(String),
+		});
+		expect(JSON.stringify(halls)).not.toContain("stallCount");
+		expect(JSON.stringify(halls)).not.toContain("offeringCount");
+		expect(JSON.stringify(halls)).not.toContain("priceRangeLabel");
+		expect(JSON.stringify(halls)).not.toContain("tags");
+	});
+
 	it("freezes floorplan manifest refs when creating a release candidate", async () => {
 		const service = createTestDiningOperationsService();
 
@@ -120,7 +142,7 @@ describe("dining operations service", () => {
 		});
 		await service.updateMenuOffering({
 			actor: OPERATOR,
-			input: { priceLabel: "18 元", saleStatus: "available", specLabel: "标准份" },
+			input: { priceLabel: "18 元" },
 			offeringId: existingOffering?.offeringId ?? "",
 		});
 
@@ -155,7 +177,8 @@ describe("dining operations service", () => {
 			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
 			hallId: HAIDIAN_CANTEEN_1_HALL_ID,
 		});
-		expect(publishedFloor.source.releaseId).toBe(release.release.releaseId);
+		expect(publishedFloor.source.label).toBe("校园食堂平面图整理");
+		expect(publishedFloor.source.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 		expect(publishedFloor.floor.floorplan.sha256).toMatch(/^sha256:/);
 		expect(publishedFloor.windows.find((item) => item.windowId === windowId)).toMatchObject({
 			assignment: {
@@ -168,10 +191,13 @@ describe("dining operations service", () => {
 		});
 		expect(JSON.stringify(publishedFloor)).not.toContain("audit");
 		expect(JSON.stringify(publishedFloor)).not.toContain("operator_01");
+		expect(JSON.stringify(publishedFloor)).not.toContain("releaseId");
+		expect(JSON.stringify(publishedFloor)).not.toContain("saleStatus");
+		expect(JSON.stringify(publishedFloor)).not.toContain("specLabel");
 		expect(JSON.stringify(publishedFloor.floor)).not.toContain("svgMarkup");
 	});
 
-	it("publishes Fengtai outdoor dining anchors with public mock menu data", async () => {
+	it("publishes Fengtai outdoor dining anchors with public seed menu data", async () => {
 		const service = createTestDiningOperationsService();
 
 		const publishedFloor = await service.getPublishedFloor({
@@ -203,7 +229,6 @@ describe("dining operations service", () => {
 							expect.objectContaining({
 								name: "麦团熊招牌套餐",
 								priceLabel: "18 元",
-								specLabel: "mock",
 							}),
 						]),
 						stallProfile: expect.objectContaining({ displayName: "麦团熊" }),
@@ -220,56 +245,37 @@ describe("dining operations service", () => {
 				}),
 			]),
 		);
+		expect(
+			publishedFloor.windows.every((window) => (window.assignment?.offerings.length ?? 0) >= 3),
+		).toBe(true);
+		expect(JSON.stringify(publishedFloor)).not.toContain("小份");
+		expect(JSON.stringify(publishedFloor)).not.toContain("大份");
+		expect(JSON.stringify(publishedFloor)).not.toContain("标准份");
+		expect(JSON.stringify(publishedFloor)).not.toContain("可售");
 	});
 
-	it("excludes removed offerings from student dining projections", async () => {
+	it("keeps every published seed window useful without exposing unsupported menu state", async () => {
 		const service = createTestDiningOperationsService();
-		const floor = await service.getFloor({
-			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
-			hallId: HAIDIAN_CANTEEN_1_HALL_ID,
-		});
-		const assignment = floor.assignments[0];
-		const offering = floor.menuOfferings.find(
-			(item) => item.assignmentId === assignment?.assignmentId,
-		);
-		expect(offering).toBeTruthy();
 
-		await service.updateMenuOffering({
-			actor: OPERATOR,
-			input: {
-				priceLabel: offering?.priceLabel ?? "18 元",
-				saleStatus: "removed",
-				specLabel: offering?.specLabel ?? null,
-			},
-			offeringId: offering?.offeringId ?? "",
-		});
-		const candidate = await service.createReleaseCandidate({
-			actor: OPERATOR,
-			input: { notes: "移除测试菜品" },
-		});
-		await service.validateReleaseCandidate({
-			actor: OPERATOR,
-			candidateId: candidate.candidate.candidateId,
-		});
-		await service.approveReleaseCandidate({
-			actor: OPERATOR,
-			candidateId: candidate.candidate.candidateId,
-			input: { notes: "确认移除测试菜品" },
-		});
-		await service.publishReleaseCandidate({
-			actor: OPERATOR,
-			candidateId: candidate.candidate.candidateId,
-		});
+		const halls = await service.getPublishedHalls();
 
-		const publishedFloor = await service.getPublishedFloor({
-			floorId: HAIDIAN_CANTEEN_1_FLOOR_ID,
-			hallId: HAIDIAN_CANTEEN_1_HALL_ID,
-		});
-		const publicOfferings =
-			publishedFloor.windows.find((window) => window.windowId === assignment?.windowId)?.assignment
-				?.offerings ?? [];
-		expect(publicOfferings.map((item) => item.offeringId)).not.toContain(offering?.offeringId);
-		expect(publicOfferings.map((item) => item.saleStatus)).not.toContain("removed");
+		for (const hall of halls.halls) {
+			for (const floor of hall.floors) {
+				const publishedFloor = await service.getPublishedFloor({
+					floorId: floor.floorId,
+					hallId: hall.hallId,
+				});
+				expect(
+					publishedFloor.windows.every((window) => (window.assignment?.offerings.length ?? 0) >= 3),
+				).toBe(true);
+				expect(JSON.stringify(publishedFloor)).not.toContain("saleStatus");
+				expect(JSON.stringify(publishedFloor)).not.toContain("specLabel");
+				expect(JSON.stringify(publishedFloor)).not.toContain("小份");
+				expect(JSON.stringify(publishedFloor)).not.toContain("大份");
+				expect(JSON.stringify(publishedFloor)).not.toContain("标准份");
+				expect(JSON.stringify(publishedFloor)).not.toContain("可售");
+			}
+		}
 	});
 
 	it("fails closed when publishing a stale dining release candidate", async () => {

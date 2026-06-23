@@ -5,7 +5,6 @@ import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pa
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
-	DiningOfferingProjection,
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
@@ -14,7 +13,7 @@ import { Button } from "../ui/button";
 import { Card } from "../ui/card";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
-export function HallGrid({
+export function HallSelector({
 	halls,
 	onSelectHall,
 	selectedHallId,
@@ -26,40 +25,29 @@ export function HallGrid({
 	if (halls.length === 0) {
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
-				<h3 className="font-medium text-foreground text-sm">没有匹配的食堂</h3>
+				<h3 className="font-medium text-foreground text-sm">没有匹配的食堂或档口</h3>
 				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
 			</Card>
 		);
 	}
 	return (
-		<div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+		<ul className="flex list-none gap-2 overflow-x-auto p-0 pb-1">
 			{halls.map((hall) => (
-				<Button
-					className={cn(
-						"flex h-full min-h-36 w-full flex-col items-start justify-start rounded-xl border border-border bg-white p-4 text-left whitespace-normal shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--sys-text-strong)] sm:min-h-44",
-						selectedHallId === hall.hallId &&
-							"border-[var(--sys-text-strong)] bg-[var(--sys-bg-subtle)]",
-					)}
-					key={hall.hallId}
-					onClick={() => onSelectHall(hall)}
-					variant="secondary"
-				>
-					<span className="text-xs font-medium text-[var(--sys-text-muted)]">{hall.campus}</span>
-					<span className="mt-2 block text-xl font-semibold text-[var(--sys-text-strong)]">
+				<li className="shrink-0" key={hall.hallId}>
+					<Button
+						className={cn(
+							"min-h-10 rounded-lg border border-border bg-white px-4 text-sm text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] hover:border-[var(--sys-text-strong)]",
+							selectedHallId === hall.hallId &&
+								"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white hover:text-white",
+						)}
+						onClick={() => onSelectHall(hall)}
+						variant="secondary"
+					>
 						{hall.name}
-					</span>
-					<span className="mt-5 block text-sm text-[var(--sys-text-muted)]">
-						{hall.floors.length} 层 · {hall.stallCount} 个餐饮点
-					</span>
-					<span className="mt-1 block text-sm font-medium text-primary">
-						{hall.priceRangeLabel ?? "价格待发布"}
-					</span>
-					<span className="mt-4 line-clamp-2 text-xs leading-5 text-[var(--sys-text-subtle)]">
-						{hall.tags.slice(0, 5).join(" / ")}
-					</span>
-				</Button>
+					</Button>
+				</li>
 			))}
-		</div>
+		</ul>
 	);
 }
 
@@ -92,7 +80,7 @@ export function TagFilters({
 	);
 }
 
-export function WindowList({
+export function StallList({
 	onSelectWindow,
 	selectedWindowId,
 	windows,
@@ -104,7 +92,7 @@ export function WindowList({
 	if (windows.length === 0) {
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
-				<h3 className="font-medium text-foreground text-sm">没有匹配的餐饮点</h3>
+				<h3 className="font-medium text-foreground text-sm">没有匹配的档口</h3>
 				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
 			</Card>
 		);
@@ -123,9 +111,6 @@ export function WindowList({
 				>
 					<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
 						{window.assignment?.stallProfile.displayName ?? window.label}
-					</span>
-					<span className="mt-1 block text-xs text-[var(--sys-text-muted)]">
-						{window.locationLabel}
 					</span>
 				</Button>
 			))}
@@ -162,14 +147,16 @@ export function InteractiveFloorplan({
 		windows,
 		selectedWindow?.svgAnchorId ?? null,
 	);
+	const floorplanKey = `${floor.floor.hallId}:${floor.floor.floorId}:${floor.floor.floorplan.floorplanId}:${floor.floor.floorplan.sha256}`;
 	return (
 		<TransformWrapper
+			key={floorplanKey}
 			centerOnInit
 			limitToBounds={false}
-			maxScale={3}
-			minScale={0.65}
-			wheel={{ step: 0.08 }}
-			pinch={{ step: 6 }}
+			maxScale={1.7}
+			minScale={0.82}
+			wheel={{ step: 0.04 }}
+			pinch={{ step: 3 }}
 		>
 			<DiningFloorplanZoomSurface
 				markup={normalizedFloorplan.markup}
@@ -201,7 +188,7 @@ function DiningFloorplanZoomSurface({
 		if (!document.querySelector(selector)) {
 			return;
 		}
-		zoomToElement(selector, 1.35, 160, "easeOut");
+		zoomToElement(selector, 1.15, 160, "easeOut");
 	}, [selectedZoomTarget, zoomToElement]);
 
 	return (
@@ -246,52 +233,57 @@ function DiningFloorplanZoomSurface({
 				contentClass="!w-full !max-w-full"
 				wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"
 			>
-				<fieldset
-					className="rounded-lg p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+				<div
+					className="w-full rounded-lg p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
 					data-testid="dining-inline-floorplan"
-					onClick={(event) => {
-						const target = event.target;
-						if (!(target instanceof Element)) {
-							return;
-						}
-						const anchorElement = target.closest("[data-dining-anchor-id]");
-						const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
-						const window = windows.find((item) => item.svgAnchorId === anchorId);
-						if (window) {
-							onSelectWindow(window.windowId);
-						}
-					}}
-					onKeyDown={(event) => {
-						if (event.key !== "Enter" && event.key !== " ") {
-							return;
-						}
-						const target = event.target;
-						if (!(target instanceof Element)) {
-							return;
-						}
-						const anchorId = target.getAttribute("data-dining-anchor-id");
-						const window = windows.find((item) => item.svgAnchorId === anchorId);
-						if (window) {
-							event.preventDefault();
-							onSelectWindow(window.windowId);
-						}
-					}}
 				>
-					<legend className="sr-only">食堂平面图餐饮点选择</legend>
-					{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
-					<div dangerouslySetInnerHTML={{ __html: markup }} />
-				</fieldset>
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: event delegation targets annotated SVG anchors with button roles generated below. */}
+					<div
+						onClick={(event) => {
+							const target = event.target;
+							if (!(target instanceof Element)) {
+								return;
+							}
+							const anchorElement = target.closest("[data-dining-anchor-id]");
+							const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
+							const window = windows.find((item) => item.svgAnchorId === anchorId);
+							if (window) {
+								onSelectWindow(window.windowId);
+							}
+						}}
+						onKeyDown={(event) => {
+							if (event.key !== "Enter" && event.key !== " ") {
+								return;
+							}
+							const target = event.target;
+							if (!(target instanceof Element)) {
+								return;
+							}
+							const anchorId = target.getAttribute("data-dining-anchor-id");
+							const window = windows.find((item) => item.svgAnchorId === anchorId);
+							if (window) {
+								event.preventDefault();
+								onSelectWindow(window.windowId);
+							}
+						}}
+					>
+						{/* biome-ignore lint/security/noDangerouslySetInnerHtml: app-api returns sanitized published SVG and this component only annotates dining anchors for selection. */}
+						<div dangerouslySetInnerHTML={{ __html: markup }} />
+					</div>
+				</div>
 			</TransformComponent>
 		</div>
 	);
 }
 
-export function WindowDetail({ window }: { window: DiningWindowProjection | null }) {
+export function StallDetail({ window }: { window: DiningWindowProjection | null }) {
 	if (!window) {
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
-				<h3 className="font-medium text-foreground text-sm">选择餐饮点</h3>
-				<p className="mt-1 max-w-sm text-muted-foreground text-sm">选择餐饮点后查看菜品和价格。</p>
+				<h3 className="font-medium text-foreground text-sm">选择档口</h3>
+				<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+					选择地图或列表里的档口后查看菜品。
+				</p>
 			</Card>
 		);
 	}
@@ -317,38 +309,22 @@ export function WindowDetail({ window }: { window: DiningWindowProjection | null
 						<div className="grid grid-cols-[1fr_auto] gap-4 p-4" key={offering.offeringId}>
 							<div>
 								<p className="text-sm font-medium text-[var(--sys-text-strong)]">{offering.name}</p>
-								<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-									{formatOfferingMeta(offering)}
-								</p>
 							</div>
-							<p className="text-sm font-semibold text-primary">{offering.priceLabel}</p>
+							<div className="text-right">
+								<p className="text-xs text-[var(--sys-text-muted)]">参考价格</p>
+								<p className="text-sm font-semibold text-primary">{offering.priceLabel}</p>
+							</div>
 						</div>
 					))
 				) : (
 					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
 						<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
-						<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-							当前餐饮点没有已发布菜品。
-						</p>
+						<p className="mt-1 max-w-sm text-muted-foreground text-sm">当前档口没有已发布菜品。</p>
 					</div>
 				)}
 			</div>
 		</Card>
 	);
-}
-
-function formatOfferingMeta(offering: DiningOfferingProjection): string {
-	return [offering.specLabel, formatSaleStatus(offering.saleStatus)].filter(Boolean).join(" · ");
-}
-
-function formatSaleStatus(status: "available" | "paused" | "seasonal"): string {
-	if (status === "available") {
-		return "可售";
-	}
-	if (status === "paused") {
-		return "暂停";
-	}
-	return "季节供应";
 }
 
 function markDiningFloorplanAnchors(

@@ -13,7 +13,7 @@ import { createCampusAssistantThreadListAdapter } from "@/features/conversation/
 const supportNavItems = [
 	{ icon: BookOpen, label: "文档", to: "/docs" },
 	{ icon: MapIcon, label: "校园地图", to: "/map" },
-	{ icon: Utensils, label: "饭堂分布图", to: "/dining" },
+	{ icon: Utensils, label: "食堂", to: "/dining" },
 	{ emphasis: true, icon: Send, label: "反馈", to: "/feedback" },
 ] as const;
 

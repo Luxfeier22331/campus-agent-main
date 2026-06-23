@@ -2,11 +2,11 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import {
-	HallGrid,
+	HallSelector,
 	InteractiveFloorplan,
+	StallDetail,
+	StallList,
 	TagFilters,
-	WindowDetail,
-	WindowList,
 } from "@/components/dining/dining-experience";
 import { Alert } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
@@ -20,6 +20,8 @@ import type {
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
+
+const ALL_CAMPUSES_VALUE = "all-campuses";
 
 export function DiningPage() {
 	const [halls, setHalls] = useState<DiningHallSummary[]>([]);
@@ -39,13 +41,12 @@ export function DiningPage() {
 				setHalls(payload.halls);
 				const firstHall = payload.halls[0];
 				if (firstHall) {
-					setSelectedCampus(firstHall.campus);
 					setSelectedHallId(firstHall.hallId);
 					setSelectedFloorId(firstHall.floors[0]?.floorId ?? "");
 				}
 			})
 			.catch(() => {
-				setError("饭堂信息暂时无法读取。");
+				setError("食堂信息暂时无法读取。");
 			})
 			.finally(() => {
 				setIsLoadingHalls(false);
@@ -66,7 +67,7 @@ export function DiningPage() {
 			})
 			.catch(() => {
 				setFloor(null);
-				setError("饭堂平面图暂时无法打开。");
+				setError("食堂平面图暂时无法打开。");
 			});
 	}, [selectedHallId, selectedFloorId]);
 
@@ -95,9 +96,11 @@ export function DiningPage() {
 			hallMatchesQuery(hall, query) ||
 			(hall.hallId === selectedHall?.hallId && selectedHallMatchesLoadedFloor),
 	);
+	const hasQuery = query.trim().length > 0;
+	const hasSearchResults = !hasQuery || filteredHalls.length > 0 || filteredWindows.length > 0;
 
-	function selectHall(hall: DiningHallSummary) {
-		setSelectedCampus(hall.campus);
+	function selectHall(hall: DiningHallSummary, campusFilter = selectedCampus) {
+		setSelectedCampus(campusFilter);
 		setSelectedHallId(hall.hallId);
 		setSelectedFloorId(hall.floors[0]?.floorId ?? "");
 	}
@@ -117,29 +120,39 @@ export function DiningPage() {
 							className="-translate-y-1/2 pointer-events-none absolute left-3 top-1/2 size-4 text-[var(--sys-text-subtle)]"
 						/>
 						<Input
-							aria-label="搜索食堂、餐饮点、菜品"
+							aria-label="搜索食堂、档口、菜品"
 							className="pl-9"
 							id="dining-search"
 							onChange={(event) => setQuery(event.target.value)}
-							placeholder="搜索食堂、餐饮点、菜品"
+							placeholder="搜索食堂、档口、菜品"
 							value={query}
 						/>
 					</label>
 					<ToggleGroup
 						aria-label="校区"
-						onValueChange={(campus) => {
-							if (!campus) {
+						onValueChange={(value) => {
+							if (!value) {
 								return;
 							}
-							setSelectedCampus(campus);
-							const hall = halls.find((item) => item.campus === campus);
+							const nextCampus = value === ALL_CAMPUSES_VALUE ? "" : value;
+							const hall = halls.find((item) => !nextCampus || item.campus === nextCampus);
 							if (hall) {
-								selectHall(hall);
+								selectHall(hall, nextCampus);
 							}
 						}}
 						type="single"
-						value={selectedCampus}
+						value={selectedCampus || ALL_CAMPUSES_VALUE}
 					>
+						<ToggleGroupItem
+							className={cn(
+								"min-h-11 rounded-lg px-4 text-[var(--sys-text-muted)]",
+								selectedCampus === "" &&
+									"border-[var(--sys-text-strong)] bg-[var(--sys-text-strong)] text-white",
+							)}
+							value={ALL_CAMPUSES_VALUE}
+						>
+							全部校区
+						</ToggleGroupItem>
 						{campuses.map((campus) => (
 							<ToggleGroupItem
 								className={cn(
@@ -172,75 +185,86 @@ export function DiningPage() {
 			) : null}
 			{halls.length > 0 ? (
 				<div className="space-y-5">
-					<HallGrid
-						halls={filteredHalls}
-						onSelectHall={selectHall}
-						selectedHallId={selectedHallId}
-					/>
-					{floor && selectedHall ? (
-						<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-							<Card className="overflow-hidden p-4">
-								<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-									<div>
-										<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
-											{floor.floor.label}
-										</p>
-										<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-											{floor.source.label} · {floor.source.releaseId} ·{" "}
-											{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
-										</p>
+					{hasSearchResults ? (
+						<HallSelector
+							halls={filteredHalls}
+							onSelectHall={selectHall}
+							selectedHallId={selectedHallId}
+						/>
+					) : null}
+					{hasSearchResults ? (
+						floor && selectedHall ? (
+							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+								<Card className="overflow-hidden p-4">
+									<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+										<div>
+											<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
+												{floor.floor.label}
+											</p>
+											<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
+												{floor.source.label} ·{" "}
+												{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
+											</p>
+										</div>
+										<ToggleGroup
+											aria-label="楼层"
+											onValueChange={(floorId) => {
+												if (floorId) {
+													setSelectedFloorId(floorId);
+												}
+											}}
+											type="single"
+											value={selectedFloorId}
+										>
+											{selectedHall.floors.map((item) => (
+												<ToggleGroupItem
+													className={cn(
+														"min-h-9 text-[var(--sys-text-muted)]",
+														selectedFloorId === item.floorId &&
+															"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
+													)}
+													key={item.floorId}
+													value={item.floorId}
+												>
+													{item.label}
+												</ToggleGroupItem>
+											))}
+										</ToggleGroup>
 									</div>
-									<ToggleGroup
-										aria-label="楼层"
-										onValueChange={(floorId) => {
-											if (floorId) {
-												setSelectedFloorId(floorId);
-											}
-										}}
-										type="single"
-										value={selectedFloorId}
-									>
-										{selectedHall.floors.map((item) => (
-											<ToggleGroupItem
-												className={cn(
-													"min-h-9 text-[var(--sys-text-muted)]",
-													selectedFloorId === item.floorId &&
-														"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
-												)}
-												key={item.floorId}
-												value={item.floorId}
-											>
-												{item.label}
-											</ToggleGroupItem>
-										))}
-									</ToggleGroup>
-								</div>
-								<TagFilters
-									onSelectTag={setSelectedTag}
-									selectedTag={selectedTag}
-									tags={floor.filters.tags}
-								/>
-								<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
-									<InteractiveFloorplan
-										floor={floor}
-										onSelectWindow={setSelectedWindowId}
-										selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
-										windows={filteredWindows}
+									<TagFilters
+										onSelectTag={setSelectedTag}
+										selectedTag={selectedTag}
+										tags={floor.filters.tags}
 									/>
-									<WindowList
-										onSelectWindow={setSelectedWindowId}
-										selectedWindowId={selectedWindow?.windowId ?? null}
-										windows={filteredWindows}
-									/>
-								</div>
+									<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+										<InteractiveFloorplan
+											floor={floor}
+											onSelectWindow={setSelectedWindowId}
+											selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
+											windows={filteredWindows}
+										/>
+										<StallList
+											onSelectWindow={setSelectedWindowId}
+											selectedWindowId={selectedWindow?.windowId ?? null}
+											windows={filteredWindows}
+										/>
+									</div>
+								</Card>
+								<StallDetail window={selectedWindow} />
+							</div>
+						) : (
+							<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
+								<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
+								<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+									当前没有已发布的食堂楼层数据。
+								</p>
 							</Card>
-							<WindowDetail window={selectedWindow} />
-						</div>
+						)
 					) : (
 						<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
-							<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
+							<h3 className="font-medium text-foreground text-sm">没有匹配的食堂或档口</h3>
 							<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-								当前没有已发布的食堂楼层数据。
+								调整搜索词或筛选条件后再试。
 							</p>
 						</Card>
 					)}
@@ -255,9 +279,7 @@ function hallMatchesQuery(hall: DiningHallSummary, query: string): boolean {
 	if (!normalized) {
 		return true;
 	}
-	return [hall.name, hall.campus, ...hall.tags].some((value) =>
-		value.toLowerCase().includes(normalized),
-	);
+	return [hall.name, hall.campus].some((value) => value.toLowerCase().includes(normalized));
 }
 
 function windowMatchesQuery(window: DiningWindowProjection, query: string): boolean {

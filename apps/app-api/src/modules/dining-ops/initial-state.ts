@@ -99,8 +99,6 @@ export function createInitialDiningOperationsState(
 						menuItemId,
 						offeringId: `offering:${assignmentId}:${menuItemId}`,
 						priceLabel: offering.priceLabel,
-						saleStatus: "available",
-						specLabel: offering.specLabel,
 					});
 				}
 			}

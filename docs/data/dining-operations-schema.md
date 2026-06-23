@@ -119,6 +119,8 @@ Rules:
   `data-dining-anchor-id`
 - `geometry_json` is legacy/editor geometry only and does not define the
   student floorplan interaction model
+- student-facing copy treats window/stall as one "档口" concept; public routes
+  must not expose unreliable notes as location, status or description truth
 - window status does not imply menu availability
 - window truth is separate from stall profile and menu truth
 
@@ -171,7 +173,7 @@ Canonical fields:
 
 ### `dining.menu_offerings`
 
-Offer of a menu item at a window assignment with price and sale status.
+Offer of a menu item at a window assignment with display price reference.
 
 Canonical fields:
 
@@ -179,15 +181,14 @@ Canonical fields:
 - `assignment_id`
 - `menu_item_id`
 - `price_label`
-- `spec_label`
-- `sale_status`
 - `created_at`
 - `updated_at`
 
 Rules:
 
 - `price_label` is display text, not numeric pricing truth
-- real-time availability and queue state are not in scope
+- menu portion/spec labels are not current scope
+- real-time availability, sale status and queue state are not in scope
 
 ### `dining.source_observations`
 

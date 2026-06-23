@@ -1,5 +1,6 @@
 // @vitest-environment node
 
+import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -164,5 +165,14 @@ describe("dining operations store", () => {
 		expect(JSON.stringify(insertedPayloads)).toContain("floorplan:");
 		expect(JSON.stringify(insertedPayloads)).not.toContain("floorplan_asset_id");
 		expect(JSON.stringify(insertedPayloads)).not.toContain("sanitized_svg_markup");
+	});
+
+	it("keeps local dining seed refresh explicit and production-closed", () => {
+		const scriptSource = readFileSync("scripts/refresh-local-dining-seed.ts", "utf8");
+
+		expect(scriptSource).toContain('APP_API_ENVIRONMENT?.trim() === "production"');
+		expect(scriptSource).toContain("Refusing to refresh dining seed in production.");
+		expect(scriptSource).toContain("createInitialDiningOperationsState()");
+		expect(scriptSource).toContain("store.saveState(state)");
 	});
 });

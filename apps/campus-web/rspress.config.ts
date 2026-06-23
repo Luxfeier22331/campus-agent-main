@@ -67,7 +67,7 @@ export default defineConfig({
 		nav: [
 			{ link: "/", text: "问答" },
 			{ link: "/map", text: "校园地图" },
-			{ link: "/dining", text: "饭堂分布图" },
+			{ link: "/dining", text: "食堂" },
 			{ link: "/feedback", text: "反馈" },
 		],
 		outlineTitle: "本页",

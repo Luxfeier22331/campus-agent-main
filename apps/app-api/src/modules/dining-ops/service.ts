@@ -52,11 +52,9 @@ export type {
 	DiningOpsActor,
 	DiningOpsFloorResponse,
 	DiningOpsHall,
-	DiningPublicSaleStatus,
 	DiningPublishedSnapshot,
 	DiningRelease,
 	DiningReleaseStatus,
-	DiningSaleStatus,
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
@@ -161,8 +159,6 @@ export function buildDiningOperationsService(input: {
 				menuItemId: menuItem.menuItemId,
 				offeringId: `offering:${assignment.assignmentId}:${menuItem.menuItemId}`,
 				priceLabel: offeringInput.priceLabel,
-				saleStatus: offeringInput.saleStatus,
-				specLabel: offeringInput.specLabel,
 			};
 			if (state.menuOfferings.some((item) => item.offeringId === offering.offeringId)) {
 				throw new AppApiRouteError({

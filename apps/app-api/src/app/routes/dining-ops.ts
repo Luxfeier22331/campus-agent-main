@@ -2,7 +2,7 @@ import type { Hono } from "hono";
 
 import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
-import type { DiningSaleStatus, DiningWindowStatus } from "../../modules/dining-ops";
+import type { DiningWindowStatus } from "../../modules/dining-ops";
 import { requireOperatorPrincipal } from "../principal";
 import { readJsonRequestBody } from "../request-utils";
 import type { AppRequestScope } from "../types";
@@ -378,8 +378,6 @@ function parseMenuOfferingCreateBody(body: unknown) {
 		assignmentId: requireString(record.assignmentId, "assignmentId"),
 		menuItemId: requireString(record.menuItemId, "menuItemId"),
 		priceLabel: requireString(record.priceLabel, "priceLabel"),
-		saleStatus: requireSaleStatus(record.saleStatus),
-		specLabel: nullableString(record.specLabel, "specLabel"),
 	};
 }
 
@@ -387,8 +385,6 @@ function parseMenuOfferingPatchBody(body: unknown) {
 	const record = requireRecord(body);
 	const parsed = {
 		priceLabel: "priceLabel" in record ? requireString(record.priceLabel, "priceLabel") : undefined,
-		saleStatus: "saleStatus" in record ? requireSaleStatus(record.saleStatus) : undefined,
-		specLabel: "specLabel" in record ? nullableString(record.specLabel, "specLabel") : undefined,
 	};
 	return requireNonEmptyPatch(parsed);
 }
@@ -484,13 +480,6 @@ function requireMenuItemStatus(value: unknown): "active" {
 		return value;
 	}
 	throw validationError("status");
-}
-
-function requireSaleStatus(value: unknown): DiningSaleStatus {
-	if (value === "available" || value === "paused" || value === "seasonal" || value === "removed") {
-		return value;
-	}
-	throw validationError("offering.saleStatus");
 }
 
 function parseGeometry(value: unknown, field: string) {

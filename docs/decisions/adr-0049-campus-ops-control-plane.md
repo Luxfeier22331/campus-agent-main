@@ -24,10 +24,11 @@ continue to apply under `apps/operator-console-web`.
 `app-api` 内 seed projection 支撑，用于验证学生端信息架构和交互效果。这个 seed 只能作为
 initial release 输入，不能继续承担长期线上运营真相。
 
-食堂窗口、档口、菜品与价格会持续变化。后续采集或人工观测也只能先进入 review/proposal，
-不能直接覆盖学生端 published projection。把这些编辑能力塞进 account browser shell 会污染账号
-边界。ADR-0055 已将长期后台概念统一为 Operator Console；因此 dining operations 不再被解释成
-第二个长期后台产品，而是 Operator Console 内的受控 operations domain。
+食堂窗口、档口展示、菜品与价格参考会持续变化。后续采集或人工观测如重新进入产品范围，
+也只能先进入显式 operator command，不能直接覆盖学生端 published projection。把这些编辑能力
+塞进 account browser shell 会污染账号边界。ADR-0055 已将长期后台概念统一为 Operator
+Console；因此 dining operations 不再被解释成第二个长期后台产品，而是 Operator Console
+内的受控 operations domain。
 
 ## 决策
 
@@ -171,8 +172,9 @@ graph truth。
 - 实时排队、营业状态、支付或订单系统
 - 采集自动覆盖线上数据
 
-`dining.windows.status` 与 `dining.menu_offerings.sale_status` 只表示人工维护后发布的
-食堂展示投影，不表示实时营业、库存、排队、商户经营状态或订单状态。
+`dining.windows.status` 只表示人工维护后的窗口展示状态，不表示实时营业、库存、
+排队、商户经营状态或订单状态。`dining.menu_offerings` 当前只承载菜品与展示用价格参考，
+不承载规格、售卖状态或库存状态。
 
 本 ADR 也不决定：
 

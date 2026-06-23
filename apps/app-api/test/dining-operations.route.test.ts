@@ -158,8 +158,6 @@ describe("dining operations routes", () => {
 				{
 					body: JSON.stringify({
 						priceLabel: "18 元",
-						saleStatus: "available",
-						specLabel: "标准份",
 					}),
 					headers: { "content-type": "application/json" },
 					method: "PATCH",
@@ -231,15 +229,21 @@ describe("dining operations routes", () => {
 		expect(publicFloor.status).toBe(200);
 		const publicFloorBody = (await publicFloor.json()) as {
 			floor: { floorplan: { sha256: string } };
+			source: { label: string; updatedAt: string };
 			windows: Array<{
 				assignment: null | {
-					offerings: Array<{ name: string; priceLabel: string; specLabel: string | null }>;
+					offerings: Array<{ name: string; priceLabel: string }>;
 					stallProfile: { displayName: string };
 				};
 				svgAnchorId: string | null;
 			}>;
 		};
 		expect(publicFloorBody.floor.floorplan.sha256).toMatch(/^sha256:/);
+		expect(publicFloorBody.source.label).toBe("校园食堂平面图整理");
+		expect(publicFloorBody.source.updatedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+		expect(JSON.stringify(publicFloorBody)).not.toContain("releaseId");
+		expect(JSON.stringify(publicFloorBody)).not.toContain("specLabel");
+		expect(JSON.stringify(publicFloorBody)).not.toContain("saleStatus");
 		expect(JSON.stringify(publicFloorBody.floor)).not.toContain("svgMarkup");
 		expect(JSON.stringify(publicFloorBody.floor)).not.toContain("floorplanAsset");
 		expect(publicFloorBody.windows).toEqual(
@@ -251,7 +255,6 @@ describe("dining operations routes", () => {
 							expect.objectContaining({
 								name: "番茄牛腩饭",
 								priceLabel: "18 元",
-								specLabel: "标准份",
 							}),
 						]),
 						stallProfile: expect.objectContaining({ displayName: "新风味窗口" }),
@@ -266,13 +269,16 @@ describe("dining operations routes", () => {
 			floor: { floorplan: { anchorInventory: Array<{ anchorId: string; role: string }> } };
 			windows: Array<{
 				assignment: null | {
-					offerings: Array<{ name: string; priceLabel: string; specLabel: string | null }>;
+					offerings: Array<{ name: string; priceLabel: string }>;
 					stallProfile: { displayName: string };
 				};
 				svgAnchorId: string | null;
 			}>;
 		};
 		expect(outdoorFloorBody.floor.floorplan.anchorInventory).toHaveLength(11);
+		expect(JSON.stringify(outdoorFloorBody)).not.toContain("mock");
+		expect(JSON.stringify(outdoorFloorBody)).not.toContain("specLabel");
+		expect(JSON.stringify(outdoorFloorBody)).not.toContain("saleStatus");
 		expect(outdoorFloorBody.windows.map((window) => window.svgAnchorId)).toEqual([
 			"shop-01-maituanxiong",
 			"shop-02-zuozuoxiang",
@@ -361,8 +367,6 @@ describe("dining operations routes", () => {
 				{
 					body: JSON.stringify({
 						priceLabel: "16 元",
-						saleStatus: "seasonal",
-						specLabel: "标准份",
 					}),
 					headers: { "content-type": "application/json" },
 					method: "PATCH",

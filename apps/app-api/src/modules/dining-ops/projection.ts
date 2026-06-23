@@ -7,7 +7,6 @@ import type {
 	DiningOperationsState,
 	DiningOpsFloorResponse,
 	DiningOpsHall,
-	DiningPublicSaleStatus,
 	DiningPublishedSnapshot,
 } from "./types";
 
@@ -141,8 +140,6 @@ export function toPublicFloor(
 							name: menuItem.name,
 							offeringId: offering.offeringId,
 							priceLabel: offering.priceLabel,
-							saleStatus: offering.saleStatus,
-							specLabel: offering.specLabel,
 							tags: menuItem.tags,
 						};
 					})
@@ -186,7 +183,10 @@ export function toPublicFloor(
 			label: floor.floor.label,
 			svgAssetUrl: floor.floor.svgAssetUrl,
 		},
-		source,
+		source: {
+			label: source.label,
+			updatedAt: source.updatedAt,
+		},
 		windows,
 	};
 }
@@ -203,47 +203,11 @@ export function toPublicHallSummary(hall: DiningOpsHall, snapshot: DiningPublish
 			throwInvalidProjection("Dining hall summary is missing floorplan projection fields.");
 		}
 	}
-	const windows = floors.flatMap((floor) => floor?.windows ?? []);
-	const assignments = floors.flatMap((floor) => floor?.assignments ?? []);
-	const assignmentIds = new Set(assignments.map((assignment) => assignment.assignmentId));
-	const offerings = floors
-		.flatMap((floor) => floor?.menuOfferings ?? [])
-		.filter(isPublicOffering(assignmentIds));
-	const menuItemsById = new Map(
-		floors.flatMap((floor) => floor?.menuItems ?? []).map((item) => [item.menuItemId, item]),
-	);
-	for (const offering of offerings) {
-		if (!menuItemsById.has(offering.menuItemId)) {
-			throwInvalidProjection("Dining hall summary is missing menu item projection.");
-		}
-	}
-	const stallProfileIds = new Set(assignments.map((assignment) => assignment.stallProfileId));
-	const stallProfilesById = new Map(
-		floors
-			.flatMap((floor) => floor?.stallProfiles ?? [])
-			.map((profile) => [profile.stallProfileId, profile]),
-	);
-	for (const stallProfileId of stallProfileIds) {
-		if (!stallProfilesById.has(stallProfileId)) {
-			throwInvalidProjection("Dining hall summary is missing stall profile projection.");
-		}
-	}
-	const tags = uniqueStrings([
-		...windows.flatMap((window) => window.tags),
-		...[...stallProfileIds].flatMap(
-			(stallProfileId) => stallProfilesById.get(stallProfileId)?.tags ?? [],
-		),
-		...offerings.flatMap((offering) => menuItemsById.get(offering.menuItemId)?.tags ?? []),
-	]);
 	return {
 		campus: hall.campus,
 		floors: hall.floors.map((floor) => ({ floorId: floor.floorId, label: floor.label })),
 		hallId: hall.hallId,
 		name: hall.name,
-		offeringCount: offerings.length,
-		priceRangeLabel: summarizePriceRange(offerings.map((offering) => offering.priceLabel)),
-		stallCount: assignments.length,
-		tags,
 	};
 }
 
@@ -251,34 +215,8 @@ export function floorKey(input: { floorId: string; hallId: string }): string {
 	return `${input.hallId}:${input.floorId}`;
 }
 
-function isPublicOffering(assignmentIds: Set<string>) {
-	return (
-		offering: DiningMenuOffering,
-	): offering is DiningMenuOffering & { saleStatus: DiningPublicSaleStatus } =>
-		assignmentIds.has(offering.assignmentId) && offering.saleStatus !== "removed";
-}
-
 function isPublicAssignmentOffering(assignmentId: string) {
-	return (
-		offering: DiningMenuOffering,
-	): offering is DiningMenuOffering & { saleStatus: DiningPublicSaleStatus } =>
-		offering.assignmentId === assignmentId && offering.saleStatus !== "removed";
-}
-
-function summarizePriceRange(priceLabels: string[]): string | null {
-	const values = priceLabels.flatMap((label) =>
-		[...label.matchAll(/\d+(?:\.\d+)?/g)].map((match) => Number(match[0])),
-	);
-	if (values.length === 0) {
-		return null;
-	}
-	const min = Math.min(...values);
-	const max = Math.max(...values);
-	return min === max ? `${formatPrice(min)} 元` : `${formatPrice(min)}-${formatPrice(max)} 元`;
-}
-
-function formatPrice(value: number): string {
-	return Number.isInteger(value) ? String(value) : String(value);
+	return (offering: DiningMenuOffering): boolean => offering.assignmentId === assignmentId;
 }
 
 function uniqueStrings(values: string[]): string[] {

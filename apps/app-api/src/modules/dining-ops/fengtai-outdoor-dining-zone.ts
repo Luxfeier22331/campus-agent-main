@@ -43,15 +43,25 @@ function createOutdoorStall(
 	locationLabel: string,
 	tags: string[],
 ): InitialDiningStallSeed {
+	const compactName = name.replace(" / ", "");
 	return {
 		id: svgAnchorId,
 		locationLabel,
 		name,
 		offerings: [
 			{
-				name: `${name.replace(" / ", "")}招牌套餐`,
+				name: `${compactName}招牌套餐`,
 				priceLabel: "18 元",
-				specLabel: "mock",
+				tags,
+			},
+			{
+				name: `${compactName}双人套餐`,
+				priceLabel: "28 元",
+				tags,
+			},
+			{
+				name: `${compactName}单品`,
+				priceLabel: "12 元",
 				tags,
 			},
 		],

@@ -98,8 +98,6 @@ CREATE TABLE IF NOT EXISTS "dining"."menu_offerings" (
     "assignment_id" text NOT NULL,
     "menu_item_id" text NOT NULL,
     "price_label" text NOT NULL,
-    "spec_label" text,
-    "sale_status" text NOT NULL,
     "created_at" timestamp with time zone NOT NULL,
     "updated_at" timestamp with time zone NOT NULL
 );
