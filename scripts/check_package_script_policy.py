@@ -15,6 +15,8 @@ ROOT_SCRIPT_ALLOWLIST = frozenset(
         "ci:go",
         "ci:web-graph:full",
         "ci:config:lint",
+        "dev",
+        "eval:intent",
         "web:build",
         "web:check",
         "web:lint",
