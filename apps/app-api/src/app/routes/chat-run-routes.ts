@@ -128,6 +128,16 @@ function getBooleanPayloadValue(payload: Record<string, unknown>, key: string): 
 	return typeof value === "boolean" ? value : null;
 }
 
+function getPayloadRecordValue(
+	payload: Record<string, unknown>,
+	key: string,
+): Record<string, unknown> | null {
+	const value = payload[key];
+	return value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: null;
+}
+
 function resolveRunEventRequestId(input: {
 	event: RuntimeRunEventProjection;
 	run: RuntimeRunSummary;
@@ -199,19 +209,25 @@ function toChatRunResumeStreamEvent(input: {
 		};
 	}
 	if (input.event.eventType === "run.failed" || input.event.eventType === "run.expired") {
+		const terminalError = getPayloadRecordValue(input.event.payload, "error");
 		return {
 			data: {
 				...baseData,
 				error: {
 					code:
+						(terminalError ? getStringPayloadValue(terminalError, "code") : null) ??
 						getStringPayloadValue(input.event.payload, "code") ??
 						(input.event.eventType === "run.expired" ? "run_expired" : "run_failed"),
 					message:
+						(terminalError ? getStringPayloadValue(terminalError, "message") : null) ??
 						getStringPayloadValue(input.event.payload, "message") ??
 						(input.event.eventType === "run.expired"
 							? "The request expired before it completed."
 							: "The request failed before it completed."),
-					retryable: getBooleanPayloadValue(input.event.payload, "retryable") ?? true,
+					retryable:
+						(terminalError ? getBooleanPayloadValue(terminalError, "retryable") : null) ??
+						getBooleanPayloadValue(input.event.payload, "retryable") ??
+						true,
 				},
 				status: input.event.eventType === "run.expired" ? "expired" : "failed",
 			},
@@ -220,6 +236,10 @@ function toChatRunResumeStreamEvent(input: {
 	}
 	return null;
 }
+
+export const __chatRunRoutesTestables = {
+	toChatRunResumeStreamEvent,
+};
 
 export function registerChatRunRoutes(input: {
 	app: Hono<{ Bindings: Env }>;

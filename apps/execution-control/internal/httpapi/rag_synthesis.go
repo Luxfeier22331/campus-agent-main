@@ -389,7 +389,7 @@ func ragSynthesisFinalizedResponse(
 	}
 	groundingVerdict := strings.TrimSpace(result.GroundingVerdict)
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedCapability: "knowledge",
+		SelectedCapability: ptrString("knowledge"),
 		Status:             "completed",
 		AnswerText:         strings.TrimSpace(result.AnswerText),
 		Error:              nil,

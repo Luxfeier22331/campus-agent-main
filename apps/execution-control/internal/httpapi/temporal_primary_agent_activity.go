@@ -71,7 +71,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}
 	output, err := s.callAgentRuntime(ctx, run, input, providerConfig, finalModelContext)
 	if err != nil {
-		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_request_failed", err)
+		return s.failPrimaryAgentActivity(ctx, run, primaryAgentRuntimeFailureKind(err), err)
 	}
 	output.RunID = run.RunID
 	output.AgentResultRef = agentResultRef
@@ -483,6 +483,24 @@ func agentRuntimeFailureFromResponse(
 	}
 }
 
+func primaryAgentRuntimeFailureKind(cause error) string {
+	if agentRuntimeErrorIsTimeout(cause) {
+		return "agent_runtime_timeout"
+	}
+	return "agent_runtime_request_failed"
+}
+
+func agentRuntimeErrorIsTimeout(cause error) bool {
+	if errors.Is(cause, context.DeadlineExceeded) {
+		return true
+	}
+	var netErr interface{ Timeout() bool }
+	if errors.As(cause, &netErr) && netErr.Timeout() {
+		return true
+	}
+	return false
+}
+
 func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecutePrimaryAgentActivityOutput {
 	toolResults := make([]temporalruntime.AgentToolResult, 0, len(response.ToolResults))
 	for _, result := range response.ToolResults {
@@ -524,9 +542,18 @@ func (s *Server) failPrimaryAgentActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.ExecutePrimaryAgentActivityOutput, error) {
+	failCloseReason := ""
+	timeoutOutcome := execution.TimeoutOutcomeNotTimedOut
+	if failureKind == "agent_runtime_timeout" {
+		failCloseReason = "agent_runtime_timeout"
+		timeoutOutcome = execution.TimeoutOutcomeProviderTimeout
+	}
 	payload := map[string]any{
 		"failure_kind": failureKind,
 		"message":      cause.Error(),
+	}
+	if failCloseReason != "" {
+		payload["fail_close_reason"] = failCloseReason
 	}
 	var runtimeHTTPError agentRuntimeHTTPError
 	if errors.As(cause, &runtimeHTTPError) {
@@ -536,14 +563,16 @@ func (s *Server) failPrimaryAgentActivity(
 		}
 	}
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "primary_agent",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "agent/primary/result"),
-		ResultKind:    "activity_failure",
-		StepID:        "agent.primary",
-		StepKind:      "agent",
-		TaskQueue:     temporalruntime.ActivityTaskQueueAgent,
-		Payload:       payload,
+		Capability:      "primary_agent",
+		FailureKind:     failureKind,
+		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
+		ResultKind:      "activity_failure",
+		StepID:          "agent.primary",
+		StepKind:        "agent",
+		TaskQueue:       temporalruntime.ActivityTaskQueueAgent,
+		FailCloseReason: failCloseReason,
+		Payload:         payload,
+		TimeoutOutcome:  timeoutOutcome,
 	}, cause)
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 }

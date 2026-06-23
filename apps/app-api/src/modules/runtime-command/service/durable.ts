@@ -20,6 +20,12 @@ interface DurableRunEventContext {
 	traceId: string;
 }
 
+interface DurableTerminalRunOutcome {
+	response: CapabilityExecutionResponse;
+	sourceEvent: "execution.completed" | "execution.failed";
+	transportError: TransportErrorRecord | null;
+}
+
 export interface DurableEventPollingPolicy {
 	maxAttempts: number;
 	pollIntervalMs: number;
@@ -31,6 +37,36 @@ function asJsonRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: null;
+}
+
+function getRequiredString(record: Record<string, unknown>, key: string, message: string): string {
+	const value = record[key];
+	if (typeof value !== "string" || value.trim() === "") {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message,
+			retryable: true,
+			status: 502,
+		});
+	}
+	return value;
+}
+
+function getRequiredBoolean(
+	record: Record<string, unknown>,
+	key: string,
+	message: string,
+): boolean {
+	const value = record[key];
+	if (typeof value !== "boolean") {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message,
+			retryable: true,
+			status: 502,
+		});
+	}
+	return value;
 }
 
 function assertDurableEventRunMatches(
@@ -86,8 +122,76 @@ export function finalizationResponseFromDurableRunEvent(
 	context: DurableRunEventContext,
 	event: ExecutionControlRunEvent,
 ): CapabilityExecutionResponse | null {
+	const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, event);
+	return terminalOutcome?.response ?? null;
+}
+
+export function durableTerminalOutcomeFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: ExecutionControlRunEvent,
+): DurableTerminalRunOutcome | null {
 	if (event.eventType !== "finalization.completed") {
-		return null;
+		if (event.eventType !== "run.failed") {
+			return null;
+		}
+		assertDurableEventRunMatches(
+			context,
+			event,
+			"Durable run failed event run_id does not match the accepted run.",
+		);
+		if (event.payload.request_id !== context.requestId) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Durable run failed event request_id does not match the accepted request.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		if (event.payload.trace_id !== context.traceId) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Durable run failed event trace_id does not match the accepted request.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		const error = asJsonRecord(event.payload.error);
+		if (!error) {
+			throw new ExecutionControlTransportError({
+				code: "execution_control_invalid_response",
+				message: "Durable run failed event error must be an object.",
+				retryable: true,
+				status: 502,
+			});
+		}
+		const code = getRequiredString(
+			error,
+			"code",
+			"Durable run failed event error.code is required.",
+		);
+		const message = getRequiredString(
+			error,
+			"message",
+			"Durable run failed event error.message is required.",
+		);
+		const retryable = getRequiredBoolean(
+			error,
+			"retryable",
+			"Durable run failed event error.retryable is required.",
+		);
+		return {
+			response: executionFinalizationErrorResponse({
+				code,
+				message,
+				retryable,
+				traceId: context.traceId,
+			}),
+			sourceEvent: "execution.failed",
+			transportError: {
+				code,
+				retryable,
+			},
+		};
 	}
 	assertDurableEventRunMatches(
 		context,
@@ -119,7 +223,11 @@ export function finalizationResponseFromDurableRunEvent(
 			status: 502,
 		});
 	}
-	return parseExecutionFinalizationResponsePayload(response);
+	return {
+		response: parseExecutionFinalizationResponsePayload(response),
+		sourceEvent: "execution.completed",
+		transportError: null,
+	};
 }
 
 export function finalizationResponseFromDurableRunEvents(
@@ -236,11 +344,11 @@ export async function waitForDurableFinalizationResponse<
 		}
 		for (const runEvent of runEvents) {
 			lastSequence = updateLastSequence(input.context, lastSequence, runEvent);
-			const finalizationResponse = finalizationResponseFromDurableRunEvent(input.context, runEvent);
-			if (finalizationResponse) {
+			const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(input.context, runEvent);
+			if (terminalOutcome) {
 				return {
-					response: finalizationResponse,
-					transportError: null,
+					response: terminalOutcome.response,
+					transportError: terminalOutcome.transportError,
 				};
 			}
 		}
@@ -290,18 +398,19 @@ export async function* streamDurableRunEventsUntilTerminal<
 					yield lifecycleEvent;
 					continue;
 				}
-				const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
-				if (!finalizationResponse) {
+				const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
+				if (!terminalOutcome) {
 					continue;
 				}
 				const finalized = await input.finalizeAcceptedCommand({
 					context,
-					executionResponse: finalizationResponse,
+					executionResponse: terminalOutcome.response,
+					transportError: terminalOutcome.transportError,
 				});
 				yield toTerminalChatStreamEvent({
 					occurredAt: runEvent.occurredAt,
 					response: finalized,
-					sourceEvent: "execution.completed",
+					sourceEvent: terminalOutcome.sourceEvent,
 				});
 				return;
 			}
@@ -414,19 +523,20 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 						queue.push({ event: lifecycleEvent, kind: "event" });
 						continue;
 					}
-					const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
-					if (!finalizationResponse) {
+					const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
+					if (!terminalOutcome) {
 						continue;
 					}
 					const finalized = await input.finalizeAcceptedCommand({
 						context,
-						executionResponse: finalizationResponse,
+						executionResponse: terminalOutcome.response,
+						transportError: terminalOutcome.transportError,
 					});
 					queue.push({
 						event: toTerminalChatStreamEvent({
 							occurredAt: runEvent.occurredAt,
 							response: finalized,
-							sourceEvent: "execution.completed",
+							sourceEvent: terminalOutcome.sourceEvent,
 						}),
 						kind: "event",
 					});

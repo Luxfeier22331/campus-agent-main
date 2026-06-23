@@ -421,6 +421,7 @@ func (s *Server) failTemporalRun(
 	cause error,
 ) (execution.DurableRun, error) {
 	failedAt := time.Now().UTC()
+	terminalError := temporalRunFailureErrorPayload(failureKind, cause)
 	_, _ = s.runProjectionStore.AppendRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":activity-failed:" + failureKind,
 		RunID:                run.RunID,
@@ -454,11 +455,33 @@ func (s *Server) failTemporalRun(
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
 			"failure_kind":    failureKind,
+			"request_id":      run.RequestID,
 			"status":          string(execution.DurableRunStatusFailed),
 			"terminal_reason": string(execution.DurableTerminalReasonWorkerUnavailable),
+			"trace_id":        run.TraceID,
+			"error":           terminalError,
 		},
 	})
 	return failedRun, cause
+}
+
+func temporalRunFailureErrorPayload(failureKind string, cause error) map[string]any {
+	code := strings.TrimSpace(failureKind)
+	if code == "" {
+		code = "execution_failed"
+	}
+	message := strings.TrimSpace(cause.Error())
+	if code == "agent_runtime_timeout" {
+		message = "Agent runtime request timed out."
+	}
+	if message == "" {
+		message = "Execution run failed."
+	}
+	return map[string]any{
+		"code":      code,
+		"message":   message,
+		"retryable": true,
+	}
 }
 
 func temporalFinalizedResponseFromRun(

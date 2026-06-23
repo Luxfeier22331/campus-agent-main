@@ -1,6 +1,6 @@
 import type { CapabilityExecutionResponse } from "../../integration";
 import { ensureLangfuseTraceParent } from "../../telemetry/trace";
-import { finalizationResponseFromDurableRunEvent } from "./durable";
+import { durableTerminalOutcomeFromDurableRunEvent } from "./durable";
 import type {
 	AcceptedChatCommandContext,
 	ChatCommandResponse,
@@ -63,6 +63,7 @@ async function reconcileOneDurableCloseout(input: {
 	finalizeAcceptedCommand(finalizeInput: {
 		context: AcceptedChatCommandContext;
 		executionResponse: CapabilityExecutionResponse;
+		transportError?: { code: string; retryable: boolean } | null;
 	}): Promise<ChatCommandResponse>;
 }): Promise<boolean> {
 	const { candidate, dependencies, finalizeAcceptedCommand } = input;
@@ -81,13 +82,14 @@ async function reconcileOneDurableCloseout(input: {
 		waitMs: 0,
 	});
 	for (const runEvent of runEvents) {
-		const finalizationResponse = finalizationResponseFromDurableRunEvent(context, runEvent);
-		if (!finalizationResponse) {
+		const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
+		if (!terminalOutcome) {
 			continue;
 		}
 		await finalizeAcceptedCommand({
 			context,
-			executionResponse: finalizationResponse,
+			executionResponse: terminalOutcome.response,
+			transportError: terminalOutcome.transportError,
 		});
 		return true;
 	}
@@ -99,6 +101,7 @@ export async function reconcileDurableCloseouts(input: {
 	finalizeAcceptedCommand(finalizeInput: {
 		context: AcceptedChatCommandContext;
 		executionResponse: CapabilityExecutionResponse;
+		transportError?: { code: string; retryable: boolean } | null;
 	}): Promise<ChatCommandResponse>;
 	now: () => Date;
 	reconcileInput?: ReconcileDurableCloseoutsInput;

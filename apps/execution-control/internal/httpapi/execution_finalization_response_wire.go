@@ -9,7 +9,7 @@ type ExecutionFinalizationResponseWire struct {
 	FollowUpQuestion     string         `json:"follow_up_question"`
 	Observability        map[string]any `json:"observability"`
 	Result               map[string]any `json:"result"`
-	SelectedCapability   string         `json:"selected_capability"`
+	SelectedCapability   *string        `json:"selected_capability"`
 	Status               string         `json:"status"`
 	TraceID              string         `json:"trace_id"`
 	WorkflowTraceSummary map[string]any `json:"workflow_trace_summary"`
@@ -25,4 +25,8 @@ func executionFinalizationResponseWireMap(response ExecutionFinalizationResponse
 		panic(err)
 	}
 	return payload
+}
+
+func ptrString(value string) *string {
+	return &value
 }

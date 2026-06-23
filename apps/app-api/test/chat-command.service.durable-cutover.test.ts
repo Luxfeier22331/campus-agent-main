@@ -380,6 +380,75 @@ describe("chat command durable runtime cutover", () => {
 		});
 	});
 
+	it("finalizes blocking accepted chat requests from durable run failed events", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(durableRun()),
+			getRun: vi.fn(),
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventType: "run.failed",
+						payload: {
+							error: {
+								code: "agent_runtime_timeout",
+								message: "Agent runtime request timed out.",
+								retryable: true,
+							},
+							failure_kind: "agent_runtime_timeout",
+							request_id: "req_0001",
+							status: "failed",
+							terminal_reason: "worker_unavailable",
+							trace_id: "trace_0001",
+						},
+						sequence: 1,
+					}),
+				])
+				.mockResolvedValue([]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			durableEventPolling: {
+				maxAttempts: 1,
+				pollIntervalMs: 0,
+				sleep: vi.fn(async () => undefined),
+			},
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const response = await service.submit({
+			payload: { conversationId: "conv_01HQ", prompt: "校园卡丢了怎么办" },
+			principal: createPrincipal(),
+			surface: "campus_web",
+		});
+
+		expect(response.answer.result).toMatchObject({
+			errorCode: "agent_runtime_timeout",
+			kind: "error",
+			message: "Agent runtime request timed out.",
+			requestId: "req_0001",
+			retryable: true,
+			traceId: "trace_0001",
+		});
+		expect(finalWrites).toHaveLength(1);
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "error",
+			},
+		});
+		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
+	});
+
 	it("injects deterministic W3C traceparent into durable runtime calls when inbound traceparent is absent", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
