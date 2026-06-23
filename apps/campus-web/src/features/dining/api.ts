@@ -1,5 +1,5 @@
 import { requestJson } from "@/platform/api/client";
-import type { DiningFloorResponse, DiningHallsResponse } from "./model";
+import type { DiningFloorResponse, DiningHallReviewsResponse, DiningHallsResponse } from "./model";
 
 export async function getDiningHalls(): Promise<DiningHallsResponse> {
 	return requestJson<DiningHallsResponse>({
@@ -15,5 +15,13 @@ export async function getDiningFloor(input: {
 		path: `/api/dining/halls/${encodeURIComponent(input.hallId)}/floors/${encodeURIComponent(
 			input.floorId,
 		)}`,
+	});
+}
+
+export async function getDiningHallReviews(input: {
+	hallId: string;
+}): Promise<DiningHallReviewsResponse> {
+	return requestJson<DiningHallReviewsResponse>({
+		path: `/api/dining/halls/${encodeURIComponent(input.hallId)}/reviews`,
 	});
 }

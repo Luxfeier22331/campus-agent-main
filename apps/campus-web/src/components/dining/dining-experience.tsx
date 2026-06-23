@@ -5,6 +5,7 @@ import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pa
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
+	DiningReview,
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
@@ -61,61 +62,23 @@ export function TagFilters({
 	tags: string[];
 }) {
 	return (
-		<ToggleGroup
-			aria-label="餐饮标签"
-			className="flex-wrap justify-start"
-			onValueChange={(value) => onSelectTag(value && value !== "all" ? value : null)}
-			type="single"
-			value={selectedTag ?? "all"}
-		>
-			<ToggleGroupItem className="rounded-full" value="all">
-				全部
-			</ToggleGroupItem>
-			{tags.map((tag) => (
-				<ToggleGroupItem className="rounded-full" key={tag} value={tag}>
-					{tag}
+		<div className="-mx-1 overflow-x-auto px-1 pb-1">
+			<ToggleGroup
+				aria-label="餐饮标签"
+				className="w-max justify-start md:w-auto md:flex-wrap"
+				onValueChange={(value) => onSelectTag(value && value !== "all" ? value : null)}
+				type="single"
+				value={selectedTag ?? "all"}
+			>
+				<ToggleGroupItem className="shrink-0 rounded-full" value="all">
+					全部
 				</ToggleGroupItem>
-			))}
-		</ToggleGroup>
-	);
-}
-
-export function StallList({
-	onSelectWindow,
-	selectedWindowId,
-	windows,
-}: {
-	onSelectWindow(windowId: string): void;
-	selectedWindowId: string | null;
-	windows: DiningWindowProjection[];
-}) {
-	if (windows.length === 0) {
-		return (
-			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
-				<h3 className="font-medium text-foreground text-sm">没有匹配的档口</h3>
-				<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-					当前筛选条件下没有可显示档口。
-				</p>
-			</Card>
-		);
-	}
-	return (
-		<div className="min-w-0 max-h-[360px] overflow-auto rounded-xl border border-border bg-white">
-			{windows.map((window) => (
-				<Button
-					className={cn(
-						"flex min-h-16 w-full flex-col items-start justify-center rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
-						selectedWindowId === window.windowId && "bg-[var(--sys-brand-interactive-subtle)]",
-					)}
-					key={window.windowId}
-					onClick={() => onSelectWindow(window.windowId)}
-					variant="ghost"
-				>
-					<span className="block text-sm font-medium text-[var(--sys-text-strong)]">
-						{window.assignment?.stallProfile.displayName ?? window.label}
-					</span>
-				</Button>
-			))}
+				{tags.map((tag) => (
+					<ToggleGroupItem className="shrink-0 rounded-full" key={tag} value={tag}>
+						{tag}
+					</ToggleGroupItem>
+				))}
+			</ToggleGroup>
 		</div>
 	);
 }
@@ -200,15 +163,15 @@ function DiningFloorplanZoomSurface({
 	}, [selectedZoomTarget, zoomToElement]);
 
 	return (
-		<div className="min-w-0 rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
+		<div className="min-w-0 rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-2 md:p-3">
 			<div
-				className="mb-2 flex flex-wrap justify-end gap-2"
+				className="mb-1 flex flex-wrap justify-end gap-2 md:mb-2"
 				role="toolbar"
 				aria-label="平面图视图控制"
 			>
 				<Button
 					aria-label="放大平面图"
-					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					className="hidden text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)] md:inline-flex"
 					onClick={() => zoomIn(0.15, 120)}
 					size="icon"
 					variant="secondary"
@@ -217,7 +180,7 @@ function DiningFloorplanZoomSurface({
 				</Button>
 				<Button
 					aria-label="缩小平面图"
-					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
+					className="hidden text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)] md:inline-flex"
 					onClick={() => zoomOut(0.15, 120)}
 					size="icon"
 					variant="secondary"
@@ -242,7 +205,7 @@ function DiningFloorplanZoomSurface({
 				wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"
 			>
 				<div
-					className="w-full rounded-lg p-2 [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:not(.is-dimmed)]:cursor-pointer [&_.dining-svg-anchor:not(.is-dimmed):hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+					className="w-full rounded-lg p-1 md:p-2 [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:not(.is-dimmed)]:cursor-pointer [&_.dining-svg-anchor:not(.is-dimmed):hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
 					data-testid="dining-inline-floorplan"
 				>
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: event delegation targets annotated SVG anchors with button roles generated below. */}
@@ -328,6 +291,67 @@ export function StallDetail({ window }: { window: DiningWindowProjection | null 
 					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
 						<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
 						<p className="mt-1 max-w-sm text-muted-foreground text-sm">当前档口没有已发布菜品。</p>
+					</div>
+				)}
+			</div>
+		</Card>
+	);
+}
+
+export function DiningReviewList({ reviews }: { reviews: DiningReview[] }) {
+	return (
+		<Card className="overflow-hidden">
+			<div className="border-b border-border p-4">
+				<h2 className="text-lg font-semibold text-[var(--sys-text-strong)]">评价</h2>
+			</div>
+			<div className="divide-y divide-border">
+				{reviews.length > 0 ? (
+					reviews.map((review) => (
+						<article className="space-y-3 p-4" key={review.reviewId}>
+							<div className="flex items-start justify-between gap-4">
+								<div className="min-w-0">
+									<h3 className="font-medium text-[var(--sys-text-strong)] text-sm">
+										{review.dishName}
+									</h3>
+									<p className="mt-1 text-[var(--sys-text-muted)] text-xs">{review.stallName}</p>
+								</div>
+								<div className="flex shrink-0 items-center gap-2">
+									{review.rating === null ? null : (
+										<Badge className="bg-muted text-muted-foreground" variant="secondary">
+											{review.rating} 分
+										</Badge>
+									)}
+									{review.paidPriceLabel ? (
+										<span className="text-primary text-sm font-semibold">
+											{review.paidPriceLabel}
+										</span>
+									) : null}
+								</div>
+							</div>
+							{review.comment ? (
+								<p className="text-[var(--sys-text-strong)] text-sm leading-6">{review.comment}</p>
+							) : null}
+							{review.images.length > 0 ? (
+								<div className="flex gap-2 overflow-x-auto pb-1">
+									{review.images.map((image) => (
+										<img
+											alt={image.alt}
+											className="h-24 w-24 shrink-0 rounded-lg border border-border object-cover"
+											key={image.imageId}
+											loading="lazy"
+											src={image.url}
+										/>
+									))}
+								</div>
+							) : null}
+							{review.contributorName ? (
+								<p className="text-[var(--sys-text-muted)] text-xs">{review.contributorName}</p>
+							) : null}
+						</article>
+					))
+				) : (
+					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
+						<h3 className="font-medium text-foreground text-sm">暂无评价</h3>
 					</div>
 				)}
 			</div>

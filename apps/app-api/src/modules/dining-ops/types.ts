@@ -62,6 +62,27 @@ export interface DiningMenuOffering {
 	priceLabel: string;
 }
 
+export interface DiningReviewImage {
+	alt: string;
+	imageId: string;
+	url: string;
+}
+
+export interface DiningReview {
+	campus: string;
+	comment: string | null;
+	contributorName: string | null;
+	dishName: string;
+	hallId: string;
+	hallName: string;
+	images: DiningReviewImage[];
+	paidPriceLabel: string | null;
+	rating: number | null;
+	reviewId: string;
+	sourceRecordId: string;
+	stallName: string;
+}
+
 export interface DiningAuditEvent {
 	action: string;
 	actorDisplayName: string;
@@ -225,6 +246,9 @@ export interface DiningOperationsService {
 			hallId: string;
 			name: string;
 		}>;
+	}>;
+	getPublishedHallReviews(input: { hallId: string }): Promise<{
+		reviews: DiningReview[];
 	}>;
 	listAuditEvents(): Promise<{ events: DiningAuditEvent[] }>;
 	listHalls(): Promise<{ halls: DiningOpsHall[] }>;

@@ -12,6 +12,31 @@ export interface DiningHallsResponse {
 	halls: DiningHallSummary[];
 }
 
+export interface DiningHallReviewsResponse {
+	reviews: DiningReview[];
+}
+
+export interface DiningReview {
+	campus: string;
+	comment: string | null;
+	contributorName: string | null;
+	dishName: string;
+	hallId: string;
+	hallName: string;
+	images: DiningReviewImage[];
+	paidPriceLabel: string | null;
+	rating: number | null;
+	reviewId: string;
+	sourceRecordId: string;
+	stallName: string;
+}
+
+export interface DiningReviewImage {
+	alt: string;
+	imageId: string;
+	url: string;
+}
+
 export interface DiningFloorResponse {
 	filters: {
 		tags: string[];

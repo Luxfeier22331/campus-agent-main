@@ -214,6 +214,21 @@ Rules:
 - observation cannot directly update published snapshot
 - apply/reject, if accepted in a later scope, must be explicit operator command
 
+### Current review seed projection
+
+Current `GET /api/dining/halls/:hallId/reviews` is served from a repo-versioned
+static seed, not from a `dining.*` table.
+
+Rules:
+
+- the seed preserves form `stallName` and `dishName` as free text
+- the seed maps only explicit `campus + hall` pairs to current hall ids
+- inconsistent records are not guessed into another campus or hall
+- image URLs point to local static assets under `/assets/dining/reviews/*`
+- Lark / Feishu file tokens and raw attachment URLs are not public schema fields
+- the seed does not create `menu_items`, `menu_offerings`, `window_assignments`
+  or `source_observations`
+
 ### `dining.draft_versions`
 
 Monotonic draft version record used to freeze release candidates.

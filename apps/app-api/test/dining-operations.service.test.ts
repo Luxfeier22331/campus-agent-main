@@ -79,6 +79,53 @@ describe("dining operations service", () => {
 		expect(JSON.stringify(halls)).not.toContain("tags");
 	});
 
+	it("serves static dining reviews for mapped halls without leaking Lark file tokens", async () => {
+		const service = createTestDiningOperationsService();
+
+		const firstCanteenReviews = await service.getPublishedHallReviews({
+			hallId: HAIDIAN_CANTEEN_1_HALL_ID,
+		});
+		const juyaReviews = await service.getPublishedHallReviews({
+			hallId: "fengtai-juya-canteen",
+		});
+
+		expect(firstCanteenReviews.reviews).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					campus: "海淀校区",
+					comment:
+						"有一点辣，有一点酸。现煮的，需要等几分钟（不到五分钟吧）。分量比较大，能吃撑我。",
+					contributorName: "果小生",
+					dishName: "金汤鱼粉",
+					hallId: HAIDIAN_CANTEEN_1_HALL_ID,
+					hallName: "海淀一食堂",
+					paidPriceLabel: "12 元",
+					rating: 4,
+					sourceRecordId: "rec27DpktN6uQn",
+					stallName: "鱼粉",
+				}),
+				expect.objectContaining({
+					dishName: "螺蛳粉（不加炸蛋）",
+					stallName: "螺蛳粉",
+				}),
+			]),
+		);
+		expect(firstCanteenReviews.reviews.flatMap((review) => review.images)).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					alt: "金汤鱼粉评价图片",
+					imageId: "dining-review-image:rec27DpktN6uQn:1",
+					url: "/assets/dining/reviews/rec27DpktN6uQn.jpg",
+				}),
+			]),
+		);
+		expect(juyaReviews.reviews).toHaveLength(1);
+		expect(juyaReviews.reviews[0]?.sourceRecordId).toBe("rec27Dph0spQzm");
+		expect(JSON.stringify(firstCanteenReviews)).not.toContain("file_token");
+		expect(JSON.stringify(firstCanteenReviews)).not.toContain("BwBpbNNU4oaCsXxGfUMcwrHsn0c");
+		expect(JSON.stringify(juyaReviews)).not.toContain("rec27DJRSpxWHf");
+	});
+
 	it("freezes floorplan manifest refs when creating a release candidate", async () => {
 		const service = createTestDiningOperationsService();
 

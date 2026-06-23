@@ -28,6 +28,7 @@ audit、source observation 与 operator 工作台字段属于
 ```http
 GET /api/dining/halls
 GET /api/dining/halls/:hallId/floors/:floorId
+GET /api/dining/halls/:hallId/reviews
 ```
 
 ## Source And Failure Boundary
@@ -45,6 +46,11 @@ GET /api/dining/halls/:hallId/floors/:floorId
 - 响应不包含菜品规格、售卖状态、采集统计、食堂价格区间或 release id。
   当前学生端以食堂地图为主体验，只消费食堂选择字段、档口地图锚点、
   菜品名与价格参考。
+- 评价 route 当前读取 repo-versioned static seed，不在学生端请求链路中访问
+  Lark / Feishu Base，也不暴露 Base file token。
+- 表单中的菜品名称按原始提交展示，不做别名合并、纠错或 canonical menu item
+  绑定。
+- 当前仅按 `校区 + 食堂` 显式映射到 hall；不一致记录不得猜测映射到其他校区或食堂。
 
 ## Hall Summary
 
@@ -158,6 +164,50 @@ GET /api/dining/halls/:hallId/floors/:floorId
 - `offerings[].priceLabel` 是展示用价格参考，不是可计算价格或库存/售卖状态。
 - `filters.tags` 来自当前 published floor projection，不由前端硬编码。
 
+## Hall Reviews
+
+### `GET /api/dining/halls/:hallId/reviews`
+
+响应：
+
+```json
+{
+  "reviews": [
+    {
+      "reviewId": "dining-review:rec27DpktN6uQn",
+      "sourceRecordId": "rec27DpktN6uQn",
+      "campus": "海淀校区",
+      "hallId": "haidian-canteen-1",
+      "hallName": "海淀一食堂",
+      "stallName": "鱼粉",
+      "dishName": "金汤鱼粉",
+      "paidPriceLabel": "12 元",
+      "rating": 4,
+      "comment": "有一点辣，有一点酸。现煮的，需要等几分钟（不到五分钟吧）。分量比较大，能吃撑我。",
+      "contributorName": "果小生",
+      "images": [
+        {
+          "imageId": "dining-review-image:rec27DpktN6uQn:1",
+          "url": "/assets/dining/reviews/rec27DpktN6uQn.jpg",
+          "alt": "金汤鱼粉评价图片"
+        }
+      ]
+    }
+  ]
+}
+```
+
+字段规则：
+
+- `reviews[]` 是当前 hall 的只读评价投影，来源于已同步的静态 seed。
+- `stallName` 与 `dishName` 是表单自由文本，不表示已经绑定到
+  `windows[]`、`assignment`、`menuItem` 或 `offering`。
+- `paidPriceLabel` 是展示文本，不是可计算价格。
+- `rating` 允许为 `null`。
+- `images[].url` 必须是本地静态资产 URL；响应不得暴露 Lark / Feishu file
+  token、附件下载 URL 或 operator-only source 字段。
+- hall 不存在时返回 typed `404`。
+
 ## UI Consumption Rules
 
 `campus-web` 可以：
@@ -166,6 +216,7 @@ GET /api/dining/halls/:hallId/floors/:floorId
 - 将地图作为主体验，点击或键盘选择 `svgAnchorId` 对应档口后展示菜品详情。
 - 从 repo-versioned floorplan manifest inline 渲染 sanitized SVG，并用
   `svgAnchorId` 高亮/跳转到对应 SVG 区块。
+- 展示当前食堂的只读评价列表和本地评价图片。
 
 `campus-web` 不可以：
 
@@ -174,3 +225,5 @@ GET /api/dining/halls/:hallId/floors/:floorId
 - 展示食堂采集统计、食堂价格区间或 Base 备注。
 - 把 dining SVG anchor 当作 campus navigation spatial truth。
 - 展示 draft、operator、audit、source observation、release id、菜品规格或售卖状态字段。
+- 把自由文本评价强行合并为 canonical 菜品，或把评价猜测绑定到具体
+  `windowId` / `menuItemId`。

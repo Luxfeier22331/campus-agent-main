@@ -210,9 +210,11 @@ Student-facing dining routes stay compact:
 ```http
 GET /api/dining/halls
 GET /api/dining/halls/:hallId/floors/:floorId
+GET /api/dining/halls/:hallId/reviews
 ```
 
-They return published hall summaries and floor projections suitable for
+They return published hall summaries, floor projections and current read-only
+review projection suitable for
 `campus-web`:
 
 - hall summary includes only campus, hall identity and floor selector fields;
@@ -223,6 +225,12 @@ They return published hall summaries and floor projections suitable for
 - window/stall is one student-facing "档口" concept; `svgAnchorId` is rendered
   as the primary floorplan selection anchor, not as navigation spatial truth
 - offerings are nested under assignment, not physical window
+- hall reviews are static seed projection for the current first slice; they
+  preserve submitted stall and dish names as free text and do not bind reviews
+  to `windowId`, `menuItemId` or `offeringId`
+- review images are served as local static assets and public API responses
+  never expose Lark / Feishu file tokens
+- inconsistent campus/hall submissions are not guessed into another hall
 
 They do not expose:
 
@@ -236,6 +244,8 @@ They do not expose:
 - release id
 - menu spec labels or sale status
 - source remarks/notes, collection coverage metrics or hall-level price ranges
+- Lark / Feishu file token, raw attachment URL or Base-only field metadata
+- dish alias merge, ranking, likes, replies or review submission workflow
 
 If no published release exists, the student route must return explicit empty or
 typed not-found behavior. It must not silently fall back to in-memory seed data.

@@ -54,6 +54,22 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
+	input.app.get("/api/dining/halls/:hallId/reviews", async (c) => {
+		const scope = input.createRequestScope();
+		try {
+			return jsonResponse(
+				await scope.resolveDiningOperationsService().getPublishedHallReviews({
+					hallId: c.req.param("hallId"),
+				}),
+			);
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
+	});
+
 	input.app.post("/api/feedback", async (c) => {
 		const scope = input.createRequestScope();
 		const body = await readJsonRequestBody(c.req.raw);

@@ -22,6 +22,7 @@ const stylesSource = readFileSync("src/styles.css", "utf8");
 const diningApiMock = vi.hoisted(() => ({
 	getDiningFloor: vi.fn(),
 	getDiningHalls: vi.fn(),
+	getDiningHallReviews: vi.fn(),
 }));
 const feedbackApiMock = vi.hoisted(() => ({
 	submitFeedback: vi.fn(),
@@ -97,6 +98,7 @@ describe("campus routes", () => {
 	beforeEach(() => {
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
+		diningApiMock.getDiningHallReviews.mockReset();
 		feedbackApiMock.submitFeedback.mockReset();
 		feedbackApiMock.submitFeedback.mockResolvedValue({
 			feedback: {
@@ -377,10 +379,16 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
 		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
 		expect(diningExperienceSource).not.toContain("h-full min-h-36");
-		expect(diningExperienceSource).toContain("min-h-16");
-		expect(diningExperienceSource).toContain("flex-wrap justify-start");
+		expect(diningExperienceSource).toContain("DiningReviewList");
+		expect(diningExperienceSource).toContain("暂无评价");
+		expect(diningExperienceSource).toContain("alt={image.alt}");
+		expect(diningExperienceSource).toContain("overflow-x-auto");
+		expect(diningExperienceSource).toContain("md:flex-wrap");
+		expect(diningExperienceSource).toContain("shrink-0 rounded-full");
+		expect(diningExperienceSource).toContain("hidden text-[var(--sys-text-muted)]");
 		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
-		expect(diningExperienceSource).toContain("min-w-0 max-h-[360px]");
+		expect(diningExperienceSource).not.toContain("StallList");
+		expect(diningExperienceSource).not.toContain("min-w-0 max-h-[360px]");
 		expect(diningExperienceSource).toContain("!w-full !max-w-full");
 		expect(diningExperienceSource).toContain("floorplanKey");
 		expect(diningExperienceSource).toContain("key={floorplanKey}");
@@ -393,9 +401,14 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).not.toContain("zoomToElement(selector, 1.35");
 		expect(diningExperienceSource).not.toContain("min-w-[640px]");
 		expect(diningExperienceSource).not.toContain("<fieldset");
-		expect(diningExperienceSource).not.toContain("<img");
+		expect(diningExperienceSource).toContain('data-testid="dining-inline-floorplan"');
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
+		expect(diningPageSource).toContain("getDiningHallReviews");
+		expect(diningPageSource).toContain("DiningReviewList");
+		expect(diningPageSource).toContain("scrollIntoView");
+		expect(diningPageSource).toContain("requestAnimationFrame");
+		expect(diningPageSource).toContain("matchMedia");
 		expect(diningPageSource).not.toContain('id: "rice-bowl"');
 		expect(diningExperienceSource).not.toContain("x: 56");
 		expect(diningExperienceSource).not.toContain("y: 72");
@@ -406,39 +419,7 @@ describe("campus routes", () => {
 	});
 
 	it("renders dining map-first hall selector, interactive stalls, and menu references", async () => {
-		diningApiMock.getDiningHalls.mockResolvedValue({
-			halls: [
-				{
-					campus: "海淀校区",
-					floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
-					hallId: "haidian-canteen-1",
-					name: "海淀一食堂",
-				},
-				{
-					campus: "丰台校区",
-					floors: [
-						{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
-						{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
-					],
-					hallId: "fengtai-huixian-canteen",
-					name: "荟贤食堂",
-				},
-			],
-		});
-		diningApiMock.getDiningFloor.mockImplementation(
-			({ floorId, hallId }: { floorId: string; hallId: string }) => {
-				const projections = {
-					"fengtai-huixian-canteen:fengtai-huixian-canteen-1f": "荟贤食堂一层",
-					"fengtai-huixian-canteen:fengtai-huixian-canteen-2f": "荟贤食堂二层",
-					"haidian-canteen-1:haidian-canteen-1-1f": "海淀一食堂一层",
-				} as const;
-				const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
-				if (!label) {
-					return Promise.reject(new Error("missing dining projection"));
-				}
-				return Promise.resolve(createDiningFloorPayload({ floorId, hallId, label }));
-			},
-		);
+		mockDiningFixtureApi();
 		render(<DiningPage />);
 
 		expect(await screen.findByText("食堂")).toBeInTheDocument();
@@ -450,6 +431,17 @@ describe("campus routes", () => {
 		expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 		expect(screen.getByRole("heading", { name: "盖饭窗口" })).toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		expect(await screen.findByRole("heading", { name: "评价" })).toBeInTheDocument();
+		expect(screen.getByText("金汤鱼粉")).toBeInTheDocument();
+		expect(screen.getByText("鱼粉")).toBeInTheDocument();
+		expect(screen.getByText("有一点辣，有一点酸。")).toBeInTheDocument();
+		expect(screen.getByAltText("金汤鱼粉评价图片")).toHaveAttribute(
+			"src",
+			"/assets/dining/reviews/rec27DpktN6uQn.jpg",
+		);
+		expect(diningApiMock.getDiningHallReviews).toHaveBeenCalledWith({
+			hallId: "haidian-canteen-1",
+		});
 		expect(screen.getAllByText("参考价格").length).toBeGreaterThan(0);
 		expect(screen.getByText("18 元")).toBeInTheDocument();
 		expect(screen.queryByText("标准份")).toBeNull();
@@ -463,9 +455,7 @@ describe("campus routes", () => {
 		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
-		expect(screen.getByRole("button", { name: "盖饭窗口" })).toHaveClass(
-			"bg-[var(--sys-brand-interactive-subtle)]",
-		);
+		expect(screen.queryByRole("button", { name: "盖饭窗口" })).toBeNull();
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
 			target: { value: "牛腩" },
 		});
@@ -502,6 +492,50 @@ describe("campus routes", () => {
 			floorId: "fengtai-huixian-canteen-2f",
 			hallId: "haidian-canteen-1",
 		});
+	});
+
+	it("scrolls mobile diners to the stall detail after explicit window selection", async () => {
+		mockDiningFixtureApi();
+		const originalMatchMedia = window.matchMedia;
+		const originalRequestAnimationFrame = window.requestAnimationFrame;
+		const scrollIntoView = vi.fn();
+		const matchMedia = vi.fn().mockImplementation((query: string) => ({
+			addEventListener: vi.fn(),
+			addListener: vi.fn(),
+			dispatchEvent: vi.fn(),
+			matches: query === "(max-width: 767px)",
+			media: query,
+			onchange: null,
+			removeEventListener: vi.fn(),
+			removeListener: vi.fn(),
+		}));
+		window.matchMedia = matchMedia;
+		window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
+			callback(0);
+			return 1;
+		}) as typeof window.requestAnimationFrame;
+		HTMLElement.prototype.scrollIntoView = scrollIntoView;
+
+		try {
+			render(<DiningPage />);
+
+			expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+			expect(scrollIntoView).not.toHaveBeenCalled();
+
+			fireEvent.click(screen.getByTestId("dining-anchor-window-02"));
+			expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
+			expect(screen.getByRole("heading", { name: "面食窗口" })).toBeInTheDocument();
+
+			scrollIntoView.mockClear();
+			fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
+				target: { value: "牛腩" },
+			});
+			expect(scrollIntoView).not.toHaveBeenCalled();
+		} finally {
+			window.matchMedia = originalMatchMedia;
+			window.requestAnimationFrame = originalRequestAnimationFrame;
+			delete (HTMLElement.prototype as { scrollIntoView?: unknown }).scrollIntoView;
+		}
 	});
 
 	it("renders dining empty state when no published halls exist", async () => {
@@ -610,6 +644,71 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 			},
 		],
 	};
+}
+
+function mockDiningFixtureApi() {
+	diningApiMock.getDiningHalls.mockResolvedValue({
+		halls: [
+			{
+				campus: "海淀校区",
+				floors: [{ floorId: "haidian-canteen-1-1f", label: "一层" }],
+				hallId: "haidian-canteen-1",
+				name: "海淀一食堂",
+			},
+			{
+				campus: "丰台校区",
+				floors: [
+					{ floorId: "fengtai-huixian-canteen-1f", label: "一层" },
+					{ floorId: "fengtai-huixian-canteen-2f", label: "二层" },
+				],
+				hallId: "fengtai-huixian-canteen",
+				name: "荟贤食堂",
+			},
+		],
+	});
+	diningApiMock.getDiningFloor.mockImplementation(
+		({ floorId, hallId }: { floorId: string; hallId: string }) => {
+			const projections = {
+				"fengtai-huixian-canteen:fengtai-huixian-canteen-1f": "荟贤食堂一层",
+				"fengtai-huixian-canteen:fengtai-huixian-canteen-2f": "荟贤食堂二层",
+				"haidian-canteen-1:haidian-canteen-1-1f": "海淀一食堂一层",
+			} as const;
+			const label = projections[`${hallId}:${floorId}` as keyof typeof projections];
+			if (!label) {
+				return Promise.reject(new Error("missing dining projection"));
+			}
+			return Promise.resolve(createDiningFloorPayload({ floorId, hallId, label }));
+		},
+	);
+	diningApiMock.getDiningHallReviews.mockImplementation(({ hallId }: { hallId: string }) =>
+		Promise.resolve({
+			reviews:
+				hallId === "haidian-canteen-1"
+					? [
+							{
+								campus: "海淀校区",
+								comment: "有一点辣，有一点酸。",
+								contributorName: "果小生",
+								dishName: "金汤鱼粉",
+								hallId: "haidian-canteen-1",
+								hallName: "海淀一食堂",
+								images: [
+									{
+										alt: "金汤鱼粉评价图片",
+										imageId: "dining-review-image:rec27DpktN6uQn:1",
+										url: "/assets/dining/reviews/rec27DpktN6uQn.jpg",
+									},
+								],
+								paidPriceLabel: "12 元",
+								rating: 4,
+								reviewId: "dining-review:rec27DpktN6uQn",
+								sourceRecordId: "rec27DpktN6uQn",
+								stallName: "鱼粉",
+							},
+						]
+					: [],
+		}),
+	);
 }
 
 function toDiningFloorplanRef(input: { floorId: string; hallId: string }) {

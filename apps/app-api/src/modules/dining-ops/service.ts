@@ -20,6 +20,7 @@ import {
 	scheduleCandidate,
 	validateCandidate,
 } from "./release-lifecycle";
+import { STATIC_DINING_REVIEW_SEED } from "./review-seed";
 import {
 	advanceStateDraftVersion,
 	cloneState,
@@ -55,6 +56,8 @@ export type {
 	DiningPublishedSnapshot,
 	DiningRelease,
 	DiningReleaseStatus,
+	DiningReview,
+	DiningReviewImage,
 	DiningStallProfile,
 	DiningWindow,
 	DiningWindowAssignment,
@@ -219,6 +222,24 @@ export function buildDiningOperationsService(input: {
 			const snapshot = state.publishedSnapshot;
 			return {
 				halls: snapshot.halls.map((hall) => toPublicHallSummary(hall, snapshot)),
+			};
+		},
+		async getPublishedHallReviews({ hallId }) {
+			const state = await input.store.getState();
+			if (!state.publishedSnapshot) {
+				return { reviews: [] };
+			}
+			const hall = state.publishedSnapshot.halls.find((item) => item.hallId === hallId);
+			if (!hall) {
+				throw new AppApiRouteError({
+					code: "dining_hall_not_found",
+					message: "Dining hall projection was not found.",
+					retryable: false,
+					status: 404,
+				});
+			}
+			return {
+				reviews: STATIC_DINING_REVIEW_SEED.filter((review) => review.hallId === hall.hallId),
 			};
 		},
 		async listAuditEvents() {

@@ -80,17 +80,29 @@ describe("campus experience routes", () => {
 				"https://app-api.internal/api/dining/halls/haidian-canteen-1/floors/haidian-canteen-1-1f",
 			),
 		);
+		const reviews = await app.fetch(
+			new Request("https://app-api.internal/api/dining/halls/haidian-canteen-1/reviews"),
+		);
 
 		expect(places.status).toBe(200);
 		expect(place.status).toBe(200);
 		expect(halls.status).toBe(200);
 		expect(floor.status).toBe(200);
+		expect(reviews.status).toBe(200);
 		expect(service.getMapPlace).toHaveBeenCalledWith({ placeId: "library" });
 		await expect(floor.json()).resolves.toMatchObject({
 			floor: {
 				floorId: "haidian-canteen-1-1f",
 				hallId: "haidian-canteen-1",
 			},
+		});
+		await expect(reviews.json()).resolves.toMatchObject({
+			reviews: expect.arrayContaining([
+				expect.objectContaining({
+					dishName: expect.any(String),
+					hallId: "haidian-canteen-1",
+				}),
+			]),
 		});
 	});
 

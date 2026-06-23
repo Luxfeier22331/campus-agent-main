@@ -135,6 +135,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/dining/halls/:hallId/reviews",
+		callerClass: "browser-surface",
+		admission: "public dining review projection read",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/readyz",
 		callerClass: "browser-surface",
 		admission: "docs control-plane readiness probe",

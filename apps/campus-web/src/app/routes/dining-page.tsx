@@ -1,11 +1,11 @@
 import { Search } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+	DiningReviewList,
 	HallSelector,
 	InteractiveFloorplan,
 	StallDetail,
-	StallList,
 	TagFilters,
 } from "@/components/dining/dining-experience";
 import { Alert } from "@/components/ui/alert";
@@ -13,10 +13,11 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { getDiningFloor, getDiningHalls } from "@/features/dining/api";
+import { getDiningFloor, getDiningHallReviews, getDiningHalls } from "@/features/dining/api";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
+	DiningReview,
 	DiningWindowProjection,
 } from "@/features/dining/model";
 import { cn } from "@/lib/utils";
@@ -32,8 +33,10 @@ export function DiningPage() {
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [floor, setFloor] = useState<DiningFloorResponse | null>(null);
+	const [reviews, setReviews] = useState<DiningReview[]>([]);
 	const [error, setError] = useState<string | null>(null);
 	const [isLoadingHalls, setIsLoadingHalls] = useState(true);
+	const detailRef = useRef<HTMLDivElement>(null);
 
 	useEffect(() => {
 		getDiningHalls()
@@ -56,6 +59,7 @@ export function DiningPage() {
 	useEffect(() => {
 		if (!(selectedHallId && selectedFloorId)) {
 			setFloor(null);
+			setReviews([]);
 			return;
 		}
 		getDiningFloor({ floorId: selectedFloorId, hallId: selectedHallId })
@@ -70,6 +74,21 @@ export function DiningPage() {
 				setError("食堂平面图暂时无法打开。");
 			});
 	}, [selectedHallId, selectedFloorId]);
+
+	useEffect(() => {
+		if (!selectedHallId) {
+			setReviews([]);
+			return;
+		}
+		getDiningHallReviews({ hallId: selectedHallId })
+			.then((payload) => {
+				setReviews(payload.reviews);
+			})
+			.catch(() => {
+				setReviews([]);
+				setError("食堂评价暂时无法读取。");
+			});
+	}, [selectedHallId]);
 
 	const campuses = useMemo(() => uniqueStrings(halls.map((hall) => hall.campus)), [halls]);
 	const selectedHall = halls.find((hall) => hall.hallId === selectedHallId) ?? null;
@@ -110,6 +129,16 @@ export function DiningPage() {
 		setSelectedCampus(campusFilter);
 		setSelectedHallId(hall.hallId);
 		setSelectedFloorId(hall.floors[0]?.floorId ?? "");
+	}
+
+	function selectWindow(windowId: string, options: { scrollDetail?: boolean } = {}) {
+		setSelectedWindowId(windowId);
+		if (!(options.scrollDetail && isMobileDiningViewport())) {
+			return;
+		}
+		window.requestAnimationFrame(() => {
+			detailRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+		});
 	}
 
 	return (
@@ -247,21 +276,18 @@ export function DiningPage() {
 										<InteractiveFloorplan
 											floor={floor}
 											matchedWindowIds={matchedWindowIds}
-											onSelectWindow={setSelectedWindowId}
+											onSelectWindow={(windowId) => selectWindow(windowId, { scrollDetail: true })}
 											selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
 											windows={floor.windows}
 										/>
 									</div>
 								</Card>
-								<div className="xl:col-start-2 xl:row-span-2 xl:row-start-1">
+								<div
+									className="scroll-mt-3 space-y-4 xl:col-start-2 xl:row-start-1"
+									ref={detailRef}
+								>
 									<StallDetail window={selectedWindow} />
-								</div>
-								<div className="xl:col-start-1">
-									<StallList
-										onSelectWindow={setSelectedWindowId}
-										selectedWindowId={selectedWindow?.windowId ?? null}
-										windows={filteredWindows}
-									/>
+									<DiningReviewList reviews={reviews} />
 								</div>
 							</div>
 						) : (
@@ -288,6 +314,14 @@ export function DiningPage() {
 
 function hasActiveWindowFilter(query: string, selectedTag: string | null): boolean {
 	return query.trim().length > 0 || selectedTag !== null;
+}
+
+function isMobileDiningViewport(): boolean {
+	return (
+		typeof window !== "undefined" &&
+		typeof window.matchMedia === "function" &&
+		window.matchMedia("(max-width: 767px)").matches
+	);
 }
 
 function hallMatchesQuery(hall: DiningHallSummary, query: string): boolean {
