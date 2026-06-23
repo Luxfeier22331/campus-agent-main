@@ -268,12 +268,10 @@ function deriveRuntimeEnv(env, input) {
 
 function projectProviderConfigProjectionFile(env, providerConfigSnapshotHostPath) {
 	try {
-		chmodSync(providerConfigSnapshotHostPath, 0o640);
-		setValue(
-			env,
-			"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID",
-			String(statSync(providerConfigSnapshotHostPath).gid),
-		);
+		chmodSync(providerConfigSnapshotHostPath, 0o600);
+		const snapshotStat = statSync(providerConfigSnapshotHostPath);
+		setValue(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID", String(snapshotStat.uid));
+		setValue(env, "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID", String(snapshotStat.gid));
 	} catch {
 		return;
 	}

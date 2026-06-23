@@ -34,13 +34,14 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
             projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             "/run/campus-agent/provider-config-projection.json",
         )
-        self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID"].isdigit())
+        self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID"].isdigit())
+        self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID"].isdigit())
         self.assertEqual(
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
             "/run/campus-agent/provider-config-projection.json",
         )
         self.assertEqual(projected["hindsightModel"], "gpt-test")
-        self.assertEqual(projected["projectionMode"], "640")
+        self.assertEqual(projected["projectionMode"], "600")
 
     def test_env_loader_syncs_provider_projection_when_canonical_artifact_is_missing(
         self,
@@ -59,17 +60,18 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
                 projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
                 "/run/campus-agent/provider-config-projection.json",
             )
-            self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID"].isdigit())
+            self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID"].isdigit())
+            self.assertTrue(projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID"].isdigit())
             self.assertEqual(projected["hindsightModel"], "gpt-5.4")
             self.assertEqual(projected["hindsightEmbeddingModel"], "Qwen3-Embedding-4B")
             self.assertEqual(projected["profileRoles"], server.roles)
             self.assertTrue(projected["projectionExists"])
-            self.assertEqual(projected["projectionMode"], "640")
+            self.assertEqual(projected["projectionMode"], "600")
             self.assertTrue(all(header == "internal-secret" for header in server.auth_headers))
         finally:
             server.close()
 
-    def test_compose_adds_provider_projection_group_to_consuming_containers(self) -> None:
+    def test_compose_runs_provider_projection_consumers_as_artifact_owner(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
@@ -82,9 +84,9 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
         ):
             with self.subTest(service=service):
                 block = _compose_service_block(compose, service)
-                self.assertIn("group_add:", block)
+                self.assertNotIn("group_add:", block)
                 self.assertIn(
-                    "${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}",
+                    "user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}",
                     block,
                 )
 
@@ -114,8 +116,10 @@ def _run_env_loader_with_default_provider_projection_path() -> subprocess.Comple
           expectedProjectionPath: {json.dumps(str(projection_path))},
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:
             process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH,
-          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:
-            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:
             process.env.EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH,
@@ -168,8 +172,10 @@ def _run_env_loader_with_missing_provider_projection(
         console.log(JSON.stringify({{
           expected: {json.dumps(str(projection_path))},
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH: projectionPath,
-          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:
-            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
           hindsightEmbeddingModel: process.env.HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL,

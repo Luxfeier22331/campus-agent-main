@@ -286,8 +286,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
-    group_add:
-      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
     logging:
       driver: json-file
       options:
@@ -476,8 +475,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
-    group_add:
-      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
     logging:
       driver: json-file
       options:
@@ -612,8 +610,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
-    group_add:
-      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
     logging:
       driver: json-file
       options:
@@ -675,8 +672,7 @@ services:
         condition: service_completed_successfully
     security_opt:
       - no-new-privileges:true
-    group_add:
-      - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_GROUP_ID}
+    user: ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_UID}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_OWNER_GID}
     logging:
       driver: json-file
       options:
