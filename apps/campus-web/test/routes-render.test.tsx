@@ -379,7 +379,7 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
 		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
 		expect(diningExperienceSource).not.toContain("h-full min-h-36");
-		expect(diningExperienceSource).toContain("DiningReviewList");
+		expect(diningExperienceSource).not.toContain("DiningReviewList");
 		expect(diningExperienceSource).toContain("暂无评价");
 		expect(diningExperienceSource).toContain("alt={image.alt}");
 		expect(diningExperienceSource).toContain("overflow-x-auto");
@@ -405,7 +405,6 @@ describe("campus routes", () => {
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
 		expect(diningPageSource).toContain("getDiningHallReviews");
-		expect(diningPageSource).toContain("DiningReviewList");
 		expect(diningPageSource).toContain("scrollIntoView");
 		expect(diningPageSource).toContain("requestAnimationFrame");
 		expect(diningPageSource).toContain("matchMedia");
@@ -428,12 +427,12 @@ describe("campus routes", () => {
 		expect(await screen.findByText("荟贤食堂")).toBeInTheDocument();
 		expect(screen.queryByText("1 层 · 1 个餐饮点")).toBeNull();
 		expect(screen.queryByText("9-18 元")).toBeNull();
-		expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
-		expect(screen.getByRole("heading", { name: "盖饭窗口" })).toBeInTheDocument();
-		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
-		expect(await screen.findByRole("heading", { name: "评价" })).toBeInTheDocument();
-		expect(screen.getByText("金汤鱼粉")).toBeInTheDocument();
-		expect(screen.getByText("鱼粉")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
+		expect(screen.getByRole("heading", { name: "鱼粉" })).toBeInTheDocument();
+		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
+		expect(await screen.findByLabelText("金汤鱼粉评价")).toBeInTheDocument();
+		expect(screen.getAllByText("鱼粉")).toHaveLength(1);
+		expect(screen.getByText("果小生")).toBeInTheDocument();
 		expect(screen.getByText("有一点辣，有一点酸。")).toBeInTheDocument();
 		expect(screen.getByAltText("金汤鱼粉评价图片")).toHaveAttribute(
 			"src",
@@ -442,26 +441,26 @@ describe("campus routes", () => {
 		expect(diningApiMock.getDiningHallReviews).toHaveBeenCalledWith({
 			hallId: "haidian-canteen-1",
 		});
-		expect(screen.getAllByText("参考价格").length).toBeGreaterThan(0);
-		expect(screen.getByText("18 元")).toBeInTheDocument();
+		expect(screen.queryByText("参考价格")).toBeNull();
+		expect(screen.getAllByText("12 元").length).toBeGreaterThan(0);
 		expect(screen.queryByText("标准份")).toBeNull();
 		expect(screen.queryByText("可售")).toBeNull();
 		expect(screen.queryByText("季节供应")).toBeNull();
 		expect(screen.queryByText("dining_release:initial")).toBeNull();
-		expect(screen.getByLabelText("选择盖饭窗口")).toBeInTheDocument();
+		expect(screen.getByLabelText("选择鱼粉")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-inline-floorplan").querySelector("svg")).not.toBeNull();
 		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "缩小平面图" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
 		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
-		expect(screen.queryByRole("button", { name: "盖饭窗口" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "鱼粉" })).toBeNull();
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-			target: { value: "牛腩" },
+			target: { value: "金汤" },
 		});
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
 		expect(screen.queryByText("没有匹配的食堂、档口或菜品")).not.toBeInTheDocument();
-		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
 		expect(screen.getByTestId("dining-anchor-window-01")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-anchor-window-02")).toHaveClass("is-dimmed");
 		expect(screen.queryByRole("button", { name: "选择二号窗口" })).toBeNull();
@@ -470,14 +469,14 @@ describe("campus routes", () => {
 		});
 		expect(screen.getByText("没有匹配的食堂、档口或菜品")).toBeInTheDocument();
 		expect(screen.queryByTestId("dining-inline-floorplan")).toBeNull();
-		expect(screen.queryByText("番茄牛腩饭")).toBeNull();
+		expect(screen.queryByText("金汤鱼粉")).toBeNull();
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
 			target: { value: "" },
 		});
 		fireEvent.click(screen.getByRole("radio", { name: "热餐" }));
-		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "选择螺蛳粉" })).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
-		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByRole("radio", { name: "丰台校区" }));
@@ -519,16 +518,16 @@ describe("campus routes", () => {
 		try {
 			render(<DiningPage />);
 
-			expect(await screen.findByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+			expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 			expect(scrollIntoView).not.toHaveBeenCalled();
 
 			fireEvent.click(screen.getByTestId("dining-anchor-window-02"));
 			expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
-			expect(screen.getByRole("heading", { name: "面食窗口" })).toBeInTheDocument();
+			expect(screen.getByRole("heading", { name: "螺蛳粉" })).toBeInTheDocument();
 
 			scrollIntoView.mockClear();
 			fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-				target: { value: "牛腩" },
+				target: { value: "金汤" },
 			});
 			expect(scrollIntoView).not.toHaveBeenCalled();
 		} finally {
@@ -587,24 +586,24 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 					offerings: [
 						{
 							menuItemId: "menu:rice:1",
-							name: "番茄牛腩饭",
+							name: "金汤鱼粉",
 							offeringId: "offering:rice:1",
-							priceLabel: "18 元",
-							tags: ["主食", "热餐"],
+							priceLabel: "12 元",
+							tags: ["粉面"],
 						},
 						{
 							menuItemId: "menu:rice:2",
-							name: "鸡腿盖饭",
+							name: "鱼粉招牌菜",
 							offeringId: "offering:rice:2",
 							priceLabel: "16 元",
-							tags: ["主食"],
+							tags: ["粉面"],
 						},
 					],
 					stallProfile: {
-						displayName: "盖饭窗口",
+						displayName: "鱼粉",
 						stallProfileId: "stall:rice",
 						stallType: "hot_meal",
-						tags: ["主食"],
+						tags: ["粉面"],
 					},
 				},
 				geometry: { height: 72, width: 150, x: 64, y: 72 },
@@ -612,7 +611,7 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				locationLabel: "入口侧",
 				svgAnchorId: "window-01",
 				status: "active",
-				tags: ["主食", "热餐"],
+				tags: ["粉面"],
 				windowId: `${input.hallId}:${input.floorId}:window-01`,
 			},
 			{
@@ -621,17 +620,17 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 					offerings: [
 						{
 							menuItemId: "menu:noodle:1",
-							name: "番茄鸡蛋面",
+							name: "螺蛳粉（不加炸蛋）",
 							offeringId: "offering:noodle:1",
 							priceLabel: "12 元",
-							tags: ["面食"],
+							tags: ["粉面", "热餐"],
 						},
 					],
 					stallProfile: {
-						displayName: "面食窗口",
+						displayName: "螺蛳粉",
 						stallProfileId: "stall:noodle",
 						stallType: "noodle",
-						tags: ["面食"],
+						tags: ["粉面", "热餐"],
 					},
 				},
 				geometry: { height: 72, width: 150, x: 240, y: 72 },
@@ -639,7 +638,7 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				locationLabel: "中部",
 				svgAnchorId: "window-02",
 				status: "active",
-				tags: ["面食"],
+				tags: ["粉面", "热餐"],
 				windowId: `${input.hallId}:${input.floorId}:window-02`,
 			},
 		],

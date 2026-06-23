@@ -2,7 +2,6 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
-	DiningReviewList,
 	HallSelector,
 	InteractiveFloorplan,
 	StallDetail,
@@ -286,8 +285,11 @@ export function DiningPage() {
 									className="scroll-mt-3 space-y-4 xl:col-start-2 xl:row-start-1"
 									ref={detailRef}
 								>
-									<StallDetail window={selectedWindow} />
-									<DiningReviewList reviews={reviews} />
+									<StallDetail
+										key={selectedWindow?.windowId ?? "empty"}
+										reviews={reviews}
+										window={selectedWindow}
+									/>
 								</div>
 							</div>
 						) : (

@@ -228,6 +228,10 @@ review projection suitable for
 - hall reviews are static seed projection for the current first slice; they
   preserve submitted stall and dish names as free text and do not bind reviews
   to `windowId`, `menuItemId` or `offeringId`
+- `campus-web` consumes hall reviews under the selected map stall and selected
+  dish context; review cards show reviewer name, rating, paid price, comment
+  and images, and do not repeat stall or dish names already supplied by the
+  parent context
 - review images are served as local static assets and public API responses
   never expose Lark / Feishu file tokens
 - inconsistent campus/hall submissions are not guessed into another hall

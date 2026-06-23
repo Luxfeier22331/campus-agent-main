@@ -223,6 +223,8 @@ Rules:
 
 - the seed preserves form `stallName` and `dishName` as free text
 - the seed maps only explicit `campus + hall` pairs to current hall ids
+- student UI uses `stallName` and `dishName` only to group reviews under the
+  current stall/dish context, not as repeated review-card titles
 - inconsistent records are not guessed into another campus or hall
 - image URLs point to local static assets under `/assets/dining/reviews/*`
 - Lark / Feishu file tokens and raw attachment URLs are not public schema fields

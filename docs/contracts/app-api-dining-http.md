@@ -202,6 +202,8 @@ GET /api/dining/halls/:hallId/reviews
 - `reviews[]` 是当前 hall 的只读评价投影，来源于已同步的静态 seed。
 - `stallName` 与 `dishName` 是表单自由文本，不表示已经绑定到
   `windows[]`、`assignment`、`menuItem` 或 `offering`。
+- `campus-web` 只在当前地图选中的档口和菜品上下文下展示匹配评价；评价卡不重复展示
+  `stallName` 或 `dishName`。
 - `paidPriceLabel` 是展示文本，不是可计算价格。
 - `rating` 允许为 `null`。
 - `images[].url` 必须是本地静态资产 URL；响应不得暴露 Lark / Feishu file
@@ -216,7 +218,7 @@ GET /api/dining/halls/:hallId/reviews
 - 将地图作为主体验，点击或键盘选择 `svgAnchorId` 对应档口后展示菜品详情。
 - 从 repo-versioned floorplan manifest inline 渲染 sanitized SVG，并用
   `svgAnchorId` 高亮/跳转到对应 SVG 区块。
-- 展示当前食堂的只读评价列表和本地评价图片。
+- 在当前档口/菜品详情内展示匹配的只读评价和本地评价图片。
 
 `campus-web` 不可以：
 

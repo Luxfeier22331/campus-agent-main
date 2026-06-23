@@ -1,6 +1,6 @@
 import { getDiningFloorplanByFloor } from "dining-floorplans";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type {
 	DiningFloorResponse,
@@ -247,8 +247,16 @@ function DiningFloorplanZoomSurface({
 	);
 }
 
-export function StallDetail({ window }: { window: DiningWindowProjection | null }) {
-	if (!window) {
+export function StallDetail({
+	reviews,
+	window: selectedWindow,
+}: {
+	reviews: DiningReview[];
+	window: DiningWindowProjection | null;
+}) {
+	const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
+
+	if (!selectedWindow) {
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
 				<h3 className="font-medium text-foreground text-sm">选择档口</h3>
@@ -258,16 +266,29 @@ export function StallDetail({ window }: { window: DiningWindowProjection | null 
 			</Card>
 		);
 	}
-	const offerings = window.assignment?.offerings ?? [];
+	const offerings = selectedWindow.assignment?.offerings ?? [];
+	const stallName = selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label;
+	const stallReviews = reviews.filter((review) => review.stallName === stallName);
+	const defaultOffering =
+		offerings.find((offering) =>
+			stallReviews.some((review) => review.dishName === offering.name),
+		) ??
+		offerings[0] ??
+		null;
+	const selectedOffering =
+		offerings.find((offering) => offering.offeringId === selectedOfferingId) ?? defaultOffering;
+	const selectedReviews = selectedOffering
+		? stallReviews.filter((review) => review.dishName === selectedOffering.name)
+		: [];
 	return (
 		<Card className="overflow-hidden">
 			<div className="border-b border-border p-4">
-				<p className="text-xs font-medium text-[var(--sys-text-muted)]">{window.locationLabel}</p>
-				<h2 className="mt-2 text-xl font-semibold text-[var(--sys-text-strong)]">
-					{window.assignment?.stallProfile.displayName ?? window.label}
-				</h2>
+				<p className="text-xs font-medium text-[var(--sys-text-muted)]">
+					{selectedWindow.locationLabel}
+				</p>
+				<h2 className="mt-2 text-xl font-semibold text-[var(--sys-text-strong)]">{stallName}</h2>
 				<div className="mt-3 flex flex-wrap gap-2">
-					{window.tags.map((tag) => (
+					{selectedWindow.tags.map((tag) => (
 						<Badge className="bg-muted text-muted-foreground" key={tag} variant="secondary">
 							{tag}
 						</Badge>
@@ -276,17 +297,36 @@ export function StallDetail({ window }: { window: DiningWindowProjection | null 
 			</div>
 			<div className="divide-y divide-border">
 				{offerings.length > 0 ? (
-					offerings.map((offering) => (
-						<div className="grid grid-cols-[1fr_auto] gap-4 p-4" key={offering.offeringId}>
-							<div>
-								<p className="text-sm font-medium text-[var(--sys-text-strong)]">{offering.name}</p>
-							</div>
-							<div className="text-right">
-								<p className="text-xs text-[var(--sys-text-muted)]">参考价格</p>
-								<p className="text-sm font-semibold text-primary">{offering.priceLabel}</p>
-							</div>
-						</div>
-					))
+					<div className="space-y-4 p-4">
+						<ToggleGroup
+							aria-label="菜品"
+							className="grid grid-cols-1 gap-2"
+							onValueChange={(offeringId) => {
+								if (offeringId) {
+									setSelectedOfferingId(offeringId);
+								}
+							}}
+							type="single"
+							value={selectedOffering?.offeringId}
+						>
+							{offerings.map((offering) => (
+								<ToggleGroupItem
+									className="min-h-11 justify-between rounded-lg border border-border px-3 text-left data-[state=on]:border-primary data-[state=on]:bg-[var(--sys-brand-interactive-subtle)] data-[state=on]:text-primary"
+									key={offering.offeringId}
+									value={offering.offeringId}
+								>
+									<span className="truncate text-sm">{offering.name}</span>
+									<span className="ml-3 shrink-0 text-sm font-semibold">{offering.priceLabel}</span>
+								</ToggleGroupItem>
+							))}
+						</ToggleGroup>
+						{selectedOffering ? (
+							<DiningOfferingReviews
+								label={`${selectedOffering.name}评价`}
+								reviews={selectedReviews}
+							/>
+						) : null}
+					</div>
 				) : (
 					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
 						<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
@@ -298,22 +338,18 @@ export function StallDetail({ window }: { window: DiningWindowProjection | null 
 	);
 }
 
-export function DiningReviewList({ reviews }: { reviews: DiningReview[] }) {
+function DiningOfferingReviews({ label, reviews }: { label: string; reviews: DiningReview[] }) {
 	return (
-		<Card className="overflow-hidden">
-			<div className="border-b border-border p-4">
-				<h2 className="text-lg font-semibold text-[var(--sys-text-strong)]">评价</h2>
-			</div>
+		<section aria-label={label} className="rounded-lg border border-border bg-muted/30">
 			<div className="divide-y divide-border">
 				{reviews.length > 0 ? (
 					reviews.map((review) => (
-						<article className="space-y-3 p-4" key={review.reviewId}>
-							<div className="flex items-start justify-between gap-4">
+						<article className="space-y-3 px-3 py-3" key={review.reviewId}>
+							<div className="flex items-start justify-between gap-3">
 								<div className="min-w-0">
-									<h3 className="font-medium text-[var(--sys-text-strong)] text-sm">
-										{review.dishName}
-									</h3>
-									<p className="mt-1 text-[var(--sys-text-muted)] text-xs">{review.stallName}</p>
+									{review.contributorName ? (
+										<p className="text-[var(--sys-text-muted)] text-xs">{review.contributorName}</p>
+									) : null}
 								</div>
 								<div className="flex shrink-0 items-center gap-2">
 									{review.rating === null ? null : (
@@ -336,7 +372,7 @@ export function DiningReviewList({ reviews }: { reviews: DiningReview[] }) {
 									{review.images.map((image) => (
 										<img
 											alt={image.alt}
-											className="h-24 w-24 shrink-0 rounded-lg border border-border object-cover"
+											className="size-24 shrink-0 rounded-lg border border-border object-cover"
 											key={image.imageId}
 											loading="lazy"
 											src={image.url}
@@ -344,18 +380,13 @@ export function DiningReviewList({ reviews }: { reviews: DiningReview[] }) {
 									))}
 								</div>
 							) : null}
-							{review.contributorName ? (
-								<p className="text-[var(--sys-text-muted)] text-xs">{review.contributorName}</p>
-							) : null}
 						</article>
 					))
 				) : (
-					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
-						<h3 className="font-medium text-foreground text-sm">暂无评价</h3>
-					</div>
+					<div className="px-3 py-4 text-muted-foreground text-sm">暂无评价</div>
 				)}
 			</div>
-		</Card>
+		</section>
 	);
 }
 
