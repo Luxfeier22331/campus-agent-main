@@ -86,6 +86,9 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         )
 
         self.assertIn("execution_control_staging_run_ops_proof()", core_script)
+        self.assertIn("execution_control_staging_remove_ops_proof_containers", core_script)
+        self.assertIn('"temporal-task-queue-sampler"', core_script)
+        self.assertIn('"worker-autoscaler"', core_script)
         self.assertIn("--profile ops-proof run --rm temporal-task-queue-sampler", core_script)
         self.assertIn("--profile ops-proof run --rm worker-autoscaler", core_script)
 

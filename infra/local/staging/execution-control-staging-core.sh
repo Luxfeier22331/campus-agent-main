@@ -552,7 +552,21 @@ execution_control_staging_temporal_namespace_setup() {
   execution_control_staging_compose up temporal-namespace-setup
 }
 
+execution_control_staging_remove_ops_proof_containers() {
+  local ops_proof_service
+  local ops_proof_services=(
+    "temporal-task-queue-sampler"
+    "worker-autoscaler"
+  )
+
+  for ops_proof_service in "${ops_proof_services[@]}"; do
+    execution_control_staging_compose --profile ops-proof rm -f -s "${ops_proof_service}" >/dev/null 2>&1 || true
+  done
+}
+
 execution_control_staging_run_ops_proof() {
+  execution_control_staging_remove_ops_proof_containers
+
   echo "running execution-control ops proof: temporal task queue sampler"
   execution_control_staging_compose --profile ops-proof run --rm temporal-task-queue-sampler
 
