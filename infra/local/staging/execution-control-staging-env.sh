@@ -163,6 +163,7 @@ const keys = [
   "APP_API_INTERNAL_SHARED_SECRET",
   "EXECUTION_CONTROL_APP_API_BASE_URL",
   "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
+  "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH",
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH",
   "EXECUTION_CONTROL_RUNTIME_PROFILE",
@@ -510,20 +511,25 @@ function projectHindsightProviderConfig() {
 }
 
 function projectProviderConfigProjection() {
-  const snapshotPath =
+  const snapshotHostPath =
+    resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH") ||
     resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
     `${resolvedValue("EXECUTION_CONTROL_STAGING_RUNTIME_DIR") || "."}/provider-config-projection.json`;
+  const snapshotPath = "/run/campus-agent/provider-config-projection.json";
+  setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH", snapshotHostPath);
   setValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
   setValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH", snapshotPath);
 }
 
 function loadProviderConfigProjection() {
-  const snapshotPath = resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH");
-  if (!snapshotPath) {
-    throw new Error("provider-config projection requires CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH");
+  const snapshotHostPath =
+    resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH") ||
+    resolvedValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH");
+  if (!snapshotHostPath) {
+    throw new Error("provider-config projection requires CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH");
   }
   try {
-    const payload = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+    const payload = JSON.parse(fs.readFileSync(snapshotHostPath, "utf8"));
     if (payload.schema_version !== "provider_config_projection.v1") {
       throw new Error("schema_version is unsupported");
     }
@@ -533,7 +539,7 @@ function loadProviderConfigProjection() {
     return payload;
   } catch (error) {
     throw new Error(
-      `provider-config projection is not readable at ${snapshotPath}: ${error.message}`,
+      `provider-config projection is not readable at ${snapshotHostPath}: ${error.message}`,
     );
   }
 }
@@ -1194,9 +1200,14 @@ function sourceEnvValue(key) {
   return fileEnv.get(key)?.trim() || "";
 }
 
+function fileEnvValue(key) {
+  return fileEnv.get(key)?.trim() || "";
+}
+
 const output =
-  sourceEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
-  sourceEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
+  sourceEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH") ||
+  fileEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
+  fileEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   path.join(runtimeDir, "provider-config-projection.json");
 if (fs.existsSync(output)) {
   process.exit(0);

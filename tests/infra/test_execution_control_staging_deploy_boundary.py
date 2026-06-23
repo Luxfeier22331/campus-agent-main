@@ -142,9 +142,13 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         )
         self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "30000")
         self.assertTrue(
-            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"].endswith(
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"].endswith(
                 "provider-config-projection.json"
             )
+        )
+        self.assertEqual(
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+            "/run/campus-agent/provider-config-projection.json",
         )
         self.assertEqual(
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],

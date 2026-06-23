@@ -25,12 +25,16 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         projected = json.loads(result.stdout)
         self.assertEqual(
-            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"],
             projected["expectedProjectionPath"],
         )
         self.assertEqual(
+            projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+            "/run/campus-agent/provider-config-projection.json",
+        )
+        self.assertEqual(
             projected["EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"],
-            projected["expectedProjectionPath"],
+            "/run/campus-agent/provider-config-projection.json",
         )
         self.assertEqual(projected["hindsightModel"], "gpt-test")
 
@@ -45,7 +49,11 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             projected = json.loads(result.stdout)
             self.assertEqual(
-                projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"], projected["expected"]
+                projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"], projected["expected"]
+            )
+            self.assertEqual(
+                projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH"],
+                "/run/campus-agent/provider-config-projection.json",
             )
             self.assertEqual(projected["hindsightModel"], "gpt-5.4")
             self.assertEqual(projected["hindsightEmbeddingModel"], "Qwen3-Embedding-4B")
@@ -78,6 +86,8 @@ def _run_env_loader_with_default_provider_projection_path() -> subprocess.Comple
         node - <<'NODE'
         console.log(JSON.stringify({{
           expectedProjectionPath: {json.dumps(str(projection_path))},
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:
+            process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH,
           CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH:
             process.env.EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH,
@@ -124,11 +134,12 @@ def _run_env_loader_with_missing_provider_projection(
         execution_control_staging_load_env
         node - <<'NODE'
         const fs = require("node:fs");
-        const projectionPath = process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH;
+        const projectionPath = process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH;
         const projection = JSON.parse(fs.readFileSync(projectionPath, "utf8"));
         console.log(JSON.stringify({{
           expected: {json.dumps(str(projection_path))},
-          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: projectionPath,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH: projectionPath,
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH: process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH,
           hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
           hindsightEmbeddingModel: process.env.HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL,
           profileRoles: projection.source.roles,
