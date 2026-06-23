@@ -69,7 +69,9 @@ if [[ -z "${output_dir}" ]]; then
 fi
 mkdir -p "${output_dir}"
 
-git -C "${execution_control_staging_repo_root}" rev-parse HEAD >"${output_dir}/git-sha.txt"
+capture_git_sha="$(git -C "${execution_control_staging_repo_root}" rev-parse HEAD)"
+export EXECUTION_CONTROL_STAGING_EXPECTED_SHA="${EXECUTION_CONTROL_STAGING_EXPECTED_SHA:-${capture_git_sha}}"
+printf '%s\n' "${capture_git_sha}" >"${output_dir}/git-sha.txt"
 hostname >"${output_dir}/host.txt"
 printf 'request_id=%s\nscenario=%s\ncaptured_at=%s\n' "${request_id}" "${scenario}" "${timestamp}" >"${output_dir}/capture.txt"
 

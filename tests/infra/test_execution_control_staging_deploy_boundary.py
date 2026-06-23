@@ -393,6 +393,24 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("provider_config_gate.configured", script)
         self.assertNotIn("prompt_config_gate", script)
 
+    def test_closeout_capture_pins_status_check_to_current_checkout_head(self) -> None:
+        script = (STAGING_DIR / "capture-temporal-rag-closeout-evidence.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn(
+            'capture_git_sha="$(git -C "${execution_control_staging_repo_root}" rev-parse HEAD)"',
+            script,
+        )
+        self.assertIn(
+            'export EXECUTION_CONTROL_STAGING_EXPECTED_SHA="${EXECUTION_CONTROL_STAGING_EXPECTED_SHA:-${capture_git_sha}}"',
+            script,
+        )
+        self.assertLess(
+            script.index("export EXECUTION_CONTROL_STAGING_EXPECTED_SHA="),
+            script.index('"${script_dir}/status-execution-control-staging.sh" --check'),
+        )
+
     def test_local_minio_bucket_probe_python_heredoc_starts_at_column_zero(self) -> None:
         script = (STAGING_DIR / "execution-control-staging-data-plane.sh").read_text(
             encoding="utf-8"
