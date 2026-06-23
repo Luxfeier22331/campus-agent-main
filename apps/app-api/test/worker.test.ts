@@ -175,9 +175,7 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).toContain("loadRepoStagingEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
 		expect(deployStagingSource).toContain("run-worker-staging-preflight.mjs");
-		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
-			"chat-e2e.ts --profile staging",
-		);
+		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain("chat-durable-e2e-staging.ts");
 		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",

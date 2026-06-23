@@ -121,11 +121,13 @@ pnpm --dir apps/app-api chat:e2e:staging -- \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-student-rule.json"
 ```
 
-`chat:e2e:staging` 默认使用 `POST /api/chat/requests/stream`，不是同步
-`POST /api/chat/requests` polling path。同步入口只允许作为显式
-`--transport sync` 诊断，不作为 release gate。
+`chat:e2e:staging` 是 release gate 默认入口，验证 durable submit + run-event
+resume：先从 `POST /api/chat/requests/stream` 读取 `request.accepted` 与 durable
+`runId`，再订阅 `/api/chat/runs/:runId/events/stream` 直到 terminal event，并检查 run
+status、steps、Langfuse closeout 身份与 conversation materialization。通用
+`chat:e2e -- --profile staging` runner 只允许作为显式诊断，不作为 release gate。
 
-运行 run projection 断线 / 恢复专项 smoke：
+运行同一 durable reconnect 专项 smoke：
 
 ```bash
 pnpm --dir apps/app-api chat:durable:e2e:staging \
@@ -142,10 +144,6 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 通过标准：
 
 - 每条命令 exit code 为 `0`
-- `request.resultKind=answer`
-- `request.transport=stream`
-- 输出包含 `requestId`、`traceId`、`runId`、`conversationId`
-- `historyHasConversation=true`
 - durable reconnect 输出 `passed=true`
 - durable reconnect 输出 `submitStreamAbortedAfterAccepted=true`
 - durable reconnect 输出包含同一个 `submit.runId`、`run.runId`、`run.requestId` 与
@@ -154,9 +152,8 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 - durable reconnect 输出 `langfuseCloseout.productTraceId`、`requestId`、`runId`、
   `workflowId`、`sessionId` 与 `userId`，这些字段作为 Langfuse release closeout
   的产品侧身份来源
-- durable reconnect 的 `resume.terminalEvent.eventType=finalization.completed`
-- durable reconnect 的 conversation summary
-  `hasAssistantMessageForRequest=true`
+- durable reconnect 的 `resume.terminalEvent.event=request.completed`
+- durable reconnect 的 `conversation.hasAssistantMessageForRequest=true`
 - memory recall 输出 `passed=true`
 - memory recall 输出 `memory.deleted=true`
 - memory recall 输出 `recall.stepId=memory.recall`、`recall.status=completed`

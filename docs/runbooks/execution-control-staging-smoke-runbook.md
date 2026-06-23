@@ -137,8 +137,9 @@ curl --noproxy '*' -sS -i https://panel-staging.mucwiki-edge.link/readyz
 pnpm --dir apps/app-api chat:e2e:staging
 ```
 
-新的 public/chat E2E contract 由 `apps/app-api/scripts/chat-e2e.ts` 定义；
-staging 只是其中一个 profile，不再定义 E2E 本身。
+staging release gate 使用 durable submit + run-event resume contract。通用
+`apps/app-api/scripts/chat-e2e.ts --profile staging` 仍可用于显式诊断，但不作为
+release gate。
 
 `chat:e2e:staging` 与 `docs:gated:smoke:staging` 都通过
 `apps/app-api/scripts/run-with-staging-smoke-env.mjs` 加载 staging smoke env。
@@ -155,10 +156,11 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
 1. 带着拿到的 session cookie 真实请求
-   `https://campus-staging.mucwiki-edge.link/api/chat/requests/stream`
-1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
-1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
-   error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
+   `https://campus-staging.mucwiki-edge.link/api/chat/requests/stream`，读取
+   `request.accepted` 与 durable `runId`
+1. 订阅 `/api/chat/runs/:runId/events/stream`，直到 `request.completed`
+1. 再检查 run status、steps、Langfuse closeout 身份与 conversation detail，确认
+   Temporal workflow、run projection、app-api finalization 和会话落盘完成
 
 它要求当前 shell 有：
 
@@ -180,14 +182,15 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 通过标准：
 
 - `chat:e2e:staging` 返回 `0`
-- 它输出的 `request.resultKind` 是 `answer`
-- 它输出的 `request.transport` 是 `stream`
-- `POST /api/chat/requests/stream` 返回 SSE lifecycle，并到达
-  `request.completed`
-- `api/chat/conversations` 在请求后包含新 `conversationId`
+- 它输出 `passed=true`
+- 它输出 `submitStreamAbortedAfterAccepted=true`
+- `resume.terminalEvent.event=request.completed`
+- `run.status=completed`
+- `conversation.hasAssistantMessageForRequest=true`
 - 不能出现 transport error、Worker proxy error、upstream unreachable
 
-只有在明确做同步 transport 诊断时，才允许临时追加 `-- --transport sync`。
+只有在明确做通用 chat runner 诊断时，才允许显式运行
+`pnpm --dir apps/app-api chat:e2e -- --profile staging` 或追加同步 transport 参数。
 同步 transport 不作为 staging closeout gate；不要用
 `--expect-result-kind any` 替代真实通过标准。
 

@@ -422,8 +422,11 @@ Deploy note:
   `docs:gated:smoke:staging` do not require local staging DB credentials; they
   reset the fixed smoke identity through the deployed staging internal smoke
   endpoint protected by `APP_API_STAGING_SMOKE_AUTH_SECRET`
-- `chat:e2e:staging` defaults to the durable lifecycle stream
-  `/api/chat/requests/stream`; `--transport sync` is only a diagnostic mode.
+- `chat:e2e:staging` defaults to the durable submit + run-event resume smoke:
+  it reads `request.accepted` from `/api/chat/requests/stream`, then verifies
+  `/api/chat/runs/:runId/events/stream`, run status, steps, Langfuse closeout
+  identity, and conversation materialization. The generic `chat:e2e -- --profile
+  staging` runner remains a diagnostic path, not the release gate.
 - `chat:memory:e2e:staging` writes an explicit profile-memory item, submits a
   stream chat request, reads `/api/chat/runs/:runId/steps`, and verifies the
   sanitized `memory.recall` projection before deleting the temporary memory.

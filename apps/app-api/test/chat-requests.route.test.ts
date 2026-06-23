@@ -355,6 +355,70 @@ describe("POST /api/chat/requests", () => {
 });
 
 describe("POST /api/chat/requests/stream", () => {
+	it("writes SSE keepalive comments while waiting for durable lifecycle events", async () => {
+		const service: ChatCommandService = {
+			submit: vi.fn(),
+			submitStream: vi.fn(async function* (): AsyncIterable<ChatCommandStreamEvent> {
+				yield {
+					data: {
+						occurredAt: "2026-03-28T08:00:00.000Z",
+						requestId: "req_stream_wait_01HQ",
+						status: "accepted",
+						traceId: "trace_stream_wait_01HQ",
+					},
+					event: "request.accepted",
+				};
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				yield {
+					data: {
+						answer: {
+							conversation: {
+								createdAt: "2026-03-28T07:59:00.000Z",
+								id: "conv_wait_01HQ",
+								messages: [],
+								title: "图书馆开放时间",
+								updatedAt: "2026-03-28T08:00:02.000Z",
+							},
+							result: {
+								kind: "answer",
+								requestId: "req_stream_wait_01HQ",
+								text: "图书馆开放到 22:00。",
+								traceId: "trace_stream_wait_01HQ",
+							},
+						},
+						occurredAt: "2026-03-28T08:00:02.000Z",
+						requestId: "req_stream_wait_01HQ",
+						status: "completed",
+						traceId: "trace_stream_wait_01HQ",
+					},
+					event: "request.completed",
+				};
+			}),
+		};
+		const app = createApp(env, {
+			chatCommandService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/requests/stream", {
+				body: JSON.stringify({
+					prompt: "图书馆开放到几点？",
+				}),
+				headers: {
+					accept: "text/event-stream",
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		const body = await response.text();
+		expect(body.startsWith(": keepalive\n\n")).toBe(true);
+		expect(body).toContain("event: request.completed");
+	});
+
 	it("streams product lifecycle events and terminal answer through app-api", async () => {
 		const service: ChatCommandService = {
 			submit: vi.fn(),
