@@ -22,6 +22,14 @@ def _dockerignore_patterns(repo_root: Path) -> set[str]:
     }
 
 
+def _dockerignore_entries(repo_root: Path) -> list[str]:
+    return [
+        line.strip()
+        for line in (repo_root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    ]
+
+
 class CheckDockerfileTrackedTest(unittest.TestCase):
     def test_tracked_dockerfiles_match_repo_inventory(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
@@ -192,6 +200,24 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
 
         self.assertNotIn("!packages/calendar-agent/", patterns)
         self.assertNotIn("!packages/calendar-agent/**", patterns)
+
+    def test_dockerignore_excludes_workspace_artifacts_after_app_reincludes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        entries = _dockerignore_entries(repo_root)
+
+        last_app_reinclude = max(
+            entries.index(pattern)
+            for pattern in (
+                "!apps/authenticated-notice-collector/**",
+                "!apps/agent-runtime/**",
+                "!apps/otel-ingest-gateway/**",
+                "!apps/ingestion-control/**",
+            )
+        )
+
+        for pattern in ("**/node_modules", "**/node_modules/**", "**/.turbo", "**/.turbo/**"):
+            self.assertIn(pattern, entries)
+            self.assertGreater(entries.index(pattern), last_app_reinclude)
 
     def test_execution_control_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
