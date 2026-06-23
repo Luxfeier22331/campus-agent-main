@@ -140,6 +140,9 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["EXECUTION_CONTROL_APP_API_BASE_URL"],
             "https://api-staging.mucwiki-edge.link",
         )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET"], "app-api-secret"
+        )
         self.assertEqual(projected["EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS"], "30000")
         self.assertTrue(
             projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"].endswith(

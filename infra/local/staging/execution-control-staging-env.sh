@@ -161,6 +161,7 @@ const keys = [
   "AUDIT_LOG_PATH",
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
+  "EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
   "EXECUTION_CONTROL_APP_API_BASE_URL",
   "EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS",
   "CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH",
@@ -368,6 +369,13 @@ const stagingAppAPIBaseURL =
   "https://api-staging.mucwiki-edge.link";
 setDefault("EXECUTION_CONTROL_APP_API_BASE_URL", stagingAppAPIBaseURL);
 setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS", "30000");
+const appAPIInternalSharedSecret =
+  resolvedValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET") ||
+  resolvedValue("APP_API_INTERNAL_SHARED_SECRET");
+if (appAPIInternalSharedSecret) {
+  setDefault("APP_API_INTERNAL_SHARED_SECRET", appAPIInternalSharedSecret);
+  setDefault("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET", appAPIInternalSharedSecret);
+}
 if (!resolved.get("PERSONAL_MEMORY_BASE_URL")) {
   resolved.set("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888");
 }
