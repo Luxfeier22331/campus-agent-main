@@ -488,7 +488,9 @@ execution_control_staging_reconcile_hindsight_postgres_password() {
       -e CAMPUS_HINDSIGHT_POSTGRES_PASSWORD \
       hindsight-postgres \
       sh -ceu 'psql -U hindsight -d hindsight -v ON_ERROR_STOP=1 -v password="${CAMPUS_HINDSIGHT_POSTGRES_PASSWORD}" -c "ALTER ROLE hindsight PASSWORD :'\''password'\'';"'
-  execution_control_staging_compose restart hindsight-api
+  if execution_control_staging_compose ps --services --status running | grep -Fxq "hindsight-api"; then
+    execution_control_staging_compose restart hindsight-api
+  fi
 }
 
 execution_control_staging_personal_memory_runtime_command() {

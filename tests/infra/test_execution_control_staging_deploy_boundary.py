@@ -359,11 +359,15 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")
 
         self.assertLess(
-            script.index("execution_control_staging_compose up -d --build --remove-orphans"),
+            script.index("execution_control_staging_compose up -d hindsight-postgres"),
             script.index("execution_control_staging_reconcile_hindsight_postgres_password"),
         )
         self.assertLess(
             script.index("execution_control_staging_reconcile_hindsight_postgres_password"),
+            script.index("execution_control_staging_compose up -d --build --remove-orphans"),
+        )
+        self.assertLess(
+            script.index("execution_control_staging_compose up -d --build --remove-orphans"),
             script.index("execution_control_staging_ensure_personal_memory_runtime"),
         )
 
