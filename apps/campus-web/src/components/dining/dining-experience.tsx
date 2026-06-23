@@ -76,7 +76,7 @@ export function TagFilters({
 		<ToggleGroup
 			aria-label="餐饮标签"
 			className="flex-wrap justify-start"
-			onValueChange={(value) => onSelectTag(value || null)}
+			onValueChange={(value) => onSelectTag(value && value !== "all" ? value : null)}
 			type="single"
 			value={selectedTag ?? "all"}
 		>

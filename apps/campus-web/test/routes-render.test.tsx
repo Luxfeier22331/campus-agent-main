@@ -561,6 +561,8 @@ describe("campus routes", () => {
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
 		fireEvent.click(screen.getByRole("radio", { name: "热餐" }));
 		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
+		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
+		expect(screen.getByRole("button", { name: "选择盖饭窗口" })).toBeInTheDocument();
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		fireEvent.click(screen.getByText("丰台校区"));
