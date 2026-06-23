@@ -82,6 +82,13 @@ export function DiningPage() {
 			),
 		[floor, query, selectedTag],
 	);
+	const matchedWindowIds = useMemo(
+		() =>
+			hasActiveWindowFilter(query, selectedTag)
+				? new Set(filteredWindows.map((window) => window.windowId))
+				: null,
+		[filteredWindows, query, selectedTag],
+	);
 	const selectedWindow =
 		filteredWindows.find((window) => window.windowId === selectedWindowId) ??
 		filteredWindows[0] ??
@@ -194,7 +201,7 @@ export function DiningPage() {
 					) : null}
 					{hasSearchResults ? (
 						floor && selectedHall ? (
-							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
 								<Card className="overflow-hidden p-4">
 									<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
 										<div>
@@ -236,21 +243,26 @@ export function DiningPage() {
 										selectedTag={selectedTag}
 										tags={floor.filters.tags}
 									/>
-									<div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_300px]">
+									<div className="mt-4 grid gap-4">
 										<InteractiveFloorplan
 											floor={floor}
+											matchedWindowIds={matchedWindowIds}
 											onSelectWindow={setSelectedWindowId}
 											selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
-											windows={filteredWindows}
-										/>
-										<StallList
-											onSelectWindow={setSelectedWindowId}
-											selectedWindowId={selectedWindow?.windowId ?? null}
-											windows={filteredWindows}
+											windows={floor.windows}
 										/>
 									</div>
 								</Card>
-								<StallDetail window={selectedWindow} />
+								<div className="xl:col-start-2 xl:row-span-2 xl:row-start-1">
+									<StallDetail window={selectedWindow} />
+								</div>
+								<div className="xl:col-start-1">
+									<StallList
+										onSelectWindow={setSelectedWindowId}
+										selectedWindowId={selectedWindow?.windowId ?? null}
+										windows={filteredWindows}
+									/>
+								</div>
 							</div>
 						) : (
 							<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
@@ -262,7 +274,7 @@ export function DiningPage() {
 						)
 					) : (
 						<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
-							<h3 className="font-medium text-foreground text-sm">没有匹配的食堂或档口</h3>
+							<h3 className="font-medium text-foreground text-sm">没有匹配的食堂、档口或菜品</h3>
 							<p className="mt-1 max-w-sm text-muted-foreground text-sm">
 								调整搜索词或筛选条件后再试。
 							</p>
@@ -272,6 +284,10 @@ export function DiningPage() {
 			) : null}
 		</section>
 	);
+}
+
+function hasActiveWindowFilter(query: string, selectedTag: string | null): boolean {
+	return query.trim().length > 0 || selectedTag !== null;
 }
 
 function hallMatchesQuery(hall: DiningHallSummary, query: string): boolean {

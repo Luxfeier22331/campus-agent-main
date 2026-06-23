@@ -25,7 +25,7 @@ export function HallSelector({
 	if (halls.length === 0) {
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
-				<h3 className="font-medium text-foreground text-sm">没有匹配的食堂或档口</h3>
+				<h3 className="font-medium text-foreground text-sm">没有匹配的食堂、档口或菜品</h3>
 				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
 			</Card>
 		);
@@ -93,12 +93,14 @@ export function StallList({
 		return (
 			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
 				<h3 className="font-medium text-foreground text-sm">没有匹配的档口</h3>
-				<p className="mt-1 max-w-sm text-muted-foreground text-sm">调整搜索词或筛选条件后再试。</p>
+				<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+					当前筛选条件下没有可显示档口。
+				</p>
 			</Card>
 		);
 	}
 	return (
-		<div className="min-w-0 max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
+		<div className="min-w-0 max-h-[360px] overflow-auto rounded-xl border border-border bg-white">
 			{windows.map((window) => (
 				<Button
 					className={cn(
@@ -120,11 +122,13 @@ export function StallList({
 
 export function InteractiveFloorplan({
 	floor,
+	matchedWindowIds,
 	onSelectWindow,
 	selectedWindowId,
 	windows,
 }: {
 	floor: DiningFloorResponse;
+	matchedWindowIds: ReadonlySet<string> | null;
 	onSelectWindow(windowId: string): void;
 	selectedWindowId: string | null;
 	windows: DiningWindowProjection[];
@@ -146,6 +150,7 @@ export function InteractiveFloorplan({
 		manifestFloorplan.svgMarkup,
 		windows,
 		selectedWindow?.svgAnchorId ?? null,
+		matchedWindowIds,
 	);
 	const floorplanKey = `${floor.floor.hallId}:${floor.floor.floorId}:${floor.floor.floorplan.floorplanId}:${floor.floor.floorplan.sha256}`;
 	return (
@@ -153,13 +158,14 @@ export function InteractiveFloorplan({
 			key={floorplanKey}
 			centerOnInit
 			limitToBounds={false}
-			maxScale={1.7}
+			maxScale={1.32}
 			minScale={0.82}
 			wheel={{ step: 0.04 }}
 			pinch={{ step: 3 }}
 		>
 			<DiningFloorplanZoomSurface
 				markup={normalizedFloorplan.markup}
+				matchedWindowIds={matchedWindowIds}
 				onSelectWindow={onSelectWindow}
 				selectedZoomTarget={normalizedFloorplan.selectedZoomTarget}
 				windows={windows}
@@ -169,11 +175,13 @@ export function InteractiveFloorplan({
 }
 
 function DiningFloorplanZoomSurface({
+	matchedWindowIds,
 	markup,
 	onSelectWindow,
 	selectedZoomTarget,
 	windows,
 }: {
+	matchedWindowIds: ReadonlySet<string> | null;
 	markup: string;
 	onSelectWindow(windowId: string): void;
 	selectedZoomTarget: string | null;
@@ -188,7 +196,7 @@ function DiningFloorplanZoomSurface({
 		if (!document.querySelector(selector)) {
 			return;
 		}
-		zoomToElement(selector, 1.15, 160, "easeOut");
+		zoomToElement(selector, 1.08, 160, "easeOut");
 	}, [selectedZoomTarget, zoomToElement]);
 
 	return (
@@ -201,7 +209,7 @@ function DiningFloorplanZoomSurface({
 				<Button
 					aria-label="放大平面图"
 					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
-					onClick={() => zoomIn(0.25, 120)}
+					onClick={() => zoomIn(0.15, 120)}
 					size="icon"
 					variant="secondary"
 				>
@@ -210,7 +218,7 @@ function DiningFloorplanZoomSurface({
 				<Button
 					aria-label="缩小平面图"
 					className="text-[var(--sys-text-muted)] hover:text-[var(--sys-text-strong)]"
-					onClick={() => zoomOut(0.25, 120)}
+					onClick={() => zoomOut(0.15, 120)}
 					size="icon"
 					variant="secondary"
 				>
@@ -234,7 +242,7 @@ function DiningFloorplanZoomSurface({
 				wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"
 			>
 				<div
-					className="w-full rounded-lg p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
+					className="w-full rounded-lg p-2 [&_.dining-svg-anchor.is-dimmed]:cursor-default [&_.dining-svg-anchor.is-dimmed]:opacity-35 [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:not(.is-dimmed)]:cursor-pointer [&_.dining-svg-anchor:not(.is-dimmed):hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"
 					data-testid="dining-inline-floorplan"
 				>
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: event delegation targets annotated SVG anchors with button roles generated below. */}
@@ -247,7 +255,7 @@ function DiningFloorplanZoomSurface({
 							const anchorElement = target.closest("[data-dining-anchor-id]");
 							const anchorId = anchorElement?.getAttribute("data-dining-anchor-id");
 							const window = windows.find((item) => item.svgAnchorId === anchorId);
-							if (window) {
+							if (window && isWindowSelectable(window, matchedWindowIds)) {
 								onSelectWindow(window.windowId);
 							}
 						}}
@@ -261,7 +269,7 @@ function DiningFloorplanZoomSurface({
 							}
 							const anchorId = target.getAttribute("data-dining-anchor-id");
 							const window = windows.find((item) => item.svgAnchorId === anchorId);
-							if (window) {
+							if (window && isWindowSelectable(window, matchedWindowIds)) {
 								event.preventDefault();
 								onSelectWindow(window.windowId);
 							}
@@ -331,6 +339,7 @@ function markDiningFloorplanAnchors(
 	svgMarkup: string,
 	windows: DiningWindowProjection[],
 	selectedAnchorId: string | null,
+	matchedWindowIds: ReadonlySet<string> | null,
 ): { markup: string; selectedZoomTarget: string | null } {
 	const parser = new DOMParser();
 	const document = parser.parseFromString(svgMarkup, "image/svg+xml");
@@ -342,6 +351,9 @@ function markDiningFloorplanAnchors(
 		const anchorId = element.getAttribute("data-dining-anchor-id");
 		const window = anchorId ? windowByAnchor.get(anchorId) : null;
 		element.classList.add("dining-svg-anchor");
+		if (window && !isWindowSelectable(window, matchedWindowIds)) {
+			element.classList.add("is-dimmed");
+		}
 		if (anchorId) {
 			const zoomTarget = toDiningZoomTarget(anchorId);
 			element.setAttribute("data-dining-zoom-target", zoomTarget);
@@ -353,12 +365,14 @@ function markDiningFloorplanAnchors(
 			element.classList.add("is-selected");
 		}
 		if (window && anchorId) {
-			element.setAttribute("role", "button");
-			element.setAttribute("tabindex", "0");
-			element.setAttribute(
-				"aria-label",
-				`选择${window.assignment?.stallProfile.displayName ?? window.label}`,
-			);
+			if (isWindowSelectable(window, matchedWindowIds)) {
+				element.setAttribute("role", "button");
+				element.setAttribute("tabindex", "0");
+				element.setAttribute(
+					"aria-label",
+					`选择${window.assignment?.stallProfile.displayName ?? window.label}`,
+				);
+			}
 			element.setAttribute("data-testid", `dining-anchor-${anchorId}`);
 		}
 	}
@@ -366,6 +380,13 @@ function markDiningFloorplanAnchors(
 		markup: new XMLSerializer().serializeToString(document.documentElement),
 		selectedZoomTarget,
 	};
+}
+
+function isWindowSelectable(
+	window: DiningWindowProjection,
+	matchedWindowIds: ReadonlySet<string> | null,
+): boolean {
+	return matchedWindowIds === null || matchedWindowIds.has(window.windowId);
 }
 
 function toDiningZoomTarget(anchorId: string): string {

@@ -13,8 +13,8 @@ import homePageSource from "../src/app/routes/home-page.tsx?raw";
 import authSource from "../src/components/auth/auth.tsx?raw";
 import qaShellSource from "../src/components/conversation/qa-shell.tsx?raw";
 import diningExperienceSource from "../src/components/dining/dining-experience.tsx?raw";
-import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
 import mapExperienceSource from "../src/components/map/map-experience.tsx?raw";
+import assistantRuntimeSource from "../src/features/conversation/assistant-ui-runtime.tsx?raw";
 import { mockMapWorkspaceWidth } from "./map-page-test-utils";
 
 const stylesSource = readFileSync("src/styles.css", "utf8");
@@ -380,13 +380,16 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("min-h-16");
 		expect(diningExperienceSource).toContain("flex-wrap justify-start");
 		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
-		expect(diningExperienceSource).toContain("min-w-0 max-h-[520px]");
+		expect(diningExperienceSource).toContain("min-w-0 max-h-[360px]");
 		expect(diningExperienceSource).toContain("!w-full !max-w-full");
 		expect(diningExperienceSource).toContain("floorplanKey");
 		expect(diningExperienceSource).toContain("key={floorplanKey}");
-		expect(diningExperienceSource).toContain("maxScale={1.7}");
-		expect(diningExperienceSource).toContain("zoomToElement(selector, 1.15");
+		expect(diningExperienceSource).toContain("maxScale={1.32}");
+		expect(diningExperienceSource).toContain("zoomToElement(selector, 1.08");
+		expect(diningExperienceSource).toContain("matchedWindowIds");
+		expect(diningExperienceSource).toContain("is-dimmed");
 		expect(diningExperienceSource).not.toContain("maxScale={3}");
+		expect(diningExperienceSource).not.toContain("maxScale={1.7}");
 		expect(diningExperienceSource).not.toContain("zoomToElement(selector, 1.35");
 		expect(diningExperienceSource).not.toContain("min-w-[640px]");
 		expect(diningExperienceSource).not.toContain("<fieldset");
@@ -467,12 +470,15 @@ describe("campus routes", () => {
 			target: { value: "牛腩" },
 		});
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
-		expect(screen.queryByText("没有匹配的食堂或档口")).not.toBeInTheDocument();
+		expect(screen.queryByText("没有匹配的食堂、档口或菜品")).not.toBeInTheDocument();
 		expect(screen.getByText("番茄牛腩饭")).toBeInTheDocument();
+		expect(screen.getByTestId("dining-anchor-window-01")).toBeInTheDocument();
+		expect(screen.getByTestId("dining-anchor-window-02")).toHaveClass("is-dimmed");
+		expect(screen.queryByRole("button", { name: "选择二号窗口" })).toBeNull();
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
 			target: { value: "不存在的菜" },
 		});
-		expect(screen.getByText("没有匹配的食堂或档口")).toBeInTheDocument();
+		expect(screen.getByText("没有匹配的食堂、档口或菜品")).toBeInTheDocument();
 		expect(screen.queryByTestId("dining-inline-floorplan")).toBeNull();
 		expect(screen.queryByText("番茄牛腩饭")).toBeNull();
 		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
@@ -574,6 +580,33 @@ function createDiningFloorPayload(input: { floorId: string; hallId: string; labe
 				status: "active",
 				tags: ["主食", "热餐"],
 				windowId: `${input.hallId}:${input.floorId}:window-01`,
+			},
+			{
+				assignment: {
+					assignmentId: `assignment:${input.hallId}:${input.floorId}:window-02`,
+					offerings: [
+						{
+							menuItemId: "menu:noodle:1",
+							name: "番茄鸡蛋面",
+							offeringId: "offering:noodle:1",
+							priceLabel: "12 元",
+							tags: ["面食"],
+						},
+					],
+					stallProfile: {
+						displayName: "面食窗口",
+						stallProfileId: "stall:noodle",
+						stallType: "noodle",
+						tags: ["面食"],
+					},
+				},
+				geometry: { height: 72, width: 150, x: 240, y: 72 },
+				label: "二号窗口",
+				locationLabel: "中部",
+				svgAnchorId: "window-02",
+				status: "active",
+				tags: ["面食"],
+				windowId: `${input.hallId}:${input.floorId}:window-02`,
 			},
 		],
 	};
