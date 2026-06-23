@@ -277,7 +277,7 @@ describe("campus map product experience", () => {
 		expect(within(detail).queryByText("类型")).toBeNull();
 	});
 
-	it("renders mobile detail as a constrained sheet with a drag handle and keeps results collapsed", async () => {
+	it("renders mobile detail as a constrained sheet with close controls and keeps results collapsed", async () => {
 		mockMapWorkspaceWidth(false, vi.fn);
 		render(<MapPage />);
 
@@ -287,7 +287,8 @@ describe("campus map product experience", () => {
 
 		expect(sheet).toHaveAttribute("data-variant", "sheet");
 		expect(sheet.className).toContain("max-h-[48dvh]");
-		expect(screen.getByLabelText("拖动关闭地点详情")).toBeInTheDocument();
+		expect(screen.queryByLabelText("拖动关闭地点详情")).toBeNull();
+		expect(screen.getAllByRole("button", { name: "关闭地点详情" })).toHaveLength(2);
 		expect(screen.queryByRole("button", { name: "选择博雅楼" })).toBeNull();
 	});
 

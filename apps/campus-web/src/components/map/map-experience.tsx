@@ -176,7 +176,7 @@ function MapSearchPanel({
 				"pointer-events-auto absolute z-30 rounded-2xl border border-white/70 bg-white/80 shadow-[var(--shadow-xs)] backdrop-blur-md",
 				isDesktop
 					? "left-3 top-3 flex w-[min(360px,calc(100vw-1.5rem))] flex-col"
-					: "inset-x-3 top-3 overflow-hidden",
+					: "inset-x-3 top-3 flex flex-col overflow-hidden",
 				listExpanded && !compactResults
 					? isDesktop
 						? "max-h-[min(58dvh,430px)]"
@@ -187,7 +187,7 @@ function MapSearchPanel({
 			)}
 		>
 			<Command
-				className="bg-transparent"
+				className="min-h-0 bg-transparent"
 				filter={() => 1}
 				label="搜索地点"
 				onKeyDown={(event) => {
@@ -314,7 +314,10 @@ function MapSearchPanel({
 					) : null}
 				</div>
 				{listExpanded && !compactResults ? (
-					<div className="min-h-0 flex-1 overflow-y-auto p-1.5" id="campus-map-results">
+					<div
+						className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
+						id="campus-map-results"
+					>
 						<h2 className="px-2 py-1 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
 							地点
 						</h2>
@@ -471,7 +474,7 @@ function PlaceList({
 									aria-label={`选择${place.place.title}`}
 									aria-pressed={selected}
 									className={cn(
-										"flex w-full flex-col items-start rounded-lg border border-transparent bg-white/58 p-2.5 text-left whitespace-normal outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
+										"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-white/58 p-2.5 text-left whitespace-normal outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
 										active && "border-[var(--sys-border-default)] bg-white/78",
 										selected && "border-[var(--sys-text-strong)] bg-white/88",
 									)}
@@ -519,7 +522,7 @@ function PlaceList({
 
 function MapViewportControls({ onResetViewport }: { onResetViewport: () => void }) {
 	return (
-		<div className="pointer-events-auto absolute bottom-8 right-3 z-30 flex flex-col items-end gap-2">
+		<div className="pointer-events-auto absolute bottom-12 right-3 z-30 flex flex-col items-end gap-2">
 			<Button
 				aria-label="回到当前校区"
 				className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/70 bg-white/82 px-3 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] outline-none backdrop-blur-md hover:bg-white/92 hover:text-[var(--sys-text-strong)] focus-visible:shadow-[var(--state-focus-shadow)]"
@@ -593,10 +596,13 @@ function MapPlacePopover({
 				</PopoverAnchor>
 				<PopoverContent
 					aria-label={place.place.title}
-					className="pointer-events-auto z-30 w-[min(340px,calc(100vw-412px))] border-white/70 bg-white/86 p-0 shadow-[var(--shadow-sm)] backdrop-blur-md"
+					align="start"
+					className="pointer-events-auto z-30 w-[340px] border-white/70 bg-white/86 p-0 shadow-[var(--shadow-sm)] backdrop-blur-md"
 					data-variant="popover"
 					onEscapeKeyDown={onClose}
 					onPointerDownOutside={(event) => event.preventDefault()}
+					side="right"
+					sideOffset={20}
 				>
 					<Button
 						aria-label="关闭地点详情"
@@ -618,9 +624,10 @@ function MapPlacePopover({
 				aria-label={place.place.title}
 				className="pointer-events-auto inset-x-3 bottom-3 top-auto left-auto max-h-[48dvh] w-auto translate-x-0 translate-y-0 overflow-y-auto rounded-2xl border-white/70 bg-white/86 p-0 pb-[max(0px,env(safe-area-inset-bottom))] shadow-[var(--shadow-sm)] backdrop-blur-md"
 				data-variant="sheet"
+				showCloseButton={false}
 			>
 				<Button
-					aria-label="拖动关闭地点详情"
+					aria-label="关闭地点详情"
 					className="mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none focus-visible:shadow-[var(--state-focus-shadow)]"
 					onClick={onClose}
 					variant="ghost"

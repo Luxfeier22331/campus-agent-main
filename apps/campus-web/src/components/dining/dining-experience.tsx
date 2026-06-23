@@ -36,7 +36,7 @@ export function HallGrid({
 			{halls.map((hall) => (
 				<Button
 					className={cn(
-						"flex aspect-square flex-col items-start justify-start rounded-xl border border-border bg-white p-4 text-left whitespace-normal shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--sys-text-strong)]",
+						"flex h-full min-h-36 w-full flex-col items-start justify-start rounded-xl border border-border bg-white p-4 text-left whitespace-normal shadow-[var(--shadow-xs)] transition-colors hover:border-[var(--sys-text-strong)] sm:min-h-44",
 						selectedHallId === hall.hallId &&
 							"border-[var(--sys-text-strong)] bg-[var(--sys-bg-subtle)]",
 					)}
@@ -75,6 +75,7 @@ export function TagFilters({
 	return (
 		<ToggleGroup
 			aria-label="餐饮标签"
+			className="flex-wrap justify-start"
 			onValueChange={(value) => onSelectTag(value || null)}
 			type="single"
 			value={selectedTag ?? "all"}
@@ -109,11 +110,11 @@ export function WindowList({
 		);
 	}
 	return (
-		<div className="max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
+		<div className="min-w-0 max-h-[520px] overflow-auto rounded-xl border border-border bg-white">
 			{windows.map((window) => (
 				<Button
 					className={cn(
-						"flex w-full flex-col items-start justify-start rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
+						"flex min-h-16 w-full flex-col items-start justify-center rounded-none border-b border-border px-4 py-3 text-left whitespace-normal last:border-b-0 hover:bg-[var(--sys-bg-subtle)]",
 						selectedWindowId === window.windowId && "bg-[var(--sys-brand-interactive-subtle)]",
 					)}
 					key={window.windowId}
@@ -204,7 +205,7 @@ function DiningFloorplanZoomSurface({
 	}, [selectedZoomTarget, zoomToElement]);
 
 	return (
-		<div className="rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
+		<div className="min-w-0 rounded-xl border border-border bg-[var(--dining-svg-canvas-bg)] p-3">
 			<div
 				className="mb-2 flex flex-wrap justify-end gap-2"
 				role="toolbar"
@@ -242,8 +243,8 @@ function DiningFloorplanZoomSurface({
 				</Button>
 			</div>
 			<TransformComponent
-				contentClass="min-w-[640px]"
-				wrapperClass="w-full overflow-hidden rounded-lg border border-border bg-white"
+				contentClass="!w-full !max-w-full"
+				wrapperClass="min-w-0 !w-full !max-w-full overflow-hidden rounded-lg border border-border bg-white"
 			>
 				<fieldset
 					className="rounded-lg p-2 [&_.dining-svg-anchor]:cursor-pointer [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:fill-[var(--sys-brand-interactive-subtle)] [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_.dining-svg-anchor.is-selected_:is(rect,path,polygon,circle,ellipse)]:stroke-2 [&_.dining-svg-anchor:hover_:is(rect,path,polygon,circle,ellipse)]:stroke-primary [&_svg]:block [&_svg]:h-auto [&_svg]:w-full"

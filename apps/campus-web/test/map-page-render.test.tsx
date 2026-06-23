@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MapPage } from "../src/app/routes/map-page";
@@ -6,6 +7,8 @@ import {
 	installMapStyleTokens,
 	mockMapWorkspaceWidth,
 } from "./map-page-test-utils";
+
+const stylesSource = readFileSync("src/styles.css", "utf8");
 
 const maplibreRuntimeMock = vi.hoisted(() => ({
 	canvas: null as HTMLElement | null,
@@ -260,8 +263,11 @@ describe("campus map page", () => {
 		expect(screen.queryByText("海淀校区当前提供基础地点参考。")).toBeNull();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveClass(
 			"bg-white/58",
+			"h-auto",
+			"min-h-[76px]",
 			"p-2.5",
 		);
+		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).not.toHaveClass("h-9");
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toHaveTextContent("荟贤食堂");
 		expect(screen.getByRole("button", { name: "选择博雅楼" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择静园一号楼" })).toBeInTheDocument();
@@ -270,7 +276,20 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("link", { name: "询问这个地点" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "反馈地点信息" })).toBeNull();
 		expect(screen.queryByRole("link", { name: "询问" })).toBeNull();
+		expect(screen.getByRole("button", { name: "回到当前校区" }).parentElement).toHaveClass(
+			"bottom-12",
+		);
 		await waitFor(() => expect(maplibreRuntimeMock.loadMapLibre).toHaveBeenCalled());
+	});
+
+	it("offsets native MapLibre controls away from map overlays", async () => {
+		render(<MapPage />);
+
+		expect(await screen.findByRole("region", { name: "校园地图" })).toBeInTheDocument();
+		expect(stylesSource).toContain('[data-surface="map-first"] .maplibregl-ctrl-top-right');
+		expect(stylesSource).toContain("top: 54px");
+		expect(stylesSource).toContain("@media (max-width: 959px)");
+		expect(stylesSource).toContain("top: 133px");
 	});
 
 	it("keeps the map panel compact until the user opens search results", async () => {
@@ -472,6 +491,8 @@ describe("campus map page", () => {
 			center: [116.10859555, 39.80931605],
 			zoom: 17,
 		});
+		expect(screen.getByRole("dialog", { name: "荟贤食堂" })).toHaveAttribute("data-side", "right");
+		expect(screen.getByRole("dialog", { name: "荟贤食堂" })).toHaveAttribute("data-align", "start");
 		expect(maplibreRuntimeMock.setFilter).toHaveBeenCalledWith("campus-place-selected-fill", [
 			"all",
 			["==", ["get", "layer"], "building"],
@@ -522,6 +543,17 @@ describe("campus map page", () => {
 		expect(await screen.findByRole("button", { name: "展开地点结果" })).toHaveClass("min-h-11");
 		expect(screen.getByRole("radio", { name: "丰台校区" })).toHaveClass("min-h-11");
 		await expandMapResults();
+		expect(screen.getByRole("complementary", { name: "地点搜索与结果" })).toHaveClass(
+			"flex",
+			"flex-col",
+			"overflow-hidden",
+		);
+		expect(document.querySelector("#campus-map-results")).toHaveClass(
+			"min-h-0",
+			"flex-1",
+			"overflow-y-auto",
+			"overscroll-contain",
+		);
 		fireEvent.click(await screen.findByRole("button", { name: "选择荟贤食堂" }));
 		expect(screen.getByRole("dialog", { name: "荟贤食堂" })).toHaveAttribute(
 			"data-variant",
@@ -530,8 +562,11 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("button", { name: "回到当前校区" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "收起地点结果" })).toBeNull();
 		expect(screen.queryByRole("button", { name: "选择丰台东门" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "Close" })).toBeNull();
+		expect(screen.queryByRole("button", { name: "拖动关闭地点详情" })).toBeNull();
+		expect(screen.getAllByRole("button", { name: "关闭地点详情" })).toHaveLength(2);
 
-		fireEvent.click(screen.getByRole("button", { name: "关闭地点详情" }));
+		fireEvent.click(screen.getAllByRole("button", { name: "关闭地点详情" })[1]);
 
 		expect(screen.queryByRole("dialog", { name: "荟贤食堂" })).toBeNull();
 		expect(screen.getByRole("button", { name: "回到当前校区" })).toBeInTheDocument();

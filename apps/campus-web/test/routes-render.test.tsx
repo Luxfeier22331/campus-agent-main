@@ -474,6 +474,13 @@ describe("campus routes", () => {
 		expect(diningExperienceSource).toContain("floor.floor.floorplan.floorplanId");
 		expect(diningExperienceSource).toContain("dangerouslySetInnerHTML");
 		expect(diningExperienceSource).toContain("[data-dining-anchor-id]");
+		expect(diningExperienceSource).toContain("h-full min-h-36");
+		expect(diningExperienceSource).toContain("min-h-16");
+		expect(diningExperienceSource).toContain("flex-wrap justify-start");
+		expect(diningExperienceSource).toContain("min-w-0 rounded-xl");
+		expect(diningExperienceSource).toContain("min-w-0 max-h-[520px]");
+		expect(diningExperienceSource).toContain("!w-full !max-w-full");
+		expect(diningExperienceSource).not.toContain("min-w-[640px]");
 		expect(diningExperienceSource).not.toContain("<img");
 		expect(diningPageSource).toContain("floor.filters.tags");
 		expect(diningPageSource).toContain("payload.windows");
