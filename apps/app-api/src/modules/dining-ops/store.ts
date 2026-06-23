@@ -26,6 +26,7 @@ import {
 import { AppApiRouteError } from "../../http";
 import { DINING_SOURCE } from "./initial-data";
 import { createInitialDiningOperationsState } from "./initial-state";
+import { createInitialDraftVersion } from "./release-lifecycle";
 import type {
 	DiningDraftVersion,
 	DiningFloorplanRef,
@@ -80,10 +81,30 @@ export async function ensureInitialDiningOperationsRelease(input: {
 		.where(eq(diningReleases.releaseId, "dining_release:initial"))
 		.limit(1);
 	if (releaseRows[0]) {
-		return false;
+		return ensureInitialDiningDraftVersion(input.db);
 	}
 	const state = createInitialDiningOperationsState();
 	await saveDiningOperationsState(input.db, state);
+	return true;
+}
+
+async function ensureInitialDiningDraftVersion(db: RuntimeDatabase): Promise<boolean> {
+	const draftVersionRows = await db
+		.select({ draftVersionId: diningDraftVersions.draftVersionId })
+		.from(diningDraftVersions)
+		.where(eq(diningDraftVersions.draftVersionId, "dining_draft_version:1"))
+		.limit(1);
+	if (draftVersionRows[0]) {
+		return false;
+	}
+	const version = createInitialDraftVersion();
+	await db.insert(diningDraftVersions).values({
+		createdAt: new Date(version.createdAt),
+		createdBy: version.createdBy,
+		draftVersionId: version.draftVersionId,
+		summaryJson: version.summary,
+		versionNumber: version.versionNumber,
+	});
 	return true;
 }
 

@@ -81,6 +81,7 @@ function createFakeDiningDb(rows: Map<object, unknown[]> = new Map()) {
 	}
 	const transaction = vi.fn(async (callback: (tx: FakeTx) => Promise<void>) => callback(tx));
 	const db = {
+		insert: vi.fn(() => ({ values: insertValues })),
 		select: vi.fn(() => ({
 			from: (table: object) => createSelectableRows(rows.get(table) ?? []),
 		})),
@@ -165,6 +166,27 @@ describe("dining operations store", () => {
 		expect(JSON.stringify(insertedPayloads)).toContain("floorplan:");
 		expect(JSON.stringify(insertedPayloads)).not.toContain("floorplan_asset_id");
 		expect(JSON.stringify(insertedPayloads)).not.toContain("sanitized_svg_markup");
+	});
+
+	it("repairs legacy initial dining release rows that are missing draft version truth", async () => {
+		const rows = emptyDiningRows();
+		rows.set(diningReleases, [{ releaseId: "dining_release:initial" }]);
+		const { db, insertValues, transaction } = createFakeDiningDb(rows);
+
+		const seeded = await ensureInitialDiningOperationsRelease({
+			db: db as never,
+		});
+
+		expect(seeded).toBe(true);
+		expect(transaction).not.toHaveBeenCalled();
+		expect(insertValues).toHaveBeenCalledTimes(1);
+		expect(insertValues).toHaveBeenCalledWith(
+			expect.objectContaining({
+				createdBy: "system:initial-dining-seed",
+				draftVersionId: "dining_draft_version:1",
+				versionNumber: 1,
+			}),
+		);
 	});
 
 	it("keeps local dining seed refresh explicit and production-closed", () => {
