@@ -241,6 +241,13 @@ def copy_staging_modules_for_tests(target_root: Path) -> Path:
             source_path.read_text(encoding="utf-8"),
             encoding="utf-8",
         )
+    scripts_dir = target_root / "scripts"
+    scripts_dir.mkdir()
+    sync_script = ROOT / "scripts" / "sync-provider-config-projection.mjs"
+    (scripts_dir / sync_script.name).write_text(
+        sync_script.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
     return staging_dir / "execution-control-staging-common.sh"
 
 

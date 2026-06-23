@@ -168,6 +168,11 @@ staging 不应依赖 repo-root `.env.staging.local`。
   staging provider projection artifact 中的 `hindsight_llm` 与 `hindsight_embedding`
   profiles，不使用 root provider env fallback，也不使用 retired `memory_graph_llm` role。
   `HINDSIGHT_API_RERANKER_PROVIDER` 当前固定为 `rrf`。
+- canonical lifecycle 会在 `execution_control_staging_load_env` 开始时检查 provider
+  projection artifact；如果缺失，会使用 ops-owned `runtime.env` 中的
+  `APP_API_INTERNAL_SHARED_SECRET` 和 app-api staging internal provider-config endpoint
+  原子生成 `${EXECUTION_CONTROL_STAGING_RUNTIME_DIR:-.tmp/execution-control-staging}/provider-config-projection.json`
+  后再投影 Hindsight / execution-control runtime env。不要手工复制旧 projection 文件到 repo。
 - `STAGING_INGESTION_EMBEDDING_BASE_URL` 与
   `STAGING_INGESTION_EMBEDDING_API_KEY` 只提供 indexing provider endpoint/key。
   embedding model、dimensions、sparse profile 与 vector binding 由

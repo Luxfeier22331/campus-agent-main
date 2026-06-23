@@ -19,6 +19,10 @@ execution_control_staging_load_env() {
   fi
 
   node_bin="$(execution_control_staging_require_command node)"
+  execution_control_staging_sync_provider_config_projection \
+    "${node_bin}" \
+    "${runtime_env_path}" \
+    "${runtime_secrets_env_path}"
   export_script="$(
     EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}" \
       "${node_bin}" - "${runtime_env_path}" "${runtime_secrets_env_path}" <<'NODE'
@@ -1140,6 +1144,105 @@ NODE
   export OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}"
   export OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}"
   export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
+}
+
+execution_control_staging_sync_provider_config_projection() {
+  local node_bin="$1"
+  local runtime_env_path="$2"
+  local runtime_secrets_env_path="$3"
+
+  EXECUTION_CONTROL_STAGING_RUNTIME_DIR="${execution_control_staging_runtime_dir}" \
+    "${node_bin}" - \
+    "${runtime_env_path}" \
+    "${runtime_secrets_env_path}" \
+    "${execution_control_staging_runtime_dir}" \
+    "${execution_control_staging_repo_root}" <<'NODE'
+const [runtimeEnvPath, runtimeSecretsEnvPath, runtimeDir, repoRoot] = process.argv.slice(2);
+const fs = require("node:fs");
+const path = require("node:path");
+const { spawnSync } = require("node:child_process");
+const { parseEnv } = require("node:util");
+if (typeof parseEnv !== "function") {
+  throw new Error("node:util.parseEnv is required for staging provider projection sync");
+}
+
+const fileEnv = new Map();
+readEnvInto(runtimeEnvPath, fileEnv);
+readEnvInto(runtimeSecretsEnvPath, fileEnv);
+
+function readEnvInto(filePath, target) {
+  if (!filePath) {
+    return;
+  }
+  try {
+    const parsed = parseEnv(fs.readFileSync(filePath, "utf8"));
+    for (const [key, value] of Object.entries(parsed)) {
+      target.set(key, value);
+    }
+  } catch (error) {
+    if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+      throw error;
+    }
+  }
+}
+
+function sourceEnvValue(key) {
+  const processValue = process.env[key]?.trim() || "";
+  if (processValue) {
+    return processValue;
+  }
+  return fileEnv.get(key)?.trim() || "";
+}
+
+const output =
+  sourceEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
+  sourceEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
+  path.join(runtimeDir, "provider-config-projection.json");
+if (fs.existsSync(output)) {
+  process.exit(0);
+}
+
+const appApiBaseUrl = (
+  sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
+  sourceEnvValue("EXECUTION_CONTROL_APP_API_BASE_URL") ||
+  sourceEnvValue("APP_API_INTERNAL_BASE_URL") ||
+  sourceEnvValue("APP_API_BASE_URL") ||
+  "https://api-staging.mucwiki-edge.link"
+).replace(/\/+$/, "");
+const sharedSecret =
+  sourceEnvValue("APP_API_INTERNAL_SHARED_SECRET") ||
+  sourceEnvValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
+if (!sharedSecret) {
+  throw new Error(
+    "provider-config projection sync requires APP_API_INTERNAL_SHARED_SECRET or EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
+  );
+}
+
+const syncScript = path.join(repoRoot, "scripts", "sync-provider-config-projection.mjs");
+const result = spawnSync(
+  process.execPath,
+  [
+    syncScript,
+    "--app-api-base-url",
+    appApiBaseUrl,
+    "--internal-shared-secret",
+    sharedSecret,
+    "--output",
+    output,
+  ],
+  {
+    cwd: repoRoot,
+    env: process.env,
+    stdio: ["ignore", "ignore", "inherit"],
+  },
+);
+if (result.error) {
+  throw result.error;
+}
+if (result.status !== 0) {
+  process.exit(result.status ?? 1);
+}
+NODE
 }
 
 execution_control_staging_require_runtime_env() {
