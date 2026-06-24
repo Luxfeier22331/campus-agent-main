@@ -87,7 +87,26 @@ def _audit_root_scripts(root: Path) -> tuple[PackageScriptPolicyIssue, ...]:
                     ),
                 )
             )
+    if _root_dev_missing_student_surface_dependency(scripts.get("dev", "")):
+        issues.append(
+            PackageScriptPolicyIssue(
+                path="package.json",
+                script="dev",
+                message=(
+                    "root dev must start both campus-web and app-api for local "
+                    "student-surface development"
+                ),
+            )
+        )
     return tuple(issues)
+
+
+def _root_dev_missing_student_surface_dependency(command: str) -> bool:
+    if not command:
+        return False
+    if "turbo run dev" not in command:
+        return True
+    return "--filter=campus-web" not in command or "--filter=app-api" not in command
 
 
 def _audit_package_scripts(root: Path, package_path: Path) -> tuple[PackageScriptPolicyIssue, ...]:

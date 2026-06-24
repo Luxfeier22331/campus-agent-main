@@ -118,12 +118,15 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 
 ```bash
 node apps/campus-web/scripts/build-published-reader-docs.mjs
-pnpm --dir apps/campus-web dev
+pnpm dev
 ```
 
 约束：
 
 - campus-web dev 固定监听 `http://127.0.0.1:27014`
+- root `pnpm dev` 同时启动 `campus-web` 与 same-origin 依赖的
+  `app-api`，避免 docs admission、auth session、chat history、dining 等
+  `/api/*` 在本地 smoke 中变成依赖缺失 503
 - `build-published-reader-docs.mjs` 先生成 Rspress reader assets，再由
   campus-web 静态 delivery 提供 `/docs/*` 与 `/static/*`
 - 本地 `build-published-reader-docs.mjs` 如果缺少
@@ -209,7 +212,8 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 - `public-docs` 的本地 browser/live smoke 不再是 forward product topology 的 canonical
   smoke 入口；该 app 已删除，历史 Rspress/MDX/anchor/highlight/search 实现只能通过 git
   history 追溯
-- `campus-web` 的本地 browser/live smoke 仍固定走 `dev:live-smoke` 单命令 auxiliary
-  Worker 拓扑
+- `campus-web` 的本地 browser/live smoke 必须通过 root `pnpm dev` 启动学生侧
+  web + shared `app-api`，单独 `pnpm --dir apps/campus-web dev` 只用于前端 asset
+  路由或纯 shell 调试
 - 如果未来要增加 repo-level 一键 browser/live smoke，应围绕 `campus-web`、
   `operator-console-web` 和 shared `app-api` 收敛

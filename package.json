@@ -29,7 +29,7 @@
 		"ci:go": "pnpm go:check",
 		"ci:web-graph:full": "pnpm web:check",
 		"ci:config:lint": "uv run --all-packages python -m scripts.check_ci_workflow_contracts",
-		"dev": "turbo run dev --filter=campus-web",
+		"dev": "turbo run dev --filter=campus-web --filter=app-api",
 		"eval:intent": "uv run --all-packages python -m scripts.intent_gate",
 		"web:build": "turbo run build",
 		"web:check": "turbo run typecheck test build --concurrency=2",

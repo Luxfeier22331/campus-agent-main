@@ -33,6 +33,22 @@ class PackageScriptPolicyTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_reports_campus_dev_without_app_api(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            _write_package(root / "package.json", {"dev": "turbo run dev --filter=campus-web"})
+
+            issues = audit_package_script_policy(root=root)
+
+        self.assertIn(
+            PackageScriptPolicyIssue(
+                path="package.json",
+                script="dev",
+                message="root dev must start both campus-web and app-api for local student-surface development",
+            ),
+            issues,
+        )
+
     def test_audit_reports_package_ops_admin_and_smoke_aliases(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
