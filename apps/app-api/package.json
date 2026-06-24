@@ -14,6 +14,7 @@
 		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=../../.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local --name app-api-local --ip 127.0.0.1 --port 27031",
 		"deploy": "node ../../scripts/run-wrangler-command.mjs deploy",
 		"deploy:staging": "node ./scripts/deploy-staging.mjs",
+		"runtime-db:proof:staging": "node ./scripts/run-with-staging-proof-env.mjs pnpm exec tsx ./scripts/staging-runtime-db-proof.ts --chat-base-url https://api-staging.mucwiki-edge.link",
 		"test": "node ./scripts/run-node-tests.mjs",
 		"test:all": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.config.mts",
 		"test:node": "vitest run -c vitest.node.config.mts",

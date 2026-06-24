@@ -159,7 +159,7 @@ Database baseline:
 - runtime reads/writes use Hyperdrive-style runtime connection config against
   the shared repo Postgres
 - runtime now distinguishes `APP_API_DB` for cached/read-mostly access and
-  optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
+  optional `APP_API_DB_FRESH` for explicit no-cache read-after-write access
 - `APP_API_DURABLE_CLOSEOUT_SWEEPER_ENABLED`,
   `APP_API_REQUEST_PROJECTION_SWEEPER_ENABLED`, and
   `APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED` default to disabled; set
@@ -173,10 +173,17 @@ Database baseline:
   bootstrap owner for `app_auth.*` / `chat.*`
 - Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit
   `app_auth.*` schema metadata instead of a dedicated auth-only `pg.Pool`
-- when `APP_API_DB_FRESH` is provisioned, Better Auth and request-scoped
-  command-side services read/write through the no-cache Hyperdrive lane so
-  `sign-up -> immediate sign-in` does not get trapped behind stale negative auth
-  lookups
+- when `APP_API_DB_FRESH` is provisioned, Better Auth plus the explicitly
+  whitelisted dining operations and provider configuration write paths use the
+  no-cache Hyperdrive lane. Chat, runtime projection, operator observability,
+  profile memory, official-web command projection, wechat command projection,
+  campus-services ops, and identity platform projection use the default
+  `APP_API_DB` lane unless they are deliberately reclassified with a contract
+  test.
+- `APP_API_DB_FRESH` is not a second database. It points at the same shared
+  Postgres through a caching-disabled Hyperdrive config so `sign-up ->
+  immediate sign-in` and other explicitly admitted read-after-write flows do
+  not get trapped behind stale negative cache lookups.
 - on the current Supabase session pooler, role-level `search_path=app_auth,
   public, extensions` remains a shared-product bootstrap convention, but runtime
   auth no longer depends on connection-string `options=-c search_path=...`
@@ -267,8 +274,8 @@ Deployment minimum gate:
 - `APP_API_DB.connectionString` must resolve from the provisioned Worker
   `APP_API_DB` binding or `GET /readyz` remains `503`
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
-  Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
-  stay fresh
+  Hyperdrive binding in deployed envs so explicitly admitted auth /
+  provider-config / dining read-after-write paths stay fresh
 - `AUTH_SHELL_ORIGIN` must point at the deployed `campus-web` account browser
   shell
 - `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in /
@@ -337,6 +344,7 @@ pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评�
 pnpm chat:e2e:local-real-provider
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm chat:memory:e2e:staging
+pnpm runtime-db:proof:staging
 node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx \
   ./scripts/staging-docs-gated-smoke.ts
 node ./scripts/run-with-local-env.mjs pnpm exec tsx \
@@ -400,6 +408,7 @@ STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
 node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx \
   ./scripts/provision-muc-wiki-federation-client.ts
 pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm runtime-db:proof:staging
 node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx \
   ./scripts/staging-docs-gated-smoke.ts
 pnpm dev
@@ -414,6 +423,9 @@ Deploy note:
 - 在任何 staging `official_web` / operator surface smoke 之前，先执行
   `run-with-staging-db-env.mjs` 包裹的 bootstrap、migrate 与
   `reconcile-shared-db-drift.mjs --json`
+- `runtime-db:proof:staging` 使用 `run-with-staging-proof-env.mjs`，由 runner
+  读取 staging profile env 并投影 canonical app-api env；proof 脚本本身不消费
+  `STAGING_APP_API_OPERATOR_DATABASE_URL`
 - 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `bootstrap-shared-product-with-seeds.mjs` 负责补齐 `app_auth.*` /

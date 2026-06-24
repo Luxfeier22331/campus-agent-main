@@ -28,6 +28,12 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["chat:memory:e2e:staging"]).toContain(
 			"run-with-staging-smoke-env.mjs",
 		);
+		expect(packageJson.scripts["runtime-db:proof:staging"]).toContain(
+			"scripts/staging-runtime-db-proof.ts",
+		);
+		expect(packageJson.scripts["runtime-db:proof:staging"]).toContain(
+			"run-with-staging-proof-env.mjs",
+		);
 		expect(packageJson.scripts["chat:e2e:local-real-provider"]).toContain(
 			"scripts/chat-e2e-local-real-provider.ts",
 		);

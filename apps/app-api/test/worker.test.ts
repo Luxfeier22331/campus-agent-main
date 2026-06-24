@@ -3,6 +3,7 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
+import runWithStagingProofEnvSource from "../scripts/run-with-staging-proof-env.mjs?raw";
 import runWithStagingSmokeEnvSource from "../scripts/run-with-staging-smoke-env.mjs?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
@@ -195,6 +196,13 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingProofEnvSource).toContain("loadRepoStagingEnvFile");
+		expect(runWithStagingProofEnvSource).not.toContain("process.loadEnvFile");
+		expect(runWithStagingProofEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingProofEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
+		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_ACCOUNT_ID");
+		expect(runWithStagingProofEnvSource).toContain("CLOUDFLARE_API_TOKEN");
+		expect(runWithStagingProofEnvSource).toContain("run-with-staging-smoke-env.mjs");
 		expect(runWithStagingSmokeEnvSource).toContain("loadStagingSmokeEnvFile");
 		expect(runWithStagingSmokeEnvSource).not.toContain("process.loadEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-staging.mucwiki-edge.link");

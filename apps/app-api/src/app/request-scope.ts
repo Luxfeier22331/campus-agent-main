@@ -159,7 +159,7 @@ export function createRequestScopeFactory(input: {
 				authenticatedNoticeProcessingCommandService =
 					buildAuthenticatedNoticeProcessingCommandService({
 						store: createPgAuthenticatedNoticeProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return authenticatedNoticeProcessingCommandService;
@@ -186,7 +186,7 @@ export function createRequestScopeFactory(input: {
 				authenticatedNoticeRunProcessingCommandService =
 					buildAuthenticatedNoticeRunProcessingCommandService({
 						store: createPgAuthenticatedNoticeRunProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return authenticatedNoticeRunProcessingCommandService;
@@ -212,7 +212,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				chatConversationService = buildChatConversationService({
-					store: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgChatConversationStore(input.env, { getDb: runtime.getDb }),
 				});
 				return chatConversationService;
 			}
@@ -223,7 +223,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				campusServicesOpsService = buildCampusServicesOpsService({
-					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgCampusServicesOpsStore(input.env, { getDb: runtime.getDb }),
 				});
 				return campusServicesOpsService;
 			}
@@ -234,16 +234,16 @@ export function createRequestScopeFactory(input: {
 				}
 
 				const chatConversationStore = createPgChatConversationStore(input.env, {
-					getDb: runtime.getFreshDb,
+					getDb: runtime.getDb,
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
 					safetyIdentifierHmacSecret: input.env.APP_API_SAFETY_IDENTIFIER_HMAC_SECRET,
-					store: createPgChatCommandStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgChatCommandStore(input.env, { getDb: runtime.getDb }),
 					executionRuntime,
 					isExecutionRuntimeConfigured: executionRuntimeConfigured,
 					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 					requireExecutionRuntime,
 					telemetry: input.telemetry,
@@ -281,7 +281,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				officialWebCommandService = buildOfficialWebCommandService({
-					store: createPgOfficialWebCommandStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgOfficialWebCommandStore(input.env, { getDb: runtime.getDb }),
 				});
 				return officialWebCommandService;
 			}
@@ -321,7 +321,7 @@ export function createRequestScopeFactory(input: {
 				officialWebTargetReleaseGateService = buildOfficialWebTargetReleaseGateService({
 					inventoryService: resolveOfficialWebTargetInventoryService(),
 					store: createPgOfficialWebTargetReleaseGateStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 				});
 				return officialWebTargetReleaseGateService;
@@ -345,10 +345,10 @@ export function createRequestScopeFactory(input: {
 
 				identityPlatformService = buildIdentityPlatformService({
 					identityStore: createPgIdentityPlatformStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 					profileMemoryStore: createPgProfileMemoryStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 				});
 				return identityPlatformService;
@@ -384,7 +384,7 @@ export function createRequestScopeFactory(input: {
 				officialWebReleaseTaskProcessingCommandService =
 					buildOfficialWebReleaseTaskProcessingCommandService({
 						store: createPgOfficialWebReleaseTaskProcessingCommandStore(input.env, {
-							getDb: runtime.getFreshDb,
+							getDb: runtime.getDb,
 						}),
 					});
 				return officialWebReleaseTaskProcessingCommandService;
@@ -424,7 +424,7 @@ export function createRequestScopeFactory(input: {
 
 				operatorObservabilityCommandService = buildOperatorObservabilityCommandService({
 					store: createPgOperatorObservabilityCommandStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 					telemetry: input.telemetry,
 				});
@@ -438,7 +438,7 @@ export function createRequestScopeFactory(input: {
 
 				profileMemoryService = buildProfileMemoryService({
 					memoryIndexer: createExecutionControlPersonalMemoryClient(input.env),
-					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgProfileMemoryStore(input.env, { getDb: runtime.getDb }),
 				});
 				return profileMemoryService;
 			}
@@ -474,7 +474,7 @@ export function createRequestScopeFactory(input: {
 
 				runtimeRunService = buildRuntimeRunService({
 					executionRuntime: createExecutionControlRuntimeClient(input.env),
-					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getFreshDb }),
+					store: createPgRuntimeRunStore(input.env, { getDb: runtime.getDb }),
 				});
 				return runtimeRunService;
 			}
@@ -486,7 +486,7 @@ export function createRequestScopeFactory(input: {
 
 				weChatOfficialAccountCommandService = buildWeChatOfficialAccountCommandService({
 					store: createPgWeChatOfficialAccountCommandStore(input.env, {
-						getDb: runtime.getFreshDb,
+						getDb: runtime.getDb,
 					}),
 				});
 				return weChatOfficialAccountCommandService;

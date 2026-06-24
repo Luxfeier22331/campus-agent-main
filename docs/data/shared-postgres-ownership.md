@@ -114,9 +114,11 @@ repo root `.env` 的 canonical runtime key 固定为：
   repo-local `pg.Pool` / Drizzle runtime handle / Better Auth runtime
   state；Hyperdrive 负责底层连接复用，而 app runtime 只在单次 request scope 内持有 client state
 - deployed `app-api` runtime Hyperdrive lanes `APP_API_DB` 继续承接
-  cached/read-mostly queries；`APP_API_DB_FRESH` 承接 auth 与其他
-  read-after-write-sensitive product paths，并要求在 Cloudflare 侧关闭 SQL response
-  caching，避免 `sign-up` / command write 后立刻读回时命中 stale negative cache
+  cached/read-mostly queries；`APP_API_DB_FRESH` 只承接 Better Auth、provider
+  config 与 dining operations 这类显式白名单的 read-after-write-sensitive product
+  paths，并要求在 Cloudflare 侧关闭 SQL response caching，避免 `sign-up` /
+  command write 后立刻读回时命中 stale negative cache。它不是第二个数据库，也不是默认
+  command lane。
 - `apps/app-api` 负责 shared-product bootstrap 下的 `app_auth.*` / `chat.*`，并拥有
   `runtime.*` / `operator.*` / `official_web.*` 的 Drizzle migration
   ownership；`drizzle.app_api_migrations` 不接管 `app_auth.*` / `chat.*`

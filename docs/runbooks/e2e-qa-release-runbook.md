@@ -141,6 +141,19 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-memory-recall.json"
 ```
 
+运行真实 chat + app-api Postgres projection + Hyperdrive usage proof：
+
+```bash
+pnpm --dir apps/app-api runtime-db:proof:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/runtime-db-proof.json"
+```
+
+该命令由 app-api staging proof runner 读取 ops-owned staging runtime env，并把
+`STAGING_APP_API_OPERATOR_DATABASE_URL` 等 staging profile 配置投影为
+`APP_API_OPERATOR_DATABASE_URL` 等 canonical runtime env。proof 脚本本身只消费
+canonical env，并额外要求 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 用于读取
+Hyperdrive GraphQL 指标。它不会打印 Cloudflare token、Postgres DSN 或 Worker secrets。
+
 通过标准：
 
 - 每条命令 exit code 为 `0`
@@ -158,6 +171,20 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 - memory recall 输出 `memory.deleted=true`
 - memory recall 输出 `recall.stepId=memory.recall`、`recall.status=completed`
   与 `recall.selectedMemoryCount > 0`
+- runtime DB proof 输出 `passed=true`
+- runtime DB proof 输出 `checks.chatCompleted=true`、
+  `checks.postgresProjectionFound=true`、
+  `checks.hyperdriveUsageCollected=true` 与
+  `checks.traceBacklinkSatisfied=true`
+- runtime DB proof 的 `postgres.projection.requestExecution` 与
+  `postgres.projection.observabilityFact` 必须都存在，并且 `traceId` 与本次 chat
+  durable run 一致
+- runtime DB proof 的 `postgres.delta.temporalTaskQueueSnapshotCount` 与
+  `postgres.delta.workerAutoscalerDecisionCount` 应保持 `0`；如果非 `0`，说明本轮
+  release window 内仍有 sampler/autoscaler 历史写入，需要先定位
+- runtime DB proof 的 `hyperdrive.delta.freshQueryCount` 只接受来自 auth /
+  provider-config / dining 这类白名单路径；真实 chat 主链路不应把 runtime /
+  observability projection 默认打到 `APP_API_DB_FRESH`
 
 不接受：
 

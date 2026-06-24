@@ -14,6 +14,22 @@ function readAppFile(relativePath: string): string {
 	return readFileSync(join(appRoot, relativePath), "utf8");
 }
 
+function extractRequestScopeResolver(source: string, resolverName: string): string {
+	const start = source.indexOf(`function ${resolverName}()`);
+	if (start < 0) {
+		throw new Error(`${resolverName} must exist in request-scope.ts`);
+	}
+
+	const nextResolver = source.indexOf("\n\t\t\tfunction ", start + 1);
+	const returnBlock = source.indexOf("\n\t\t\treturn {", start + 1);
+	const candidates = [nextResolver, returnBlock].filter((candidate) => candidate > start);
+	if (candidates.length === 0) {
+		throw new Error(`${resolverName} must have a bounded source section`);
+	}
+
+	return source.slice(start, Math.min(...candidates));
+}
+
 describe("app-api shared product bootstrap contracts", () => {
 	it("keeps repeatable bootstrap artifacts while package scripts stay lifecycle-only", () => {
 		const packageJson = JSON.parse(readAppFile("package.json")) as {
@@ -58,6 +74,8 @@ describe("app-api shared product bootstrap contracts", () => {
 			"scripts/print-shared-product-auth-migration.mjs",
 			"scripts/reconcile-shared-db-drift.mjs",
 			"scripts/drain-official-web-projection.ts",
+			"scripts/run-with-staging-proof-env.mjs",
+			"scripts/staging-runtime-db-proof.ts",
 			"scripts/shared-product-database-bootstrap.mjs",
 			"scripts/shared-product-database-bootstrap.d.mts",
 			"vitest.worker.config.mts",
@@ -114,7 +132,7 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(officialWebSharedDbConfig).toContain("test/official-web-shared-db.integration.test.ts");
 	});
 
-	it("wires identity preference reads and writes through fresh profile memory storage", () => {
+	it("wires identity preference reads and writes through the default cached lane", () => {
 		const requestScopeSource = readAppFile("src/app/request-scope.ts");
 		const identityServiceStart = requestScopeSource.indexOf(
 			"identityPlatformService = buildIdentityPlatformService({",
@@ -127,8 +145,41 @@ describe("app-api shared product bootstrap contracts", () => {
 		expect(identityServiceStart).toBeGreaterThan(-1);
 		expect(identityServiceEnd).toBeGreaterThan(identityServiceStart);
 		expect(requestScopeSource.slice(identityServiceStart, identityServiceEnd)).toContain(
-			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getFreshDb,",
+			"profileMemoryStore: createPgProfileMemoryStore(input.env, {\n\t\t\t\t\t\tgetDb: runtime.getDb,",
 		);
+	});
+
+	it("keeps APP_API_DB_FRESH limited to explicit read-after-write paths", () => {
+		const requestScopeSource = readAppFile("src/app/request-scope.ts");
+
+		for (const resolverName of [
+			"resolveAuthenticatedNoticeProcessingCommandService",
+			"resolveAuthenticatedNoticeRunProcessingCommandService",
+			"resolveCampusServicesOpsService",
+			"resolveChatCommandService",
+			"resolveChatConversationService",
+			"resolveIdentityPlatformService",
+			"resolveOfficialWebCommandService",
+			"resolveOfficialWebReleaseTaskProcessingCommandService",
+			"resolveOfficialWebTargetReleaseGateService",
+			"resolveOperatorObservabilityCommandService",
+			"resolveProfileMemoryService",
+			"resolveRuntimeRunService",
+			"resolveWeChatOfficialAccountCommandService",
+		]) {
+			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
+			expect(resolverSource, `${resolverName} must not use APP_API_DB_FRESH`).not.toContain(
+				"runtime.getFreshDb",
+			);
+			expect(resolverSource, `${resolverName} must use APP_API_DB`).toContain("runtime.getDb");
+		}
+
+		for (const resolverName of ["resolveDiningOperationsService", "resolveProviderConfigService"]) {
+			const resolverSource = extractRequestScopeResolver(requestScopeSource, resolverName);
+			expect(resolverSource, `${resolverName} must use APP_API_DB_FRESH`).toContain(
+				"runtime.getFreshDb",
+			);
+		}
 	});
 
 	it("wires dining operations through shared PG storage instead of process memory", () => {
