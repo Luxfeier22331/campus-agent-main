@@ -10,6 +10,7 @@ import {
 	main,
 	type PostgresProjectionProof,
 	type PostgresRuntimeSnapshot,
+	parseStagingRuntimeDbProofArgs,
 	runStagingRuntimeDbProof,
 } from "../scripts/staging-runtime-db-proof";
 
@@ -113,6 +114,12 @@ describe("staging runtime db proof runner", () => {
 		expect(source).toContain("buildOperatorDatabaseConfig(env)");
 		expect(source).not.toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(source).not.toContain("STAGING_APP_API_DATABASE_SSLMODE");
+	});
+
+	it("rejects relative JSON evidence output paths", () => {
+		expect(() => parseStagingRuntimeDbProofArgs(["--output", "var/proof.json"])).toThrow(
+			"--output must be an absolute path.",
+		);
 	});
 
 	it("combines durable chat with Postgres projection and Hyperdrive usage proof", async () => {

@@ -1,5 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { dirname, isAbsolute } from "node:path";
 import process from "node:process";
 import { Client, type ClientConfig } from "pg";
 
@@ -181,6 +181,9 @@ export function parseStagingRuntimeDbProofArgs(argv: string[]): RuntimeDbProofAr
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
 				throw new Error("--output requires a non-empty value.");
+			}
+			if (!isAbsolute(value)) {
+				throw new Error("--output must be an absolute path.");
 			}
 			outputPath = value;
 			index += 1;

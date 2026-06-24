@@ -28,7 +28,7 @@ product endpoint；本文当前 gate 使用 `campus-staging.mucwiki-edge.link`�
 每轮 E2E QA 必须先创建独立 evidence 目录：
 
 ```bash
-export E2E_QA_EVIDENCE_DIR="var/staging-evidence/$(date -u +%Y%m%dT%H%M%SZ)-e2e-qa-release"
+export E2E_QA_EVIDENCE_DIR="$PWD/var/staging-evidence/$(date -u +%Y%m%dT%H%M%SZ)-e2e-qa-release"
 mkdir -p "$E2E_QA_EVIDENCE_DIR"
 git status --short --branch > "$E2E_QA_EVIDENCE_DIR/git-status.txt"
 git rev-parse HEAD > "$E2E_QA_EVIDENCE_DIR/git-head.txt"
@@ -153,8 +153,9 @@ pnpm --dir apps/app-api runtime-db:proof:staging \
 `APP_API_OPERATOR_DATABASE_URL` 等 canonical runtime env。proof 脚本本身只消费
 canonical env，并额外要求 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 用于读取
 Hyperdrive GraphQL 指标。`--output` 写入纯 JSON evidence；stdout 仅用于人工查看，
-不要用 shell `tee` 生成 `.json` evidence。它不会打印 Cloudflare token、Postgres DSN
-或 Worker secrets。
+不要用 shell `tee` 生成 `.json` evidence。`--output` 只接受绝对路径，避免
+`pnpm --dir apps/app-api` 改变工作目录后把 evidence 写进 app 子目录。它不会打印
+Cloudflare token、Postgres DSN 或 Worker secrets。
 
 通过标准：
 
