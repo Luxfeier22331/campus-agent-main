@@ -19,6 +19,7 @@ var requiredIntentSignalGroups = []string{
 	"general_world",
 	"geopolitical_entity",
 	"high_risk_transaction_action",
+	"institutional_account_knowledge",
 	"notice_context_reference",
 	"notice_get_reference",
 	"notice_knowledge_followthrough",

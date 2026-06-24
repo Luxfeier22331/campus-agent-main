@@ -110,6 +110,19 @@ describe("tool catalog", () => {
 		]);
 	});
 
+	it("keeps institutional account questions on the knowledge tool contract", () => {
+		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const tools = buildVisibleToolDefinitions(catalog);
+
+		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
+		const serviceGuide = tools.find((tool) => tool.name === "service_guide_lookup");
+
+		expect(knowledge?.description).toContain("account/network/auth/portal");
+		expect(serviceGuide?.description).toContain(
+			"Do not use for institutional account/password/auth/portal/network policy facts",
+		);
+	});
+
 	it("exposes strict SDK parameter schemas with explicit required fields", () => {
 		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
 

@@ -4,7 +4,7 @@
 		{
 			"type": "function",
 			"name": "knowledge_query",
-			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, or official-web facts are needed.",
+			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, official-web facts, or institutional account/network/auth/portal policy facts are needed.",
 			"strict": true,
 			"parameters": {
 				"type": "object",
@@ -12,7 +12,7 @@
 				"properties": {
 					"query_text": {
 						"type": "string",
-						"description": "Original knowledge question to answer with governed retrieval."
+						"description": "Original knowledge question to answer with governed retrieval, including campus network, unified authentication, portal, and account/password policy questions."
 					},
 					"intent": {
 						"type": ["string", "null"],
@@ -68,7 +68,7 @@
 		{
 			"type": "function",
 			"name": "service_guide_lookup",
-			"description": "Lookup stable campus service guide entries and current release material.",
+			"description": "Lookup stable campus service guide entries and current release material. Do not use for institutional account/password/auth/portal/network policy facts; route those through knowledge_query.",
 			"strict": true,
 			"parameters": {
 				"type": "object",
@@ -76,7 +76,7 @@
 				"properties": {
 					"service_query": {
 						"type": "string",
-						"description": "Campus service or process to explain."
+						"description": "Campus service or process to explain, excluding institutional account/password/auth/portal/network policy facts."
 					},
 					"guide_focus": {
 						"type": "string",

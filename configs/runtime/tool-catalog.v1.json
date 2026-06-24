@@ -5,7 +5,7 @@
 		{
 			"name": "knowledge_query",
 			"capability": "knowledge",
-			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, or official-web facts are needed.",
+			"description": "Route this turn to the governed knowledge retrieval and grounded answer workflow when campus regulations, curriculum, official-web facts, or institutional account/network/auth/portal policy facts are needed.",
 			"exposure": "model_visible",
 			"read_only": true,
 			"requires_approval": false,
@@ -36,7 +36,7 @@
 		{
 			"name": "service_guide_lookup",
 			"capability": "campus_services",
-			"description": "Lookup stable campus service guide entries and current release material.",
+			"description": "Lookup stable campus service guide entries and current release material. Do not use for institutional account/password/auth/portal/network policy facts; route those through knowledge_query.",
 			"exposure": "model_visible",
 			"read_only": true,
 			"requires_approval": false,

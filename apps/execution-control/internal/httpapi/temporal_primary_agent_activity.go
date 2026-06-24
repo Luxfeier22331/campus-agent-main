@@ -41,6 +41,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "provider_profile_missing", err)
 	}
+	input.VisibleCapabilities = s.primaryAgentVisibleCapabilities(run, input)
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
 	replanReason := strings.TrimSpace(input.ReplanReason)
@@ -173,6 +174,21 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
 	}
 	return output, nil
+}
+
+func (s *Server) primaryAgentVisibleCapabilities(
+	run execution.DurableRun,
+	input temporalruntime.ExecutePrimaryAgentActivityInput,
+) []string {
+	if s == nil || s.intentPolicyErr != nil {
+		return append([]string{}, input.VisibleCapabilities...)
+	}
+	return runtimepolicy.PrimaryAgentVisibleCapabilities(
+		input.VisibleCapabilities,
+		input.RequestedCapability,
+		primaryAgentInputText(run),
+		s.intentPolicy,
+	)
 }
 
 func (s *Server) beginPrimaryAgentRun(
