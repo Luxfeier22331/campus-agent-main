@@ -1,10 +1,11 @@
 import { getDiningFloorplanByFloor } from "dining-floorplans";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
+	DiningOfferingProjection,
 	DiningReview,
 	DiningWindowProjection,
 } from "@/features/dining/model";
@@ -248,17 +249,20 @@ function DiningFloorplanZoomSurface({
 }
 
 export function StallDetail({
-	reviews,
+	onSelectOffering,
+	selectedOfferingId,
 	window: selectedWindow,
 }: {
-	reviews: DiningReview[];
+	onSelectOffering(offeringId: string): void;
+	selectedOfferingId: string | null;
 	window: DiningWindowProjection | null;
 }) {
-	const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
-
 	if (!selectedWindow) {
 		return (
-			<Card className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center">
+			<Card
+				className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center"
+				data-testid="dining-stall-detail"
+			>
 				<h3 className="font-medium text-foreground text-sm">选择档口</h3>
 				<p className="mt-1 max-w-sm text-muted-foreground text-sm">
 					选择地图或列表里的档口后查看菜品。
@@ -268,20 +272,9 @@ export function StallDetail({
 	}
 	const offerings = selectedWindow.assignment?.offerings ?? [];
 	const stallName = selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label;
-	const stallReviews = reviews.filter((review) => review.stallName === stallName);
-	const defaultOffering =
-		offerings.find((offering) =>
-			stallReviews.some((review) => review.dishName === offering.name),
-		) ??
-		offerings[0] ??
-		null;
-	const selectedOffering =
-		offerings.find((offering) => offering.offeringId === selectedOfferingId) ?? defaultOffering;
-	const selectedReviews = selectedOffering
-		? stallReviews.filter((review) => review.dishName === selectedOffering.name)
-		: [];
+	const selectedOffering = resolveSelectedOffering({ offerings, selectedOfferingId });
 	return (
-		<Card className="overflow-hidden">
+		<Card className="overflow-hidden" data-testid="dining-stall-detail">
 			<div className="border-b border-border p-4">
 				<p className="text-xs font-medium text-[var(--sys-text-muted)]">
 					{selectedWindow.locationLabel}
@@ -303,7 +296,7 @@ export function StallDetail({
 							className="grid grid-cols-1 gap-2"
 							onValueChange={(offeringId) => {
 								if (offeringId) {
-									setSelectedOfferingId(offeringId);
+									onSelectOffering(offeringId);
 								}
 							}}
 							type="single"
@@ -320,12 +313,6 @@ export function StallDetail({
 								</ToggleGroupItem>
 							))}
 						</ToggleGroup>
-						{selectedOffering ? (
-							<DiningOfferingReviews
-								label={`${selectedOffering.name}评价`}
-								reviews={selectedReviews}
-							/>
-						) : null}
 					</div>
 				) : (
 					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
@@ -338,9 +325,19 @@ export function StallDetail({
 	);
 }
 
-function DiningOfferingReviews({ label, reviews }: { label: string; reviews: DiningReview[] }) {
+export function DiningOfferingReviews({
+	label,
+	reviews,
+}: {
+	label: string;
+	reviews: DiningReview[];
+}) {
 	return (
-		<section aria-label={label} className="rounded-lg border border-border bg-muted/30">
+		<section
+			aria-label={label}
+			className="rounded-xl border bg-card text-card-foreground shadow"
+			data-testid="dining-review-panel"
+		>
 			<div className="divide-y divide-border">
 				{reviews.length > 0 ? (
 					reviews.map((review) => (
@@ -387,6 +384,17 @@ function DiningOfferingReviews({ label, reviews }: { label: string; reviews: Din
 				)}
 			</div>
 		</section>
+	);
+}
+
+function resolveSelectedOffering(input: {
+	offerings: DiningOfferingProjection[];
+	selectedOfferingId: string | null;
+}): DiningOfferingProjection | null {
+	return (
+		input.offerings.find((offering) => offering.offeringId === input.selectedOfferingId) ??
+		input.offerings[0] ??
+		null
 	);
 }
 

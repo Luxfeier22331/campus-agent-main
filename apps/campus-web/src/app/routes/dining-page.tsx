@@ -2,6 +2,7 @@ import { Search } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import {
+	DiningOfferingReviews,
 	HallSelector,
 	InteractiveFloorplan,
 	StallDetail,
@@ -16,6 +17,7 @@ import { getDiningFloor, getDiningHallReviews, getDiningHalls } from "@/features
 import type {
 	DiningFloorResponse,
 	DiningHallSummary,
+	DiningOfferingProjection,
 	DiningReview,
 	DiningWindowProjection,
 } from "@/features/dining/model";
@@ -29,6 +31,7 @@ export function DiningPage() {
 	const [selectedHallId, setSelectedHallId] = useState("");
 	const [selectedFloorId, setSelectedFloorId] = useState("");
 	const [selectedWindowId, setSelectedWindowId] = useState<string | null>(null);
+	const [selectedOfferingId, setSelectedOfferingId] = useState<string | null>(null);
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [floor, setFloor] = useState<DiningFloorResponse | null>(null);
@@ -65,6 +68,7 @@ export function DiningPage() {
 			.then((payload) => {
 				setFloor(payload);
 				setSelectedWindowId(payload.windows[0]?.windowId ?? null);
+				setSelectedOfferingId(null);
 				setSelectedTag(null);
 				setError(null);
 			})
@@ -111,6 +115,23 @@ export function DiningPage() {
 		filteredWindows.find((window) => window.windowId === selectedWindowId) ??
 		filteredWindows[0] ??
 		null;
+	const selectedOfferings = selectedWindow?.assignment?.offerings ?? [];
+	const selectedStallName = selectedWindow
+		? (selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label)
+		: null;
+	const selectedStallReviews = selectedStallName
+		? reviews.filter((review) => review.stallName === selectedStallName)
+		: [];
+	const defaultOffering = resolveDefaultDiningOffering({
+		offerings: selectedOfferings,
+		reviews: selectedStallReviews,
+	});
+	const selectedOffering =
+		selectedOfferings.find((offering) => offering.offeringId === selectedOfferingId) ??
+		defaultOffering;
+	const selectedOfferingReviews = selectedOffering
+		? selectedStallReviews.filter((review) => review.dishName === selectedOffering.name)
+		: [];
 	const selectedHallMatchesLoadedFloor =
 		query.trim().length > 0 &&
 		selectedHall !== null &&
@@ -132,6 +153,7 @@ export function DiningPage() {
 
 	function selectWindow(windowId: string, options: { scrollDetail?: boolean } = {}) {
 		setSelectedWindowId(windowId);
+		setSelectedOfferingId(null);
 		if (!(options.scrollDetail && isMobileDiningViewport())) {
 			return;
 		}
@@ -229,68 +251,80 @@ export function DiningPage() {
 					) : null}
 					{hasSearchResults ? (
 						floor && selectedHall ? (
-							<div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-								<Card className="overflow-hidden p-4">
-									<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-										<div>
-											<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
-												{floor.floor.label}
-											</p>
-											<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
-												{floor.source.label} ·{" "}
-												{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
-											</p>
+							<div className="space-y-4">
+								<div
+									className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]"
+									data-testid="dining-selection-panel"
+								>
+									<Card className="overflow-hidden p-4" data-testid="dining-map-panel">
+										<div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+											<div>
+												<p className="text-sm font-semibold text-[var(--sys-text-strong)]">
+													{floor.floor.label}
+												</p>
+												<p className="mt-1 text-xs text-[var(--sys-text-muted)]">
+													{floor.source.label} ·{" "}
+													{new Date(floor.source.updatedAt).toLocaleDateString("zh-CN")}
+												</p>
+											</div>
+											<ToggleGroup
+												aria-label="楼层"
+												onValueChange={(floorId) => {
+													if (floorId) {
+														setSelectedFloorId(floorId);
+													}
+												}}
+												type="single"
+												value={selectedFloorId}
+											>
+												{selectedHall.floors.map((item) => (
+													<ToggleGroupItem
+														className={cn(
+															"min-h-9 text-[var(--sys-text-muted)]",
+															selectedFloorId === item.floorId &&
+																"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
+														)}
+														key={item.floorId}
+														value={item.floorId}
+													>
+														{item.label}
+													</ToggleGroupItem>
+												))}
+											</ToggleGroup>
 										</div>
-										<ToggleGroup
-											aria-label="楼层"
-											onValueChange={(floorId) => {
-												if (floorId) {
-													setSelectedFloorId(floorId);
+										<TagFilters
+											onSelectTag={setSelectedTag}
+											selectedTag={selectedTag}
+											tags={floor.filters.tags}
+										/>
+										<div className="mt-4">
+											<InteractiveFloorplan
+												floor={floor}
+												matchedWindowIds={matchedWindowIds}
+												onSelectWindow={(windowId) =>
+													selectWindow(windowId, { scrollDetail: true })
 												}
-											}}
-											type="single"
-											value={selectedFloorId}
-										>
-											{selectedHall.floors.map((item) => (
-												<ToggleGroupItem
-													className={cn(
-														"min-h-9 text-[var(--sys-text-muted)]",
-														selectedFloorId === item.floorId &&
-															"border-primary bg-[var(--sys-brand-interactive-subtle)] text-primary",
-													)}
-													key={item.floorId}
-													value={item.floorId}
-												>
-													{item.label}
-												</ToggleGroupItem>
-											))}
-										</ToggleGroup>
-									</div>
-									<TagFilters
-										onSelectTag={setSelectedTag}
-										selectedTag={selectedTag}
-										tags={floor.filters.tags}
-									/>
-									<div className="mt-4 grid gap-4">
-										<InteractiveFloorplan
-											floor={floor}
-											matchedWindowIds={matchedWindowIds}
-											onSelectWindow={(windowId) => selectWindow(windowId, { scrollDetail: true })}
-											selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
-											windows={floor.windows}
+												selectedWindowId={selectedWindow?.windowId ?? selectedWindowId}
+												windows={floor.windows}
+											/>
+										</div>
+									</Card>
+									<div
+										className="scroll-mt-3 space-y-4 xl:col-start-2 xl:row-start-1"
+										ref={detailRef}
+									>
+										<StallDetail
+											key={selectedWindow?.windowId ?? "empty"}
+											onSelectOffering={setSelectedOfferingId}
+											selectedOfferingId={selectedOffering?.offeringId ?? null}
+											window={selectedWindow}
 										/>
 									</div>
-								</Card>
-								<div
-									className="scroll-mt-3 space-y-4 xl:col-start-2 xl:row-start-1"
-									ref={detailRef}
-								>
-									<StallDetail
-										key={selectedWindow?.windowId ?? "empty"}
-										reviews={reviews}
-										window={selectedWindow}
-									/>
 								</div>
+								<DiningOfferingReviews
+									label={selectedOffering ? `${selectedOffering.name}评价` : "菜品评价"}
+									reviews={selectedOfferingReviews}
+								/>
 							</div>
 						) : (
 							<Card className="flex min-h-32 flex-col items-center justify-center border-dashed px-6 py-8 text-center">
@@ -311,6 +345,19 @@ export function DiningPage() {
 				</div>
 			) : null}
 		</section>
+	);
+}
+
+function resolveDefaultDiningOffering(input: {
+	offerings: DiningOfferingProjection[];
+	reviews: DiningReview[];
+}): DiningOfferingProjection | null {
+	return (
+		input.offerings.find((offering) =>
+			input.reviews.some((review) => review.dishName === offering.name),
+		) ??
+		input.offerings[0] ??
+		null
 	);
 }
 

@@ -218,7 +218,10 @@ describe("campus map page", () => {
 		expect(screen.queryByRole("link", { name: "返回校园问答" })).toBeNull();
 		expect(screen.getByRole("navigation", { name: "产品导航" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "问答" })).toHaveAttribute("href", "/");
-		expect(screen.getByRole("link", { name: "文档" })).toHaveAttribute("href", "/docs/");
+		expect(screen.getByRole("link", { name: "文档" })).toHaveAttribute(
+			"href",
+			"/docs/regulations/student_rules/doc-c62077b20430",
+		);
 		expect(screen.getByRole("link", { name: "食堂" })).toHaveAttribute("href", "/dining");
 		expect(screen.getByRole("link", { name: "反馈" })).toHaveAttribute("href", "/feedback");
 		expect(screen.queryByText("MUC Campus Q&A")).toBeNull();

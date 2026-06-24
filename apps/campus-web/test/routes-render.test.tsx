@@ -36,6 +36,10 @@ const conversationApiMock = vi.hoisted(() => ({
 	renameConversation: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
+const sessionState = vi.hoisted(() => ({
+	data: { user: { id: "user_01", name: "测试用户" } },
+	isPending: false,
+}));
 const navigateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/auth/user/user-button", () => ({
@@ -47,16 +51,28 @@ vi.mock("@/components/auth/user/user-button", () => ({
 }));
 
 vi.mock("@/components/auth/user/qa-account-entry", () => ({
-	QAAccountEntry: ({ onLoginPress }: { onLoginPress: () => void }) => (
-		<button aria-label="登录" onClick={onLoginPress} type="button">
-			登录
-		</button>
-	),
+	QAAccountEntry: () => <span>登录</span>,
 }));
 
 vi.mock("@/components/auth/auth-ui-provider", () => ({
 	CampusAuthUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
+
+vi.mock("@/platform/auth/client", async () => {
+	const actual = await vi.importActual<typeof import("../src/platform/auth/client")>(
+		"../src/platform/auth/client",
+	);
+	return {
+		...actual,
+		campusAuthClient: {
+			...actual.campusAuthClient,
+			useSession: () => ({
+				data: sessionState.data,
+				isPending: sessionState.isPending,
+			}),
+		},
+	};
+});
 
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
@@ -104,6 +120,8 @@ vi.mock("../src/features/dining/api", () => diningApiMock);
 
 describe("campus routes", () => {
 	beforeEach(() => {
+		sessionState.data = { user: { id: "user_01", name: "测试用户" } };
+		sessionState.isPending = false;
 		diningApiMock.getDiningHalls.mockReset();
 		diningApiMock.getDiningFloor.mockReset();
 		diningApiMock.getDiningHallReviews.mockReset();
@@ -449,6 +467,23 @@ describe("campus routes", () => {
 			"src",
 			"/assets/dining/reviews/rec27DpktN6uQn.jpg",
 		);
+		const mapPanel = screen.getByTestId("dining-map-panel");
+		const reviewPanel = screen.getByTestId("dining-review-panel");
+		const detailPanel = screen.getByTestId("dining-stall-detail");
+		const selectionPanel = screen.getByTestId("dining-selection-panel");
+		expect(reviewPanel).toHaveAttribute("aria-label", "金汤鱼粉评价");
+		expect(within(reviewPanel).getByText("有一点辣，有一点酸。")).toBeInTheDocument();
+		expect(within(reviewPanel).getByAltText("金汤鱼粉评价图片")).toBeInTheDocument();
+		expect(selectionPanel).toContainElement(mapPanel);
+		expect(selectionPanel).toContainElement(detailPanel);
+		expect(selectionPanel).not.toContainElement(reviewPanel);
+		expect(selectionPanel.nextElementSibling).toBe(reviewPanel);
+		expect(within(mapPanel).queryByLabelText("金汤鱼粉评价")).toBeNull();
+		expect(within(mapPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
+		expect(within(mapPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
+		expect(within(detailPanel).queryByLabelText("金汤鱼粉评价")).toBeNull();
+		expect(within(detailPanel).queryByText("有一点辣，有一点酸。")).toBeNull();
+		expect(within(detailPanel).queryByAltText("金汤鱼粉评价图片")).toBeNull();
 		expect(diningApiMock.getDiningHallReviews).toHaveBeenCalledWith({
 			hallId: "haidian-canteen-1",
 		});
