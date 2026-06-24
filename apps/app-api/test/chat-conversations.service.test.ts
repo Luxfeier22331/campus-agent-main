@@ -316,18 +316,20 @@ describe("chat conversation service", () => {
 
 	it("returns owned conversation detail and hides missing conversations behind 404", async () => {
 		const store = createStore();
-		store.getConversationDetailByOwner = vi
-			.fn()
-			.mockResolvedValueOnce({
-				createdAt: "2026-03-28T08:00:00.000Z",
-				id: "conv_01HQ",
-				messages: [],
-				ownerUserId: "user_01HQ",
-				title: "图书馆开放时间",
-				updatedAt: "2026-03-28T08:01:00.000Z",
-			})
-			.mockResolvedValueOnce(null);
-		const service = buildChatConversationService({ store });
+		const detailStore = {
+			getConversationDetailByOwner: vi
+				.fn()
+				.mockResolvedValueOnce({
+					createdAt: "2026-03-28T08:00:00.000Z",
+					id: "conv_01HQ",
+					messages: [],
+					ownerUserId: "user_01HQ",
+					title: "图书馆开放时间",
+					updatedAt: "2026-03-28T08:01:00.000Z",
+				})
+				.mockResolvedValueOnce(null),
+		};
+		const service = buildChatConversationService({ detailStore, store });
 
 		await expect(
 			service.getById({
@@ -343,6 +345,8 @@ describe("chat conversation service", () => {
 				updatedAt: "2026-03-28T08:01:00.000Z",
 			},
 		});
+		expect(store.getConversationDetailByOwner).not.toHaveBeenCalled();
+		expect(detailStore.getConversationDetailByOwner).toHaveBeenCalledWith("user_01HQ", "conv_01HQ");
 
 		await expect(
 			service.getById({

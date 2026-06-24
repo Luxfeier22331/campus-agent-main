@@ -157,7 +157,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			"resolveAuthenticatedNoticeRunProcessingCommandService",
 			"resolveCampusServicesOpsService",
 			"resolveChatCommandService",
-			"resolveChatConversationService",
 			"resolveIdentityPlatformService",
 			"resolveOfficialWebCommandService",
 			"resolveOfficialWebReleaseTaskProcessingCommandService",
@@ -180,6 +179,17 @@ describe("app-api shared product bootstrap contracts", () => {
 				"runtime.getFreshDb",
 			);
 		}
+
+		const chatConversationResolver = extractRequestScopeResolver(
+			requestScopeSource,
+			"resolveChatConversationService",
+		);
+		expect(chatConversationResolver).toContain(
+			"detailStore: createPgChatConversationStore(input.env, { getDb: runtime.getFreshDb })",
+		);
+		expect(chatConversationResolver).toContain(
+			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
+		);
 	});
 
 	it("wires dining operations through shared PG storage instead of process memory", () => {

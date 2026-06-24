@@ -174,12 +174,13 @@ Database baseline:
 - Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit
   `app_auth.*` schema metadata instead of a dedicated auth-only `pg.Pool`
 - when `APP_API_DB_FRESH` is provisioned, Better Auth plus the explicitly
-  whitelisted dining operations and provider configuration write paths use the
-  no-cache Hyperdrive lane. Chat, runtime projection, operator observability,
-  profile memory, official-web command projection, wechat command projection,
-  campus-services ops, and identity platform projection use the default
-  `APP_API_DB` lane unless they are deliberately reclassified with a contract
-  test.
+  whitelisted dining operations, provider configuration write paths, and chat
+  conversation detail read-after-write verification path use the no-cache
+  Hyperdrive lane. Chat request admission/writes, runtime projection, operator
+  observability, profile memory, official-web command projection, wechat command
+  projection, campus-services ops, and identity platform projection use the
+  default `APP_API_DB` lane unless they are deliberately reclassified with a
+  contract test.
 - `APP_API_DB_FRESH` is not a second database. It points at the same shared
   Postgres through a caching-disabled Hyperdrive config so `sign-up ->
   immediate sign-in` and other explicitly admitted read-after-write flows do
@@ -425,7 +426,9 @@ Deploy note:
   `reconcile-shared-db-drift.mjs --json`
 - `runtime-db:proof:staging` 使用 `run-with-staging-proof-env.mjs`，由 runner
   读取 staging profile env 并投影 canonical app-api env；proof 脚本本身不消费
-  `STAGING_APP_API_OPERATOR_DATABASE_URL`
+  `STAGING_APP_API_OPERATOR_DATABASE_URL`。该 proof 会立刻读取 conversation detail
+  验证 assistant answer 已落盘，因此该 detail read-after-write 路径必须走
+  `APP_API_DB_FRESH`。
 - 否则 `official_web` 投影表一旦落后于 repo schema，`/api/operator/official-web/sites` 与
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `bootstrap-shared-product-with-seeds.mjs` 负责补齐 `app_auth.*` /

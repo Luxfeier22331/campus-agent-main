@@ -86,6 +86,7 @@ export interface ChatConversationService {
 }
 
 export interface ChatConversationServiceDependencies {
+	detailStore?: Pick<ChatConversationStore, "getConversationDetailByOwner">;
 	generateId?: (prefix: string) => string;
 	now?: () => Date;
 	store: ChatConversationStore;
@@ -344,7 +345,8 @@ export function buildChatConversationService(
 
 		async getById(input) {
 			const ownerUserId = assertChatPrincipal(input.principal);
-			const conversation = await dependencies.store.getConversationDetailByOwner(
+			const detailStore = dependencies.detailStore ?? dependencies.store;
+			const conversation = await detailStore.getConversationDetailByOwner(
 				ownerUserId,
 				input.conversationId,
 			);
