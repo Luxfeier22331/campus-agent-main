@@ -34,6 +34,12 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["runtime-db:proof:staging"]).toContain(
 			"run-with-staging-proof-env.mjs",
 		);
+		expect(packageJson.scripts["online-answer-path:collect:staging"]).toContain(
+			"scripts/online-answer-path-staging-collector.ts",
+		);
+		expect(packageJson.scripts["online-answer-path:collect:staging"]).toContain(
+			"run-with-staging-smoke-env.mjs",
+		);
 		expect(packageJson.scripts["chat:e2e:local-real-provider"]).toContain(
 			"scripts/chat-e2e-local-real-provider.ts",
 		);

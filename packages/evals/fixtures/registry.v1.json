@@ -77,7 +77,7 @@
 		"official_web_fresh_news_retrieval_qrels.json": "rag.official_web_fresh_news.retrieval_qrels",
 		"official_web_muc_public_pages_retrieval_qrels.json": "rag.official_web_muc_public_pages.retrieval_qrels",
 		"official_web_muc_public_pages_current_truth_inventory.json": "rag.official_web_muc_public_pages.current_truth_inventory",
-		"online_answer_path_cases.v1.json": "e2e.online_answer_path.product_path",
+		"online_answer_path_cases.v1.json": "e2e.online_answer_path.main_path",
 		"online_answer_main_path_cases.v1.json": "e2e.online_answer_path.main_path",
 		"workflow_trace_gate_cases.v1.json": "e2e.workflow_trace.gate",
 		"tool_routing_cases.v1.json": "tools.routing.product_path",

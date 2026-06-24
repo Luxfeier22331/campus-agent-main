@@ -7,7 +7,9 @@ from pathlib import Path
 from campus_evals.fixture_registry import fixture_path
 from campus_evals.models import reject_forbidden_workflow_trace_keys
 
-ONLINE_ANSWER_PATH_CASES_PATH = fixture_path("e2e.online_answer_path.product_path")
+ONLINE_ANSWER_PATH_CASES_PATH = fixture_path("e2e.online_answer_path.main_path")
+ONLINE_ANSWER_PRODUCT_PATH_CASES_PATH = fixture_path("e2e.online_answer_path.product_path")
+ONLINE_ANSWER_PATH_RELEASE_SPLITS = ("release_gate", "regression_locked")
 
 
 @dataclass(frozen=True, slots=True)
@@ -26,6 +28,10 @@ class OnlineAnswerPathCase:
     user_goal: str
     split: str
     expected: OnlineAnswerPathExpected
+    case_family: str = "online_answer_main_path.v1"
+    response_contract: dict[str, object] = field(default_factory=dict)
+    source_truth: dict[str, object] = field(default_factory=dict)
+    trace_contract: dict[str, object] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,16 +89,17 @@ def load_online_answer_path_cases(
     payload = _load_json(Path(path) if path is not None else ONLINE_ANSWER_PATH_CASES_PATH)
     if int(payload.get("schema_version") or 0) != 1:
         raise ValueError("online answer path schema_version must be 1")
-    if _required_string(payload.get("case_family"), "case_family") != "online_answer_path.v1":
+    case_family = _required_string(payload.get("case_family"), "case_family")
+    if case_family not in {"online_answer_path.v1", "online_answer_main_path.v1"}:
         raise ValueError("unsupported online answer path case_family")
     raw_cases = payload.get("cases")
     if not isinstance(raw_cases, list) or not raw_cases:
         raise ValueError("online answer path cases must be a non-empty list")
-    cases = tuple(_parse_case(item) for item in raw_cases)
+    cases = tuple(_parse_case(item, case_family=case_family) for item in raw_cases)
     _reject_duplicate_case_ids(case.case_id for case in cases)
     return OnlineAnswerPathCaseSet(
         schema_version=1,
-        case_family="online_answer_path.v1",
+        case_family=case_family,
         cases=cases,
     )
 
@@ -118,7 +125,7 @@ def build_online_answer_path_report(
             json.dumps(
                 {
                     "schema_version": 1,
-                    "case_family": "online_answer_path.v1",
+                    "case_family": _case_family_for_report(cases),
                     "summary": {
                         "total": report.total,
                         "passed": report.passed_count,
@@ -134,6 +141,28 @@ def build_online_answer_path_report(
             encoding="utf-8",
         )
     return report
+
+
+def filter_online_answer_path_cases(
+    case_set: OnlineAnswerPathCaseSet,
+    *,
+    splits: tuple[str, ...] = ONLINE_ANSWER_PATH_RELEASE_SPLITS,
+) -> OnlineAnswerPathCaseSet:
+    split_set = set(splits)
+    return OnlineAnswerPathCaseSet(
+        schema_version=case_set.schema_version,
+        case_family=case_set.case_family,
+        cases=tuple(case for case in case_set.cases if case.split in split_set),
+    )
+
+
+def _case_family_for_report(cases: tuple[OnlineAnswerPathCase, ...]) -> str:
+    if not cases:
+        return "online_answer_main_path.v1"
+    families = {case.case_family for case in cases}
+    if len(families) != 1:
+        raise ValueError(f"online answer path report cannot mix case families: {families}")
+    return cases[0].case_family
 
 
 def _evaluate_case(
@@ -190,9 +219,19 @@ def _evaluate_case(
     )
 
 
-def _parse_case(payload: object) -> OnlineAnswerPathCase:
+def _parse_case(payload: object, *, case_family: str) -> OnlineAnswerPathCase:
+    if case_family == "online_answer_main_path.v1":
+        return _parse_main_path_case(payload, case_family=case_family)
+    return _parse_product_path_case(payload, case_family=case_family)
+
+
+def _parse_product_path_case(payload: object, *, case_family: str) -> OnlineAnswerPathCase:
     item = _mapping(payload, "case")
     expected = _mapping(item.get("expected"), "case.expected")
+    response_contract = _mapping(
+        expected.get("response_contract"),
+        "expected.response_contract",
+    )
     return OnlineAnswerPathCase(
         case_id=_required_string(item.get("case_id"), "case_id"),
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
@@ -210,16 +249,71 @@ def _parse_case(payload: object) -> OnlineAnswerPathCase:
                 "semantic_outcome",
             ),
             fail_close_reason=str(expected.get("fail_close_reason") or ""),
-            response_contract=_mapping(
-                expected.get("response_contract"),
-                "expected.response_contract",
-            ),
+            response_contract=response_contract,
             operator_backflow=_mapping(
                 expected.get("operator_backflow"),
                 "expected.operator_backflow",
             ),
         ),
+        case_family=case_family,
+        response_contract=response_contract,
     )
+
+
+def _parse_main_path_case(payload: object, *, case_family: str) -> OnlineAnswerPathCase:
+    item = _mapping(payload, "case")
+    expected = _mapping(item.get("expected"), "case.expected")
+    source_truth = _mapping(expected.get("source_truth"), "expected.source_truth")
+    trace_contract = _mapping(expected.get("trace_contract"), "expected.trace_contract")
+    answer_contract = _mapping(expected.get("answer_contract"), "expected.answer_contract")
+    terminal_outcome = _required_string(expected.get("terminal_outcome"), "terminal_outcome")
+    domain = _required_string(item.get("domain"), "domain")
+    response_contract_metadata: dict[str, object] = {
+        **answer_contract,
+        "domain": domain,
+        "evidence_required": bool(source_truth.get("evidence_required")),
+    }
+    return OnlineAnswerPathCase(
+        case_id=_required_string(item.get("case_id"), "case_id"),
+        user_goal=_required_string(item.get("user_utterance"), "user_utterance"),
+        split=_required_string(item.get("split"), "split"),
+        expected=OnlineAnswerPathExpected(
+            selected_capability=_required_string(
+                expected.get("selected_capability"),
+                "selected_capability",
+            ),
+            terminal_status=_terminal_status_from_main_path_outcome(terminal_outcome),
+            semantic_outcome=_semantic_outcome_from_main_path_outcome(terminal_outcome),
+            response_contract=answer_contract,
+            operator_backflow={
+                "quality_candidate_supported": True,
+            },
+        ),
+        case_family=case_family,
+        response_contract=response_contract_metadata,
+        source_truth=source_truth,
+        trace_contract=trace_contract,
+    )
+
+
+def _terminal_status_from_main_path_outcome(outcome: str) -> str:
+    if outcome == "completed":
+        return "completed"
+    if outcome == "clarification":
+        return "needs_clarification"
+    if outcome == "fail_closed":
+        return "error"
+    raise ValueError(f"unsupported online answer main path terminal_outcome: {outcome}")
+
+
+def _semantic_outcome_from_main_path_outcome(outcome: str) -> str:
+    if outcome == "completed":
+        return "answered"
+    if outcome == "clarification":
+        return "clarification"
+    if outcome == "fail_closed":
+        return "fail_close"
+    raise ValueError(f"unsupported online answer main path terminal_outcome: {outcome}")
 
 
 def _subset_mismatch_reasons(
@@ -312,6 +406,8 @@ def _reject_duplicate_case_ids(case_ids) -> None:
 
 __all__ = [
     "ONLINE_ANSWER_PATH_CASES_PATH",
+    "ONLINE_ANSWER_PATH_RELEASE_SPLITS",
+    "ONLINE_ANSWER_PRODUCT_PATH_CASES_PATH",
     "OnlineAnswerPathCase",
     "OnlineAnswerPathCaseSet",
     "OnlineAnswerPathExpected",
@@ -319,5 +415,6 @@ __all__ = [
     "OnlineAnswerPathReport",
     "OnlineAnswerPathResult",
     "build_online_answer_path_report",
+    "filter_online_answer_path_cases",
     "load_online_answer_path_cases",
 ]

@@ -135,16 +135,18 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   selection、guardrail outcome 与 trace projection completeness，并通过
   `attach_workflow_trace_gate(...)` 把 verdict 写入 formal benchmark 的
   `orchestration_case_results`
-- online answer product-path eval 固定在
-  `packages/evals/fixtures/e2e/online_answer_path/product_path_cases.v1.json` 与
-  `campus_evals.online_answer_path_eval`；它只评估 sanitized request / trace
-  correlation、selected capability、terminal outcome、response contract 与
-  operator backflow summary，不保存 raw transcript 或 provider raw response
 - online answer main-path eval 固定在
   `packages/evals/fixtures/e2e/online_answer_path/main_path_cases.v1.json` 与
-  `campus_evals.online_answer_main_path_cases`；它维护产品级主链路问题集，覆盖 admission、
-  memory recall、routing、capability execution、source-truth grounding 与 finalization
-  contract，不把 RAG qrels 当成完整 E2E truth
+  `campus_evals.online_answer_path_eval`；它维护 `online-answer-path` 默认产品级主链路问题集，
+  覆盖 admission、memory recall、primary-agent routing、capability execution、
+  source-truth grounding、durable resume、finalization contract 与 operator backflow；
+  不把 RAG qrels 当成完整 E2E truth，也不保存 raw transcript 或 provider raw response。
+  默认 release profile 只执行 `release_gate` / `regression_locked` split；`known_gap`、
+  `blocked_capability`、`structured_tool_later`、`clarification` 与 `fail_closed`
+  留在全量问题集，必须通过显式 cases path 运行离线 profile 复盘
+- legacy online answer product-path fixture 保留在
+  `packages/evals/fixtures/e2e/online_answer_path/product_path_cases.v1.json`；它只能通过显式
+  cases path 使用，不再作为 `online-answer-path` 默认 release profile
 - tool-routing product-path eval 固定在
   `packages/evals/fixtures/tools/routing/product_path_cases.v1.json` 与
   `campus_evals.tool_routing_product_path`；它用自然语言 user goal 评估 selected tool、
@@ -531,6 +533,11 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 
 observation-backed profile gate CLI：
 
+- 真实 staging 主链路 observation 采集：
+  `pnpm --dir apps/app-api online-answer-path:collect:staging -- --output <observations.json>`
+  默认只采集 `release_gate` / `regression_locked` case；全量复盘使用显式
+  `--cases-path` 跑离线 profile gate，不能把 fail-closed / clarification case 交给当前
+  completed-only durable staging collector 冒充 release proof
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   online-answer-path --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile

@@ -104,7 +104,17 @@ describe("chat durable staging e2e runner", () => {
 								status: "completed",
 								traceId: "trace_01HQ",
 							},
-							steps: [],
+							steps: [
+								{
+									stepId: "memory.recall",
+									status: "completed",
+								},
+								{
+									selectedCapability: "knowledge",
+									stepId: "agent.primary",
+									status: "completed",
+								},
+							],
 						} as T);
 					}
 					if (input.url.endsWith("/api/chat/conversations/conv_01HQ")) {
@@ -188,6 +198,13 @@ describe("chat durable staging e2e runner", () => {
 			workflow: {
 				attemptCount: 1,
 				workflowId: "campus-agent.chat.run_01HQ",
+			},
+			workflowTraceSummary: {
+				selected_capability: "knowledge",
+				trace_steps: [
+					{ status: "completed", step_id: "memory.recall" },
+					{ selected_capability: "knowledge", status: "completed", step_id: "agent.primary" },
+				],
 			},
 		});
 		expect(result.resume.events.map((event) => event.sequence)).toEqual([2, 3]);

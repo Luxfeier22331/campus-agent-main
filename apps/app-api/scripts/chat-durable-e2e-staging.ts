@@ -66,6 +66,7 @@ interface AcceptedRunIdentity {
 interface RuntimeStepTrajectory {
 	attempts: Array<{ runId: string; workflowId: string }>;
 	run: RuntimeRunSummary;
+	steps?: Record<string, unknown>[];
 }
 
 interface WorkflowIdentity {
@@ -80,6 +81,15 @@ interface LangfuseCloseoutIdentity {
 	sessionId: string;
 	userId: string;
 	workflowId: string;
+}
+
+export interface WorkflowTraceSummary {
+	selected_capability: string;
+	trace_steps: Array<{
+		selected_capability?: string;
+		status: string;
+		step_id: string;
+	}>;
 }
 
 export interface ChatDurableE2eResult {
@@ -111,6 +121,7 @@ export interface ChatDurableE2eResult {
 	submit: AcceptedRunIdentity | null;
 	submitStreamAbortedAfterAccepted: boolean;
 	workflow: WorkflowIdentity | null;
+	workflowTraceSummary: WorkflowTraceSummary | null;
 }
 
 export interface ChatDurableE2eDependencies {
@@ -662,6 +673,7 @@ export async function runChatDurableE2eStaging(
 		submit: null,
 		submitStreamAbortedAfterAccepted: false,
 		workflow: null,
+		workflowTraceSummary: null,
 	};
 
 	result.readyz.appApi = await resolvedDeps.fetchReadyz(args.appApiReadyzUrl);
@@ -748,6 +760,7 @@ export async function runChatDurableE2eStaging(
 		).toString(),
 	});
 	result.workflow = readWorkflowIdentity(stepsResult.payload, submit.accepted);
+	result.workflowTraceSummary = summarizeWorkflowTrace(stepsResult.payload);
 	result.langfuseCloseout = {
 		productTraceId: runResult.payload.run.traceId,
 		requestId: runResult.payload.run.requestId,
@@ -774,6 +787,47 @@ export async function runChatDurableE2eStaging(
 	);
 	result.passed = true;
 	return result;
+}
+
+function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTraceSummary {
+	const traceSteps = (trajectory.steps ?? []).map((step) => {
+		const stepId = requireStepString(step, "stepId", "step_id");
+		const status = requireStepString(step, "status");
+		const selectedCapability = optionalStepString(
+			step,
+			"selectedCapability",
+			"selected_capability",
+		);
+		return {
+			...(selectedCapability ? { selected_capability: selectedCapability } : {}),
+			status,
+			step_id: stepId,
+		};
+	});
+	const selectedCapability =
+		traceSteps.find((step) => step.selected_capability)?.selected_capability ?? "none";
+	return {
+		selected_capability: selectedCapability,
+		trace_steps: traceSteps,
+	};
+}
+
+function requireStepString(step: Record<string, unknown>, ...keys: string[]): string {
+	const value = optionalStepString(step, ...keys);
+	if (!value) {
+		throw new Error(`durable run step must include ${keys.join(" or ")}.`);
+	}
+	return value;
+}
+
+function optionalStepString(step: Record<string, unknown>, ...keys: string[]): string {
+	for (const key of keys) {
+		const value = step[key];
+		if (typeof value === "string" && value.trim()) {
+			return value;
+		}
+	}
+	return "";
 }
 
 export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {

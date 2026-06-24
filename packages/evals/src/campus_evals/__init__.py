@@ -208,6 +208,7 @@ from campus_evals.online_answer_path_eval import (
     OnlineAnswerPathReport,
     OnlineAnswerPathResult,
     build_online_answer_path_report,
+    filter_online_answer_path_cases,
     load_online_answer_path_cases,
 )
 from campus_evals.operator_observability import (
@@ -550,6 +551,7 @@ __all__ = [
     "evaluate_workflow_trace_case",
     "evaluate_workflow_trace_cases",
     "expected_source_ref",
+    "filter_online_answer_path_cases",
     "get_profile_definition",
     "handbook_error_gate_cases",
     "handbook_regression_locked_cases",

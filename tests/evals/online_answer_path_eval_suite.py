@@ -7,57 +7,92 @@ from tempfile import TemporaryDirectory
 
 from campus_evals.online_answer_path_eval import (
     ONLINE_ANSWER_PATH_CASES_PATH,
+    ONLINE_ANSWER_PATH_RELEASE_SPLITS,
+    ONLINE_ANSWER_PRODUCT_PATH_CASES_PATH,
     OnlineAnswerPathObservation,
     build_online_answer_path_report,
+    filter_online_answer_path_cases,
     load_online_answer_path_cases,
 )
 
 
 class OnlineAnswerPathEvalTest(unittest.TestCase):
-    def test_loads_online_answer_path_fixture_with_happy_and_fail_close_cases(self) -> None:
+    def test_loads_online_answer_path_fixture_as_main_path_release_dataset(self) -> None:
         self.assertTrue(ONLINE_ANSWER_PATH_CASES_PATH.exists())
 
         case_set = load_online_answer_path_cases()
 
         self.assertEqual(case_set.schema_version, 1)
-        self.assertEqual(case_set.case_family, "online_answer_path.v1")
+        self.assertEqual(case_set.case_family, "online_answer_main_path.v1")
+        self.assertEqual(len(case_set.cases), 52)
         case_ids = {case.case_id for case in case_set.cases}
-        self.assertIn("online-answer-service-guide-happy-path", case_ids)
-        self.assertIn("online-answer-policy-unavailable-fail-close", case_ids)
-        self.assertIn("online-answer-transport-schedule-routing", case_ids)
-        self.assertIn("online-answer-notice-title-url-card", case_ids)
+        self.assertIn("main-institutional-campus-network-password", case_ids)
+        self.assertIn("main-student-rules-transfer-policy", case_ids)
+        self.assertIn("main-curriculum-required-course", case_ids)
+        self.assertIn("main-fail-closed-no-source", case_ids)
 
-    def test_fixture_covers_user_journey_and_boundary_denominator(self) -> None:
+    def test_fixture_covers_main_path_domains_and_current_release_splits(self) -> None:
         case_set = load_online_answer_path_cases()
-        case_ids = {case.case_id for case in case_set.cases}
+        domains = {
+            case.response_contract["domain"]
+            for case in case_set.cases
+            if isinstance(case.response_contract.get("domain"), str)
+        }
+        splits = {case.split for case in case_set.cases}
 
         self.assertTrue(
             {
-                "online-answer-service-guide-happy-path",
-                "online-answer-medical-reimbursement-service-guide",
-                "online-answer-transport-schedule-routing",
-                "online-answer-academic-calendar-date-week",
-                "online-answer-academic-calendar-named-event",
-                "online-answer-academic-calendar-spring-break-colloquial",
-                "online-answer-academic-calendar-course-suspension",
-                "online-answer-academic-calendar-notice-rest-day-override",
-                "online-answer-notice-spring-break-original",
-                "online-answer-notice-title-url-card",
-                "online-answer-notice-detail-summary",
-                "online-answer-contextual-follow-up-materials",
-                "online-answer-transactional-service-fail-close",
-                "online-answer-no-hit-safe-response",
-                "online-answer-policy-unavailable-fail-close",
-            }.issubset(case_ids)
+                "student_rules",
+                "curriculum_plan",
+                "institutional_rules",
+                "official_web",
+                "notice",
+                "campus_services",
+                "memory_personalization",
+                "ambiguity",
+            }.issubset(domains)
         )
         terminal_statuses = {case.expected.terminal_status for case in case_set.cases}
         semantic_outcomes = {case.expected.semantic_outcome for case in case_set.cases}
+        self.assertTrue({"release_gate", "clarification", "fail_closed"}.issubset(splits))
+        self.assertTrue({"completed", "needs_clarification", "error"}.issubset(terminal_statuses))
+        self.assertTrue({"answered", "clarification", "fail_close"}.issubset(semantic_outcomes))
+
+    def test_release_filter_keeps_only_current_default_main_path_cases(self) -> None:
+        case_set = load_online_answer_path_cases()
+
+        release_case_set = filter_online_answer_path_cases(case_set)
+        release_ids = {case.case_id for case in release_case_set.cases}
+
+        self.assertEqual(ONLINE_ANSWER_PATH_RELEASE_SPLITS, ("release_gate", "regression_locked"))
+        self.assertEqual(len(release_case_set.cases), 24)
         self.assertTrue(
-            {"completed", "needs_clarification", "no_answer", "error"}.issubset(terminal_statuses)
+            {
+                "main-student-rules-transfer-policy",
+                "main-curriculum-required-course",
+                "main-institutional-campus-network-password",
+                "main-official-web-school-profile",
+                "main-official-web-teaching-research-units",
+                "main-official-web-fee-disclosure",
+            }.issubset(release_ids)
         )
-        self.assertTrue(
-            {"answered", "clarification", "fail_close", "no_hit"}.issubset(semantic_outcomes)
+        self.assertFalse(
+            {
+                "main-official-web-deadline-news",
+                "main-notice-spring-break-summary",
+                "main-campus-card-lost",
+                "main-memory-major-context",
+                "main-fail-closed-no-source",
+            }.intersection(release_ids)
         )
+
+    def test_product_path_fixture_requires_explicit_path(self) -> None:
+        case_set = load_online_answer_path_cases(ONLINE_ANSWER_PRODUCT_PATH_CASES_PATH)
+
+        self.assertEqual(case_set.case_family, "online_answer_path.v1")
+        case_ids = {case.case_id for case in case_set.cases}
+        self.assertIn("online-answer-service-guide-happy-path", case_ids)
+        self.assertNotIn("main-institutional-campus-network-password", case_ids)
 
     def test_report_requires_request_trace_target_terminal_status_and_semantic_outcome(
         self,
@@ -86,20 +121,20 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
         self.assertEqual(report.results[0].request_id, "req_1")
         self.assertEqual(report.results[0].trace_id, "trace_1")
 
-    def test_report_fails_missing_source_url_for_happy_path_contract(self) -> None:
+    def test_report_fails_missing_answer_contract_for_main_path_case(self) -> None:
         case_set = load_online_answer_path_cases()
         observations = {
-            "online-answer-service-guide-happy-path": OnlineAnswerPathObservation(
-                case_id="online-answer-service-guide-happy-path",
+            "main-institutional-campus-network-password": OnlineAnswerPathObservation(
+                case_id="main-institutional-campus-network-password",
                 request_id="req_service_guide_001",
                 trace_id="trace_service_guide_001",
-                selected_capability="campus_services",
+                selected_capability="knowledge",
                 terminal_status="completed",
                 semantic_outcome="answered",
                 response_contract={
                     "answer_text_present": True,
                     "citations_present": True,
-                    "cards_present": True,
+                    "cards_present": False,
                     "source_url_present": False,
                 },
                 operator_backflow={
@@ -113,14 +148,12 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
 
         self.assertFalse(report.passed)
         failing = {result.case_id: result for result in report.results}
-        self.assertFalse(failing["online-answer-service-guide-happy-path"].passed)
+        self.assertFalse(failing["main-institutional-campus-network-password"].passed)
         self.assertIn(
-            "response_contract.source_url_present",
-            failing["online-answer-service-guide-happy-path"].reason,
+            "response_contract.must_not_hallucinate",
+            failing["main-institutional-campus-network-password"].reason,
         )
-        self.assertIn(
-            "missing observation", failing["online-answer-policy-unavailable-fail-close"].reason
-        )
+        self.assertIn("missing observation", failing["main-fail-closed-no-source"].reason)
 
     def test_report_rejects_raw_payload_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
@@ -162,7 +195,7 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
 
         self.assertTrue(report.passed)
         self.assertEqual(payload["schema_version"], 1)
-        self.assertEqual(payload["case_family"], "online_answer_path.v1")
+        self.assertEqual(payload["case_family"], "online_answer_main_path.v1")
         self.assertEqual(payload["summary"]["passed"], len(case_set.cases))
 
 

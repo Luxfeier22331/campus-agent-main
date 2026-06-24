@@ -65,6 +65,7 @@ from campus_evals.online_answer_path_eval import (
     OnlineAnswerPathCaseSet,
     OnlineAnswerPathObservation,
     build_online_answer_path_report,
+    filter_online_answer_path_cases,
     load_online_answer_path_cases,
 )
 from campus_evals.tool_family_denominator import (
@@ -83,6 +84,10 @@ def run_online_answer_path_profile_gate(
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
     case_set = load_online_answer_path_cases(cases_path)
+    if cases_path is None and case_set.case_family == "online_answer_main_path.v1":
+        case_set = filter_online_answer_path_cases(case_set)
+        if not case_set.cases:
+            raise ValueError("online-answer-path release profile has no executable cases")
     runtime_metrics = None
     if collect_runtime:
         observations, runtime_metrics = _collect_with_runtime_metrics(

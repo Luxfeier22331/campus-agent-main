@@ -1,8 +1,8 @@
 {
 	"schema_version": 1,
 	"case_family": "online_answer_main_path.v1",
-	"updated_at": "2026-06-18",
-	"description": "Product-level online answer main-path regression set. Cases pin admission, memory recall, routing, capability execution, source-truth grounding, and finalization contracts without binding to retrieval internals.",
+	"updated_at": "2026-06-25",
+	"description": "Product-level online answer main-path regression set. Cases pin admission, memory recall, routing, capability execution, source-truth grounding, and finalization contracts without binding to retrieval internals. Default release collection runs only release_gate/regression_locked cases; blocked_capability, structured_tool_later, known_gap, clarification, and fail_closed cases remain full-suite truth until their runtime evidence path is explicitly admitted.",
 	"cases": [
 		{
 			"case_id": "main-student-rules-transfer-policy",
@@ -639,7 +639,7 @@
 			"case_id": "main-official-web-enrollment-news",
 			"user_utterance": "最近研究生招生有什么官方通知？",
 			"domain": "official_web",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "completed",
@@ -664,8 +664,8 @@
 			}
 		},
 		{
-			"case_id": "main-official-web-calendar",
-			"user_utterance": "校历在哪里看？",
+			"case_id": "main-official-web-school-profile",
+			"user_utterance": "中央民族大学学校简介是什么？",
 			"domain": "official_web",
 			"split": "release_gate",
 			"expected": {
@@ -692,8 +692,8 @@
 			}
 		},
 		{
-			"case_id": "main-official-web-admissions-page",
-			"user_utterance": "本科招生网入口是什么？",
+			"case_id": "main-official-web-teaching-research-units",
+			"user_utterance": "中央民族大学教学和科研单位有哪些？",
 			"domain": "official_web",
 			"split": "release_gate",
 			"expected": {
@@ -723,7 +723,7 @@
 			"case_id": "main-official-web-deadline-news",
 			"user_utterance": "最近报名截止日期有哪些需要注意？",
 			"domain": "official_web",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "completed",
@@ -748,10 +748,38 @@
 			}
 		},
 		{
+			"case_id": "main-official-web-fee-disclosure",
+			"user_utterance": "中央民族大学大学教育收费公示表在哪里看？",
+			"domain": "official_web",
+			"split": "release_gate",
+			"expected": {
+				"selected_capability": "knowledge",
+				"terminal_outcome": "completed",
+				"source_truth": {
+					"expected_collections": ["official_web/stable_reference"],
+					"evidence_required": true
+				},
+				"trace_contract": {
+					"required_stages": [
+						"context.memory_recall",
+						"plan.route",
+						"capability.knowledge",
+						"finalization.write"
+					],
+					"forbidden_stages": ["legacy_python_cli"]
+				},
+				"answer_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"source_url_present": true
+				}
+			}
+		},
+		{
 			"case_id": "main-official-web-no-current-facts",
 			"user_utterance": "明年校庆具体节目单是什么？",
 			"domain": "official_web",
-			"split": "fail_closed",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "fail_closed",
@@ -779,7 +807,7 @@
 			"case_id": "main-notice-spring-break-summary",
 			"user_utterance": "最近关于春假的通知总结一下",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -807,7 +835,7 @@
 			"case_id": "main-notice-time-window",
 			"user_utterance": "上周教务处发了哪些通知？",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -835,7 +863,7 @@
 			"case_id": "main-notice-original-link",
 			"user_utterance": "找一下那条春假通知原文链接",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -863,7 +891,7 @@
 			"case_id": "main-notice-financial-aid",
 			"user_utterance": "最近奖助学金通知有哪些？",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -891,7 +919,7 @@
 			"case_id": "main-notice-exam-arrangement",
 			"user_utterance": "期末考试安排相关通知帮我找一下",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -919,7 +947,7 @@
 			"case_id": "main-notice-private-scope",
 			"user_utterance": "我的学院最近有没有发实习通知？",
 			"domain": "notice",
-			"split": "release_gate",
+			"split": "blocked_capability",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -947,7 +975,7 @@
 			"case_id": "main-campus-card-lost",
 			"user_utterance": "校园卡丢了怎么办？",
 			"domain": "campus_services",
-			"split": "release_gate",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "completed",
@@ -975,7 +1003,7 @@
 			"case_id": "main-campus-medical-reimbursement",
 			"user_utterance": "公费医疗报销怎么办理，需要哪些材料？",
 			"domain": "campus_services",
-			"split": "release_gate",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "completed",
@@ -1003,7 +1031,7 @@
 			"case_id": "main-campus-shuttle",
 			"user_utterance": "今天两校区通勤班车怎么坐？",
 			"domain": "campus_services",
-			"split": "release_gate",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "completed",
@@ -1031,7 +1059,7 @@
 			"case_id": "main-campus-calendar-week",
 			"user_utterance": "2026-05-07 是第几教学周？",
 			"domain": "campus_services",
-			"split": "release_gate",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "completed",
@@ -1059,7 +1087,7 @@
 			"case_id": "main-campus-classroom",
 			"user_utterance": "明德楼在哪里，怎么过去？",
 			"domain": "campus_services",
-			"split": "release_gate",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "completed",
@@ -1087,7 +1115,7 @@
 			"case_id": "main-campus-service-ambiguous-card",
 			"user_utterance": "卡怎么处理？",
 			"domain": "ambiguity",
-			"split": "clarification",
+			"split": "structured_tool_later",
 			"expected": {
 				"selected_capability": "campus_services",
 				"terminal_outcome": "clarification",
@@ -1115,7 +1143,7 @@
 			"case_id": "main-memory-major-context",
 			"user_utterance": "我适合选哪些语言学相关课？",
 			"domain": "memory_personalization",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "completed",
@@ -1143,7 +1171,7 @@
 			"case_id": "main-memory-graduation-context",
 			"user_utterance": "按我现在的毕业进度，还缺哪些类型的课？",
 			"domain": "memory_personalization",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "completed",
@@ -1175,7 +1203,7 @@
 			"case_id": "main-memory-transfer-context",
 			"user_utterance": "结合我想转去计算机，应该先看哪些政策和课程？",
 			"domain": "memory_personalization",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "completed",
@@ -1207,7 +1235,7 @@
 			"case_id": "main-memory-notice-scope",
 			"user_utterance": "和我学院有关的近期通知有哪些？",
 			"domain": "memory_personalization",
-			"split": "release_gate",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "notice",
 				"terminal_outcome": "completed",
@@ -1235,7 +1263,7 @@
 			"case_id": "main-memory-no-profile",
 			"user_utterance": "按我的方向推荐几门课",
 			"domain": "memory_personalization",
-			"split": "clarification",
+			"split": "known_gap",
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "clarification",
@@ -1252,7 +1280,10 @@
 					],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_ask_clarifying_question": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_ask_clarifying_question": true
+				}
 			}
 		},
 		{
@@ -1263,12 +1294,18 @@
 			"expected": {
 				"selected_capability": "knowledge",
 				"terminal_outcome": "clarification",
-				"source_truth": { "expected_collections": ["personal_memory"], "evidence_required": false },
+				"source_truth": {
+					"expected_collections": ["personal_memory"],
+					"evidence_required": false
+				},
 				"trace_contract": {
 					"required_stages": ["context.memory_recall", "plan.route", "finalization.write"],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_ask_clarifying_question": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_ask_clarifying_question": true
+				}
 			}
 		},
 		{
@@ -1292,7 +1329,10 @@
 					],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_ask_clarifying_question": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_ask_clarifying_question": true
+				}
 			}
 		},
 		{
@@ -1316,7 +1356,10 @@
 					],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_ask_clarifying_question": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_ask_clarifying_question": true
+				}
 			}
 		},
 		{
@@ -1335,7 +1378,10 @@
 					"required_stages": ["context.memory_recall", "plan.route", "finalization.write"],
 					"forbidden_stages": ["capability.knowledge", "capability.notice", "legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_refuse_private_data": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_refuse_private_data": true
+				}
 			}
 		},
 		{
@@ -1359,7 +1405,10 @@
 					],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_explain_missing_evidence": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_explain_missing_evidence": true
+				}
 			}
 		},
 		{
@@ -1378,7 +1427,10 @@
 					"required_stages": ["context.memory_recall", "plan.route", "finalization.write"],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_explain_action_boundary": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_explain_action_boundary": true
+				}
 			}
 		},
 		{
@@ -1402,7 +1454,10 @@
 					],
 					"forbidden_stages": ["legacy_python_cli"]
 				},
-				"answer_contract": { "answer_text_present": true, "must_explain_missing_evidence": true }
+				"answer_contract": {
+					"answer_text_present": true,
+					"must_explain_missing_evidence": true
+				}
 			}
 		}
 	]

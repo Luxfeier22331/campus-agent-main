@@ -17,12 +17,16 @@ from campus_evals.eval_profile_gate import (
     derive_eval_operations_observations_from_artifacts,
     run_online_answer_path_profile_gate,
 )
-from campus_evals.online_answer_path_eval import load_online_answer_path_cases
+from campus_evals.online_answer_path_eval import (
+    filter_online_answer_path_cases,
+    load_online_answer_path_cases,
+)
 
 
 class EvalProfileGateSuite(unittest.TestCase):
     def test_online_answer_profile_gate_writes_unified_artifact(self) -> None:
         case_set = load_online_answer_path_cases()
+        release_case_set = filter_online_answer_path_cases(case_set)
         observations = {
             case.case_id: {
                 "case_id": case.case_id,
@@ -56,10 +60,59 @@ class EvalProfileGateSuite(unittest.TestCase):
         self.assertTrue(report.passed)
         self.assertEqual(payload["schema_version"], "eval_profile_gate.v1")
         self.assertEqual(payload["profile_id"], "online-answer-path")
-        self.assertEqual(payload["case_family"], "online_answer_path.v1")
+        self.assertEqual(payload["case_family"], "online_answer_main_path.v1")
         self.assertEqual(payload["version_summary"]["git_head"], "abc123")
-        self.assertEqual(payload["version_summary"]["case_set_version"], "online_answer_path.v1")
+        self.assertEqual(
+            payload["version_summary"]["case_set_version"],
+            "online_answer_main_path.v1",
+        )
+        self.assertEqual(payload["summary"]["total"], len(release_case_set.cases))
         self.assertIn("sanitized_results", payload)
+        self.assertNotIn(
+            "main-notice-spring-break-summary",
+            {item["case_id"] for item in payload["sanitized_results"]},
+        )
+
+    def test_online_answer_profile_explicit_cases_path_is_not_release_filtered(self) -> None:
+        case_set = load_online_answer_path_cases()
+        known_gap_case = next(
+            item for item in case_set.cases if item.case_id == "main-official-web-deadline-news"
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            observations_path = root / "observations.json"
+            observations_path.write_text(
+                json.dumps(
+                    {
+                        "observations": [
+                            {
+                                "case_id": known_gap_case.case_id,
+                                "request_id": "request-known-gap",
+                                "trace_id": "trace-known-gap",
+                                "selected_capability": known_gap_case.expected.selected_capability,
+                                "terminal_status": known_gap_case.expected.terminal_status,
+                                "semantic_outcome": known_gap_case.expected.semantic_outcome,
+                                "fail_close_reason": known_gap_case.expected.fail_close_reason,
+                                "response_contract": known_gap_case.expected.response_contract,
+                                "operator_backflow": known_gap_case.expected.operator_backflow,
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            report = run_online_answer_path_profile_gate(
+                output_dir=root / "out",
+                cases_path=_single_online_answer_case_path(root, known_gap_case),
+                observations_path=observations_path,
+                git_head_resolver=lambda: "abc123",
+            )
+            payload = json.loads(report.output_path.read_text(encoding="utf-8"))
+
+        self.assertTrue(report.passed)
+        self.assertEqual(payload["summary"]["total"], 1)
+        self.assertEqual(payload["sanitized_results"][0]["case_id"], known_gap_case.case_id)
 
     def test_eval_operations_observation_is_derived_from_profile_artifact(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -204,12 +257,7 @@ class EvalProfileGateSuite(unittest.TestCase):
 
     def test_online_answer_profile_replays_workflow_trace_summary_consistency(self) -> None:
         case_set = load_online_answer_path_cases()
-        case = next(
-            item
-            for item in case_set.cases
-            if item.expected.selected_capability == "campus_services"
-            and item.expected.terminal_status == "completed"
-        )
+        case = next(item for item in case_set.cases if item.case_id == "main-campus-card-lost")
 
         with tempfile.TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -259,11 +307,7 @@ class EvalProfileGateSuite(unittest.TestCase):
         self,
     ) -> None:
         case_set = load_online_answer_path_cases()
-        case = next(
-            item
-            for item in case_set.cases
-            if item.expected.selected_capability == "campus_services"
-        )
+        case = next(item for item in case_set.cases if item.case_id == "main-campus-card-lost")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = _single_online_answer_case_path(Path(tmpdir), case)
             single_case_set = load_online_answer_path_cases(path)
@@ -649,31 +693,55 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
 
 def _single_online_answer_case_path(root: Path, case) -> Path:
     path = root / "single-online-answer-case.json"
+    if case.case_family == "online_answer_main_path.v1":
+        case_payload = {
+            "case_id": case.case_id,
+            "user_utterance": case.user_goal,
+            "domain": case.response_contract["domain"],
+            "split": case.split,
+            "expected": {
+                "selected_capability": case.expected.selected_capability,
+                "terminal_outcome": _main_path_terminal_outcome(case.expected.terminal_status),
+                "source_truth": case.source_truth,
+                "trace_contract": case.trace_contract,
+                "answer_contract": case.expected.response_contract,
+            },
+        }
+    else:
+        case_payload = {
+            "case_id": case.case_id,
+            "user_goal": case.user_goal,
+            "split": case.split,
+            "expected": {
+                "selected_capability": case.expected.selected_capability,
+                "terminal_status": case.expected.terminal_status,
+                "semantic_outcome": case.expected.semantic_outcome,
+                "fail_close_reason": case.expected.fail_close_reason,
+                "response_contract": case.expected.response_contract,
+                "operator_backflow": case.expected.operator_backflow,
+            },
+        }
     path.write_text(
         json.dumps(
             {
                 "schema_version": 1,
-                "case_family": "online_answer_path.v1",
-                "cases": [
-                    {
-                        "case_id": case.case_id,
-                        "user_goal": case.user_goal,
-                        "split": case.split,
-                        "expected": {
-                            "selected_capability": case.expected.selected_capability,
-                            "terminal_status": case.expected.terminal_status,
-                            "semantic_outcome": case.expected.semantic_outcome,
-                            "fail_close_reason": case.expected.fail_close_reason,
-                            "response_contract": case.expected.response_contract,
-                            "operator_backflow": case.expected.operator_backflow,
-                        },
-                    }
-                ],
+                "case_family": case.case_family,
+                "cases": [case_payload],
             }
         ),
         encoding="utf-8",
     )
     return path
+
+
+def _main_path_terminal_outcome(terminal_status: str) -> str:
+    if terminal_status == "completed":
+        return "completed"
+    if terminal_status == "needs_clarification":
+        return "clarification"
+    if terminal_status == "error":
+        return "fail_closed"
+    raise ValueError(f"unsupported terminal status in test fixture helper: {terminal_status}")
 
 
 if __name__ == "__main__":

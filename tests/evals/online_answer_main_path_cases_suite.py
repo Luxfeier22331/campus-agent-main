@@ -12,7 +12,7 @@ class OnlineAnswerMainPathCasesTest(unittest.TestCase):
 
         self.assertTrue(ONLINE_ANSWER_MAIN_PATH_CASES_PATH.exists())
         self.assertEqual("online_answer_main_path.v1", case_set.case_family)
-        self.assertEqual(51, len(case_set.cases))
+        self.assertEqual(52, len(case_set.cases))
         self.assertEqual(
             len(case_set.cases),
             len({case.case_id for case in case_set.cases}),

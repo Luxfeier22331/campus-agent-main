@@ -147,12 +147,30 @@ repo 级 manual workflow 使用：
 
 - manual dispatch
 - env doctor
+- optional real staging observation collection for `online-answer-path`
 - shared acceptance
 - optional publish dry-run
 - optional `online-answer-path` Langfuse score publish
 - artifact upload
 
 它不是 PR 必过检查。
+
+`online-answer-path` 的真实主链路 artifact 应先由 staging collector 生成，再交给
+profile gate。默认 collector 与 profile gate 只消费
+`release_gate` / `regression_locked` case；全量 exploratory / known-gap /
+blocked-capability 复盘必须显式使用 `--cases-path` 跑离线 profile gate。当前 durable
+staging collector 只证明 completed release 子集，不能用于 full-suite fail-closed /
+clarification 采集：
+
+```bash
+pnpm --dir apps/app-api online-answer-path:collect:staging -- \
+  --output <artifact_dir>/observations.json
+
+uv run --all-packages python -m scripts.eval_gate accept \
+  --profile online-answer-path \
+  --observations-path <artifact_dir>/observations.json \
+  --output-dir <artifact_dir>
+```
 
 `publish_langfuse_scores` 只对 `online-answer-path` 生效。启用后，workflow 会在
 acceptance 完成后执行：

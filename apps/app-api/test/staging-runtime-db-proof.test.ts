@@ -172,6 +172,7 @@ describe("staging runtime db proof runner", () => {
 				attemptCount: 1,
 				workflowId: "wf_01",
 			},
+			workflowTraceSummary: null,
 		}));
 		let postgresSnapshotCalls = 0;
 		let hyperdriveSnapshotCalls = 0;
@@ -278,6 +279,7 @@ describe("staging runtime db proof runner", () => {
 					},
 					submitStreamAbortedAfterAccepted: true,
 					workflow: null,
+					workflowTraceSummary: null,
 				}),
 			});
 
@@ -341,6 +343,7 @@ describe("staging runtime db proof runner", () => {
 				},
 				submitStreamAbortedAfterAccepted: true,
 				workflow: null,
+				workflowTraceSummary: null,
 			}),
 		});
 

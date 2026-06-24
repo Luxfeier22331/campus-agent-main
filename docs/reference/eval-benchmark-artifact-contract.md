@@ -118,6 +118,19 @@ The artifact must not contain raw prompt, raw transcript, provider raw
 response, auth material, restricted payload, cookies, JWTs, bearer tokens or
 token-bearing URL values.
 
+`online-answer-path` profile reports must be backed by
+`online_answer_main_path.v1` observations. For real staging proof, the
+observation source is the app-api durable chat collector that exercises
+`POST /api/chat/requests/stream` and
+`GET /api/chat/runs/:runId/events/stream`; the internal eval ingress remains a
+diagnostic seam and must not be used as the release proof for durable submit /
+resume behavior. The release profile denominator is the main-path
+`release_gate` / `regression_locked` subset; full-suite `known_gap`,
+`blocked_capability`, `structured_tool_later`, clarification and fail-closed
+cases require an explicit cases path for offline profile replay. The current
+durable staging collector is a completed release-subset proof, not a full-suite
+collector.
+
 Profile reports remain separate from formal `run-XX-case-results.json`.
 Operator backflow for profile reports must use the explicit `publish-profile`
 path, which publishes only correlated `sanitized_results` and skips
