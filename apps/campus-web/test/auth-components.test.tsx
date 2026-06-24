@@ -3,8 +3,8 @@ import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Auth, AuthPanel } from "../src/components/auth/auth";
-import { AuthDialog } from "../src/components/auth/auth-dialog";
 import authSource from "../src/components/auth/auth.tsx?raw";
+import { AuthDialog } from "../src/components/auth/auth-dialog";
 import authDialogSource from "../src/components/auth/auth-dialog.tsx?raw";
 import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
@@ -163,8 +163,13 @@ vi.mock("@better-auth-ui/heroui", () => ({
 
 vi.mock("@heroui/react", async () => {
 	const actual = await vi.importActual<typeof import("@heroui/react")>("@heroui/react");
-	const ModalRoot = ({ children, state }: { children: React.ReactNode; state?: { isOpen: boolean } }) =>
-		state?.isOpen ? <div data-testid="heroui-modal-root">{children}</div> : null;
+	const ModalRoot = ({
+		children,
+		state,
+	}: {
+		children: React.ReactNode;
+		state?: { isOpen: boolean };
+	}) => (state?.isOpen ? <div data-testid="heroui-modal-root">{children}</div> : null);
 	return {
 		...actual,
 		Button: ({
@@ -331,7 +336,10 @@ describe("campus auth UI components", () => {
 		const modalSurface = screen
 			.getByLabelText("auth-view")
 			.closest("[data-campus-account-surface]");
-		expect(modalSurface as HTMLElement).toHaveAttribute("data-campus-account-surface", "auth-modal");
+		expect(modalSurface as HTMLElement).toHaveAttribute(
+			"data-campus-account-surface",
+			"auth-modal",
+		);
 		expect(authDialogSource).toContain("@heroui/react");
 		expect(authDialogSource).toContain("<AuthPanel");
 		expect(authDialogSource).toContain('data-campus-account-surface="auth-modal"');
@@ -365,9 +373,7 @@ describe("campus auth UI components", () => {
 		expect(stylesSource).toContain('[data-slot="card"]');
 		expect(stylesSource).toContain("--campus-auth-card-shadow: var(--shadow-auth-card)");
 		expect(stylesSource).toContain("--campus-auth-link");
-		expect(stylesSource).toContain(
-			'[data-campus-account-surface="auth-modal"] [data-slot="card"]',
-		);
+		expect(stylesSource).toContain('[data-campus-account-surface="auth-modal"] [data-slot="card"]');
 		expect(stylesSource).toContain("background: transparent");
 		expect(stylesSource).toContain("box-shadow: none");
 	});

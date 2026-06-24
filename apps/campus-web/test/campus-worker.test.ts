@@ -146,14 +146,13 @@ describe("campus worker boundary", () => {
 		const seenAssetPaths: string[] = [];
 		const env = createEnv(undefined, {
 			fetch: (request) => {
-				const pathname = decodeURIComponent(new URL(request.url).pathname);
+				const pathname = new URL(request.url).pathname;
 				seenAssetPaths.push(pathname);
 				if (
 					pathname === "/docs/index.html" ||
 					pathname === "/docs/regulations/student_rules/index.html" ||
-					pathname === "/docs/regulations/student_rules/中央民族大学学生管理规定.html" ||
-					pathname ===
-						"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current.html"
+					pathname === "/docs/regulations/student_rules/doc-a1b2c3d4e5f6.html" ||
+					pathname === "/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current.html"
 				) {
 					return new Response(
 						'<!doctype html><html><body><div id="__rspress_root">Rspress canonical reader</div></body></html>',
@@ -172,8 +171,8 @@ describe("campus worker boundary", () => {
 			"/docs/",
 			"/docs/regulations/student_rules",
 			"/docs/regulations/student_rules/",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current",
+			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6",
+			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current",
 		]) {
 			const response = await worker.fetch(
 				new Request(`https://campus.muc.wiki${path}`, {
@@ -192,8 +191,37 @@ describe("campus worker boundary", () => {
 			"/docs/regulations/student_rules.html",
 			"/docs/regulations/student_rules/index.html",
 			"/docs/regulations/student_rules/index.html",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定.html",
-			"/docs/regulations/student_rules/中央民族大学学生管理规定/v/2018-current.html",
+			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6.html",
+			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current.html",
+		]);
+	});
+
+	it("does not rely on decoded non-ASCII docs filenames for clean URL delivery", async () => {
+		const seenAssetPaths: string[] = [];
+		const env = createEnv(undefined, {
+			fetch: (request) => {
+				seenAssetPaths.push(new URL(request.url).pathname);
+				return new Response('<!doctype html><div id="root"></div>', {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 404,
+				});
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/docs/regulations/student_rules/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%AD%A6%E7%94%9F%E7%AE%A1%E7%90%86%E8%A7%84%E5%AE%9A",
+				{
+					headers: { accept: "text/html" },
+				},
+			),
+			env,
+		);
+
+		expect(response.status).toBe(404);
+		expect(seenAssetPaths).toEqual([
+			"/docs/regulations/student_rules/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%AD%A6%E7%94%9F%E7%AE%A1%E7%90%86%E8%A7%84%E5%AE%9A.html",
+			"/docs/regulations/student_rules/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%AD%A6%E7%94%9F%E7%AE%A1%E7%90%86%E8%A7%84%E5%AE%9A/index.html",
 		]);
 	});
 

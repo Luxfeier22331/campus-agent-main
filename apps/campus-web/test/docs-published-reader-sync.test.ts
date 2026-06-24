@@ -145,6 +145,7 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).toContain("&lt;img src=x onerror=alert(1)&gt;");
 		expect(currentMdx).toContain("data-docs-versions=");
 		expect(currentMdx).toContain("&quot;versionSlug&quot;:&quot;2025-history&quot;");
+		expect(currentMdx).toContain('data-docs-route-slug="student-attendance"');
 		expect(currentMdx).not.toContain("doc_id");
 		expect(currentMdx).not.toContain("version_id");
 		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
@@ -165,6 +166,39 @@ describe("campus-web published reader sync", () => {
 		expect(collectionIndex).toContain('docsSearchVisibility: "noindex"');
 		expect(collectionIndex).not.toContain("restricted-policy");
 		expect(collectionIndex).not.toContain("受限制度");
+	});
+
+	it("materializes non-ASCII document slugs under route-safe reader URLs", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture({
+			publicDocumentSlug: "中央民族大学学生考勤管理规定",
+		});
+		const docsRoot = join(root, "docs");
+
+		await syncCampusPublishedReaderDocs({
+			client,
+			docsRoot,
+			manifestFilePath: manifestPath,
+		});
+
+		const collectionMeta = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/_meta.json"),
+			"utf8",
+		);
+		const routeSlug = collectionMeta.match(/"name": "(doc-[a-f0-9]{12})"/u)?.[1] ?? "";
+		const currentMdx = readFileSync(
+			join(docsRoot, `docs/regulations/student_rules/${routeSlug}.mdx`),
+			"utf8",
+		);
+		const collectionIndex = readFileSync(
+			join(docsRoot, "docs/regulations/student_rules/index.md"),
+			"utf8",
+		);
+
+		expect(routeSlug).toMatch(/^doc-[a-f0-9]{12}$/u);
+		expect(currentMdx).toContain('data-docs-document-slug="中央民族大学学生考勤管理规定"');
+		expect(currentMdx).toContain(`data-docs-route-slug="${routeSlug}"`);
+		expect(collectionIndex).toContain(`](./${routeSlug})`);
+		expect(collectionIndex).not.toContain("](./中央民族大学学生考勤管理规定)");
 	});
 
 	it("copies published reader assets into campus-web static delivery roots", async () => {
@@ -273,7 +307,7 @@ describe("campus-web published reader sync", () => {
 });
 
 function createPublishedReaderFixture(
-	input: { includeSearchUnits?: boolean; surface?: string } = {},
+	input: { includeSearchUnits?: boolean; publicDocumentSlug?: string; surface?: string } = {},
 ): {
 	client: ObjectStoreClient;
 	manifestPath: string;
@@ -281,6 +315,7 @@ function createPublishedReaderFixture(
 } {
 	tempDir = mkdtempSync(join(tmpdir(), "campus-docs-sync-"));
 	const root = tempDir;
+	const publicDocumentSlug = input.publicDocumentSlug ?? "student-attendance";
 	const publicReader = JSON.stringify({
 		document: { title: "中央民族大学学生考勤管理规定" },
 		sections: [
@@ -353,11 +388,11 @@ function createPublishedReaderFixture(
 	const searchUnits = [
 		{
 			anchor: "general",
-			canonicalUrl: "/docs/regulations/student_rules/student-attendance#general",
+			canonicalUrl: `/docs/regulations/student_rules/${publicDocumentSlug}#general`,
 			collection: "student_rules",
 			corpus: "regulations",
 			docId: "doc_public",
-			documentSlug: "student-attendance",
+			documentSlug: publicDocumentSlug,
 			documentTitle: "中央民族大学学生考勤管理规定",
 			highlightRootUnitIds: ["attendance-root"],
 			searchUnitId: "search_public_current_general",
@@ -389,7 +424,7 @@ function createPublishedReaderFixture(
 				corpus: "regulations",
 				deliveryMode: "public_static_asset",
 				docId: "doc_public",
-				documentSlug: "student-attendance",
+				documentSlug: publicDocumentSlug,
 				isCurrent: true,
 				sourceObjects: {
 					"asset-manifest": "manifest/public.json",
@@ -414,7 +449,7 @@ function createPublishedReaderFixture(
 				corpus: "regulations",
 				deliveryMode: "public_static_asset",
 				docId: "doc_public",
-				documentSlug: "student-attendance",
+				documentSlug: publicDocumentSlug,
 				isCurrent: false,
 				sourceObjects: {
 					"asset-manifest": "manifest/public-history.json",

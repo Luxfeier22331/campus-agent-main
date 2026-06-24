@@ -45,7 +45,7 @@ export function writeGatedReaderPage(input) {
 		"docs",
 		input.entry.corpus,
 		input.entry.collection,
-		input.entry.documentSlug,
+		input.entry.routeSlug,
 		"v",
 		`${input.entry.versionSlug}.mdx`,
 	);
@@ -54,7 +54,7 @@ export function writeGatedReaderPage(input) {
 		"docs",
 		input.entry.corpus,
 		input.entry.collection,
-		`${input.entry.documentSlug}.mdx`,
+		`${input.entry.routeSlug}.mdx`,
 	);
 	const versionMdx = buildGatedReaderMdx({
 		entry: input.entry,
@@ -80,7 +80,7 @@ function buildGatedReaderMdx(input) {
 		"",
 		`import GatedReaderBootstrap from "${input.importPath}";`,
 		"",
-		"<GatedReaderBootstrap />",
+		`<GatedReaderBootstrap documentSlug={${JSON.stringify(input.entry.documentSlug)}} />`,
 		"",
 	].join("\n");
 }

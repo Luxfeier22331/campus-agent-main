@@ -297,6 +297,9 @@ native local search 处理；受限文档搜索由 campus-web 交付 admission �
 
 固定规则：
 
+- 该受保护静态 index path 使用 app-api / reader asset identity 中的原始
+  `documentSlug`；browser reader permalink 可以使用 campus-web build-time 派生的
+  URL-safe route slug。
 - campus-web Worker 必须先调用同一文档版本的 app-api admission endpoint。
 - admission 失败、对象不存在或 projection 不可安全判定时 fail closed。
 - response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
@@ -360,7 +363,9 @@ chat 与 restricted / gated docs search 共用如下最小 citation target 形�
 
 - source card 是 browser-safe citation target，不是 raw retrieval trace
 - assistant prose 不承载这些字段的字符串拼接版本
-- `canonicalUrl` 是既有 wire 字段名，必须可直接落到 docs reader permalink
+- `canonicalUrl` 是既有 wire 字段名，必须可直接落到 docs reader permalink；当
+  `documentSlug` 不适合作为静态文件名时，permalink 应使用 campus-web 派生的
+  URL-safe route slug
 - source card 自身不承载整篇 reader payload
 
 ## Forbidden Shapes

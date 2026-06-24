@@ -35,8 +35,9 @@ async function enhanceVersionControls(): Promise<void> {
 		return;
 	}
 	panel.setAttribute(VERSION_CONTROL_ATTRIBUTE, "true");
-	const { docsCollection, docsCorpus, docsDocumentSlug, docsVersionSlug } = panel.dataset;
-	if (!(docsCollection && docsCorpus && docsDocumentSlug && docsVersionSlug)) {
+	const { docsCollection, docsCorpus, docsDocumentSlug, docsRouteSlug, docsVersionSlug } =
+		panel.dataset;
+	if (!(docsCollection && docsCorpus && docsDocumentSlug && docsRouteSlug && docsVersionSlug)) {
 		return;
 	}
 
@@ -84,6 +85,7 @@ async function enhanceVersionControls(): Promise<void> {
 				documentSlug: docsDocumentSlug,
 				isCurrent: version.isCurrent,
 				readerState: state,
+				routeSlug: docsRouteSlug,
 				versionSlug: version.versionSlug,
 			});
 		}

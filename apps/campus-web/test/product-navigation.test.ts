@@ -16,7 +16,8 @@ describe("campus product navigation model", () => {
 			["feedback", "/feedback", "反馈"],
 		]);
 		expect(buildRspressProductNav()).toEqual([
-			{ link: "/", text: "问答" },
+			{ activeMatch: "^/$|^/c/", link: "/", text: "问答" },
+			{ link: "/docs/", text: "文档" },
 			{ link: "/map", text: "校园地图" },
 			{ link: "/dining", text: "食堂" },
 			{ link: "/feedback", text: "反馈" },

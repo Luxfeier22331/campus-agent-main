@@ -9,6 +9,7 @@ export interface VersionReaderHrefInput {
 	documentSlug: string;
 	isCurrent: boolean;
 	readerState: ReaderLocationState;
+	routeSlug: string;
 	versionSlug: string;
 }
 
@@ -23,7 +24,7 @@ export function parseReaderLocationState(rawUrl: string): ReaderLocationState {
 }
 
 export function buildVersionReaderHref(input: VersionReaderHrefInput): string {
-	const basePath = `/docs/${input.corpus}/${input.collection}/${input.documentSlug}`;
+	const basePath = `/docs/${input.corpus}/${input.collection}/${input.routeSlug}`;
 	const versionPath = input.isCurrent
 		? basePath
 		: `${basePath}/v/${encodeURIComponent(input.versionSlug)}`;

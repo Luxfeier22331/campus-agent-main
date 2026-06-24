@@ -84,7 +84,10 @@ document-units -> chunks -> index`
 语义：
 
 - `docId` 表示逻辑文档身份
-- `documentSlug` 表示 reader URL 中的稳定路径片段
+- `documentSlug` 表示 document reader control-plane 中的稳定文档标识，不保证可直接作为
+  browser 静态 reader URL 路径片段
+- `campus-web` 可在 build-time 为公开 reader page 派生 URL-safe route slug；该 route slug
+  只属于 browser route / Rspress source / search permalink，不替代 `documentSlug`
 - `visibility` 表示当前 principal 可否读取，并由 `app-api` 决定
 
 ### Document Version

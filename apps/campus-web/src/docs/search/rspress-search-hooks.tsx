@@ -63,7 +63,8 @@ function resolveProtectedSearchIndexPath(pathname: string): string | null {
 	if (parts[0] !== "docs" || parts.length < 4) {
 		return null;
 	}
-	const [, corpus, collection, documentSlug] = parts;
+	const [, corpus, collection] = parts;
+	const documentSlug = readCurrentReaderDocumentSlug();
 	const versionSlug = parts[4] === "v" ? parts[5] : readCurrentReaderVersionSlug();
 	if (!(corpus && collection && documentSlug && versionSlug)) {
 		return null;
@@ -71,6 +72,14 @@ function resolveProtectedSearchIndexPath(pathname: string): string | null {
 	return `/_gated-docs-search/${encodeURIComponent(corpus)}/${encodeURIComponent(
 		collection,
 	)}/${encodeURIComponent(documentSlug)}/${encodeURIComponent(versionSlug)}/index.json`;
+}
+
+function readCurrentReaderDocumentSlug(): string | null {
+	if (typeof document === "undefined") {
+		return null;
+	}
+	const meta = document.querySelector<HTMLElement>("[data-docs-reader-meta]");
+	return meta?.dataset.docsDocumentSlug?.trim() || null;
 }
 
 function readCurrentReaderVersionSlug(): string | null {

@@ -28,10 +28,7 @@ export function AuthDialog({
 						<Modal.CloseTrigger aria-label="关闭登录窗口" />
 						<Modal.Body>
 							<CampusAuthUIProvider redirectTo={readCurrentRouteTarget()}>
-								<div
-									className="mx-auto w-full max-w-sm"
-									data-campus-account-surface="auth-modal"
-								>
+								<div className="mx-auto w-full max-w-sm" data-campus-account-surface="auth-modal">
 									<AuthPanel className="w-full" view={initialView} />
 								</div>
 							</CampusAuthUIProvider>

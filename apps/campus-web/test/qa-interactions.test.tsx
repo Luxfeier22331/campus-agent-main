@@ -168,9 +168,7 @@ describe("Q&A product interactions", () => {
 		render(<QAShell assistantThreadId="conv_01" loginRequested topTitle="会话" />);
 
 		await waitFor(() => {
-			expect(
-				screen.getByRole("dialog", { name: "登录或创建校园问答账号" }),
-			).toBeInTheDocument();
+			expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
 		});
 		expect(navigateMock).not.toHaveBeenCalledWith(
 			expect.objectContaining({

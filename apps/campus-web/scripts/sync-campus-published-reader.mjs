@@ -43,12 +43,12 @@ export async function syncCampusPublishedReaderDocs(input) {
 		input.docsRoot ?? process.env.CAMPUS_WEB_RSPRESS_DOCS_ROOT?.trim() ?? DEFAULT_DOCS_ROOT,
 	);
 	const manifest = await loadPublishedReaderManifest(input);
-	const readerEntries = manifest.entries
-		.filter(
+	const readerEntries = attachReaderRouteSlugs(
+		manifest.entries.filter(
 			(entry) =>
 				entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
-		)
-		.sort(compareEntryRoute);
+		),
+	).sort(compareEntryRoute);
 	const publicEntries = readerEntries.filter(
 		(entry) => entry.deliveryMode === "public_static_asset",
 	);
@@ -142,7 +142,7 @@ async function writeReaderPage(input) {
 		"docs",
 		input.entry.corpus,
 		input.entry.collection,
-		input.entry.documentSlug,
+		input.entry.routeSlug,
 		"v",
 		`${input.entry.versionSlug}.mdx`,
 	);
@@ -154,7 +154,7 @@ async function writeReaderPage(input) {
 				"docs",
 				input.entry.corpus,
 				input.entry.collection,
-				`${input.entry.documentSlug}.mdx`,
+				`${input.entry.routeSlug}.mdx`,
 			),
 			buildReaderMdx({
 				entry: input.entry,
@@ -228,7 +228,7 @@ function buildMetaPanel(input) {
 		})),
 	});
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
+		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-route-slug="${escapeHtml(input.entry.routeSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
 		'\t<p className="document-meta-summary">',
 		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
 		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
@@ -271,6 +271,39 @@ function resolveDocumentVersionKey(entry) {
 	return `${entry.corpus}/${entry.collection}/${entry.documentSlug}`;
 }
 
+function attachReaderRouteSlugs(entries) {
+	const routeSlugByDocument = new Map();
+	const documentByRouteSlug = new Map();
+	return entries.map((entry) => {
+		const documentKey = resolveDocumentVersionKey(entry);
+		const routeSlug = routeSlugByDocument.get(documentKey) ?? buildDocumentRouteSlug(entry);
+		routeSlugByDocument.set(documentKey, routeSlug);
+
+		const routeKey = `${entry.corpus}/${entry.collection}/${routeSlug}`;
+		const existingDocumentSlug = documentByRouteSlug.get(routeKey);
+		if (existingDocumentSlug && existingDocumentSlug !== entry.documentSlug) {
+			throw new Error(`duplicate docs reader route slug: ${routeKey}`);
+		}
+		documentByRouteSlug.set(routeKey, entry.documentSlug);
+		return { ...entry, routeSlug };
+	});
+}
+
+function buildDocumentRouteSlug(entry) {
+	if (isSafeReaderRouteSlug(entry.documentSlug)) {
+		return entry.documentSlug;
+	}
+	const digest = createHash("sha256")
+		.update(resolveDocumentVersionKey(entry))
+		.digest("hex")
+		.slice(0, 12);
+	return `doc-${digest}`;
+}
+
+function isSafeReaderRouteSlug(value) {
+	return /^[A-Za-z0-9][A-Za-z0-9._~-]*$/u.test(value) && value !== "." && value !== "..";
+}
+
 function writeCollectionMetaFiles(input) {
 	const docsDir = resolve(input.docsRoot, "docs");
 	const byScope = new Map();
@@ -298,15 +331,11 @@ function writeCollectionMetaFiles(input) {
 }
 
 function buildRootMeta() {
-	return [
-		{ type: "file", name: "index", label: "文档" },
-		{ type: "dir", name: "docs", label: "文档库", collapsed: false },
-	];
+	return [{ type: "dir", name: "docs", label: "文档", collapsed: false }];
 }
 
 function buildDocsMeta(byScope) {
 	return [
-		{ type: "file", name: "index", label: "全部文档" },
 		...sortedCorpora(byScope).map((corpus) => ({
 			type: "dir",
 			name: corpus,
@@ -333,7 +362,7 @@ function buildCollectionMeta(entries) {
 		{ type: "file", name: "index", label: "目录" },
 		...entries.map((entry) => ({
 			type: "file",
-			name: entry.documentSlug,
+			name: entry.routeSlug,
 			label: resolveDocumentDisplayTitle(entry.title),
 		})),
 	];
@@ -351,6 +380,8 @@ function buildHomePage(entries) {
 		"",
 		entries.length > 0 ? `当前发布 ${entries.length} 篇文档。` : "请选择文档目录继续阅读。",
 		"",
+		...buildDocsEntryLinks(entries),
+		"",
 	].join("\n");
 }
 
@@ -365,6 +396,8 @@ function buildDocsIndex(entries) {
 		"# 文档库",
 		"",
 		entries.length > 0 ? `当前发布 ${entries.length} 篇文档。` : "暂无已发布文档。",
+		"",
+		...buildDocsEntryLinks(entries),
 		"",
 	].join("\n");
 }
@@ -381,6 +414,8 @@ function buildCorpusIndex(corpus, entries) {
 		`# ${label}`,
 		"",
 		`当前发布 ${entries.length} 篇文档。`,
+		"",
+		...buildDocsEntryLinks(entries),
 		"",
 	].join("\n");
 }
@@ -399,10 +434,37 @@ function buildCollectionIndex(corpus, collection, entries) {
 		"",
 		...entries.map(
 			(entry) =>
-				`- [${escapeMarkdownLinkText(resolveDocumentDisplayTitle(entry.title))}](./${entry.documentSlug})`,
+				`- [${escapeMarkdownLinkText(resolveDocumentDisplayTitle(entry.title))}](./${entry.routeSlug})`,
 		),
 		"",
 	].join("\n");
+}
+
+function buildDocsEntryLinks(entries) {
+	if (entries.length === 0) {
+		return [];
+	}
+	const scopes = new Map();
+	for (const entry of entries) {
+		const key = `${entry.corpus}/${entry.collection}`;
+		scopes.set(key, {
+			collection: entry.collection,
+			corpus: entry.corpus,
+			count: (scopes.get(key)?.count ?? 0) + 1,
+		});
+	}
+	return [
+		"## 分类",
+		"",
+		'<div className="docs-category-links">',
+		"",
+		...sortedDocsScopes(scopes).map(
+			(scope) =>
+				`- [${escapeMarkdownLinkText(resolveCollectionLabel(scope))}](/docs/${scope.corpus}/${scope.collection}/)`,
+		),
+		"",
+		"</div>",
+	];
 }
 
 function resolveDocumentDisplayTitle(title) {
@@ -415,8 +477,9 @@ function resolveDocumentDisplayTitle(title) {
 }
 
 function writeProtectedSearchIndexes(input) {
+	const routeEntries = attachReaderRouteSlugs(input.entries);
 	const searchUnitsByVersionId = buildSearchUnitsByVersionId(input.manifest.searchUnits);
-	for (const entry of input.entries) {
+	for (const entry of routeEntries) {
 		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
 			continue;
 		}
@@ -463,10 +526,9 @@ function buildSearchUnitsByVersionId(searchUnits) {
 function buildProtectedSearchEntry(input) {
 	assertSearchUnitMatchesEntry({ entry: input.entry, unit: input.unit });
 	const sectionTitle = input.unit.title;
-	const canonicalUrl = normalizeReaderCanonicalUrl(input.unit.canonicalUrl);
 	return {
 		anchor: input.unit.anchor,
-		canonicalUrl,
+		canonicalUrl: buildReaderCanonicalUrl(input.entry),
 		collection: input.entry.collection,
 		collectionLabel: resolveCollectionLabel(input.entry),
 		corpus: input.entry.corpus,
@@ -481,6 +543,10 @@ function buildProtectedSearchEntry(input) {
 	};
 }
 
+function buildReaderCanonicalUrl(entry) {
+	return `/docs/${entry.corpus}/${entry.collection}/${entry.routeSlug}`;
+}
+
 function assertSearchUnitMatchesEntry(input) {
 	const pairs = [
 		["corpus", input.unit.corpus, input.entry.corpus],
@@ -493,19 +559,6 @@ function assertSearchUnitMatchesEntry(input) {
 			throw new Error(`protected search unit ${label} does not match release entry`);
 		}
 	}
-}
-
-function normalizeReaderCanonicalUrl(value) {
-	const raw = value.trim();
-	let pathname = raw;
-	try {
-		const url = new URL(raw, "https://campus.muc.wiki");
-		pathname = url.pathname;
-	} catch {
-		pathname = raw.split(/[?#]/u, 1)[0] ?? raw;
-	}
-	const withoutTrailingSlash = pathname.length > 1 ? pathname.replace(/\/+$/u, "") : pathname;
-	return withoutTrailingSlash || "/";
 }
 
 function compareSearchUnit(left, right) {
@@ -628,6 +681,14 @@ function sortedCollections(corpus, byScope) {
 		.map((scope) => scope.split("/")[1])
 		.filter(Boolean)
 		.sort(compareCollection);
+}
+
+function sortedDocsScopes(scopes) {
+	return [...scopes.values()].sort(
+		(left, right) =>
+			compareCorpus(left.corpus, right.corpus) ||
+			compareCollection(left.collection, right.collection),
+	);
 }
 
 function compareCorpus(left, right) {

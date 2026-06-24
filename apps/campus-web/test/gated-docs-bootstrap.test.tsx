@@ -95,7 +95,7 @@ describe("gated docs bootstrap", () => {
 		window.history.replaceState(
 			null,
 			"",
-			"/docs/regulations/scoped_rules/restricted-policy?hl=restricted-root#restricted",
+			"/docs/regulations/scoped_rules/doc-a1b2c3d4e5f6?hl=restricted-root#restricted",
 		);
 		const fetchMock = vi.spyOn(globalThis, "fetch");
 		fetchMock
@@ -141,12 +141,17 @@ describe("gated docs bootstrap", () => {
 				),
 			);
 
-		render(<GatedReaderBootstrap />);
+		render(<GatedReaderBootstrap documentSlug="中央民族大学受限制度" />);
 
 		expect(await screen.findByRole("heading", { name: "受限制度" })).toBeInTheDocument();
 		await waitFor(() => {
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"/api/docs/collections/regulations/scoped_rules/documents/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%8F%97%E9%99%90%E5%88%B6%E5%BA%A6/resolve?anchor=restricted&hl=restricted-root",
+			expect.any(Object),
+		);
 		expect(screen.getByText("这是一条受限正文。")).toBeInTheDocument();
 	});
 });

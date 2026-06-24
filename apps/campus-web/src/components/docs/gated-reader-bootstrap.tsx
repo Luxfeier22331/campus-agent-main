@@ -55,14 +55,18 @@ type ReaderState =
 	| { status: "unavailable" }
 	| { reader: ReaderPayload; resolve: DocsResolveResponse; status: "ready" };
 
-export default function GatedReaderBootstrap() {
+interface GatedReaderBootstrapProps {
+	documentSlug?: string;
+}
+
+export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootstrapProps) {
 	const [state, setState] = useState<ReaderState>({ status: "loading" });
 
 	useEffect(() => {
 		let cancelled = false;
 
 		async function loadReader() {
-			const target = parseReaderRoute(window.location);
+			const target = parseReaderRoute(window.location, documentSlug);
 			if (!target) {
 				setState({ status: "not_found" });
 				return;
@@ -103,7 +107,7 @@ export default function GatedReaderBootstrap() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [documentSlug]);
 
 	if (state.status === "loading") {
 		return <div className="reader-bootstrap-status">正在读取文档</div>;
@@ -192,7 +196,10 @@ function resolveLoginHref(): string {
 	}
 }
 
-function parseReaderRoute(location: Location): ReaderRouteTarget | null {
+function parseReaderRoute(
+	location: Location,
+	documentSlugOverride?: string,
+): ReaderRouteTarget | null {
 	let parts: string[];
 	try {
 		parts = location.pathname.split("/").filter(Boolean).map(decodeURIComponent);
@@ -207,7 +214,7 @@ function parseReaderRoute(location: Location): ReaderRouteTarget | null {
 		anchor: location.hash ? decodeURIComponent(location.hash.slice(1)) : null,
 		collection: parts[2],
 		corpus: parts[1],
-		documentSlug: parts[3],
+		documentSlug: documentSlugOverride?.trim() || parts[3],
 		highlightRootUnitIds: parseHighlightRootUnitIds(new URLSearchParams(location.search).get("hl")),
 		version,
 	};

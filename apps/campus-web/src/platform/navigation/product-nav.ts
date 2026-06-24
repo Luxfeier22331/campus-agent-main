@@ -29,8 +29,10 @@ export function isProductNavActive(pathname: string, item: ProductNavItem): bool
 	}
 }
 
-export function buildRspressProductNav(): Array<{ link: string; text: string }> {
-	return productNavItems
-		.filter((item) => item.id !== "docs")
-		.map((item) => ({ link: item.href, text: item.label }));
+export function buildRspressProductNav(): Array<{ activeMatch?: string; link: string; text: string }> {
+	return productNavItems.map((item) => ({
+		...(item.id === "chat" ? { activeMatch: "^/$|^/c/" } : {}),
+		link: item.href,
+		text: item.label,
+	}));
 }

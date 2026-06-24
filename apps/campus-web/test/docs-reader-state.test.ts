@@ -41,6 +41,7 @@ describe("campus docs reader target state", () => {
 				documentSlug: "law",
 				isCurrent: true,
 				readerState,
+				routeSlug: "law",
 				versionSlug: "2026-current",
 			}),
 		).toBe(
@@ -53,6 +54,7 @@ describe("campus docs reader target state", () => {
 				documentSlug: "law",
 				isCurrent: false,
 				readerState,
+				routeSlug: "law",
 				versionSlug: "2025-history",
 			}),
 		).toBe(

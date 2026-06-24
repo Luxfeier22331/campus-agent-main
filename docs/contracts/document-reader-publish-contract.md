@@ -208,7 +208,12 @@ deploy sync manifest 的最小逻辑形态固定为：
 - `sourceObjects.*` 使用对象存储 key，而不是外部 URL
 - `targetObjects.*` 使用 campus-web static assets 内的相对路径
 - `corpus`、`collection`、`documentSlug`、`versionSlug` 是 build-time 生成
-  Rspress source 与 static path 的必要身份字段
+  reader asset 与 reader page 的必要身份字段；`documentSlug` 不要求可直接作为
+  browser route 文件名
+- `campus-web` 生成公开 Rspress reader page 时，可为不适合作为静态文件名的
+  `documentSlug` 派生 URL-safe route slug；派生 route slug 只用于 browser route、Rspress
+  source 文件名和 search permalink，reader meta / admission / version API 仍使用原始
+  `documentSlug`
 - `title` 是 build-time 生成 reader page 与 navigation label 的必要用户可见字段
 - `targetObjects` 必须包含 `asset-manifest`，deploy sync 用它校验 package 内对象的
   hash 与 size
