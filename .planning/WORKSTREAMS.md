@@ -89,6 +89,13 @@ status as current project truth.
   evidence path or long-term personal file library. Until the backend contract
   and execution projection are implemented, the browser attachment entry must
   remain hidden or fail closed.
+- Capability-plane signal: dining published projection may later be exposed to
+  the Q&A path as a read-only `campus_services` typed tool such as
+  `dining_lookup`. It must read app-api-owned published dining projection, not
+  Lark / Feishu Base, raw dining draft, release candidate, source observation or
+  floorplan SVG assets. This is a future capability expansion signal, not a
+  current implementation gap until a ToolSpec / CapabilitySpec / contract is
+  accepted.
 - Document reader appendix / form downloads are deferred backlog, not part of
   the current docs hardening closeout. Current reader delivery renders appendix
   tables as reader sections/blocks. Future work should expose "download original
