@@ -608,6 +608,34 @@
 			}
 		},
 		{
+			"case_id": "main-institutional-campus-network-password",
+			"user_utterance": "校园网密码怎么改？",
+			"domain": "institutional_rules",
+			"split": "release_gate",
+			"expected": {
+				"selected_capability": "knowledge",
+				"terminal_outcome": "completed",
+				"source_truth": {
+					"expected_collections": ["regulations/institutional_rules"],
+					"evidence_required": true
+				},
+				"trace_contract": {
+					"required_stages": [
+						"context.memory_recall",
+						"plan.route",
+						"capability.knowledge",
+						"finalization.write"
+					],
+					"forbidden_stages": ["legacy_python_cli"]
+				},
+				"answer_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"must_not_hallucinate": true
+				}
+			}
+		},
+		{
 			"case_id": "main-official-web-enrollment-news",
 			"user_utterance": "最近研究生招生有什么官方通知？",
 			"domain": "official_web",

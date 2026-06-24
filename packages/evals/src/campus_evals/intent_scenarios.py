@@ -177,6 +177,10 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
         ("课程重修规则是什么？", None),
         ("选课退课时间怎么规定？", None),
         ("学院培养计划在哪里看？", None),
+        ("校园网密码怎么改？", None),
+        ("统一身份认证密码怎么改？", None),
+        ("信息门户密码怎么改？", None),
+        ("上网账号申请去哪里办？", None),
         ("library hours", None),
     )
     return tuple(

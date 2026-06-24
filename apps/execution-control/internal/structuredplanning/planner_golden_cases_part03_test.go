@@ -31,20 +31,6 @@ func plannerGoldenCasesPart03() []plannerGoldenCase {
 			},
 		},
 		{
-			name: "network auth entry",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "校园网认证入口在哪里",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "校园网认证入口在哪里",
-				"guide_focus":   "entry",
-			},
-		},
-		{
 			name: "email required materials",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -56,62 +42,6 @@ func plannerGoldenCasesPart03() []plannerGoldenCase {
 			wantPayload: map[string]any{
 				"service_query": "校园邮箱需要什么材料",
 				"guide_focus":   "required_materials",
-			},
-		},
-		{
-			name: "unified auth password reset",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "统一身份认证密码怎么改",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "统一身份认证密码怎么改",
-				"guide_focus":   "procedure",
-			},
-		},
-		{
-			name: "portal forgot password",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "智慧门户忘记密码怎么办",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "智慧门户忘记密码怎么办",
-				"guide_focus":   "procedure",
-			},
-		},
-		{
-			name: "network auth login entry",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "校园网怎么认证登录",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "校园网怎么认证登录",
-				"guide_focus":   "procedure",
-			},
-		},
-		{
-			name: "network auth website",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "校园网认证网址是什么",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "校园网认证网址是什么",
-				"guide_focus":   "entry",
 			},
 		},
 		{

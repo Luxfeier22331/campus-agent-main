@@ -31,20 +31,6 @@ func plannerGoldenCasesPart04() []plannerGoldenCase {
 			},
 		},
 		{
-			name: "network account guide",
-			request: Request{
-				EffectiveCapability: "campus_services",
-				UserGoal:            "上网账号申请去哪里办",
-			},
-			wantCapability: "campus_services",
-			wantKind:       "service_guide_lookup",
-			wantTool:       "service_guide_lookup",
-			wantPayload: map[string]any{
-				"service_query": "上网账号申请去哪里办",
-				"guide_focus":   "entry",
-			},
-		},
-		{
 			name: "staff campus card guide",
 			request: Request{
 				EffectiveCapability: "campus_services",

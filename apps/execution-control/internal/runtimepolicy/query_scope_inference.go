@@ -41,7 +41,7 @@ func InferKnowledgeQueryScope(queryText string, policyPath string) (Scope, error
 			normalized,
 			[]string{
 				"官网", "官方网站", "招生办公室", "联系方式", "联系电话", "地址", "学院官网",
-				"部门主页", "信息门户",
+				"部门主页",
 			},
 		),
 		scoreKnowledgeScope(
@@ -51,6 +51,9 @@ func InferKnowledgeQueryScope(queryText string, policyPath string) (Scope, error
 			[]string{
 				"学校章程", "党委常委会", "校长办公会", "会议制度", "机构设置", "校级",
 				"规章制度", "管理办法", "党政", "校务",
+				"校园网", "校园网密码", "校园网认证", "校园网用户账号", "校园网接入",
+				"上网账号", "网络账号", "统一身份认证", "统一认证", "信息门户",
+				"智慧门户", "门户运行管理", "网络与信息", "信息化建设管理处",
 			},
 		),
 	}

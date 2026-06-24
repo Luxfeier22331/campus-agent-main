@@ -221,6 +221,30 @@ func TestInferKnowledgeQueryScopeSelectsUniqueAdmittedScope(t *testing.T) {
 			wantCorpus:     "regulations",
 			wantCollection: "institutional_rules",
 		},
+		{
+			name:           "campus network password regulation",
+			queryText:      "校园网密码怎么改？",
+			wantCorpus:     "regulations",
+			wantCollection: "institutional_rules",
+		},
+		{
+			name:           "unified auth password regulation",
+			queryText:      "统一身份认证密码怎么改？",
+			wantCorpus:     "regulations",
+			wantCollection: "institutional_rules",
+		},
+		{
+			name:           "information portal password regulation",
+			queryText:      "信息门户密码怎么改？",
+			wantCorpus:     "regulations",
+			wantCollection: "institutional_rules",
+		},
+		{
+			name:           "network account application regulation",
+			queryText:      "上网账号申请去哪里办？",
+			wantCorpus:     "regulations",
+			wantCollection: "institutional_rules",
+		},
 	}
 
 	for _, tt := range tests {
