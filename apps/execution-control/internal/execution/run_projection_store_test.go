@@ -182,6 +182,54 @@ func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.
 	}
 }
 
+func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing.T) {
+	store := NewInMemoryRunProjectionStore()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 8, 8, 0, 0, time.UTC)
+	createRunProjectionForTest(t, store, "run-complete-selected-capability", "conv-complete-selected-capability", now)
+	if _, err := store.TransitionRun(
+		ctx,
+		"run-complete-selected-capability",
+		DurableRunStatusQueued,
+		"",
+		now.Add(time.Second),
+	); err != nil {
+		t.Fatalf("queue run projection: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		ctx,
+		"run-complete-selected-capability",
+		DurableRunStatusAdmitted,
+		"",
+		now.Add(2*time.Second),
+	); err != nil {
+		t.Fatalf("admit run projection: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		ctx,
+		"run-complete-selected-capability",
+		DurableRunStatusRunning,
+		"",
+		now.Add(3*time.Second),
+	); err != nil {
+		t.Fatalf("start run projection: %v", err)
+	}
+
+	completed, err := store.CompleteRunProjection(ctx, DurableRunCompleteRequest{
+		FinalResponseRef:   "projection://runs/run-complete-selected-capability/finalization/write",
+		Now:                now.Add(4 * time.Second),
+		RunID:              "run-complete-selected-capability",
+		SelectedCapability: "knowledge",
+		TerminalReason:     DurableTerminalReasonAnswerCompleted,
+	})
+	if err != nil {
+		t.Fatalf("complete run projection: %v", err)
+	}
+	if completed.SelectedCapability != "knowledge" {
+		t.Fatalf("selected capability = %q, want knowledge", completed.SelectedCapability)
+	}
+}
+
 func TestInMemoryRunProjectionStoreAppendsRunEventsWithMonotonicSequence(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()

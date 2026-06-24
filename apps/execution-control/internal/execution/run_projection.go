@@ -199,10 +199,11 @@ type DurableRunCancelRequest struct {
 }
 
 type DurableRunCompleteRequest struct {
-	RunID            string
-	TerminalReason   DurableTerminalReason
-	FinalResponseRef string
-	Now              time.Time
+	RunID              string
+	TerminalReason     DurableTerminalReason
+	FinalResponseRef   string
+	SelectedCapability string
+	Now                time.Time
 }
 
 type CancelOutcome string

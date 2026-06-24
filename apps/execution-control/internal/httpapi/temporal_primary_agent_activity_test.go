@@ -582,6 +582,9 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if completedRun.FinalResponseRef != output.ProjectionRef {
 		t.Fatalf("final response ref = %q, want %q", completedRun.FinalResponseRef, output.ProjectionRef)
 	}
+	if completedRun.SelectedCapability != "campus_services" {
+		t.Fatalf("run selected capability = %q, want campus_services", completedRun.SelectedCapability)
+	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-finalization")
 	if err != nil {
 		t.Fatalf("list events: %v", err)

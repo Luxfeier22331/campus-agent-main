@@ -192,6 +192,9 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 			finalization.ProjectionRef,
 		)
 	}
+	if completedRun.SelectedCapability != "knowledge" {
+		t.Fatalf("run selected capability = %q, want knowledge", completedRun.SelectedCapability)
+	}
 	events, eventsErr := store.ListRunEvents(context.Background(), "run-rag-graph")
 	if eventsErr != nil {
 		t.Fatalf("list run events: %v", eventsErr)

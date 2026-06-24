@@ -226,6 +226,9 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 	run.Status = DurableRunStatusCompleted
 	run.TerminalReason = request.TerminalReason
 	run.FinalResponseRef = request.FinalResponseRef
+	if request.SelectedCapability != "" {
+		run.SelectedCapability = request.SelectedCapability
+	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
 	if err := validateDurableRun(run); err != nil {
@@ -236,7 +239,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
-			final_response_ref = $10
+			final_response_ref = $10, selected_capability = $11
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -248,6 +251,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
 		run.FinalResponseRef,
+		run.SelectedCapability,
 	)
 	if err != nil {
 		return DurableRun{}, err

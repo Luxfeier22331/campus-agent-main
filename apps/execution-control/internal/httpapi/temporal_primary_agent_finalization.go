@@ -82,13 +82,15 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	completedAt := time.Now().UTC()
 	terminalReason := primaryAgentTerminalReason(agentResult)
+	selectedCapability := primaryAgentSelectedCapability(stringSliceFromAny(agentResult["selected_tools"]))
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
-			FinalResponseRef: finalizationRef,
-			Now:              completedAt,
-			RunID:            run.RunID,
-			TerminalReason:   terminalReason,
+			FinalResponseRef:   finalizationRef,
+			Now:                completedAt,
+			RunID:              run.RunID,
+			SelectedCapability: selectedCapability,
+			TerminalReason:     terminalReason,
 		},
 	)
 	if err != nil {

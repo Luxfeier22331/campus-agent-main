@@ -140,6 +140,9 @@ func (s *InMemoryRunProjectionStore) CompleteRunProjection(
 	run.Status = DurableRunStatusCompleted
 	run.TerminalReason = request.TerminalReason
 	run.FinalResponseRef = request.FinalResponseRef
+	if request.SelectedCapability != "" {
+		run.SelectedCapability = request.SelectedCapability
+	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
 	if err := validateDurableRun(run); err != nil {

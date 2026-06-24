@@ -328,10 +328,11 @@ func (s *Server) WriteFinalizationActivity(
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
-			FinalResponseRef: finalizationRef,
-			Now:              completedAt,
-			RunID:            run.RunID,
-			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
+			FinalResponseRef:   finalizationRef,
+			Now:                completedAt,
+			RunID:              run.RunID,
+			SelectedCapability: "knowledge",
+			TerminalReason:     execution.DurableTerminalReasonAnswerCompleted,
 		},
 	)
 	if err != nil {
