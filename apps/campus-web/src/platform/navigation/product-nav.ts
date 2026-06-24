@@ -29,7 +29,11 @@ export function isProductNavActive(pathname: string, item: ProductNavItem): bool
 	}
 }
 
-export function buildRspressProductNav(): Array<{ activeMatch?: string; link: string; text: string }> {
+export function buildRspressProductNav(): Array<{
+	activeMatch?: string;
+	link: string;
+	text: string;
+}> {
 	return productNavItems.map((item) => ({
 		...(item.id === "chat" ? { activeMatch: "^/$|^/c/" } : {}),
 		link: item.href,
