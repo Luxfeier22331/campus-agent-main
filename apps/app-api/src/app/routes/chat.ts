@@ -311,6 +311,7 @@ export function registerChatRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		routeChatErrorResponse,
+		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
 	});
 
 	input.app.get("/api/chat/conversations", async (c) => {

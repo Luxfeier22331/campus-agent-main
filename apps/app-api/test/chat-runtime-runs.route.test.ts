@@ -162,10 +162,12 @@ describe("chat durable run routes", () => {
 				})(),
 			),
 		};
+		const scheduleRequestProjectionDrain = vi.fn();
 		const app = createApp(env, {
 			chatCommandService,
 			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
 			runtimeRunService,
+			scheduleRequestProjectionDrain,
 		});
 
 		const response = await app.fetch(
@@ -212,6 +214,10 @@ describe("chat durable run routes", () => {
 			limit: 1,
 			runId: "run_01HQ",
 			startedBefore: expect.any(String),
+		});
+		expect(scheduleRequestProjectionDrain).toHaveBeenCalledWith({
+			requestId: "req_01HQ",
+			waitUntil: undefined,
 		});
 		expect(chatCommandService.submit).not.toHaveBeenCalled();
 		expect(chatCommandService.submitStream).not.toHaveBeenCalled();

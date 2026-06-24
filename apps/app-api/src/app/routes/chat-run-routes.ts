@@ -5,7 +5,11 @@ import { AppApiRouteError, jsonResponse } from "../../http";
 import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
 import type { RuntimeRunEventProjection, RuntimeRunSummary } from "../../modules/runtime-run";
 import { requireSessionPrincipal } from "../principal";
-import { createRouteErrorCorrelation, readJsonRequestBody } from "../request-utils";
+import {
+	createRouteErrorCorrelation,
+	readJsonRequestBody,
+	resolveWaitUntil,
+} from "../request-utils";
 import type { AppRequestScope } from "../types";
 
 function requireObjectBody(value: unknown): Record<string, unknown> {
@@ -250,6 +254,10 @@ export function registerChatRunRoutes(input: {
 		env: Env,
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<import("../../modules/auth").ResolvedAppPrincipal | null>;
+	scheduleRequestProjectionDrain?: (value: {
+		requestId: string;
+		waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
+	}) => void;
 	routeChatErrorResponse(
 		error: unknown,
 		routeErrorCorrelation: {
@@ -346,6 +354,10 @@ export function registerChatRunRoutes(input: {
 						limit: 1,
 						runId: runStatus.run.runId,
 						startedBefore: new Date().toISOString(),
+					});
+					input.scheduleRequestProjectionDrain?.({
+						requestId: runStatus.run.requestId,
+						waitUntil: resolveWaitUntil(c),
 					});
 				},
 				run: runStatus.run,
