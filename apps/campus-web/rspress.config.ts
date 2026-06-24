@@ -34,6 +34,7 @@ export default defineConfig({
 	},
 	description: "中央民族大学校园问答内的文档阅读面。",
 	globalUIComponents: [
+		path.join(__dirname, "src/components/docs/docs-account-entry.tsx"),
 		path.join(__dirname, "src/components/docs/mobile-sidebar-guard.tsx"),
 		path.join(__dirname, "src/components/docs/docs-content-enhancer.tsx"),
 		path.join(__dirname, "src/components/docs/reader-state-enhancer.tsx"),

@@ -6,9 +6,11 @@ export interface ProductNavItem {
 	label: string;
 }
 
+export const DEFAULT_DOCS_READER_PATH = "/docs/regulations/student_rules/doc-c62077b20430";
+
 export const productNavItems = [
 	{ href: "/", id: "chat", label: "问答" },
-	{ href: "/docs/", id: "docs", label: "文档" },
+	{ href: DEFAULT_DOCS_READER_PATH, id: "docs", label: "文档" },
 	{ href: "/map", id: "map", label: "校园地图" },
 	{ href: "/dining", id: "dining", label: "食堂" },
 	{ href: "/feedback", id: "feedback", label: "反馈" },

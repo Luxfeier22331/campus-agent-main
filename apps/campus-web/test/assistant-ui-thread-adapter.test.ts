@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
 	createCampusAssistantThreadHistoryAdapter,
@@ -41,6 +41,16 @@ function detail(input: Partial<ConversationDetail> = {}): ConversationDetail {
 }
 
 describe("assistant-ui thread adapter", () => {
+	beforeEach(() => {
+		conversationApiMock.archiveConversation.mockReset();
+		conversationApiMock.createConversationDraft.mockReset();
+		conversationApiMock.deleteConversation.mockReset();
+		conversationApiMock.getConversationDetail.mockReset();
+		conversationApiMock.listConversations.mockReset();
+		conversationApiMock.renameConversation.mockReset();
+		conversationApiMock.unarchiveConversation.mockReset();
+	});
+
 	it("maps campus conversation summaries to assistant-ui thread metadata", () => {
 		expect(
 			toAssistantThreadMetadata(
@@ -70,7 +80,7 @@ describe("assistant-ui thread adapter", () => {
 				}),
 			]);
 
-		const adapter = createCampusAssistantThreadListAdapter();
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
 		const response = await adapter.list();
 
 		expect(conversationApiMock.listConversations).toHaveBeenNthCalledWith(1, {
@@ -88,11 +98,18 @@ describe("assistant-ui thread adapter", () => {
 		]);
 	});
 
+	it("does not call app-api for thread history when remote history is disabled", async () => {
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: false });
+
+		await expect(adapter.list()).resolves.toEqual({ threads: [] });
+		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
+	});
+
 	it("treats anonymous thread-list reads as an empty list without console noise", async () => {
 		const consoleError = vi.spyOn(console, "error").mockImplementation(() => undefined);
 		conversationApiMock.listConversations.mockRejectedValue(new UnauthorizedError());
 
-		const adapter = createCampusAssistantThreadListAdapter();
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
 
 		await expect(adapter.list()).resolves.toEqual({ threads: [] });
 		expect(consoleError).not.toHaveBeenCalled();
@@ -105,7 +122,7 @@ describe("assistant-ui thread adapter", () => {
 			detail({ id: "conv_created", title: "New conversation" }),
 		);
 
-		const adapter = createCampusAssistantThreadListAdapter();
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
 
 		await expect(adapter.initialize("local-thread")).resolves.toEqual({
 			externalId: "conv_created",
@@ -115,7 +132,7 @@ describe("assistant-ui thread adapter", () => {
 	});
 
 	it("routes assistant-ui thread mutations to app-api conversation actions", async () => {
-		const adapter = createCampusAssistantThreadListAdapter();
+		const adapter = createCampusAssistantThreadListAdapter({ enableRemoteHistory: true });
 
 		await adapter.archive("conv_01");
 		await adapter.unarchive("conv_01");

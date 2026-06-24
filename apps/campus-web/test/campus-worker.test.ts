@@ -149,8 +149,6 @@ describe("campus worker boundary", () => {
 				const pathname = new URL(request.url).pathname;
 				seenAssetPaths.push(pathname);
 				if (
-					pathname === "/docs/index.html" ||
-					pathname === "/docs/regulations/student_rules/index.html" ||
 					pathname === "/docs/regulations/student_rules/doc-a1b2c3d4e5f6.html" ||
 					pathname === "/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current.html"
 				) {
@@ -167,10 +165,6 @@ describe("campus worker boundary", () => {
 		});
 
 		for (const path of [
-			"/docs",
-			"/docs/",
-			"/docs/regulations/student_rules",
-			"/docs/regulations/student_rules/",
 			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6",
 			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current",
 		]) {
@@ -186,14 +180,45 @@ describe("campus worker boundary", () => {
 		}
 
 		expect(seenAssetPaths).toEqual([
-			"/docs/index.html",
-			"/docs/index.html",
-			"/docs/regulations/student_rules.html",
-			"/docs/regulations/student_rules/index.html",
-			"/docs/regulations/student_rules/index.html",
 			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6.html",
 			"/docs/regulations/student_rules/doc-a1b2c3d4e5f6/v/2018-current.html",
 		]);
+	});
+
+	it("redirects docs directory routes to the canonical reader entry after index pages are retired", async () => {
+		const seenAssetPaths: string[] = [];
+		const env = createEnv(undefined, {
+			fetch: (request) => {
+				seenAssetPaths.push(new URL(request.url).pathname);
+				return new Response('<!doctype html><div id="root"></div>', {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 404,
+				});
+			},
+		});
+
+		for (const path of [
+			"/docs",
+			"/docs/",
+			"/docs/regulations",
+			"/docs/regulations/",
+			"/docs/regulations/student_rules",
+			"/docs/regulations/student_rules/",
+		]) {
+			const response = await worker.fetch(
+				new Request(`https://campus.muc.wiki${path}`, {
+					headers: { accept: "text/html" },
+				}),
+				env,
+			);
+			expect(response.status).toBe(302);
+			expect(response.headers.get("location")).toBe(
+				"https://campus.muc.wiki/docs/regulations/student_rules/doc-c62077b20430",
+			);
+			await expect(response.text()).resolves.toBe("");
+		}
+
+		expect(seenAssetPaths).toEqual([]);
 	});
 
 	it("does not rely on decoded non-ASCII docs filenames for clean URL delivery", async () => {
@@ -258,6 +283,30 @@ describe("campus worker boundary", () => {
 		expect(csp).toContain("script-src 'self' 'unsafe-inline' https://challenges.cloudflare.com");
 		expect(csp).toContain("frame-src 'self' https://challenges.cloudflare.com");
 		expect(csp).not.toContain("https://cdn.platform.openai.com");
+	});
+
+	it("does not treat Vite dev module requests as campus shell HTML", async () => {
+		const seenAssetPaths: string[] = [];
+		const env = createEnv(undefined, {
+			fetch(request) {
+				seenAssetPaths.push(new URL(request.url).pathname);
+				return new Response('<!doctype html><div id="root">vite overlay</div></body>', {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 500,
+				});
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/src/components/ui/separator.tsx", {
+				headers: { accept: "*/*" },
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(500);
+		expect(seenAssetPaths).toEqual(["/src/components/ui/separator.tsx"]);
+		await expect(response.text()).resolves.not.toContain("__CAMPUS_RUNTIME_CONFIG__");
 	});
 
 	it("forwards browser trace context headers into canonical app-api chat streams", async () => {
@@ -442,7 +491,7 @@ describe("campus worker boundary", () => {
 		const wranglerConfig = readTextFixture("wrangler.toml");
 
 		expect(wranglerConfig).toContain(
-			'run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/map-assets/*" ]',
+			'run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/map-assets/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]',
 		);
 		expect(wranglerConfig).not.toContain("!/static/*");
 		expect(wranglerConfig).not.toContain("!/_gated-docs/*");

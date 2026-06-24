@@ -22,7 +22,6 @@ import { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 import {
 	escapeAttribute,
 	escapeHtml,
-	escapeMarkdownLinkText,
 	formatJson,
 	normalizeText,
 	writeText,
@@ -64,7 +63,7 @@ export async function syncCampusPublishedReaderDocs(input) {
 	const publicVersionsByDocument = buildPublicVersionsByDocument(publicEntries);
 	rmSync(resolve(docsRoot, "docs"), { force: true, recursive: true });
 	writeText(resolve(docsRoot, "_meta.json"), formatJson(buildRootMeta()));
-	writeText(resolve(docsRoot, "index.md"), buildHomePage(currentPublicEntries));
+	writeText(resolve(docsRoot, "index.md"), buildHomePage());
 	writeBootstrapPages(docsRoot);
 	writeCollectionMetaFiles({ docsRoot, entries: currentPublicEntries });
 	for (const entry of readerEntries) {
@@ -374,21 +373,14 @@ function writeCollectionMetaFiles(input) {
 		const key = `${entry.corpus}/${entry.collection}`;
 		byScope.set(key, [...(byScope.get(key) ?? []), entry]);
 	}
-	writeText(resolve(docsDir, "index.md"), buildDocsIndex(input.entries));
 	writeText(resolve(docsDir, "_meta.json"), formatJson(buildDocsMeta(byScope)));
 	for (const corpus of sortedCorpora(byScope)) {
-		const corpusEntries = input.entries.filter((entry) => entry.corpus === corpus);
 		const corpusDir = resolve(docsDir, corpus);
-		writeText(resolve(corpusDir, "index.md"), buildCorpusIndex(corpus, corpusEntries));
 		writeText(resolve(corpusDir, "_meta.json"), formatJson(buildCorpusMeta(corpus, byScope)));
 	}
 	for (const [scope, entries] of byScope) {
 		const [corpus, collection] = scope.split("/");
 		const collectionDir = resolve(docsDir, corpus, collection);
-		writeText(
-			resolve(collectionDir, "index.md"),
-			buildCollectionIndex(corpus, collection, entries),
-		);
 		writeText(resolve(collectionDir, "_meta.json"), formatJson(buildCollectionMeta(entries)));
 	}
 }
@@ -410,7 +402,6 @@ function buildDocsMeta(byScope) {
 
 function buildCorpusMeta(corpus, byScope) {
 	return [
-		{ type: "file", name: "index", label: resolveCorpusLabel(corpus) },
 		...sortedCollections(corpus, byScope).map((collection) => ({
 			type: "dir",
 			name: collection,
@@ -421,17 +412,14 @@ function buildCorpusMeta(corpus, byScope) {
 }
 
 function buildCollectionMeta(entries) {
-	return [
-		{ type: "file", name: "index", label: "目录" },
-		...entries.map((entry) => ({
-			type: "file",
-			name: entry.routeSlug,
-			label: resolveDocumentDisplayTitle(entry.title),
-		})),
-	];
+	return entries.map((entry) => ({
+		type: "file",
+		name: entry.routeSlug,
+		label: resolveDocumentDisplayTitle(entry.title),
+	}));
 }
 
-function buildHomePage(entries) {
+function buildHomePage() {
 	return [
 		"---",
 		'title: "文档"',
@@ -441,93 +429,9 @@ function buildHomePage(entries) {
 		"",
 		"# 文档",
 		"",
-		entries.length > 0 ? `当前发布 ${entries.length} 篇文档。` : "请选择文档目录继续阅读。",
-		"",
-		...buildDocsEntryLinks(entries),
+		"请选择文档目录继续阅读。",
 		"",
 	].join("\n");
-}
-
-function buildDocsIndex(entries) {
-	return [
-		"---",
-		'title: "文档库"',
-		"footer: false",
-		"outline: false",
-		"---",
-		"",
-		"# 文档库",
-		"",
-		entries.length > 0 ? `当前发布 ${entries.length} 篇文档。` : "暂无已发布文档。",
-		"",
-		...buildDocsEntryLinks(entries),
-		"",
-	].join("\n");
-}
-
-function buildCorpusIndex(corpus, entries) {
-	const label = resolveCorpusLabel(corpus);
-	return [
-		"---",
-		`title: ${JSON.stringify(label)}`,
-		"footer: false",
-		"outline: false",
-		"---",
-		"",
-		`# ${label}`,
-		"",
-		`当前发布 ${entries.length} 篇文档。`,
-		"",
-		...buildDocsEntryLinks(entries),
-		"",
-	].join("\n");
-}
-
-function buildCollectionIndex(corpus, collection, entries) {
-	const label = resolveCollectionLabel({ collection, corpus });
-	return [
-		"---",
-		`title: ${JSON.stringify(label)}`,
-		"footer: false",
-		'docsSearchVisibility: "noindex"',
-		"outline: false",
-		"---",
-		"",
-		`# ${label}`,
-		"",
-		...entries.map(
-			(entry) =>
-				`- [${escapeMarkdownLinkText(resolveDocumentDisplayTitle(entry.title))}](./${entry.routeSlug})`,
-		),
-		"",
-	].join("\n");
-}
-
-function buildDocsEntryLinks(entries) {
-	if (entries.length === 0) {
-		return [];
-	}
-	const scopes = new Map();
-	for (const entry of entries) {
-		const key = `${entry.corpus}/${entry.collection}`;
-		scopes.set(key, {
-			collection: entry.collection,
-			corpus: entry.corpus,
-			count: (scopes.get(key)?.count ?? 0) + 1,
-		});
-	}
-	return [
-		"## 分类",
-		"",
-		'<div className="docs-category-links">',
-		"",
-		...sortedDocsScopes(scopes).map(
-			(scope) =>
-				`- [${escapeMarkdownLinkText(resolveCollectionLabel(scope))}](/docs/${scope.corpus}/${scope.collection}/)`,
-		),
-		"",
-		"</div>",
-	];
 }
 
 function resolveDocumentDisplayTitle(title) {
@@ -658,14 +562,6 @@ function sortedCollections(corpus, byScope) {
 		.map((scope) => scope.split("/")[1])
 		.filter(Boolean)
 		.sort(compareCollection);
-}
-
-function sortedDocsScopes(scopes) {
-	return [...scopes.values()].sort(
-		(left, right) =>
-			compareCorpus(left.corpus, right.corpus) ||
-			compareCollection(left.collection, right.collection),
-	);
 }
 
 function compareCorpus(left, right) {

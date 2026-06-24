@@ -8,6 +8,7 @@ import { AuthDialog } from "../src/components/auth/auth-dialog";
 import authDialogSource from "../src/components/auth/auth-dialog.tsx?raw";
 import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
+import authUIProviderConfigSource from "../src/components/auth/auth-ui-provider-config.tsx?raw";
 import { Settings } from "../src/components/auth/settings/settings";
 import settingsSource from "../src/components/auth/settings/settings.tsx?raw";
 import { QAAccountEntry } from "../src/components/auth/user/qa-account-entry";
@@ -212,6 +213,16 @@ vi.mock("@heroui/react", async () => {
 					{children}
 				</div>
 			),
+			Trigger: ({
+				children,
+				...props
+			}: {
+				children: React.ReactNode;
+			} & React.HTMLAttributes<HTMLButtonElement>) => (
+				<button type="button" {...props}>
+					{children}
+				</button>
+			),
 		}),
 		useOverlayState: ({
 			isOpen = false,
@@ -284,7 +295,8 @@ describe("campus auth UI components", () => {
 
 	it("uses Better Auth UI HeroUI packages instead of the retired shadcn package", () => {
 		expect(authUIProviderSource).toContain("@better-auth-ui/heroui");
-		expect(authUIProviderSource).toContain("@better-auth-ui/react/plugins");
+		expect(authUIProviderConfigSource).toContain("@better-auth-ui/react/plugins");
+		expect(authUIProviderConfigSource).toContain("@marsidev/react-turnstile");
 		expect(mainSource).toContain("@heroui/react");
 		expect(authSource).toContain("@better-auth-ui/heroui");
 		expect(settingsSource).toContain("@better-auth-ui/heroui");
@@ -503,15 +515,12 @@ describe("campus auth UI components", () => {
 	});
 
 	it("uses a minimal Q&A auth entry only to open the modal for unauthenticated users", () => {
-		const onLoginPress = vi.fn();
+		render(<QAAccountEntry />);
 
-		render(<QAAccountEntry onLoginPress={onLoginPress} />);
-		screen.getByRole("button", { name: "登录" }).click();
-
-		expect(onLoginPress).toHaveBeenCalledTimes(1);
-		expect(qaAccountEntrySource).toContain("@/components/ui/button");
+		expect(screen.getByText("登录")).toBeInTheDocument();
 		expect(qaAccountEntrySource).toContain("campusAuthClient.useSession");
 		expect(qaAccountEntrySource).toContain("<UserButton");
+		expect(qaAccountEntrySource).not.toContain("@/components/ui/button");
 		expect(qaAccountEntrySource).not.toContain("<input");
 		expect(qaAccountEntrySource).not.toContain("signIn.email");
 	});
@@ -519,9 +528,9 @@ describe("campus auth UI components", () => {
 	it("keeps the Better Auth UI UserButton for authenticated users", () => {
 		sessionState.data = { user: { id: "user_01", name: "用户" } };
 
-		render(<QAAccountEntry onLoginPress={vi.fn()} />);
+		render(<QAAccountEntry />);
 
 		expect(screen.getByLabelText("heroui-user-button")).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
+		expect(screen.queryByText("登录")).toBeNull();
 	});
 });

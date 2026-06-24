@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -118,14 +118,11 @@ describe("campus-web published reader sync", () => {
 			join(docsRoot, "docs/regulations/student_rules/restricted-policy/v/2026-current.mdx"),
 			"utf8",
 		);
-		const collectionIndex = readFileSync(
-			join(docsRoot, "docs/regulations/student_rules/index.md"),
-			"utf8",
-		);
 		const collectionMeta = readFileSync(
 			join(docsRoot, "docs/regulations/student_rules/_meta.json"),
 			"utf8",
 		);
+		const corpusMeta = readFileSync(join(docsRoot, "docs/regulations/_meta.json"), "utf8");
 		const versionMdx = readFileSync(
 			join(docsRoot, "docs/regulations/student_rules/student-attendance/v/2026-current.mdx"),
 			"utf8",
@@ -168,13 +165,13 @@ describe("campus-web published reader sync", () => {
 			'import GatedReaderBootstrap from "@/components/docs/gated-reader-bootstrap";',
 		);
 		expect(gatedVersionMdx).toContain('docsSearchVisibility: "gated_bootstrap"');
-		expect(collectionIndex).toContain("- [学生考勤管理规定](./student-attendance)");
-		expect(collectionIndex).not.toContain("- [中央民族大学学生考勤管理规定]");
+		expect(existsSync(join(docsRoot, "docs/index.md"))).toBe(false);
+		expect(existsSync(join(docsRoot, "docs/regulations/index.md"))).toBe(false);
+		expect(existsSync(join(docsRoot, "docs/regulations/student_rules/index.md"))).toBe(false);
+		expect(corpusMeta).not.toContain('"name": "index"');
 		expect(collectionMeta).toContain('"label": "学生考勤管理规定"');
 		expect(collectionMeta).not.toContain('"label": "中央民族大学学生考勤管理规定"');
-		expect(collectionIndex).toContain('docsSearchVisibility: "noindex"');
-		expect(collectionIndex).not.toContain("restricted-policy");
-		expect(collectionIndex).not.toContain("受限制度");
+		expect(collectionMeta).not.toContain('"name": "index"');
 	});
 
 	it("materializes non-ASCII document slugs under route-safe reader URLs", async () => {
@@ -198,16 +195,13 @@ describe("campus-web published reader sync", () => {
 			join(docsRoot, `docs/regulations/student_rules/${routeSlug}.mdx`),
 			"utf8",
 		);
-		const collectionIndex = readFileSync(
-			join(docsRoot, "docs/regulations/student_rules/index.md"),
-			"utf8",
-		);
 
 		expect(routeSlug).toMatch(/^doc-[a-f0-9]{12}$/u);
 		expect(currentMdx).toContain('data-docs-document-slug="中央民族大学学生考勤管理规定"');
 		expect(currentMdx).toContain(`data-docs-route-slug="${routeSlug}"`);
-		expect(collectionIndex).toContain(`](./${routeSlug})`);
-		expect(collectionIndex).not.toContain("](./中央民族大学学生考勤管理规定)");
+		expect(collectionMeta).toContain(`"name": "${routeSlug}"`);
+		expect(collectionMeta).not.toContain('"name": "中央民族大学学生考勤管理规定"');
+		expect(existsSync(join(docsRoot, "docs/regulations/student_rules/index.md"))).toBe(false);
 	});
 
 	it("copies published reader assets into campus-web static delivery roots", async () => {

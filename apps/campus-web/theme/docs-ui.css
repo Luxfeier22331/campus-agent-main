@@ -1,3 +1,7 @@
+@import "@heroui/styles";
+@import "@better-auth-ui/heroui/styles";
+@import "../src/design/tokens.css";
+
 :root {
 	--docs-accent: var(--sys-brand-interactive, #2563eb);
 	--docs-accent-strong: var(--sys-brand-interactive, #1d4ed8);
@@ -36,6 +40,30 @@
 .rp-nav__title__link > span {
 	font-weight: 720;
 	letter-spacing: 0;
+}
+
+.rp-nav__right .docs-account-entry-mount {
+	display: inline-flex;
+	align-items: center;
+	margin-right: 0.35rem;
+}
+
+.docs-account-entry-button {
+	min-width: 3.25rem;
+	min-height: 2rem;
+	padding-inline: 0.65rem;
+	border-radius: 999px;
+	color: var(--docs-ink);
+	font-size: 0.85rem;
+	font-weight: 650;
+}
+
+.docs-account-entry-user-button {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	min-width: 2rem;
+	min-height: 2rem;
 }
 
 .rspress-doc {

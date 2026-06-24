@@ -38,7 +38,9 @@ export function toAssistantThreadMetadata(
 	};
 }
 
-export function createCampusAssistantThreadListAdapter(): RemoteThreadListAdapter {
+export function createCampusAssistantThreadListAdapter(input: {
+	enableRemoteHistory: boolean;
+}): RemoteThreadListAdapter {
 	return {
 		async archive(remoteId) {
 			await archiveConversation(remoteId);
@@ -62,6 +64,9 @@ export function createCampusAssistantThreadListAdapter(): RemoteThreadListAdapte
 			};
 		},
 		async list() {
+			if (!input.enableRemoteHistory) {
+				return { threads: [] };
+			}
 			const [active, archived] = await Promise.all([
 				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "active" }),
 				listConversationsForOptionalSession({ limit: THREAD_LIST_LIMIT, view: "archived" }),

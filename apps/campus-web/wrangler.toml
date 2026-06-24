@@ -38,4 +38,4 @@ service = "app-api-staging"
 directory = "./dist/client"
 binding = "ASSETS"
 not_found_handling = "single-page-application"
-run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/map-assets/*" ]
+run_worker_first = [ "/*", "!/assets/*", "!/vendor/*", "!/_docs-static/*", "!/_docs/*", "!/map-assets/*", "!/@fs/*", "!/@id/*", "!/@react-refresh*", "!/@vite/*", "!/node_modules/*", "!/src/*" ]

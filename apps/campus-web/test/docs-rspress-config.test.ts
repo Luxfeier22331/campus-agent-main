@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PageIndexInfo } from "@rspress/core";
@@ -63,6 +63,7 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).toContain("buildRspressProductNav");
 		expect(configSource).toContain("reader-state-enhancer");
 		expect(configSource).toContain("docs-content-enhancer");
+		expect(configSource).toContain("docs-account-entry");
 		expect(configSource).toContain("mobile-sidebar-guard");
 		expect(configSource).not.toContain("pagefind-search");
 		expect(configSource).not.toContain("search-keyboard-guard");
@@ -183,6 +184,36 @@ describe("campus docs Rspress build boundary", () => {
 		expect(cssSource).toContain("var(--docs-identity,");
 		expect(cssSource).not.toContain("公开文档");
 		expect(cssSource).not.toContain(".docs-pagefind-");
+	});
+
+	it("mounts the docs account entry without depending on the TanStack Router app shell", () => {
+		const configSource = readFileSync(join(appDir, "rspress.config.ts"), "utf8");
+		const accountEntryPath = join(appDir, "src", "components", "docs", "docs-account-entry.tsx");
+		const authProviderPath = join(
+			appDir,
+			"src",
+			"components",
+			"auth",
+			"browser-auth-ui-provider.tsx",
+		);
+
+		expect(configSource).toContain("docs-account-entry");
+		expect(existsSync(accountEntryPath)).toBe(true);
+		expect(existsSync(authProviderPath)).toBe(true);
+		const accountEntrySource = readFileSync(accountEntryPath, "utf8");
+		const authProviderSource = readFileSync(authProviderPath, "utf8");
+		expect(accountEntrySource).toContain(".rp-nav__right");
+		expect(accountEntrySource).not.toContain(".rp-nav__others");
+		expect(accountEntrySource).toContain("createPortal");
+		expect(accountEntrySource).toContain("@better-auth-ui/heroui");
+		expect(accountEntrySource).toContain("<AuthPanel");
+		expect(accountEntrySource).toContain("<CampusBrowserAuthUIProvider");
+		expect(accountEntrySource).not.toContain("QAAccountEntry");
+		expect(accountEntrySource).not.toContain("@tanstack/react-router");
+		expect(authProviderSource).toContain("@better-auth-ui/heroui");
+		expect(authProviderSource).toContain("window.location");
+		expect(authProviderSource).not.toContain("@tanstack/react-router");
+		expect(authProviderSource).not.toContain("useNavigate");
 	});
 
 	it("keeps Rspress page data while stripping non-public-current search fields", () => {

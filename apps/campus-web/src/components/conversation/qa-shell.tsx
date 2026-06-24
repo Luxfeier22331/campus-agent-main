@@ -19,6 +19,7 @@ import {
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { createCampusAssistantRuntimeHook } from "@/features/conversation/assistant-ui-runtime";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
+import { campusAuthClient } from "@/platform/auth/client";
 
 export function QAShell({
 	assistantThreadId,
@@ -31,6 +32,7 @@ export function QAShell({
 }) {
 	const navigate = useNavigate();
 	const [authDialogOpen, setAuthDialogOpen] = useState(false);
+	const session = campusAuthClient.useSession();
 	const activePath = readBrowserPathname();
 	const openAuthDialog = useCallback(() => setAuthDialogOpen(true), []);
 
@@ -53,7 +55,11 @@ export function QAShell({
 	}, [navigate]);
 
 	return (
-		<AssistantRemoteRuntimeFrame onLoginRequired={openAuthDialog} threadId={assistantThreadId}>
+		<AssistantRemoteRuntimeFrame
+			enableRemoteHistory={Boolean(session.data)}
+			onLoginRequired={openAuthDialog}
+			threadId={assistantThreadId}
+		>
 			<SidebarProvider>
 				<ThreadListSidebar
 					className="bg-sidebar"
@@ -89,7 +95,13 @@ export function QAShell({
 										triggerClassName="md:hidden"
 										variant="chat"
 									/>
-									<QAAccountEntry onLoginPress={openAuthDialog} />
+									<AuthDialog
+										onOpenChange={setAuthDialogOpen}
+										open={authDialogOpen}
+										trigger={<QAAccountEntry />}
+										triggerAriaLabel="登录"
+										triggerClassName="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
+									/>
 								</div>
 							</div>
 						</header>
@@ -99,7 +111,6 @@ export function QAShell({
 					</div>
 				</SidebarInset>
 			</SidebarProvider>
-			<AuthDialog onOpenChange={setAuthDialogOpen} open={authDialogOpen} />
 		</AssistantRemoteRuntimeFrame>
 	);
 }
@@ -113,14 +124,19 @@ function readBrowserPathname(): string {
 
 function AssistantRemoteRuntimeFrame({
 	children,
+	enableRemoteHistory,
 	onLoginRequired,
 	threadId,
 }: {
 	children: ReactNode;
+	enableRemoteHistory: boolean;
 	onLoginRequired: () => void;
 	threadId: string | null;
 }) {
-	const adapter = useMemo(() => createCampusAssistantThreadListAdapter(), []);
+	const adapter = useMemo(
+		() => createCampusAssistantThreadListAdapter({ enableRemoteHistory }),
+		[enableRemoteHistory],
+	);
 	const runtimeHook = useMemo(
 		() => createCampusAssistantRuntimeHook({ onLoginRequired }),
 		[onLoginRequired],

@@ -4,6 +4,7 @@ import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
 	resolveTurnstileRuntimeConfig,
 } from "./platform/auth/turnstile-runtime-config";
+import { DEFAULT_DOCS_READER_PATH } from "./platform/navigation/product-nav";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
 
@@ -170,6 +171,10 @@ const worker = {
 				return serveStaticAsset(request, env);
 			}
 
+			if (isPublicDocsDirectoryRoute(url.pathname)) {
+				return redirectToDefaultDocsReader(request);
+			}
+
 			if (isPublicDocsReaderPath(url.pathname)) {
 				return servePublicDocsReader(request, env);
 			}
@@ -182,10 +187,11 @@ const worker = {
 				return serveStaticAsset(request, env);
 			}
 
-			if (
-				(isCampusShellPath(url.pathname) || isViteDevAssetPath(url.pathname)) &&
-				acceptsHtml(request)
-			) {
+			if (isViteDevAssetPath(url.pathname)) {
+				return serveStaticAsset(request, env);
+			}
+
+			if (isCampusShellPath(url.pathname) && acceptsHtml(request)) {
 				return serveCampusShell(request, env);
 			}
 
@@ -390,15 +396,44 @@ async function fetchStaticAsset(request: Request, env: Env): Promise<Response> {
 
 function isPublicDocsReaderPath(pathname: string): boolean {
 	return (
-		pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`)
+		pathname !== PUBLIC_DOCS_ROUTE_PREFIX &&
+		pathname !== `${PUBLIC_DOCS_ROUTE_PREFIX}/` &&
+		pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`) &&
+		!isPublicDocsDirectoryPath(pathname)
 	);
 }
 
-function getPublicDocsAssetCandidates(pathname: string): string[] {
-	if (pathname === PUBLIC_DOCS_ROUTE_PREFIX || pathname === `${PUBLIC_DOCS_ROUTE_PREFIX}/`) {
-		return [`${PUBLIC_DOCS_ROUTE_PREFIX}/index.html`];
-	}
+function isPublicDocsDirectoryRoute(pathname: string): boolean {
+	return (
+		(pathname === PUBLIC_DOCS_ROUTE_PREFIX ||
+			pathname === `${PUBLIC_DOCS_ROUTE_PREFIX}/` ||
+			pathname.startsWith(`${PUBLIC_DOCS_ROUTE_PREFIX}/`)) &&
+		isPublicDocsDirectoryPath(pathname)
+	);
+}
 
+function isPublicDocsDirectoryPath(pathname: string): boolean {
+	const cleanPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
+	const segments = cleanPathname.split("/").filter(Boolean);
+	return segments.length === 1 || segments.length === 2 || segments.length === 3;
+}
+
+function redirectToDefaultDocsReader(request: Request): Response {
+	const url = new URL(request.url);
+	url.pathname = DEFAULT_DOCS_READER_PATH;
+	url.search = "";
+	url.hash = "";
+	const headers = new Headers({
+		"cache-control": "no-store",
+		location: url.toString(),
+	});
+	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+		headers.set(key, value);
+	}
+	return new Response(null, { headers, status: 302 });
+}
+
+function getPublicDocsAssetCandidates(pathname: string): string[] {
 	const cleanPathname = pathname.endsWith("/") ? pathname.slice(0, -1) : pathname;
 	if (cleanPathname.endsWith(".html")) {
 		return [cleanPathname];

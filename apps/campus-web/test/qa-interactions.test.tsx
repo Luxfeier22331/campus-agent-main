@@ -20,19 +20,37 @@ const conversationApiMock = vi.hoisted(() => ({
 	submitChatRequestStream: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
+const sessionState = vi.hoisted(() => ({
+	data: { user: { id: "user_01", name: "测试用户" } } as null | {
+		user: { id: string; name: string };
+	},
+	isPending: false,
+}));
 const navigateMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/components/auth/auth-dialog", () => ({
-	AuthDialog: ({ open }: { open: boolean }) =>
-		open ? <div role="dialog" aria-label="登录或创建校园问答账号" /> : null,
+	AuthDialog: ({
+		onOpenChange,
+		open,
+		trigger,
+	}: {
+		onOpenChange: (open: boolean) => void;
+		open: boolean;
+		trigger?: React.ReactNode;
+	}) => (
+		<>
+			{trigger ? (
+				<button aria-label="登录" onClick={() => onOpenChange(true)} type="button">
+					{trigger}
+				</button>
+			) : null}
+			{open ? <div role="dialog" aria-label="登录或创建校园问答账号" /> : null}
+		</>
+	),
 }));
 
 vi.mock("@/components/auth/user/qa-account-entry", () => ({
-	QAAccountEntry: ({ onLoginPress }: { onLoginPress: () => void }) => (
-		<button aria-label="登录" onClick={onLoginPress} type="button">
-			登录
-		</button>
-	),
+	QAAccountEntry: () => <span>登录</span>,
 }));
 
 vi.mock("@tanstack/react-router", async () => {
@@ -61,9 +79,27 @@ vi.mock("@tanstack/react-router", async () => {
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
 
+vi.mock("@/platform/auth/client", async () => {
+	const actual = await vi.importActual<typeof import("../src/platform/auth/client")>(
+		"../src/platform/auth/client",
+	);
+	return {
+		...actual,
+		campusAuthClient: {
+			...actual.campusAuthClient,
+			useSession: () => ({
+				data: sessionState.data,
+				isPending: sessionState.isPending,
+			}),
+		},
+	};
+});
+
 describe("Q&A product interactions", () => {
 	beforeEach(() => {
 		navigateMock.mockReset();
+		sessionState.data = { user: { id: "user_01", name: "测试用户" } };
+		sessionState.isPending = false;
 		vi.stubGlobal(
 			"fetch",
 			vi.fn(() =>
@@ -138,6 +174,17 @@ describe("Q&A product interactions", () => {
 		expect(designTokensSource).toContain("--layout-chat-sidebar-width: 260px;");
 	});
 
+	it("does not request remote thread history before login", async () => {
+		sessionState.data = null;
+
+		render(<HomePage />);
+
+		expect(await screen.findByText("聊天记录")).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: /新对话/ })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "国家奖学金" })).toBeNull();
+		expect(conversationApiMock.listConversations).not.toHaveBeenCalled();
+	});
+
 	it("keeps support navigation visually secondary in the chat topbar", async () => {
 		render(<HomePage />);
 
@@ -178,6 +225,7 @@ describe("Q&A product interactions", () => {
 	});
 
 	it("opens the auth modal from the Q&A account entry", async () => {
+		sessionState.data = null;
 		render(<QAShell assistantThreadId={null} topTitle="新对话" />);
 
 		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
