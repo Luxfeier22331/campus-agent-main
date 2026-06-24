@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname } from "node:path";
 import process from "node:process";
 import { Client, type ClientConfig } from "pg";
 
@@ -15,6 +17,7 @@ const CLOUDFLARE_GRAPHQL_URL = "https://api.cloudflare.com/client/v4/graphql";
 export interface RuntimeDbProofArgs {
 	chatArgs: string[];
 	metricsWindowMinutes: number;
+	outputPath: string | null;
 }
 
 export interface PostgresRuntimeSnapshot {
@@ -158,6 +161,7 @@ function parsePositiveInteger(value: string, label: string): number {
 export function parseStagingRuntimeDbProofArgs(argv: string[]): RuntimeDbProofArgs {
 	const chatArgs: string[] = [];
 	let metricsWindowMinutes = DEFAULT_METRICS_WINDOW_MINUTES;
+	let outputPath: string | null = null;
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -170,6 +174,15 @@ export function parseStagingRuntimeDbProofArgs(argv: string[]): RuntimeDbProofAr
 				throw new Error("--metrics-window-minutes requires a non-empty value.");
 			}
 			metricsWindowMinutes = parsePositiveInteger(value, "--metrics-window-minutes");
+			index += 1;
+			continue;
+		}
+		if (token === "--output") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--output requires a non-empty value.");
+			}
+			outputPath = value;
 			index += 1;
 			continue;
 		}
@@ -186,6 +199,7 @@ export function parseStagingRuntimeDbProofArgs(argv: string[]): RuntimeDbProofAr
 	return {
 		chatArgs,
 		metricsWindowMinutes,
+		outputPath,
 	};
 }
 
@@ -574,9 +588,28 @@ export async function runStagingRuntimeDbProof(
 	};
 }
 
-export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env) {
-	const result = await runStagingRuntimeDbProof(argv, env);
-	console.log(JSON.stringify(result, null, 2));
+async function writeJsonEvidence(
+	outputPath: string,
+	result: StagingRuntimeDbProofResult,
+): Promise<void> {
+	await mkdir(dirname(outputPath), {
+		recursive: true,
+	});
+	await writeFile(outputPath, `${JSON.stringify(result, null, 2)}\n`, "utf8");
+}
+
+export async function main(
+	argv: string[],
+	env: NodeJS.ProcessEnv = process.env,
+	deps: StagingRuntimeDbProofDependencies = {},
+) {
+	const args = parseStagingRuntimeDbProofArgs(argv);
+	const result = await runStagingRuntimeDbProof(argv, env, deps);
+	const output = JSON.stringify(result, null, 2);
+	if (args.outputPath) {
+		await writeJsonEvidence(args.outputPath, result);
+	}
+	console.log(output);
 	if (!result.passed) {
 		process.exitCode = 1;
 	}

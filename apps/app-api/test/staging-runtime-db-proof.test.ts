@@ -1,11 +1,13 @@
 // @vitest-environment node
 
-import { readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 import {
 	type HyperdriveUsageSnapshot,
+	main,
 	type PostgresProjectionProof,
 	type PostgresRuntimeSnapshot,
 	runStagingRuntimeDbProof,
@@ -212,6 +214,79 @@ describe("staging runtime db proof runner", () => {
 			expect.arrayContaining(["--prompt", "链路验证"]),
 			expect.any(Object),
 		);
+	});
+
+	it("writes pure JSON evidence when an output path is provided", async () => {
+		const tmpDir = mkdtempSync(resolve(tmpdir(), "runtime-db-proof-"));
+		const outputPath = resolve(tmpDir, "proof.json");
+		const consoleLog = vi.spyOn(console, "log").mockImplementation(() => undefined);
+		const previousExitCode = process.exitCode;
+
+		try {
+			process.exitCode = undefined;
+			await main(["--output", outputPath], {} as NodeJS.ProcessEnv, {
+				collectHyperdriveUsage: async () => afterHyperdrive,
+				collectPostgresProjectionProof: async () =>
+					completeProjectionProof({
+						traceBacklinkConfigured: false,
+						traceBacklinkFound: false,
+					}),
+				collectPostgresSnapshot: async () => afterPostgres,
+				runChatDurableE2eStaging: async () => ({
+					conversation: {
+						assistantMessageCount: 1,
+						hasAssistantMessageForRequest: true,
+						id: "conv_01",
+						messageCount: 2,
+					},
+					identity: {
+						email: "help_bot@outlook.com",
+						resetViaDeployedRuntime: true as const,
+					},
+					langfuseCloseout: null,
+					passed: true,
+					principal: null,
+					readyz: {
+						appApi: null,
+						chat: null,
+					},
+					resume: {
+						afterSequence: 0,
+						events: [],
+						terminalEvent: null,
+					},
+					run: {
+						conversationId: "conv_01",
+						requestId: "req_01",
+						runId: "run_01",
+						status: "completed",
+						traceId: "trace_01",
+					},
+					session: null,
+					sessionMintAttempted: true,
+					submit: {
+						requestId: "req_01",
+						runId: "run_01",
+						traceId: "trace_01",
+					},
+					submitStreamAbortedAfterAccepted: true,
+					workflow: null,
+				}),
+			});
+
+			const evidence = JSON.parse(readFileSync(outputPath, "utf8"));
+
+			expect(evidence.passed).toBe(true);
+			expect(evidence.checks.chatCompleted).toBe(true);
+			expect(consoleLog).toHaveBeenCalledWith(expect.stringContaining('"passed": true'));
+		} finally {
+			process.exitCode = previousExitCode;
+			consoleLog.mockRestore();
+			rmSync(tmpDir, {
+				force: true,
+				recursive: true,
+			});
+		}
 	});
 
 	it("does not pass when the request observability projection is missing", async () => {

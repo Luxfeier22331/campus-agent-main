@@ -145,14 +145,16 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
 
 ```bash
 pnpm --dir apps/app-api runtime-db:proof:staging \
-  | tee "$E2E_QA_EVIDENCE_DIR/runtime-db-proof.json"
+  -- --output "$E2E_QA_EVIDENCE_DIR/runtime-db-proof.json"
 ```
 
 该命令由 app-api staging proof runner 读取 ops-owned staging runtime env，并把
 `STAGING_APP_API_OPERATOR_DATABASE_URL` 等 staging profile 配置投影为
 `APP_API_OPERATOR_DATABASE_URL` 等 canonical runtime env。proof 脚本本身只消费
 canonical env，并额外要求 `CLOUDFLARE_ACCOUNT_ID` 与 `CLOUDFLARE_API_TOKEN` 用于读取
-Hyperdrive GraphQL 指标。它不会打印 Cloudflare token、Postgres DSN 或 Worker secrets。
+Hyperdrive GraphQL 指标。`--output` 写入纯 JSON evidence；stdout 仅用于人工查看，
+不要用 shell `tee` 生成 `.json` evidence。它不会打印 Cloudflare token、Postgres DSN
+或 Worker secrets。
 
 通过标准：
 
