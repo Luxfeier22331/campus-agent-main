@@ -46,7 +46,13 @@ function resolveRedirectTo(): string {
 	});
 }
 
-export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
+export function CampusAuthUIProvider({
+	children,
+	redirectTo,
+}: {
+	children: ReactNode;
+	redirectTo?: string;
+}) {
 	const navigate = useNavigate();
 	const turnstileRuntimeConfig = readTurnstileRuntimeConfig();
 	const commonProps = {
@@ -178,7 +184,7 @@ export function CampusAuthUIProvider({ children }: { children: ReactNode }) {
 					}),
 				]
 			: [],
-		redirectTo: resolveRedirectTo(),
+		redirectTo: redirectTo ?? resolveRedirectTo(),
 		viewPaths: {
 			auth: {
 				forgotPassword: "forgot-password",

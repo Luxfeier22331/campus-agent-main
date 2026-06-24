@@ -46,6 +46,14 @@ vi.mock("@/components/auth/user/user-button", () => ({
 	),
 }));
 
+vi.mock("@/components/auth/user/qa-account-entry", () => ({
+	QAAccountEntry: ({ onLoginPress }: { onLoginPress: () => void }) => (
+		<button aria-label="登录" onClick={onLoginPress} type="button">
+			登录
+		</button>
+	),
+}));
+
 vi.mock("@/components/auth/auth-ui-provider", () => ({
 	CampusAuthUIProvider: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
@@ -166,7 +174,7 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
-		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
 		expect(screen.queryByText("查饭堂")).toBeNull();
@@ -192,7 +200,9 @@ describe("campus routes", () => {
 		expect(homePageSource).not.toContain("SupportCard");
 		expect(homePageSource).not.toContain("常用校园事务");
 		expect(homePageSource).not.toContain("rounded-full");
-		expect(qaShellSource).toContain("食堂");
+		expect(qaShellSource).toContain("ProductNavActions");
+		expect(qaShellSource).toContain("ProductNavMobileMenu");
+		expect(qaShellSource).not.toContain("supportNavItems");
 		expect(qaShellSource).not.toContain("饭堂分布图");
 		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(qaShellSource).toContain("@/components/assistant-ui/threadlist-sidebar");
@@ -203,10 +213,10 @@ describe("campus routes", () => {
 		expect(assistantRuntimeSource).toContain("submitChatRequestStream");
 		expect(assistantRuntimeSource).not.toContain("@assistant-ui/react-data-stream");
 		expect(assistantRuntimeSource).not.toContain("/api/chat/assistant-ui");
-		expect(qaShellSource).toContain("@/components/auth/user/user-button");
+		expect(qaShellSource).toContain("@/components/auth/auth-dialog");
+		expect(qaShellSource).toContain("@/components/auth/user/qa-account-entry");
 		expect(qaShellSource).not.toContain("SupportNavigation");
 		expect(qaShellSource).not.toContain("AccountLoginDialog");
-		expect(qaShellSource).not.toContain("QAAccountEntry");
 		expect(qaShellSource).not.toContain("getSessionPrincipal");
 		expect(qaShellSource).not.toContain("const railActionClass");
 		expect(qaShellSource).not.toContain("const railActionIconClass");
@@ -217,6 +227,7 @@ describe("campus routes", () => {
 		expect(stylesSource).toContain("@layer base");
 		expect(stylesSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
+		expect(rootLayoutSource).not.toContain("supportNavItems");
 	});
 
 	it("does not register the canonical docs reader as a React route", () => {
@@ -244,7 +255,7 @@ describe("campus routes", () => {
 	it("separates the account entry from the conversation history area", async () => {
 		render(<HomePage />);
 
-		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
 

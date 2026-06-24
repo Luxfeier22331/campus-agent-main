@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MapExperience } from "@/components/map/map-experience";
+import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
 import { Alert } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { getCampusMapPlaces } from "@/features/map/api";
@@ -579,7 +580,8 @@ function getMapViewportPadding() {
 
 function MapStateShell({ children }: { children: ReactNode }) {
 	return (
-		<section className="grid min-h-dvh place-items-center bg-[var(--map-canvas-bg)] p-6">
+		<section className="relative grid min-h-dvh place-items-center bg-[var(--map-canvas-bg)] p-6">
+			<MapProductNavOverlay />
 			<div className="w-full max-w-md">{children}</div>
 		</section>
 	);

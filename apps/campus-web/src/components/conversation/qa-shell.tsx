@@ -1,31 +1,24 @@
 import { AssistantRuntimeProvider, useRemoteThreadListRuntime } from "@assistant-ui/react";
-import { Link, useNavigate } from "@tanstack/react-router";
-import { BookOpen, MapIcon, Send, Utensils } from "lucide-react";
-import { type CSSProperties, type ReactNode, useCallback, useEffect, useMemo } from "react";
+import { useNavigate } from "@tanstack/react-router";
+import {
+	type CSSProperties,
+	type ReactNode,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { ThreadListSidebar } from "@/components/assistant-ui/threadlist-sidebar";
-import { UserButton } from "@/components/auth/user/user-button";
+import { AuthDialog } from "@/components/auth/auth-dialog";
+import { QAAccountEntry } from "@/components/auth/user/qa-account-entry";
 import { AssistantConversationSurface } from "@/components/conversation/assistant-conversation-surface";
-import { Button } from "@/components/ui/button";
+import {
+	ProductNavActions,
+	ProductNavMobileMenu,
+} from "@/components/navigation/product-navigation";
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { createCampusAssistantRuntimeHook } from "@/features/conversation/assistant-ui-runtime";
 import { createCampusAssistantThreadListAdapter } from "@/features/conversation/assistant-ui-thread-adapter";
-
-type SupportNavItem =
-	| { icon: typeof BookOpen; kind: "external"; label: string; to: "/docs/" }
-	| {
-			emphasis?: true;
-			icon: typeof MapIcon | typeof Send | typeof Utensils;
-			kind: "route";
-			label: string;
-			to: "/dining" | "/feedback" | "/map";
-	  };
-
-const supportNavItems: readonly SupportNavItem[] = [
-	{ icon: BookOpen, kind: "external", label: "文档", to: "/docs/" },
-	{ icon: MapIcon, kind: "route", label: "校园地图", to: "/map" },
-	{ icon: Utensils, kind: "route", label: "食堂", to: "/dining" },
-	{ emphasis: true, icon: Send, kind: "route", label: "反馈", to: "/feedback" },
-] as const;
 
 export function QAShell({
 	assistantThreadId,
@@ -37,18 +30,15 @@ export function QAShell({
 	topTitle: string;
 }) {
 	const navigate = useNavigate();
-	const navigateToLogin = useCallback(() => {
-		void navigate({
-			search: { redirectTo: readCurrentRouteTarget() },
-			to: "/account/login",
-		});
-	}, [navigate]);
+	const [authDialogOpen, setAuthDialogOpen] = useState(false);
+	const activePath = readBrowserPathname();
+	const openAuthDialog = useCallback(() => setAuthDialogOpen(true), []);
 
 	useEffect(() => {
 		if (loginRequested) {
-			navigateToLogin();
+			openAuthDialog();
 		}
-	}, [loginRequested, navigateToLogin]);
+	}, [loginRequested, openAuthDialog]);
 
 	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
@@ -63,7 +53,7 @@ export function QAShell({
 	}, [navigate]);
 
 	return (
-		<AssistantRemoteRuntimeFrame onLoginRequired={navigateToLogin} threadId={assistantThreadId}>
+		<AssistantRemoteRuntimeFrame onLoginRequired={openAuthDialog} threadId={assistantThreadId}>
 			<SidebarProvider>
 				<ThreadListSidebar
 					className="bg-sidebar"
@@ -88,16 +78,18 @@ export function QAShell({
 									</div>
 								</div>
 								<div className="flex min-w-0 items-center gap-1 sm:gap-2">
-									<nav aria-label="支撑页面导航" className="hidden items-center gap-1 md:flex">
-										{supportNavItems.map((item) => (
-											<SupportNavButton
-												className={supportNavButtonClassName(item)}
-												item={item}
-												key={item.to}
-											/>
-										))}
-									</nav>
-									<UserButton />
+									<ProductNavActions
+										activePath={activePath}
+										className="hidden gap-1 md:flex"
+										showIcons
+										variant="chat"
+									/>
+									<ProductNavMobileMenu
+										activePath={activePath}
+										triggerClassName="md:hidden"
+										variant="chat"
+									/>
+									<QAAccountEntry onLoginPress={openAuthDialog} />
 								</div>
 							</div>
 						</header>
@@ -107,46 +99,16 @@ export function QAShell({
 					</div>
 				</SidebarInset>
 			</SidebarProvider>
+			<AuthDialog onOpenChange={setAuthDialogOpen} open={authDialogOpen} />
 		</AssistantRemoteRuntimeFrame>
 	);
 }
 
-function SupportNavButton({ className, item }: { className: string; item: SupportNavItem }) {
-	const Icon = item.icon;
-	if (item.kind === "external") {
-		return (
-			<Button asChild className={className} size="sm" variant="ghost">
-				<a href={item.to}>
-					<Icon aria-hidden="true" className="size-4" />
-					<span>{item.label}</span>
-				</a>
-			</Button>
-		);
-	}
-	return (
-		<Button asChild className={className} size="sm" variant="ghost">
-			<Link to={item.to}>
-				<Icon aria-hidden="true" className="size-4" />
-				<span>{item.label}</span>
-			</Link>
-		</Button>
-	);
-}
-
-function supportNavButtonClassName(item: SupportNavItem): string {
-	return [
-		"min-h-8 rounded-md px-2 text-xs text-muted-foreground",
-		"emphasis" in item && item.emphasis
-			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
-			: "",
-	].join(" ");
-}
-
-function readCurrentRouteTarget(): string {
+function readBrowserPathname(): string {
 	if (typeof window === "undefined") {
 		return "/";
 	}
-	return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+	return window.location.pathname;
 }
 
 function AssistantRemoteRuntimeFrame({

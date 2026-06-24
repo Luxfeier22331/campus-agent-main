@@ -2,6 +2,7 @@ import path from "node:path";
 import { defineConfig } from "@rspress/core";
 import { campusDocsSearchIndexPlugin } from "./scripts/rspress-search-index-plugin";
 import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
+import { buildRspressProductNav } from "./src/platform/navigation/product-nav";
 
 const docsRoot = path.resolve(
 	__dirname,
@@ -67,12 +68,7 @@ export default defineConfig({
 	themeConfig: {
 		darkMode: false,
 		enableContentAnimation: false,
-		nav: [
-			{ link: "/", text: "问答" },
-			{ link: "/map", text: "校园地图" },
-			{ link: "/dining", text: "食堂" },
-			{ link: "/feedback", text: "反馈" },
-		],
+		nav: buildRspressProductNav(),
 		outlineTitle: "本页",
 		sidebar: buildRspressSidebarConfig(docsRoot),
 	},

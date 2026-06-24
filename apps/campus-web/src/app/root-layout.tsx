@@ -1,18 +1,8 @@
 import { Link, Outlet, useLocation } from "@tanstack/react-router";
 import { Suspense } from "react";
 
+import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
 import { Button } from "@/components/ui/button";
-
-type SupportNavItem =
-	| { kind: "external"; label: string; to: "/docs/" }
-	| { emphasis?: true; kind: "route"; label: string; to: "/dining" | "/feedback" | "/map" };
-
-const supportNavItems: readonly SupportNavItem[] = [
-	{ kind: "external", label: "文档", to: "/docs/" },
-	{ kind: "route", label: "校园地图", to: "/map" },
-	{ kind: "route", label: "食堂", to: "/dining" },
-	{ emphasis: true, kind: "route", label: "反馈", to: "/feedback" },
-] as const;
 
 export function RootLayout() {
 	const location = useLocation();
@@ -34,77 +24,20 @@ export function RootLayout() {
 }
 
 function SupportPageHeader({ activePath }: { activePath: string }) {
-	const visibleItems = supportNavItems.filter(
-		(item) => !(activePath === "/map" && item.to === "/feedback"),
-	);
 	return (
 		<header className="sticky top-0 z-30 border-b border-border bg-white">
 			<div className="mx-auto flex min-h-16 max-w-[1440px] items-center justify-between gap-4 px-4 lg:px-6">
-				<Link className="flex min-w-0 items-center gap-3" to="/">
-					<span className="min-w-0">
-						<span className="block truncate text-sm font-semibold tracking-normal text-[var(--sys-text-strong)]">
-							中央民族大学校园问答
-						</span>
-						<span className="block truncate text-xs text-[var(--sys-text-subtle)]">
-							MUC Campus Q&A
-						</span>
-					</span>
-				</Link>
-				<nav aria-label="支撑页面导航" className="hidden items-center gap-3 md:flex">
-					{visibleItems.map((item) => (
-						<SupportNavButton
-							className={supportNavButtonClassName(activePath, item)}
-							item={item}
-							key={item.to}
-						/>
-					))}
-				</nav>
+				<ProductBrandLink linkMode="router" />
+				<ProductNavActions activePath={activePath} className="hidden gap-3 md:flex" />
 			</div>
 			<div className="mx-auto max-w-[1440px] px-4 lg:px-6">
-				<nav
-					aria-label="支撑页面导航"
+				<ProductNavActions
+					activePath={activePath}
 					className="flex overflow-x-auto border-t border-[var(--sys-border-subtle)] py-1 md:hidden"
-				>
-					{visibleItems.map((item) => (
-						<SupportNavButton
-							className={supportNavButtonClassName(activePath, item)}
-							item={item}
-							key={item.to}
-						/>
-					))}
-				</nav>
+				/>
 			</div>
 		</header>
 	);
-}
-
-function SupportNavButton({ className, item }: { className: string; item: SupportNavItem }) {
-	if (item.kind === "external") {
-		return (
-			<Button asChild className={className} size="sm" variant="ghost">
-				<a href={item.to}>{item.label}</a>
-			</Button>
-		);
-	}
-	return (
-		<Button asChild className={className} size="sm" variant="ghost">
-			<Link to={item.to}>{item.label}</Link>
-		</Button>
-	);
-}
-
-function supportNavButtonClassName(activePath: string, item: SupportNavItem): string {
-	return [
-		"min-h-8 rounded-md px-2.5 text-xs",
-		isSupportNavActive(activePath, item.to) ? "bg-muted text-foreground" : "",
-		"emphasis" in item && item.emphasis && isSupportNavActive(activePath, item.to)
-			? "text-[var(--sys-brand-identity)] hover:text-[var(--sys-brand-identity)]"
-			: "",
-	].join(" ");
-}
-
-function isSupportNavActive(activePath: string, itemPath: string) {
-	return itemPath === "/docs/" ? activePath.startsWith("/docs") : activePath === itemPath;
 }
 
 function RoutePending() {

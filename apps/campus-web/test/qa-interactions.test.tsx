@@ -22,10 +22,15 @@ const conversationApiMock = vi.hoisted(() => ({
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@/components/auth/user/user-button", () => ({
-	UserButton: () => (
-		<button aria-label="账号" type="button">
-			账号
+vi.mock("@/components/auth/auth-dialog", () => ({
+	AuthDialog: ({ open }: { open: boolean }) =>
+		open ? <div role="dialog" aria-label="登录或创建校园问答账号" /> : null,
+}));
+
+vi.mock("@/components/auth/user/qa-account-entry", () => ({
+	QAAccountEntry: ({ onLoginPress }: { onLoginPress: () => void }) => (
+		<button aria-label="登录" onClick={onLoginPress} type="button">
+			登录
 		</button>
 	),
 }));
@@ -157,16 +162,28 @@ describe("Q&A product interactions", () => {
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});
 
-	it("navigates to the account login route when the chat runtime requires login", async () => {
+	it("opens the auth modal when the chat runtime requires login", async () => {
 		window.history.pushState({}, "", "/c/conv_01?from=test#turn");
 
 		render(<QAShell assistantThreadId="conv_01" loginRequested topTitle="会话" />);
 
 		await waitFor(() => {
-			expect(navigateMock).toHaveBeenCalledWith({
-				search: { redirectTo: "/c/conv_01?from=test#turn" },
-				to: "/account/login",
-			});
+			expect(
+				screen.getByRole("dialog", { name: "登录或创建校园问答账号" }),
+			).toBeInTheDocument();
 		});
+		expect(navigateMock).not.toHaveBeenCalledWith(
+			expect.objectContaining({
+				to: "/account/login",
+			}),
+		);
+	});
+
+	it("opens the auth modal from the Q&A account entry", async () => {
+		render(<QAShell assistantThreadId={null} topTitle="新对话" />);
+
+		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
+
+		expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
 	});
 });

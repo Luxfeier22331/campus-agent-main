@@ -45,11 +45,13 @@ Account browser UI 当前形态：
   `/account/reset-password` 由 `@better-auth-ui/heroui` 的 `Auth` 承接
 - `/account`、`/account/settings/account` 和 `/account/settings/security` 由
   `@better-auth-ui/heroui` 的 `Settings` 承接
-- Q&A 顶栏账号入口由 `@better-auth-ui/heroui` 的 `UserButton` 承接
+- Q&A 顶栏未登录入口与 runtime login-required flow 打开 HeroUI `Modal`；
+  modal 内容仍由 `@better-auth-ui/heroui` 的 `Auth` 承接；已登录账号菜单仍由
+  `@better-auth-ui/heroui` 的 `UserButton` 承接
 - `campus-web` 只保留 route composition、中文文案、Turnstile runtime config、
   return target，以及通过 Better Auth UI required field 注入的注册协议确认
 - 账号 surface 的 auth/settings/product UI primitive 由 Better Auth UI HeroUI
-  stack 承接；`campus-web` 不再维护第二套账号表单、登录弹窗或账号设置产品组件
+  stack 和 HeroUI modal shell 承接；`campus-web` 不再维护第二套账号表单或账号设置产品组件
 
 ## Target Account Center IA
 

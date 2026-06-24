@@ -57,11 +57,13 @@ describe("campus docs Rspress build boundary", () => {
 		expect(configSource).toContain("rspress-search-hooks");
 		expect(configSource).toContain("campusDocsSearchIndexPlugin");
 		expect(configSource).toContain("buildRspressSidebarConfig");
+		expect(configSource).toContain("buildRspressProductNav");
 		expect(configSource).toContain("reader-state-enhancer");
 		expect(configSource).toContain("docs-content-enhancer");
 		expect(configSource).toContain("mobile-sidebar-guard");
 		expect(configSource).not.toContain("pagefind-search");
 		expect(configSource).not.toContain("search-keyboard-guard");
+		expect(configSource).not.toContain('{ link: "/map", text: "校园地图" }');
 	});
 
 	it("copies only docs route assets into campus-web static delivery", () => {

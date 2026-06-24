@@ -2,6 +2,7 @@ import { List, LocateFixed, MapPin, X } from "lucide-react";
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 
+import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput } from "@/components/ui/command";
@@ -70,7 +71,7 @@ export function MapExperience({
 				<section aria-label="地图画布" className="h-full w-full" ref={mapRef} />
 			</div>
 			{assetAvailable ? null : <MapAssetNotice campus={campus} />}
-			<MapProductNav />
+			<MapProductNavOverlay />
 			<MapSearchPanel
 				campuses={campuses}
 				categories={categories}
@@ -97,28 +98,6 @@ export function MapExperience({
 				<MapPlacePopover isDesktop={isDesktop} onClose={onCanvasClick} place={selectedPlace} />
 			) : null}
 		</section>
-	);
-}
-
-function MapProductNav() {
-	return (
-		<nav
-			aria-label="地图页面导航"
-			className="pointer-events-auto absolute right-3 top-3 z-30 hidden rounded-full border border-white/65 bg-white/78 px-1.5 py-1 text-sm font-medium text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] backdrop-blur-md md:flex md:items-center"
-		>
-			<MapNavLink href="/">问答</MapNavLink>
-			<MapNavLink href="/docs/">文档</MapNavLink>
-			<MapNavLink href="/dining">食堂</MapNavLink>
-			<MapNavLink href="/feedback">反馈</MapNavLink>
-		</nav>
-	);
-}
-
-function MapNavLink({ children, href }: { children: string; href: string }) {
-	return (
-		<Button asChild className="min-h-8 rounded-full px-2.5 text-xs" size="sm" variant="ghost">
-			<a href={href}>{children}</a>
-		</Button>
 	);
 }
 

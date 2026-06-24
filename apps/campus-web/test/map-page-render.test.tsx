@@ -216,7 +216,7 @@ describe("campus map page", () => {
 			"map-first",
 		);
 		expect(screen.queryByRole("link", { name: "返回校园问答" })).toBeNull();
-		expect(screen.getByRole("navigation", { name: "地图页面导航" })).toBeInTheDocument();
+		expect(screen.getByRole("navigation", { name: "产品导航" })).toBeInTheDocument();
 		expect(screen.getByRole("link", { name: "问答" })).toHaveAttribute("href", "/");
 		expect(screen.getByRole("link", { name: "文档" })).toHaveAttribute("href", "/docs/");
 		expect(screen.getByRole("link", { name: "食堂" })).toHaveAttribute("href", "/dining");
@@ -252,7 +252,7 @@ describe("campus map page", () => {
 		expect(resultPanel.className).toContain("max-h-[min(58dvh,430px)]");
 		expect(resultPanel.className).not.toContain("w-[min(420px");
 		expect(resultPanel.className).not.toContain("100dvh");
-		expect(screen.getByRole("navigation", { name: "地图页面导航" })).toHaveClass(
+		expect(screen.getByRole("navigation", { name: "产品导航" })).toHaveClass(
 			"bg-white/78",
 			"backdrop-blur-md",
 		);

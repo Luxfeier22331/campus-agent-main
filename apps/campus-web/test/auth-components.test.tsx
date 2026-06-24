@@ -2,12 +2,16 @@ import { readFileSync } from "node:fs";
 import { render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Auth } from "../src/components/auth/auth";
+import { Auth, AuthPanel } from "../src/components/auth/auth";
+import { AuthDialog } from "../src/components/auth/auth-dialog";
 import authSource from "../src/components/auth/auth.tsx?raw";
+import authDialogSource from "../src/components/auth/auth-dialog.tsx?raw";
 import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
 import { Settings } from "../src/components/auth/settings/settings";
 import settingsSource from "../src/components/auth/settings/settings.tsx?raw";
+import { QAAccountEntry } from "../src/components/auth/user/qa-account-entry";
+import qaAccountEntrySource from "../src/components/auth/user/qa-account-entry.tsx?raw";
 import { UserButton } from "../src/components/auth/user/user-button";
 import userButtonSource from "../src/components/auth/user/user-button.tsx?raw";
 import mainSource from "../src/main.tsx?raw";
@@ -16,6 +20,10 @@ const stylesSource = readFileSync("src/styles.css", "utf8");
 
 const capturedCaptchaPluginOptions = vi.hoisted(() => ({
 	render: undefined as undefined | ((props: Record<string, unknown>) => React.ReactNode),
+}));
+const sessionState = vi.hoisted(() => ({
+	data: null as null | Record<string, unknown>,
+	isPending: false,
 }));
 
 vi.mock("@better-auth-ui/react/plugins", () => ({
@@ -153,6 +161,85 @@ vi.mock("@better-auth-ui/heroui", () => ({
 	),
 }));
 
+vi.mock("@heroui/react", async () => {
+	const actual = await vi.importActual<typeof import("@heroui/react")>("@heroui/react");
+	const ModalRoot = ({ children, state }: { children: React.ReactNode; state?: { isOpen: boolean } }) =>
+		state?.isOpen ? <div data-testid="heroui-modal-root">{children}</div> : null;
+	return {
+		...actual,
+		Button: ({
+			children,
+			isDisabled,
+			isIconOnly,
+			onPress,
+			...props
+		}: {
+			children: React.ReactNode;
+			isDisabled?: boolean;
+			isIconOnly?: boolean;
+			onPress?: () => void;
+		}) => (
+			<button
+				data-icon-only={String(isIconOnly ?? false)}
+				disabled={isDisabled}
+				onClick={onPress}
+				type="button"
+				{...props}
+			>
+				{children}
+			</button>
+		),
+		Modal: Object.assign(ModalRoot, {
+			Backdrop: ({ children }: { children: React.ReactNode }) => (
+				<div data-testid="heroui-modal-backdrop">{children}</div>
+			),
+			Body: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+			CloseTrigger: () => (
+				<button aria-label="关闭登录窗口" type="button">
+					关闭
+				</button>
+			),
+			Container: ({ children }: { children: React.ReactNode }) => (
+				<div data-testid="heroui-modal-container">{children}</div>
+			),
+			Dialog: ({ children, ...props }: { children: React.ReactNode }) => (
+				<div role="dialog" {...props}>
+					{children}
+				</div>
+			),
+		}),
+		useOverlayState: ({
+			isOpen = false,
+			onOpenChange,
+		}: {
+			isOpen?: boolean;
+			onOpenChange?: (open: boolean) => void;
+		} = {}) => ({
+			close: () => onOpenChange?.(false),
+			isOpen,
+			open: () => onOpenChange?.(true),
+			setOpen: (open: boolean) => onOpenChange?.(open),
+			toggle: () => onOpenChange?.(!isOpen),
+		}),
+	};
+});
+
+vi.mock("../src/platform/auth/client", async () => {
+	const actual = await vi.importActual<typeof import("../src/platform/auth/client")>(
+		"../src/platform/auth/client",
+	);
+	return {
+		...actual,
+		campusAuthClient: {
+			...actual.campusAuthClient,
+			useSession: () => ({
+				data: sessionState.data,
+				isPending: sessionState.isPending,
+			}),
+		},
+	};
+});
+
 vi.mock("@tanstack/react-router", async () => {
 	const actual =
 		await vi.importActual<typeof import("@tanstack/react-router")>("@tanstack/react-router");
@@ -180,6 +267,8 @@ describe("campus auth UI components", () => {
 	beforeEach(() => {
 		window.history.pushState({}, "", "/account/login");
 		capturedCaptchaPluginOptions.render = undefined;
+		sessionState.data = null;
+		sessionState.isPending = false;
 	});
 
 	it("passes the requested HeroUI auth view without local redirect overrides", () => {
@@ -232,6 +321,32 @@ describe("campus auth UI components", () => {
 		expect(container.innerHTML).not.toContain("shadow-");
 	});
 
+	it("reuses the Better Auth UI auth panel inside the HeroUI auth modal", () => {
+		const onOpenChange = vi.fn();
+		render(<AuthDialog onOpenChange={onOpenChange} open initialView="signIn" />);
+
+		expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
+		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signIn");
+		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-class-name", "w-full");
+		const modalSurface = screen
+			.getByLabelText("auth-view")
+			.closest("[data-campus-account-surface]");
+		expect(modalSurface as HTMLElement).toHaveAttribute("data-campus-account-surface", "auth-modal");
+		expect(authDialogSource).toContain("@heroui/react");
+		expect(authDialogSource).toContain("<AuthPanel");
+		expect(authDialogSource).toContain('data-campus-account-surface="auth-modal"');
+		expect(authDialogSource).not.toContain('data-campus-account-surface="auth"');
+		expect(authDialogSource).not.toContain("<input");
+		expect(authDialogSource).not.toContain("signIn.email");
+	});
+
+	it("keeps the reusable auth panel free of page layout", () => {
+		render(<AuthPanel className="w-full" view="signUp" />);
+
+		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-view", "signUp");
+		expect(screen.getByLabelText("auth-view")).toHaveAttribute("data-class-name", "w-full");
+	});
+
 	it("marks auth and settings surfaces for scoped HeroUI theme overrides", () => {
 		render(<Auth view="signIn" />);
 		expect(screen.getByLabelText("account-auth-layout")).toHaveAttribute(
@@ -246,9 +361,15 @@ describe("campus auth UI components", () => {
 		);
 
 		expect(stylesSource).toContain('[data-campus-account-surface="auth"]');
+		expect(stylesSource).toContain('[data-campus-account-surface="auth-modal"]');
 		expect(stylesSource).toContain('[data-slot="card"]');
 		expect(stylesSource).toContain("--campus-auth-card-shadow: var(--shadow-auth-card)");
 		expect(stylesSource).toContain("--campus-auth-link");
+		expect(stylesSource).toContain(
+			'[data-campus-account-surface="auth-modal"] [data-slot="card"]',
+		);
+		expect(stylesSource).toContain("background: transparent");
+		expect(stylesSource).toContain("box-shadow: none");
 	});
 
 	it("uses only page-level layout for Better Auth UI account settings", () => {
@@ -373,5 +494,28 @@ describe("campus auth UI components", () => {
 		expect(button).toHaveAttribute("data-variant", "ghost");
 		expect(userButtonSource).not.toContain("trigger=");
 		expect(userButtonSource).not.toContain("@/components/ui/button");
+	});
+
+	it("uses a minimal Q&A auth entry only to open the modal for unauthenticated users", () => {
+		const onLoginPress = vi.fn();
+
+		render(<QAAccountEntry onLoginPress={onLoginPress} />);
+		screen.getByRole("button", { name: "登录" }).click();
+
+		expect(onLoginPress).toHaveBeenCalledTimes(1);
+		expect(qaAccountEntrySource).toContain("@/components/ui/button");
+		expect(qaAccountEntrySource).toContain("campusAuthClient.useSession");
+		expect(qaAccountEntrySource).toContain("<UserButton");
+		expect(qaAccountEntrySource).not.toContain("<input");
+		expect(qaAccountEntrySource).not.toContain("signIn.email");
+	});
+
+	it("keeps the Better Auth UI UserButton for authenticated users", () => {
+		sessionState.data = { user: { id: "user_01", name: "用户" } };
+
+		render(<QAAccountEntry onLoginPress={vi.fn()} />);
+
+		expect(screen.getByLabelText("heroui-user-button")).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 	});
 });
