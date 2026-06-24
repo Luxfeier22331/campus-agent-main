@@ -265,8 +265,8 @@ describe("chat durable run routes", () => {
 		);
 
 		expect(response.status).toBe(200);
-		const streamBody = await response.text();
-		expect(streamBody.startsWith(": keepalive\n\n")).toBe(true);
+		const firstChunk = await response.body?.getReader().read();
+		expect(new TextDecoder().decode(firstChunk?.value)).toBe(": keepalive\n\n");
 	});
 
 	it("routes cancel through the product runtime run service", async () => {
