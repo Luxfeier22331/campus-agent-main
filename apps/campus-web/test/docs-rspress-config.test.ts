@@ -41,6 +41,9 @@ describe("campus docs Rspress build boundary", () => {
 		expect(buildDocsSource).toContain("../../var/public-docs-sync-manifest.staging.json");
 		expect(buildDocsSource).toContain("rspress");
 		expect(buildDocsSource).toContain("filter-rspress-search-index.mjs");
+		expect(buildDocsSource).toContain("mirrorPublishedReaderAssetsForRspressBuild");
+		expect(buildDocsSource).toContain('"_docs", "_gated-docs", "_gated-docs-search"');
+		expect(buildDocsSource).toContain('".generated/docs/public"');
 		expect(packageJson.scripts.build).toContain("build-published-reader-docs.mjs");
 		expect(packageJson.scripts["build:staging"]).toContain("build-published-reader-docs.mjs");
 		expect(packageJson.scripts["build:staging"]).toContain("--staging");

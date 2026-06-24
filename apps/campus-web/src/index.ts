@@ -460,6 +460,11 @@ async function serveProtectedReaderSearchIndex(request: Request, env: Env): Prom
 	}
 
 	const response = await fetchStaticAsset(request, env);
+	if (response.status === 404) {
+		return withVaryAuth(
+			jsonResponse(404, { error: { code: "not_found", message: "Route not found." } }),
+		);
+	}
 	return withVaryAuth(responseWithSecurityHeaders(response));
 }
 

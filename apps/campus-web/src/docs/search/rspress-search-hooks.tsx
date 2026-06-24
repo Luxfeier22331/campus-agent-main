@@ -28,6 +28,9 @@ export const onSearch: OnSearch = async (query: string, defaultResults: DefaultM
 	if (!response.ok) {
 		throw new Error(`protected docs search index request failed: ${response.status}`);
 	}
+	if (!isJsonResponse(response)) {
+		return [];
+	}
 	const index = parseDocsProtectedSearchIndexPayload(await response.json());
 	const protectedResults = searchProtectedDocsIndex(query, index);
 	if (protectedResults.length === 0) {
@@ -54,6 +57,9 @@ export const render: RenderSearchFunction<DocsProtectedSearchResult[]> = (result
 );
 
 function resolveProtectedSearchIndexPath(pathname: string): string | null {
+	if (readCurrentReaderSearchVisibility() !== "gated_bootstrap") {
+		return null;
+	}
 	let parts: string[];
 	try {
 		parts = pathname.split("/").filter(Boolean).map(decodeURIComponent);
@@ -72,6 +78,18 @@ function resolveProtectedSearchIndexPath(pathname: string): string | null {
 	return `/_gated-docs-search/${encodeURIComponent(corpus)}/${encodeURIComponent(
 		collection,
 	)}/${encodeURIComponent(documentSlug)}/${encodeURIComponent(versionSlug)}/index.json`;
+}
+
+function isJsonResponse(response: Response): boolean {
+	return (response.headers.get("content-type") ?? "").toLowerCase().includes("application/json");
+}
+
+function readCurrentReaderSearchVisibility(): string | null {
+	if (typeof document === "undefined") {
+		return null;
+	}
+	const meta = document.querySelector<HTMLElement>("[data-docs-reader-meta]");
+	return meta?.dataset.docsSearchVisibility?.trim() || null;
 }
 
 function readCurrentReaderDocumentSlug(): string | null {

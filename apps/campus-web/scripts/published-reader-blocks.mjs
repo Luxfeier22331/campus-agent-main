@@ -22,6 +22,9 @@ function normalizeSafeTableHtml(value) {
 	let normalized = "";
 	let cursor = 0;
 	let sawTable = false;
+	let tableChildDepth = 0;
+	let insertedImplicitTbody = false;
+	let implicitTbodyOpen = false;
 	for (const match of text.matchAll(tagPattern)) {
 		const [rawTag, rawTagName, rawAttributes = ""] = match;
 		const index = match.index ?? 0;
@@ -32,7 +35,14 @@ function normalizeSafeTableHtml(value) {
 		normalized += renderJsxTextNode(text.slice(cursor, index));
 		cursor = index + rawTag.length;
 		if (rawTag.startsWith("</")) {
+			if (tagName === "table" && implicitTbodyOpen) {
+				normalized += "</tbody>";
+				implicitTbodyOpen = false;
+			}
 			normalized += `</${tagName}>`;
+			if (tagName === "thead" || tagName === "tbody") {
+				tableChildDepth = Math.max(0, tableChildDepth - 1);
+			}
 			continue;
 		}
 		if (tagName === "table") {
@@ -40,6 +50,15 @@ function normalizeSafeTableHtml(value) {
 				return;
 			}
 			sawTable = true;
+		}
+		if (tagName === "thead" || tagName === "tbody") {
+			tableChildDepth += 1;
+		}
+		if (tagName === "tr" && sawTable && tableChildDepth === 0 && !insertedImplicitTbody) {
+			normalized += "<tbody>";
+			insertedImplicitTbody = true;
+			implicitTbodyOpen = true;
+			tableChildDepth = 1;
 		}
 		const attributes = normalizeSafeTableAttributes(rawAttributes);
 		if (attributes === undefined) {

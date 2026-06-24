@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, rmSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -50,6 +50,7 @@ if (isStaging) {
 	]);
 }
 
+mirrorPublishedReaderAssetsForRspressBuild();
 run("pnpm", ["exec", "rspress", "build", "-c", "rspress.config.ts"]);
 run("node", ["./scripts/filter-rspress-search-index.mjs"]);
 run("node", ["./scripts/copy-rspress-docs-build.mjs"]);
@@ -68,4 +69,19 @@ function ensureLocalManifest() {
 		"./scripts/export-public-docs-sync-manifest.ts",
 		"../../var/public-docs-sync-manifest.json",
 	]);
+}
+
+function mirrorPublishedReaderAssetsForRspressBuild() {
+	const sourcePublicRoot = resolve(appDir, "public");
+	const docsPublicRoot = resolve(appDir, ".generated/docs/public");
+	for (const routeRoot of ["_docs", "_gated-docs", "_gated-docs-search"]) {
+		const source = resolve(sourcePublicRoot, routeRoot);
+		const target = resolve(docsPublicRoot, routeRoot);
+		rmSync(target, { force: true, recursive: true });
+		if (!existsSync(source)) {
+			continue;
+		}
+		mkdirSync(dirname(target), { recursive: true });
+		cpSync(source, target, { recursive: true });
+	}
 }

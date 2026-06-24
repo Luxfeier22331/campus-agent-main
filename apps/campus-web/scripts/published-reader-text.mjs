@@ -13,6 +13,10 @@ export function escapeMarkdownLinkText(value) {
 	return value.replaceAll("[", "\\[").replaceAll("]", "\\]");
 }
 
+export function normalizeText(value) {
+	return String(value ?? "").trim();
+}
+
 export function formatJson(value) {
 	return `${JSON.stringify(value, undefined, "\t")}\n`;
 }

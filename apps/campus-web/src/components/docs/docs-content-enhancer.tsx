@@ -4,6 +4,8 @@ const TABLE_CONTAINER_SELECTOR = ".docs-table-scroll, .rp-table-scroll-container
 const HEADER_ANCHOR_SELECTOR = ".rspress-doc a.rp-header-anchor, .rspress-doc a.header-anchor";
 const ENHANCED_TABLE_ATTRIBUTE = "data-docs-enhanced-table";
 const SCROLLABLE_TABLE_ATTRIBUTE = "data-docs-scrollable";
+const MAX_MOBILE_CARD_ROWS = 8;
+const MAX_MOBILE_CARD_COLUMNS = 5;
 
 interface MobileTableRowPair {
 	header: string;
@@ -112,6 +114,9 @@ function buildMobileTableCards(table: HTMLTableElement): HTMLElement | null {
 	const headers = expandedRows[0] ?? [];
 	const dataRows = expandedRows.slice(1).filter((row) => row.some(Boolean));
 	if (dataRows.length === 0) {
+		return null;
+	}
+	if (dataRows.length > MAX_MOBILE_CARD_ROWS || headers.length > MAX_MOBILE_CARD_COLUMNS) {
 		return null;
 	}
 

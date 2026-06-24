@@ -561,6 +561,34 @@ describe("campus worker boundary", () => {
 		);
 	});
 
+	it("fails closed with JSON when protected docs search index static asset is missing", async () => {
+		const env = createEnv({
+			fetch() {
+				return new Response(null, { status: 204 });
+			},
+		});
+		env.ASSETS = {
+			fetch() {
+				return new Response('<!doctype html><div id="root"></div>', {
+					headers: { "content-type": "text/html; charset=utf-8" },
+					status: 404,
+				});
+			},
+		};
+
+		const response = await worker.fetch(
+			new Request(
+				"https://campus.muc.wiki/_gated-docs-search/curriculum/curriculum_plan/restricted-program/2026-current/index.json",
+				{ headers: { cookie: "better-auth.session_token=test" } },
+			),
+			env,
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("content-type")).toContain("application/json");
+		await expect(response.text()).resolves.not.toContain("<!doctype html>");
+	});
+
 	it("fails closed for protected docs search indexes when admission is denied", async () => {
 		let assetsCalled = false;
 		const env = createEnv({

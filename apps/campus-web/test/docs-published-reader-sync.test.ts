@@ -138,7 +138,8 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).toContain('<span id="general"></span>');
 		expect(currentMdx).toContain("学生应按时参加教学活动。");
 		expect(currentMdx).toContain('<div className="docs-table-scroll"');
-		expect(currentMdx).toContain('<table><tr><td>{"活动名称"}</td><td>{"学分"}</td></tr>');
+		expect(currentMdx).toContain('<table><tbody><tr><td>{"活动名称"}</td><td>{"学分"}</td></tr>');
+		expect(currentMdx).not.toContain("<table><tr>");
 		expect(currentMdx).toContain('<td>{"*战场医疗救护"}</td>');
 		expect(currentMdx).toContain('<td rowSpan="2">{"0.5"}</td>');
 		expect(currentMdx).not.toContain("&lt;table&gt;&lt;tr&gt;&lt;td&gt;活动名称");
@@ -148,6 +149,14 @@ describe("campus-web published reader sync", () => {
 		expect(currentMdx).toContain('data-docs-route-slug="student-attendance"');
 		expect(currentMdx).not.toContain("doc_id");
 		expect(currentMdx).not.toContain("version_id");
+		expect(currentMdx).not.toContain("## 文档正文");
+		expect(currentMdx).toContain("## 六、课程地图");
+		expect(currentMdx).not.toContain(">六、课程地图</div>");
+		expect(currentMdx).toContain('className="docs-course-map-figure"');
+		expect(currentMdx).toContain(
+			'src="/_docs/regulations/student_rules/student-attendance/2026-current/course-maps/page-0001-map-01.png"',
+		);
+		expect(currentMdx).toContain('alt="学生考勤课程地图"');
 		expect(versionMdx).toContain('data-docs-version-slug="2026-current"');
 		expect(versionMdx).toContain('docsSearchVisibility: "noindex"');
 		expect(gatedMdx).toContain("GatedReaderBootstrap");
@@ -318,6 +327,7 @@ function createPublishedReaderFixture(
 	const publicDocumentSlug = input.publicDocumentSlug ?? "student-attendance";
 	const publicReader = JSON.stringify({
 		document: { title: "中央民族大学学生考勤管理规定" },
+		supplements: [{ kind: "course_maps", path: "course-maps.json" }],
 		sections: [
 			{
 				anchor: "general",
@@ -337,8 +347,13 @@ function createPublishedReaderFixture(
 						rootUnitId: "unsafe-html-text",
 						text: "<img src=x onerror=alert(1)>",
 					},
+					{
+						kind: "heading",
+						rootUnitId: "course-map-heading",
+						text: "六、课程地图",
+					},
 				],
-				title: "总则",
+				title: "文档正文",
 			},
 		],
 	});
@@ -360,6 +375,17 @@ function createPublishedReaderFixture(
 	});
 	const publicOutline = "{}";
 	const publicMeta = JSON.stringify({ sourceLabel: "学生手册" });
+	const publicCourseMaps = JSON.stringify({
+		blocks: [
+			{
+				blockId: "page-0001-map-01",
+				imagePath: "course-maps/page-0001-map-01.png",
+				parentHeadingHint: "六、课程地图",
+				title: "学生考勤课程地图",
+			},
+		],
+		schemaVersion: "curriculum_course_maps_reader_v1",
+	});
 	const gatedOutline = "{}";
 	const gatedMeta = JSON.stringify({ sourceLabel: "受限制度" });
 	const objects = new Map<string, string>([
@@ -369,13 +395,27 @@ function createPublishedReaderFixture(
 		["outline/public-history.json", publicOutline],
 		["meta/public.json", publicMeta],
 		["meta/public-history.json", publicMeta],
+		["supplements/public-course-maps.json", publicCourseMaps],
+		["supplements/public-course-map-image.png", "course-map-image"],
 		[
 			"manifest/public.json",
-			buildAssetManifest({ meta: publicMeta, outline: publicOutline, reader: publicReader }),
+			buildAssetManifest({
+				courseMapImage: "course-map-image",
+				courseMaps: publicCourseMaps,
+				meta: publicMeta,
+				outline: publicOutline,
+				reader: publicReader,
+			}),
 		],
 		[
 			"manifest/public-history.json",
-			buildAssetManifest({ meta: publicMeta, outline: publicOutline, reader: publicReader }),
+			buildAssetManifest({
+				courseMapImage: "course-map-image",
+				courseMaps: publicCourseMaps,
+				meta: publicMeta,
+				outline: publicOutline,
+				reader: publicReader,
+			}),
 		],
 		["reader/gated.json", gatedReader],
 		["outline/gated.json", gatedOutline],
@@ -431,10 +471,16 @@ function createPublishedReaderFixture(
 					meta: "meta/public.json",
 					outline: "outline/public.json",
 					reader: "reader/public.json",
+					"supplement.course-maps.json": "supplements/public-course-maps.json",
+					"supplement.course-maps/page-0001-map-01.png": "supplements/public-course-map-image.png",
 				},
 				targetObjects: {
 					"asset-manifest":
 						"_docs/regulations/student_rules/student-attendance/2026-current/asset-manifest.json",
+					"course-maps.json":
+						"_docs/regulations/student_rules/student-attendance/2026-current/course-maps.json",
+					"course-maps/page-0001-map-01.png":
+						"_docs/regulations/student_rules/student-attendance/2026-current/course-maps/page-0001-map-01.png",
 					meta: "_docs/regulations/student_rules/student-attendance/2026-current/meta.json",
 					outline: "_docs/regulations/student_rules/student-attendance/2026-current/outline.json",
 					reader: "_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
@@ -456,10 +502,16 @@ function createPublishedReaderFixture(
 					meta: "meta/public-history.json",
 					outline: "outline/public-history.json",
 					reader: "reader/public-history.json",
+					"supplement.course-maps.json": "supplements/public-course-maps.json",
+					"supplement.course-maps/page-0001-map-01.png": "supplements/public-course-map-image.png",
 				},
 				targetObjects: {
 					"asset-manifest":
 						"_docs/regulations/student_rules/student-attendance/2025-history/asset-manifest.json",
+					"course-maps.json":
+						"_docs/regulations/student_rules/student-attendance/2025-history/course-maps.json",
+					"course-maps/page-0001-map-01.png":
+						"_docs/regulations/student_rules/student-attendance/2025-history/course-maps/page-0001-map-01.png",
 					meta: "_docs/regulations/student_rules/student-attendance/2025-history/meta.json",
 					outline: "_docs/regulations/student_rules/student-attendance/2025-history/outline.json",
 					reader: "_docs/regulations/student_rules/student-attendance/2025-history/reader.json",
@@ -545,9 +597,31 @@ function createPublishedReaderFixture(
 	};
 }
 
-function buildAssetManifest(input: { meta: string; outline: string; reader: string }): string {
+function buildAssetManifest(input: {
+	courseMapImage?: string;
+	courseMaps?: string;
+	meta: string;
+	outline: string;
+	reader: string;
+}): string {
 	return JSON.stringify({
 		files: {
+			...(input.courseMaps
+				? {
+						"course-maps.json": {
+							sha256: sha256(input.courseMaps),
+							sizeBytes: new TextEncoder().encode(input.courseMaps).byteLength,
+						},
+					}
+				: {}),
+			...(input.courseMapImage
+				? {
+						"course-maps/page-0001-map-01.png": {
+							sha256: sha256(input.courseMapImage),
+							sizeBytes: new TextEncoder().encode(input.courseMapImage).byteLength,
+						},
+					}
+				: {}),
 			"meta.json": {
 				sha256: sha256(input.meta),
 				sizeBytes: new TextEncoder().encode(input.meta).byteLength,

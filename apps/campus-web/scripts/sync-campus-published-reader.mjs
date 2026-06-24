@@ -1,9 +1,21 @@
 import { createHash } from "node:crypto";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, isAbsolute, resolve, sep } from "node:path";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+	resolvePublishedReaderSourceObjectKey,
+	resolvePublishedReaderTargetObjectByDeliveryMode,
+	resolveSafePublishedReaderAssetTarget,
+	validatePublishedReaderAssetManifest,
+} from "./published-reader-assets.mjs";
 import { renderReaderBlockText } from "./published-reader-blocks.mjs";
 import { writeBootstrapPages, writeGatedReaderPage } from "./published-reader-bootstrap-pages.mjs";
+import {
+	buildCourseMapsByHeading,
+	countUnrenderedCourseMaps,
+	loadReaderCourseMapSupplements,
+	renderCourseMapFigure,
+} from "./published-reader-course-maps.mjs";
 import { loadPublishedReaderManifest, normalizeSearchUnit } from "./published-reader-manifest.mjs";
 import { createS3ObjectStore } from "./published-reader-object-store.mjs";
 import { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
@@ -12,6 +24,7 @@ import {
 	escapeHtml,
 	escapeMarkdownLinkText,
 	formatJson,
+	normalizeText,
 	writeText,
 } from "./published-reader-text.mjs";
 
@@ -24,12 +37,6 @@ export { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
 const APP_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DEFAULT_DOCS_ROOT = resolve(APP_ROOT, ".generated/docs");
 const DEFAULT_PUBLIC_ROOT = resolve(APP_ROOT, "public");
-const CORE_SOURCE_LABELS = {
-	"asset-manifest": "manifest",
-	meta: "meta",
-	outline: "outline",
-	reader: "reader",
-};
 const CORPUS_ORDER = ["regulations", "curriculum"];
 const COLLECTION_ORDER = [
 	"student_rules",
@@ -37,6 +44,7 @@ const COLLECTION_ORDER = [
 	"scoped_rules",
 	"curriculum_plan",
 ];
+const SYNTHETIC_READER_SECTION_TITLES = new Set(["文档正文", "正文内容"]);
 
 export async function syncCampusPublishedReaderDocs(input) {
 	const docsRoot = resolve(
@@ -85,9 +93,12 @@ export async function syncCampusPublishedReaderAssets(input) {
 	for (const entry of entries) {
 		const copies = [];
 		for (const [targetLabel, targetObject] of Object.entries(entry.targetObjects)) {
-			const sourceObject = resolveSourceObjectKey(entry, targetLabel);
-			const target = resolveSafeReaderAssetTarget({
-				targetObject: resolveTargetObjectByDeliveryMode(entry.deliveryMode, targetObject),
+			const sourceObject = resolvePublishedReaderSourceObjectKey(entry, targetLabel);
+			const target = resolveSafePublishedReaderAssetTarget({
+				targetObject: resolvePublishedReaderTargetObjectByDeliveryMode(
+					entry.deliveryMode,
+					targetObject,
+				),
 				targetRoot,
 			});
 			if (seenTargets.has(target.targetPath)) {
@@ -100,7 +111,7 @@ export async function syncCampusPublishedReaderAssets(input) {
 			}
 			copies.push({ ...target, bytes });
 		}
-		validateAssetManifest(entry, copies);
+		validatePublishedReaderAssetManifest(entry, copies);
 		for (const copy of copies) {
 			mkdirSync(dirname(copy.targetPath), { recursive: true });
 			writeFileSync(copy.targetPath, copy.bytes);
@@ -130,10 +141,16 @@ async function writeReaderPage(input) {
 	const meta = input.entry.sourceObjects.meta
 		? JSON.parse(await input.client.readTextObject({ key: input.entry.sourceObjects.meta }))
 		: {};
+	const courseMaps = await loadReaderCourseMapSupplements({
+		client: input.client,
+		entry: input.entry,
+		reader,
+	});
 	const mdx = buildReaderMdx({
 		entry: input.entry,
 		meta,
 		reader,
+		courseMaps,
 		searchable: false,
 		versions: input.publicVersionsByDocument.get(resolveDocumentVersionKey(input.entry)) ?? [],
 	});
@@ -160,6 +177,7 @@ async function writeReaderPage(input) {
 				entry: input.entry,
 				meta,
 				reader,
+				courseMaps,
 				searchable: true,
 				versions: input.publicVersionsByDocument.get(resolveDocumentVersionKey(input.entry)) ?? [],
 			}),
@@ -169,6 +187,7 @@ async function writeReaderPage(input) {
 
 function buildReaderMdx(input) {
 	const title = input.reader.document?.title || input.entry.title;
+	const courseMapsByHeading = buildCourseMapsByHeading(input.courseMaps ?? []);
 	const lines = [
 		"---",
 		`title: ${JSON.stringify(title)}`,
@@ -189,12 +208,21 @@ function buildReaderMdx(input) {
 			lines.push(`<span id="${escapeHtml(anchor)}"></span>`, "");
 		}
 		const sectionTitle = normalizeText(section.title);
-		if (sectionTitle && sectionTitle !== title) {
+		if (shouldRenderReaderSectionTitle({ sectionTitle, title })) {
 			lines.push(`## ${sectionTitle}`, "");
 		}
 		for (const block of section.blocks ?? []) {
 			const text = normalizeText(block.text);
 			if (!text) {
+				continue;
+			}
+			if (isReaderHeadingBlock(block, text)) {
+				const headingLevel = resolveReaderHeadingLevel(text);
+				lines.push(`${"#".repeat(headingLevel)} ${text}`, "");
+				for (const courseMap of courseMapsByHeading.get(text) ?? []) {
+					lines.push(renderCourseMapFigure(courseMap), "");
+				}
+				courseMapsByHeading.delete(text);
 				continue;
 			}
 			const rootUnitId = String(block.rootUnitId ?? "").trim();
@@ -206,9 +234,44 @@ function buildReaderMdx(input) {
 				"</div>",
 				"",
 			);
+			for (const courseMap of courseMapsByHeading.get(text) ?? []) {
+				lines.push(renderCourseMapFigure(courseMap), "");
+			}
+			courseMapsByHeading.delete(text);
 		}
 	}
+	const unrenderedCourseMapCount = countUnrenderedCourseMaps(courseMapsByHeading);
+	if (unrenderedCourseMapCount > 0) {
+		throw new Error(
+			`course map supplement has no matching reader heading: ${input.entry.documentSlug}`,
+		);
+	}
 	return `${lines.join("\n").trimEnd()}\n`;
+}
+
+function isReaderHeadingBlock(block, text) {
+	return block?.kind === "heading" || (text.length <= 32 && isReaderHeadingText(text));
+}
+
+function isReaderHeadingText(text) {
+	return /^(第[一二三四五六七八九十百]+章\b|[一二三四五六七八九十]+、\S|（[一二三四五六七八九十]+）\S|\([一二三四五六七八九十]+\)\S|[1-9][0-9]{0,1}\.\S)/u.test(
+		text,
+	);
+}
+
+function resolveReaderHeadingLevel(text) {
+	if (/^(第[一二三四五六七八九十百]+章\b|[一二三四五六七八九十]+、\S)/u.test(text)) {
+		return 2;
+	}
+	return 3;
+}
+
+function shouldRenderReaderSectionTitle(input) {
+	return Boolean(
+		input.sectionTitle &&
+			input.sectionTitle !== input.title &&
+			!SYNTHETIC_READER_SECTION_TITLES.has(input.sectionTitle),
+	);
 }
 
 function buildMetaPanel(input) {
@@ -228,7 +291,7 @@ function buildMetaPanel(input) {
 		})),
 	});
 	return [
-		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-route-slug="${escapeHtml(input.entry.routeSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
+		`<section className="document-meta-panel" aria-label="文档来源与版本" data-docs-reader-meta="true" data-docs-corpus="${escapeHtml(input.entry.corpus)}" data-docs-collection="${escapeHtml(input.entry.collection)}" data-docs-document-slug="${escapeHtml(input.entry.documentSlug)}" data-docs-route-slug="${escapeHtml(input.entry.routeSlug)}" data-docs-version-slug="${escapeHtml(input.entry.versionSlug)}" data-docs-search-visibility="${input.entry.deliveryMode === "gated_asset" ? "gated_bootstrap" : input.entry.isCurrent ? "public_current" : "noindex"}" data-docs-is-current="${input.entry.isCurrent ? "true" : "false"}" data-docs-versions="${escapeAttribute(versionPayload)}">`,
 		'\t<p className="document-meta-summary">',
 		`\t\t<span>${escapeHtml(versionLabel)}</span>`,
 		`\t\t<span>来源：${escapeHtml(sourceLabel)}</span>`,
@@ -570,92 +633,6 @@ function compareSearchUnit(left, right) {
 	);
 }
 
-function resolveSourceObjectKey(entry, targetLabel) {
-	const sourceLabel = CORE_SOURCE_LABELS[targetLabel] ?? `supplement.${targetLabel}`;
-	const sourceObject = entry.sourceObjects[sourceLabel] ?? entry.sourceObjects[targetLabel];
-	if (!sourceObject?.trim()) {
-		throw new Error(`missing reader asset source label for target: ${targetLabel}`);
-	}
-	return sourceObject;
-}
-
-function resolveTargetObjectByDeliveryMode(deliveryMode, targetObject) {
-	const normalized = targetObject.trim().replaceAll("\\", "/");
-	if (deliveryMode === "public_static_asset") {
-		if (!normalized.startsWith("_docs/")) {
-			throw new Error("public reader asset target must stay under _docs/");
-		}
-		return normalized;
-	}
-	if (deliveryMode === "gated_asset") {
-		if (normalized.startsWith("_gated-docs/")) {
-			return normalized;
-		}
-		if (normalized.startsWith("_docs/")) {
-			return normalized.replace(/^_docs\//u, "_gated-docs/");
-		}
-		throw new Error("gated reader asset target must stay under _gated-docs/");
-	}
-	throw new Error(`unsupported reader delivery mode: ${deliveryMode}`);
-}
-
-function resolveSafeReaderAssetTarget(input) {
-	const normalized = input.targetObject.trim().replaceAll("\\", "/");
-	if (
-		!(normalized.startsWith("_docs/") || normalized.startsWith("_gated-docs/")) ||
-		isAbsolute(normalized) ||
-		normalized.split("/").includes("..")
-	) {
-		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
-	}
-	const targetPath = resolve(input.targetRoot, normalized);
-	const targetPrefix = `${resolve(input.targetRoot)}${sep}`;
-	if (!targetPath.startsWith(targetPrefix)) {
-		throw new Error("reader asset target must stay under _docs/ or _gated-docs/");
-	}
-	return {
-		filePath: resolveReaderAssetFilePath(normalized),
-		targetObject: normalized,
-		targetPath,
-	};
-}
-
-function resolveReaderAssetFilePath(targetObject) {
-	const parts = targetObject.split("/");
-	if (parts.length < 6) {
-		throw new Error("reader asset target must include document version and file path");
-	}
-	const filePath = parts.slice(5).join("/");
-	if (!filePath || filePath.split("/").includes("..")) {
-		throw new Error("reader asset target must include a safe file path");
-	}
-	return filePath;
-}
-
-function validateAssetManifest(entry, copies) {
-	const manifestCopy = copies.find((copy) => copy.filePath === "asset-manifest.json");
-	if (!manifestCopy) {
-		throw new Error(`reader asset entry is missing asset-manifest.json: ${entry.docId ?? ""}`);
-	}
-	const manifest = JSON.parse(new TextDecoder().decode(manifestCopy.bytes));
-	if (!manifest.files || typeof manifest.files !== "object" || Array.isArray(manifest.files)) {
-		throw new Error("asset-manifest.json must contain files");
-	}
-	for (const copy of copies) {
-		if (copy.filePath === "asset-manifest.json") {
-			continue;
-		}
-		const expected = manifest.files[copy.filePath];
-		if (!expected) {
-			throw new Error(`asset-manifest.json is missing file entry: ${copy.filePath}`);
-		}
-		const actualSha256 = createHash("sha256").update(copy.bytes).digest("hex");
-		if (expected.sizeBytes !== copy.bytes.byteLength || expected.sha256 !== actualSha256) {
-			throw new Error(`reader asset failed manifest integrity check: ${copy.filePath}`);
-		}
-	}
-}
-
 function compareEntryRoute(left, right) {
 	return `${left.corpus}/${left.collection}/${left.documentSlug}/${left.versionSlug}`.localeCompare(
 		`${right.corpus}/${right.collection}/${right.documentSlug}/${right.versionSlug}`,
@@ -748,10 +725,6 @@ function resolveCollectionLabel(entry) {
 		return "专项规章";
 	}
 	return entry.collection;
-}
-
-function normalizeText(value) {
-	return String(value ?? "").trim();
 }
 
 async function main() {

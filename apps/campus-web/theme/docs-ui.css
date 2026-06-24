@@ -257,6 +257,35 @@
 		box-shadow 0.18s ease;
 }
 
+.rspress-doc .docs-course-map-figure {
+	max-width: 100%;
+	margin: 1.4rem 0 1.75rem;
+}
+
+.rspress-doc .docs-course-map-frame {
+	overflow: auto;
+	aspect-ratio: 1233 / 649;
+	border: 1px solid var(--docs-border);
+	border-radius: 0.85rem;
+	background: var(--docs-surface);
+	box-shadow: 0 10px 24px rgba(16, 24, 40, 0.05);
+	-webkit-overflow-scrolling: touch;
+}
+
+.rspress-doc .docs-course-map-image {
+	display: block;
+	width: 100%;
+	height: auto;
+	min-width: min(52rem, 100%);
+}
+
+.rspress-doc .docs-course-map-figure figcaption {
+	margin-top: 0.55rem;
+	color: var(--docs-muted);
+	font-size: 0.84rem;
+	line-height: 1.5;
+}
+
 .docs-protected-search-results {
 	display: grid;
 	gap: 0.35rem;
@@ -526,6 +555,23 @@
 	:root {
 		--docs-reader-padding: 1rem;
 	}
+
+	.rp-doc-layout__sidebar.rp-doc-layout__sidebar--open {
+		position: fixed;
+		top: var(--rp-nav-height, 64px);
+		bottom: 0;
+		left: 0;
+		width: min(20rem, 86vw);
+		height: auto;
+		overflow-y: auto;
+		overscroll-behavior: contain;
+	}
+
+	.rp-sidebar-menu__mask {
+		position: fixed;
+		inset: var(--rp-nav-height, 64px) 0 0;
+	}
+
 	.rspress-doc .document-meta-details dl {
 		right: 1rem;
 		bottom: 1rem;
@@ -536,7 +582,7 @@
 
 	.rspress-doc .docs-table-scroll table,
 	.rspress-doc .rp-table-scroll-container table {
-		display: none;
+		display: table;
 	}
 
 	.rspress-doc .docs-table-mobile-cards {
