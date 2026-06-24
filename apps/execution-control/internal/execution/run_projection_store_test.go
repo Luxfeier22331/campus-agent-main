@@ -230,6 +230,62 @@ func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing
 	}
 }
 
+func TestInMemoryRunProjectionStoreFailsRunWithSelectedCapability(t *testing.T) {
+	store := NewInMemoryRunProjectionStore()
+	ctx := context.Background()
+	now := time.Date(2026, 6, 4, 8, 9, 0, 0, time.UTC)
+	createRunProjectionForTest(t, store, "run-fail-selected-capability", "conv-fail-selected-capability", now)
+	if _, err := store.TransitionRun(
+		ctx,
+		"run-fail-selected-capability",
+		DurableRunStatusQueued,
+		"",
+		now.Add(time.Second),
+	); err != nil {
+		t.Fatalf("queue run projection: %v", err)
+	}
+	if _, err := store.FailRunProjection(ctx, DurableRunFailRequest{
+		RunID: "run-fail-selected-capability",
+		Now:   now.Add(2 * time.Second),
+	}); !errors.Is(err, ErrInvalidDurableRun) {
+		t.Fatalf("fail without terminal reason error = %v, want ErrInvalidDurableRun", err)
+	}
+
+	failed, err := store.FailRunProjection(ctx, DurableRunFailRequest{
+		Now:                now.Add(3 * time.Second),
+		RunID:              "run-fail-selected-capability",
+		SelectedCapability: "knowledge",
+		TerminalReason:     DurableTerminalReasonProviderUnavailable,
+	})
+	if err != nil {
+		t.Fatalf("fail run projection: %v", err)
+	}
+	if failed.Status != DurableRunStatusFailed {
+		t.Fatalf("failed status = %q, want failed", failed.Status)
+	}
+	if failed.TerminalReason != DurableTerminalReasonProviderUnavailable {
+		t.Fatalf("terminal reason = %q, want provider_unavailable", failed.TerminalReason)
+	}
+	if failed.SelectedCapability != "knowledge" {
+		t.Fatalf("selected capability = %q, want knowledge", failed.SelectedCapability)
+	}
+	if failed.CompletedAt.IsZero() {
+		t.Fatal("failed run should record completed_at")
+	}
+	if _, err := store.CreateRun(ctx, DurableRun{
+		RunID:          "run-after-failed-terminal",
+		ConversationID: "conv-fail-selected-capability",
+		TurnID:         "turn-after-failed-terminal",
+		RequestID:      "req-after-failed-terminal",
+		OwnerUserID:    "user-001",
+		Surface:        "campus-web",
+		Lane:           DurableLaneRAG,
+		CreatedAt:      now.Add(4 * time.Second),
+	}); err != nil {
+		t.Fatalf("create run after failed terminal active lock release: %v", err)
+	}
+}
+
 func TestInMemoryRunProjectionStoreAppendsRunEventsWithMonotonicSequence(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()

@@ -31,6 +31,7 @@ type RunProjectionStore interface {
 		DurableRun,
 		error,
 	)
+	FailRunProjection(context.Context, DurableRunFailRequest) (DurableRun, error)
 	CompleteRunProjection(context.Context, DurableRunCompleteRequest) (DurableRun, error)
 	CancelRunProjection(context.Context, DurableRunCancelRequest) (DurableRun, error)
 	AppendRunEvent(context.Context, DurableRunEvent) (DurableRunEvent, error)

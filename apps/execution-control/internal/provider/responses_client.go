@@ -109,10 +109,23 @@ func (c *ResponsesClient) Execute(ctx context.Context, request ResponsesRequest)
 		return ResponsesClientResult{Err: readErr}
 	}
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
+		completedAt := time.Now().UTC()
 		return ResponsesClientResult{
 			Body:   responseBody,
 			Err:    fmt.Errorf("provider responses status %d", response.StatusCode),
 			Status: response.StatusCode,
+			Summary: ExecutionSummary{
+				CancelOutcome:      CancelOutcomeNotRequested,
+				CompletedAt:        completedAt.Format(time.RFC3339Nano),
+				DiagnosticStatus:   DiagnosticProviderHTTPError,
+				LatencyMS:          completedAt.Sub(startedAt).Milliseconds(),
+				ModelName:          c.modelName,
+				ModelProvider:      c.modelProvider,
+				ProviderRequestRef: strings.TrimSpace(request.ProviderRequestRef),
+				SchemaVersion:      "provider_execution_summary_v1",
+				StartedAt:          startedAt.Format(time.RFC3339Nano),
+				TimeoutOutcome:     TimeoutOutcomeNotTimedOut,
+			},
 		}
 	}
 	completedAt := time.Now().UTC()

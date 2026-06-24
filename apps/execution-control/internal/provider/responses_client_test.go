@@ -258,6 +258,47 @@ func TestResponsesClientBuildsProviderExecutionSummary(t *testing.T) {
 	}
 }
 
+func TestResponsesClientBuildsSummaryForProviderHTTPError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/responses" {
+			t.Fatalf("path = %q, want /responses", request.URL.Path)
+		}
+		response.WriteHeader(http.StatusBadGateway)
+		_, _ = response.Write([]byte(`{"error":{"message":"upstream unavailable"}}`))
+	}))
+	defer server.Close()
+	client := NewResponsesClient(ResponsesClientConfig{
+		APIKey:        "test-key",
+		BaseURL:       server.URL,
+		HTTPClient:    server.Client(),
+		ModelName:     "gpt-5.5",
+		ModelProvider: "openai",
+	})
+
+	result := client.Execute(context.Background(), ResponsesRequest{
+		Input:              []map[string]any{{"role": "user", "content": "hello"}},
+		ProviderRequestRef: "provider://requests/run-1/synthesis",
+	})
+	if result.Err == nil {
+		t.Fatal("provider HTTP error must return an error")
+	}
+	if result.Status != http.StatusBadGateway {
+		t.Fatalf("status = %d, want 502", result.Status)
+	}
+	if result.Summary.DiagnosticStatus != DiagnosticProviderHTTPError {
+		t.Fatalf(
+			"diagnostic status = %q, want provider_http_error",
+			result.Summary.DiagnosticStatus,
+		)
+	}
+	if result.Summary.ModelProvider != "openai" || result.Summary.ModelName != "gpt-5.5" {
+		t.Fatalf("summary model = %s/%s", result.Summary.ModelProvider, result.Summary.ModelName)
+	}
+	if result.Summary.ProviderRequestRef != "provider://requests/run-1/synthesis" {
+		t.Fatalf("provider request ref = %q", result.Summary.ProviderRequestRef)
+	}
+}
+
 func TestResponsesClientAppliesGenerationControls(t *testing.T) {
 	store := false
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {

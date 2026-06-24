@@ -15,6 +15,7 @@ const (
 
 	DiagnosticComplete             = "complete"
 	DiagnosticProviderUsageMissing = "provider_usage_missing"
+	DiagnosticProviderHTTPError    = "provider_http_error"
 )
 
 type ResponsesSummaryInput struct {

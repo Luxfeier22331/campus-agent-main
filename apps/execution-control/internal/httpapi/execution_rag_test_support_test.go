@@ -86,6 +86,7 @@ type fakeRAGSynthesisExecutor struct {
 	err        error
 	grounding  string
 	onExecute  func(context.Context)
+	status     int
 	seenPacket ragSynthesisPacket
 	summary    provider.ExecutionSummary
 }
@@ -104,7 +105,7 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		f.onExecute(ctx)
 	}
 	if f.err != nil {
-		return ragSynthesisResult{ProviderSummary: f.summary}, f.err
+		return ragSynthesisResult{ProviderStatus: f.status, ProviderSummary: f.summary}, f.err
 	}
 	answerText := f.answerText
 	if answerText == "" {
@@ -114,6 +115,7 @@ func (f *fakeRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		AnswerText:       answerText,
 		Confidence:       "high",
 		GroundingVerdict: strings.TrimSpace(f.grounding),
+		ProviderStatus:   f.status,
 		ProviderSummary:  f.summary,
 		SemanticOutcome:  "answer_from_selected_evidence",
 	}, nil

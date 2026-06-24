@@ -128,11 +128,12 @@ func (s *Server) completeRAGSynthesisActivity(
 			TaskQueue:       temporalruntime.KnowledgeActivityTaskQueueForActivity(temporalruntime.SynthesizeRAGAnswerActivityName),
 			TimeoutOutcome:  execution.TimeoutOutcome(synthesisResult.ProviderSummary.TimeoutOutcome),
 			Payload: map[string]any{
-				"failure_kind":    "rag_synthesis_provider_failed",
-				"message":         err.Error(),
-				"packet_summary":  ragSynthesisPacketSummary(packet),
-				"provider_ref":    providerRequestRefForPacket(packet),
-				"provider_status": synthesisResult.ProviderSummary.DiagnosticStatus,
+				"failure_kind":         "rag_synthesis_provider_failed",
+				"message":              err.Error(),
+				"packet_summary":       ragSynthesisPacketSummary(packet),
+				"provider_ref":         providerRequestRefForPacket(packet),
+				"provider_http_status": synthesisResult.ProviderStatus,
+				"provider_status":      synthesisResult.ProviderSummary.DiagnosticStatus,
 			},
 		}, err)
 		return temporalruntime.SynthesizeRAGAnswerActivityOutput{}, failureErr

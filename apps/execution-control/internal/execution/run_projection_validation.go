@@ -93,6 +93,19 @@ func validateDurableRunCompleteRequest(request DurableRunCompleteRequest) error 
 	return nil
 }
 
+func validateDurableRunFailRequest(request DurableRunFailRequest) error {
+	if request.RunID == "" {
+		return fmt.Errorf("%w: run_id is required", ErrInvalidDurableRun)
+	}
+	if request.TerminalReason == "" {
+		return fmt.Errorf("%w: terminal_reason is required", ErrInvalidDurableRun)
+	}
+	if request.Now.IsZero() {
+		return fmt.Errorf("%w: now is required", ErrInvalidDurableRun)
+	}
+	return nil
+}
+
 func durableRunStatusValid(status DurableRunStatus) bool {
 	switch status {
 	case DurableRunStatusCreated, DurableRunStatusQueued, DurableRunStatusAdmitted,

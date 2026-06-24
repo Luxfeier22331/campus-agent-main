@@ -21,6 +21,7 @@ type ragSynthesisResult struct {
 	AnswerText       string
 	Confidence       string
 	GroundingNotes   string
+	ProviderStatus   int
 	ProviderSummary  provider.ExecutionSummary
 	ProviderBody     []byte
 	SemanticOutcome  string
@@ -64,16 +65,25 @@ func (e providerBackedRAGSynthesisExecutor) ExecuteRAGSynthesis(
 		Text:               ragProviderTextSchema(packet),
 	})
 	if result.Err != nil {
-		return ragSynthesisResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, result.Err
+		return ragSynthesisResult{
+			ProviderBody:    result.Body,
+			ProviderStatus:  result.Status,
+			ProviderSummary: result.Summary,
+		}, result.Err
 	}
 	output, err := extractRAGSynthesisOutput(result.Body, packet.SelectedEvidence)
 	if err != nil {
-		return ragSynthesisResult{ProviderSummary: result.Summary, ProviderBody: result.Body}, err
+		return ragSynthesisResult{
+			ProviderBody:    result.Body,
+			ProviderStatus:  result.Status,
+			ProviderSummary: result.Summary,
+		}, err
 	}
 	return ragSynthesisResult{
 		AnswerText:       output.AnswerText,
 		Confidence:       output.Confidence,
 		GroundingNotes:   output.GroundingNotes,
+		ProviderStatus:   result.Status,
 		ProviderSummary:  result.Summary,
 		ProviderBody:     result.Body,
 		SemanticOutcome:  output.SemanticOutcome,
