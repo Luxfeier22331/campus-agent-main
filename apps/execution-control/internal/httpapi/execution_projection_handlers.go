@@ -162,6 +162,17 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 		writeError(response, http.StatusBadRequest, "invalid_request", "run_id is required.", false)
 		return
 	}
+	run, err := s.runProjectionStore.GetRun(request.Context(), runID)
+	if err != nil {
+		if errors.Is(err, execution.ErrDurableRunNotFound) {
+			setOutcome(response, "execution_run_not_found")
+			writeError(response, http.StatusNotFound, "execution_run_not_found", "Execution run not found.", false)
+			return
+		}
+		setOutcome(response, "execution_run_query_failed")
+		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
+		return
+	}
 	steps, err := s.runProjectionStore.ListRunSteps(request.Context(), runID)
 	if err != nil {
 		if errors.Is(err, execution.ErrDurableRunNotFound) {
@@ -199,9 +210,10 @@ func (s *Server) handleExecutionRunSteps(response http.ResponseWriter, request *
 	}
 	setOutcome(response, "execution_run_steps")
 	writeJSON(response, http.StatusOK, map[string]any{
-		"steps":    bodySteps,
-		"attempts": bodyAttempts,
-		"results":  bodyResults,
+		"steps":                         bodySteps,
+		"attempts":                      bodyAttempts,
+		"results":                       bodyResults,
+		"agent_runtime_eval_projection": buildAgentRuntimeEvalProjection(run, steps, results),
 	})
 }
 
@@ -432,24 +444,147 @@ func stepResultProjectionResponse(result execution.StepResultProjection) map[str
 	}
 }
 
+func buildAgentRuntimeEvalProjection(
+	run execution.DurableRun,
+	steps []execution.RunStepProjection,
+	results []execution.StepResultProjection,
+) map[string]any {
+	selectedCapability := firstNonEmptyText(
+		run.SelectedCapability,
+		firstStepCapability(steps),
+		firstProjectedStringFromResults(results, "selected_capability"),
+	)
+	selectedTool := firstProjectedStringFromResults(results, "selected_tool")
+	return map[string]any{
+		"schema_version": "agent_runtime_eval_projection.v1",
+		"run": map[string]any{
+			"run_id":            run.RunID,
+			"request_id":        run.RequestID,
+			"trace_id":          run.TraceID,
+			"status":            string(run.Status),
+			"terminal_reason":   string(run.TerminalReason),
+			"fail_close_reason": run.FailCloseReason,
+		},
+		"trajectory": map[string]any{
+			"selected_capability":    selectedCapability,
+			"selected_tool":          selectedTool,
+			"tool_calls":             projectedToolCalls(results),
+			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
+			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
+		},
+		"planning": projectedRecordFromResults(results, "planning"),
+		"rag":      projectedRecordFromResults(results, "rag"),
+		"memory":   projectedRecordFromResults(results, "memory"),
+	}
+}
+
+func firstStepCapability(steps []execution.RunStepProjection) string {
+	for _, step := range steps {
+		if capability := strings.TrimSpace(step.Capability); capability != "" {
+			return capability
+		}
+	}
+	return ""
+}
+
+func firstProjectedStringFromResults(results []execution.StepResultProjection, key string) string {
+	for _, result := range results {
+		value := stringFromProjectionPayload(result.SanitizedPayload, key)
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func stringFromProjectionPayload(payload map[string]any, key string) string {
+	value, _ := sanitizeProjectionPayload(payload)[key].(string)
+	return strings.TrimSpace(value)
+}
+
+func projectedBoolFromResults(results []execution.StepResultProjection, key string) bool {
+	for _, result := range results {
+		value, ok := sanitizeProjectionPayload(result.SanitizedPayload)[key].(bool)
+		if ok {
+			return value
+		}
+	}
+	return false
+}
+
+func projectedRecordFromResults(results []execution.StepResultProjection, key string) map[string]any {
+	for _, result := range results {
+		record, ok := sanitizeProjectionPayload(result.SanitizedPayload)[key].(map[string]any)
+		if ok {
+			return sanitizeProjectionPayload(record)
+		}
+	}
+	return map[string]any{}
+}
+
+func projectedToolCalls(results []execution.StepResultProjection) []map[string]any {
+	toolCalls := []map[string]any{}
+	for _, result := range results {
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		if record, ok := payload["tool_call"].(map[string]any); ok {
+			toolCalls = append(toolCalls, sanitizeProjectionPayload(record))
+			continue
+		}
+		if selectedTool, _ := payload["selected_tool"].(string); strings.TrimSpace(selectedTool) != "" {
+			toolCalls = append(toolCalls, map[string]any{
+				"selected_tool": strings.TrimSpace(selectedTool),
+			})
+		}
+	}
+	return toolCalls
+}
+
 func sanitizeProjectionPayload(payload map[string]any) map[string]any {
 	if payload == nil {
 		return map[string]any{}
 	}
 	sanitized := map[string]any{}
 	for key, value := range payload {
-		normalizedKey := strings.ToLower(strings.TrimSpace(key))
-		if strings.Contains(normalizedKey, "raw_prompt") ||
-			strings.Contains(normalizedKey, "raw_answer") ||
-			strings.Contains(normalizedKey, "raw_provider") ||
-			strings.Contains(normalizedKey, "raw_source") ||
-			strings.Contains(normalizedKey, "cookie") ||
-			strings.Contains(normalizedKey, "authorization") {
+		if unsafeProjectionKey(key) {
 			continue
 		}
-		sanitized[key] = value
+		sanitized[key] = sanitizeProjectionValue(value)
 	}
 	return sanitized
+}
+
+func sanitizeProjectionValue(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return sanitizeProjectionPayload(typed)
+	case []any:
+		items := make([]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, sanitizeProjectionValue(item))
+		}
+		return items
+	case []map[string]any:
+		items := make([]map[string]any, 0, len(typed))
+		for _, item := range typed {
+			items = append(items, sanitizeProjectionPayload(item))
+		}
+		return items
+	default:
+		return value
+	}
+}
+
+func unsafeProjectionKey(key string) bool {
+	normalizedKey := strings.ToLower(strings.TrimSpace(key))
+	return strings.Contains(normalizedKey, "raw_prompt") ||
+		strings.Contains(normalizedKey, "raw_answer") ||
+		strings.Contains(normalizedKey, "raw_provider") ||
+		strings.Contains(normalizedKey, "raw_source") ||
+		strings.Contains(normalizedKey, "source_body") ||
+		strings.Contains(normalizedKey, "cookie") ||
+		strings.Contains(normalizedKey, "authorization") ||
+		strings.Contains(normalizedKey, "api_key") ||
+		strings.Contains(normalizedKey, "secret")
 }
 
 func requiredStringFromMap(payload map[string]any, key string) string {

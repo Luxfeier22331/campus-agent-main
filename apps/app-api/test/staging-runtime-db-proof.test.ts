@@ -70,10 +70,7 @@ const afterHyperdrive: HyperdriveUsageSnapshot = {
 	windowMinutes: 60,
 };
 
-function completeProjectionProof(input: {
-	traceBacklinkConfigured?: boolean;
-	traceBacklinkFound?: boolean;
-}): PostgresProjectionProof {
+function completeProjectionProof(input: { traceBacklinkFound?: boolean }): PostgresProjectionProof {
 	return {
 		observabilityFact: {
 			modelExecutionState: "go_provider_synthesis_completed",
@@ -91,12 +88,10 @@ function completeProjectionProof(input: {
 		requestId: "req_01",
 		traceBacklink: input.traceBacklinkFound
 			? {
-					configured: input.traceBacklinkConfigured ?? true,
 					found: true,
 					traceLink: "https://sentry.example/traces/trace_01",
 				}
 			: {
-					configured: input.traceBacklinkConfigured ?? true,
 					found: false,
 					traceLink: null,
 				},
@@ -124,6 +119,7 @@ describe("staging runtime db proof runner", () => {
 
 	it("combines durable chat with Postgres projection and Hyperdrive usage proof", async () => {
 		const chatRunner = vi.fn(async () => ({
+			agentRuntimeEvalProjection: null,
 			conversation: {
 				assistantAnswerText: "链路验证完成。",
 				assistantMessageCount: 1,
@@ -191,7 +187,6 @@ describe("staging runtime db proof runner", () => {
 				},
 				collectPostgresProjectionProof: async () =>
 					completeProjectionProof({
-						traceBacklinkConfigured: true,
 						traceBacklinkFound: true,
 					}),
 				collectPostgresSnapshot: async () => {
@@ -238,11 +233,11 @@ describe("staging runtime db proof runner", () => {
 				collectHyperdriveUsage: async () => afterHyperdrive,
 				collectPostgresProjectionProof: async () =>
 					completeProjectionProof({
-						traceBacklinkConfigured: false,
-						traceBacklinkFound: false,
+						traceBacklinkFound: true,
 					}),
 				collectPostgresSnapshot: async () => afterPostgres,
 				runChatDurableE2eStaging: async () => ({
+					agentRuntimeEvalProjection: null,
 					conversation: {
 						assistantAnswerText: "链路验证完成。",
 						assistantMessageCount: 1,
@@ -307,13 +302,13 @@ describe("staging runtime db proof runner", () => {
 			collectHyperdriveUsage: async () => beforeHyperdrive,
 			collectPostgresProjectionProof: async () => ({
 				...completeProjectionProof({
-					traceBacklinkConfigured: false,
 					traceBacklinkFound: false,
 				}),
 				observabilityFact: null,
 			}),
 			collectPostgresSnapshot: async () => beforePostgres,
 			runChatDurableE2eStaging: async () => ({
+				agentRuntimeEvalProjection: null,
 				conversation: null,
 				identity: {
 					email: "help_bot@outlook.com",

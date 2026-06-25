@@ -1,5 +1,18 @@
 import process from "node:process";
-
+import type {
+	AcceptedRunIdentity,
+	ChatDurableE2eArgs,
+	ChatDurableE2eDependencies,
+	ChatDurableE2eResult,
+	ConversationDetail,
+	DurableRunEventProjection,
+	JsonFetchInput,
+	ProductStreamEvent,
+	RuntimeRunSummary,
+	RuntimeStepTrajectory,
+	WorkflowIdentity,
+	WorkflowTraceSummary,
+} from "./chat-durable-e2e-staging.types";
 import {
 	DEFAULT_CHAT_E2E_PROMPT,
 	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
@@ -9,152 +22,11 @@ import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.ar
 import { expectJsonResponse, readJsonResponse } from "./smoke-auth-runtime";
 import { buildSmokePassword, fetchReadyz, mintStagingSmokeSession } from "./staging-smoke-support";
 
-interface ReadyzProbe {
-	payload: unknown;
-	status: number;
-}
-
-interface ChatDurableE2eArgs {
-	appApiReadyzUrl: string;
-	chatBaseUrl: string;
-	conversationId: string | null;
-	email: string;
-	name: string;
-	password: string | null;
-	prompt: string;
-	resetIdentity: boolean;
-	smokeAuthSecret: string;
-}
-
-interface ProductStreamEvent {
-	data: Record<string, unknown>;
-	event: string;
-}
-
-interface DurableRunEventProjection {
-	event: string;
-	occurredAt: string;
-	requestId: string;
-	runId: string;
-	sequence: number;
-	status: string;
-	traceId: string;
-}
-
-interface RuntimeRunSummary {
-	conversationId: string;
-	requestId: string;
-	runId: string;
-	status: string;
-	terminalReason?: string;
-	traceId: string;
-}
-
-interface ConversationDetail {
-	id: string;
-	messages: Array<{
-		kind: string | null;
-		requestId: string | null;
-		role: string;
-		text: string;
-	}>;
-}
-
-interface AcceptedRunIdentity {
-	requestId: string;
-	runId: string;
-	traceId: string;
-}
-
-interface RuntimeStepTrajectory {
-	attempts: Array<{ runId: string; workflowId: string }>;
-	results?: Record<string, unknown>[];
-	run: RuntimeRunSummary;
-	steps?: Record<string, unknown>[];
-}
-
-interface WorkflowIdentity {
-	attemptCount: number;
-	workflowId: string;
-}
-
-interface LangfuseCloseoutIdentity {
-	productTraceId: string;
-	requestId: string;
-	runId: string;
-	sessionId: string;
-	userId: string;
-	workflowId: string;
-}
-
-export interface WorkflowTraceSummary {
-	selected_capability: string;
-	trace_steps: Array<{
-		selected_capability?: string;
-		status: string;
-		step_id: string;
-	}>;
-}
-
-export interface ChatDurableE2eResult {
-	conversation: {
-		assistantAnswerText: string;
-		assistantMessageCount: number;
-		hasAssistantMessageForRequest: boolean;
-		id: string;
-		messageCount: number;
-	} | null;
-	identity: {
-		email: string;
-		resetViaDeployedRuntime: true;
-	};
-	langfuseCloseout: LangfuseCloseoutIdentity | null;
-	passed: boolean;
-	principal: unknown | null;
-	readyz: {
-		appApi: ReadyzProbe | null;
-		chat: ReadyzProbe | null;
-	};
-	resume: {
-		afterSequence: number;
-		events: DurableRunEventProjection[];
-		terminalEvent: DurableRunEventProjection | null;
-	};
-	run: RuntimeRunSummary | null;
-	runtimeStepResults: Record<string, unknown>[];
-	session: unknown | null;
-	sessionMintAttempted: boolean;
-	submit: AcceptedRunIdentity | null;
-	submitStreamAbortedAfterAccepted: boolean;
-	workflow: WorkflowIdentity | null;
-	workflowTraceSummary: WorkflowTraceSummary | null;
-}
-
-export interface ChatDurableE2eDependencies {
-	abortSubmitStream?: (controller: AbortController) => void;
-	fetchJsonWithCookie?: typeof fetchJsonWithCookie;
-	fetchReadyz?: (url: string) => Promise<ReadyzProbe>;
-	mintSmokeSession?: (input: {
-		appApiReadyzUrl: string;
-		email: string;
-		name?: string;
-		password: string;
-		resetIdentity?: boolean;
-		smokeAuthSecret: string;
-	}) => Promise<string>;
-	openRunEventStream?: (input: {
-		afterSequence: number;
-		cookieHeader: string;
-		runId: string;
-		url: string;
-	}) => Promise<Response>;
-	openSubmitStream?: (input: {
-		body: unknown;
-		cookieHeader: string;
-		signal: AbortSignal;
-		url: string;
-	}) => Promise<Response>;
-}
+export type {
+	ChatDurableE2eDependencies,
+	ChatDurableE2eResult,
+	WorkflowTraceSummary,
+} from "./chat-durable-e2e-staging.types";
 
 function normalizeOptionalValue(value: string | undefined): string | null {
 	if (typeof value !== "string") {
@@ -283,14 +155,9 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 	};
 }
 
-async function fetchJsonWithCookie<T>(input: {
-	body?: unknown;
-	cookieHeader: string;
-	expectedStatus: number;
-	idempotencyKey?: string;
-	method?: string;
-	url: string;
-}): Promise<{ payload: T; response: Response }> {
+async function fetchJsonWithCookie<T>(
+	input: JsonFetchInput,
+): Promise<{ payload: T; response: Response }> {
 	const response = await fetch(input.url, {
 		body: input.body ? JSON.stringify(input.body) : undefined,
 		headers: {
@@ -707,6 +574,7 @@ export async function runChatDurableE2eStaging(
 	};
 
 	const result: ChatDurableE2eResult = {
+		agentRuntimeEvalProjection: null,
 		conversation: null,
 		identity: {
 			email: args.email,
@@ -825,6 +693,7 @@ export async function runChatDurableE2eStaging(
 	});
 	result.workflow = readWorkflowIdentity(stepsResult.payload, submit.accepted);
 	result.workflowTraceSummary = summarizeWorkflowTrace(stepsResult.payload);
+	result.agentRuntimeEvalProjection = stepsResult.payload.agentRuntimeEvalProjection ?? null;
 	result.runtimeStepResults = stepsResult.payload.results ?? [];
 	result.langfuseCloseout = {
 		productTraceId: runResult.payload.run.traceId,
@@ -863,9 +732,11 @@ function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTrac
 	const traceSteps = (trajectory.steps ?? []).map((step) => {
 		const stepId = requireStepString(step, "stepId", "step_id");
 		const status = requireStepString(step, "status");
-		const selectedCapability =
-			optionalStepString(step, "selectedCapability", "selected_capability") ||
-			capabilityFromStepId(stepId);
+		const selectedCapability = optionalStepString(
+			step,
+			"selectedCapability",
+			"selected_capability",
+		);
 		return {
 			...(selectedCapability ? { selected_capability: selectedCapability } : {}),
 			status,
@@ -878,40 +749,6 @@ function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTrac
 		selected_capability: selectedCapability,
 		trace_steps: traceSteps,
 	};
-}
-
-function capabilityFromStepId(stepId: string): string {
-	const normalized = stepId.trim();
-	if (
-		normalized === "rag.plan" ||
-		normalized.startsWith("retrieval.") ||
-		normalized === "evidence.selection" ||
-		normalized === "synthesis" ||
-		normalized === "grounding.verify" ||
-		normalized.startsWith("capability:knowledge:")
-	) {
-		return "knowledge";
-	}
-	if (
-		normalized.startsWith("capability:navigation:") ||
-		normalized.startsWith("sdk_tool.execute.navigation")
-	) {
-		return "navigation";
-	}
-	if (
-		normalized.startsWith("capability:notice:") ||
-		normalized.startsWith("agent_as_tool:notice") ||
-		normalized.startsWith("sdk_tool.execute.campus_notice")
-	) {
-		return "notice";
-	}
-	if (
-		normalized.startsWith("capability:campus_services:") ||
-		normalized.startsWith("sdk_tool.execute.campus_services")
-	) {
-		return "campus_services";
-	}
-	return "";
 }
 
 function requireStepString(step: Record<string, unknown>, ...keys: string[]): string {

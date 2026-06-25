@@ -42,6 +42,7 @@ interface OnlineAnswerPathObservation {
 	case_id: string;
 	fail_close_reason: string;
 	operator_backflow: Record<string, unknown>;
+	projection_error: string;
 	request_correlation: Record<string, unknown>;
 	request_id: string;
 	response_contract: Record<string, unknown>;
@@ -140,6 +141,49 @@ function semanticOutcomeFromStatus(status: string): string {
 	return "fail_close";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function optionalString(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed ? trimmed : null;
+}
+
+function projectionSignals(chat: ChatDurableE2eResult): {
+	failCloseReason: string;
+	projectionError: string;
+	selectedCapability: string;
+} {
+	const projection = isRecord(chat.agentRuntimeEvalProjection)
+		? chat.agentRuntimeEvalProjection
+		: null;
+	if (!projection) {
+		return {
+			failCloseReason: "",
+			projectionError: "agent_runtime_eval_projection_missing",
+			selectedCapability: "none",
+		};
+	}
+	if (optionalString(projection.schema_version) !== "agent_runtime_eval_projection.v1") {
+		return {
+			failCloseReason: "",
+			projectionError: "agent_runtime_eval_projection_schema_mismatch",
+			selectedCapability: "none",
+		};
+	}
+	const run = isRecord(projection.run) ? projection.run : {};
+	const trajectory = isRecord(projection.trajectory) ? projection.trajectory : {};
+	return {
+		failCloseReason: optionalString(run.fail_close_reason) ?? "",
+		projectionError: "",
+		selectedCapability: optionalString(trajectory.selected_capability) ?? "none",
+	};
+}
+
 function observationFromChatResult(
 	caseItem: OnlineAnswerPathCase,
 	chat: ChatDurableE2eResult,
@@ -153,15 +197,17 @@ function observationFromChatResult(
 		selected_capability: "none",
 		trace_steps: [],
 	};
+	const projection = projectionSignals(chat);
 	return {
 		case_id: caseItem.case_id,
-		fail_close_reason: "",
+		fail_close_reason: projection.failCloseReason,
 		operator_backflow: {
 			durable_resume_completed: Boolean(chat.resume.terminalEvent),
 			langfuse_closeout_present: Boolean(chat.langfuseCloseout),
 			quality_candidate_supported: Boolean(requestId && traceId),
 			trace_backlink_present: false,
 		},
+		projection_error: projection.projectionError,
 		request_correlation: {
 			case_id: caseItem.case_id,
 			request_id: requestId,
@@ -174,7 +220,7 @@ function observationFromChatResult(
 			answer_text_present: Boolean(chat.conversation?.hasAssistantMessageForRequest),
 		},
 		semantic_outcome: semanticOutcomeFromStatus(terminalStatus),
-		selected_capability: String(workflowTraceSummary.selected_capability || "none"),
+		selected_capability: projection.selectedCapability,
 		terminal_status: terminalStatus,
 		trace_id: traceId,
 		workflow_trace_summary: workflowTraceSummary,
@@ -214,6 +260,7 @@ export async function runOnlineAnswerPathStagingCollector(
 		passed: observations.every(
 			(observation) =>
 				observation.request_id &&
+				!observation.projection_error &&
 				observation.trace_id &&
 				observation.selected_capability !== "none",
 		),

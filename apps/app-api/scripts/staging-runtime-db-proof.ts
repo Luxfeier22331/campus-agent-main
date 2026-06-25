@@ -44,7 +44,6 @@ export interface PostgresProjectionProof {
 	} | null;
 	requestId: string;
 	traceBacklink: {
-		configured: boolean;
 		found: boolean;
 		traceLink: string | null;
 	};
@@ -420,10 +419,6 @@ export async function collectPostgresSnapshot(
 	}));
 }
 
-function traceBacklinkConfigured(env: NodeJS.ProcessEnv): boolean {
-	return Boolean(normalizeOptionalValue(env.APP_API_OPERATOR_TRACE_LINK_TEMPLATE));
-}
-
 export async function collectPostgresProjectionProof(
 	input: {
 		requestId: string;
@@ -485,7 +480,6 @@ export async function collectPostgresProjectionProof(
 				: null,
 			requestId: input.requestId,
 			traceBacklink: {
-				configured: traceBacklinkConfigured(env),
 				found: traceBacklinkFound,
 				traceLink: backlink.rows[0]?.trace_link ?? null,
 			},
@@ -560,8 +554,7 @@ export async function runStagingRuntimeDbProof(
 			projection.requestExecution.traceId === identity.traceId &&
 			projection.observabilityFact.traceId === identity.traceId,
 	);
-	const traceBacklinkSatisfied =
-		!projection.traceBacklink.configured || projection.traceBacklink.found;
+	const traceBacklinkSatisfied = projection.traceBacklink.found;
 	const checks = {
 		chatCompleted: chat.passed && chat.run?.status === "completed",
 		hyperdriveUsageCollected:

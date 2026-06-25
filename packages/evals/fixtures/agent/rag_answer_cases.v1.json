@@ -17,7 +17,6 @@
 			"expected": {
 				"status": "completed",
 				"required_facts": ["学习成绩", "综合测评", "奖励标准"],
-				"forbidden_claims": ["无需评审", "自动发放"],
 				"required_source_titles": ["本科生国家奖学金评审办法"]
 			}
 		},
@@ -36,7 +35,6 @@
 			"expected": {
 				"status": "completed",
 				"required_facts": ["第四学期", "课程"],
-				"forbidden_claims": ["研究生课程"],
 				"required_source_titles": ["法学专业本科培养方案"]
 			}
 		}

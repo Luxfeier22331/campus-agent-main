@@ -198,6 +198,7 @@ export interface ExecutionControlStepResult {
 }
 
 export interface ExecutionControlRunStepTrajectory {
+	agentRuntimeEvalProjection?: JsonRecord | null;
 	attempts: ExecutionControlStepAttempt[];
 	results: ExecutionControlStepResult[];
 	steps: ExecutionControlRunStep[];
@@ -611,7 +612,9 @@ function parseRunStepTrajectory(payload: JsonRecord): ExecutionControlRunStepTra
 	const steps = readRequiredArray(payload, "steps");
 	const attempts = readRequiredArray(payload, "attempts");
 	const results = readRequiredArray(payload, "results");
+	const agentRuntimeEvalProjection = readOptionalRecord(payload, "agent_runtime_eval_projection");
 	return {
+		agentRuntimeEvalProjection,
 		attempts: attempts.map((attempt, index) => parseStepAttempt(attempt, index)),
 		results: results.map((result, index) => parseStepResult(result, index)),
 		steps: steps.map((step, index) => parseRunStep(step, index)),
@@ -740,6 +743,17 @@ function readRequiredRecord(payload: JsonRecord, key: string): JsonRecord {
 	const value = payload[key];
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		throw invalidDurableResponse(`${key} must be an object.`);
+	}
+	return value as JsonRecord;
+}
+
+function readOptionalRecord(payload: JsonRecord, key: string): JsonRecord | null {
+	const value = payload[key];
+	if (value === undefined || value === null) {
+		return null;
+	}
+	if (typeof value !== "object" || Array.isArray(value)) {
+		throw invalidDurableResponse(`${key} must be an object when present.`);
 	}
 	return value as JsonRecord;
 }

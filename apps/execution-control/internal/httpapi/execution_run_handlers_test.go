@@ -612,6 +612,27 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		SanitizedPayload: map[string]any{
 			"result_ref":          "projection://runs/run-temporal-trajectory/plan/route/result",
 			"raw_provider_result": "must not leak",
+			"rag": map[string]any{
+				"required_facts": []any{"学习成绩"},
+				"source_refs": []any{
+					map[string]any{
+						"source_title": "本科生国家奖学金评审办法",
+						"source_body":  "nested source body must not leak",
+					},
+				},
+			},
+			"planning": map[string]any{
+				"planned_steps": []any{"indexed_lookup"},
+				"raw_source":    "nested raw source must not leak",
+			},
+			"tool_call": map[string]any{
+				"authorization": "nested authorization must not leak",
+				"selected_tool": "retrieval.query",
+			},
+			"memory": map[string]any{
+				"behavior": "previous_evidence_reuse",
+				"secret":   "nested secret must not leak",
+			},
 			"selected_capability": "knowledge",
 			"selected_task_queue": temporalruntime.ActivityTaskQueueContext,
 		},
@@ -678,8 +699,48 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 	if !ok || len(results) != 1 {
 		t.Fatalf("results = %#v, want one result", body["results"])
 	}
+	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
+	if evalProjection["schema_version"] != "agent_runtime_eval_projection.v1" {
+		t.Fatalf("eval projection schema = %#v", evalProjection["schema_version"])
+	}
+	evalRun := expectRecord(t, evalProjection["run"], "agent_runtime_eval_projection.run")
+	if evalRun["run_id"] != "run-temporal-trajectory" ||
+		evalRun["request_id"] != "req-executor-001" ||
+		evalRun["trace_id"] != "trace-executor-001" {
+		t.Fatalf("eval projection run identity = %#v", evalRun)
+	}
+	evalTrajectory := expectRecord(t, evalProjection["trajectory"], "agent_runtime_eval_projection.trajectory")
+	if evalTrajectory["selected_capability"] != "knowledge" {
+		t.Fatalf("eval trajectory = %#v", evalTrajectory)
+	}
+	toolCalls, ok := evalTrajectory["tool_calls"].([]any)
+	if !ok || len(toolCalls) != 1 {
+		t.Fatalf("eval tool calls = %#v, want one tool call", evalTrajectory["tool_calls"])
+	}
+	toolCall := expectRecord(t, toolCalls[0], "agent_runtime_eval_projection.trajectory.tool_calls[0]")
+	if toolCall["selected_tool"] != "retrieval.query" {
+		t.Fatalf("eval tool call = %#v", toolCall)
+	}
+	evalRAG := expectRecord(t, evalProjection["rag"], "agent_runtime_eval_projection.rag")
+	sourceRefs, ok := evalRAG["source_refs"].([]any)
+	if !ok || len(sourceRefs) != 1 {
+		t.Fatalf("eval rag source_refs = %#v, want one source ref", evalRAG["source_refs"])
+	}
+	sourceRef := expectRecord(t, sourceRefs[0], "agent_runtime_eval_projection.rag.source_refs[0]")
+	if sourceRef["source_title"] != "本科生国家奖学金评审办法" {
+		t.Fatalf("eval rag source ref = %#v", sourceRef)
+	}
 	serialized := response.Body.String()
-	for _, forbidden := range []string{"must not leak", "raw_prompt", "raw_answer", "raw_provider_result"} {
+	for _, forbidden := range []string{
+		"must not leak",
+		"raw_prompt",
+		"raw_answer",
+		"raw_provider_result",
+		"source_body",
+		"raw_source",
+		"authorization",
+		"secret",
+	} {
 		if strings.Contains(serialized, forbidden) {
 			t.Fatalf("step trajectory leaked forbidden payload %q: %s", forbidden, serialized)
 		}

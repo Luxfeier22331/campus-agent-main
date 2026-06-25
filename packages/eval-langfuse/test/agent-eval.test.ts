@@ -24,34 +24,27 @@ function fixturePath(name: string): string {
 }
 
 function completedChat(input: {
-	answerText?: string;
-	results?: Record<string, unknown>[];
+	agentRuntimeEvalProjection?: Record<string, unknown>;
 	runId: string;
-	selectedCapability: string;
+	status?: string;
 	traceId: string;
-	traceSteps?: Record<string, unknown>[];
 }): AgentEvalStagingChatResult {
 	return {
-		answerText:
-			input.answerText ?? "学习成绩、综合测评和奖励标准应同时参考。依据本科生国家奖学金评审办法。",
 		conversationId: `conv-${input.runId}`,
 		requestId: `req-${input.runId}`,
 		runId: input.runId,
-		status: "completed",
+		status: input.status ?? "completed",
 		traceId: input.traceId,
-		results: input.results ?? [],
-		workflowTraceSummary: {
-			selected_capability: input.selectedCapability,
-			trace_steps: input.traceSteps ?? [
-				{ status: "completed", step_id: "memory.recall" },
-				{
-					selected_capability: input.selectedCapability,
-					status: "completed",
-					step_id: "agent.primary",
-				},
-				{ status: "completed", step_id: "finalization.write" },
-			],
-		},
+		agentRuntimeEvalProjection: input.agentRuntimeEvalProjection,
+	};
+}
+
+function agentEvalTempPaths(prefix: string) {
+	const tmp = mkdtempSync(join(tmpdir(), prefix));
+	return {
+		observationsPath: join(tmp, "observations.json"),
+		resultsPath: join(tmp, "case-results.json"),
+		scoreReportPath: join(tmp, "score-report.json"),
 	};
 }
 
@@ -71,7 +64,7 @@ describe("agent eval TS runner", () => {
 		);
 	});
 
-	it("rejects forbidden raw payload fields in observations", () => {
+	it("rejects forbidden raw payload field variants in observations", () => {
 		expect(() =>
 			loadAgentEvalObservations({
 				schema_version: "agent_eval_observations.v1",
@@ -80,14 +73,14 @@ describe("agent eval TS runner", () => {
 					{
 						case_id: "bad",
 						trace_id: "trace_bad",
-						raw_transcript: "secret",
+						sourceBody: "secret",
 					},
 				],
 			}),
-		).toThrow("raw_transcript is forbidden");
+		).toThrow("sourceBody is forbidden");
 	});
 
-	it("scores routing, rag answer, retrieval planning, and memory observations", () => {
+	it("scores routing, rag answer contract, retrieval planning, and memory typed observations", () => {
 		const routing = buildAgentEvalCaseResults({
 			caseSet: loadAgentEvalCaseSet(fixturePath("routing_trajectory_cases.v1.json")),
 			observations: loadAgentEvalObservations({
@@ -120,8 +113,8 @@ describe("agent eval TS runner", () => {
 				case_family: "agent_rag_answer.v1",
 				observations: [
 					{
-						answer_text: "需要看学习成绩、综合测评和奖励标准。依据本科生国家奖学金评审办法。",
 						case_id: "agent-rag-student-scholarship-condition",
+						required_facts: ["学习成绩", "综合测评", "奖励标准"],
 						source_titles: ["本科生国家奖学金评审办法"],
 						terminal_outcome: "completed",
 						trace_id: "trace-rag-001",
@@ -131,9 +124,8 @@ describe("agent eval TS runner", () => {
 			sourceGitHead: "abc123",
 		});
 		expect(rag.items[0]?.scores).toMatchObject({
-			"rag.forbidden_claims.absent": 1,
-			"rag.required_facts.coverage": 1,
 			"rag.source_identity.correct": 1,
+			"rag.required_facts.projected": 1,
 		});
 
 		const planning = buildAgentEvalCaseResults({
@@ -193,23 +185,30 @@ describe("agent eval TS runner", () => {
 	});
 
 	it("runs staging cases and writes Langfuse-ready artifacts", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+		const paths = agentEvalTempPaths("agent-eval-staging-");
 		const prompts: string[] = [];
 
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("routing_trajectory_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			runChat: async (input) => {
 				prompts.push(input.prompt);
 				return completedChat({
+					agentRuntimeEvalProjection: {
+						schema_version: "agent_runtime_eval_projection.v1",
+						run: {
+							status: "completed",
+						},
+						trajectory: {
+							direct_answer: false,
+							requires_clarification: false,
+							selected_capability: "knowledge",
+						},
+					},
 					runId: "routing-network-password",
-					selectedCapability: "knowledge",
 					traceId: "trace-routing-network-password",
 				});
 			},
@@ -218,12 +217,12 @@ describe("agent eval TS runner", () => {
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
-		const caseResults = JSON.parse(readFileSync(outputResultsPath, "utf8"));
+		const caseResults = JSON.parse(readFileSync(paths.resultsPath, "utf8"));
 		const scoreReport = validateLangfuseScoreReport(
-			JSON.parse(readFileSync(outputScoreReportPath, "utf8")),
+			JSON.parse(readFileSync(paths.scoreReportPath, "utf8")),
 		);
 		const serialized = JSON.stringify(observations);
 
@@ -240,23 +239,18 @@ describe("agent eval TS runner", () => {
 		expect(serialized).not.toContain("provider_raw_response");
 	});
 
-	it("does not infer agent observations from expected fixtures when sanitized projections are missing", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-missing-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+	it("fails closed when the typed agent runtime eval projection is missing", async () => {
+		const paths = agentEvalTempPaths("agent-eval-staging-missing-");
 
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("rag_answer_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			runChat: async () =>
 				completedChat({
-					answerText: "需要看学习成绩、综合测评和奖励标准。",
 					runId: "rag-without-sources",
-					selectedCapability: "knowledge",
 					traceId: "trace-rag-without-sources",
 				}),
 			sourceGitHead: "abc123",
@@ -264,48 +258,55 @@ describe("agent eval TS runner", () => {
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
-		const caseResults = JSON.parse(readFileSync(outputResultsPath, "utf8")) as {
-			items: Array<{ scores: Record<string, number>; verdict: string }>;
+		const caseResults = JSON.parse(readFileSync(paths.resultsPath, "utf8")) as {
+			items: Array<{
+				errors?: Array<{ reason: string }>;
+				scores: Record<string, number>;
+				verdict: string;
+			}>;
 		};
 
 		expect(result.passed).toBe(false);
-		expect(observations.observations[0]?.source_titles).toEqual([]);
+		expect(observations.observations[0]?.projection_error).toBe(
+			"agent_runtime_eval_projection_missing",
+		);
 		expect(caseResults.items[0]?.verdict).toBe("fail");
-		expect(caseResults.items[0]?.scores["rag.required_facts.coverage"]).toBe(1);
+		expect(caseResults.items[0]?.errors?.[0]?.reason).toBe("agent_runtime_eval_projection_missing");
+		expect(caseResults.items[0]?.scores["rag.required_facts.projected"]).toBe(0);
 		expect(caseResults.items[0]?.scores["rag.source_identity.correct"]).toBe(0);
 	});
 
-	it("extracts agent observations only from sanitized run step results", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-projections-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+	it("extracts agent observations only from the typed agent runtime eval projection", async () => {
+		const paths = agentEvalTempPaths("agent-eval-staging-projections-");
 
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("retrieval_planning_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			runChat: async () =>
 				completedChat({
-					results: [
-						{
-							resultKind: "agent_plan_result",
-							sanitizedPayload: {
-								decomposition: ["unsupported_external_source"],
-								fail_close_reason: "unsupported_source",
-								final_status: "fail_close",
-								freshness_branch: "unsupported_source",
-								planned_steps: ["detect_unsupported_source", "fail_close_without_live_fetch"],
-							},
+					agentRuntimeEvalProjection: {
+						schema_version: "agent_runtime_eval_projection.v1",
+						run: {
+							status: "fail_close",
+							fail_close_reason: "unsupported_source",
 						},
-					],
+						trajectory: {
+							selected_capability: "knowledge",
+						},
+						planning: {
+							decomposition: ["unsupported_external_source"],
+							freshness_branch: "unsupported_source",
+							planned_steps: ["detect_unsupported_source", "fail_close_without_live_fetch"],
+							stop_condition: "unsupported_source",
+						},
+					},
 					runId: "planning-unsupported",
-					selectedCapability: "knowledge",
 					traceId: "trace-planning-unsupported",
 				}),
 			sourceGitHead: "abc123",
@@ -313,7 +314,7 @@ describe("agent eval TS runner", () => {
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
 
@@ -327,11 +328,8 @@ describe("agent eval TS runner", () => {
 		});
 	});
 
-	it("uses sanitized assistant answer text from the app-api staging script output", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-default-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+	it("uses typed rag source and fact projections from the app-api staging script output", async () => {
+		const paths = agentEvalTempPaths("agent-eval-staging-default-");
 		const spawnSync = vi.fn(() => ({
 			status: 0,
 			stdout: JSON.stringify({
@@ -339,6 +337,7 @@ describe("agent eval TS runner", () => {
 					assistantAnswerText: "需要看学习成绩、综合测评和奖励标准。",
 					id: "conv_01",
 				},
+				passed: true,
 				run: {
 					conversationId: "conv_01",
 					requestId: "req_01",
@@ -346,11 +345,29 @@ describe("agent eval TS runner", () => {
 					status: "completed",
 					traceId: "trace_01",
 				},
+				agentRuntimeEvalProjection: {
+					schema_version: "agent_runtime_eval_projection.v1",
+					run: {
+						status: "completed",
+					},
+					trajectory: {
+						selected_capability: "knowledge",
+					},
+					rag: {
+						required_facts: ["学习成绩", "综合测评", "奖励标准"],
+						source_refs: [
+							{
+								title: "本科生国家奖学金评审办法",
+							},
+						],
+					},
+				},
 				runtimeStepResults: [
 					{
 						resultKind: "knowledge_result",
 						sanitizedPayload: {
-							sources: [{ source_title: "本科生国家奖学金评审办法" }],
+							status: "this must not become final_status",
+							sources: [{ source_title: "wrong legacy source title" }],
 						},
 					},
 				],
@@ -370,15 +387,15 @@ describe("agent eval TS runner", () => {
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("rag_answer_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			sourceGitHead: "abc123",
 			split: "release_gate",
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
 
@@ -397,14 +414,15 @@ describe("agent eval TS runner", () => {
 			]),
 			expect.objectContaining({ cwd: resolve(repoRoot, "apps/app-api"), encoding: "utf8" }),
 		);
-		expect(observations.observations[0]?.answer_text).toBe("需要看学习成绩、综合测评和奖励标准。");
+		expect(observations.observations[0]).toMatchObject({
+			required_facts: ["学习成绩", "综合测评", "奖励标准"],
+			source_titles: ["本科生国家奖学金评审办法"],
+		});
+		expect(observations.observations[0]?.final_status).toBe("completed");
 	});
 
 	it("turns failed durable staging artifacts into failing agent observations", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-failed-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+		const paths = agentEvalTempPaths("agent-eval-staging-failed-");
 		const spawnSync = vi.fn(() => ({
 			status: 1,
 			stdout: JSON.stringify({
@@ -427,18 +445,18 @@ describe("agent eval TS runner", () => {
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("rag_answer_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			sourceGitHead: "abc123",
 			split: "release_gate",
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
-		const caseResults = JSON.parse(readFileSync(outputResultsPath, "utf8")) as {
+		const caseResults = JSON.parse(readFileSync(paths.resultsPath, "utf8")) as {
 			items: Array<{ verdict: string }>;
 		};
 
@@ -452,10 +470,7 @@ describe("agent eval TS runner", () => {
 	});
 
 	it("marks completed staging artifacts without accepted proof as failed observations", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-no-answer-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+		const paths = agentEvalTempPaths("agent-eval-staging-no-answer-");
 		const spawnSync = vi.fn(() => ({
 			status: 1,
 			stdout: JSON.stringify({
@@ -468,13 +483,25 @@ describe("agent eval TS runner", () => {
 					status: "completed",
 					traceId: "trace_no_answer",
 				},
+				agentRuntimeEvalProjection: {
+					schema_version: "agent_runtime_eval_projection.v1",
+					run: {
+						status: "completed",
+					},
+					trajectory: {
+						selected_capability: "knowledge",
+					},
+					planning: {
+						decomposition: ["campus_card", "current_policy"],
+						freshness_branch: "current",
+						planned_steps: ["indexed_lookup"],
+					},
+				},
 				runtimeStepResults: [
 					{
 						resultKind: "agent_plan_result",
 						sanitizedPayload: {
-							decomposition: ["campus_card", "current_policy"],
-							freshness_branch: "current",
-							planned_steps: ["indexed_lookup"],
+							status: "this must not become final_status",
 						},
 					},
 				],
@@ -492,15 +519,15 @@ describe("agent eval TS runner", () => {
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("retrieval_planning_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			sourceGitHead: "abc123",
 			split: "release_gate",
 			variantId: "baseline-agent-policy-v1",
 		});
 
-		const observations = JSON.parse(readFileSync(outputObservationsPath, "utf8")) as {
+		const observations = JSON.parse(readFileSync(paths.observationsPath, "utf8")) as {
 			observations: Record<string, unknown>[];
 		};
 
@@ -512,10 +539,7 @@ describe("agent eval TS runner", () => {
 	});
 
 	it("reuses the accepted conversation for same-user multi-turn memory staging runs", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-memory-default-"));
-		const outputObservationsPath = join(tmp, "observations.json");
-		const outputResultsPath = join(tmp, "case-results.json");
-		const outputScoreReportPath = join(tmp, "score-report.json");
+		const paths = agentEvalTempPaths("agent-eval-staging-memory-default-");
 		const spawnSync = vi
 			.fn()
 			.mockReturnValueOnce({
@@ -554,15 +578,20 @@ describe("agent eval TS runner", () => {
 						status: "completed",
 						traceId: "trace_memory_02",
 					},
-					runtimeStepResults: [
-						{
-							resultKind: "memory_recall_result",
-							sanitizedPayload: {
-								memory_behavior: "previous_evidence_reuse",
-								observed_tokens: ["previous_evidence_ref", "source_hash"],
-							},
+					agentRuntimeEvalProjection: {
+						schema_version: "agent_runtime_eval_projection.v1",
+						run: {
+							status: "completed",
 						},
-					],
+						trajectory: {
+							selected_capability: "knowledge",
+						},
+						memory: {
+							behavior: "previous_evidence_reuse",
+							observed_tokens: ["previous_evidence_ref", "source_hash"],
+						},
+					},
+					runtimeStepResults: [],
 					workflowTraceSummary: {
 						selected_capability: "knowledge",
 						trace_steps: [{ status: "completed", step_id: "memory.recall" }],
@@ -575,9 +604,9 @@ describe("agent eval TS runner", () => {
 		const result = await runAgentEvalStaging({
 			casesPath: fixturePath("multiturn_memory_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath,
-			outputResultsPath,
-			outputScoreReportPath,
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			sourceGitHead: "abc123",
 			split: "release_gate",
 			variantId: "baseline-agent-policy-v1",
@@ -611,14 +640,14 @@ describe("agent eval TS runner", () => {
 			resetIdentity?: boolean;
 			userEmail?: string;
 		}> = [];
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-staging-isolation-"));
+		const paths = agentEvalTempPaths("agent-eval-staging-isolation-");
 
 		await runAgentEvalStaging({
 			casesPath: fixturePath("multiturn_memory_cases.v1.json"),
 			environment: "staging",
-			outputObservationsPath: join(tmp, "observations.json"),
-			outputResultsPath: join(tmp, "case-results.json"),
-			outputScoreReportPath: join(tmp, "score-report.json"),
+			outputObservationsPath: paths.observationsPath,
+			outputResultsPath: paths.resultsPath,
+			outputScoreReportPath: paths.scoreReportPath,
 			runChat: async (input) => {
 				calls.push({
 					conversationId: input.conversationId,
@@ -627,20 +656,23 @@ describe("agent eval TS runner", () => {
 					userEmail: input.userEmail,
 				});
 				return completedChat({
-					results:
+					agentRuntimeEvalProjection:
 						input.turnIndex === 1
-							? [
-									{
-										resultKind: "memory_recall_result",
-										sanitizedPayload: {
-											memory_behavior: "user_isolation",
-											observed_tokens: ["isolation_checked"],
-										},
+							? {
+									schema_version: "agent_runtime_eval_projection.v1",
+									run: {
+										status: "completed",
 									},
-								]
-							: [],
+									trajectory: {
+										selected_capability: "knowledge",
+									},
+									memory: {
+										behavior: "user_isolation",
+										observed_tokens: ["isolation_checked"],
+									},
+								}
+							: undefined,
 					runId: `isolation-${input.turnIndex}`,
-					selectedCapability: "knowledge",
 					traceId: `trace-isolation-${input.turnIndex}`,
 				});
 			},
@@ -703,10 +735,7 @@ describe("agent eval TS runner", () => {
 	});
 
 	it("builds local agent eval artifacts without Langfuse API keys", async () => {
-		const tmp = mkdtempSync(join(tmpdir(), "agent-eval-cli-local-"));
-		const observationsPath = join(tmp, "observations.json");
-		const resultsPath = join(tmp, "results.json");
-		const scoreReportPath = join(tmp, "score-report.json");
+		const paths = agentEvalTempPaths("agent-eval-cli-local-");
 		const previousEnv = {
 			LANGFUSE_BASE_URL: process.env.LANGFUSE_BASE_URL,
 			LANGFUSE_ENVIRONMENT: process.env.LANGFUSE_ENVIRONMENT,
@@ -733,16 +762,16 @@ describe("agent eval TS runner", () => {
 				],
 			};
 			await import("node:fs").then(({ writeFileSync }) =>
-				writeFileSync(observationsPath, JSON.stringify(observations), "utf8"),
+				writeFileSync(paths.observationsPath, JSON.stringify(observations), "utf8"),
 			);
 			const exitCode = await runLangfuseCli([
 				"build-agent-eval-case-results",
 				"--cases",
 				fixturePath("routing_trajectory_cases.v1.json"),
 				"--observations",
-				observationsPath,
+				paths.observationsPath,
 				"--output",
-				resultsPath,
+				paths.resultsPath,
 				"--source-git-head",
 				"abc123",
 			]);
@@ -750,13 +779,13 @@ describe("agent eval TS runner", () => {
 			const scoreExitCode = await runLangfuseCli([
 				"build-score-report-from-agent-eval",
 				"--input",
-				resultsPath,
+				paths.resultsPath,
 				"--score-report",
-				scoreReportPath,
+				paths.scoreReportPath,
 			]);
 
 			expect(scoreExitCode).toBe(0);
-			expect(JSON.parse(readFileSync(scoreReportPath, "utf8")).environment).toBe("staging");
+			expect(JSON.parse(readFileSync(paths.scoreReportPath, "utf8")).environment).toBe("staging");
 		} finally {
 			for (const [key, value] of Object.entries(previousEnv)) {
 				if (value === undefined) {

@@ -299,21 +299,12 @@
 			"release_gate": false
 		},
 		{
-			"name": "rag.required_facts.coverage",
+			"name": "rag.required_facts.projected",
 			"data_type": "NUMERIC",
 			"owner": "packages/evals",
 			"eval_kinds": ["agent_eval"],
 			"value_range": [0, 1],
-			"description": "Required fact coverage for agent RAG answer cases.",
-			"release_gate": false
-		},
-		{
-			"name": "rag.forbidden_claims.absent",
-			"data_type": "NUMERIC",
-			"owner": "packages/evals",
-			"eval_kinds": ["agent_eval"],
-			"value_range": [0, 1],
-			"description": "Forbidden claim absence for agent RAG answer cases.",
+			"description": "Required facts were projected by repo-owned RAG answer contract; semantic answer quality is scored by RAGAS.",
 			"release_gate": false
 		},
 		{

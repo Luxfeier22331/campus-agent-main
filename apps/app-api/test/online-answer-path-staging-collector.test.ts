@@ -17,6 +17,17 @@ function completedChatResult(input: {
 	traceId: string;
 }): ChatDurableE2eResult {
 	return {
+		agentRuntimeEvalProjection: {
+			schema_version: "agent_runtime_eval_projection.v1",
+			run: {
+				status: "completed",
+			},
+			trajectory: {
+				direct_answer: false,
+				requires_clarification: false,
+				selected_capability: input.selectedCapability,
+			},
+		},
 		conversation: {
 			assistantAnswerText: "已完成回答。",
 			assistantMessageCount: 1,
@@ -95,11 +106,11 @@ function completedChatResult(input: {
 			workflowId: "workflow_01",
 		},
 		workflowTraceSummary: {
-			selected_capability: input.selectedCapability,
+			selected_capability: "campus_services",
 			trace_steps: [
 				{ status: "completed", step_id: "memory.recall" },
 				{
-					selected_capability: input.selectedCapability,
+					selected_capability: "campus_services",
 					status: "completed",
 					step_id: "agent.primary",
 				},
@@ -202,7 +213,7 @@ describe("online answer path staging collector", () => {
 			expect(payload.observations[0].workflow_trace_summary.trace_steps).toEqual([
 				{ status: "completed", step_id: "memory.recall" },
 				{
-					selected_capability: "knowledge",
+					selected_capability: "campus_services",
 					status: "completed",
 					step_id: "agent.primary",
 				},

@@ -256,11 +256,12 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
   验证 `snake_case` strict wire、execution contract version、enum、extra-field rejection、
   cancel / timeout / execution unavailable terminal semantics。
-- online-answer product-path eval 会 replay `workflow_trace_summary`，检查 first decision
-  的 direct/no-tool、capability-required、clarification、reject 与 fail-close branch，
-  selected capability / tool 以及 fail-close reason 是否和产品路径 observation 一致；
-  panel targeted lane 只允许消费 app-api sanitized projection，并对 raw bridge /
-  provider / prompt key 做非暴露断言。
+- online-answer / agent main-path eval 使用 `agent_runtime_eval_projection.v1`
+  检查 first decision 的 direct/no-tool、capability-required、clarification、reject
+  与 fail-close branch、selected capability / tool 以及 fail-close reason；
+  `workflow_trace_summary` 只保留为 bounded display compatibility summary，不作为
+  canonical eval source。panel targeted lane 只允许消费 app-api sanitized projection，
+  并对 raw bridge / provider / prompt key 做非暴露断言。
 - `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
   tool-family case 与 16 条 online-answer product-path case。知识类 student_rules /
   curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent

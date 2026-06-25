@@ -99,6 +99,18 @@ describe("chat durable staging e2e runner", () => {
 					}
 					if (input.url.endsWith("/api/chat/runs/run_01HQ/steps")) {
 						return jsonResult({
+							agentRuntimeEvalProjection: {
+								schema_version: "agent_runtime_eval_projection.v1",
+								run: {
+									status: "completed",
+								},
+								trajectory: {
+									selected_capability: "knowledge",
+								},
+								planning: {
+									planned_steps: ["indexed_lookup"],
+								},
+							},
 							attempts: [
 								{
 									runId: "run_01HQ",
@@ -132,10 +144,12 @@ describe("chat durable staging e2e runner", () => {
 								},
 								{
 									stepId: "rag.plan",
+									selectedCapability: "knowledge",
 									status: "completed",
 								},
 								{
 									stepId: "retrieval.indexed_lookup",
+									selectedCapability: "knowledge",
 									status: "completed",
 								},
 							],
@@ -216,6 +230,12 @@ describe("chat durable staging e2e runner", () => {
 			traceId: "trace_01HQ",
 		});
 		expect(result).toMatchObject({
+			agentRuntimeEvalProjection: {
+				schema_version: "agent_runtime_eval_projection.v1",
+				planning: {
+					planned_steps: ["indexed_lookup"],
+				},
+			},
 			langfuseCloseout: {
 				productTraceId: "trace_01HQ",
 				requestId: "req_01HQ",
@@ -577,7 +597,7 @@ describe("chat durable staging e2e runner", () => {
 
 		expect(result.passed).toBe(false);
 		expect(result.workflowTraceSummary).toMatchObject({
-			selected_capability: "knowledge",
+			selected_capability: "none",
 		});
 		expect(result.runtimeStepResults).toEqual([
 			{

@@ -334,7 +334,6 @@ function agentExpectedPayload(datasetKind: string, item: JsonObject): JsonObject
 	}
 	if (datasetKind === "agent_rag_answer") {
 		return {
-			forbidden_claims: stringList(expected.forbidden_claims),
 			required_facts: stringList(expected.required_facts),
 			required_source_titles: stringList(expected.required_source_titles),
 			split: optionalString(item.split),

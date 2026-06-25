@@ -79,14 +79,12 @@ export interface AgentEvalCaseResults extends JsonObject {
 }
 
 export interface AgentEvalStagingChatResult {
-	answerText: string;
+	agentRuntimeEvalProjection?: JsonObject | null;
 	conversationId: string;
 	requestId: string;
-	results?: JsonObject[];
 	runId: string;
 	status: string;
 	traceId: string;
-	workflowTraceSummary: WorkflowTraceSummary;
 }
 
 export interface AgentEvalStagingRunInput {
@@ -112,19 +110,19 @@ export interface AgentEvalChatRunInput {
 	userEmail?: string;
 }
 
-interface WorkflowTraceSummary {
-	selected_capability: string;
-	trace_steps: Record<string, unknown>[];
-}
-
 interface ProjectionSignals {
 	decomposition: string[];
+	directAnswer: boolean;
 	failCloseReason: string;
 	finalStatus: string;
 	freshnessBranch: string;
 	memoryBehavior: string;
 	observedTokens: string[];
 	plannedSteps: string[];
+	projectedRequiredFacts: string[];
+	projectionError: string;
+	requiresClarification: boolean;
+	selectedCapability: string;
 	sourceTitles: string[];
 }
 
@@ -339,18 +337,15 @@ function evaluateRagAnswer(
 	observation: AgentEvalObservation,
 ): CaseScoreResult {
 	const expected = caseItem.expected;
-	const answerText = optionalString(observation.answer_text) ?? "";
 	const sourceTitles = stringList(observation.source_titles);
 	const requiredFacts = stringList(expected.required_facts);
-	const forbiddenClaims = stringList(expected.forbidden_claims);
 	const requiredSourceTitles = stringList(expected.required_source_titles);
-	const matchedFacts = requiredFacts.filter((fact) => answerText.includes(fact)).length;
-	const forbiddenHits = forbiddenClaims.filter((claim) => answerText.includes(claim));
+	const projectedRequiredFacts = stringList(observation.required_facts);
+	const matchedFacts = requiredFacts.filter((fact) => projectedRequiredFacts.includes(fact)).length;
 	const sourceMatches = requiredSourceTitles.filter((title) => sourceTitles.includes(title)).length;
 	return resultFromScores(caseItem, observation, {
-		"rag.required_facts.coverage":
+		"rag.required_facts.projected":
 			requiredFacts.length === 0 ? 1 : matchedFacts / requiredFacts.length,
-		"rag.forbidden_claims.absent": boolScore(forbiddenHits.length === 0),
 		"rag.source_identity.correct": boolScore(
 			requiredSourceTitles.length === 0 || sourceMatches === requiredSourceTitles.length,
 		),
@@ -416,7 +411,12 @@ function resultFromScores(
 	scores: Record<string, number>,
 	errors: JsonObject[] = [],
 ): CaseScoreResult {
-	const passed = Object.values(scores).every((value) => value === 1) && errors.length === 0;
+	const projectionError = optionalString(observation?.projection_error);
+	const allErrors = [
+		...errors,
+		...(projectionError ? [{ metric_name: "agent_eval.projection", reason: projectionError }] : []),
+	];
+	const passed = Object.values(scores).every((value) => value === 1) && allErrors.length === 0;
 	const item: JsonObject = {
 		case_id: caseItem.caseId,
 		verdict: passed ? "pass" : "fail",
@@ -429,9 +429,9 @@ function resultFromScores(
 		...(observation?.observation_id ? { observation_id: observation.observation_id } : {}),
 		...(observation?.dataset_item_id ? { dataset_item_id: observation.dataset_item_id } : {}),
 		...(observation?.dataset_run_id ? { dataset_run_id: observation.dataset_run_id } : {}),
-		...(errors.length > 0 ? { errors } : {}),
+		...(allErrors.length > 0 ? { errors: allErrors } : {}),
 	};
-	return { errors, item, passed };
+	return { errors: allErrors, item, passed };
 }
 
 async function runCaseForObservation(input: {
@@ -476,38 +476,39 @@ function observationFromChat(
 	caseItem: AgentEvalCase,
 	chat: AgentEvalStagingChatResult,
 ): AgentEvalObservation {
+	const signals = projectionSignals(chat);
 	const base: AgentEvalObservation = {
 		case_id: caseItem.caseId,
-		answer_text: chat.answerText,
-		final_status: chat.status,
+		final_status: chat.status === "completed" ? signals.finalStatus || chat.status : chat.status,
+		projection_error: signals.projectionError,
 		request_id: chat.requestId,
 		run_id: chat.runId,
-		selected_capability: chat.workflowTraceSummary.selected_capability,
-		terminal_outcome: terminalOutcomeFromStatus(chat.status),
+		selected_capability: signals.selectedCapability || "none",
+		terminal_outcome: terminalOutcomeFromStatus(
+			chat.status === "completed" ? signals.finalStatus || chat.status : chat.status,
+		),
 		trace_id: chat.traceId,
-		workflow_trace_summary: chat.workflowTraceSummary,
 	};
 	if (caseItem.caseFamily === "agent_routing_trajectory.v1") {
 		return {
 			...base,
-			direct_answer: chat.workflowTraceSummary.selected_capability === "none",
-			requires_clarification: chat.status === "needs_clarification",
+			direct_answer: signals.directAnswer,
+			fail_close_reason: signals.failCloseReason,
+			requires_clarification: signals.requiresClarification,
 		};
 	}
 	if (caseItem.caseFamily === "agent_rag_answer.v1") {
-		const signals = projectionSignals(chat);
 		return {
 			...base,
+			required_facts: signals.projectedRequiredFacts,
 			source_titles: signals.sourceTitles,
 		};
 	}
 	if (caseItem.caseFamily === "agent_retrieval_planning.v1") {
-		const signals = projectionSignals(chat);
 		return {
 			...base,
 			decomposition: signals.decomposition,
 			fail_close_reason: signals.failCloseReason,
-			final_status: signals.finalStatus || chat.status,
 			freshness_branch: signals.freshnessBranch,
 			planned_steps: signals.plannedSteps,
 		};
@@ -526,13 +527,14 @@ function memoryObservationFromChats(
 	const signals = projectionSignals(finalChat);
 	return {
 		case_id: caseItem.caseId,
-		final_status: finalChat.status,
+		final_status:
+			finalChat.status === "completed" ? signals.finalStatus || finalChat.status : finalChat.status,
 		memory_behavior: signals.memoryBehavior,
 		observed_tokens: signals.observedTokens,
+		projection_error: signals.projectionError,
 		request_id: finalChat.requestId,
 		run_id: finalChat.runId,
 		trace_id: finalChat.traceId,
-		workflow_trace_summary: finalChat.workflowTraceSummary,
 	};
 }
 
@@ -569,25 +571,16 @@ async function runChatViaAppApiScript(
 		throw new Error("agent eval chat run did not produce JSON output");
 	}
 	const run = mapping(payload.run, "run");
-	const conversation = isRecord(payload.conversation) ? payload.conversation : null;
-	const workflowTraceSummary = isRecord(payload.workflowTraceSummary)
-		? (payload.workflowTraceSummary as unknown as WorkflowTraceSummary)
-		: {
-				selected_capability: "none",
-				trace_steps: [],
-			};
 	const artifactPassed = payload.passed === true;
 	const runStatus = stringField(run.status, "run.status");
 	const finalStatus = artifactPassed ? runStatus : runStatus === "completed" ? "failed" : runStatus;
 	return {
-		answerText: optionalString(conversation?.assistantAnswerText) ?? "",
 		conversationId: stringField(run.conversationId, "run.conversationId"),
 		requestId: stringField(run.requestId, "run.requestId"),
-		results: mappingList(payload.runtimeStepResults ?? [], "runtimeStepResults"),
 		runId: stringField(run.runId, "run.runId"),
 		status: finalStatus,
 		traceId: stringField(run.traceId, "run.traceId"),
-		workflowTraceSummary,
+		agentRuntimeEvalProjection: mappingOrNull(payload.agentRuntimeEvalProjection),
 	};
 }
 
@@ -602,65 +595,76 @@ function parseStagingChatOutput(output: string): JsonObject | null {
 function projectionSignals(chat: AgentEvalStagingChatResult): ProjectionSignals {
 	const signals: ProjectionSignals = {
 		decomposition: [],
+		directAnswer: false,
 		failCloseReason: "",
 		finalStatus: "",
 		freshnessBranch: "",
 		memoryBehavior: "",
 		observedTokens: [],
 		plannedSteps: [],
+		projectedRequiredFacts: [],
+		projectionError: "",
+		requiresClarification: false,
+		selectedCapability: "",
 		sourceTitles: [],
 	};
-	for (const result of chat.results ?? []) {
-		const payload =
-			mappingOrNull(result.sanitizedPayload) ?? mappingOrNull(result.sanitized_payload);
-		if (!payload) {
-			continue;
-		}
-		signals.decomposition.push(...stringList(payload.decomposition));
-		signals.plannedSteps.push(...stringList(payload.planned_steps ?? payload.plannedSteps));
-		signals.observedTokens.push(...stringList(payload.observed_tokens ?? payload.observedTokens));
-		for (const key of ["fail_close_reason", "failCloseReason"] as const) {
-			signals.failCloseReason ||= optionalString(payload[key]) ?? "";
-		}
-		for (const key of ["final_status", "finalStatus", "status"] as const) {
-			signals.finalStatus ||= optionalString(payload[key]) ?? "";
-		}
-		for (const key of ["freshness_branch", "freshnessBranch"] as const) {
-			signals.freshnessBranch ||= optionalString(payload[key]) ?? "";
-		}
-		for (const key of ["memory_behavior", "memoryBehavior"] as const) {
-			signals.memoryBehavior ||= optionalString(payload[key]) ?? "";
-		}
-		signals.sourceTitles.push(...sourceTitlesFromPayload(payload));
+	const projection = mappingOrNull(chat.agentRuntimeEvalProjection);
+	if (!projection) {
+		return {
+			...signals,
+			projectionError: "agent_runtime_eval_projection_missing",
+		};
 	}
+	const schemaVersion = optionalString(projection.schema_version);
+	if (schemaVersion !== "agent_runtime_eval_projection.v1") {
+		return {
+			...signals,
+			projectionError: "agent_runtime_eval_projection_schema_mismatch",
+		};
+	}
+	const run = mappingOrNull(projection.run) ?? {};
+	const planning = mappingOrNull(projection.planning) ?? {};
+	const rag = mappingOrNull(projection.rag) ?? {};
+	const memory = mappingOrNull(projection.memory) ?? {};
+	const trajectory = mappingOrNull(projection.trajectory) ?? {};
+	signals.decomposition.push(...stringList(planning.decomposition));
+	signals.directAnswer = Boolean(trajectory.direct_answer);
+	signals.failCloseReason = optionalString(run.fail_close_reason) ?? "";
+	signals.finalStatus = optionalString(run.status) ?? "";
+	signals.freshnessBranch = optionalString(planning.freshness_branch) ?? "";
+	signals.memoryBehavior = optionalString(memory.behavior) ?? "";
+	signals.observedTokens.push(...stringList(memory.observed_tokens));
+	signals.plannedSteps.push(...stringList(planning.planned_steps));
+	signals.projectedRequiredFacts.push(...stringList(rag.required_facts));
+	signals.requiresClarification = Boolean(trajectory.requires_clarification);
+	signals.selectedCapability = optionalString(trajectory.selected_capability) ?? "";
+	signals.sourceTitles.push(...sourceTitlesFromProjection(rag));
 	return {
 		decomposition: unique(signals.decomposition),
+		directAnswer: signals.directAnswer,
 		failCloseReason: signals.failCloseReason,
 		finalStatus: signals.finalStatus,
 		freshnessBranch: signals.freshnessBranch,
 		memoryBehavior: signals.memoryBehavior,
 		observedTokens: unique(signals.observedTokens),
 		plannedSteps: unique(signals.plannedSteps),
+		projectedRequiredFacts: unique(signals.projectedRequiredFacts),
+		projectionError: signals.projectionError,
+		requiresClarification: signals.requiresClarification,
+		selectedCapability: signals.selectedCapability,
 		sourceTitles: unique(signals.sourceTitles),
 	};
 }
 
-function sourceTitlesFromPayload(payload: JsonObject): string[] {
-	const direct = stringList(payload.source_titles ?? payload.sourceTitles);
-	const sources = Array.isArray(payload.sources)
-		? mappingList(payload.sources, "sanitizedPayload.sources")
-		: Array.isArray(mappingOrNull(payload.evidence)?.sources)
-			? mappingList(
-					mapping(payload.evidence, "sanitizedPayload.evidence").sources,
-					"sanitizedPayload.evidence.sources",
-				)
-			: [];
+function sourceTitlesFromProjection(rag: JsonObject): string[] {
+	const direct = stringList(rag.source_titles);
+	const sources = Array.isArray(rag.source_refs)
+		? mappingList(rag.source_refs, "agentRuntimeEvalProjection.rag.source_refs")
+		: [];
 	for (const source of sources) {
 		const title =
 			optionalString(source.canonical_source_title) ??
-			optionalString(source.canonicalSourceTitle) ??
 			optionalString(source.source_title) ??
-			optionalString(source.sourceTitle) ??
 			optionalString(source.title);
 		if (title) {
 			direct.push(title);
@@ -755,11 +759,33 @@ function assertNoForbiddenRawFields(value: unknown, path: string): void {
 		return;
 	}
 	for (const [key, nested] of Object.entries(value)) {
-		if (FORBIDDEN_RAW_KEYS.has(key.toLowerCase())) {
+		if (isForbiddenRawFieldKey(key)) {
 			throw new Error(`${path}.${key} is forbidden`);
 		}
 		assertNoForbiddenRawFields(nested, `${path}.${key}`);
 	}
+}
+
+function isForbiddenRawFieldKey(key: string): boolean {
+	const lower = key.toLowerCase().trim();
+	if (FORBIDDEN_RAW_KEYS.has(lower)) {
+		return true;
+	}
+	const normalized = lower.replace(/[^a-z0-9]/gu, "");
+	return (
+		normalized.includes("apikey") ||
+		normalized.includes("authorization") ||
+		normalized.includes("cookie") ||
+		normalized.includes("databaseurl") ||
+		normalized.includes("jwt") ||
+		normalized.includes("providerrawresponse") ||
+		normalized.includes("rawanswer") ||
+		normalized.includes("rawprompt") ||
+		normalized.includes("rawretrievedsnippet") ||
+		normalized.includes("rawsource") ||
+		normalized.includes("retrievedsnippet") ||
+		normalized.includes("sourcebody")
+	);
 }
 
 export function writeJsonFile(path: string, payload: JsonObject): void {

@@ -48,6 +48,18 @@ function durableRunStepsPayload(
 	attemptOverrides: Record<string, unknown> = {},
 ): Record<string, unknown> {
 	return {
+		agent_runtime_eval_projection: {
+			schema_version: "agent_runtime_eval_projection.v1",
+			run: {
+				run_id: "run_durable_001",
+				request_id: "req_durable_001",
+				trace_id: "trace_durable_001",
+				status: "completed",
+			},
+			trajectory: {
+				selected_capability: "knowledge",
+			},
+		},
 		attempts: [
 			{
 				activity_attempt: 1,
@@ -412,6 +424,16 @@ describe("execution control runtime adapter", () => {
 				replanReason: "bounded_replan_after_provider_timeout",
 			}),
 		);
+		expect(trajectory.agentRuntimeEvalProjection).toMatchObject({
+			schema_version: "agent_runtime_eval_projection.v1",
+			run: {
+				run_id: "run_durable_001",
+				status: "completed",
+			},
+			trajectory: {
+				selected_capability: "knowledge",
+			},
+		});
 	});
 
 	it("rejects durable run step attempts missing diagnostic spine fields", async () => {
