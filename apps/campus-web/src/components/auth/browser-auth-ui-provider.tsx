@@ -21,13 +21,16 @@ function BrowserAuthLink({
 
 export function CampusBrowserAuthUIProvider({
 	children,
+	enableCaptcha = false,
 	redirectTo,
 }: {
 	children: ReactNode;
+	enableCaptcha?: boolean;
 	redirectTo?: string;
 }) {
 	const commonProps = createCampusAuthUIProviderProps({
 		authLink: BrowserAuthLink,
+		enableCaptcha,
 		navigate: ({ replace, to }) => {
 			if (replace) {
 				window.location.replace(to);

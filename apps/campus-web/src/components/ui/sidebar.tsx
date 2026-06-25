@@ -187,7 +187,7 @@ const Sidebar = React.forwardRef<
 					<SheetContent
 						data-sidebar="sidebar"
 						data-mobile="true"
-						className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&>button]:hidden"
+						className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&_[data-sidebar=header]]:pr-12"
 						closeLabel="关闭聊天记录"
 						style={
 							{

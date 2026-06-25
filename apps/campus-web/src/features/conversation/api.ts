@@ -360,6 +360,7 @@ function parseSseBlock(block: string): ChatRequestStreamEvent | null {
 
 function isProductStreamEventName(value: string): value is ChatRequestStreamEventName {
 	return (
+		value === "answer.delta" ||
 		value === "execution.queued" ||
 		value === "execution.running" ||
 		value === "request.accepted" ||

@@ -109,6 +109,7 @@ export interface ChatAnswerPayload {
 }
 
 export type ChatRequestStreamEventName =
+	| "answer.delta"
 	| "execution.queued"
 	| "execution.running"
 	| "request.accepted"
@@ -124,6 +125,9 @@ export interface ChatRequestStreamEvent {
 			message: string;
 			retryable?: boolean;
 		};
+		accumulatedText?: string;
+		delta?: string;
+		messageId?: string;
 		occurredAt: string;
 		requestId: string;
 		runId?: string;

@@ -34,6 +34,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	getConversationDetail: vi.fn(),
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
+	searchConversations: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
 const sessionState = vi.hoisted(() => ({
@@ -51,7 +52,14 @@ vi.mock("@/components/auth/user/user-button", () => ({
 }));
 
 vi.mock("@/components/auth/user/qa-account-entry", () => ({
-	QAAccountEntry: () => <span>登录</span>,
+	QAAccountEntry: () =>
+		sessionState.data ? (
+			<button aria-label="账号" type="button">
+				账号
+			</button>
+		) : (
+			<span>登录</span>
+		),
 }));
 
 vi.mock("@/components/auth/auth-ui-provider", () => ({
@@ -111,6 +119,7 @@ vi.mock("../src/features/conversation/api", () => ({
 	getConversationDetail: conversationApiMock.getConversationDetail,
 	listConversations: conversationApiMock.listConversations,
 	renameConversation: conversationApiMock.renameConversation,
+	searchConversations: conversationApiMock.searchConversations,
 	unarchiveConversation: conversationApiMock.unarchiveConversation,
 }));
 
@@ -173,6 +182,8 @@ describe("campus routes", () => {
 							],
 				),
 		);
+		conversationApiMock.searchConversations.mockReset();
+		conversationApiMock.searchConversations.mockResolvedValue({ conversations: [], query: "" });
 		conversationApiMock.renameConversation.mockReset();
 		conversationApiMock.unarchiveConversation.mockReset();
 	});
@@ -183,7 +194,7 @@ describe("campus routes", () => {
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getAllByText("新对话").length).toBeGreaterThanOrEqual(1);
 		expect(screen.getByRole("button", { name: "新对话" })).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
+		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
 		expect(screen.getByText("聊天记录")).toBeInTheDocument();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(screen.getByRole("link", { name: "文档" })).toBeInTheDocument();
@@ -192,7 +203,8 @@ describe("campus routes", () => {
 		expect(screen.getByRole("link", { name: "反馈" })).toBeInTheDocument();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(screen.getByPlaceholderText("输入校园问题")).toBeInTheDocument();
-		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByText("需要了解哪件校园事？")).toBeNull();
 		expect(screen.queryByText("校园卡")).toBeNull();
 		expect(screen.queryByText("查饭堂")).toBeNull();
@@ -241,7 +253,7 @@ describe("campus routes", () => {
 		expect(qaShellSource).not.toContain("const railActionShortcutClass");
 		expect(qaShellSource).not.toContain("ChatKit 管理");
 		expect(qaShellSource).not.toContain("ConversationSidebar");
-		expect(qaShellSource).not.toContain("搜索历史会话");
+		expect(qaShellSource).toContain("ThreadListSidebar");
 		expect(stylesSource).toContain("@layer base");
 		expect(stylesSource).toContain("font: inherit");
 		expect(rootLayoutSource).not.toContain("移动端主导航");
@@ -273,7 +285,8 @@ describe("campus routes", () => {
 	it("separates the account entry from the conversation history area", async () => {
 		render(<HomePage />);
 
-		expect(await screen.findByRole("button", { name: "登录" })).toBeInTheDocument();
+		expect(await screen.findByRole("button", { name: "账号" })).toBeInTheDocument();
+		expect(screen.queryByRole("button", { name: "登录" })).toBeNull();
 		expect(screen.queryByRole("separator", { name: "账号区域" })).toBeNull();
 	});
 
@@ -287,13 +300,13 @@ describe("campus routes", () => {
 		expect(within(assistantChat).queryByRole("heading", { name: "聊天记录" })).toBeNull();
 	});
 
-	it("keeps the sidebar free of local chat search", async () => {
+	it("keeps conversation search closed until the user opens it", async () => {
 		render(<HomePage />);
 
 		const newConversationButton = await screen.findByRole("button", { name: "新对话" });
 
 		expect(newConversationButton).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
+		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 	});
 
@@ -598,7 +611,6 @@ describe("campus routes", () => {
 
 		expect(await screen.findByText("中央民族大学校园问答")).toBeInTheDocument();
 		expect(screen.getByText("会话")).toBeInTheDocument();
-		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
 		expect(await screen.findByTestId("assistant-chat")).toBeInTheDocument();
 		expect(conversationApiMock.getConversationDetail).toHaveBeenCalledWith("conv_01");
 	});

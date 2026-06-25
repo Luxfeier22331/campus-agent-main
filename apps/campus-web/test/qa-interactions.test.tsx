@@ -17,6 +17,7 @@ const conversationApiMock = vi.hoisted(() => ({
 	listConversations: vi.fn(),
 	renameConversation: vi.fn(),
 	resumeRunEventsStream: vi.fn(),
+	searchConversations: vi.fn(),
 	submitChatRequestStream: vi.fn(),
 	unarchiveConversation: vi.fn(),
 }));
@@ -148,16 +149,45 @@ describe("Q&A product interactions", () => {
 							],
 				),
 		);
+		conversationApiMock.searchConversations.mockReset();
+		conversationApiMock.searchConversations.mockResolvedValue({
+			conversations: [
+				{
+					archivedAt: null,
+					createdAt: "2026-06-21T01:00:00.000Z",
+					id: "conv_search",
+					pinnedAt: null,
+					title: "图书馆开放时间",
+					updatedAt: "2026-06-21T01:02:00.000Z",
+				},
+			],
+			query: "图书馆",
+		});
 	});
 
-	it("does not expose a local conversation search surface", async () => {
+	it("searches remote conversation history from the Q&A rail", async () => {
 		render(<HomePage />);
 
 		await screen.findByTestId("assistant-chat");
-		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
+		fireEvent.click(screen.getByRole("button", { name: "搜索聊天" }));
 
-		fireEvent.keyDown(window, { key: "k", metaKey: true });
-		expect(screen.queryByRole("dialog", { name: "搜索聊天" })).toBeNull();
+		expect(await screen.findByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
+		fireEvent.change(screen.getByPlaceholderText("搜索历史会话"), {
+			target: { value: "图书馆" },
+		});
+
+		await waitFor(() => {
+			expect(conversationApiMock.searchConversations).toHaveBeenCalledWith({
+				limit: 10,
+				query: "图书馆",
+				view: "active",
+			});
+		});
+		fireEvent.click(await screen.findByText("图书馆开放时间"));
+		expect(navigateMock).toHaveBeenCalledWith({
+			params: { conversationId: "conv_search" },
+			to: "/c/$conversationId",
+		});
 	});
 
 	it("renders assistant-ui thread history in the Q&A rail", async () => {
@@ -169,7 +199,7 @@ describe("Q&A product interactions", () => {
 		expect(await screen.findByText("聊天记录")).toBeInTheDocument();
 		expect(await screen.findByRole("button", { name: "国家奖学金" })).toBeInTheDocument();
 		expect(screen.queryByRole("button", { name: "已归档问题" })).toBeNull();
-		expect(screen.queryByRole("button", { name: "搜索聊天" })).toBeNull();
+		expect(screen.getByRole("button", { name: "搜索聊天" })).toBeInTheDocument();
 		expect(screen.queryByPlaceholderText("搜索历史会话")).toBeNull();
 		expect(designTokensSource).toContain("--layout-chat-sidebar-width: 260px;");
 	});
@@ -210,6 +240,7 @@ describe("Q&A product interactions", () => {
 	});
 
 	it("opens the auth modal when the chat runtime requires login", async () => {
+		sessionState.data = null;
 		window.history.pushState({}, "", "/c/conv_01?from=test#turn");
 
 		render(<QAShell assistantThreadId="conv_01" loginRequested topTitle="会话" />);

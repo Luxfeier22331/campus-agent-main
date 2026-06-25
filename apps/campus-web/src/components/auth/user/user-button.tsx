@@ -1,11 +1,11 @@
 import { UserButton as BetterAuthHeroUIUserButton } from "@better-auth-ui/heroui";
 
-import { CampusAuthUIProvider } from "../auth-ui-provider";
+import { CampusBrowserAuthUIProvider } from "../browser-auth-ui-provider";
 
 export function UserButton() {
 	return (
-		<CampusAuthUIProvider>
+		<CampusBrowserAuthUIProvider>
 			<BetterAuthHeroUIUserButton placement="bottom end" size="icon" variant="ghost" />
-		</CampusAuthUIProvider>
+		</CampusBrowserAuthUIProvider>
 	);
 }

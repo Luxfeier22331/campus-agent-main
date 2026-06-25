@@ -27,10 +27,12 @@ export function createCampusAuthUIProviderProps({
 	authLink: AuthLink,
 	navigate,
 	redirectTo,
+	enableCaptcha = true,
 }: {
 	authLink: AuthLinkComponent;
 	navigate: CampusAuthUINavigationHandler;
 	redirectTo?: string;
+	enableCaptcha?: boolean;
 }): Omit<ComponentProps<typeof AuthProvider>, "children"> {
 	const turnstileRuntimeConfig = readTurnstileRuntimeConfig();
 	return {
@@ -146,7 +148,8 @@ export function createCampusAuthUIProviderProps({
 			},
 		},
 		navigate,
-		plugins: turnstileRuntimeConfig.turnstileSiteKey
+		plugins:
+			enableCaptcha && turnstileRuntimeConfig.turnstileSiteKey
 			? [
 					captchaPlugin({
 						render: (props) => (

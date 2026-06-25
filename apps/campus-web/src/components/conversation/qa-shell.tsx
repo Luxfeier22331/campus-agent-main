@@ -33,6 +33,7 @@ export function QAShell({
 	const navigate = useNavigate();
 	const [authDialogOpen, setAuthDialogOpen] = useState(false);
 	const session = campusAuthClient.useSession();
+	const hasSession = Boolean(session.data);
 	const activePath = readBrowserPathname();
 	const openAuthDialog = useCallback(() => setAuthDialogOpen(true), []);
 
@@ -56,7 +57,7 @@ export function QAShell({
 
 	return (
 		<AssistantRemoteRuntimeFrame
-			enableRemoteHistory={Boolean(session.data)}
+			enableRemoteHistory={hasSession}
 			onLoginRequired={openAuthDialog}
 			threadId={assistantThreadId}
 		>
@@ -64,6 +65,7 @@ export function QAShell({
 				<ThreadListSidebar
 					className="bg-sidebar"
 					collapsible="offcanvas"
+					onLoginRequired={openAuthDialog}
 					style={
 						{
 							"--sidebar-width": "var(--layout-chat-sidebar-width)",
@@ -95,13 +97,17 @@ export function QAShell({
 										triggerClassName="md:hidden"
 										variant="chat"
 									/>
-									<AuthDialog
-										onOpenChange={setAuthDialogOpen}
-										open={authDialogOpen}
-										trigger={<QAAccountEntry />}
-										triggerAriaLabel="登录"
-										triggerClassName="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
-									/>
+									{hasSession ? (
+										<QAAccountEntry />
+									) : (
+										<AuthDialog
+											onOpenChange={setAuthDialogOpen}
+											open={authDialogOpen}
+											trigger={<QAAccountEntry />}
+											triggerAriaLabel="登录"
+											triggerClassName="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
+										/>
+									)}
 								</div>
 							</div>
 						</header>

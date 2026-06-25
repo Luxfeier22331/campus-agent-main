@@ -6,6 +6,7 @@ import { Auth, AuthPanel } from "../src/components/auth/auth";
 import authSource from "../src/components/auth/auth.tsx?raw";
 import { AuthDialog } from "../src/components/auth/auth-dialog";
 import authDialogSource from "../src/components/auth/auth-dialog.tsx?raw";
+import { CampusBrowserAuthUIProvider } from "../src/components/auth/browser-auth-ui-provider";
 import { CampusAuthUIProvider } from "../src/components/auth/auth-ui-provider";
 import authUIProviderSource from "../src/components/auth/auth-ui-provider.tsx?raw";
 import authUIProviderConfigSource from "../src/components/auth/auth-ui-provider-config.tsx?raw";
@@ -449,6 +450,24 @@ describe("campus auth UI components", () => {
 		expect(provider).toHaveAttribute("data-remember-me", "true");
 		expect(screen.getByTestId("consent-label")).toHaveTextContent("用户服务协议");
 		expect(screen.getByTestId("consent-label")).toHaveTextContent("隐私政策");
+	});
+
+	it("keeps the browser auth provider free of captcha by default", () => {
+		document.body.innerHTML = `<script id="__CAMPUS_AUTH_CONFIG__" type="application/json">${JSON.stringify(
+			{
+				turnstileAppearance: "interaction-only",
+				turnstileExecution: "render",
+				turnstileSiteKey: "site-key-1",
+			},
+		)}</script>`;
+
+		render(
+			<CampusBrowserAuthUIProvider>
+				<div>child</div>
+			</CampusBrowserAuthUIProvider>,
+		);
+
+		expect(screen.getByLabelText("auth-ui-provider")).toHaveAttribute("data-has-captcha", "false");
 	});
 
 	it("localizes Better Auth UI account settings copy", () => {

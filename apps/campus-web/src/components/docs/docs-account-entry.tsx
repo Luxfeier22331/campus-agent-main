@@ -84,15 +84,13 @@ function DocsAccountEntryContent() {
 	}
 
 	return (
-		<CampusBrowserAuthUIProvider redirectTo={readDocsCurrentRouteTarget()}>
-			<DocsAuthModal
-				open={open}
-				onOpenChange={setOpen}
-				trigger={<span>登录</span>}
-				triggerAriaLabel="登录"
-				triggerClassName="docs-account-entry-button"
-			/>
-		</CampusBrowserAuthUIProvider>
+		<DocsAuthModal
+			open={open}
+			onOpenChange={setOpen}
+			trigger={<span>登录</span>}
+			triggerAriaLabel="登录"
+			triggerClassName="docs-account-entry-button"
+		/>
 	);
 }
 
@@ -122,9 +120,17 @@ function DocsAuthModal({
 						<Modal.Dialog aria-label="登录或创建校园问答账号">
 							<Modal.CloseTrigger aria-label="关闭登录窗口" />
 							<Modal.Body>
-								<div className="mx-auto w-full max-w-sm" data-campus-account-surface="auth-modal">
-									<AuthPanel className="w-full" view="signIn" />
-								</div>
+								<CampusBrowserAuthUIProvider
+									enableCaptcha
+									redirectTo={readDocsCurrentRouteTarget()}
+								>
+									<div
+										className="mx-auto w-full max-w-sm"
+										data-campus-account-surface="auth-modal"
+									>
+										<AuthPanel className="w-full" view="signIn" />
+									</div>
+								</CampusBrowserAuthUIProvider>
 							</Modal.Body>
 						</Modal.Dialog>
 					</Modal.Container>

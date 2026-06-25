@@ -164,6 +164,7 @@ describe("campus app-api client", () => {
 			new Response(
 				[
 					'event: request.accepted\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":1,"status":"accepted","occurredAt":"2026-06-08T00:00:00.000Z"}',
+					'event: answer.delta\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":2,"status":"streaming","occurredAt":"2026-06-08T00:00:01.000Z","messageId":"msg_answer","delta":"图书馆开放到","accumulatedText":"图书馆开放到"}',
 					'event: request.completed\ndata: {"runId":"run_01","requestId":"req_01","traceId":"trace_01","sequence":3,"status":"completed","occurredAt":"2026-06-08T00:00:02.000Z"}',
 					"",
 				].join("\n\n"),
@@ -181,7 +182,19 @@ describe("campus app-api client", () => {
 			events.push(event);
 		}
 
-		expect(events.map((event) => event.event)).toEqual(["request.accepted", "request.completed"]);
+		expect(events.map((event) => event.event)).toEqual([
+			"request.accepted",
+			"answer.delta",
+			"request.completed",
+		]);
+		expect(events[1]).toMatchObject({
+			data: {
+				accumulatedText: "图书馆开放到",
+				delta: "图书馆开放到",
+				messageId: "msg_answer",
+			},
+			event: "answer.delta",
+		});
 		expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/chat/requests/stream");
 		expect(fetchMock.mock.calls[0]?.[1]).toMatchObject({
 			body: JSON.stringify({ conversationId: "conv_01", prompt: "图书馆几点关门？" }),
