@@ -246,6 +246,10 @@ export async function exportLangfuseReviewResults(input: {
 
 function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 	const caseId = stringField(item.case_id, "case_id");
+	const datasetKind = stringField(dataset.kind, "dataset.kind");
+	if (datasetKind.startsWith("agent_")) {
+		return agentInputPayload(datasetKind, dataset, item, caseId);
+	}
 	if (dataset.kind === "online_answer_path") {
 		return {
 			case_id: caseId,
@@ -268,6 +272,10 @@ function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 }
 
 function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
+	const datasetKind = stringField(dataset.kind, "dataset.kind");
+	if (datasetKind.startsWith("agent_")) {
+		return agentExpectedPayload(datasetKind, item);
+	}
 	if (dataset.kind === "answer_quality") {
 		return {
 			forbidden_claims: stringList(item.forbidden_claims),
@@ -276,6 +284,101 @@ function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 		};
 	}
 	return { case_id: item.case_id, split: optionalString(item.split) };
+}
+
+function agentInputPayload(
+	datasetKind: string,
+	dataset: JsonObject,
+	item: JsonObject,
+	caseId: string,
+): JsonObject {
+	const base = {
+		case_id: caseId,
+		surface_key: stringField(dataset.surface_key, "surface_key"),
+	};
+	if (datasetKind === "agent_rag_answer") {
+		return {
+			...base,
+			question_sha256: sha256Text(stringField(item.question, "question")),
+			context_ref_count: mappingList(item.context_refs ?? [], "context_refs").length,
+			rag_surface: stringField(item.surface, "surface"),
+		};
+	}
+	if (datasetKind === "agent_multiturn_memory") {
+		return {
+			...base,
+			turn_count: mappingList(item.turns ?? [], "turns").length,
+			turn_goal_hashes: mappingList(item.turns ?? [], "turns").map((turn) =>
+				sha256Text(stringField(turn.user_goal, "turn.user_goal")),
+			),
+		};
+	}
+	return {
+		...base,
+		user_goal_sha256: sha256Text(stringField(item.user_goal, "user_goal")),
+	};
+}
+
+function agentExpectedPayload(datasetKind: string, item: JsonObject): JsonObject {
+	const expected = mapping(item.expected ?? {}, "expected");
+	if (datasetKind === "agent_routing_trajectory") {
+		return {
+			direct_answer: expected.direct_answer,
+			fail_close_reason: optionalString(expected.fail_close_reason),
+			forbidden_capabilities: stringList(expected.forbidden_capabilities),
+			requires_clarification: expected.requires_clarification,
+			selected_capability: optionalString(expected.selected_capability),
+			split: optionalString(item.split),
+			terminal_outcome: optionalString(expected.terminal_outcome),
+		};
+	}
+	if (datasetKind === "agent_rag_answer") {
+		return {
+			forbidden_claims: stringList(expected.forbidden_claims),
+			required_facts: stringList(expected.required_facts),
+			required_source_titles: stringList(expected.required_source_titles),
+			split: optionalString(item.split),
+			status: optionalString(expected.status),
+		};
+	}
+	if (datasetKind === "agent_retrieval_planning") {
+		return {
+			decomposition: stringList(expected.decomposition),
+			fail_close_reason: optionalString(expected.fail_close_reason),
+			final_status: optionalString(expected.final_status),
+			freshness_branch: optionalString(expected.freshness_branch),
+			planned_steps: stringList(expected.planned_steps),
+			split: optionalString(item.split),
+		};
+	}
+	if (datasetKind === "agent_multiturn_memory") {
+		return {
+			final_status: optionalString(expected.final_status),
+			forbidden_tokens: safePolicyTokens(stringList(expected.forbidden_tokens)),
+			required_memory_behavior: optionalString(expected.required_memory_behavior),
+			required_tokens: stringList(expected.required_tokens),
+			split: optionalString(item.split),
+		};
+	}
+	return { case_id: item.case_id, split: optionalString(item.split) };
+}
+
+function safePolicyTokens(tokens: string[]): string[] {
+	return tokens.map((token) => {
+		if (token === "raw_transcript") {
+			return "forbid_raw_conversation_payload";
+		}
+		if (token === "provider_raw_response") {
+			return "forbid_provider_raw_payload";
+		}
+		if (token === "raw_retrieved_snippet" || token === "retrieved_snippet") {
+			return "forbid_raw_retrieval_payload";
+		}
+		if (token === "source_body" || token === "source_body_text") {
+			return "forbid_source_body_payload";
+		}
+		return token;
+	});
 }
 
 function datasetItem(input: {

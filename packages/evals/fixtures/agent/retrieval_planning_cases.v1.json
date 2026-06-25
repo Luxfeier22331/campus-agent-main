@@ -1,0 +1,30 @@
+{
+	"schema_version": 1,
+	"case_family": "agent_retrieval_planning.v1",
+	"cases": [
+		{
+			"case_id": "agent-planning-current-policy",
+			"user_goal": "现在校园卡丢了怎么办",
+			"split": "release_gate",
+			"expected": {
+				"decomposition": ["campus_card", "current_policy"],
+				"freshness_branch": "current",
+				"planned_steps": ["indexed_lookup", "supporting_evidence_selection"],
+				"final_status": "completed",
+				"fail_close_reason": ""
+			}
+		},
+		{
+			"case_id": "agent-planning-unsupported-live-source",
+			"user_goal": "帮我查一个未接入系统的外部平台最新通知",
+			"split": "regression_locked",
+			"expected": {
+				"decomposition": ["unsupported_external_source"],
+				"freshness_branch": "unsupported_source",
+				"planned_steps": ["detect_unsupported_source", "fail_close_without_live_fetch"],
+				"final_status": "fail_close",
+				"fail_close_reason": "unsupported_source"
+			}
+		}
+	]
+}

@@ -1,0 +1,34 @@
+{
+	"schema_version": "langfuse_dataset_manifest.v1",
+	"source_git_head": "unknown",
+	"datasets": [
+		{
+			"name": "campus-agent-routing-trajectory-v1",
+			"slug": "campus-agent-routing-trajectory-v1",
+			"kind": "agent_routing_trajectory",
+			"surface_key": "app-api.chat",
+			"fixture_path": "../agent/routing_trajectory_cases.v1.json"
+		},
+		{
+			"name": "campus-agent-rag-answer-v1",
+			"slug": "campus-agent-rag-answer-v1",
+			"kind": "agent_rag_answer",
+			"surface_key": "app-api.chat",
+			"fixture_path": "../agent/rag_answer_cases.v1.json"
+		},
+		{
+			"name": "campus-agent-retrieval-planning-v1",
+			"slug": "campus-agent-retrieval-planning-v1",
+			"kind": "agent_retrieval_planning",
+			"surface_key": "app-api.chat",
+			"fixture_path": "../agent/retrieval_planning_cases.v1.json"
+		},
+		{
+			"name": "campus-agent-multiturn-memory-v1",
+			"slug": "campus-agent-multiturn-memory-v1",
+			"kind": "agent_multiturn_memory",
+			"surface_key": "app-api.chat",
+			"fixture_path": "../agent/multiturn_memory_cases.v1.json"
+		}
+	]
+}

@@ -4,6 +4,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+	buildScoreReportFromAgentEvalCaseResults,
 	buildScoreReportFromContextFollowupScoreBatch,
 	buildScoreReportFromProfileReport,
 	buildScoreReportFromRagasScoreBatch,
@@ -289,6 +290,58 @@ describe("Langfuse score reports", () => {
 			}),
 		).toThrow("raw_transcript is forbidden Langfuse metadata");
 	});
+
+	it("builds score reports from agent eval case results", () => {
+		const report = buildScoreReportFromAgentEvalCaseResults({
+			agentEvalCaseResultsPath: "agent-eval-results.json",
+			agentEvalCaseResultsPayload: {
+				schema_version: "agent_eval_case_results.v1",
+				eval_run_id: "agent-routing-2026-06-25",
+				dataset_version: "agent-routing-trajectory.v1",
+				variant_id: "baseline-agent-policy-v1",
+				source_git_head: "abc123",
+				items: [
+					{
+						case_id: "agent-routing-network-password-knowledge",
+						trace_id: "trace-agent-001",
+						observation_id: "obs-agent-001",
+						dataset_item_id: "dsitem-agent-routing-network-password-knowledge",
+						dataset_run_id: "dsrun-agent-routing-001",
+						verdict: "pass",
+						scores: {
+							"trajectory.correct": 1,
+							"tool_selection.correct": 1,
+						},
+						metadata: {
+							case_family: "agent_routing_trajectory.v1",
+							surface_key: "app-api.chat",
+						},
+					},
+				],
+			},
+			environment: "staging",
+		});
+
+		expect(report.schema_version).toBe("langfuse_score_report.v1");
+		expect(report.eval_kind).toBe("agent_eval");
+		expect(report.expected_publish_denominator).toBe(2);
+		expect(report.score_items[0]).toMatchObject({
+			case_id: "agent-routing-network-password-knowledge",
+			dataset_run_id: "dsrun-agent-routing-001",
+			name: "trajectory.correct",
+			trace_id: "trace-agent-001",
+			value: 1,
+		});
+		expect(report.score_items[0]?.metadata).toMatchObject({
+			case_family: "agent_routing_trajectory.v1",
+			dataset_version: "agent-routing-trajectory.v1",
+			eval_kind: "agent_eval",
+			metric_key: "trajectory.correct",
+			source_git_head: "abc123",
+			variant_id: "baseline-agent-policy-v1",
+			verdict: "pass",
+		});
+	});
 });
 
 describe("Langfuse trace evidence", () => {
@@ -419,6 +472,44 @@ describe("Langfuse release and collector contracts", () => {
 				source_fixture_path: expect.stringContaining("context_followup_sample_batch.valid.v1.json"),
 			},
 		});
+	});
+
+	it("plans agent eval dataset sync without raw prompt or evidence bodies", async () => {
+		const manifestPath = resolve(
+			repoRoot,
+			"packages/evals/fixtures/ops/langfuse_agent_eval_dataset_manifest.v1.json",
+		);
+		const report = await syncLangfuseDatasets({
+			dryRun: true,
+			fetchImpl: async () => new Response(JSON.stringify({ data: [] }), { status: 200 }),
+			manifestPath,
+			settings: {
+				baseUrl: "https://langfuse.example",
+				environment: "staging",
+				publicKey: "pk-test",
+				secretKey: "sk-test",
+			},
+		});
+
+		const datasets = report.datasets as Array<{
+			desired_items: Array<{ expectedOutput: unknown; input: Record<string, unknown> }>;
+			name: string;
+		}>;
+		expect(datasets.map((dataset) => dataset.name)).toEqual([
+			"campus-agent-routing-trajectory-v1",
+			"campus-agent-rag-answer-v1",
+			"campus-agent-retrieval-planning-v1",
+			"campus-agent-multiturn-memory-v1",
+		]);
+		const routingItem = datasets[0]?.desired_items[0];
+		expect(routingItem?.input).toMatchObject({
+			case_id: "agent-routing-network-password-knowledge",
+			surface_key: "app-api.chat",
+		});
+		expect(routingItem?.input.user_goal_sha256).toMatch(/^[a-f0-9]{64}$/u);
+		expect(JSON.stringify(report)).not.toContain("校园网密码怎么改");
+		expect(JSON.stringify(report)).not.toContain("raw_transcript");
+		expect(JSON.stringify(report)).not.toContain("source_body");
 	});
 
 	it("writes context follow-up experiment artifact and dataset-run score report", async () => {

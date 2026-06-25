@@ -1,3 +1,4 @@
+export * from "./agent-eval";
 export * from "./collector";
 export * from "./platform";
 export * from "./release-evidence";

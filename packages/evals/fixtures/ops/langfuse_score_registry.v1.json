@@ -261,6 +261,150 @@
 			"value_range": [0, 1],
 			"description": "Token usage divided by context budget for follow-up eval case.",
 			"release_gate": false
+		},
+		{
+			"name": "trajectory.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent trajectory matched expected terminal outcome and branch.",
+			"release_gate": false
+		},
+		{
+			"name": "tool_selection.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent selected the expected capability/tool and avoided forbidden ones.",
+			"release_gate": false
+		},
+		{
+			"name": "clarification.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent asked for clarification when the case required it.",
+			"release_gate": false
+		},
+		{
+			"name": "fail_close.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent failed closed with the expected reason.",
+			"release_gate": false
+		},
+		{
+			"name": "rag.required_facts.coverage",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Required fact coverage for agent RAG answer cases.",
+			"release_gate": false
+		},
+		{
+			"name": "rag.forbidden_claims.absent",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Forbidden claim absence for agent RAG answer cases.",
+			"release_gate": false
+		},
+		{
+			"name": "rag.source_identity.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Source title/url identity correctness for agent RAG answer cases.",
+			"release_gate": false
+		},
+		{
+			"name": "planning.decomposition.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent retrieval plan decomposition matched expected information needs.",
+			"release_gate": false
+		},
+		{
+			"name": "planning.freshness_branch.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent retrieval plan selected the expected freshness/as-of/compare branch.",
+			"release_gate": false
+		},
+		{
+			"name": "planning.steps.coverage",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent retrieval plan selected the expected evidence planning steps.",
+			"release_gate": false
+		},
+		{
+			"name": "planning.stop_condition.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent retrieval plan failed closed as expected.",
+			"release_gate": false
+		},
+		{
+			"name": "memory.context_inheritance.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Multi-turn agent resolved follow-up context correctly.",
+			"release_gate": false
+		},
+		{
+			"name": "memory.previous_evidence.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Multi-turn agent reused previous evidence only when safe.",
+			"release_gate": false
+		},
+		{
+			"name": "memory.hindsight_usage.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent used Hindsight memory recall correctly.",
+			"release_gate": false
+		},
+		{
+			"name": "memory.user_isolation.correct",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent memory behavior preserved user isolation.",
+			"release_gate": false
+		},
+		{
+			"name": "memory.forbidden_tokens.absent",
+			"data_type": "NUMERIC",
+			"owner": "packages/evals",
+			"eval_kinds": ["agent_eval"],
+			"value_range": [0, 1],
+			"description": "Agent respected disabled/deleted memory state.",
+			"release_gate": false
 		}
 	]
 }

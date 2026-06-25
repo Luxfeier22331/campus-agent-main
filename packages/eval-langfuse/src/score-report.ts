@@ -45,6 +45,7 @@ const METADATA_ALLOWLIST = new Set([
 	"surface_key",
 	"top_k",
 	"variant_id",
+	"verdict",
 ]);
 const FORBIDDEN_METADATA_KEYS = new Set([
 	"api_key",
@@ -358,6 +359,94 @@ export function buildScoreReportFromContextFollowupScoreBatch(input: {
 	});
 }
 
+export function buildScoreReportFromAgentEvalCaseResults(input: {
+	agentEvalCaseResultsPath: string;
+	agentEvalCaseResultsPayload: JsonObject;
+	environment: string;
+}): LangfuseScoreReport {
+	const schemaVersion = stringField(
+		input.agentEvalCaseResultsPayload.schema_version,
+		"schema_version",
+	);
+	requireEqual(schemaVersion, "agent_eval_case_results.v1", "schema_version");
+	const evalRunId = stringField(input.agentEvalCaseResultsPayload.eval_run_id, "eval_run_id");
+	const datasetVersion = stringField(
+		input.agentEvalCaseResultsPayload.dataset_version,
+		"dataset_version",
+	);
+	const variantId = stringField(input.agentEvalCaseResultsPayload.variant_id, "variant_id");
+	const sourceGitHead = stringField(
+		input.agentEvalCaseResultsPayload.source_git_head,
+		"source_git_head",
+	);
+	const rawItems = mappingList(input.agentEvalCaseResultsPayload.items, "items");
+	const scoreItems: JsonObject[] = [];
+	const omittedItems: JsonObject[] = [];
+	for (const item of rawItems) {
+		const caseId = stringField(item.case_id, "items[].case_id");
+		const traceId = optionalString(item.trace_id);
+		const observationId = optionalString(item.observation_id);
+		const datasetRunId = optionalString(item.dataset_run_id);
+		const datasetItemId = optionalString(item.dataset_item_id);
+		const itemMetadata = mapping(item.metadata ?? {}, `${caseId}.metadata`);
+		const safeMetadata = agentEvalMetadata({
+			agentEvalCaseResultsPath: input.agentEvalCaseResultsPath,
+			caseId,
+			datasetVersion,
+			itemMetadata,
+			schemaVersion,
+			sourceGitHead,
+			variantId,
+			verdict: optionalString(item.verdict) ?? "unknown",
+		});
+		const scores = mapping(item.scores, `${caseId}.scores`);
+		for (const [metricName, value] of Object.entries(scores)) {
+			const name = stringField(metricName, `${caseId}.scores.metric`);
+			scoreItems.push({
+				case_id: caseId,
+				comment: `${name} scored by repo-owned agent evaluator`,
+				data_type: "NUMERIC",
+				dataset_item_id: datasetItemId,
+				dataset_run_id: datasetRunId,
+				idempotency_key: stableId("lfscore", evalRunId, caseId, name),
+				metadata: { ...safeMetadata, metric_key: name },
+				name,
+				observation_id: observationId,
+				session_id: null,
+				trace_id: traceId,
+				value,
+			});
+		}
+		for (const error of mappingList(item.errors ?? [], `${caseId}.errors`)) {
+			const metricName = stringField(error.metric_name, `${caseId}.errors[].metric_name`);
+			const reason = stringField(error.reason, `${caseId}.errors[].reason`);
+			omittedItems.push({
+				case_id: caseId,
+				metadata: { ...safeMetadata, metric_key: metricName },
+				reason,
+				source_artifact_ref: input.agentEvalCaseResultsPath,
+				source_result_id: `${caseId}:${metricName}`,
+			});
+		}
+	}
+	return validateLangfuseScoreReport({
+		environment: stringField(input.environment, "environment"),
+		eval_kind: "agent_eval",
+		eval_run_id: evalRunId,
+		expected_publish_denominator: scoreItems.length,
+		omitted_items: omittedItems,
+		profile_id: "agent-eval",
+		release: evalRunId,
+		schema_version: SCORE_REPORT_SCHEMA_VERSION,
+		score_items: scoreItems,
+		source_artifact_path: input.agentEvalCaseResultsPath,
+		source_git_head: sourceGitHead,
+		source_result_denominator: scoreItems.length + omittedItems.length,
+		surface_key: resolveAgentEvalSurfaceKey(rawItems),
+		variant_id: variantId,
+	});
+}
+
 export function createLangfuseClient(settings: LangfuseSettings): LangfuseClient {
 	assertCompleteSettings(settings);
 	return new LangfuseClient({
@@ -607,6 +696,33 @@ function contextFollowupMetadata(input: {
 	};
 }
 
+function agentEvalMetadata(input: {
+	agentEvalCaseResultsPath: string;
+	caseId: string;
+	datasetVersion: string;
+	itemMetadata: JsonObject;
+	schemaVersion: string;
+	sourceGitHead: string;
+	variantId: string;
+	verdict: string;
+}): JsonObject {
+	assertNoForbiddenLangfuseMetadata(input.itemMetadata, `${input.caseId}.metadata`);
+	return {
+		case_family: optionalString(input.itemMetadata.case_family) ?? "agent_eval",
+		case_id: input.caseId,
+		dataset_version: input.datasetVersion,
+		eval_kind: "agent_eval",
+		schema_version: input.schemaVersion,
+		source_artifact_path: input.agentEvalCaseResultsPath,
+		source_git_head: input.sourceGitHead,
+		variant_id: input.variantId,
+		verdict: input.verdict,
+		...(optionalString(input.itemMetadata.surface_key)
+			? { surface_key: optionalString(input.itemMetadata.surface_key) }
+			: {}),
+	};
+}
+
 function assertNoForbiddenLangfuseMetadata(metadata: JsonObject, prefix: string): void {
 	for (const key of Object.keys(metadata)) {
 		const normalized = key.trim();
@@ -628,6 +744,17 @@ function resolveRagasSurfaceKey(items: JsonObject[]): string {
 }
 
 function resolveContextFollowupSurfaceKey(items: JsonObject[]): string {
+	for (const item of items) {
+		const metadata = mappingOrNull(item.metadata) ? item.metadata : {};
+		const surfaceKey = optionalString(metadata.surface_key);
+		if (surfaceKey) {
+			return surfaceKey;
+		}
+	}
+	return "app-api.chat";
+}
+
+function resolveAgentEvalSurfaceKey(items: JsonObject[]): string {
 	for (const item of items) {
 		const metadata = mappingOrNull(item.metadata) ? item.metadata : {};
 		const surfaceKey = optionalString(metadata.surface_key);

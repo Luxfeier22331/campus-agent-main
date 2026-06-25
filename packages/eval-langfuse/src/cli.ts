@@ -2,6 +2,12 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
+import {
+	buildAgentEvalCaseResults,
+	loadAgentEvalCaseSet,
+	loadAgentEvalObservations,
+	runAgentEvalStaging,
+} from "./agent-eval";
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
 import {
 	exportLangfuseReviewResults,
@@ -16,6 +22,7 @@ import {
 	validateLangfuseReleaseEvidenceFile,
 } from "./release-evidence";
 import {
+	buildScoreReportFromAgentEvalCaseResults,
 	buildScoreReportFromContextFollowupScoreBatch,
 	buildScoreReportFromProfileReport,
 	buildScoreReportFromRagasScoreBatch,
@@ -28,7 +35,7 @@ import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 
 type ParsedArgs = Record<string, string | string[] | boolean>;
 
-async function main(argv: string[]): Promise<number> {
+export async function main(argv: string[]): Promise<number> {
 	const [command, ...rest] = argv;
 	const args = parseArgs(rest);
 	const json = Boolean(args.json);
@@ -50,9 +57,8 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 	if (command === "build-score-report-from-profile") {
 		const profileReportPath = stringArg(args, "profile-report");
 		const outputPath = stringArg(args, "output");
-		const settings = settingsFromEnv();
 		const report = buildScoreReportFromProfileReport({
-			environment: settings.environment,
+			environment: environmentFromEnv(),
 			profileReportPath,
 			profileReportPayload: loadJsonObject(profileReportPath),
 		});
@@ -79,9 +85,8 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		const ragasOutputPath = stringArg(args, "ragas-output");
 		const scoreReportPath = stringArg(args, "score-report");
 		runPythonRagasScoreBatch({ inputPath, outputPath: ragasOutputPath });
-		const settings = settingsFromEnv();
 		const report = buildScoreReportFromRagasScoreBatch({
-			environment: settings.environment,
+			environment: environmentFromEnv(),
 			ragasScoreBatchPath: ragasOutputPath,
 			ragasScoreBatchPayload: loadJsonObject(ragasOutputPath),
 		});
@@ -99,11 +104,10 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 		const contextOutputPath = stringArg(args, "context-output");
 		const scoreReportPath = stringArg(args, "score-report");
 		runPythonContextFollowupScoreBatch({ inputPath, outputPath: contextOutputPath });
-		const settings = settingsFromEnv();
 		const report = buildScoreReportFromContextFollowupScoreBatch({
 			contextFollowupScoreBatchPath: contextOutputPath,
 			contextFollowupScoreBatchPayload: loadJsonObject(contextOutputPath),
-			environment: settings.environment,
+			environment: environmentFromEnv(),
 		});
 		writeJsonObject(scoreReportPath, report);
 		return {
@@ -113,6 +117,51 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			score_report_path: scoreReportPath,
 			source_result_denominator: report.source_result_denominator,
 		};
+	}
+	if (command === "build-score-report-from-agent-eval") {
+		const inputPath = stringArg(args, "input");
+		const scoreReportPath = stringArg(args, "score-report");
+		const report = buildScoreReportFromAgentEvalCaseResults({
+			agentEvalCaseResultsPath: inputPath,
+			agentEvalCaseResultsPayload: loadJsonObject(inputPath),
+			environment: environmentFromEnv(),
+		});
+		writeJsonObject(scoreReportPath, report);
+		return {
+			eval_run_id: report.eval_run_id,
+			expected_publish_denominator: report.expected_publish_denominator,
+			score_report_path: scoreReportPath,
+			source_result_denominator: report.source_result_denominator,
+		};
+	}
+	if (command === "build-agent-eval-case-results") {
+		const casesPath = stringArg(args, "cases");
+		const observationsPath = stringArg(args, "observations");
+		const outputPath = stringArg(args, "output");
+		const payload = buildAgentEvalCaseResults({
+			caseSet: loadAgentEvalCaseSet(casesPath),
+			observations: loadAgentEvalObservations(observationsPath),
+			sourceGitHead: optionalArg(args, "source-git-head") ?? "unknown",
+			variantId: optionalArg(args, "variant-id") ?? "baseline-agent-policy-v1",
+		});
+		writeJsonObject(outputPath, payload);
+		return {
+			eval_run_id: payload.eval_run_id,
+			output_path: outputPath,
+			source_result_denominator: Array.isArray(payload.items) ? payload.items.length : 0,
+		};
+	}
+	if (command === "agent-eval-run-staging") {
+		return runAgentEvalStaging({
+			casesPath: stringArg(args, "cases"),
+			environment: environmentFromEnv(),
+			outputObservationsPath: stringArg(args, "output-observations"),
+			outputResultsPath: stringArg(args, "output-results"),
+			outputScoreReportPath: stringArg(args, "output-score-report"),
+			sourceGitHead: optionalArg(args, "source-git-head") ?? "unknown",
+			split: optionalArg(args, "split") ?? undefined,
+			variantId: optionalArg(args, "variant-id") ?? "baseline-agent-policy-v1",
+		});
 	}
 	if (command === "verify-trace") {
 		const productTraceId = optionalArg(args, "product-trace-id");
@@ -319,6 +368,15 @@ function required(value: string | null, field: string): string {
 		throw new Error(`${field} is required`);
 	}
 	return value;
+}
+
+function environmentFromEnv(env: NodeJS.ProcessEnv = process.env): string {
+	return (
+		env.LANGFUSE_ENVIRONMENT?.trim() ||
+		env.CAMPUS_EVAL_ENVIRONMENT?.trim() ||
+		env.NODE_ENV?.trim() ||
+		"local"
+	);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
