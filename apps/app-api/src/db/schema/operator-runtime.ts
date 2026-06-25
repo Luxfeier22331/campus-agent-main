@@ -4,6 +4,7 @@ import type {
 	DurationSourceMetric,
 	TemporalTaskQueueKind,
 	WorkerAutoscalerDecisionWrite,
+	WorkerAutoscalerPostureWrite,
 } from "../../modules/operator-runtime-observability";
 
 const operator = pgSchema("operator");
@@ -158,6 +159,41 @@ export const workerAutoscalerActuation = operator.table(
 		targetServiceActedAtIndex: index("operator_worker_autoscaler_actuation_target_idx").on(
 			table.targetService,
 			table.actedAt,
+		),
+	}),
+);
+
+export const workerAutoscalerPosture = operator.table(
+	"worker_autoscaler_posture",
+	{
+		postureId: text("posture_id").primaryKey(),
+		targetService: text("target_service").notNull(),
+		taskQueue: text("task_queue").notNull(),
+		taskQueueKind: text("task_queue_kind").$type<TemporalTaskQueueKind>().notNull(),
+		scalerKind: text("scaler_kind").$type<WorkerAutoscalerPostureWrite["scalerKind"]>().notNull(),
+		scalerStatus: text("scaler_status")
+			.$type<WorkerAutoscalerPostureWrite["scalerStatus"]>()
+			.notNull(),
+		metricFreshnessJson: jsonb("metric_freshness_json").$type<DurationSourceMetric>().notNull(),
+		currentReplicas: integer("current_replicas").notNull(),
+		desiredReplicas: integer("desired_replicas").notNull(),
+		minReplicas: integer("min_replicas").notNull(),
+		maxReplicas: integer("max_replicas").notNull(),
+		lastScaleEventId: text("last_scale_event_id"),
+		lastScaleEventAt: timestamp("last_scale_event_at", { withTimezone: true }),
+		reason: text("reason").notNull(),
+		evidenceJson: jsonb("evidence_json").$type<Record<string, unknown>>().notNull(),
+		observedAt: timestamp("observed_at", { withTimezone: true }).notNull(),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		targetObservedAtIndex: index("operator_worker_autoscaler_posture_target_observed_idx").on(
+			table.targetService,
+			table.observedAt,
+		),
+		statusObservedAtIndex: index("operator_worker_autoscaler_posture_status_observed_idx").on(
+			table.scalerStatus,
+			table.observedAt,
 		),
 	}),
 );

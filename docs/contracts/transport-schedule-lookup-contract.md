@@ -26,7 +26,7 @@ updated: 2026-04-28
 
 - 班车采集器、parser、对象存储命名或 projection schema 的实现细节
 - browser-facing card payload 或 panel 像素设计
-- `service_status_lookup` 的通用服务开放状态 contract
+- generic service status lookup contract
 - query planner / capability admission 的 repo 级总路由策略
 
 ## 当前 Rollout 状态
@@ -113,8 +113,8 @@ projection schema 细节见
   - 结果可以只填 `service_status` 与 `related_notice_refs`
   - 如果 current truth 不可证，必须 fail-close
 - “班车怎么坐”“接驳车怎么预约”“乘车规则是什么”这类 how-to / 规则 /
-  预约说明问题不属于 `transport_schedule_lookup`；应路由到 `service_guide_lookup`
-  的只读办理 / 使用说明语义
+  预约说明问题不属于 `transport_schedule_lookup`；当前由 wiki/knowledge 内容承接，
+  不作为 campus-services runtime tool
 
 ## Request Contract
 

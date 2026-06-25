@@ -133,7 +133,6 @@ func buildStructuredExecutionObservability(
 		"tool_business_outcome":            outcome,
 		"tool_fail_close_reason":           failCloseReason,
 		"tool_historical_downgrade_reason": stringValue(result["historical_downgrade_reason"]),
-		"service_guide_focus":              stringValue(result["guide_focus"]),
 		"matched_service_category":         stringValue(result["matched_service_category"]),
 		"notice_source_family_summary":     noticeSourceFamilySummary(result),
 		"temporal_posture":                 temporalPosture(result),
@@ -204,10 +203,6 @@ func candidateCountForTool(tool string, result map[string]any) int {
 		return len(arrayValue(result["notice_cards"]))
 	case "transport_schedule_lookup":
 		return len(arrayValue(result["candidate_routes"]))
-	case "service_guide_lookup":
-		return len(arrayValue(result["candidate_services"]))
-	case "contact_directory_lookup":
-		return len(arrayValue(result["candidate_contacts"]))
 	case "place_lookup":
 		return len(arrayValue(result["candidate_places"]))
 	default:

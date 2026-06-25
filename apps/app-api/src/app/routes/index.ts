@@ -11,7 +11,6 @@ import { registerAuthRoutes } from "./auth";
 import { registerCampusExperienceRoutes } from "./campus-experience";
 import { registerCampusServicesOpsRoutes } from "./campus-services-ops";
 import { registerChatRoutes } from "./chat";
-import { registerChatKitRoutes } from "./chatkit";
 import { registerDiningOpsRoutes } from "./dining-ops";
 import { registerDocsRoutes } from "./docs";
 import { registerFederationRoutes } from "./federation";
@@ -35,7 +34,6 @@ export function registerAppRoutes(input: {
 	>;
 	officialWebPlannerService: NonNullable<AppDependencies["officialWebPlannerService"]>;
 	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
-	fetchChatKitAdapter?: AppDependencies["fetchChatKitAdapter"];
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
 }) {
@@ -69,13 +67,6 @@ export function registerAppRoutes(input: {
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 		scheduleRequestProjectionDrain: input.scheduleRequestProjectionDrain,
-	});
-	registerChatKitRoutes({
-		app: input.app,
-		createRequestScope: input.createRequestScope,
-		env: input.env,
-		fetchChatKitAdapter: input.fetchChatKitAdapter,
-		getPrincipal: input.getPrincipal,
 	});
 	registerCampusExperienceRoutes({
 		app: input.app,

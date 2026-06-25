@@ -7,8 +7,6 @@
 !apps/authenticated-notice-collector/**
 !apps/agent-runtime/
 !apps/agent-runtime/**
-!apps/otel-ingest-gateway/
-!apps/otel-ingest-gateway/**
 !apps/execution-control/
 !apps/execution-control/**
 !apps/supervisor-agent-worker/
@@ -36,7 +34,6 @@
 !tests/fixtures/
 !tests/fixtures/capability_execution_contract/
 !tests/fixtures/capability_execution_contract/**
-!tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 !tests/fixtures/capability_execution_contract/
 !tests/fixtures/capability_execution_contract/**
 !tests/fixtures/supervisor_execution_contract/

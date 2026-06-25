@@ -16,7 +16,7 @@ updated: 2026-06-11
 它回答：
 
 - operator 如何录入人工来源 attestation
-- operator 如何维护服务状态与班车临时 override
+- operator 如何维护班车临时 override
 - preview / publish release 的行为边界
 - audit event 返回哪些安全字段
 
@@ -52,9 +52,6 @@ operator app same-site/internal bridge。Admission 固定为 admitted operator p
 
 - `GET /api/operator/campus-services/candidates`
 - `POST /api/operator/campus-services/attestations`
-- `GET /api/operator/campus-services/status-overrides`
-- `POST /api/operator/campus-services/status-overrides`
-- `PATCH /api/operator/campus-services/status-overrides/:overrideId`
 - `GET /api/operator/campus-services/transport-overrides`
 - `POST /api/operator/campus-services/transport-overrides`
 - `PATCH /api/operator/campus-services/transport-overrides/:overrideId`
@@ -114,45 +111,6 @@ Response:
 }
 ```
 
-## Status Override
-
-`POST /api/operator/campus-services/status-overrides`
-
-Request:
-
-```json
-{
-  "serviceId": "medical_insurance_counter",
-  "displayName": "医保窗口",
-  "status": "closed",
-  "message": "下午恢复办理前暂停服务。",
-  "effectiveFrom": "2026-06-11T07:00:00.000Z",
-  "effectiveUntil": "2026-06-11T10:00:00.000Z",
-  "sourceAttestationIds": ["services_attestation_01"]
-}
-```
-
-`status` 第一版允许：
-
-- `open`
-- `limited`
-- `closed`
-- `temporarily_unavailable`
-
-固定规则：
-
-- `effectiveFrom` 与 `effectiveUntil` 必填。
-- `effectiveUntil <= effectiveFrom` 返回 `422 validation_failed`。
-- `sourceAttestationIds` 如传入，必须引用已存在 attestation。
-- 创建后的 `reviewState` 默认是 `ready_for_publish`。
-
-`PATCH` 支持同一字段子集外加 `reviewState`，用于人工撤回或重新标记：
-
-- `draft`
-- `ready_for_publish`
-- `published`
-- `archived`
-
 ## Transport Override
 
 `POST /api/operator/campus-services/transport-overrides`
@@ -180,7 +138,14 @@ Request:
 - `suspended`
 - `temporarily_unavailable`
 
-时间窗、attestation 与 `reviewState` 规则同 status override。
+固定规则：
+
+- `effectiveFrom` 与 `effectiveUntil` 必填。
+- `effectiveUntil <= effectiveFrom` 返回 `422 validation_failed`。
+- `sourceAttestationIds` 如传入，必须引用已存在 attestation。
+- 创建后的 `reviewState` 默认是 `ready_for_publish`。
+- `PATCH` 支持同一字段子集外加 `reviewState`，用于人工撤回或重新标记：
+  `draft`、`ready_for_publish`、`published`、`archived`。
 
 ## Preview And Publish
 
@@ -204,13 +169,12 @@ Response:
     "itemCount": 2,
     "warnings": [],
     "diff": {
-      "added": ["status:services_status_override_01"],
+      "added": ["transport:services_transport_override_01"],
       "removed": [],
       "unchanged": []
     },
     "currentEffective": {
       "generatedAt": "2026-06-11T08:00:00.000Z",
-      "statusOverrides": [],
       "transportOverrides": []
     }
   }

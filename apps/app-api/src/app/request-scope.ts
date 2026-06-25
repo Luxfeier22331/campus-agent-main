@@ -20,6 +20,7 @@ import {
 	buildCampusServicesOpsService,
 	createPgCampusServicesOpsStore,
 } from "../modules/campus-services-ops";
+import { buildCampusServicesTransportScheduleService } from "../modules/campus-services-transport-schedule";
 import { buildChatConversationService, createPgChatConversationStore } from "../modules/chat";
 import { buildDiningOperationsService, createPgDiningOperationsStore } from "../modules/dining-ops";
 import { buildDocsService, createPgDocsReadModelStore } from "../modules/docs";
@@ -125,6 +126,8 @@ export function createRequestScopeFactory(input: {
 				input.dependencies.authenticatedNoticeRunProcessingQueryService ?? null;
 			let campusExperienceService = input.dependencies.campusExperienceService ?? null;
 			let campusServicesOpsService = input.dependencies.campusServicesOpsService ?? null;
+			let campusServicesTransportScheduleService =
+				input.dependencies.campusServicesTransportScheduleService ?? null;
 			let chatConversationService = input.dependencies.chatConversationService ?? null;
 			let chatCommandService = input.dependencies.chatCommandService ?? null;
 			let diningOperationsService = input.dependencies.diningOperationsService ?? null;
@@ -263,6 +266,18 @@ export function createRequestScopeFactory(input: {
 
 				campusExperienceService = buildCampusExperienceService();
 				return campusExperienceService;
+			}
+
+			function resolveCampusServicesTransportScheduleService() {
+				if (campusServicesTransportScheduleService) {
+					return campusServicesTransportScheduleService;
+				}
+
+				campusServicesTransportScheduleService = buildCampusServicesTransportScheduleService({
+					env: input.env,
+					fetchImplementation: input.dependencies.campusServicesTransportScheduleFetch,
+				});
+				return campusServicesTransportScheduleService;
 			}
 
 			function resolveDiningOperationsService() {
@@ -501,6 +516,7 @@ export function createRequestScopeFactory(input: {
 				resolveAuthenticatedNoticeRunProcessingQueryService,
 				resolveCampusExperienceService,
 				resolveCampusServicesOpsService,
+				resolveCampusServicesTransportScheduleService,
 				resolveChatCommandService,
 				resolveChatConversationService,
 				resolveDiningOperationsService,

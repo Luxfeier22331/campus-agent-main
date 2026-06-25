@@ -30,7 +30,7 @@ operator truth or release acceptance criteria.
 
 | Area | Scope | Reopen Trigger |
 | --- | --- | --- |
-| Product Plane | `campus-web` including `/docs/*`, legacy `public-chat-web`, `operator-console-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
+| Product Plane | `campus-web` including `/docs/*`, `operator-console-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
 | Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
 | Capability Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or capability evidence changes |
 | Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |
@@ -77,7 +77,7 @@ status as current project truth.
   should continue as typed activity/tool contracts, not entry-level agents.
 - Capability-plane signal: campus services P1 now has an app-api
   operator-maintained source channel base:
-  manual attestations, bounded service-status / transport overrides, preview,
+  manual attestations, bounded transport overrides, preview,
   publish release snapshot, audit events, and execution-control consumption of
   published current-effective release snapshots. Remaining staging/runtime proof
   and capability-opening work belong to capability/ops tracking, not main-chain
@@ -132,7 +132,10 @@ Scope rules:
 
 Current active implementation gaps:
 
-- None.
+- Campus-services current primary-agent exposure is intentionally limited to
+  `transport_schedule_lookup`. Generic service status, service guide, contact
+  directory, and academic calendar lookup are not active implementation gaps for
+  this workstream.
 
 Current non-gaps after the doc audit:
 
@@ -142,9 +145,10 @@ Current non-gaps after the doc audit:
   inferred memory update are implemented through
   `app-api -> execution-control -> Qdrant`; candidate confirmation UI / strong
   governance remains later product work, not a current main-chain gap.
-- Opened campus-services read-only tools are implemented as model-visible typed
-  tools plus Go internal structured query endpoints; only
-  `service_process_lookup` remains later-wave.
+- Campus-services read-only contracts can exist without being model-visible.
+  Current model-visible campus-services exposure is limited by
+  `tool-catalog.v1` and `workflow-artifacts.v2`; `service_process_lookup`
+  remains later-wave.
 - Notice content maturity and manual校对 work are data / quality work, not a
   generic main-chain implementation gap.
 - Go RAG `grounding.verify` is current evidence-integrity verification, not

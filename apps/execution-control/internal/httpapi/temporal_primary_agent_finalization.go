@@ -290,11 +290,7 @@ func primaryAgentSelectedCapability(selectedTools []string) string {
 	}
 	for _, tool := range selectedTools {
 		switch tool {
-		case "service_status_lookup",
-			"service_guide_lookup",
-			"transport_schedule_lookup",
-			"contact_directory_lookup",
-			"academic_calendar_lookup":
+		case "transport_schedule_lookup":
 			return "campus_services"
 		case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
 			return "notice"

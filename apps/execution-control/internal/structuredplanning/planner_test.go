@@ -151,7 +151,7 @@ func TestPlanWithPolicyBuildsCapabilityOnlyNoticeKnowledgeFollowthroughPreplan(t
 	}
 }
 
-func TestPlanWithPolicyRejectsClosedTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
+func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -169,8 +169,11 @@ func TestPlanWithPolicyRejectsClosedTransportNoticeOverrideCapabilityPreplan(t *
 		},
 	}, policy)
 
-	if plan != nil {
-		t.Fatalf("plan = %#v, want nil while campus_services is closed", plan)
+	if plan == nil {
+		t.Fatal("expected transport notice override capability preplan")
+	}
+	if plan.WorkflowMode != WorkflowModeMultiStep || plan.CapabilityPlan() == nil {
+		t.Fatalf("plan = %#v, want multi_step capability preplan", plan)
 	}
 }
 
@@ -243,8 +246,14 @@ func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
 		UserGoal:            "摆渡车最早几点",
 	}, policy)
 
-	if plan != nil {
-		t.Fatalf("plan = %#v, want nil because policy signals must not override capability opening gate", plan)
+	if plan == nil {
+		t.Fatal("expected transport schedule plan from policy signal")
+	}
+	handoff := plan.SelectedHandoff()
+	if handoff == nil ||
+		handoff.Capability != "campus_services" ||
+		handoff.PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("handoff = %#v", handoff)
 	}
 }
 

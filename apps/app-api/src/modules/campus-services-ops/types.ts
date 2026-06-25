@@ -15,11 +15,6 @@ export type CampusServicesOpsOverrideReviewState =
 	| "draft"
 	| "published"
 	| "ready_for_publish";
-export type CampusServicesOpsServiceStatus =
-	| "closed"
-	| "limited"
-	| "open"
-	| "temporarily_unavailable";
 export type CampusServicesOpsTransportStatus =
 	| "delayed"
 	| "extra_service"
@@ -44,22 +39,6 @@ export interface CampusServicesOpsSourceAttestation {
 	summary: string;
 }
 
-export interface CampusServicesOpsStatusOverride {
-	createdAt: string;
-	createdBy: CampusServicesOpsActor;
-	displayName: string;
-	effectiveFrom: string;
-	effectiveUntil: string;
-	message: string;
-	overrideId: string;
-	reviewState: CampusServicesOpsOverrideReviewState;
-	serviceId: string;
-	sourceAttestationIds: string[];
-	status: CampusServicesOpsServiceStatus;
-	updatedAt: string;
-	updatedBy: CampusServicesOpsActor;
-}
-
 export interface CampusServicesOpsTransportOverride {
 	createdAt: string;
 	createdBy: CampusServicesOpsActor;
@@ -78,7 +57,6 @@ export interface CampusServicesOpsTransportOverride {
 
 export interface CampusServicesOpsCurrentEffectiveSnapshot {
 	generatedAt: string;
-	statusOverrides: CampusServicesOpsStatusOverride[];
 	transportOverrides: CampusServicesOpsTransportOverride[];
 }
 
@@ -128,21 +106,6 @@ export interface CampusServicesOpsCreateAttestationPayload {
 	summary?: unknown;
 }
 
-export interface CampusServicesOpsCreateStatusOverridePayload {
-	displayName?: unknown;
-	effectiveFrom?: unknown;
-	effectiveUntil?: unknown;
-	message?: unknown;
-	serviceId?: unknown;
-	sourceAttestationIds?: unknown;
-	status?: unknown;
-}
-
-export interface CampusServicesOpsUpdateStatusOverridePayload
-	extends Partial<CampusServicesOpsCreateStatusOverridePayload> {
-	reviewState?: unknown;
-}
-
 export interface CampusServicesOpsCreateTransportOverridePayload {
 	displayName?: unknown;
 	effectiveFrom?: unknown;
@@ -167,10 +130,6 @@ export interface CampusServicesOpsService {
 		payload: CampusServicesOpsCreateAttestationPayload;
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ attestation: CampusServicesOpsSourceAttestation }>;
-	createStatusOverride(input: {
-		payload: CampusServicesOpsCreateStatusOverridePayload;
-		principal: ResolvedAppPrincipal;
-	}): Promise<{ override: CampusServicesOpsStatusOverride }>;
 	createTransportOverride(input: {
 		payload: CampusServicesOpsCreateTransportOverridePayload;
 		principal: ResolvedAppPrincipal;
@@ -180,15 +139,11 @@ export interface CampusServicesOpsService {
 	}): Promise<{ auditEvents: CampusServicesOpsAuditEvent[] }>;
 	listCandidates(input: { principal: ResolvedAppPrincipal }): Promise<{
 		attestations: CampusServicesOpsSourceAttestation[];
-		statusOverrides: CampusServicesOpsStatusOverride[];
 		transportOverrides: CampusServicesOpsTransportOverride[];
 	}>;
 	listReleases(input: {
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ releases: CampusServicesOpsRelease[] }>;
-	listStatusOverrides(input: {
-		principal: ResolvedAppPrincipal;
-	}): Promise<{ overrides: CampusServicesOpsStatusOverride[] }>;
 	listTransportOverrides(input: {
 		principal: ResolvedAppPrincipal;
 	}): Promise<{ overrides: CampusServicesOpsTransportOverride[] }>;
@@ -204,11 +159,6 @@ export interface CampusServicesOpsService {
 		diff: CampusServicesOpsDiffSummary;
 		release: CampusServicesOpsRelease;
 	}>;
-	updateStatusOverride(input: {
-		overrideId: string;
-		payload: CampusServicesOpsUpdateStatusOverridePayload;
-		principal: ResolvedAppPrincipal;
-	}): Promise<{ override: CampusServicesOpsStatusOverride }>;
 	updateTransportOverride(input: {
 		overrideId: string;
 		payload: CampusServicesOpsUpdateTransportOverridePayload;

@@ -2,7 +2,7 @@ package httpapi
 
 import "testing"
 
-func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusTraceRefs(t *testing.T) {
+func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleTraceRefs(t *testing.T) {
 	observability := buildStructuredExecutionObservability(
 		"campus_services",
 		"completed",
@@ -12,11 +12,11 @@ func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusTraceRefs(t
 			"related_notice_refs":  []any{"authenticated_notice:355122"},
 			"override_source_refs": []any{"notice:muc_internal_portal:353903"},
 		},
-		"service_status_lookup",
+		"transport_schedule_lookup",
 	)
 
-	if observability["selected_tool"] != "service_status_lookup" {
-		t.Fatalf("selected_tool = %v, want service_status_lookup", observability["selected_tool"])
+	if observability["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("selected_tool = %v, want transport_schedule_lookup", observability["selected_tool"])
 	}
 	if observability["tool_business_outcome"] != "resolved_current" {
 		t.Fatalf("tool_business_outcome = %v, want resolved_current", observability["tool_business_outcome"])
@@ -51,7 +51,7 @@ func TestBuildStructuredExecutionObservabilityDoesNotInferSelectedToolFromResult
 	}
 }
 
-func TestBuildStructuredExecutionObservabilitySummarizesServiceStatusFailClose(t *testing.T) {
+func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleFailClose(t *testing.T) {
 	observability := buildStructuredExecutionObservability(
 		"campus_services",
 		"no_answer",

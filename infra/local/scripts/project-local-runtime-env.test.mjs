@@ -102,6 +102,11 @@ test("projectLocalRuntimeEnv projects Hindsight provider env from local projecti
 		);
 		assert.equal(result.env.OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION, "4");
 		assert.match(result.env.OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER, /^Basic [A-Za-z0-9+/=]+$/);
+		assert.equal(result.env.APP_API_OTEL_INGEST_ENDPOINT, "http://127.0.0.1:4318");
+		assert.equal(
+			result.env.EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS,
+			`authorization=Bearer ${result.env.APP_API_OTEL_INGEST_SHARED_SECRET}`,
+		);
 		assert.equal(result.env.LANGFUSE_INIT_PROJECT_NAME, "campus-agent-dev");
 		assert.match(result.env.LANGFUSE_INIT_PROJECT_PUBLIC_KEY, /^pk-lf-local-/);
 		assert.match(result.env.LANGFUSE_INIT_PROJECT_SECRET_KEY, /^sk-lf-local-/);

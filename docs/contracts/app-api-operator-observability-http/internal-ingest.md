@@ -26,6 +26,7 @@ owns this section group; the original path remains the stable index.
 - `POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
 - `GET /api/internal/operator/runtime/temporal-task-queues`
 - `GET /api/internal/operator/runtime/autoscaler/actuations`
+- `GET /api/internal/operator/runtime/autoscaler/postures`
 - `GET /api/internal/operator/runtime/autoscaler/decisions`
 
 适用前提：
@@ -50,6 +51,7 @@ owns this section group; the original path remains the stable index.
 
 - `GET /api/internal/operator/runtime/temporal-task-queues`
 - `GET /api/internal/operator/runtime/autoscaler/actuations`
+- `GET /api/internal/operator/runtime/autoscaler/postures`
 
 Rules:
 
@@ -64,6 +66,8 @@ Rules:
   during an explicit proof run
 - autoscaler cooldown reads recent `worker_autoscaler_actuation.v1` projection
   through the internal actuation query endpoint
+- K8s closeout reads `worker_autoscaler_posture.v1` projection through the
+  internal posture query endpoint
 - operator/runtime task queue and autoscaler decision query endpoints read the
   bounded current projection by default
 - query responses are operator-safe projections only; they must not include raw

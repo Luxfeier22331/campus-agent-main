@@ -21,7 +21,6 @@ COPY configs/runtime/tool-function-schemas.v1.json /src/configs/runtime/tool-fun
 COPY configs/runtime/tools.v3.json /src/configs/runtime/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
 COPY configs/ingestion /src/configs/ingestion
-COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json /src/tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 COPY tests/fixtures/capability_execution_contract /src/tests/fixtures/capability_execution_contract
 
 RUN go test ./... \
@@ -36,6 +35,7 @@ RUN go test ./... \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-notice ./cmd/activity-worker-notice \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-navigation ./cmd/activity-worker-navigation \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/activity-worker-finalization ./cmd/activity-worker-finalization \
+  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/keda-hpa-posture-collector ./cmd/keda-hpa-posture-collector \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/temporal-task-queue-sampler ./cmd/temporal-task-queue-sampler \
   && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/worker-autoscaler ./cmd/worker-autoscaler
 
@@ -57,6 +57,7 @@ COPY --from=build /out/activity-worker-campus-services /usr/local/bin/activity-w
 COPY --from=build /out/activity-worker-notice /usr/local/bin/activity-worker-notice
 COPY --from=build /out/activity-worker-navigation /usr/local/bin/activity-worker-navigation
 COPY --from=build /out/activity-worker-finalization /usr/local/bin/activity-worker-finalization
+COPY --from=build /out/keda-hpa-posture-collector /usr/local/bin/keda-hpa-posture-collector
 COPY --from=build /out/temporal-task-queue-sampler /usr/local/bin/temporal-task-queue-sampler
 COPY --from=build /out/worker-autoscaler /usr/local/bin/worker-autoscaler
 COPY configs/runtime/capabilities.v1.json /etc/campus-agent/capabilities.v1.json

@@ -30,42 +30,6 @@ export const campusServicesOpsSourceAttestations = campusServicesOps.table(
 	}),
 );
 
-export const campusServicesOpsStatusOverrides = campusServicesOps.table(
-	"status_overrides",
-	{
-		overrideId: text("override_id").primaryKey(),
-		serviceId: text("service_id").notNull(),
-		displayName: text("display_name").notNull(),
-		status: text("status").notNull(),
-		message: text("message").notNull(),
-		effectiveFrom: timestamp("effective_from", { withTimezone: true }).notNull(),
-		effectiveUntil: timestamp("effective_until", { withTimezone: true }).notNull(),
-		sourceAttestationIdsJson: jsonb("source_attestation_ids_json")
-			.$type<string[]>()
-			.notNull()
-			.default([]),
-		reviewState: text("review_state").notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-		createdByJson: jsonb("created_by_json").$type<CampusServicesOpsActor>().notNull(),
-		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
-		updatedByJson: jsonb("updated_by_json").$type<CampusServicesOpsActor>().notNull(),
-	},
-	(table) => ({
-		effectiveWindowIndex: index("campus_services_ops_status_effective_window_idx").on(
-			table.effectiveFrom,
-			table.effectiveUntil,
-		),
-		reviewStateUpdatedAtIndex: index("campus_services_ops_status_review_updated_idx").on(
-			table.reviewState,
-			table.updatedAt,
-		),
-		serviceUpdatedAtIndex: index("campus_services_ops_status_service_updated_idx").on(
-			table.serviceId,
-			table.updatedAt,
-		),
-	}),
-);
-
 export const campusServicesOpsTransportOverrides = campusServicesOps.table(
 	"transport_overrides",
 	{

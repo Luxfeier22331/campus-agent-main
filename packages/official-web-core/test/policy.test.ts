@@ -165,47 +165,19 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			defaultRejectedPolicy: "reject",
 			consumerFamilies: [
 				{
-					consumerFamily: "contact_directory_candidate",
-					ownerSurface: "contact_directory_lookup",
-					ownerCapabilityOrRuntime: "campus_services",
+					consumerFamily: "academic_calendar_candidate",
+					ownerSurface: "calendar/academic_calendar",
+					ownerCapabilityOrRuntime: "calendar",
 					materializationPolicy: "candidate_only",
-					pageFamilies: [
-						"article_detail",
-						"directory_page",
-						"contact_widget_page",
-						"generic_content_page",
-					],
-					titleKeywords: ["联系", "联系我们", "联系方式"],
-					pathPatterns: ["contact", "lianxi"],
-					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					pageFamilies: ["article_detail", "generic_content_page"],
+					titleKeywords: ["校历", "教学周", "放假安排"],
+					pathPatterns: ["calendar", "xiaoli"],
+					requiredEvidence: ["calendar_arrangement"],
 					optionalEvidence: [],
-					minimumMatchedEvidenceCount: 2,
+					minimumMatchedEvidenceCount: 1,
 					requiresKeywordOrPathMatch: true,
-					negativePatterns: ["采购", "招标", "中标", "通知", "公告"],
-					selectedWriteTarget: "campus_services/contact_directory",
-					reviewPolicy: "selected_write_requires_review",
-				},
-				{
-					consumerFamily: "service_guide_candidate",
-					ownerSurface: "service_guide_lookup",
-					ownerCapabilityOrRuntime: "campus_services",
-					materializationPolicy: "candidate_only",
-					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
-					titleKeywords: ["办理", "申请", "指南", "服务"],
-					pathPatterns: ["service", "guide", "apply"],
-					requiredEvidence: [
-						"service_process",
-						"service_entry",
-						"service_material",
-						"phone",
-						"location",
-						"office_hours",
-					],
-					optionalEvidence: [],
-					minimumMatchedEvidenceCount: 2,
-					requiresKeywordOrPathMatch: true,
-					negativePatterns: ["采购", "招标", "中标", "通知", "公告"],
-					selectedWriteTarget: "campus_services/service_guide",
+					negativePatterns: ["新闻", "通知", "公告"],
+					selectedWriteTarget: "calendar/academic_calendar",
 					reviewPolicy: "selected_write_requires_review",
 				},
 				{
@@ -272,14 +244,14 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			mapVersion: "campus_public_target_source_map_v2",
 			targets: [
 				{
-					targetId: "contact-directory",
-					consumerFamily: "contact_directory_candidate",
-					ownerSurface: "contact_directory_lookup",
-					selectedWriteTarget: "campus_services/contact_directory",
+					targetId: "academic-calendar",
+					consumerFamily: "academic_calendar_candidate",
+					ownerSurface: "calendar/academic_calendar",
+					selectedWriteTarget: "calendar/academic_calendar",
 					sourceHosts: ["www.example.edu"],
-					urlHints: ["contact"],
-					titleHints: ["联系"],
-					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					urlHints: ["calendar"],
+					titleHints: ["校历"],
+					requiredEvidence: ["calendar_arrangement"],
 					optionalEvidence: [],
 					retentionPolicy: "retain_source_truth",
 					reviewPolicy: "selected_write_requires_review",
@@ -311,24 +283,24 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			inventoryVersion: "campus_public_target_inventory_v1",
 			entries: [
 				{
-					admissionTargetId: "contact-directory",
-					consumerFamily: "contact_directory_candidate",
-					inventoryId: "contact-directory-homepage",
+					admissionTargetId: "academic-calendar",
+					consumerFamily: "academic_calendar_candidate",
+					inventoryId: "academic-calendar-page",
 					inventoryOnly: false,
 					materializationPolicy: "candidate_only",
 					notes: "test inventory target",
-					ownerCapabilityOrRuntime: "campus_services",
-					ownerSurface: "contact_directory_lookup",
+					ownerCapabilityOrRuntime: "calendar",
+					ownerSurface: "calendar/academic_calendar",
 					previewStatus: "candidate",
 					releaseBlockers: ["no_preview_evidence"],
-					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					requiredEvidence: ["calendar_arrangement"],
 					optionalEvidence: [],
-					requiredFields: ["phone", "email", "location", "office_hours", "source_url"],
+					requiredFields: ["academic_year_label", "calendar_arrangement", "source_url"],
 					optionalFields: [],
-					selectedWriteTarget: "campus_services/contact_directory",
+					selectedWriteTarget: "calendar/academic_calendar",
 					sourceHosts: ["www.example.edu"],
-					sourceUrls: ["https://www.example.edu/contact"],
-					targetLabel: "Contact directory homepage",
+					sourceUrls: ["https://www.example.edu/calendar"],
+					targetLabel: "Academic calendar page",
 				},
 			],
 		},
@@ -717,14 +689,13 @@ describe("official-web-core policy", () => {
 
 	it("rejects target-source-map required evidence drift from consumer denominator", () => {
 		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
-		const contactTarget = bundle.targetSourceMap.targets.find(
-			(target) => target.targetId === "campus-services-contact-directory",
+		const calendarTarget = bundle.targetSourceMap.targets.find(
+			(target) => target.targetId === "official-web-academic-calendar",
 		);
-		if (!contactTarget) {
-			throw new Error("contact target is required");
+		if (!calendarTarget) {
+			throw new Error("calendar target is required");
 		}
-		contactTarget.requiredEvidence = ["phone", "location"];
-		contactTarget.optionalEvidence = ["email", "office_hours"];
+		calendarTarget.requiredEvidence = ["calendar_arrangement", "stable_reference"];
 
 		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
 			/requiredEvidence must match consumer denominator/u,
@@ -733,14 +704,13 @@ describe("official-web-core policy", () => {
 
 	it("rejects target inventory required evidence drift from admission target", () => {
 		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
-		const contactEntry = bundle.targetInventory.entries.find(
-			(entry) => entry.inventoryId === "muc-main-homepage-contact",
+		const calendarEntry = bundle.targetInventory.entries.find(
+			(entry) => entry.inventoryId === "muc-public-academic-calendar",
 		);
-		if (!contactEntry) {
-			throw new Error("contact inventory entry is required");
+		if (!calendarEntry) {
+			throw new Error("calendar inventory entry is required");
 		}
-		contactEntry.requiredEvidence = ["phone", "location"];
-		contactEntry.optionalEvidence = ["email", "office_hours"];
+		calendarEntry.requiredEvidence = ["calendar_arrangement", "stable_reference"];
 
 		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
 			/requiredEvidence must be allowed by admission target/u,

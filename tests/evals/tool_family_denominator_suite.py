@@ -21,11 +21,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
         tools = {tool.tool_name for tool in fixture.tools}
         self.assertTrue(
             {
-                "service_status_lookup",
                 "transport_schedule_lookup",
-                "service_guide_lookup",
-                "contact_directory_lookup",
-                "academic_calendar_lookup",
                 "campus_notice_change_set_lookup",
                 "campus_notice_discover",
                 "campus_notice_period_summary",
@@ -58,11 +54,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
         fixture = load_tool_family_denominator()
         required_splits = {"smoke", "release_gate", "regression_locked", "exploratory"}
         priority_tools = {
-            "service_status_lookup",
             "transport_schedule_lookup",
-            "service_guide_lookup",
-            "contact_directory_lookup",
-            "academic_calendar_lookup",
             "campus_notice_change_set_lookup",
             "campus_notice_discover",
             "campus_notice_period_summary",

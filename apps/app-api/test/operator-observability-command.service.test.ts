@@ -501,6 +501,28 @@ describe("operator observability command service", () => {
 							taskQueueKind: "activity",
 						},
 					],
+					postures: [
+						{
+							currentReplicas: 1,
+							desiredReplicas: 2,
+							evidence: {
+								hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
+								scaledObjectName: "activity-worker-knowledge-retrieval",
+							},
+							lastScaleEventAt: "2026-06-15T10:00:06.000Z",
+							lastScaleEventId: "actuation_01",
+							maxReplicas: 5,
+							metricFreshness: { ms: 15000, state: "observed" },
+							minReplicas: 1,
+							observedAt: "2026-06-15T10:00:08.000Z",
+							reason: "hpa_desired_replicas_above_current",
+							scalerKind: "keda_temporal",
+							scalerStatus: "healthy",
+							targetService: "activity-worker-knowledge-retrieval",
+							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueueKind: "activity",
+						},
+					],
 					schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
 					snapshots: [
 						{
@@ -522,6 +544,7 @@ describe("operator observability command service", () => {
 		).resolves.toEqual({
 			acceptedActuations: 1,
 			acceptedDecisions: 1,
+			acceptedPostures: 1,
 			acceptedSnapshots: 1,
 		});
 
@@ -557,6 +580,29 @@ describe("operator observability command service", () => {
 					projectedAt: "2026-06-15T10:00:02.000Z",
 					reason: "backlog_threshold_exceeded",
 					sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
+					targetService: "activity-worker-knowledge-retrieval",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueueKind: "activity",
+				},
+			],
+			postures: [
+				{
+					currentReplicas: 1,
+					desiredReplicas: 2,
+					evidence: {
+						hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
+						scaledObjectName: "activity-worker-knowledge-retrieval",
+					},
+					lastScaleEventAt: "2026-06-15T10:00:06.000Z",
+					lastScaleEventId: "actuation_01",
+					maxReplicas: 5,
+					metricFreshness: { ms: 15000, state: "observed" },
+					minReplicas: 1,
+					observedAt: "2026-06-15T10:00:08.000Z",
+					projectedAt: "2026-06-15T10:00:02.000Z",
+					reason: "hpa_desired_replicas_above_current",
+					scalerKind: "keda_temporal",
+					scalerStatus: "healthy",
 					targetService: "activity-worker-knowledge-retrieval",
 					taskQueue: "campus-agent.activity.knowledge.retrieval",
 					taskQueueKind: "activity",

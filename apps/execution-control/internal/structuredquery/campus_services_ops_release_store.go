@@ -32,30 +32,9 @@ type campusServicesOpsRelease struct {
 
 type campusServicesOpsCurrentEffectiveSnapshot struct {
 	GeneratedAt             string                               `json:"generatedAt"`
-	StatusOverrides         []campusServicesOpsStatusOverride    `json:"statusOverrides"`
 	TransportOverrides      []campusServicesOpsTransportOverride `json:"transportOverrides"`
 	GeneratedAtSnake        string                               `json:"generated_at"`
-	StatusOverridesSnake    []campusServicesOpsStatusOverride    `json:"status_overrides"`
 	TransportOverridesSnake []campusServicesOpsTransportOverride `json:"transport_overrides"`
-}
-
-type campusServicesOpsStatusOverride struct {
-	OverrideID                string   `json:"overrideId"`
-	ServiceID                 string   `json:"serviceId"`
-	DisplayName               string   `json:"displayName"`
-	Status                    string   `json:"status"`
-	Message                   string   `json:"message"`
-	EffectiveFrom             string   `json:"effectiveFrom"`
-	EffectiveUntil            string   `json:"effectiveUntil"`
-	SourceAttestationIDs      []string `json:"sourceAttestationIds"`
-	ReviewState               string   `json:"reviewState"`
-	OverrideIDSnake           string   `json:"override_id"`
-	ServiceIDSnake            string   `json:"service_id"`
-	DisplayNameSnake          string   `json:"display_name"`
-	EffectiveFromSnake        string   `json:"effective_from"`
-	EffectiveUntilSnake       string   `json:"effective_until"`
-	SourceAttestationIDsSnake []string `json:"source_attestation_ids"`
-	ReviewStateSnake          string   `json:"review_state"`
 }
 
 type campusServicesOpsTransportOverride struct {
@@ -203,44 +182,14 @@ func normalizeCampusServicesOpsRelease(release campusServicesOpsRelease) campusS
 	if strings.TrimSpace(snapshot.GeneratedAt) == "" {
 		snapshot.GeneratedAt = snapshot.GeneratedAtSnake
 	}
-	if len(snapshot.StatusOverrides) == 0 && len(snapshot.StatusOverridesSnake) > 0 {
-		snapshot.StatusOverrides = snapshot.StatusOverridesSnake
-	}
 	if len(snapshot.TransportOverrides) == 0 && len(snapshot.TransportOverridesSnake) > 0 {
 		snapshot.TransportOverrides = snapshot.TransportOverridesSnake
-	}
-	for index := range snapshot.StatusOverrides {
-		normalizeCampusServicesOpsStatusOverride(&snapshot.StatusOverrides[index])
 	}
 	for index := range snapshot.TransportOverrides {
 		normalizeCampusServicesOpsTransportOverride(&snapshot.TransportOverrides[index])
 	}
 	release.CurrentEffective = snapshot
 	return release
-}
-
-func normalizeCampusServicesOpsStatusOverride(override *campusServicesOpsStatusOverride) {
-	if strings.TrimSpace(override.OverrideID) == "" {
-		override.OverrideID = override.OverrideIDSnake
-	}
-	if strings.TrimSpace(override.ServiceID) == "" {
-		override.ServiceID = override.ServiceIDSnake
-	}
-	if strings.TrimSpace(override.DisplayName) == "" {
-		override.DisplayName = override.DisplayNameSnake
-	}
-	if strings.TrimSpace(override.EffectiveFrom) == "" {
-		override.EffectiveFrom = override.EffectiveFromSnake
-	}
-	if strings.TrimSpace(override.EffectiveUntil) == "" {
-		override.EffectiveUntil = override.EffectiveUntilSnake
-	}
-	if len(override.SourceAttestationIDs) == 0 && len(override.SourceAttestationIDsSnake) > 0 {
-		override.SourceAttestationIDs = override.SourceAttestationIDsSnake
-	}
-	if strings.TrimSpace(override.ReviewState) == "" {
-		override.ReviewState = override.ReviewStateSnake
-	}
 }
 
 func normalizeCampusServicesOpsTransportOverride(override *campusServicesOpsTransportOverride) {

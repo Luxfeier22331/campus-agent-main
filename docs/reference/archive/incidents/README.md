@@ -13,5 +13,10 @@ updated: 2026-04-20
 ## Files
 
 - `phase1-ingestion-retrieval-implementation-truth.md`
-- `provider-responses-contract-violation-report-20260412.md`
 - `retrieval-tail-latency-diagnosis-20260406.md`
+
+## Deleted Stub Summaries
+
+- `2026-04-12` 的 `su8` OpenAI-compatible `/responses` incident 结论是：
+  endpoint 返回 HTTP `200` 且 `status="completed"`，但没有可消费输出；
+  supplemental provider 已切换，旧正文只通过 git history 追溯。

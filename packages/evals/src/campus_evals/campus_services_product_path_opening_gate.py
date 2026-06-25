@@ -69,7 +69,6 @@ class CommandRunner(Protocol):
 
 _SHARED_OPENING_CHECKS = (
     "supervisor_go_structured_runtime_tests",
-    "campus_services_capability_adapter_tests",
     "app_api_campus_services_runtime_tests",
     "campus_web_worker_e2e_tests",
     "app_api_typecheck",
@@ -78,34 +77,10 @@ _SHARED_OPENING_CHECKS = (
 
 _TOOL_OPENING_PROFILES = (
     ToolOpeningProfile(
-        tool_name="service_status_lookup",
-        product_path_status="open_candidate",
-        required_checks=_SHARED_OPENING_CHECKS,
-        reason="opened_by_campus_services_product_path",
-    ),
-    ToolOpeningProfile(
         tool_name="transport_schedule_lookup",
         product_path_status="open_candidate",
         required_checks=_SHARED_OPENING_CHECKS,
         reason="opened_by_campus_services_product_path",
-    ),
-    ToolOpeningProfile(
-        tool_name="service_guide_lookup",
-        product_path_status="open_candidate",
-        required_checks=_SHARED_OPENING_CHECKS,
-        reason="opened_by_campus_services_product_path",
-    ),
-    ToolOpeningProfile(
-        tool_name="contact_directory_lookup",
-        product_path_status="open_candidate",
-        required_checks=_SHARED_OPENING_CHECKS,
-        reason="opened_by_campus_services_product_path",
-    ),
-    ToolOpeningProfile(
-        tool_name="service_process_lookup",
-        product_path_status="keep_closed",
-        required_checks=(),
-        reason="later_wave_tool_not_admitted_to_product_path",
     ),
 )
 
@@ -146,19 +121,7 @@ def _supervisor_go_structured_runtime_command() -> tuple[str, ...]:
         "./internal/runtimepolicy",
         "./internal/httpapi",
         "-run",
-        "ServiceGuide|ContactDirectory|TransportSchedule|ServiceStatus|StructuredPlan|AllowedTools|StructuredAnswerText|Readyz",
-    )
-
-
-def _campus_services_capability_adapter_command() -> tuple[str, ...]:
-    return (
-        "uv",
-        "run",
-        "--all-packages",
-        "python",
-        "-m",
-        "unittest",
-        "tests.agent.test_campus_services_capability",
+        "TransportSchedule|ServiceStatus|StructuredPlan|AllowedTools|StructuredAnswerText|Readyz",
     )
 
 
@@ -223,12 +186,6 @@ def run_campus_services_product_path_opening_gate(
             command=_supervisor_go_structured_runtime_command(),
             command_runner=command,
             cwd=EXECUTION_CONTROL_DIR,
-        ),
-        _run_command_check(
-            check_id="campus_services_capability_adapter_tests",
-            command=_campus_services_capability_adapter_command(),
-            command_runner=command,
-            cwd=REPO_ROOT,
         ),
         _run_command_check(
             check_id="app_api_campus_services_runtime_tests",

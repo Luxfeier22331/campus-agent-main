@@ -209,12 +209,9 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
   `brand_history` / 校史人物类 surface。
 - 不要因为来源 URL 在官网 host 下，就把所有内容都留在 `official_web/*`
 - 也不要为了“来源来自官网”再复制一套 `official_web/regulation` 或 `official_web/curriculum`
-- 如果后续 direct contact-fact query 被提升为 `contact_directory_lookup` 这类 structured
-  runtime tool，则 public contact page 可以继续留在 `stable_reference` 作为 public-web
-  reference / provenance 上游，但不再长期充当 canonical contact runtime owner
-- 如果后续 direct service-process query 被提升为 `service_process_lookup` 这类 structured
-  runtime tool，则 public service-entry / 办事说明页可以继续留在 `stable_reference` 作为
-  public-web reference / provenance 上游，但不再长期充当 canonical process runtime owner
+- contact、办事指南与流程说明当前不提升为 campus-services structured runtime
+  tool；public page 只能作为 `official_web/stable_reference` 或 wiki 上游来源，不充当
+  repo-owned runtime owner
 
 当前 `official_web/muc_public_pages` 只承担 mixed current-truth bridge：
 
@@ -355,15 +352,11 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 - 稳定制度 / 说明 / 联系方式
   - 优先走 `stable_reference`
 - 明确的部门电话 / 邮箱 / 办公地点 / 联系人联系方式查询
-  - 在 `contact_directory_lookup` later-wave admission 完成后，应优先走
-    `campus_services/contact_directory` 的 structured runtime seam
-  - admission 完成前，不应把该能力伪装成 contact directory；只能走已开放的 stable-reference
-    answer contract，或明确返回未开放
+  - 不提升为 repo-owned contact directory runtime；只能走已开放的 stable-reference
+    answer contract，或跳转 wiki / source URL
 - 明确的办理步骤 / 材料 / 入口 / 适用人群查询
-  - 在 `service_process_lookup` later-wave admission 完成后，应优先走
-    `campus_services/service_catalog` 的 structured runtime seam
-  - admission 完成前，不应把该能力伪装成 service process；只能走已开放的 stable-reference
-    answer contract，或明确返回未开放
+  - 不提升为 repo-owned service process runtime；只能走已开放的 stable-reference
+    answer contract，或跳转 wiki / source URL
 - 校园新闻 / 近期活动 / 某学院近况
   - 走 `fresh_news` 对应的 tool/runtime surface
 - “今天 / 最新 / 刚刚 / 最近”

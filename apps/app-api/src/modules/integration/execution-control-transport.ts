@@ -11,12 +11,6 @@ export interface ExecutionControlCampusServicesProductPathPreflight {
 	capabilityGate: "open" | "closed" | "not_reported";
 	projectionSource: string;
 	checks: {
-		contactDirectoryProjection: ExecutionControlReadinessCheckStatus;
-		contactDirectoryReadModel: ExecutionControlReadinessCheckStatus;
-		serviceGuideProjection: ExecutionControlReadinessCheckStatus;
-		serviceGuideReadModel: ExecutionControlReadinessCheckStatus;
-		serviceStatusProjection: ExecutionControlReadinessCheckStatus;
-		serviceStatusReadModel: ExecutionControlReadinessCheckStatus;
 		structuredQueryRuntime: ExecutionControlReadinessCheckStatus;
 		transportSchedule: ExecutionControlReadinessCheckStatus;
 		transportScheduleReadModel: ExecutionControlReadinessCheckStatus;
@@ -239,25 +233,6 @@ function buildCampusServicesProductPathPreflight(
 	const structuredRuntime = readRecord(payload?.structured_query_runtime);
 	const projectionSource = readString(structuredRuntime?.projection_source);
 	const checks: ExecutionControlCampusServicesProductPathPreflight["checks"] = {
-		contactDirectoryProjection: readinessFromBoolean(
-			structuredRuntime?.contact_directory_projection_ready,
-		),
-		contactDirectoryReadModel: readinessFromConfiguredAndHealthy(
-			structuredRuntime?.contact_directory_read_model_configured,
-			structuredRuntime?.contact_directory_read_model_healthy,
-		),
-		serviceGuideProjection: readinessFromBoolean(structuredRuntime?.service_guide_projection_ready),
-		serviceGuideReadModel: readinessFromConfiguredAndHealthy(
-			structuredRuntime?.service_guide_read_model_configured,
-			structuredRuntime?.service_guide_read_model_healthy,
-		),
-		serviceStatusProjection: readinessFromBoolean(
-			structuredRuntime?.service_status_projection_ready,
-		),
-		serviceStatusReadModel: readinessFromConfiguredAndHealthy(
-			structuredRuntime?.service_status_read_model_configured,
-			structuredRuntime?.service_status_read_model_healthy,
-		),
 		structuredQueryRuntime: readinessFromBoolean(structuredRuntime?.configured),
 		transportSchedule: readinessFromBoolean(structuredRuntime?.transport_schedule_implemented),
 		transportScheduleReadModel: readinessFromConfiguredAndHealthy(
@@ -298,14 +273,8 @@ function collectCampusServicesProductPathBlockers(
 		keyof ExecutionControlCampusServicesProductPathPreflight["checks"],
 		string,
 	][] = [
-		["serviceStatusProjection", "service_status_projection_ready is false"],
-		["serviceStatusReadModel", "service_status_read_model is not configured or unhealthy"],
 		["transportSchedule", "transport_schedule_implemented is false"],
 		["transportScheduleReadModel", "transport_schedule_read_model is not configured or unhealthy"],
-		["serviceGuideProjection", "service_guide_projection_ready is false"],
-		["serviceGuideReadModel", "service_guide_read_model is not configured or unhealthy"],
-		["contactDirectoryProjection", "contact_directory_projection_ready is false"],
-		["contactDirectoryReadModel", "contact_directory_read_model is not configured or unhealthy"],
 	];
 	for (const [key, message] of requiredChecks) {
 		if (checks[key] === "not_ready") {
@@ -595,7 +564,7 @@ export function createExecutionControlRequestHeaders(input: {
 	};
 }
 
-function createCloudflareAccessServiceTokenHeaders(
+export function createCloudflareAccessServiceTokenHeaders(
 	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">,
 ): Record<string, string> {
 	const clientId = env.EXECUTION_CONTROL_ACCESS_CLIENT_ID?.trim();

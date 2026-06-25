@@ -365,6 +365,13 @@
       "when": 1782246773687,
       "tag": "0051_foamy_umar",
       "breakpoints": true
+    },
+    {
+      "idx": 52,
+      "version": "7",
+      "when": 1782256320055,
+      "tag": "0052_worker_autoscaler_posture",
+      "breakpoints": true
     }
   ]
 }

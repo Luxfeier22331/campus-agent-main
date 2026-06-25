@@ -35,7 +35,7 @@ expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIR
 expectContains(source, 'SENTRY_ENVIRONMENT = "staging"', "Missing SENTRY_ENVIRONMENT=staging.");
 expectContains(
 	source,
-	'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-ingest-staging.mucwiki-edge.link"',
+	'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
 	"Missing APP_API_OTEL_INGEST_ENDPOINT staging value.",
 );
 expectContains(source, 'binding = "APP_API_DB"', "Missing APP_API_DB Hyperdrive binding.");

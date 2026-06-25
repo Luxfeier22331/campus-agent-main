@@ -72,7 +72,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 同时固定保留一个并列结论：
 
-- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover`
+- `transport_schedule_lookup`、`campus_notice_discover`
   与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
   runtime capability 不属于 retrieval runtime seam 本身
 - 它们应通过 projection-backed internal query service + typed domain tool 提供；只有需要语义判断时
@@ -118,8 +118,8 @@ framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier -
 supporting evidence -> evidence integrity verification -> execution finalization`
 
 允许进入 `knowledge` 的 upstream context 必须是 bounded projection，例如
-`CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
-或 `PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
+`CanonicalNoticeContext`、`NoticeChangeSet`、`ScheduleBaseline` 或
+`PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
 input，不得绕过 query-enabled surface、freshness gate 或 source-trust gate。
 
 ## Ownership Model

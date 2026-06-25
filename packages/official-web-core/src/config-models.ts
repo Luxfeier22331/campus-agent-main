@@ -24,8 +24,6 @@ export const ALLOWED_DISCOVERY_METHODS = [
 export const OFFICIAL_WEB_RUN_INTENTS = ["baseline", "hot", "repair"] as const;
 export const OFFICIAL_WEB_PROJECTION_ACTIONS = ["emit_document", "manual_review"] as const;
 export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
-	"contact_directory_candidate",
-	"service_guide_candidate",
 	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",
@@ -60,13 +58,10 @@ export const OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES = [
 	"retain_matching_only",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES = [
-	"campus_service_guide",
-	"service_contact_directory",
 	"academic_calendar_reference",
 	"institutional_policy_reference",
 	"university_core_reference",
 	"public_fee_reference",
-	"service_material_reference",
 	"public_notice_news",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS = [
@@ -83,9 +78,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS = [
 	"same_host_manual_requeue",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
-	"service_guide_lookup",
-	"contact_directory_lookup",
-	"academic_calendar_lookup",
+	"calendar/academic_calendar",
 	"official_web/stable_reference",
 	"future_notice_runtime",
 	"regulations/institutional_rules",
@@ -93,8 +86,6 @@ export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
 	"regulations/scoped_rules",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
-	"campus_services/service_guide",
-	"campus_services/contact_directory",
 	"calendar/academic_calendar",
 	"official_web/stable_reference",
 	"official_web/fresh_news",

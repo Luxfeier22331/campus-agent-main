@@ -126,6 +126,20 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 - `apps/official-web-collector/.env` 负责 collector 到 `app-api` 的 control-plane
   seam
 
+## Feature Worktree Local Env
+
+Feature worktrees do not receive ignored `.env` / `.dev.vars` files from Git.
+After creating or switching into `.worktrees/*`, link local env files from the
+root worktree:
+
+```bash
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+```
+
+This creates symlinks and refuses to replace existing non-symlink targets. Do
+not copy secrets between worktrees.
+
 ## Convenience Scripts
 
 - `uv run --all-packages python -m scripts.sync_worker_observability_env`
@@ -133,8 +147,6 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
   --json`
 - `uv run --all-packages python -m scripts.check_sentry_lookup_access --json`
 - `uv run --all-packages python -m scripts.sync_app_api_local_db_env`
-- `uv run --all-packages python -m scripts.link_worktree_app_local_env
-  --repo-root <current-worktree-root>`
 
 对应 runbook：
 

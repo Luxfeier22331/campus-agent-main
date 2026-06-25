@@ -54,42 +54,31 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
                 allowed_tools=("campus_notice_get",),  # type: ignore[arg-type]
             )
 
-    def test_agent_request_accepts_service_status_payload(self) -> None:
+    def test_agent_request_accepts_transport_schedule_payload(self) -> None:
         request = CapabilityRequest(
             capability="campus_services",
-            user_goal="图书馆今天开门吗",
-            payload=ServiceStatusLookupPayload(
-                subject_query="图书馆今天开门吗",
-                temporal_query=TemporalQuery(mode="current"),
+            user_goal="校车下一班几点",
+            payload=TransportScheduleLookupPayload(
+                query_text="校车下一班几点",
+                intent="next_departure",
             ),
         )
 
         self.assertEqual(
             asdict(request)["payload"],
             {
-                "subject_query": "图书馆今天开门吗",
-                "temporal_query": {
+                "query_text": "校车下一班几点",
+                "intent": "next_departure",
+                "route_selector": None,
+                "snapshot_query": {
                     "mode": "current",
                     "as_of": "",
                     "year_hint": "",
                 },
-                "campus_scope": "",
+                "service_time_query": None,
+                "result_limit": None,
             },
         )
-
-    def test_agent_request_accepts_service_guide_payload(self) -> None:
-        request = CapabilityRequest(
-            capability="campus_services",
-            user_goal="宿舍入住怎么办理",
-            payload=ServiceGuideLookupPayload(
-                service_query="宿舍入住怎么办理",
-                guide_focus="procedure",
-            ),
-            allowed_tools=("service_guide_lookup",),
-        )
-
-        self.assertEqual(asdict(request)["payload"]["guide_focus"], "procedure")
-        self.assertEqual(tuple(asdict(request)["allowed_tools"]), ("service_guide_lookup",))
 
     def test_capability_response_serializes_notice_get_result_shape(self) -> None:
         response = CapabilityResponse(
@@ -151,29 +140,19 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
         self.assertFalse(error.retryable)
         self.assertEqual(asdict(error)["message"], "Qdrant timeout")
 
-    def test_document_ref_accepts_campus_services_collections(self) -> None:
-        navigation_ref = DocumentRef(
-            document_id="service:catalog-001",
+    def test_document_ref_accepts_campus_services_transport_collection(self) -> None:
+        transport_ref = DocumentRef(
+            document_id="transport:schedule-001",
             revision_track="source-faithful",
-            version_id="v1:catalog-001",
+            version_id="v1:schedule-001",
             corpus="campus_services",
-            collection="service_catalog",
-            source_uri="https://service.muc.edu.cn/v2/site/index",
-            content_hash="sha256:catalog-001",
-        )
-        contact_ref = DocumentRef(
-            document_id="service:contact-001",
-            revision_track="source-faithful",
-            version_id="v1:contact-001",
-            corpus="campus_services",
-            collection="contact_directory",
-            source_uri="campus-agent://campus_services/contact_directory/docs/service:contact-001",
-            content_hash="sha256:contact-001",
+            collection="transport_schedule",
+            source_uri="https://www.muc.edu.cn/bus/schedule.htm",
+            content_hash="sha256:schedule-001",
         )
 
-        self.assertEqual(navigation_ref.corpus, "campus_services")
-        self.assertEqual(navigation_ref.collection, "service_catalog")
-        self.assertEqual(contact_ref.collection, "contact_directory")
+        self.assertEqual(transport_ref.corpus, "campus_services")
+        self.assertEqual(transport_ref.collection, "transport_schedule")
 
 
 if __name__ == "__main__":

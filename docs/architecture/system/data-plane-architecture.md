@@ -313,9 +313,9 @@ release task state machine 固定属于 ingestion data plane。
 - Panel 只能消费 app-api/operator projection 或未来 ingestion 投影，不直接调用
   release task mutation route
 
-`calendar/academic_calendar` 是同一类 ingestion-owned structured projection：官方网页 one-time
-source-pack 可以提供校历网页/图片 source evidence，但运行时 `academic_calendar_lookup` 只读取
-人工/OCR 校验后的 current structured records，不回源抓网页、不读 raw image，也不打开 RAG
+`calendar/academic_calendar` 当前是 ingestion-owned offline data asset /
+preparation scope：官方网页 one-time source-pack 可以提供校历网页/图片 source
+evidence，但当前不开放 `academic_calendar_lookup` runtime tool，也不打开 RAG
 query-serving alias。该 projection 的 read-model record 必须显式区分
 `teaching_week`、`named_event`、`term_window` 与 `class_day_override`；
 命名事件区间内部使用 start-inclusive / end-exclusive，同时保留面向用户的

@@ -32,6 +32,21 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
+	input.app.get("/api/campus-services/transport-schedule", async (c) => {
+		const scope = input.createRequestScope();
+		const projection = await scope
+			.resolveCampusServicesTransportScheduleService()
+			.getPublicSchedule({
+				serviceDate: c.req.query("serviceDate") ?? null,
+			});
+		return jsonResponse(projection, {
+			headers: {
+				"cache-control": "public, max-age=60, s-maxage=300",
+				etag: buildCampusServicesTransportScheduleEtag(projection),
+			},
+		});
+	});
+
 	input.app.get("/api/dining/halls", async () => {
 		const scope = input.createRequestScope();
 		return jsonResponse(await scope.resolveDiningOperationsService().getPublishedHalls());
@@ -114,4 +129,12 @@ function requireString(value: unknown, field: string): string {
 
 function optionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+function buildCampusServicesTransportScheduleEtag(projection: {
+	publishedAt: string | null;
+	releaseId: string | null;
+	serviceDate: string;
+}): string {
+	return `"campus-services-transport-schedule:${projection.serviceDate}:${projection.releaseId ?? "none"}:${projection.publishedAt ?? "none"}"`;
 }

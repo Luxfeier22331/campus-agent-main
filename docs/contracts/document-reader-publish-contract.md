@@ -162,9 +162,10 @@ app-api docs read model
 
 ## Deploy Sync Manifest Shape
 
-当前 `app-api` 导出脚本仍沿用历史命名 `docs:export-public-sync-manifest`；命令兼容入口
-`PUBLIC_DOCS_SYNC_MANIFEST_PATH` 只表示“面向浏览器文档阅读面的发布 manifest”，不表示已删除的
-`apps/public-docs` 仍是 forward surface。`campus-web` 同步发布 reader 时必须通过
+当前 `app-api` 导出脚本仍沿用历史文件名
+`export-public-docs-sync-manifest.ts`；命令兼容入口
+`PUBLIC_DOCS_SYNC_MANIFEST_PATH` 只表示“面向浏览器文档阅读面的发布 manifest”，不重新定义
+已删除 `apps/public-docs` 的任何产品职责。`campus-web` 同步发布 reader 时必须通过
 `--manifest-path` 或 `--manifest-key` 显式选择 manifest，不再消费
 `CAMPUS_DOCS_SYNC_MANIFEST_*` runtime env。
 

@@ -42,15 +42,29 @@ gsd-sdk query workstream.progress --raw --cwd "$PWD"
 Use plain Codex for discussion, architecture review, implementation, debugging,
 test execution, code review, commits, and closeout.
 
+## Feature Worktree Bring-up
+
+After creating a feature worktree, link ignored local env files from the root
+worktree instead of copying secrets:
+
+```bash
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+```
+
+This is only for local development and smoke validation. Deploy and staging
+checkouts continue to use their own ops-owned env files and secret stores.
+
 ## Scenario Routing
 
 ### New Feature
 
 1. Confirm the owner area in `.planning/WORKSTREAMS.md`.
-2. Use GSD SDK when the work spans multiple modules or needs persistent workstream
+2. If working inside `.worktrees/*`, run the feature worktree bring-up command.
+3. Use GSD SDK when the work spans multiple modules or needs persistent workstream
    coordination.
-3. Use Codex directly for narrow implementation.
-4. Persist durable contract/architecture changes before or with implementation.
+4. Use Codex directly for narrow implementation.
+5. Persist durable contract/architecture changes before or with implementation.
 
 ### Requirement Change During Development
 

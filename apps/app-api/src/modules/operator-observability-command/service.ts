@@ -122,6 +122,7 @@ export interface OperatorObservabilityCommandService {
 	}): Promise<{
 		acceptedActuations: number;
 		acceptedDecisions: number;
+		acceptedPostures: number;
 		acceptedSnapshots: number;
 	}>;
 }
@@ -714,6 +715,7 @@ export function buildOperatorObservabilityCommandService(
 			return {
 				acceptedActuations: projections.actuations.length,
 				acceptedDecisions: projections.decisions.length,
+				acceptedPostures: projections.postures.length,
 				acceptedSnapshots: projections.snapshots.length,
 			};
 		},

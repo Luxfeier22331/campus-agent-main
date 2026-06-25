@@ -498,67 +498,6 @@ class StructuredProjectionPostgresPublisherTestPart01(unittest.TestCase):
         self.assertEqual(typed_payload[0]["procedure_groups"], None)
         self.assertEqual(typed_payload[0]["field_status"], None)
 
-    def test_publish_service_status_release_writes_pg_read_model(self) -> None:
-        publisher = object.__new__(PostgresStructuredProjectionPublisher)
-        publisher.database_url = "postgresql://projection.example/db"
-        publisher.schema = "ingestion_projection"
-        bundle = {
-            "schema_version": "campus_services_projection_bundle.v1",
-            "service_status_records": [
-                {
-                    "subject_id": "library-haidian",
-                    "display_name": "海淀校区图书馆",
-                    "service_family": "library",
-                    "aliases": ["图书馆"],
-                    "campus_scope": "haidian",
-                    "location_refs": [{"label": "海淀校区图书馆"}],
-                    "affected_scope": "海淀校区",
-                    "observed_status": "open",
-                    "effective_from": "2026-04-24T08:00:00+08:00",
-                    "effective_until": "2026-04-24T22:00:00+08:00",
-                    "status_note": "工作日开放，节假日另行通知",
-                    "severity": "normal",
-                    "override_source_refs": ["notice:library-hours"],
-                    "related_notice_refs": ["notice:library-hours"],
-                    "extraction_status": "ready",
-                }
-            ],
-        }
-        cursor = _RecordingCursor()
-
-        with patch(
-            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
-            return_value=_FakeConnectionContextManager(cursor),
-        ):
-            publisher.publish_release(
-                corpus="campus_services",
-                collection="service_status",
-                release_id="service-status-20260427T090000",
-                generated_at="2026-04-27T09:00:00+08:00",
-                schema_version="campus_services_projection_bundle.v1",
-                artifact_object_key=(
-                    "campus_services/releases/service_status/service-status-"
-                    "20260427T090000/service-status-projection.json"
-                ),
-                artifact_checksum="sha256:test",
-                bundle=bundle,
-                validation_status="valid",
-            )
-
-        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
-        self.assertIn("service_status_read_model", executed_sql)
-        self.assertIn("subject_id", executed_sql)
-        self.assertIn("observed_status", executed_sql)
-        typed_insert_index = next(
-            index
-            for index, (query, _params) in enumerate(cursor.execute_calls)
-            if "service_status_read_model" in query and "jsonb_to_recordset" in query
-        )
-        typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
-        self.assertEqual(typed_payload[0]["record_id"], "library-haidian")
-        self.assertEqual(typed_payload[0]["service_family"], "library")
-        self.assertEqual(typed_payload[0]["status_note"], "工作日开放，节假日另行通知")
-
 
 if __name__ == "__main__":
     unittest.main()

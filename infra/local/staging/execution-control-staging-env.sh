@@ -155,7 +155,6 @@ const keys = [
   "EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS",
   "LLM_API_KEY",
   "LLM_BASE_URL",
-  "OTEL_INGEST_SHARED_SECRET",
   "APP_API_OTEL_INGEST_ENDPOINT",
   "APP_API_OTEL_INGEST_SHARED_SECRET",
   "AUDIT_LOG_PATH",
@@ -352,8 +351,7 @@ const workerSharedSecret =
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 const internalQuerySharedSecret = resolvedValue("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
 if (workerSharedSecret && internalQuerySharedSecret) {
-  const otelIngestSharedSecret =
-    resolvedValue("OTEL_INGEST_SHARED_SECRET") ||
+  const appApiOtelIngestSharedSecret =
     resolvedValue("APP_API_OTEL_INGEST_SHARED_SECRET") ||
     crypto
       .createHash("sha256")
@@ -362,10 +360,13 @@ if (workerSharedSecret && internalQuerySharedSecret) {
       .update("\0")
       .update(internalQuerySharedSecret)
       .digest("hex");
-  setDefault("OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
-  setDefault("APP_API_OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+  setDefault("APP_API_OTEL_INGEST_SHARED_SECRET", appApiOtelIngestSharedSecret);
+  setDefault(
+    "EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
+    `authorization=Bearer ${appApiOtelIngestSharedSecret}`,
+  );
 }
-setDefault("APP_API_OTEL_INGEST_ENDPOINT", "https://otel-ingest-staging.mucwiki-edge.link");
+setDefault("APP_API_OTEL_INGEST_ENDPOINT", "https://otel-collector-staging.mucwiki-edge.link");
 const stagingAppAPIBaseURL =
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
   "https://api-staging.mucwiki-edge.link";

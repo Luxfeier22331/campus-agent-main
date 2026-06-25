@@ -131,6 +131,17 @@ func resolveArtifactRequirement(
 		return resolverError("ambiguous_producer", "multiple open bindings produce "+artifactKind)
 	}
 	selected := openBindings[0]
+	if artifact.CurrentProjectionSupport != "supported_go_runtime" {
+		return resolverError(
+			"producer_projection_unsupported",
+			fmt.Sprintf(
+				"open binding %s produces unsupported projection %s current_projection_support=%s",
+				selected.BindingID,
+				artifactKind,
+				artifact.CurrentProjectionSupport,
+			),
+		)
+	}
 
 	capability, ok := capabilityRegistry.CapabilityByID(selected.OwnerCapability)
 	if !ok || !capability.Active || capability.OpeningGate != "open" {

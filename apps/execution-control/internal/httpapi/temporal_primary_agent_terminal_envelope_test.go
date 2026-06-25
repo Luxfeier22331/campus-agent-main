@@ -181,22 +181,22 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 			"agent_result_ref":     agentResultRef,
 			"provider_response_id": "resp-primary-agent-tool-finalization",
 			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-tool-finalization",
-			"selected_tools":       []string{"service_guide_lookup"},
+			"selected_tools":       []string{"transport_schedule_lookup"},
 			"terminal_envelope": map[string]any{
 				"kind":        "answer",
-				"answer_text": "校园卡丢失后请先挂失，再按服务指南补办。",
+				"answer_text": "当前还不能稳定确认校车时刻。",
 			},
 			"tool_results": []map[string]any{{
-				"arguments_json":    map[string]any{"query_text": "校园卡丢失"},
+				"arguments_json":    map[string]any{"query_text": "明天去丰台的校车", "intent": "next_departure"},
 				"capability":        "campus_services",
 				"fail_close_reason": "source_truth_unavailable",
-				"payload_kind":      "service_guide_lookup",
+				"payload_kind":      "transport_schedule_lookup",
 				"result": map[string]any{
 					"outcome": "temporarily_unverifiable",
 				},
-				"result_ref": "sdk-tool-result:service-guide:1",
+				"result_ref": "sdk-tool-result:transport-schedule:1",
 				"status":     "completed",
-				"tool_name":  "service_guide_lookup",
+				"tool_name":  "transport_schedule_lookup",
 			}},
 			"terminal_reason": "answer_completed",
 		},
@@ -245,14 +245,14 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 		t.Fatalf("tool_call_summaries = %#v, want one bounded tool summary", workflowTrace["tool_call_summaries"])
 	}
 	toolCall := toolCalls[0]
-	if toolCall["tool_name"] != "service_guide_lookup" ||
+	if toolCall["tool_name"] != "transport_schedule_lookup" ||
 		toolCall["capability"] != "campus_services" ||
-		toolCall["payload_kind"] != "service_guide_lookup" ||
+		toolCall["payload_kind"] != "transport_schedule_lookup" ||
 		toolCall["result_status"] != "temporarily_unverifiable" ||
 		toolCall["fail_close_reason"] != "source_truth_unavailable" ||
 		toolCall["result_projection"] != "bounded_summary" ||
 		toolCall["raw_result_included"] != false {
-		t.Fatalf("tool call summary = %#v, want bounded service guide failure summary", toolCall)
+		t.Fatalf("tool call summary = %#v, want bounded transport schedule failure summary", toolCall)
 	}
 	if _, exists := toolCall["result"]; exists {
 		t.Fatalf("tool call summary leaked raw result: %#v", toolCall)

@@ -87,6 +87,12 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "x-app-internal-auth",
 	},
 	{
+		method: "GET",
+		path: "/api/internal/operator/runtime/autoscaler/postures",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
 		method: "POST",
 		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
 		callerClass: "machine-internal",

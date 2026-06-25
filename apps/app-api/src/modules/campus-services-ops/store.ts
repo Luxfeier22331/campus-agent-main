@@ -6,7 +6,6 @@ import {
 	campusServicesOpsAuditEvents,
 	campusServicesOpsReleases,
 	campusServicesOpsSourceAttestations,
-	campusServicesOpsStatusOverrides,
 	campusServicesOpsTransportOverrides,
 } from "../../db/schema";
 import type {
@@ -15,7 +14,6 @@ import type {
 	CampusServicesOpsCurrentEffectiveSnapshot,
 	CampusServicesOpsRelease,
 	CampusServicesOpsSourceAttestation,
-	CampusServicesOpsStatusOverride,
 	CampusServicesOpsTransportOverride,
 } from "./types";
 
@@ -27,29 +25,19 @@ export interface CampusServicesOpsStore {
 		attestation: CampusServicesOpsSourceAttestation;
 		auditEvent: CampusServicesOpsAuditEvent;
 	}): Promise<void>;
-	createStatusOverride(input: {
-		auditEvent: CampusServicesOpsAuditEvent;
-		override: CampusServicesOpsStatusOverride;
-	}): Promise<void>;
 	createTransportOverride(input: {
 		auditEvent: CampusServicesOpsAuditEvent;
 		override: CampusServicesOpsTransportOverride;
 	}): Promise<void>;
 	getLatestRelease(): Promise<CampusServicesOpsRelease | null>;
-	getStatusOverride(overrideId: string): Promise<CampusServicesOpsStatusOverride | null>;
 	getTransportOverride(overrideId: string): Promise<CampusServicesOpsTransportOverride | null>;
 	listAttestations(): Promise<CampusServicesOpsSourceAttestation[]>;
 	listAuditEvents(): Promise<CampusServicesOpsAuditEvent[]>;
 	listReleases(): Promise<CampusServicesOpsRelease[]>;
-	listStatusOverrides(): Promise<CampusServicesOpsStatusOverride[]>;
 	listTransportOverrides(): Promise<CampusServicesOpsTransportOverride[]>;
 	publishRelease(input: {
 		auditEvent: CampusServicesOpsAuditEvent;
 		release: CampusServicesOpsRelease;
-	}): Promise<void>;
-	updateStatusOverride(input: {
-		auditEvent: CampusServicesOpsAuditEvent;
-		override: CampusServicesOpsStatusOverride;
 	}): Promise<void>;
 	updateTransportOverride(input: {
 		auditEvent: CampusServicesOpsAuditEvent;
@@ -134,44 +122,6 @@ function writeAttestationRow(attestation: CampusServicesOpsSourceAttestation) {
 	};
 }
 
-function toStatusOverride(
-	row: typeof campusServicesOpsStatusOverrides.$inferSelect,
-): CampusServicesOpsStatusOverride {
-	return {
-		createdAt: row.createdAt.toISOString(),
-		createdBy: toActor(row.createdByJson),
-		displayName: row.displayName,
-		effectiveFrom: row.effectiveFrom.toISOString(),
-		effectiveUntil: row.effectiveUntil.toISOString(),
-		message: row.message,
-		overrideId: row.overrideId,
-		reviewState: row.reviewState as CampusServicesOpsStatusOverride["reviewState"],
-		serviceId: row.serviceId,
-		sourceAttestationIds: row.sourceAttestationIdsJson,
-		status: row.status as CampusServicesOpsStatusOverride["status"],
-		updatedAt: row.updatedAt.toISOString(),
-		updatedBy: toActor(row.updatedByJson),
-	};
-}
-
-function writeStatusOverrideRow(override: CampusServicesOpsStatusOverride) {
-	return {
-		createdAt: toDate(override.createdAt),
-		createdByJson: actorJson(override.createdBy),
-		displayName: override.displayName,
-		effectiveFrom: toDate(override.effectiveFrom),
-		effectiveUntil: toDate(override.effectiveUntil),
-		message: override.message,
-		overrideId: override.overrideId,
-		reviewState: override.reviewState,
-		serviceId: override.serviceId,
-		sourceAttestationIdsJson: override.sourceAttestationIds,
-		status: override.status,
-		updatedAt: toDate(override.updatedAt),
-		updatedByJson: actorJson(override.updatedBy),
-	};
-}
-
 function toTransportOverride(
 	row: typeof campusServicesOpsTransportOverrides.$inferSelect,
 ): CampusServicesOpsTransportOverride {
@@ -243,7 +193,6 @@ export function createInMemoryCampusServicesOpsStore(): CampusServicesOpsStore {
 		attestations: [] as CampusServicesOpsSourceAttestation[],
 		auditEvents: [] as CampusServicesOpsAuditEvent[],
 		releases: [] as CampusServicesOpsRelease[],
-		statusOverrides: [] as CampusServicesOpsStatusOverride[],
 		transportOverrides: [] as CampusServicesOpsTransportOverride[],
 	};
 
@@ -258,21 +207,12 @@ export function createInMemoryCampusServicesOpsStore(): CampusServicesOpsStore {
 			state.attestations.push(clone(input.attestation));
 			state.auditEvents.push(clone(input.auditEvent));
 		},
-		async createStatusOverride(input) {
-			state.statusOverrides.push(clone(input.override));
-			state.auditEvents.push(clone(input.auditEvent));
-		},
 		async createTransportOverride(input) {
 			state.transportOverrides.push(clone(input.override));
 			state.auditEvents.push(clone(input.auditEvent));
 		},
 		async getLatestRelease() {
 			return clone(state.releases.at(-1) ?? null);
-		},
-		async getStatusOverride(overrideId) {
-			return clone(
-				state.statusOverrides.find((override) => override.overrideId === overrideId) ?? null,
-			);
 		},
 		async getTransportOverride(overrideId) {
 			return clone(
@@ -288,23 +228,11 @@ export function createInMemoryCampusServicesOpsStore(): CampusServicesOpsStore {
 		async listReleases() {
 			return clone([...state.releases].reverse());
 		},
-		async listStatusOverrides() {
-			return clone(state.statusOverrides);
-		},
 		async listTransportOverrides() {
 			return clone(state.transportOverrides);
 		},
 		async publishRelease(input) {
 			state.releases.push(clone(input.release));
-			state.auditEvents.push(clone(input.auditEvent));
-		},
-		async updateStatusOverride(input) {
-			const index = state.statusOverrides.findIndex(
-				(override) => override.overrideId === input.override.overrideId,
-			);
-			if (index >= 0) {
-				state.statusOverrides[index] = clone(input.override);
-			}
 			state.auditEvents.push(clone(input.auditEvent));
 		},
 		async updateTransportOverride(input) {
@@ -345,15 +273,6 @@ export function createPgCampusServicesOpsStore(
 				await tx.insert(campusServicesOpsAuditEvents).values(writeAuditEventRow(input.auditEvent));
 			});
 		},
-		async createStatusOverride(input) {
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				await tx
-					.insert(campusServicesOpsStatusOverrides)
-					.values(writeStatusOverrideRow(input.override));
-				await tx.insert(campusServicesOpsAuditEvents).values(writeAuditEventRow(input.auditEvent));
-			});
-		},
 		async createTransportOverride(input) {
 			const db = await getDb();
 			await db.transaction(async (tx) => {
@@ -371,15 +290,6 @@ export function createPgCampusServicesOpsStore(
 				.orderBy(desc(campusServicesOpsReleases.publishedAt))
 				.limit(1);
 			return rows[0] ? toRelease(rows[0]) : null;
-		},
-		async getStatusOverride(overrideId) {
-			const db = await getDb();
-			const rows = await db
-				.select()
-				.from(campusServicesOpsStatusOverrides)
-				.where(eq(campusServicesOpsStatusOverrides.overrideId, overrideId))
-				.limit(1);
-			return rows[0] ? toStatusOverride(rows[0]) : null;
 		},
 		async getTransportOverride(overrideId) {
 			const db = await getDb();
@@ -414,14 +324,6 @@ export function createPgCampusServicesOpsStore(
 				.orderBy(desc(campusServicesOpsReleases.publishedAt));
 			return rows.map(toRelease);
 		},
-		async listStatusOverrides() {
-			const db = await getDb();
-			const rows = await db
-				.select()
-				.from(campusServicesOpsStatusOverrides)
-				.orderBy(desc(campusServicesOpsStatusOverrides.updatedAt));
-			return rows.map(toStatusOverride);
-		},
 		async listTransportOverrides() {
 			const db = await getDb();
 			const rows = await db
@@ -434,16 +336,6 @@ export function createPgCampusServicesOpsStore(
 			const db = await getDb();
 			await db.transaction(async (tx) => {
 				await tx.insert(campusServicesOpsReleases).values(writeReleaseRow(input.release));
-				await tx.insert(campusServicesOpsAuditEvents).values(writeAuditEventRow(input.auditEvent));
-			});
-		},
-		async updateStatusOverride(input) {
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				await tx
-					.update(campusServicesOpsStatusOverrides)
-					.set(writeStatusOverrideRow(input.override))
-					.where(eq(campusServicesOpsStatusOverrides.overrideId, input.override.overrideId));
 				await tx.insert(campusServicesOpsAuditEvents).values(writeAuditEventRow(input.auditEvent));
 			});
 		},

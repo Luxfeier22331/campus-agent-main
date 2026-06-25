@@ -150,6 +150,70 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
+	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "knowledge" {
+		t.Fatalf("visible capabilities = %#v, want knowledge only", starter.input.VisibleCapabilities)
+	}
+}
+
+func TestExecutionRunCreateFailsClosedForProfileClosedCapability(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	body := strings.ReplaceAll(
+		durableRunCreateBodyForTest("run-campus-closed", "conv-campus-closed"),
+		`"requested_capability":"knowledge"`,
+		`"requested_capability":"campus_services"`,
+	)
+	body = strings.ReplaceAll(body, `"selected_capability":"knowledge"`, `"selected_capability":"campus_services"`)
+	body = strings.ReplaceAll(body, `"lane":"rag"`, `"lane":"campus_services"`)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusConflict, "capability_not_open")
+	if starter.input.RunID != "" {
+		t.Fatalf("closed capability must not start workflow: %#v", starter.input)
+	}
+	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
+		t.Fatal("closed capability must not create a run projection")
+	}
+}
+
+func TestExecutionRunCreateStartsProfileOpenCapabilityWithBoundedVisibleSet(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	starter := &fakeTemporalStarter{}
+	server := newWorkerAuthServerForTest()
+	server.config.OpenCapabilities = []string{"campus_services"}
+	attachRunProjectionStoreForHandlerTest(server, store)
+	server.temporalStarter = starter
+
+	body := strings.ReplaceAll(
+		durableRunCreateBodyForTest("run-campus-open", "conv-campus-open"),
+		`"requested_capability":"knowledge"`,
+		`"requested_capability":"campus_services"`,
+	)
+	body = strings.ReplaceAll(body, `"selected_capability":"knowledge"`, `"selected_capability":"campus_services"`)
+	body = strings.ReplaceAll(body, `"lane":"rag"`, `"lane":"campus_services"`)
+	response := httptest.NewRecorder()
+	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusAccepted {
+		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
+	}
+	if starter.input.RequestedCapability != "campus_services" {
+		t.Fatalf("requested capability = %q, want campus_services", starter.input.RequestedCapability)
+	}
+	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "campus_services" {
+		t.Fatalf("visible capabilities = %#v, want campus_services only", starter.input.VisibleCapabilities)
+	}
 }
 
 func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testing.T) {
@@ -229,6 +293,9 @@ func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *test
 			"workflow requested capability = %q, want empty before primary agent",
 			starter.input.RequestedCapability,
 		)
+	}
+	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "knowledge" {
+		t.Fatalf("visible capabilities = %#v, want knowledge only", starter.input.VisibleCapabilities)
 	}
 	run, err := store.GetRun(context.Background(), "run-temporal-neutral")
 	if err != nil {
@@ -345,43 +412,6 @@ func TestExecutionRunEventsRejectsInvalidWaitBudget(t *testing.T) {
 	server.ServeHTTP(response, request)
 
 	assertError(t, response, http.StatusBadRequest, "invalid_request")
-}
-
-func TestExecutionRunCancelDelegatesToTemporalCancellation(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	starter := &fakeTemporalStarter{}
-	server := newWorkerAuthServerForTest()
-	attachRunProjectionStoreForHandlerTest(server, store)
-	server.temporalStarter = starter
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-cancel",
-		"conv-temporal-cancel",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-
-	response := httptest.NewRecorder()
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/execution/runs/run-temporal-cancel/cancel",
-		strings.NewReader(`{"reason":"user_requested"}`),
-	)
-	request.Header.Set("x-worker-origin-auth", "secret")
-
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusAccepted {
-		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
-	}
-	if starter.cancelRunID != "run-temporal-cancel" {
-		t.Fatalf("Temporal cancel run id = %q, want run-temporal-cancel", starter.cancelRunID)
-	}
-	if starter.cancelReason != "user_requested" {
-		t.Fatalf("Temporal cancel reason = %q, want user_requested", starter.cancelReason)
-	}
 }
 
 func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
@@ -744,41 +774,5 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		if strings.Contains(serialized, forbidden) {
 			t.Fatalf("step trajectory leaked forbidden payload %q: %s", forbidden, serialized)
 		}
-	}
-}
-
-func TestExecutionRunCancelFailsClosedWhenTemporalCancelFails(t *testing.T) {
-	store := execution.NewInMemoryRunProjectionStore()
-	starter := &fakeTemporalStarter{cancelErr: context.DeadlineExceeded}
-	server := newWorkerAuthServerForTest()
-	attachRunProjectionStoreForHandlerTest(server, store)
-	server.temporalStarter = starter
-	now := time.Date(2026, 6, 4, 1, 2, 3, 0, time.UTC)
-	createHTTPAPIQueuedDurableRunForTest(
-		t,
-		store,
-		"run-temporal-cancel-fail",
-		"conv-temporal-cancel-fail",
-		now,
-		ragHandoffForDurableWorkerTest("hello"),
-	)
-
-	response := httptest.NewRecorder()
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/execution/runs/run-temporal-cancel-fail/cancel",
-		strings.NewReader(`{"reason":"user_requested"}`),
-	)
-	request.Header.Set("x-worker-origin-auth", "secret")
-
-	server.ServeHTTP(response, request)
-
-	assertError(t, response, http.StatusBadGateway, "temporal_workflow_cancel_failed")
-	run, err := store.GetRun(context.Background(), "run-temporal-cancel-fail")
-	if err != nil {
-		t.Fatalf("get run after failed cancel: %v", err)
-	}
-	if run.Status == execution.DurableRunStatusCanceled {
-		t.Fatal("failed Temporal cancel must not mark projection canceled")
 	}
 }

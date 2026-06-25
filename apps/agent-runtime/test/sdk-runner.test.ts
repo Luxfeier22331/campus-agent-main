@@ -178,11 +178,11 @@ describe("OpenAI Agents SDK runner adapter", () => {
 	it("matches SDK tool outputs by call ID when output items are interleaved", async () => {
 		const firstResult: ToolExecutionResult = {
 			status: "completed",
-			toolName: "service_status_lookup",
-			capability: "campus_services",
-			payloadKind: "service_status_lookup",
-			result: { outcome: "open" },
-			resultRef: "agent-runtime://run-sdk/tools/service_status_lookup",
+			toolName: "campus_notice_discover",
+			capability: "notice",
+			payloadKind: "campus_notice_discover",
+			result: { outcome: "resolved_current" },
+			resultRef: "agent-runtime://run-sdk/tools/campus_notice_discover",
 		};
 		const secondResult: ToolExecutionResult = {
 			status: "completed",
@@ -200,9 +200,9 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					{
 						type: "tool_call_item",
 						rawItem: {
-							name: "service_status_lookup",
-							callId: "call-service",
-							arguments: JSON.stringify({ service_key: "library" }),
+							name: "campus_notice_discover",
+							callId: "call-notice",
+							arguments: JSON.stringify({ query_text: "班车通知" }),
 						},
 					},
 					{
@@ -223,7 +223,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					{
 						type: "tool_call_output_item",
 						rawItem: {
-							callId: "call-service",
+							callId: "call-notice",
 							output: JSON.stringify(firstResult),
 						},
 					},

@@ -121,7 +121,10 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			fmt.Errorf("agent runtime terminal_envelope is required"),
 		)
 	}
-	payload := primaryAgentResultPayload(output)
+	payload, err := primaryAgentResultPayload(run.RunID, output)
+	if err != nil {
+		return s.failPrimaryAgentActivity(ctx, run, "agent_runtime_result_invalid", err)
+	}
 	if err := s.replaceTemporalAgentMetadata(ctx, run, func(metadata map[string]any) {
 		for key, value := range payload {
 			metadata[key] = value
@@ -302,7 +305,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 		}
 		callIndex := index + 1
 		stepID := fmt.Sprintf("sdk_tool.execute.%s.%d", toolName, callIndex)
-		resultRef := temporalProjectionRef(run.RunID, fmt.Sprintf("sdk-tools/%s/%d", toolName, callIndex))
+		resultRef := primaryAgentSDKToolProjectionRef(run.RunID, toolName, callIndex)
 		if err := validateSDKToolArguments(toolName, result.ArgumentsJSON); err != nil {
 			payload := map[string]any{
 				"argument_validation": err.Error(),
@@ -338,6 +341,63 @@ func (s *Server) projectPrimaryAgentToolResults(
 			}
 			return fmt.Errorf("agent runtime tool %s arguments invalid fail_close_reason=schema_contract_drift: %w", toolName, err)
 		}
+		resultPayload := cloneAnyMapFromMetadata(result.Result)
+		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
+			toolName,
+			capability,
+			payloadKind,
+			status,
+			resultPayload,
+			resultRef,
+		)
+		if err != nil {
+			payload := map[string]any{
+				"fail_close_reason": "result_contract_drift",
+				"payload_kind":      payloadKind,
+				"replan_reason":     strings.TrimSpace(replanReason),
+				"result":            resultPayload,
+				"runtime_surface":   "openai_agents_sdk_tool",
+				"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
+				"selected_tool":     toolName,
+				"tool_status":       status,
+			}
+			if err := s.projectTemporalStep(ctx, temporalStepProjection{
+				Attempt:         attempt,
+				Capability:      capability,
+				Run:             run,
+				Status:          "failed",
+				StepID:          stepID,
+				StepKind:        "tool",
+				TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+				WorkerID:        s.config.TemporalWorkerIdentity,
+				StartedAt:       startedAt,
+				CompletedAt:     completedAt,
+				UpdatedAt:       completedAt,
+				ResultKind:      "activity_failure",
+				ProjectionRef:   resultRef,
+				FailCloseReason: "result_contract_drift",
+				ReplanReason:    strings.TrimSpace(replanReason),
+				Payload:         payload,
+			}); err != nil {
+				return err
+			}
+			return fmt.Errorf("agent runtime tool %s result invalid fail_close_reason=result_contract_drift: %w", toolName, err)
+		}
+		payload := map[string]any{
+			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
+			"fail_close_reason": strings.TrimSpace(result.FailCloseReason),
+			"outcome":           resultPayload["outcome"],
+			"payload_kind":      payloadKind,
+			"replan_reason":     strings.TrimSpace(replanReason),
+			"result":            resultPayload,
+			"runtime_surface":   "openai_agents_sdk_tool",
+			"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
+			"selected_tool":     toolName,
+			"tool_status":       status,
+		}
+		if len(resultEnvelope) > 0 {
+			payload["result_envelope"] = resultEnvelope
+		}
 		if err := s.projectTemporalStep(ctx, temporalStepProjection{
 			Attempt:         attempt,
 			Capability:      capability,
@@ -354,18 +414,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 			ProjectionRef:   resultRef,
 			FailCloseReason: strings.TrimSpace(result.FailCloseReason),
 			ReplanReason:    strings.TrimSpace(replanReason),
-			Payload: map[string]any{
-				"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-				"fail_close_reason": strings.TrimSpace(result.FailCloseReason),
-				"outcome":           result.Result["outcome"],
-				"payload_kind":      payloadKind,
-				"replan_reason":     strings.TrimSpace(replanReason),
-				"result":            cloneAnyMapFromMetadata(result.Result),
-				"runtime_surface":   "openai_agents_sdk_tool",
-				"sdk_result_ref":    strings.TrimSpace(result.ResultRef),
-				"selected_tool":     toolName,
-				"tool_status":       status,
-			},
+			Payload:         payload,
 		}); err != nil {
 			return err
 		}
@@ -410,6 +459,47 @@ func validatePrimaryAgentSDKToolResult(toolName string, capability string, paylo
 		)
 	}
 	return nil
+}
+
+func sdkToolResultEnvelopeForProjection(
+	toolName string,
+	capability string,
+	payloadKind string,
+	status string,
+	result map[string]any,
+	projectionRef string,
+) (map[string]any, error) {
+	if capability != "campus_services" {
+		return nil, nil
+	}
+	if strings.TrimSpace(status) != "completed" {
+		return nil, nil
+	}
+	envelope := cloneAnyMapFromMetadata(result["result_envelope"])
+	if len(envelope) == 0 {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope is required")
+	}
+	if stringValue(envelope["schema_version"]) != "campus_services_tool_result.v1" {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope schema_version drift")
+	}
+	if stringValue(envelope["capability"]) != capability ||
+		stringValue(envelope["tool_name"]) != toolName {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope tool identity drift")
+	}
+	if stringValue(envelope["query_kind"]) == "" ||
+		stringValue(envelope["outcome"]) == "" ||
+		stringValue(envelope["content_hash"]) == "" {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope missing required fields")
+	}
+	if stringValue(envelope["outcome"]) != stringValue(result["outcome"]) {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope outcome drift")
+	}
+	if payloadKind == "transport_schedule_lookup" &&
+		stringValue(envelope["query_kind"]) != "transport_schedule" {
+		return nil, fmt.Errorf("campus_services typed tool result_envelope query_kind drift")
+	}
+	envelope["projection_ref"] = projectionRef
+	return envelope, nil
 }
 
 func temporalSDKToolStepStatus(status string) string {
@@ -591,40 +681,6 @@ func (s *Server) failPrimaryAgentActivity(
 		TimeoutOutcome:  timeoutOutcome,
 	}, cause)
 	return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
-}
-
-func primaryAgentResultPayload(output temporalruntime.ExecutePrimaryAgentActivityOutput) map[string]any {
-	toolResults := make([]map[string]any, 0, len(output.ToolResults))
-	for _, result := range output.ToolResults {
-		toolResults = append(toolResults, map[string]any{
-			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"capability":        result.Capability,
-			"fail_close_reason": result.FailCloseReason,
-			"payload_kind":      result.PayloadKind,
-			"result":            result.Result,
-			"result_ref":        result.ResultRef,
-			"status":            result.Status,
-			"tool_name":         result.ToolName,
-		})
-	}
-	return map[string]any{
-		"agent_result_ref":     output.AgentResultRef,
-		"final_output":         output.FinalOutput,
-		"model_name":           output.ModelName,
-		"model_provider":       output.ModelProvider,
-		"provider_response_id": output.ProviderResponseID,
-		"sdk_trace_ref":        output.SDKTraceRef,
-		"selected_tools":       append([]string{}, output.SelectedTools...),
-		"terminal_envelope":    cloneAnyMapFromMetadata(output.TerminalEnvelope),
-		"terminal_reason":      output.TerminalReason,
-		"tool_results":         toolResults,
-		"usage": map[string]any{
-			"cached_input_tokens":      output.Usage.CachedInputTokens,
-			"estimated_cost_micro_usd": output.Usage.EstimatedCostMicroUSD,
-			"input_tokens":             output.Usage.InputTokens,
-			"output_tokens":            output.Usage.OutputTokens,
-		},
-	}
 }
 
 func validPrimaryAgentTerminalEnvelope(envelope map[string]any) bool {

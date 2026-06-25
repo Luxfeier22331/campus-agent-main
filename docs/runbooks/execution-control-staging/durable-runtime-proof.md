@@ -87,6 +87,10 @@ readiness 假绿；`pnpm --dir apps/app-api chat:durable:e2e:staging` 仍必须�
 
 ### Worker Autoscaler Projection / Apply Proof
 
+This proof applies only to the Docker Compose staging runtime. K8s staging uses
+KEDA/HPA for worker replicas and `keda-hpa-posture-collector` for normalized
+posture evidence.
+
 autoscaler proof 使用真实 app-api operator runtime projection，不再使用本地
 `autoscaler-input.json`。执行顺序固定为：
 

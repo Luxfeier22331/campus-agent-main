@@ -6,7 +6,6 @@ import type { CampusServicesOpsStore } from "./store";
 import type {
 	CampusServicesOpsActor,
 	CampusServicesOpsAuditEvent,
-	CampusServicesOpsCreateStatusOverridePayload,
 	CampusServicesOpsCreateTransportOverridePayload,
 	CampusServicesOpsCurrentEffectiveSnapshot,
 	CampusServicesOpsDiffSummary,
@@ -15,10 +14,8 @@ import type {
 	CampusServicesOpsReleasePayload,
 	CampusServicesOpsReleasePreview,
 	CampusServicesOpsService,
-	CampusServicesOpsServiceStatus,
 	CampusServicesOpsSourceAttestation,
 	CampusServicesOpsSourceType,
-	CampusServicesOpsStatusOverride,
 	CampusServicesOpsTransportOverride,
 	CampusServicesOpsTransportStatus,
 } from "./types";
@@ -37,12 +34,6 @@ const SOURCE_TYPES = new Set<CampusServicesOpsSourceType>([
 	"onsite_confirmation",
 	"operator_curated",
 	"phone_confirmation",
-]);
-const SERVICE_STATUSES = new Set<CampusServicesOpsServiceStatus>([
-	"closed",
-	"limited",
-	"open",
-	"temporarily_unavailable",
 ]);
 const TRANSPORT_STATUSES = new Set<CampusServicesOpsTransportStatus>([
 	"delayed",
@@ -182,14 +173,6 @@ function normalizeSourceType(value: unknown): CampusServicesOpsSourceType {
 	return normalized as CampusServicesOpsSourceType;
 }
 
-function normalizeServiceStatus(value: unknown): CampusServicesOpsServiceStatus {
-	const normalized = normalizeRequiredString({ field: "status", value });
-	if (!SERVICE_STATUSES.has(normalized as CampusServicesOpsServiceStatus)) {
-		throw validationError("status is not supported.", { field: "status" });
-	}
-	return normalized as CampusServicesOpsServiceStatus;
-}
-
 function normalizeTransportStatus(value: unknown): CampusServicesOpsTransportStatus {
 	const normalized = normalizeRequiredString({ field: "serviceStatus", value });
 	if (!TRANSPORT_STATUSES.has(normalized as CampusServicesOpsTransportStatus)) {
@@ -215,20 +198,6 @@ function sanitizeAttestationForAudit(
 		sourceType: attestation.sourceType,
 		status: attestation.status,
 		summary: attestation.summary,
-	};
-}
-
-function sanitizeStatusOverrideForAudit(
-	override: CampusServicesOpsStatusOverride,
-): Record<string, unknown> {
-	return {
-		effectiveFrom: override.effectiveFrom,
-		effectiveUntil: override.effectiveUntil,
-		overrideId: override.overrideId,
-		reviewState: override.reviewState,
-		serviceId: override.serviceId,
-		sourceAttestationIds: override.sourceAttestationIds,
-		status: override.status,
 	};
 }
 
@@ -284,43 +253,6 @@ async function assertAttestationsExist(
 	}
 }
 
-function normalizeStatusOverridePayload(
-	payload: CampusServicesOpsCreateStatusOverridePayload,
-): Pick<
-	CampusServicesOpsStatusOverride,
-	| "displayName"
-	| "effectiveFrom"
-	| "effectiveUntil"
-	| "message"
-	| "serviceId"
-	| "sourceAttestationIds"
-	| "status"
-> {
-	const effectiveFrom = normalizeTimestamp(payload.effectiveFrom, "effectiveFrom");
-	const effectiveUntil = normalizeTimestamp(payload.effectiveUntil, "effectiveUntil");
-	assertEffectiveWindow({ effectiveFrom, effectiveUntil });
-	return {
-		displayName: normalizeRequiredString({
-			field: "displayName",
-			maxLength: 160,
-			value: payload.displayName,
-		}),
-		effectiveFrom,
-		effectiveUntil,
-		message: normalizeRequiredString({ field: "message", maxLength: 500, value: payload.message }),
-		serviceId: normalizeRequiredString({
-			field: "serviceId",
-			maxLength: 160,
-			value: payload.serviceId,
-		}),
-		sourceAttestationIds: normalizeStringArray(
-			payload.sourceAttestationIds,
-			"sourceAttestationIds",
-		),
-		status: normalizeServiceStatus(payload.status),
-	};
-}
-
 function normalizeTransportOverridePayload(
 	payload: CampusServicesOpsCreateTransportOverridePayload,
 ): Pick<
@@ -358,7 +290,7 @@ function normalizeReleaseNotes(payload: CampusServicesOpsReleasePayload): string
 	return normalizeOptionalString({ field: "notes", maxLength: 1000, value: payload.notes });
 }
 
-function itemKey(kind: "status" | "transport", id: string): string {
+function itemKey(kind: "transport", id: string): string {
 	return `${kind}:${id}`;
 }
 
@@ -367,16 +299,10 @@ function calculateDiff(input: {
 	previous: CampusServicesOpsCurrentEffectiveSnapshot | null;
 }): CampusServicesOpsDiffSummary {
 	const previousKeys = new Set<string>();
-	for (const override of input.previous?.statusOverrides ?? []) {
-		previousKeys.add(itemKey("status", override.overrideId));
-	}
 	for (const override of input.previous?.transportOverrides ?? []) {
 		previousKeys.add(itemKey("transport", override.overrideId));
 	}
 	const currentKeys = new Set<string>();
-	for (const override of input.current.statusOverrides) {
-		currentKeys.add(itemKey("status", override.overrideId));
-	}
 	for (const override of input.current.transportOverrides) {
 		currentKeys.add(itemKey("transport", override.overrideId));
 	}
@@ -405,14 +331,6 @@ async function buildCurrentEffectiveSnapshot(
 	generatedAt: string,
 ): Promise<CampusServicesOpsCurrentEffectiveSnapshot> {
 	const nowMs = new Date(generatedAt).getTime();
-	const statusOverrides = (await store.listStatusOverrides()).filter((override) =>
-		isCurrentEffective({
-			effectiveFrom: override.effectiveFrom,
-			effectiveUntil: override.effectiveUntil,
-			nowMs,
-			reviewState: override.reviewState,
-		}),
-	);
 	const transportOverrides = (await store.listTransportOverrides()).filter((override) =>
 		isCurrentEffective({
 			effectiveFrom: override.effectiveFrom,
@@ -423,7 +341,6 @@ async function buildCurrentEffectiveSnapshot(
 	);
 	return {
 		generatedAt,
-		statusOverrides,
 		transportOverrides,
 	};
 }
@@ -435,8 +352,7 @@ async function buildReleasePreview(input: {
 }): Promise<CampusServicesOpsReleasePreview> {
 	const currentEffective = await buildCurrentEffectiveSnapshot(input.store, input.generatedAt);
 	const latestRelease = await input.store.getLatestRelease();
-	const itemCount =
-		currentEffective.statusOverrides.length + currentEffective.transportOverrides.length;
+	const itemCount = currentEffective.transportOverrides.length;
 	return {
 		currentEffective,
 		diff: calculateDiff({
@@ -495,37 +411,6 @@ export function buildCampusServicesOpsService(
 			return { attestation };
 		},
 
-		async createStatusOverride(input) {
-			const actor = ensureOperatorPrincipal(input.principal);
-			const normalized = normalizeStatusOverridePayload(input.payload);
-			await assertAttestationsExist(dependencies.store, normalized.sourceAttestationIds);
-			const occurredAt = now().toISOString();
-			const override: CampusServicesOpsStatusOverride = {
-				...normalized,
-				createdAt: occurredAt,
-				createdBy: actor,
-				overrideId: generateId("services_status_override"),
-				reviewState: "ready_for_publish",
-				updatedAt: occurredAt,
-				updatedBy: actor,
-			};
-			await dependencies.store.createStatusOverride({
-				auditEvent: buildAuditEvent({
-					action: "status_override.created",
-					actor,
-					after: sanitizeStatusOverrideForAudit(override),
-					before: null,
-					generateId,
-					objectId: override.overrideId,
-					objectType: "service_status_override",
-					occurredAt,
-					summary: "Campus services status override created.",
-				}),
-				override,
-			});
-			return { override };
-		},
-
 		async createTransportOverride(input) {
 			const actor = ensureOperatorPrincipal(input.principal);
 			const normalized = normalizeTransportOverridePayload(input.payload);
@@ -566,7 +451,6 @@ export function buildCampusServicesOpsService(
 			ensureOperatorPrincipal(input.principal);
 			return {
 				attestations: await dependencies.store.listAttestations(),
-				statusOverrides: await dependencies.store.listStatusOverrides(),
 				transportOverrides: await dependencies.store.listTransportOverrides(),
 			};
 		},
@@ -574,11 +458,6 @@ export function buildCampusServicesOpsService(
 		async listReleases(input) {
 			ensureOperatorPrincipal(input.principal);
 			return { releases: await dependencies.store.listReleases() };
-		},
-
-		async listStatusOverrides(input) {
-			ensureOperatorPrincipal(input.principal);
-			return { overrides: await dependencies.store.listStatusOverrides() };
 		},
 
 		async listTransportOverrides(input) {
@@ -641,47 +520,6 @@ export function buildCampusServicesOpsService(
 				diff: preview.diff,
 				release,
 			};
-		},
-
-		async updateStatusOverride(input) {
-			const actor = ensureOperatorPrincipal(input.principal);
-			const existing = await dependencies.store.getStatusOverride(input.overrideId.trim());
-			if (!existing) {
-				throw routeError({
-					code: "status_override_not_found",
-					message: "Campus services status override not found.",
-					status: 404,
-				});
-			}
-			const mergedPayload = { ...existing, ...input.payload };
-			const normalized = normalizeStatusOverridePayload(mergedPayload);
-			await assertAttestationsExist(dependencies.store, normalized.sourceAttestationIds);
-			const occurredAt = now().toISOString();
-			const override: CampusServicesOpsStatusOverride = {
-				...existing,
-				...normalized,
-				reviewState:
-					input.payload.reviewState == null
-						? existing.reviewState
-						: normalizeReviewState(input.payload.reviewState),
-				updatedAt: occurredAt,
-				updatedBy: actor,
-			};
-			await dependencies.store.updateStatusOverride({
-				auditEvent: buildAuditEvent({
-					action: "status_override.updated",
-					actor,
-					after: sanitizeStatusOverrideForAudit(override),
-					before: sanitizeStatusOverrideForAudit(existing),
-					generateId,
-					objectId: override.overrideId,
-					objectType: "service_status_override",
-					occurredAt,
-					summary: "Campus services status override updated.",
-				}),
-				override,
-			});
-			return { override };
 		},
 
 		async updateTransportOverride(input) {

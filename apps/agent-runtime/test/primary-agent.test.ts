@@ -11,6 +11,32 @@ const providerConfig = {
 	transport: "responses",
 };
 
+const testParameterSchema = {
+	type: "object" as const,
+	additionalProperties: false as const,
+	properties: {
+		query_text: { type: "string", minLength: 1 },
+	},
+	required: ["query_text"],
+};
+
+const knowledgePayloadSchemaRef = schemaRef(
+	"knowledge-tool-contracts.v1",
+	"KnowledgeQuerySignalPayload",
+);
+const knowledgeResultSchemaRef = schemaRef(
+	"knowledge-tool-contracts.v1",
+	"KnowledgeQuerySignalResult",
+);
+const transportPayloadSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupPayload",
+);
+const transportResultSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupResult",
+);
+
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-catalog.v1",
 	catalogVersion: "test",
@@ -22,13 +48,14 @@ const catalog: ToolCatalog = {
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
-			payloadSchemaRef: "manual.KnowledgeQuerySignalPayload",
-			resultSchemaRef: "manual.KnowledgeQuerySignalResult",
+			payloadSchemaRef: knowledgePayloadSchemaRef,
+			resultSchemaRef: knowledgeResultSchemaRef,
 			handler: {
 				type: "workflow_signal",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
+			parameterSchema: testParameterSchema,
 		},
 		{
 			name: "transport_schedule_lookup",
@@ -37,17 +64,22 @@ const catalog: ToolCatalog = {
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
-			payloadSchemaRef: "manual.TransportScheduleLookupPayload",
-			resultSchemaRef: "manual.TransportScheduleLookupResult",
+			payloadSchemaRef: transportPayloadSchemaRef,
+			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
 				endpoint: "/internal/query/campus-services/transport-schedule",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
+			parameterSchema: testParameterSchema,
 		},
 	],
 };
+
+function schemaRef(schemaName: string, definitionName: string): string {
+	return `https://muc.wiki/campus-agent/schemas/${schemaName}.schema.json#/$defs/${definitionName}`;
+}
 
 describe("primary agent runtime", () => {
 	it("returns a no-tool final answer without synthetic capability routing", async () => {

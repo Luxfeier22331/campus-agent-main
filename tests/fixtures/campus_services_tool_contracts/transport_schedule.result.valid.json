@@ -1,0 +1,17 @@
+{
+	"schema_version": "campus_services_tool_contracts.v1",
+	"tool_name": "transport_schedule_lookup",
+	"packet_kind": "result",
+	"result": {
+		"query_text": "明天去丰台最早校车几点",
+		"intent": "first_departure",
+		"outcome": "resolved_current",
+		"resolved_route": {
+			"route_id": "route:haidian-to-fengtai",
+			"display_name": "海淀至丰台班车",
+			"service_family": "intercampus"
+		},
+		"service_status": "running",
+		"source_refs": ["campus_services:transport_schedule:snapshot:bus:2026-04-20"]
+	}
+}

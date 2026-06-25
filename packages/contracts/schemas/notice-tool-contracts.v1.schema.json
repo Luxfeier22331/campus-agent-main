@@ -1,0 +1,712 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json",
+	"title": "campus-agent notice typed tool payload and result contracts",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "tool_name", "packet_kind"],
+	"properties": {
+		"schema_version": {
+			"const": "notice_tool_contracts.v1"
+		},
+		"tool_name": {
+			"enum": [
+				"campus_notice_discover",
+				"campus_notice_period_summary",
+				"campus_notice_get",
+				"campus_notice_change_set_lookup"
+			]
+		},
+		"packet_kind": {
+			"enum": ["payload", "result"]
+		},
+		"payload": {
+			"type": "object"
+		},
+		"result": {
+			"type": "object"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["payload"],
+				"not": {
+					"required": ["result"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["result"],
+				"not": {
+					"required": ["payload"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_discover"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/CampusNoticeDiscoverPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_discover"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/CampusNoticeDiscoverResult"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_period_summary"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/CampusNoticePeriodSummaryPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_period_summary"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/CampusNoticePeriodSummaryResult"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_get"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/CampusNoticeGetPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_get"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/CampusNoticeGetResult"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_change_set_lookup"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/CampusNoticeChangeSetLookupPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "campus_notice_change_set_lookup"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/CampusNoticeChangeSetLookupResult"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		},
+		"StringArray": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"TemporalQuery": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"mode": {
+							"enum": ["current", "latest", "effective", "as_of", "current_year", null]
+						},
+						"as_of": {
+							"type": ["string", "null"]
+						},
+						"year_hint": {
+							"type": ["string", "null"]
+						}
+					}
+				}
+			]
+		},
+		"NoticeSourceFamily": {
+			"enum": ["official_web_public_notice", "internal_notice_restricted", "wechat_public_notice"]
+		},
+		"NoticeTargetSurface": {
+			"enum": [
+				"notice_level_query",
+				"procurement_notice_history",
+				"regulations/*",
+				"regulations/student_rules",
+				"regulations/institutional_rules",
+				"regulations/scoped_rules",
+				"campus_services/service_status_candidate",
+				"campus_services/special_service_candidate",
+				"campus_services/stable_contact_candidate",
+				"publication_surface_candidate",
+				"multimodal_processing_candidate",
+				"unsupported"
+			]
+		},
+		"Outcome": {
+			"enum": [
+				"resolved_current",
+				"resolved_historical_reference",
+				"not_found",
+				"temporarily_unverifiable",
+				"clarification_required"
+			]
+		},
+		"OptionalFailCloseReason": {
+			"enum": [
+				"",
+				"current_state_unverifiable",
+				"source_truth_unavailable",
+				"temporal_scope_ambiguous",
+				"source_family_unavailable",
+				"source_conflict"
+			]
+		},
+		"RequiredFailCloseReason": {
+			"enum": [
+				"current_state_unverifiable",
+				"source_truth_unavailable",
+				"temporal_scope_ambiguous",
+				"source_family_unavailable",
+				"source_conflict"
+			]
+		},
+		"NoticeCard": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["notice_id", "title", "source_family", "source_url"],
+			"properties": {
+				"notice_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"title": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"source_family": {
+					"$ref": "#/$defs/NoticeSourceFamily"
+				},
+				"source_url": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"NoticeDisplayPolicy": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["public_surface", "full_body_forbidden", "body_access"],
+			"properties": {
+				"public_surface": {
+					"enum": ["card_only", "link_only", "bounded_summary", "fact_extraction_only"]
+				},
+				"full_body_forbidden": {
+					"const": true
+				},
+				"body_access": {
+					"enum": ["none", "internal_context_only", "downstream_materialization_only"]
+				}
+			}
+		},
+		"NoticeDateRange": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["start_date", "end_date"],
+			"properties": {
+				"start_date": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"end_date": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"timezone": {
+					"$ref": "#/$defs/NonEmptyString"
+				}
+			}
+		},
+		"CampusNoticeDiscoverPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"temporal_query": {
+					"$ref": "#/$defs/TemporalQuery"
+				},
+				"source_families": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeSourceFamily"
+					}
+				},
+				"target_surfaces": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeTargetSurface"
+					}
+				},
+				"max_results": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"CampusNoticeDiscoverResult": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["query_text", "outcome"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"outcome": {
+					"$ref": "#/$defs/Outcome"
+				},
+				"notice_cards": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeCard"
+					}
+				},
+				"fail_close_reason": {
+					"$ref": "#/$defs/OptionalFailCloseReason"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"enum": ["resolved_current", "resolved_historical_reference"]
+							}
+						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["notice_cards"],
+						"properties": {
+							"notice_cards": {
+								"minItems": 1
+							}
+						}
+					}
+				},
+				{
+					"$ref": "#/$defs/FailClosedRequiresReason"
+				}
+			]
+		},
+		"CampusNoticePeriodSummaryPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text", "date_range"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"date_range": {
+					"$ref": "#/$defs/NoticeDateRange"
+				},
+				"source_families": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeSourceFamily"
+					}
+				},
+				"target_surfaces": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeTargetSurface"
+					}
+				},
+				"group_by": {
+					"enum": ["topic", "day", "source_family"]
+				},
+				"max_items": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"CampusNoticePeriodSummaryResult": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["query_text", "outcome", "date_range"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"outcome": {
+					"$ref": "#/$defs/Outcome"
+				},
+				"date_range": {
+					"$ref": "#/$defs/NoticeDateRange"
+				},
+				"groups": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"additionalProperties": true
+					}
+				},
+				"notice_cards": {
+					"type": "array",
+					"items": {
+						"$ref": "#/$defs/NoticeCard"
+					}
+				},
+				"bounded_summary": {
+					"type": "string"
+				},
+				"source_ref_count": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"display_policy": {
+					"$ref": "#/$defs/NoticeDisplayPolicy"
+				},
+				"fail_close_reason": {
+					"$ref": "#/$defs/OptionalFailCloseReason"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"enum": ["resolved_current", "resolved_historical_reference"]
+							}
+						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": [
+							"notice_cards",
+							"groups",
+							"bounded_summary",
+							"source_ref_count",
+							"display_policy"
+						],
+						"properties": {
+							"notice_cards": {
+								"minItems": 1
+							},
+							"groups": {
+								"minItems": 1
+							},
+							"bounded_summary": {
+								"$ref": "#/$defs/NonEmptyString"
+							},
+							"source_ref_count": {
+								"type": "integer",
+								"minimum": 1
+							}
+						}
+					}
+				},
+				{
+					"$ref": "#/$defs/FailClosedRequiresReason"
+				}
+			]
+		},
+		"CampusNoticeGetPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["notice_id"],
+			"properties": {
+				"notice_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"source_family": {
+					"oneOf": [
+						{
+							"const": ""
+						},
+						{
+							"$ref": "#/$defs/NoticeSourceFamily"
+						}
+					]
+				}
+			}
+		},
+		"CampusNoticeGetResult": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["notice_id", "outcome"],
+			"properties": {
+				"notice_id": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"outcome": {
+					"$ref": "#/$defs/Outcome"
+				},
+				"title": {
+					"type": "string"
+				},
+				"source_family": {
+					"oneOf": [
+						{
+							"const": ""
+						},
+						{
+							"$ref": "#/$defs/NoticeSourceFamily"
+						}
+					]
+				},
+				"source_url": {
+					"type": "string"
+				},
+				"display_policy": {
+					"$ref": "#/$defs/NoticeDisplayPolicy"
+				},
+				"fail_close_reason": {
+					"$ref": "#/$defs/OptionalFailCloseReason"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"enum": ["resolved_current", "resolved_historical_reference"]
+							}
+						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["title", "source_family", "source_url", "display_policy"],
+						"properties": {
+							"title": {
+								"$ref": "#/$defs/NonEmptyString"
+							},
+							"source_url": {
+								"$ref": "#/$defs/NonEmptyString"
+							}
+						}
+					}
+				},
+				{
+					"$ref": "#/$defs/FailClosedRequiresReason"
+				}
+			]
+		},
+		"CampusNoticeChangeSetLookupPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"route_labels": {
+					"$ref": "#/$defs/StringArray"
+				},
+				"direction_labels": {
+					"$ref": "#/$defs/StringArray"
+				},
+				"stop_labels": {
+					"$ref": "#/$defs/StringArray"
+				},
+				"service_date": {
+					"type": "string"
+				},
+				"query_time_anchor": {
+					"type": "string"
+				}
+			}
+		},
+		"CampusNoticeChangeSetLookupResult": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["query_text", "outcome"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"outcome": {
+					"$ref": "#/$defs/Outcome"
+				},
+				"change_set": {
+					"type": ["object", "null"],
+					"additionalProperties": true
+				},
+				"fail_close_reason": {
+					"$ref": "#/$defs/OptionalFailCloseReason"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"const": "resolved_current"
+							}
+						},
+						"required": ["outcome"]
+					},
+					"then": {
+						"required": ["change_set"],
+						"properties": {
+							"change_set": {
+								"type": "object",
+								"minProperties": 1
+							}
+						}
+					}
+				},
+				{
+					"$ref": "#/$defs/FailClosedRequiresReason"
+				}
+			]
+		},
+		"FailClosedRequiresReason": {
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "temporarily_unverifiable"
+					}
+				},
+				"required": ["outcome"]
+			},
+			"then": {
+				"required": ["fail_close_reason"],
+				"properties": {
+					"fail_close_reason": {
+						"$ref": "#/$defs/RequiredFailCloseReason"
+					}
+				}
+			}
+		}
+	}
+}

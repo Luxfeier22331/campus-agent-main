@@ -73,21 +73,16 @@ repo 级语义固定为：
 
 ### 决策 3：campus services online lookup 读取 PG typed read model
 
-`service_status_lookup`、`transport_schedule_lookup` 与 `service_guide_lookup` 的
-online consumption 不读 raw notice、不读 OCR
+`transport_schedule_lookup` 的 online consumption 不读 raw notice、不读 OCR
 artifact、不扫 source-truth inventory，也不直接解析对象存储中的 current JSON。
 
 read model 至少固定为：
 
-- `service_status_read_model`
 - `transport_routes`
 - `transport_schedule_snapshots`
 - `transport_scheduled_departures`
 - `transport_service_exceptions`
 - `transport_release_notices`
-- `service_guide_read_model`
-- `service_guide_conflicts`
-- `service_guide_manual_review_sources`
 
 每条业务 row 必须携带 `release_id`，runtime 只读取 current pointer 指向的 release。
 历史查询、as-of 查询与回滚必须通过 release id / published time 显式表达，不得复用

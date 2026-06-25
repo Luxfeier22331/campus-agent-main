@@ -60,6 +60,10 @@ func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) 
 	if err != nil {
 		t.Fatalf("load Go tool registry: %v", err)
 	}
+	artifactRegistry, err := runtimepolicy.LoadWorkflowArtifactRegistry("")
+	if err != nil {
+		t.Fatalf("load workflow artifact registry: %v", err)
+	}
 	registeredEndpoints := structuredQueryEndpointsByPath()
 
 	for _, tool := range catalog.Tools {
@@ -75,6 +79,11 @@ func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) 
 		}
 		if spec.OwnerCapability != tool.Capability || spec.PayloadKind != tool.Name {
 			t.Fatalf("tool %s spec drift: capability=%q payload_kind=%q", tool.Name, spec.OwnerCapability, spec.PayloadKind)
+		}
+		if spec.OwnerCapability == "campus_services" {
+			if err := runtimepolicy.ValidateModelVisibleToolArtifactGate(spec, artifactRegistry); err != nil {
+				t.Fatalf("tool %s is not backed by an open supported workflow artifact binding: %v", tool.Name, err)
+			}
 		}
 		if registeredEndpoints[tool.Handler.Endpoint] != tool.Name {
 			t.Fatalf(
@@ -143,16 +152,67 @@ func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) 
 		if _, ok := schema.Parameters["required"].([]any); !ok {
 			t.Fatalf("tool %s schema missing required array", tool.Name)
 		}
+		assertStrictObjectSchema(t, tool.Name, schema.Parameters)
 	}
+}
+
+func assertStrictObjectSchema(t *testing.T, toolName string, schema map[string]any) {
+	t.Helper()
+	if !isObjectOrNullableObject(schema["type"]) {
+		t.Fatalf("tool %s object schema has type=%v, want object", toolName, schema["type"])
+	}
+	if schema["additionalProperties"] != false {
+		t.Fatalf("tool %s object schema must set additionalProperties=false", toolName)
+	}
+	rawProperties, ok := schema["properties"].(map[string]any)
+	if !ok {
+		t.Fatalf("tool %s object schema missing properties", toolName)
+	}
+	rawRequired, ok := schema["required"].([]any)
+	if !ok {
+		t.Fatalf("tool %s object schema missing required array", toolName)
+	}
+	required := map[string]struct{}{}
+	for _, value := range rawRequired {
+		name, ok := value.(string)
+		if !ok || name == "" {
+			t.Fatalf("tool %s required entry must be a non-empty string: %#v", toolName, value)
+		}
+		required[name] = struct{}{}
+	}
+	for name, rawProperty := range rawProperties {
+		if _, ok := required[name]; !ok {
+			t.Fatalf("tool %s property %s must be listed in required for strict mode", toolName, name)
+		}
+		property, ok := rawProperty.(map[string]any)
+		if !ok {
+			continue
+		}
+		if isObjectOrNullableObject(property["type"]) {
+			assertStrictObjectSchema(t, toolName+"."+name, property)
+		}
+	}
+}
+
+func isObjectOrNullableObject(value any) bool {
+	if value == "object" {
+		return true
+	}
+	values, ok := value.([]any)
+	if !ok {
+		return false
+	}
+	for _, item := range values {
+		if item == "object" {
+			return true
+		}
+	}
+	return false
 }
 
 func structuredQueryEndpointsByPath() map[string]string {
 	return map[string]string{
-		"/internal/query/campus-services/service-status":     structuredquery.ToolServiceStatusLookup,
-		"/internal/query/campus-services/service-guide":      structuredquery.ToolServiceGuideLookup,
 		"/internal/query/campus-services/transport-schedule": structuredquery.ToolTransportScheduleLookup,
-		"/internal/query/campus-services/contact-directory":  structuredquery.ToolContactDirectoryLookup,
-		"/internal/query/calendar/academic-calendar":         structuredquery.ToolAcademicCalendarLookup,
 		"/internal/query/notices/discover":                   structuredquery.ToolCampusNoticeDiscover,
 		"/internal/query/notices/period-summary":             structuredquery.ToolCampusNoticePeriodSummary,
 		"/internal/query/notices/change-set":                 structuredquery.ToolCampusNoticeChangeSet,

@@ -425,9 +425,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		"sourcePackManifest.entries[].entryId",
 	);
 	const allowedOwnerToTarget = new Map<string, string>([
-		["service_guide_lookup", "campus_services/service_guide"],
-		["contact_directory_lookup", "campus_services/contact_directory"],
-		["academic_calendar_lookup", "calendar/academic_calendar"],
+		["calendar/academic_calendar", "calendar/academic_calendar"],
 		["official_web/stable_reference", "official_web/stable_reference"],
 		["future_notice_runtime", "official_web/fresh_news"],
 		["regulations/institutional_rules", "regulations/institutional_rules"],
@@ -500,7 +498,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			);
 		}
 		if (
-			(entry.ownerSurfaces.includes("academic_calendar_lookup") ||
+			(entry.ownerSurfaces.includes("calendar/academic_calendar") ||
 				entry.releaseTargets.includes("calendar/academic_calendar")) &&
 			entry.contentFamily !== "academic_calendar_reference"
 		) {

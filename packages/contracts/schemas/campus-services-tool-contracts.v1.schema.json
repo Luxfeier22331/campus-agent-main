@@ -1,0 +1,327 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json",
+	"title": "campus-agent campus services typed tool payload and result contracts",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "tool_name", "packet_kind"],
+	"properties": {
+		"schema_version": {
+			"const": "campus_services_tool_contracts.v1"
+		},
+		"tool_name": {
+			"enum": ["transport_schedule_lookup"]
+		},
+		"packet_kind": {
+			"enum": ["payload", "result"]
+		},
+		"payload": {
+			"type": "object"
+		},
+		"result": {
+			"type": "object"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["payload"],
+				"not": {
+					"required": ["result"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["result"],
+				"not": {
+					"required": ["payload"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "transport_schedule_lookup"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/TransportScheduleLookupPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "transport_schedule_lookup"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/TransportScheduleLookupResult"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		},
+		"NonEmptyObject": {
+			"type": "object",
+			"minProperties": 1,
+			"additionalProperties": true
+		},
+		"TemporalQuery": {
+			"oneOf": [
+				{
+					"type": "null"
+				},
+				{
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"mode": {
+							"enum": ["current", "latest", "effective", "as_of", "current_year", null]
+						},
+						"as_of": {
+							"type": ["string", "null"]
+						},
+						"year_hint": {
+							"type": ["string", "null"]
+						}
+					}
+				}
+			]
+		},
+		"Outcome": {
+			"enum": [
+				"resolved_current",
+				"resolved_historical_reference",
+				"not_found",
+				"temporarily_unverifiable",
+				"clarification_required"
+			]
+		},
+		"OptionalFailCloseReason": {
+			"enum": [
+				"",
+				"current_state_unverifiable",
+				"source_truth_unavailable",
+				"temporal_scope_ambiguous",
+				"source_family_unavailable",
+				"source_conflict"
+			]
+		},
+		"RequiredFailCloseReason": {
+			"enum": [
+				"current_state_unverifiable",
+				"source_truth_unavailable",
+				"temporal_scope_ambiguous",
+				"source_family_unavailable",
+				"source_conflict"
+			]
+		},
+		"TransportScheduleLookupPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text", "intent"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"intent": {
+					"enum": [
+						"next_departure",
+						"first_departure",
+						"last_departure",
+						"departure_list",
+						"service_window",
+						"timetable",
+						"schedule_snapshot_metadata"
+					]
+				},
+				"route_selector": {
+					"type": ["object", "null"],
+					"additionalProperties": true
+				},
+				"snapshot_query": {
+					"$ref": "#/$defs/TemporalQuery"
+				},
+				"service_time_query": {
+					"type": ["object", "null"],
+					"additionalProperties": true
+				},
+				"result_limit": {
+					"type": ["integer", "null"],
+					"minimum": 1
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"intent": {
+								"const": "schedule_snapshot_metadata"
+							}
+						},
+						"required": ["intent"]
+					},
+					"then": {
+						"properties": {
+							"service_time_query": {
+								"type": "null"
+							}
+						}
+					}
+				}
+			]
+		},
+		"TransportScheduleLookupResult": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["query_text", "intent", "outcome"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"intent": {
+					"enum": [
+						"next_departure",
+						"first_departure",
+						"last_departure",
+						"departure_list",
+						"service_window",
+						"timetable",
+						"schedule_snapshot_metadata"
+					]
+				},
+				"outcome": {
+					"$ref": "#/$defs/Outcome"
+				},
+				"resolved_route": {
+					"type": ["object", "null"],
+					"additionalProperties": true
+				},
+				"service_status": {
+					"enum": [
+						"",
+						"running",
+						"not_running",
+						"temporarily_suspended",
+						"limited_service",
+						"unknown"
+					]
+				},
+				"clarification_reason": {
+					"type": "string"
+				},
+				"fail_close_reason": {
+					"$ref": "#/$defs/OptionalFailCloseReason"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"outcome": {
+								"const": "resolved_current"
+							},
+							"intent": {
+								"not": {
+									"const": "schedule_snapshot_metadata"
+								}
+							}
+						},
+						"required": ["outcome", "intent"]
+					},
+					"then": {
+						"required": ["resolved_route"],
+						"properties": {
+							"resolved_route": {
+								"$ref": "#/$defs/NonEmptyObject"
+							}
+						}
+					}
+				},
+				{
+					"$ref": "#/$defs/ClarificationRequiresReason"
+				},
+				{
+					"$ref": "#/$defs/FailClosedRequiresReason"
+				}
+			]
+		},
+		"ClarificationRequiresReason": {
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "clarification_required"
+					}
+				},
+				"required": ["outcome"]
+			},
+			"then": {
+				"required": ["clarification_reason"],
+				"properties": {
+					"clarification_reason": {
+						"$ref": "#/$defs/NonEmptyString"
+					}
+				}
+			}
+		},
+		"FailClosedRequiresReason": {
+			"if": {
+				"properties": {
+					"outcome": {
+						"const": "temporarily_unverifiable"
+					}
+				},
+				"required": ["outcome"]
+			},
+			"then": {
+				"required": ["fail_close_reason"],
+				"properties": {
+					"fail_close_reason": {
+						"$ref": "#/$defs/RequiredFailCloseReason"
+					}
+				}
+			}
+		}
+	}
+}

@@ -60,7 +60,7 @@ func TestPrimaryAgentBoundedReplanRejectsMixedUnclassifiedToolResults(t *testing
 			{
 				Capability: "campus_services",
 				Status:     "failed",
-				ToolName:   "service_status_lookup",
+				ToolName:   "transport_schedule_lookup",
 			},
 		},
 	})

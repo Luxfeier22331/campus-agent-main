@@ -1,0 +1,55 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/intent-policy.v1.schema.json",
+	"title": "campus-agent execution-control intent policy artifact",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"policy_version",
+		"classifier_version",
+		"intent_schema_version",
+		"case_set_version",
+		"reason_codes",
+		"signal_groups"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "intent-policy-artifact-v1"
+		},
+		"policy_version": {
+			"const": "runtime-policy-v1"
+		},
+		"classifier_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"intent_schema_version": {
+			"const": "intent-schema-1.0.0"
+		},
+		"case_set_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"reason_codes": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
+		"signal_groups": {
+			"type": "object",
+			"minProperties": 1,
+			"additionalProperties": {
+				"type": "array",
+				"minItems": 1,
+				"items": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		}
+	}
+}

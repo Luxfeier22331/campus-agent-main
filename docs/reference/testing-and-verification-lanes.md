@@ -55,8 +55,18 @@ pnpm repo:static
   文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
   historical plan 文档、vendor、`node_modules` 与 scratch markdown
 - campus-web docs reader 侧通过 `node apps/campus-web/scripts/build-published-reader-docs.mjs`
-  覆盖当前 Rspress-powered `/docs/*` reader build；完整 product build 仍走
+  覆盖当前 Rspress-powered `/docs/*` reader build；该命令是消费端，运行前必须先用
+  `node scripts/prepare-campus-docs-reader-build.mjs` 准备
+  `var/public-docs-sync-manifest.json` 并验证对象存储 reader assets；feature worktree
+  中先运行 local env link 命令，并确保 root worktree 已有 ignored
+  `env/commands/campus-docs-reader-build.env`；完整 product build 仍走
   `pnpm --dir apps/campus-web build`。
+
+```bash
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+```
+
 - `pnpm repo:static` 内部继续运行 tracked repo baseline 审计，用于确保 repo-owned
   text-like surface 都被某个 lint lane 接管；它不扩到未跟踪文件
 - Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过

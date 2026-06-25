@@ -172,19 +172,7 @@ function matchConsumerFamily(
 		return null;
 	}
 
-	if (
-		matchedKeywords.length === 0 &&
-		matchedPatterns.length === 0 &&
-		(rule.requiresKeywordOrPathMatch || !allowsEvidenceOnlyMatch(rule))
-	) {
-		return null;
-	}
-	if (
-		rule.consumerFamily === "service_guide_candidate" &&
-		!matchedEvidence.some((item) =>
-			["service_process", "service_entry", "service_material"].includes(item),
-		)
-	) {
+	if (matchedKeywords.length === 0 && matchedPatterns.length === 0) {
 		return null;
 	}
 	if (
@@ -320,11 +308,4 @@ function matchedRegexes(patterns: string[], ...values: string[]): string[] {
 		const regex = new RegExp(pattern, "iu");
 		return values.some((value) => regex.test(value));
 	});
-}
-
-function allowsEvidenceOnlyMatch(rule: OfficialWebConsumerFamilyRule): boolean {
-	return (
-		rule.consumerFamily === "contact_directory_candidate" ||
-		rule.consumerFamily === "service_guide_candidate"
-	);
 }

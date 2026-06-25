@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import unittest
 
+from campus_evals.intent_models import IntentCase
 from campus_evals.intent_scenarios import intent_suite_cases
 from campus_evals.intent_synthetic import (
     load_intent_synthetic_exploratory_cases,
@@ -179,7 +180,7 @@ class IntentSyntheticTest(unittest.TestCase):
         exploratory_cases = intent_suite_cases("synthetic_exploratory")
 
         self.assertGreaterEqual(len(regression_cases), 100)
-        self.assertGreaterEqual(len(exploratory_cases), 20)
+        self.assertGreaterEqual(len(exploratory_cases), 18)
         self.assertTrue(all("synthetic_regression" in case.tags for case in regression_cases))
         self.assertTrue(all("synthetic_exploratory" in case.tags for case in exploratory_cases))
 
@@ -200,17 +201,34 @@ class IntentSyntheticTest(unittest.TestCase):
             )
         )
 
-    def test_release_gate_covers_service_status_long_tail_cases(self) -> None:
-        cases = {case.user_goal: case for case in intent_suite_cases("release_gate")}
+    def test_release_gate_does_not_delegate_non_transport_service_status_to_runtime(self) -> None:
+        cases_by_goal: dict[str, list[IntentCase]] = {}
+        for case in intent_suite_cases("release_gate"):
+            cases_by_goal.setdefault(case.user_goal, []).append(case)
 
         for user_goal in (
             "卡务中心今天开不开",
             "校医院今天停诊了吗",
             "食堂现在关门了吗",
-            "丰台校区通勤班车在哪里上车",
         ):
-            self.assertIn(user_goal, cases)
-            self.assertEqual(cases[user_goal].expected_allowed_tools, ("service_status_lookup",))
+            self.assertIn(user_goal, cases_by_goal)
+            self.assertTrue(
+                all(case.expected_allowed_tools == () for case in cases_by_goal[user_goal])
+            )
+            self.assertTrue(
+                all(case.expected_target != "campus_services" for case in cases_by_goal[user_goal])
+            )
+
+        transport_goal = "丰台校区通勤班车在哪里上车"
+        self.assertIn(transport_goal, cases_by_goal)
+        self.assertTrue(
+            any(
+                case.expected_capability == "campus_services"
+                and case.expected_target == "campus_services"
+                and case.expected_allowed_tools == ("transport_schedule_lookup",)
+                for case in cases_by_goal[transport_goal]
+            )
+        )
 
 
 if __name__ == "__main__":

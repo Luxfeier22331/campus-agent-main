@@ -96,22 +96,13 @@ updated: 2026-06-12
 - 这两个角色可以都存在于同一个 data plane，但它们不是同一层
 - `campus_notices/internal_notice` 属于 source-triage collection
 - `regulations/*`、`curriculum/*` 属于 semantic-owner collection
-- `campus_services/contact_directory` 也是 semantic-owner collection；即使当前仍是
-  `offline_preparation`，它的长期角色也不是 `official_web/stable_reference` 的别名
-- `campus_services/service_catalog` 也是 semantic-owner collection；即使当前仍是
-  `offline_preparation`，它的长期角色也不是
-  `official_web/stable_reference`、`student_rules` 或 generic RAG 的别名
+- `campus_services/transport_schedule` 是 campus-services 当前唯一开放 runtime
+  structured owner；`campus_services/service_status` 仅保留 closed/internal status
+  projection prework
+- service guide、contact directory 与 process guide 内容当前由 wiki 维护，不属于 repo
+  runtime owner 或 query-serving surface
 - 某条 notice 可以成为 semantic-owner collection 的 provenance，但 notice 包装文本本身不应因此自动成为
   regulation member
-
-补充说明：
-
-- 如果联系方式问题后续被 admission 为 `contact_directory_lookup` structured runtime tool，该
-  tool 应读取 `campus_services/contact_directory` semantic-owner projection，而不是直接读取
-  public-web stable-reference chunk 或 handbook 原始页段
-- 如果服务流程问题后续被 admission 为 `service_process_lookup` structured runtime tool，该
-  tool 应读取 `campus_services/service_catalog` semantic-owner projection，而不是直接读取
-  public-web stable-reference chunk、handbook 原始页段或 generic RAG retrieval result
 
 ### Query-Enabled Scope
 
@@ -133,13 +124,14 @@ updated: 2026-06-12
 - `regulations/scoped_rules` 当前仍不属于默认 query-enabled scope，也不得进入默认
   RAG release candidate；它可以作为 `gated_asset` 进入 document-site read-model /
   docs reader release，由 `app-api` 做 reader admission
-- `campus_services/service_status`、`campus_services/service_guide`、
-  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
-  `calendar/academic_calendar` 当前是 `structured_query_serving`：它们只允许通过
-  admitted structured tools 消费 current projection/read model，不进入 generic
+- `campus_services/transport_schedule` 当前是 campus-services 唯一
+  `structured_query_serving` collection，只能通过 admitted
+  `transport_schedule_lookup` 消费 current projection/read model，不进入 generic
   retrieval 默认 query scope
-- `campus_services/service_catalog` 当前仍是 `offline_preparation`；later-wave
-  `service_process_lookup` 未开放前，它不承担 structured product serving
+- `campus_services/service_status` 当前只保留 closed/internal status projection
+  prework，不承担 model-visible structured product serving
+- `calendar/academic_calendar` 当前是 offline data asset / preparation scope，不属于
+  campus-services model-visible runtime tool
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
 

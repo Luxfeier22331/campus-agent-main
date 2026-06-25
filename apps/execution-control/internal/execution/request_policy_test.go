@@ -8,7 +8,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestParseAnswerRequestFailsClosedForClosedCampusServicesCapability(t *testing.T) {
+func TestParseAnswerRequestPreplansCampusServicesTransportSchedule(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -58,29 +58,29 @@ func TestParseAnswerRequestFailsClosedForClosedCampusServicesCapability(t *testi
 	if summary["schema_version"] != "runtime-decision-summary-v1" {
 		t.Fatalf("runtime_decision_summary.schema_version = %v, want runtime-decision-summary-v1", summary["schema_version"])
 	}
-	if summary["planning_outcome"] != "not_preplanned" ||
-		summary["terminal_outcome"] != "no_answer" ||
-		summary["fail_close_reason"] != "capability_not_open" {
+	if summary["planning_outcome"] != "preplanned" ||
+		summary["terminal_outcome"] != "" ||
+		summary["fail_close_reason"] != "" ||
+		summary["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("runtime_decision_summary = %#v", summary)
 	}
-	if _, ok := runtimeDecisions["handoff"]; ok {
-		t.Fatalf("runtime decisions must not expose handoff for closed capability: %#v", runtimeDecisions["handoff"])
+	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
+	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
+	agentPayload := expectExecutionRecord(t, agentRequest["payload"], "capability_request.payload")
+	if handoff["capability"] != "campus_services" || agentPayload["kind"] != "transport_schedule_lookup" {
+		t.Fatalf("handoff = %#v", handoff)
 	}
-	if _, ok := runtimeDecisions["workflow_plan"]; ok {
-		t.Fatalf("runtime decisions must not expose workflow_plan for closed capability: %#v", runtimeDecisions["workflow_plan"])
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
+	if workflowPlan["workflow_mode"] != "single_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want single_step", workflowPlan["workflow_mode"])
 	}
-	terminal := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminal["status"] != "no_answer" {
-		t.Fatalf("terminal status = %v, want no_answer", terminal["status"])
-	}
-	observability := expectExecutionRecord(t, terminal["observability"], "terminal_envelope.observability")
-	if observability["policy_reason"] != "capability_not_open" ||
-		observability["fail_closed"] != true {
-		t.Fatalf("terminal observability = %#v", observability)
-	}
-	if request.StructuredHandoff != nil || request.WorkflowMode != "" || len(request.PlannedHandoffs) != 0 {
+	if request.StructuredHandoff == nil ||
+		request.StructuredHandoff.Capability != "campus_services" ||
+		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" ||
+		request.WorkflowMode != WorkflowModeSingleStep ||
+		len(request.PlannedHandoffs) != 1 {
 		t.Fatalf(
-			"request handoff/workflow/planned = %#v/%q/%#v, want none",
+			"request handoff/workflow/planned = %#v/%q/%#v",
 			request.StructuredHandoff,
 			request.WorkflowMode,
 			request.PlannedHandoffs,
@@ -278,7 +278,7 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	}
 }
 
-func TestParseAnswerRequestRejectsTransportNoticeOverrideWhileCampusServicesIsClosed(t *testing.T) {
+func TestParseAnswerRequestPreplansTransportNoticeOverrideWorkflow(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"今天丰台到海淀通勤车乘车点有没有调整",
@@ -304,9 +304,12 @@ func TestParseAnswerRequestRejectsTransportNoticeOverrideWhileCampusServicesIsCl
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if request.WorkflowMode != "" || request.StructuredHandoff != nil || len(request.PlannedHandoffs) != 0 {
+	if request.WorkflowMode != WorkflowModeMultiStep ||
+		request.StructuredHandoff == nil ||
+		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" ||
+		len(request.PlannedHandoffs) != 3 {
 		t.Fatalf(
-			"request handoff/workflow/planned = %#v/%q/%#v, want none",
+			"request handoff/workflow/planned = %#v/%q/%#v, want resolved transport notice override plan",
 			request.StructuredHandoff,
 			request.WorkflowMode,
 			request.PlannedHandoffs,
@@ -314,15 +317,8 @@ func TestParseAnswerRequestRejectsTransportNoticeOverrideWhileCampusServicesIsCl
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	if _, ok := runtimeDecisions["workflow_plan"]; ok {
-		t.Fatalf("runtime decisions must not expose workflow_plan for closed capability: %#v", runtimeDecisions["workflow_plan"])
-	}
-	terminal := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminal["status"] != "no_answer" {
-		t.Fatalf("terminal status = %v, want no_answer", terminal["status"])
-	}
-	observability := expectExecutionRecord(t, terminal["observability"], "terminal_envelope.observability")
-	if observability["policy_reason"] != "capability_not_open" {
-		t.Fatalf("terminal observability = %#v", observability)
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
+	if workflowPlan["workflow_mode"] != "multi_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want multi_step", workflowPlan["workflow_mode"])
 	}
 }

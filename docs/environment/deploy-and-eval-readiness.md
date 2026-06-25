@@ -113,9 +113,9 @@ uv run --all-packages python -m scripts.check_worker_secret_presence --env \
 
 - 不再把 `ayafeed.com` 或 `*.rag.ayafeed.com` 视为 campus-agent staging deploy truth
 - `mucwiki-edge.link` 是当前 repo-owned staging zone
-- `apps/execution-control` 的当前 staging deploy substrate 是 Docker-first internal
-  execution service；production target deploy substrate 已由 ADR-0056 收口为
-  Kubernetes + KEDA
+- `apps/execution-control` staging deploy substrate 不能只由 docs 推断；Docker
+  Compose 是 local / transitional evidence，production target deploy substrate 已由
+  ADR-0056 收口为 Kubernetes + KEDA
 - `apps/execution-control` staging hostname 继续不冻结；`app-api` deploy 时必须显式注入
   `STAGING_EXECUTION_CONTROL_BASE_URL`
 - campus-web / Operator Console 的 app-api upstream invariant 是 `APP_API` Service

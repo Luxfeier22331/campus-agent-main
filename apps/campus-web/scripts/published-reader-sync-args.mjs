@@ -1,9 +1,9 @@
 export function parsePublishedReaderSyncArgs(argv) {
 	const args = argv.filter((token) => token !== "--");
 	const command = args.shift();
-	if (!["all", "docs", "assets"].includes(command)) {
+	if (!["all", "docs", "assets", "check"].includes(command)) {
 		throw new Error(
-			"usage: node scripts/sync-campus-published-reader.mjs all|docs|assets --manifest-path <path> | --manifest-key <key>",
+			"usage: node scripts/sync-campus-published-reader.mjs all|docs|assets|check --manifest-path <path> | --manifest-key <key>",
 		);
 	}
 	let manifestFilePath;

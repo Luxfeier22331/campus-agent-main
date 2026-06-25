@@ -2,6 +2,8 @@ import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { z } from "zod";
 
+const schemaRefPattern =
+	/^https:\/\/muc\.wiki\/campus-agent\/schemas\/[A-Za-z0-9.-]+\.schema\.json#\/\$defs\/[A-Za-z0-9_]+$/;
 const exposureSchema = z.enum(["model_visible", "internal_only", "closed"]);
 const executionControlInternalQueryHandlerSchema = z.object({
 	type: z.literal("execution_control_internal_query"),
@@ -21,8 +23,8 @@ const rawToolSchema = z.object({
 	exposure: exposureSchema,
 	read_only: z.boolean(),
 	requires_approval: z.boolean(),
-	payload_schema_ref: z.string().min(1),
-	result_schema_ref: z.string().min(1),
+	payload_schema_ref: z.string().regex(schemaRefPattern),
+	result_schema_ref: z.string().regex(schemaRefPattern),
 	handler: handlerSchema,
 	timeout_ms: z.number().int().positive(),
 	result_projection_policy: z.literal("bounded_json"),
@@ -94,9 +96,8 @@ export function loadToolCatalogFromObject(
 	options: { toolFunctionSchemaPath?: string } = {},
 ): ToolCatalog {
 	const parsed = rawCatalogSchema.parse(value);
-	const functionSchemas = loadToolFunctionSchemas(options.toolFunctionSchemaPath);
 	const seen = new Set<string>();
-	const tools = parsed.tools.map((tool): ToolCatalogEntry => {
+	for (const tool of parsed.tools) {
 		if (seen.has(tool.name)) {
 			throw new Error(`duplicate tool name: ${tool.name}`);
 		}
@@ -106,6 +107,13 @@ export function loadToolCatalogFromObject(
 		}
 		if (tool.exposure === "closed" && tool.requires_approval) {
 			throw new Error(`closed tool ${tool.name} must not require approval`);
+		}
+	}
+	const functionSchemas = loadToolFunctionSchemas(options.toolFunctionSchemaPath);
+	const tools = parsed.tools.map((tool): ToolCatalogEntry => {
+		const parameterSchema = functionSchemas.get(tool.name);
+		if (tool.exposure === "model_visible" && parameterSchema === undefined) {
+			throw new Error(`model-visible tool ${tool.name} missing strict function schema`);
 		}
 		return {
 			name: tool.name,
@@ -119,7 +127,7 @@ export function loadToolCatalogFromObject(
 			handler: tool.handler,
 			timeoutMs: tool.timeout_ms,
 			resultProjectionPolicy: tool.result_projection_policy,
-			parameterSchema: functionSchemas.get(tool.name) ?? parameterSchemaForTool(tool.name),
+			parameterSchema,
 		};
 	});
 	return {
@@ -132,147 +140,19 @@ export function loadToolCatalogFromObject(
 export function buildVisibleToolDefinitions(catalog: ToolCatalog): VisibleToolDefinition[] {
 	return catalog.tools
 		.filter((tool) => tool.exposure === "model_visible" && tool.readOnly)
-		.map((tool) => ({
-			name: tool.name,
-			description: tool.description,
-			capability: tool.capability,
-			handler: tool.handler,
-			parameterSchema: tool.parameterSchema ?? parameterSchemaForTool(tool.name),
-			timeoutMs: tool.timeoutMs,
-		}));
-}
-
-const nonEmptyStringSchema = { type: "string", minLength: 1 };
-const stringArraySchema = {
-	type: "array",
-	items: nonEmptyStringSchema,
-};
-
-function parameterSchemaForTool(toolName: string): JsonObjectSchema {
-	switch (toolName) {
-		case "knowledge_query":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					intent: {
-						type: "string",
-						enum: ["answer_question", "compare_rules", "clarify_scope"],
-					},
-				},
-				["query_text"],
-			);
-		case "service_status_lookup":
-			return strictObjectSchema(
-				{
-					subject_query: nonEmptyStringSchema,
-					service_family: nonEmptyStringSchema,
-					effective_at: nonEmptyStringSchema,
-				},
-				["subject_query"],
-			);
-		case "service_guide_lookup":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					service_id: nonEmptyStringSchema,
-					focus: {
-						type: "string",
-						enum: ["entry", "procedure", "materials", "contact", "eligibility"],
-					},
-				},
-				["query_text"],
-			);
-		case "transport_schedule_lookup":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					route_query: nonEmptyStringSchema,
-					service_date: nonEmptyStringSchema,
-					intent: {
-						type: "string",
-						enum: ["next_departure", "service_window", "route_status"],
-					},
-				},
-				["query_text"],
-			);
-		case "contact_directory_lookup":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					entity_query: nonEmptyStringSchema,
-					department_query: nonEmptyStringSchema,
-				},
-				["query_text"],
-			);
-		case "academic_calendar_lookup":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					date: nonEmptyStringSchema,
-					term: nonEmptyStringSchema,
-					intent: {
-						type: "string",
-						enum: ["teaching_week", "holiday", "makeup_class", "term_window", "named_event"],
-					},
-				},
-				["query_text"],
-			);
-		case "campus_notice_change_set_lookup":
-			return strictObjectSchema(
-				{
-					topic_query: nonEmptyStringSchema,
-					service_family: nonEmptyStringSchema,
-					target_surfaces: stringArraySchema,
-				},
-				["topic_query"],
-			);
-		case "campus_notice_discover":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					topic_query: nonEmptyStringSchema,
-					target_surfaces: stringArraySchema,
-					limit: { type: "integer", minimum: 1, maximum: 10 },
-				},
-				["query_text"],
-			);
-		case "campus_notice_period_summary":
-			return strictObjectSchema(
-				{
-					query_text: nonEmptyStringSchema,
-					date_range: strictObjectSchema(
-						{
-							start_date: nonEmptyStringSchema,
-							end_date: nonEmptyStringSchema,
-							timezone: nonEmptyStringSchema,
-						},
-						["start_date", "end_date"],
-					),
-					source_families: stringArraySchema,
-					target_surfaces: stringArraySchema,
-					group_by: {
-						type: "string",
-						enum: ["topic", "day", "source_family"],
-					},
-					max_items: { type: "integer", minimum: 1, maximum: 20 },
-				},
-				["query_text", "date_range"],
-			);
-		default:
-			return strictObjectSchema({});
-	}
-}
-
-function strictObjectSchema(
-	properties: Record<string, unknown>,
-	required: string[] = [],
-): JsonObjectSchema {
-	return {
-		type: "object",
-		additionalProperties: false,
-		properties,
-		required,
-	};
+		.map((tool) => {
+			if (tool.parameterSchema === undefined) {
+				throw new Error(`model-visible tool ${tool.name} missing strict function schema`);
+			}
+			return {
+				name: tool.name,
+				description: tool.description,
+				capability: tool.capability,
+				handler: tool.handler,
+				parameterSchema: tool.parameterSchema,
+				timeoutMs: tool.timeoutMs,
+			};
+		});
 }
 
 interface ToolFunctionSchemaFile {
@@ -281,8 +161,11 @@ interface ToolFunctionSchemaFile {
 }
 
 function loadToolFunctionSchemas(path: string | undefined): Map<string, JsonObjectSchema> {
-	if (path === undefined || !existsSync(path)) {
-		return new Map();
+	if (path === undefined) {
+		throw new Error("tool function schema path is required");
+	}
+	if (!existsSync(path)) {
+		throw new Error(`tool function schema config not found: ${path}`);
 	}
 	const parsed = JSON.parse(readFileSync(path, "utf8")) as ToolFunctionSchemaFile;
 	if (parsed.schema_version !== "tool-function-schemas-v1" || !Array.isArray(parsed.tools)) {

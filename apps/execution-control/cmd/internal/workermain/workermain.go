@@ -35,6 +35,13 @@ const (
 
 func Run(role Role) {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
+	if hasArg("--check-runtime") {
+		if err := CheckRuntime(role); err != nil {
+			logger.Error("campus execution worker runtime check failed", "role", string(role), "error", err.Error())
+			os.Exit(1)
+		}
+		return
+	}
 	cfg, err := config.LoadFromEnvForRole(string(role))
 	if err != nil {
 		logger.Error("campus execution worker config invalid", "role", string(role), "error", err.Error())
@@ -79,6 +86,26 @@ func Run(role Role) {
 	<-signals
 	logger.Info("campus execution worker draining", "role", string(role))
 	cancel()
+}
+
+func CheckRuntime(role Role) error {
+	cfg, err := config.LoadFromEnvForRole(string(role))
+	if err != nil {
+		return err
+	}
+	tracing, err := temporalruntime.NewTracingInterceptors(temporalruntime.TracingOptions{
+		Enabled:      cfg.TemporalTracingEnabled,
+		OTelEndpoint: cfg.OTelEndpoint,
+		ServiceName:  cfg.OTelServiceName,
+	})
+	if err != nil {
+		return err
+	}
+	if _, err := workerOptionsForRole(cfg, role, tracing); err != nil {
+		return err
+	}
+	_, err = taskQueueForRole(cfg, role)
+	return err
 }
 
 func buildWorker(
@@ -199,6 +226,33 @@ func workerOptionsForRole(
 	return temporalruntime.ApplyTracingToWorkerOptions(options, tracing), nil
 }
 
+func taskQueueForRole(cfg config.Config, role Role) (string, error) {
+	switch role {
+	case RoleWorkflow:
+		return cfg.TemporalTaskQueue, nil
+	case RoleContext:
+		return temporalruntime.ActivityTaskQueueContext, nil
+	case RoleAgent:
+		return temporalruntime.ActivityTaskQueueAgent, nil
+	case RoleKnowledgePlan:
+		return temporalruntime.ActivityTaskQueueKnowledgePlan, nil
+	case RoleKnowledgeRetrieval:
+		return temporalruntime.ActivityTaskQueueKnowledgeRetrieval, nil
+	case RoleKnowledgeSynthesis:
+		return temporalruntime.ActivityTaskQueueKnowledgeSynthesis, nil
+	case RoleCampusServices:
+		return temporalruntime.ActivityTaskQueueCampusService, nil
+	case RoleNotice:
+		return temporalruntime.ActivityTaskQueueNotice, nil
+	case RoleNavigation:
+		return temporalruntime.ActivityTaskQueueNavigation, nil
+	case RoleFinalization:
+		return temporalruntime.ActivityTaskQueueFinalization, nil
+	default:
+		return "", fmt.Errorf("unsupported worker role %q", role)
+	}
+}
+
 func temporalWorkerProfile(cfg config.Config, role string) temporalruntime.WorkerProfile {
 	profile := cfg.WorkerProfiles[role]
 	return temporalruntime.WorkerProfile{
@@ -247,6 +301,15 @@ func newWorkerTelemetryRuntime(
 
 func roleNeedsActivityServer(role Role) bool {
 	return role != RoleWorkflow
+}
+
+func hasArg(want string) bool {
+	for _, arg := range os.Args[1:] {
+		if arg == want {
+			return true
+		}
+	}
+	return false
 }
 
 func ensureTemporalTracingExporter(cfg config.Config, status telemetry.Status) error {

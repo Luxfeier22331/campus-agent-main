@@ -1,0 +1,81 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/runtime-capabilities.v1.schema.json",
+	"title": "campus-agent runtime capability registry",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "registry_version", "capabilities"],
+	"properties": {
+		"schema_version": {
+			"const": "capability-spec-registry-v1"
+		},
+		"registry_version": {
+			"type": "string",
+			"minLength": 1
+		},
+		"capabilities": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"$ref": "#/$defs/Capability"
+			}
+		}
+	},
+	"$defs": {
+		"Capability": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"id",
+				"owner_package",
+				"worker_role",
+				"runtime_adapter",
+				"active",
+				"opening_gate",
+				"allowed_structured_tools",
+				"context_projection_kinds",
+				"description"
+			],
+			"properties": {
+				"id": {
+					"enum": ["knowledge", "navigation", "campus_services", "notice"]
+				},
+				"owner_package": {
+					"type": "string",
+					"minLength": 1
+				},
+				"worker_role": {
+					"type": "string",
+					"minLength": 1
+				},
+				"runtime_adapter": {
+					"const": "temporal_activity_worker"
+				},
+				"active": {
+					"type": "boolean"
+				},
+				"opening_gate": {
+					"enum": ["open", "closed"]
+				},
+				"allowed_structured_tools": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"context_projection_kinds": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1
+					}
+				},
+				"description": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		}
+	}
+}

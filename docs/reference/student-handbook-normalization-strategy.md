@@ -479,8 +479,9 @@ document-level cleaning 之后生成。
 - `handbook_navigation_service_catalog` 的 replay 输入应表述为 source bucket 下 `{raw_as
   set_id}/{raw_version_id}/projection/<projection_name>/flow-graph.json`，而不是 raw
   PDF
-- handbook 中的电话目录页不再保留在 `regulations/student_rules` 的 split truth；后续应作为 declared
-  projection 派生进入 `campus_services/contact_directory`
+- handbook 中的电话目录页不再保留在 `regulations/student_rules` 的 split truth；当前不在
+  repo runtime 内 materialize contact-directory projection，联系方式内容由 wiki /
+  official-web stable reference / source URL 承接
 - handbook 中有独立下游价值的附录、表单、导航页或附件叶子节点，应通过 derived document projection 落入目标
   collection，并显式保留 `projection_name`、`derived_from_*`、`parent_document_id` 与稳定
   lineage 字段；对于已不再保留于 handbook split manifest 的页段，应优先使用 source-truth selector (`
@@ -489,8 +490,8 @@ document-level cleaning 之后生成。
   附录、表单和 navigation leaf 必须写入 `attachment_projection_selectors`，由 replay 从
   source truth selector 生成 derived document，不得在 query time 回扫 PDF 或文档站 HTML
 - `source-projections.v1.json` 必须维护 `selector_coverage` gate：已声明 wildcard family
-  要么有 concrete selector，要么显式 deferred；电话页 selector 必须指向
-  `campus_services/contact_directory`，不能被 `service_guide` 或 `service_catalog` 直接消费
+  要么有 concrete selector，要么显式 deferred；电话页 selector 不得回流到
+  `student_rules`、service guide 或 service catalog runtime。
 
 ## Representation 规则
 

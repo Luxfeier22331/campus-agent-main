@@ -36,7 +36,7 @@ notice candidate review，也不应绕过治理直接改 serving read model。
 
 ```text
 operator manual attestation
--> bounded status / transport override draft
+-> bounded transport override draft
 -> app-api preview
 -> app-api publish release snapshot
 -> structured runtime typed consumption
@@ -78,33 +78,6 @@ app-api Drizzle-owned schema：`campus_services_ops`
 - 真实 evidence 如需长期保存，必须由对应 source-channel/retention policy 拥有，不进入
   ops HTTP response。
 
-### `campus_services_ops.status_overrides`
-
-用途：保存服务状态人工 override。
-
-最小列：
-
-- `override_id`
-- `service_id`
-- `display_name`
-- `status`
-- `message`
-- `effective_from`
-- `effective_until`
-- `source_attestation_ids_json`
-- `review_state`
-- `created_at`
-- `created_by_json`
-- `updated_at`
-- `updated_by_json`
-
-规则：
-
-- 时间窗必须 bounded，`effective_until` 必须晚于 `effective_from`。
-- `source_attestation_ids_json` 只能引用已存在 attestation。
-- 只有 `review_state=ready_for_publish` 且当前时间落入时间窗的记录进入
-  current-effective release snapshot。
-
 ### `campus_services_ops.transport_overrides`
 
 用途：保存班车/接驳服务临时 override。
@@ -125,8 +98,14 @@ app-api Drizzle-owned schema：`campus_services_ops`
 - `updated_at`
 - `updated_by_json`
 
-规则同 status override。`route_id` 必须指向后续 structured transport runtime 能识别的 route
-identity；当前 app-api ops store 不做路线规划。
+规则：
+
+- 时间窗必须 bounded，`effective_until` 必须晚于 `effective_from`。
+- `source_attestation_ids_json` 只能引用已存在 attestation。
+- 只有 `review_state=ready_for_publish` 且当前时间落入时间窗的记录进入
+  current-effective release snapshot。
+- `route_id` 必须指向 structured transport runtime 能识别的 route identity；当前
+  app-api ops store 不做路线规划。
 
 ### `campus_services_ops.releases`
 
@@ -146,7 +125,7 @@ identity；当前 app-api ops store 不做路线规划。
 
 规则：
 
-- `current_effective_json` 是 release 时刻的 status / transport override summary。
+- `current_effective_json` 是 release 时刻的 transport override summary。
 - app-api publish 必须原子写入 release 与 audit event。
 - runtime lookup 不得 query-time 扫描 attestation 或 raw source；runtime consumption
   必须显式读取 release/projection/read model。
@@ -176,10 +155,10 @@ identity；当前 app-api ops store 不做路线规划。
 ## Runtime Boundary
 
 本 schema 是 `campus_services` P1 功能基底的一部分：它补齐人工校对和 release 基底，不声明
-自动 notice 消费已经成熟。execution-control typed service-status / transport runtime 可以读取最新
-published release 的 `current_effective_json`，并在 query time 重新校验 bounded
-effective window；过期、冲突或当前状态不可证明时 fail closed。transport override 只作为已有
-route / schedule projection 上的服务状态 overlay，不生成路线、站点或班次事实。
+自动 notice 消费已经成熟。execution-control typed transport runtime 可以读取最新 published
+release 的 `current_effective_json`，并在 query time 重新校验 bounded effective window；
+过期、冲突或当前状态不可证明时 fail closed。transport override 只作为已有 route /
+schedule projection 上的服务状态 overlay，不生成路线、站点或班次事实。
 
 后续接入 runtime 时必须保持：
 

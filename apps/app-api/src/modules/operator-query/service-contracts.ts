@@ -12,6 +12,7 @@ import type {
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
 	NormalizedWorkerAutoscalerDecisionListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	OperatorAuditEventDetail,
 	OperatorAuditListFilters,
 	OperatorAuditListResult,
@@ -41,6 +42,8 @@ import type {
 	WorkerAutoscalerActuationListResult,
 	WorkerAutoscalerDecisionListFilters,
 	WorkerAutoscalerDecisionListResult,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerPostureListResult,
 } from "./service-types";
 
 export interface OperatorQueryStore {
@@ -90,6 +93,9 @@ export interface OperatorQueryStore {
 	listAutoscalerActuations(
 		filters: NormalizedWorkerAutoscalerActuationListFilters,
 	): Promise<WorkerAutoscalerActuationListResult>;
+	listAutoscalerPostures(
+		filters: NormalizedWorkerAutoscalerPostureListFilters,
+	): Promise<WorkerAutoscalerPostureListResult>;
 	listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
 	list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }
@@ -179,6 +185,10 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		filters: WorkerAutoscalerActuationListFilters;
 	}): Promise<WorkerAutoscalerActuationListResult>;
+	listAutoscalerPostures(input: {
+		principal: ResolvedAppPrincipal;
+		filters: WorkerAutoscalerPostureListFilters;
+	}): Promise<WorkerAutoscalerPostureListResult>;
 }
 
 export interface OperatorQueryServiceDependencies {

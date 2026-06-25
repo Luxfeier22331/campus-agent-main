@@ -24,8 +24,10 @@
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
-  Docker-first internal execution-control service`，Temporal 是 execution
-  substrate，PG 只承载 sanitized run / event / step projection；online path
+  Go-owned internal execution-control service`，Temporal 是 execution
+  substrate，PG 只承载 sanitized run / event / step projection；Docker Compose
+  只保留 local / transitional runtime evidence，production target substrate 已由
+  K8s + KEDA 文档收口；online path
   已硬切为 `context.memory_recall -> agent.primary -> direct/no-tool or
   admitted typed tool / RAG branch -> finalization.write`，knowledge 分支由
   Go-owned RAG Temporal graph 执行，worker plane / autoscaler 仍按对应架构文档继续收口

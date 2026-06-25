@@ -30,11 +30,7 @@ DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES = (
 DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES = (
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
-    "service_status_sdk_opened",
-    "service_guide_sdk_opened",
-    "contact_directory_sdk_opened",
     "notice_discover_sdk_opened",
-    "academic_calendar_sdk_opened",
     "transactional_approval_required",
 )
 DEFAULT_PROCESS_SMOKE_PROFILES = (
@@ -53,11 +49,7 @@ PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     ),
     "transport_schedule_sdk_opened": "workflow-transport-schedule-sdk",
     "transport_schedule_sdk_opened_stream": "workflow-transport-schedule-sdk",
-    "service_status_sdk_opened": "workflow-service-status-sdk",
-    "service_guide_sdk_opened": "workflow-service-guide-sdk",
-    "contact_directory_sdk_opened": "workflow-contact-directory-sdk",
     "notice_discover_sdk_opened": "workflow-notice-discover-sdk",
-    "academic_calendar_sdk_opened": "workflow-academic-calendar-sdk",
     "transactional_approval_required": "workflow-transactional-approval-required",
 }
 
@@ -133,7 +125,6 @@ def run_multi_capability_live_smoke_gate(
                 "execution-control run event projection structured single step",
                 "execution-control Temporal campus-services SDK adapter",
                 "execution-control Temporal notice discover SDK adapter",
-                "execution-control Temporal academic-calendar SDK adapter",
                 "execution-control Temporal terminal approval-required guardrail",
             ],
         },

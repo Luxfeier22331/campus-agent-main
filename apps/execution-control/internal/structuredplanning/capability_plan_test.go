@@ -161,8 +161,11 @@ func TestPlanWithPolicyDoesNotAttachCapabilityPlanForSingleStepQueries(t *testin
 		EffectiveCapability: "campus_services",
 		UserGoal:            "班车最早几点发车",
 	}, policy)
-	if servicePlan != nil {
-		t.Fatalf("campus services plan = %#v, want nil while capability is closed", servicePlan)
+	if servicePlan == nil {
+		t.Fatal("expected campus services transport schedule workflow plan")
+	}
+	if servicePlan.CapabilityPlan() != nil {
+		t.Fatalf("single-step campus services plan must not attach capability plan: %#v", servicePlan.CapabilityPlan())
 	}
 }
 

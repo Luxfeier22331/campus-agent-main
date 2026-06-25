@@ -49,16 +49,16 @@ function buildFinalizeWrite(
 				runId: "owrun_target",
 				runIntent: "hot",
 				siteId: "muc_public",
-				targetCandidateId: "owcand_contact",
+				targetCandidateId: "owcand_calendar",
 				targetDeclarationVersion: "muc_public_target_source_map_v2",
-				targetId: "campus-services-contact-directory",
-				targetJobId: "owtarget_contact",
+				targetId: "official-web-academic-calendar",
+				targetJobId: "owtarget_calendar",
 				targetMatches: [
 					{
-						targetCandidateId: "owcand_contact",
+						targetCandidateId: "owcand_calendar",
 						targetDeclarationVersion: "muc_public_target_source_map_v2",
-						targetId: "campus-services-contact-directory",
-						targetJobId: "owtarget_contact",
+						targetId: "official-web-academic-calendar",
+						targetJobId: "owtarget_calendar",
 					},
 					{
 						targetCandidateId: "owcand_stable",
@@ -106,7 +106,7 @@ function buildFinalizeWrite(
 				targetCandidateId: null,
 				targetDeclarationVersion: null,
 				targetId: null,
-				targetJobId: "owtarget_contact",
+				targetJobId: "owtarget_calendar",
 				targetMatches: [],
 			},
 			{
@@ -146,8 +146,8 @@ function buildFinalizeWrite(
 				siteId: "muc_public",
 				targetCandidateId: "owcand_deleted",
 				targetDeclarationVersion: "muc_public_target_source_map_v2",
-				targetId: "campus-services-service-guide",
-				targetJobId: "owtarget_service_guide",
+				targetId: "official-web-institutional-rules",
+				targetJobId: "owtarget_rules",
 				targetMatches: [],
 			},
 		],
@@ -234,10 +234,10 @@ describe("pg official web command store", () => {
 		);
 		expect(targetAttemptInsert?.values).toEqual([
 			expect.objectContaining({
-				attemptId: "owattempt_owobs_target_complete_owtarget_contact",
-				candidateId: "owcand_contact",
-				jobId: "owtarget_contact",
-				targetId: "campus-services-contact-directory",
+				attemptId: "owattempt_owobs_target_complete_owtarget_calendar",
+				candidateId: "owcand_calendar",
+				jobId: "owtarget_calendar",
+				targetId: "official-web-academic-calendar",
 			}),
 			expect.objectContaining({
 				attemptId: "owattempt_owobs_target_complete_owtarget_stable",
@@ -246,11 +246,11 @@ describe("pg official web command store", () => {
 				targetId: "official-web-stable-reference",
 			}),
 			expect.objectContaining({
-				attemptId: "owattempt_owobs_target_deleted_owtarget_service_guide",
+				attemptId: "owattempt_owobs_target_deleted_owtarget_rules",
 				attemptStatus: "deleted",
 				candidateId: "owcand_deleted",
-				jobId: "owtarget_service_guide",
-				targetId: "campus-services-service-guide",
+				jobId: "owtarget_rules",
+				targetId: "official-web-institutional-rules",
 			}),
 		]);
 		expect(updates.some((update) => update.table === officialWebTargetJobs)).toBe(true);

@@ -50,7 +50,6 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
             [check["check_id"] for check in artifact["checks"]],
             [
                 "supervisor_go_structured_runtime_tests",
-                "campus_services_capability_adapter_tests",
                 "app_api_campus_services_runtime_tests",
                 "campus_web_worker_e2e_tests",
                 "app_api_typecheck",
@@ -60,23 +59,12 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         self.assertEqual(
             sorted(artifact["summary"]["opened_tools"]),
             [
-                "contact_directory_lookup",
-                "service_guide_lookup",
-                "service_status_lookup",
                 "transport_schedule_lookup",
             ],
         )
         self.assertEqual(artifact["summary"]["blocked_tools"], [])
-        self.assertEqual(artifact["summary"]["closed_tools"], ["service_process_lookup"])
+        self.assertEqual(artifact["summary"]["closed_tools"], [])
         self.assertEqual(artifact["version_summary"]["git_head"], "abc123")
-        tool_verdicts = {item["tool_name"]: item for item in artifact["tool_verdicts"]}
-        self.assertEqual(tool_verdicts["service_process_lookup"]["status"], "keep_closed")
-        self.assertEqual(tool_verdicts["service_process_lookup"]["required_checks"], [])
-        self.assertEqual(tool_verdicts["service_process_lookup"]["failed_checks"], [])
-        self.assertEqual(
-            tool_verdicts["service_process_lookup"]["reason"],
-            "later_wave_tool_not_admitted_to_product_path",
-        )
         self.assertFalse(any("--profile" in command for command in commands))
 
     def test_opening_gate_no_longer_runs_old_python_lookup_release_gates(
@@ -117,8 +105,8 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         self.assertFalse(any("service-guide-lookup" in command for command in commands))
         self.assertFalse(any("contact-directory-lookup" in command for command in commands))
         tool_verdicts = {item["tool_name"]: item for item in artifact["tool_verdicts"]}
-        self.assertEqual(tool_verdicts["service_guide_lookup"]["status"], "open")
-        self.assertEqual(tool_verdicts["contact_directory_lookup"]["status"], "open")
+        self.assertNotIn("service_guide_lookup", tool_verdicts)
+        self.assertNotIn("contact_directory_lookup", tool_verdicts)
 
     def test_opening_gate_blocks_all_open_candidates_when_shared_runtime_check_fails(
         self,
@@ -150,13 +138,10 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         self.assertEqual(
             sorted(artifact["summary"]["blocked_tools"]),
             [
-                "contact_directory_lookup",
-                "service_guide_lookup",
-                "service_status_lookup",
                 "transport_schedule_lookup",
             ],
         )
-        self.assertEqual(artifact["summary"]["closed_tools"], ["service_process_lookup"])
+        self.assertEqual(artifact["summary"]["closed_tools"], [])
         tool_verdicts = {item["tool_name"]: item for item in artifact["tool_verdicts"]}
         for tool_name in artifact["summary"]["blocked_tools"]:
             self.assertEqual(tool_verdicts[tool_name]["status"], "blocked")
@@ -164,7 +149,6 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                 "supervisor_go_structured_runtime_tests",
                 tool_verdicts[tool_name]["failed_checks"],
             )
-        self.assertEqual(tool_verdicts["service_process_lookup"]["status"], "keep_closed")
 
     def test_opening_profile_registry_validation_rejects_invalid_profiles(self) -> None:
         self.assertTrue(hasattr(opening_gate, "ToolOpeningProfile"))
@@ -176,13 +160,13 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
             validate(
                 (
                     profile_cls(
-                        tool_name="service_status_lookup",
+                        tool_name="transport_schedule_lookup",
                         product_path_status="open_candidate",
                         required_checks=("supervisor_go_structured_runtime_tests",),
                         reason="ready",
                     ),
                     profile_cls(
-                        tool_name="service_status_lookup",
+                        tool_name="transport_schedule_lookup",
                         product_path_status="keep_closed",
                         required_checks=(),
                         reason="duplicate",

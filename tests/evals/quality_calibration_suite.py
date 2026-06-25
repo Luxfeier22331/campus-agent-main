@@ -71,7 +71,7 @@ class QualityCalibrationSuite(unittest.TestCase):
                         "profile_id": "online_answer_path",
                         "sanitized_results": [
                             {
-                                "case_id": "online-answer-service-guide-happy-path",
+                                "case_id": "online-answer-transport-schedule-routing",
                                 "passed": False,
                                 "reason": "source_url_present expected true, got false",
                             }

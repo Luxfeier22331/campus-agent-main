@@ -5,8 +5,12 @@ receivers:
         endpoint: "${env:OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT}"
       http:
         endpoint: "${env:OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT}"
+        auth:
+          authenticator: bearertokenauth
 
 extensions:
+  bearertokenauth:
+    token: "${env:APP_API_OTEL_INGEST_SHARED_SECRET}"
   health_check:
     endpoint: "${env:OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT}"
 
@@ -134,6 +138,7 @@ exporters:
 
 service:
   extensions:
+    - bearertokenauth
     - health_check
   pipelines:
     traces:

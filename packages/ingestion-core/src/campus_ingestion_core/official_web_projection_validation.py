@@ -12,8 +12,6 @@ from campus_ingestion_core.official_web_projection_shared import (
 
 _CONSUMER_CANDIDATE_FAMILIES = frozenset(
     {
-        "contact_directory_candidate",
-        "service_guide_candidate",
         "regulation_candidate",
         "student_regulation_candidate",
         "notice_news_candidate",
@@ -22,15 +20,8 @@ _CONSUMER_CANDIDATE_FAMILIES = frozenset(
 _CONSUMER_CANDIDATE_MATERIALIZATION_POLICIES = frozenset(
     {"candidate_only", "release_gate_required", "inventory_only"}
 )
-_SELECTED_WRITE_CANDIDATE_FAMILIES = frozenset(
-    {
-        "contact_directory_candidate",
-        "service_guide_candidate",
-    }
-)
+_SELECTED_WRITE_CANDIDATE_FAMILIES = frozenset()
 _TYPED_CANDIDATE_SCHEMA_BY_FAMILY = {
-    "contact_directory_candidate": "official_web_contact_directory_candidate.v1",
-    "service_guide_candidate": "official_web_service_guide_candidate.v1",
     "regulation_candidate": "official_web_regulation_candidate.v1",
     "student_regulation_candidate": "official_web_regulation_candidate.v1",
     "notice_news_candidate": "official_web_inventory_candidate.v1",
@@ -444,58 +435,7 @@ def _validate_typed_candidate(
             }
         )
 
-    if consumer_family == "contact_directory_candidate":
-        for field_name in ("phones", "emails", "locations", "office_hours", "contact_points"):
-            if not isinstance(typed_candidate.get(field_name), list):
-                issues.append(
-                    {
-                        "severity": "error",
-                        "code": "consumer_candidate_typed_contact_field_invalid",
-                        "message": f"contact typed candidate field must be an array: {field_name}",
-                    }
-                )
-        contact_points = typed_candidate.get("contact_points")
-        if isinstance(contact_points, list):
-            for index, point in enumerate(contact_points):
-                if not isinstance(point, dict):
-                    issues.append(
-                        {
-                            "severity": "error",
-                            "code": "consumer_candidate_typed_contact_point_invalid",
-                            "message": f"contact point {index} must be an object",
-                        }
-                    )
-                    continue
-                if (
-                    _optional_text(point.get("label")) is None
-                    or _optional_text(point.get("phone")) is None
-                ):
-                    issues.append(
-                        {
-                            "severity": "error",
-                            "code": "consumer_candidate_typed_contact_point_invalid",
-                            "message": f"contact point {index} must include label and phone",
-                        }
-                    )
-    elif consumer_family == "service_guide_candidate":
-        for field_name in ("process_steps", "materials", "entry_points"):
-            if not isinstance(typed_candidate.get(field_name), list):
-                issues.append(
-                    {
-                        "severity": "error",
-                        "code": "consumer_candidate_typed_service_field_invalid",
-                        "message": f"service typed candidate field must be an array: {field_name}",
-                    }
-                )
-        if not isinstance(typed_candidate.get("contacts"), dict):
-            issues.append(
-                {
-                    "severity": "error",
-                    "code": "consumer_candidate_typed_service_contacts_invalid",
-                    "message": "service typed candidate must include contacts object",
-                }
-            )
-    elif consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
+    if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         for field_name in ("normalized_content_summary", "release_scope"):
             if _optional_text(typed_candidate.get(field_name)) is None:
                 issues.append(

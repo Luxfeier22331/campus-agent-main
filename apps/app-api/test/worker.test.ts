@@ -100,12 +100,6 @@ function createRuntimeReadinessResult() {
 				capabilityGate: "open",
 				projectionSource: "postgres",
 				checks: {
-					contactDirectoryProjection: "ready",
-					contactDirectoryReadModel: "ready",
-					serviceGuideProjection: "ready",
-					serviceGuideReadModel: "ready",
-					serviceStatusProjection: "ready",
-					serviceStatusReadModel: "ready",
 					structuredQueryRuntime: "ready",
 					transportSchedule: "ready",
 					transportScheduleReadModel: "ready",
@@ -155,13 +149,11 @@ describe("app-api worker foundation", () => {
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
 		expect(stagingVarsBlock).toContain('EXECUTION_CONTROL_TIMEOUT_MS = "95000"');
-		expect(stagingVarsBlock).toContain(
-			'CHATKIT_ADAPTER_BASE_URL = "https://chatkit-adapter-staging.mucwiki-edge.link"',
-		);
+		expect(stagingVarsBlock).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain(
-			'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-ingest-staging.mucwiki-edge.link"',
+			'APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"',
 		);
 		expect(stagingVarsBlock).not.toContain("AXIOM_ENDPOINT");
 		expect(stagingVarsBlock).not.toContain("AXIOM_DATASET");
@@ -272,11 +264,9 @@ describe("app-api worker foundation", () => {
 		expect(localSmokeWranglerConfig).toContain(
 			'EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"',
 		);
+		expect(localSmokeWranglerConfig).not.toContain("CHATKIT_ADAPTER_BASE_URL");
 		expect(localSmokeWranglerConfig).toContain(
-			'CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"',
-		);
-		expect(localSmokeWranglerConfig).toContain(
-			'APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:27081"',
+			'APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:4318"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
@@ -339,12 +329,6 @@ describe("app-api worker foundation", () => {
 					capabilityGate: "open",
 					projectionSource: "postgres",
 					checks: {
-						contactDirectoryProjection: "ready",
-						contactDirectoryReadModel: "ready",
-						serviceGuideProjection: "ready",
-						serviceGuideReadModel: "ready",
-						serviceStatusProjection: "ready",
-						serviceStatusReadModel: "ready",
 						structuredQueryRuntime: "ready",
 						transportSchedule: "ready",
 						transportScheduleReadModel: "ready",
@@ -552,23 +536,15 @@ describe("app-api worker foundation", () => {
 				failed: {},
 				preflight: {
 					campusServicesProductPath: {
-						status: "blocked",
+						status: "ready",
 						capabilityGate: "open",
 						projectionSource: "postgres",
 						checks: {
-							contactDirectoryProjection: "ready",
-							contactDirectoryReadModel: "ready",
-							serviceGuideProjection: "not_ready",
-							serviceGuideReadModel: "ready",
-							serviceStatusProjection: "ready",
-							serviceStatusReadModel: "ready",
 							structuredQueryRuntime: "ready",
 							transportSchedule: "ready",
 							transportScheduleReadModel: "ready",
 						},
-						blockers: {
-							serviceGuideProjection: "service_guide_projection_ready is false",
-						},
+						blockers: {},
 					},
 				},
 			}),
@@ -584,10 +560,8 @@ describe("app-api worker foundation", () => {
 			status: "ready",
 			preflight: {
 				campusServicesProductPath: {
-					status: "blocked",
-					blockers: {
-						serviceGuideProjection: "service_guide_projection_ready is false",
-					},
+					status: "ready",
+					blockers: {},
 				},
 			},
 		});

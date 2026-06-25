@@ -203,7 +203,6 @@ RetrievalStep
 
 固定排除：
 
-- `service_status_lookup`
 - `transport_schedule_lookup`
 - `campus_notice_discover`
 - internal selected notice resolve with `payload_kind=campus_notice_get`

@@ -356,7 +356,17 @@ curl --noproxy '*' -sS \
   | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-task-queues.json"
 ```
 
-检查 autoscaler decisions：
+K8s execution runtime 必须检查 autoscaler posture：
+
+```bash
+curl --noproxy '*' -sS \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  -H "x-app-operator-email: $APP_API_RELEASE_OPERATOR_EMAIL" \
+  "$APP_API_BASE_URL/api/operator/runtime/autoscaler/postures?limit=16" \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-autoscaler-postures.json"
+```
+
+Docker Compose transitional runtime 额外检查 autoscaler decisions：
 
 ```bash
 curl --noproxy '*' -sS \
@@ -366,7 +376,7 @@ curl --noproxy '*' -sS \
   | tee "$E2E_QA_EVIDENCE_DIR/operator-runtime-autoscaler-decisions.json"
 ```
 
-检查 autoscaler actuations：
+Docker Compose transitional runtime 额外检查 autoscaler actuations：
 
 ```bash
 curl --noproxy '*' -sS \
@@ -382,8 +392,12 @@ curl --noproxy '*' -sS \
 - `pollerCount`、`pollerIdentities`、`backlog` 与 `oldestTaskAge` 来自 Temporal
   `DescribeTaskQueue(report_stats=true)`
 - 当前 sampler 下 `scheduleToStartLatency` 必须显式为 `unsupported_by_source`
-- autoscaler decision 包含 `sourceSnapshotId`、`currentReplicas`、`desiredReplicas`
+- K8s runtime 的 autoscaler posture 覆盖每个 KEDA-managed worker pool，且
+  `scalerKind=keda_temporal`
+- Docker Compose transitional autoscaler decision 包含 `sourceSnapshotId`、`currentReplicas`、`desiredReplicas`
   与 `budgetState`
+- Docker Compose apply mode 下 autoscaler actuation 只允许 `applied`、`skipped` 或
+  `failed`
 - apply mode 下 autoscaler actuation 只允许 `applied`、`skipped` 或 `failed`
 - explicit proof 如需保留历史行，producer 必须使用 `history=1`；release QA 默认只要求
   current projection evidence

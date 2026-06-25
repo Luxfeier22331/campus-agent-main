@@ -5,8 +5,10 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import {
+	checkCampusPublishedReaderInputs,
 	parsePublishedReaderSyncArgs,
 	resolvePublishedReaderObjectStoreBucket,
+	resolvePublishedReaderObjectStoreConfig,
 	resolvePublishedReaderObjectStoreCredentials,
 	syncCampusPublishedReaderAssets,
 	syncCampusPublishedReaderDocs,
@@ -35,6 +37,48 @@ describe("campus-web published reader sync", () => {
 		).toBe("campus-rag-derived-local");
 	});
 
+	it("requires an explicit derived object store bucket for published reader sync", () => {
+		expect(() => resolvePublishedReaderObjectStoreBucket({})).toThrow(
+			"OBJECT_STORE_BUCKET_DERIVED is required for campus docs published reader sync",
+		);
+	});
+
+	it("resolves object store config with derived credentials preferred over shared credentials", () => {
+		expect(
+			resolvePublishedReaderObjectStoreConfig({
+				OBJECT_STORE_ACCESS_KEY: "shared-access",
+				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived",
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+				OBJECT_STORE_SECRET_KEY: "shared-secret",
+			}),
+		).toMatchObject({
+			accessKeyId: "derived-access",
+			bucket: "campus-rag-derived",
+			credentialMode: "derived",
+			endpoint: "http://localhost:9000",
+			region: "us-east-1",
+			secretAccessKey: "derived-secret",
+		});
+		expect(
+			resolvePublishedReaderObjectStoreConfig({
+				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived",
+				OBJECT_STORE_DERIVED_ACCESS_KEY: "derived-access",
+				OBJECT_STORE_DERIVED_SECRET_KEY: "derived-secret",
+				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+				OBJECT_STORE_REGION: "auto",
+			}),
+		).toMatchObject({
+			accessKeyId: "derived-access",
+			bucket: "campus-rag-derived",
+			credentialMode: "derived",
+			endpoint: "http://localhost:9000",
+			region: "auto",
+			secretAccessKey: "derived-secret",
+		});
+	});
+
 	it("uses derived bucket credentials for published reader object store access", () => {
 		expect(
 			resolvePublishedReaderObjectStoreCredentials({
@@ -45,8 +89,20 @@ describe("campus-web published reader sync", () => {
 			}),
 		).toEqual({
 			accessKeyId: "derived-access",
+			credentialMode: "derived",
 			secretAccessKey: "derived-secret",
 		});
+	});
+
+	it("fails closed when object store credentials are incomplete", () => {
+		expect(() =>
+			resolvePublishedReaderObjectStoreConfig({
+				OBJECT_STORE_BUCKET_DERIVED: "campus-rag-derived",
+				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
+			}),
+		).toThrow(
+			"missing object-store credentials: provide OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or OBJECT_STORE_DERIVED_ACCESS_KEY/OBJECT_STORE_DERIVED_SECRET_KEY",
+		);
 	});
 
 	it("resolves docs sync manifest selection from CLI args only", () => {
@@ -67,6 +123,13 @@ describe("campus-web published reader sync", () => {
 			command: "docs",
 			manifestFilePath: undefined,
 			manifestObjectKey: "published/docs/manifest.json",
+		});
+		expect(
+			parsePublishedReaderSyncArgs(["check", "--manifest-path", "../../var/public-docs.json"]),
+		).toEqual({
+			command: "check",
+			manifestFilePath: "../../var/public-docs.json",
+			manifestObjectKey: undefined,
 		});
 	});
 
@@ -280,6 +343,49 @@ describe("campus-web published reader sync", () => {
 		]);
 	});
 
+	it("checks published reader inputs without writing generated docs or static assets", async () => {
+		const { client, manifestPath, root } = createPublishedReaderFixture();
+		const docsRoot = join(root, "docs");
+		const targetRoot = join(root, "public");
+
+		const result = await checkCampusPublishedReaderInputs({
+			client,
+			docsRoot,
+			manifestFilePath: manifestPath,
+			targetRoot,
+		});
+
+		expect(result).toMatchObject({
+			checkedDocumentCount: 3,
+			checkedObjectCount: 16,
+			checkedProtectedSearchIndexCount: 1,
+		});
+		expect(() =>
+			readFileSync(join(docsRoot, "docs/regulations/student_rules/student-attendance.mdx")),
+		).toThrow();
+		expect(() =>
+			readFileSync(
+				join(
+					targetRoot,
+					"_docs/regulations/student_rules/student-attendance/2026-current/reader.json",
+				),
+			),
+		).toThrow();
+	});
+
+	it("fails closed when check mode finds a missing reader source object", async () => {
+		const { client, manifestPath } = createPublishedReaderFixture({
+			missingObjects: ["reader/public.json"],
+		});
+
+		await expect(
+			checkCampusPublishedReaderInputs({
+				client,
+				manifestFilePath: manifestPath,
+			}),
+		).rejects.toThrow("missing reader asset source object: reader/public.json");
+	});
+
 	it("fails closed when the published reader manifest omits protected search units", async () => {
 		const { client, manifestPath, root } = createPublishedReaderFixture({
 			includeSearchUnits: false,
@@ -310,7 +416,12 @@ describe("campus-web published reader sync", () => {
 });
 
 function createPublishedReaderFixture(
-	input: { includeSearchUnits?: boolean; publicDocumentSlug?: string; surface?: string } = {},
+	input: {
+		includeSearchUnits?: boolean;
+		missingObjects?: string[];
+		publicDocumentSlug?: string;
+		surface?: string;
+	} = {},
 ): {
 	client: ObjectStoreClient;
 	manifestPath: string;
@@ -572,13 +683,20 @@ function createPublishedReaderFixture(
 	};
 	const manifestPath = join(root, "manifest.json");
 	writeFileSync(manifestPath, JSON.stringify(manifest), "utf8");
+	const missingObjects = new Set(input.missingObjects ?? []);
 	return {
 		client: {
 			async readOptionalBytesObject(input) {
+				if (missingObjects.has(input.key)) {
+					return;
+				}
 				const value = objects.get(input.key);
 				return value ? new TextEncoder().encode(value) : undefined;
 			},
 			async readTextObject(input) {
+				if (missingObjects.has(input.key)) {
+					throw new Error(`missing object: ${input.key}`);
+				}
 				const value = objects.get(input.key);
 				if (!value) {
 					throw new Error(`missing object: ${input.key}`);

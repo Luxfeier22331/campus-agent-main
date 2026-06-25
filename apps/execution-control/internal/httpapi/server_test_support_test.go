@@ -205,6 +205,12 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
+				Name:    temporalruntime.ActivityTaskQueueAgent,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
 				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
@@ -224,6 +230,12 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 			},
 			{
 				Name:    temporalruntime.ActivityTaskQueueFinalization,
+				Type:    temporalruntime.TaskQueueTypeActivity,
+				Pollers: 1,
+				Healthy: true,
+			},
+			{
+				Name:    temporalruntime.ActivityTaskQueueCampusService,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -313,19 +325,7 @@ func useStructuredQueryRuntimeFixture(
 	t.Helper()
 	bundle := decodeProjectionBundleFixture(t, body)
 	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
-		ServiceStatusReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
 		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		AcademicCalendarReadModelStore: &fakeStructuredReadModelStore{
 			bundle: bundle,
 		},
 		TrustedTimeRFC3339: trustedTime,
@@ -335,27 +335,13 @@ func useStructuredQueryRuntimeFixture(
 func useStructuredQueryRuntimeFixtures(
 	t *testing.T,
 	server *Server,
-	serviceStatusBody string,
 	transportScheduleBody string,
-	serviceGuideBody string,
 	trustedTime string,
 ) {
 	t.Helper()
 	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
-		ServiceStatusReadModelStore: &fakeStructuredReadModelStore{
-			bundle: decodeProjectionBundleFixture(t, serviceStatusBody),
-		},
 		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
 			bundle: decodeProjectionBundleFixture(t, transportScheduleBody),
-		},
-		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
-			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
-		},
-		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
-			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
-		},
-		AcademicCalendarReadModelStore: &fakeStructuredReadModelStore{
-			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
 		},
 		TrustedTimeRFC3339: trustedTime,
 	})
@@ -393,11 +379,7 @@ func (s *fakeStructuredReadModelStore) ProjectionReady(context.Context) (bool, e
 	if s.projectionReadySet {
 		return s.projectionReady, nil
 	}
-	return len(s.bundle.ServiceStatusRecords) > 0 ||
-		len(s.bundle.TransportScheduleSnapshots) > 0 ||
-		len(s.bundle.ServiceGuideRecords) > 0 ||
-		len(s.bundle.ContactDirectoryRecords) > 0 ||
-		len(s.bundle.AcademicCalendarRecords) > 0, nil
+	return len(s.bundle.TransportScheduleSnapshots) > 0, nil
 }
 
 func (s *fakeStructuredReadModelStore) LoadBundleForRelease(

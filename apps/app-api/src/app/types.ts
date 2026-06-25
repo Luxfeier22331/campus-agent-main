@@ -6,6 +6,10 @@ import type { AuthenticatedNoticeRunProcessingCommandService } from "../modules/
 import type { AuthenticatedNoticeRunProcessingQueryService } from "../modules/authenticated-notice-run-processing-query";
 import type { CampusExperienceService } from "../modules/campus-experience";
 import type { CampusServicesOpsService } from "../modules/campus-services-ops";
+import type {
+	CampusServicesTransportScheduleFetch,
+	CampusServicesTransportScheduleService,
+} from "../modules/campus-services-transport-schedule";
 import type { ChatConversationService } from "../modules/chat";
 import type { DiningOperationsService } from "../modules/dining-ops";
 import type { DocsService } from "../modules/docs";
@@ -46,9 +50,10 @@ export interface AppDependencies {
 	authenticatedNoticeRunProcessingQueryService?: AuthenticatedNoticeRunProcessingQueryService;
 	campusExperienceService?: CampusExperienceService;
 	campusServicesOpsService?: CampusServicesOpsService;
+	campusServicesTransportScheduleFetch?: CampusServicesTransportScheduleFetch;
+	campusServicesTransportScheduleService?: CampusServicesTransportScheduleService;
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
-	fetchChatKitAdapter?: (request: Request) => Promise<Response> | Response;
 	diningOperationsService?: DiningOperationsService;
 	docsService?: DocsService;
 	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
@@ -122,6 +127,7 @@ export interface AppRequestScope {
 	resolveAuthenticatedNoticeRunProcessingQueryService(): AuthenticatedNoticeRunProcessingQueryService;
 	resolveCampusExperienceService(): CampusExperienceService;
 	resolveCampusServicesOpsService(): CampusServicesOpsService;
+	resolveCampusServicesTransportScheduleService(): CampusServicesTransportScheduleService;
 	resolveChatCommandService(): ChatCommandService;
 	resolveChatConversationService(): ChatConversationService;
 	resolveDiningOperationsService(): DiningOperationsService;

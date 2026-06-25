@@ -150,19 +150,19 @@ export function createCampusAuthUIProviderProps({
 		navigate,
 		plugins:
 			enableCaptcha && turnstileRuntimeConfig.turnstileSiteKey
-			? [
-					captchaPlugin({
-						render: (props) => (
-							<TurnstileCaptcha
-								{...props}
-								appearance={turnstileRuntimeConfig.turnstileAppearance}
-								execution={turnstileRuntimeConfig.turnstileExecution}
-								siteKey={turnstileRuntimeConfig.turnstileSiteKey ?? ""}
-							/>
-						),
-					}),
-				]
-			: [],
+				? [
+						captchaPlugin({
+							render: (props) => (
+								<TurnstileCaptcha
+									{...props}
+									appearance={turnstileRuntimeConfig.turnstileAppearance}
+									execution={turnstileRuntimeConfig.turnstileExecution}
+									siteKey={turnstileRuntimeConfig.turnstileSiteKey ?? ""}
+								/>
+							),
+						}),
+					]
+				: [],
 		redirectTo: redirectTo ?? resolveRedirectTo(),
 		viewPaths: {
 			auth: {

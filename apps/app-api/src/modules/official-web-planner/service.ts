@@ -5,8 +5,6 @@ import type { OfficialWebFetchDisposition, OfficialWebRunIntent } from "../offic
 export type OfficialWebPlannerFetchDisposition = OfficialWebFetchDisposition | "never_fetched";
 
 const CANONICAL_CONSUMER_FAMILIES = new Set([
-	"contact_directory_candidate",
-	"service_guide_candidate",
 	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",

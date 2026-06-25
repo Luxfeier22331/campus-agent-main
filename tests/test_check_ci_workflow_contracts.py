@@ -241,6 +241,35 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_requires_repo_static_lane_to_setup_uv_before_sync(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(
+                root,
+                pnpm_version="10.26.1",
+                setup_repo_static_uv=False,
+            )
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/lint.yml",
+                message="repo-static must setup uv before uv sync",
+            ),
+            issues,
+        )
+
 
 def _required_scripts() -> dict[str, str]:
     return {
@@ -268,6 +297,7 @@ def _write_minimal_workflows(
     install_golangci_lint: bool = True,
     include_langfuse_job: bool = True,
     install_langfuse_dependencies: bool = True,
+    setup_repo_static_uv: bool = True,
 ) -> None:
     go_lint_install_steps = (
         (
@@ -293,6 +323,7 @@ def _write_minimal_workflows(
         if include_langfuse_job
         else ()
     )
+    repo_static_uv_steps = ("      - uses: astral-sh/setup-uv@v6",) if setup_repo_static_uv else ()
     (root / ".github/workflows/lint.yml").write_text(
         "\n".join(
             (
@@ -300,9 +331,11 @@ def _write_minimal_workflows(
                 "jobs:",
                 "  repo-static:",
                 "    steps:",
+                *repo_static_uv_steps,
                 "      - uses: pnpm/action-setup@v4",
                 "        with:",
                 f"          version: {pnpm_version}",
+                "      - run: uv sync --all-packages --dev",
                 f"      - run: {lint_run}",
                 "  intent-release-gate:",
                 "    steps:",

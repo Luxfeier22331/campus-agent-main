@@ -21,7 +21,7 @@ function buildTargetCandidate(
 ): OfficialWebPlannerPageCandidate {
 	return {
 		cadenceClass: "target_candidate",
-		consumerFamily: "contact_directory_candidate",
+		consumerFamily: "academic_calendar_candidate",
 		contentType: "text/html",
 		discoveredFromUrl: null,
 		discoveryMethod: "manual_requeue",
@@ -44,19 +44,19 @@ function buildTargetCandidate(
 		mainContentHash: null,
 		materializationPolicy: "candidate_only",
 		nextEligibleFetchAt: "2026-05-01T08:00:00.000Z",
-		normalizedCanonicalUrl: "https://www.muc.edu.cn/contact/",
+		normalizedCanonicalUrl: "https://www.muc.edu.cn/calendar/",
 		pageFamily: "target_candidate",
 		pageTitleNormalized: "",
 		priorityScore: 80,
 		responseBodyHash: null,
 		retentionPolicy: "retain_source_truth",
 		reviewPolicy: "selected_write_requires_review",
-		selectedWriteTarget: "campus_services/contact_directory",
+		selectedWriteTarget: "calendar/academic_calendar",
 		siteId: "muc_public",
-		targetCandidateId: "owcand_contact",
+		targetCandidateId: "owcand_calendar",
 		targetDeclarationVersion: "muc_public_target_source_map_v2",
-		targetId: "campus-services-contact-directory",
-		targetJobId: "owtarget_contact",
+		targetId: "official-web-academic-calendar",
+		targetJobId: "owtarget_calendar",
 		worksetReason: "target_candidate_due",
 		...overrides,
 	};
@@ -94,25 +94,33 @@ describe("official web planner service", () => {
 			buildTargetCandidate({
 				host: "www.muc.edu.cn",
 				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+				consumerFamily: "stable_reference_candidate",
+				materializationPolicy: "release_gate_required",
+				reviewPolicy: "release_gate_required",
+				selectedWriteTarget: "official_web/stable_reference",
 				targetCandidateId: "owcand_stable",
 				targetId: "official-web-stable-reference",
 				targetJobId: "owtarget_stable",
 			}),
 			buildTargetCandidate({
 				host: "www.muc.edu.cn",
-				consumerFamily: "contact_directory_candidate",
+				consumerFamily: "academic_calendar_candidate",
 				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
-				selectedWriteTarget: "campus_services/contact_directory",
-				targetCandidateId: "owcand_contact",
-				targetId: "campus-services-contact-directory",
-				targetJobId: "owtarget_contact",
+				selectedWriteTarget: "calendar/academic_calendar",
+				targetCandidateId: "owcand_calendar",
+				targetId: "official-web-academic-calendar",
+				targetJobId: "owtarget_calendar",
 			}),
 			buildTargetCandidate({
 				host: "xxgk.muc.edu.cn",
+				consumerFamily: "regulation_candidate",
+				materializationPolicy: "release_gate_required",
 				normalizedCanonicalUrl: "https://xxgk.muc.edu.cn/info/1007/1113.htm",
-				targetCandidateId: "owcand_service",
-				targetId: "campus-services-service-guide",
-				targetJobId: "owtarget_service",
+				reviewPolicy: "release_gate_required",
+				selectedWriteTarget: "regulations/institutional_rules",
+				targetCandidateId: "owcand_rules",
+				targetId: "official-web-institutional-rules",
+				targetJobId: "owtarget_rules",
 			}),
 		];
 
@@ -125,7 +133,7 @@ describe("official web planner service", () => {
 				now: "2026-05-01T09:00:00.000Z",
 				runIntent: "hot",
 				siteId: "muc_public",
-				targetCandidateIds: ["owcand_stable", "owcand_contact", "owcand_service"],
+				targetCandidateIds: ["owcand_stable", "owcand_calendar", "owcand_rules"],
 			},
 			{ dedupeByCanonicalUrl: true },
 		);
@@ -133,8 +141,8 @@ describe("official web planner service", () => {
 		expect(selected).toHaveLength(3);
 		expect(selected.map((row) => row.targetCandidateId)).toEqual([
 			"owcand_stable",
-			"owcand_contact",
-			"owcand_service",
+			"owcand_calendar",
+			"owcand_rules",
 		]);
 	});
 
@@ -211,15 +219,15 @@ describe("official web planner service", () => {
 				lastFetchDisposition: "deleted",
 				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1832.htm",
 				targetCandidateId: "owcand_deleted",
-				targetId: "campus-services-service-guide",
-				targetJobId: "owtarget_service_guide",
+				targetId: "official-web-academic-calendar",
+				targetJobId: "owtarget_calendar",
 			}),
 			buildTargetCandidate({
 				host: "met.muc.edu.cn",
 				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1830.htm",
 				targetCandidateId: "owcand_live",
-				targetId: "campus-services-service-guide",
-				targetJobId: "owtarget_service_guide",
+				targetId: "official-web-academic-calendar",
+				targetJobId: "owtarget_calendar",
 			}),
 		];
 

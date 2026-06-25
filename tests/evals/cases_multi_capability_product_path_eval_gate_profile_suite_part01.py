@@ -113,11 +113,7 @@ class MultiCapabilityProductPathEvalGateProfileTestPart01(unittest.TestCase):
             {
                 "transport_schedule_sdk_opened",
                 "transport_schedule_sdk_opened_stream",
-                "service_status_sdk_opened",
-                "service_guide_sdk_opened",
-                "contact_directory_sdk_opened",
                 "notice_discover_sdk_opened",
-                "academic_calendar_sdk_opened",
                 "transactional_approval_required",
             },
         )

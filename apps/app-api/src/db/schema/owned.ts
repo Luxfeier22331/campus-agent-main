@@ -2,7 +2,6 @@ export {
 	campusServicesOpsAuditEvents,
 	campusServicesOpsReleases,
 	campusServicesOpsSourceAttestations,
-	campusServicesOpsStatusOverrides,
 	campusServicesOpsTransportOverrides,
 } from "./campus-services-ops";
 export {
@@ -78,6 +77,7 @@ export {
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
 	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "./operator-runtime";
 export { profileMemoryItems, profileMemorySettings } from "./profile";
 export { providerConfigConnections, providerConfigProfiles } from "./provider-config";
@@ -92,7 +92,6 @@ import {
 	campusServicesOpsAuditEvents,
 	campusServicesOpsReleases,
 	campusServicesOpsSourceAttestations,
-	campusServicesOpsStatusOverrides,
 	campusServicesOpsTransportOverrides,
 } from "./campus-services-ops";
 import {
@@ -168,6 +167,7 @@ import {
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
 	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "./operator-runtime";
 import { profileMemoryItems, profileMemorySettings } from "./profile";
 import { providerConfigConnections, providerConfigProfiles } from "./provider-config";
@@ -180,7 +180,6 @@ import {
 
 export const appApiOwnedSchema = {
 	campusServicesOpsSourceAttestations,
-	campusServicesOpsStatusOverrides,
 	campusServicesOpsTransportOverrides,
 	campusServicesOpsReleases,
 	campusServicesOpsAuditEvents,
@@ -253,6 +252,7 @@ export const appApiOwnedSchema = {
 	workerAutoscalerActuation,
 	workerAutoscalerDecisionCurrent,
 	workerAutoscalerDecision,
+	workerAutoscalerPosture,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

@@ -17,19 +17,6 @@ def _typed_recordsets(
     release_id: str,
     bundle: Mapping[str, Any],
 ) -> tuple[tuple[str, list[dict[str, Any]]], ...]:
-    if collection == "service_status":
-        return (
-            (
-                "service_status_read_model",
-                _records(
-                    release_id,
-                    bundle.get("service_status_records"),
-                    id_fields=("subject_id",),
-                    source_ref_field="related_notice_refs",
-                    table_name="service_status_read_model",
-                ),
-            ),
-        )
     if collection == "transport_schedule":
         return (
             (
@@ -280,11 +267,6 @@ def _source_ref(row: Mapping[str, Any], field: str) -> str:
 
 
 def _projection_counts(collection: str, bundle: Mapping[str, Any]) -> dict[str, int]:
-    if collection == "service_status":
-        return {
-            "service_status_records": len(_list(bundle.get("service_status_records"))),
-            "rejected_sources": len(_list(bundle.get("service_status_rejected_sources"))),
-        }
     if collection == "transport_schedule":
         return {
             "snapshots": len(_list(bundle.get("transport_schedule_snapshots"))),
@@ -314,8 +296,6 @@ def _projection_counts(collection: str, bundle: Mapping[str, Any]) -> dict[str, 
 
 
 def _collection_table_names(collection: str) -> tuple[str, ...]:
-    if collection == "service_status":
-        return ("service_status_read_model",)
     if collection == "transport_schedule":
         return (
             "transport_schedule_snapshots",
@@ -346,8 +326,6 @@ def _collection_table_names(collection: str) -> tuple[str, ...]:
 def _source_notice_ids(bundle: Mapping[str, Any]) -> list[str]:
     values: set[str] = set()
     for row_group in (
-        bundle.get("service_status_records"),
-        bundle.get("service_status_rejected_sources"),
         bundle.get("transport_schedule_snapshots"),
         bundle.get("scheduled_departures"),
         bundle.get("transport_service_exceptions"),

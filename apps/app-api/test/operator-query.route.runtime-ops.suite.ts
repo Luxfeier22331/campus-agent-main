@@ -221,4 +221,85 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 			});
 		});
 	});
+
+	describe("GET /api/operator/runtime/autoscaler/postures", () => {
+		it("returns KEDA/HPA scaler posture for operator principals", async () => {
+			const service = createOperatorQueryServiceMock({
+				listAutoscalerPostures: vi.fn().mockResolvedValue({
+					page: { nextCursor: null },
+					postures: [
+						{
+							currentReplicas: 1,
+							desiredReplicas: 2,
+							evidence: {
+								hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
+								kedaScaledObject: "activity-worker-knowledge-retrieval",
+							},
+							lastScaleEventAt: "2026-06-15T10:00:06.000Z",
+							lastScaleEventId: "actuation_01",
+							maxReplicas: 5,
+							metricFreshness: { ms: 15000, state: "observed" },
+							minReplicas: 1,
+							observedAt: "2026-06-15T10:00:08.000Z",
+							projectedAt: "2026-06-15T10:00:09.000Z",
+							reason: "hpa desired replicas above current replicas",
+							scalerKind: "keda_temporal",
+							scalerStatus: "healthy",
+							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueueKind: "activity",
+							targetService: "activity-worker-knowledge-retrieval",
+						},
+					],
+				}),
+			});
+			const principal = createOperatorPrincipal();
+			const app = createApp(env, {
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+				operatorQueryService: service,
+			});
+
+			const response = await app.fetch(
+				new Request(
+					"https://app-api.internal/api/operator/runtime/autoscaler/postures?targetService=activity-worker-knowledge-retrieval&scalerStatus=healthy",
+				),
+			);
+
+			expect(response.status).toBe(200);
+			await expect(response.json()).resolves.toEqual({
+				page: { nextCursor: null },
+				postures: [
+					{
+						currentReplicas: 1,
+						desiredReplicas: 2,
+						evidence: {
+							hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
+							kedaScaledObject: "activity-worker-knowledge-retrieval",
+						},
+						lastScaleEventAt: "2026-06-15T10:00:06.000Z",
+						lastScaleEventId: "actuation_01",
+						maxReplicas: 5,
+						metricFreshness: { ms: 15000, state: "observed" },
+						minReplicas: 1,
+						observedAt: "2026-06-15T10:00:08.000Z",
+						projectedAt: "2026-06-15T10:00:09.000Z",
+						reason: "hpa desired replicas above current replicas",
+						scalerKind: "keda_temporal",
+						scalerStatus: "healthy",
+						taskQueue: "campus-agent.activity.knowledge.retrieval",
+						taskQueueKind: "activity",
+						targetService: "activity-worker-knowledge-retrieval",
+					},
+				],
+			});
+			expect(service.listAutoscalerPostures).toHaveBeenCalledWith({
+				filters: {
+					cursor: null,
+					limit: null,
+					scalerStatus: "healthy",
+					targetService: "activity-worker-knowledge-retrieval",
+				},
+				principal,
+			});
+		});
+	});
 }

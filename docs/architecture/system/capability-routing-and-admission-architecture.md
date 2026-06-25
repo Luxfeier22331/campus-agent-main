@@ -211,6 +211,8 @@ session / actor / surface context、repo-global invariants、allowed tool set
   内部调用 execution-control internal query 后，execution-control 会把 success /
   fail-close result 归一化成 `sdk_tool.execute.<tool>.<index>` step / result
   projection，避免 tool 可调用性只停留在 SDK trace 或 finalization payload。
+  这些工具的 payload/result contract 以已登记 JSON Schema `$defs` 为准；
+  Python dataclass、Zod parser 或 Go struct 只属于本地解析 / helper 层。
 
 OpenAI 官方 Responses / tools 文档给出的成熟 agent 形态是：通过系统级
 instructions 约束模型，并把工具以结构化 `tools` 配置暴露给模型，由模型基于

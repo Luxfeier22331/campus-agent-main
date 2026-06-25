@@ -10,6 +10,7 @@ import type {
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
 	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "../../../db/schema";
 
 export type RequestObservabilityFactRow = typeof requestObservabilityFact.$inferSelect;
@@ -23,6 +24,7 @@ export type WorkerAutoscalerDecisionCurrentRow =
 	typeof workerAutoscalerDecisionCurrent.$inferSelect;
 export type WorkerAutoscalerDecisionRow = typeof workerAutoscalerDecision.$inferSelect;
 export type WorkerAutoscalerActuationRow = typeof workerAutoscalerActuation.$inferSelect;
+export type WorkerAutoscalerPostureRow = typeof workerAutoscalerPosture.$inferSelect;
 export type RuntimeDatabase = Awaited<ReturnType<typeof createRuntimeDatabase>>;
 export type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 

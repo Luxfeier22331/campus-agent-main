@@ -17,9 +17,11 @@ endpoints, but it must not write the app-api database directly.
 This contract covers:
 
 - `temporal_task_queue_metrics_snapshot.v1`
-- `worker_autoscaler_decision.v1`
-- `worker_autoscaler_actuation.v1`
-- target `worker_autoscaler_posture.v1`
+- `worker_autoscaler_posture.v1`
+- `worker_autoscaler_decision.v1` where a runtime produces a normalized
+  decision observation
+- `worker_autoscaler_actuation.v1` where a runtime produces a normalized scale
+  event observation
 - release eval consumption of `operator_step_trajectory.v1`
 
 It does not expose Temporal workflow history, raw Temporal responses, raw
@@ -76,7 +78,8 @@ Therefore:
 
 Current Docker Compose producer: `apps/execution-control/cmd/worker-autoscaler`.
 
-Target Kubernetes producer: KEDA/HPA projection collector writing through app-api
+Kubernetes target posture producer:
+`apps/execution-control/cmd/keda-hpa-posture-collector` writing through app-api
 internal ingest.
 
 The autoscaler reads the latest app-api runtime task queue projection, reads
@@ -92,9 +95,11 @@ internal runtime query seam; active cooldown returns a `hold` decision with
 `reason=cooldown_active`.
 
 Production target uses KEDA Temporal scaler and Kubernetes HPA for decision /
-replica control. In that mode `worker_autoscaler_decision.v1` is a normalized
-operator-safe projection of KEDA/HPA desired-vs-current state, not a repo-owned
-Go controller decision.
+replica control. In that mode `worker_autoscaler_decision.v1` is optional
+operator-safe observation of KEDA/HPA desired-vs-current state, not a repo-owned
+Go controller decision. First-stage Kubernetes runtime closeout must rely on
+`worker_autoscaler_posture.v1`; it must not require a repo-owned K8s scale
+decision loop.
 
 Decision fields:
 
@@ -164,8 +169,9 @@ answer state or downstream budget state.
 
 In Kubernetes target runtime:
 
-- `keda_hpa` actuation evidence represents a normalized Kubernetes scale event /
-  HPA desired replica change observed by the projection collector.
+- `keda_hpa` actuation evidence is optional. When produced, it represents a
+  normalized Kubernetes scale event / HPA desired replica change observed by a
+  projection collector, not an execution-control control operation.
 - KEDA/HPA owns replica control for worker Deployments.
 - Docker Compose `worker-autoscaler` must not run as a parallel production
   controller for the same worker pool.
@@ -175,12 +181,16 @@ In Kubernetes target runtime:
 
 ## Worker Autoscaler Posture
 
-Target payload schema version:
+Payload schema version:
 
 `worker_autoscaler_posture.v1`
 
-This target projection summarizes scaler health for release closeout and
-operator diagnosis.
+This projection summarizes scaler health for release closeout and operator
+diagnosis.
+
+For the Kubernetes target runtime this is the first-stage mandatory autoscaling
+projection. Decision and actuation projections may be added later as normalized
+observations, but posture is the required release closeout surface.
 
 Fields:
 
@@ -200,12 +210,42 @@ Fields:
 - `reason`
 - `evidence`
 
+Evidence may include sanitized KEDA event fields:
+
+- `kedaEventReason`
+- `kedaEventType`
+- `kedaEventMessage`
+- `kedaEventAt`
+
 Rules:
 
 - metric-stale / HPA metric-fetch failure / KEDA paused state must be explicit.
+- KEDA fallback events must set `scalerStatus=degraded` with
+  `reason=keda_fallback_active`.
+- KEDA scaler / metric-source failure events must set `scalerStatus=degraded`
+  with `reason=keda_metric_source_failed`.
+- KEDA pause annotations must set `scalerStatus=paused` with
+  `reason=keda_scaledobject_paused`.
 - projection consumers must not infer scaler health from missing fields.
 - release closeout must fail closed when posture is missing for a production
   worker pool that is expected to autoscale.
+
+Ingest endpoint:
+
+`POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
+
+Operator query endpoint:
+
+`GET /api/operator/runtime/autoscaler/postures`
+
+Internal query endpoint:
+
+`GET /api/internal/operator/runtime/autoscaler/postures`
+
+The K8s posture collector may read only Deployment, HPA, KEDA ScaledObject
+status and core Kubernetes Events in its namespace. It must not expose raw
+Kubernetes API objects, credentials, Temporal history, prompts or provider
+payloads.
 
 ## Eval Release Consumption
 

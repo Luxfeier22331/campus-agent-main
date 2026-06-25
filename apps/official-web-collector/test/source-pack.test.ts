@@ -15,7 +15,7 @@ describe("official-web-collector source-pack seam", () => {
 		expect(config.sourcePackManifest.entries.length).toBeGreaterThan(0);
 		expect(
 			config.sourcePackManifest.entries.some((entry) =>
-				entry.ownerSurfaces.includes("service_guide_lookup"),
+				entry.ownerSurfaces.includes("calendar/academic_calendar"),
 			),
 		).toBe(true);
 	});
@@ -65,7 +65,9 @@ describe("official-web-collector source-pack seam", () => {
 			expect(payload.siteId).toBe("muc_public");
 			expect(payload.sourcePackId).toBe("tool-driven-first-slice.v1");
 			expect(payload.entryCount).toBeGreaterThan(0);
-			expect(payload.rows.some((row) => row.entryId === "owsp-campus-card-met-1127")).toBe(true);
+			expect(payload.rows.some((row) => row.entryId === "owsp-public-academic-calendar-mdxl")).toBe(
+				true,
+			);
 		} finally {
 			spy.mockRestore();
 		}

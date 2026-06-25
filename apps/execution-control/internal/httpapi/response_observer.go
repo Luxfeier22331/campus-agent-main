@@ -26,16 +26,8 @@ func routeLabelFor(method string, path string) string {
 		return "/internal/execution/runs/:runId/cancel"
 	case method == http.MethodGet && strings.HasPrefix(path, "/internal/execution/runs/"):
 		return "/internal/execution/runs/:runId"
-	case method == http.MethodPost && path == "/internal/query/campus-services/service-status":
-		return "/internal/query/campus-services/service-status"
-	case method == http.MethodPost && path == "/internal/query/campus-services/service-guide":
-		return "/internal/query/campus-services/service-guide"
 	case method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		return "/internal/query/campus-services/transport-schedule"
-	case method == http.MethodPost && path == "/internal/query/campus-services/contact-directory":
-		return "/internal/query/campus-services/contact-directory"
-	case method == http.MethodPost && path == "/internal/query/calendar/academic-calendar":
-		return "/internal/query/calendar/academic-calendar"
 	case method == http.MethodPost && path == "/internal/query/notices/discover":
 		return "/internal/query/notices/discover"
 	case method == http.MethodPost && path == "/internal/query/notices/get":

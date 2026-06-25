@@ -287,7 +287,7 @@ doctor/env readiness contract。
   provider/model/API key active profiles from local provider projection artifact
   放置位置: `/srv/docker/campus-agent/staging/env/runtime.env` 或 Docker/ops-owned
   secret source
-  何时必需: 当前 canonical staging execution runtime 需要
+  何时必需: Compose-based local / transitional execution runtime 需要
   获取方式: deploy host ops secret store 渲染，不放入 `/srv/apps/campus-agent`
   deploy checkout；machine ingress 固定为 `execution-control-staging.mucwiki-edge.link`
 
@@ -300,7 +300,7 @@ doctor/env readiness contract。
   获取方式: 直接基于 repo template；不要把 deploy-only secret 回写到 root `.env.example`
 
 - Provider / system: Execution Control machine ingress protection
-  作用: `apps/app-api` 调用 Docker-first `execution-control` 时穿过 Cloudflare Access /
+  作用: `apps/app-api` 调用 Go `execution-control` machine ingress 时穿过 Cloudflare Access /
   Tunnel 保护的机器入口
   主要 env keys: `EXECUTION_CONTROL_ACCESS_CLIENT_ID`
   `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`

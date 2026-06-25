@@ -103,7 +103,7 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if s == nil || s.pool == nil {
 		return projectionBundle{}, errors.New("transport schedule read model store is not configured")
 	}
-	snapshots, err := fetchTransportJSONRecords[transportScheduleSnapshotRecord](
+	snapshots, err := fetchStructuredJSONRecords[transportScheduleSnapshotRecord](
 		ctx,
 		s.pool,
 		s.tableSQL("transport_schedule_snapshots"),
@@ -112,7 +112,7 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	routes, err := fetchTransportJSONRecords[transportRouteRecord](
+	routes, err := fetchStructuredJSONRecords[transportRouteRecord](
 		ctx,
 		s.pool,
 		s.tableSQL("transport_routes"),
@@ -121,7 +121,7 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	departures, err := fetchTransportJSONRecords[scheduledDepartureRecord](
+	departures, err := fetchStructuredJSONRecords[scheduledDepartureRecord](
 		ctx,
 		s.pool,
 		s.tableSQL("transport_scheduled_departures"),
@@ -130,7 +130,7 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	exceptions, err := fetchTransportJSONRecords[transportServiceExceptionRecord](
+	exceptions, err := fetchStructuredJSONRecords[transportServiceExceptionRecord](
 		ctx,
 		s.pool,
 		s.tableSQL("transport_service_exceptions"),
@@ -139,7 +139,7 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
-	operationalNotices, err := fetchTransportJSONRecords[transportOperationalNoticeRecord](
+	operationalNotices, err := fetchStructuredJSONRecords[transportOperationalNoticeRecord](
 		ctx,
 		s.pool,
 		s.tableSQL("transport_operational_notices"),
@@ -177,7 +177,7 @@ func (s *PostgresTransportScheduleReadModelStore) currentReleaseID(
 	return releaseID, nil
 }
 
-func fetchTransportJSONRecords[T any](
+func fetchStructuredJSONRecords[T any](
 	ctx context.Context,
 	pool *pgxpool.Pool,
 	tableSQL string,

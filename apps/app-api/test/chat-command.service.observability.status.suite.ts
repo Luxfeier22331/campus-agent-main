@@ -136,15 +136,15 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 			store: noAnswerStore.store,
 			executionRuntime: createExecutionRuntimeFromCapabilityClient({
 				execute: vi.fn().mockResolvedValue({
-					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认招生办联系方式。",
+					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认班车临时变更。",
 					error: null,
 					followUpQuestion: "",
 					result: {
-						payload_kind: "contact_directory_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							fail_close_reason: "source_conflict",
 							outcome: "temporarily_unverifiable",
-							query_text: "招生办联系方式",
+							query_text: "班车临时变更",
 						},
 					},
 					selectedCapability: "campus_services",
@@ -165,10 +165,10 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					error: null,
 					followUpQuestion: "",
 					result: {
-						payload_kind: "service_guide_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							outcome: "resolved_current",
-							service_query: "地铁接驳车预约",
+							query_text: "地铁接驳车预约",
 						},
 					},
 					selectedCapability: "campus_services",
@@ -192,7 +192,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 					},
 					followUpQuestion: "",
 					result: {
-						payload_kind: "contact_directory_lookup",
+						payload_kind: "transport_schedule_lookup",
 						tool_result: {
 							outcome: "resolved_current",
 							query_text: "招生办电话",
@@ -215,7 +215,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		const noAnswer = await noAnswerService.submit({
 			payload: {
 				conversationId: "conv_01HQ",
-				prompt: "招生办联系方式",
+				prompt: "班车临时变更",
 			},
 			principal: createPrincipal(),
 		});
@@ -254,7 +254,7 @@ export function registerChatCommandServiceObservabilityStatusSuite(): void {
 		}
 		expect(noAnswer.answer.result.text).toContain("为避免误导");
 		expect(noAnswer.answer.result.text).toContain("来源信息存在冲突");
-		expect(noAnswer.answer.result.text).toContain("招生办联系方式");
+		expect(noAnswer.answer.result.text).toContain("班车临时变更");
 		expectNoInternalLocators(noAnswer.answer.result.text);
 		expect(noAnswerStore.finalWrites[0]).toMatchObject({
 			requestExecution: {

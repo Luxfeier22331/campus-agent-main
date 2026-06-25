@@ -8,11 +8,10 @@ updated: 2026-04-20
 ---
 # Runbooks Archive
 
-`runbooks/archive/` 保存已退出默认执行面的 legacy runbook 与历史路径 redirect note。
+`runbooks/archive/` 保存仍有独特操作或迁移价值的 legacy runbook。
 
 ## Historical Workflows
 
-- `authenticated-notice/README.md`
 - `python-ingestion-worker/`
   - historical Python ingestion worker runbooks removed from active operation
     surface.
@@ -20,11 +19,8 @@ updated: 2026-04-20
   - superseded Qdrant Cloud / object-store snapshot runbook; current Qdrant
     backup operations are no longer owned by ingestion-worker Python CLIs.
 
-## Path Redirects
-
-- `path-redirects/README.md`
-
 ## Usage Rule
 
 - 当前可重复执行的 operator workflow 统一回到 `../README.md`
-- 只有在需要追溯旧 runner、旧 intake seam 或旧模板路径时，才进入本 archive namespace
+- 只有在需要追溯仍保留正文的旧 runner 或旧 intake seam 时，才进入本 archive namespace
+- 只承担 path redirect 的旧文档不再保留；需要旧正文时通过 git history 追溯

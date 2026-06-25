@@ -72,6 +72,10 @@ allowlist：
 ```bash
 pnpm --dir apps/campus-web test:worker -- --reporter=verbose
 pnpm --dir apps/campus-web test:node -- test/campus-worker.test.ts
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+node scripts/prepare-campus-docs-reader-build.mjs \
+  --read-model-manifest var/docs-read-model-manifest.json
 node apps/campus-web/scripts/build-published-reader-docs.mjs
 ```
 
@@ -117,6 +121,10 @@ pnpm --dir apps/operator-console-web test:worker -- --reporter=verbose -t \
 当前 docs browser route 属于 campus-web。做本地 docs smoke 时使用：
 
 ```bash
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+node scripts/prepare-campus-docs-reader-build.mjs \
+  --read-model-manifest var/docs-read-model-manifest.json
 node apps/campus-web/scripts/build-published-reader-docs.mjs
 pnpm dev
 ```
@@ -124,14 +132,18 @@ pnpm dev
 约束：
 
 - campus-web dev 固定监听 `http://127.0.0.1:27014`
+- feature worktree 中先通过 `scripts.link_worktree_app_local_env` 链接 root
+  worktree 的 ignored local env；不要复制 secret
 - root `pnpm dev` 同时启动 `campus-web` 与 same-origin 依赖的
   `app-api`，避免 docs admission、auth session、chat history、dining 等
   `/api/*` 在本地 smoke 中变成依赖缺失 503
-- `build-published-reader-docs.mjs` 先生成 Rspress reader assets，再由
-  campus-web 静态 delivery 提供 `/docs/*` 与 `/static/*`
-- 本地 `build-published-reader-docs.mjs` 如果缺少
-  `var/public-docs-sync-manifest.json`，会先通过 `app-api` read model 导出该 manifest；
-  staging build 仍要求显式提供 `var/public-docs-sync-manifest.staging.json`
+- `env/commands/campus-docs-reader-build.env` 必须存在于 root worktree，并提供
+  `APP_API_OPERATOR_DATABASE_URL` 与 docs reader derived bucket object-store 凭据
+- `prepare-campus-docs-reader-build.mjs` 先从 `app-api` docs read model 导出
+  `var/public-docs-sync-manifest.json`，并验证 manifest 引用的对象存储 reader
+  assets 可读
+- `build-published-reader-docs.mjs` 只消费已准备好的 manifest / reader assets，再由
+  campus-web 静态 delivery 提供 `/docs/*` 与 `/_docs-static/*`
 - `/_docs/*` 是匿名 public reader asset delivery
 - `/_gated-docs/*` 必须走 Worker-first admission，并通过 same-origin
   `/api/docs/.../admission` 向 `app-api` 校验后读取静态资产

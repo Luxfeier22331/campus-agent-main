@@ -1,0 +1,242 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/knowledge-tool-contracts.v1.schema.json",
+	"title": "campus-agent knowledge workflow-signal and internal RAG contracts",
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["schema_version", "tool_name", "packet_kind"],
+	"properties": {
+		"schema_version": {
+			"const": "knowledge_tool_contracts.v1"
+		},
+		"tool_name": {
+			"enum": ["knowledge_query", "retrieval.query", "retrieve_evidence"]
+		},
+		"packet_kind": {
+			"enum": ["payload", "result"]
+		},
+		"payload": {
+			"type": "object"
+		},
+		"result": {
+			"type": "object"
+		}
+	},
+	"allOf": [
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["payload"],
+				"not": {
+					"required": ["result"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["packet_kind"]
+			},
+			"then": {
+				"required": ["result"],
+				"not": {
+					"required": ["payload"]
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_query"
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/KnowledgeQuerySignalPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"const": "knowledge_query"
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/KnowledgeQuerySignalResult"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"enum": ["retrieval.query", "retrieve_evidence"]
+					},
+					"packet_kind": {
+						"const": "payload"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"payload": {
+						"$ref": "#/$defs/RagRequestPayload"
+					}
+				}
+			}
+		},
+		{
+			"if": {
+				"properties": {
+					"tool_name": {
+						"enum": ["retrieval.query", "retrieve_evidence"]
+					},
+					"packet_kind": {
+						"const": "result"
+					}
+				},
+				"required": ["tool_name", "packet_kind"]
+			},
+			"then": {
+				"properties": {
+					"result": {
+						"$ref": "#/$defs/RagResultPayload"
+					}
+				}
+			}
+		}
+	],
+	"$defs": {
+		"NonEmptyString": {
+			"type": "string",
+			"minLength": 1,
+			"pattern": "\\S"
+		},
+		"KnowledgeQuerySignalPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["query_text", "intent"],
+			"properties": {
+				"query_text": {
+					"$ref": "#/$defs/NonEmptyString"
+				},
+				"intent": {
+					"enum": ["answer_question", "compare_rules", "clarify_scope", null]
+				}
+			}
+		},
+		"KnowledgeQuerySignalResult": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["workflow_signal"],
+			"properties": {
+				"workflow_signal": {
+					"const": "knowledge_query"
+				}
+			}
+		},
+		"KnowledgeScope": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["corpus", "collection"],
+			"properties": {
+				"corpus": {
+					"enum": ["regulations", "curriculum", "official_web"]
+				},
+				"collection": {
+					"type": "string",
+					"minLength": 1
+				}
+			}
+		},
+		"VersionQuery": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"mode": {
+					"enum": ["current", "historical", "as_of", "compare"]
+				},
+				"as_of": {
+					"type": "string"
+				},
+				"version_id": {
+					"type": "string"
+				},
+				"compare_to_version_id": {
+					"type": "string"
+				}
+			}
+		},
+		"RagRequestPayload": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"scope": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"$ref": "#/$defs/KnowledgeScope"
+						}
+					]
+				},
+				"version_query": {
+					"$ref": "#/$defs/VersionQuery"
+				}
+			}
+		},
+		"RagResultPayload": {
+			"type": "object",
+			"additionalProperties": true,
+			"required": ["evidence"],
+			"properties": {
+				"evidence": {
+					"type": "object",
+					"additionalProperties": true
+				},
+				"diagnostics": {
+					"oneOf": [
+						{
+							"type": "null"
+						},
+						{
+							"type": "object",
+							"additionalProperties": true
+						}
+					]
+				}
+			}
+		}
+	}
+}

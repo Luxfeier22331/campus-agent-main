@@ -10,7 +10,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/admission"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 )
 
 func TestReadyzDegradesWhenExecutionAuditIsEnabledButUnconfigured(t *testing.T) {
@@ -49,37 +48,10 @@ func TestReadyzDegradesWhenOpenedCampusServicesRuntimeIsUnavailable(t *testing.T
 	}
 }
 
-func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailable(t *testing.T) {
-	partialProjectionFixture := `{
+func TestReadyzDegradesWhenOpenedCampusServicesTransportProjectionIsUnavailable(t *testing.T) {
+	emptyTransportFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
-		"service_status_records":[
-			{
-				"subject_id":"library-haidian",
-				"display_name":"海淀校区图书馆",
-				"aliases":["图书馆"],
-				"campus_scope":"haidian",
-				"observed_status":"open",
-				"effective_from":"2026-04-24T08:00:00+08:00",
-				"effective_until":"2026-04-24T22:00:00+08:00",
-				"override_source_refs":["notice:library-hours"],
-				"related_notice_refs":["notice:library-hours"]
-			}
-		],
-		"transport_schedule_snapshots":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"published_at":"2026-04-20T18:00:00+08:00",
-				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:bus-schedule-2026-04-20",
-				"is_current":true
-			}
-		]
-	}`
-	emptyServiceGuideFixture := `{
-		"schema_version":"campus_services_service_guide_projection.v1",
-		"service_guide_records":[],
-		"conflict_records":[],
-		"manual_review_sources":[]
+		"transport_schedule_snapshots":[]
 	}`
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.OpenCapabilities = []string{"campus_services"}
@@ -87,9 +59,7 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 	useStructuredQueryRuntimeFixtures(
 		t,
 		server,
-		partialProjectionFixture,
-		partialProjectionFixture,
-		emptyServiceGuideFixture,
+		emptyTransportFixture,
 		"",
 	)
 	response := httptest.NewRecorder()
@@ -101,14 +71,12 @@ func TestReadyzDegradesWhenOpenedCampusServicesServiceGuideProjectionIsUnavailab
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
-	if structuredQueryRuntime["service_status_projection_ready"] != true ||
-		structuredQueryRuntime["transport_schedule_implemented"] != true ||
-		structuredQueryRuntime["service_guide_projection_ready"] != false {
+	if structuredQueryRuntime["transport_schedule_implemented"] != false {
 		t.Fatalf("unexpected structured_query_runtime: %#v", structuredQueryRuntime)
 	}
 }
 
-func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *testing.T) {
+func TestReadyzDoesNotRequireClosedCampusServicesServiceStatusToolToBeModelVisible(t *testing.T) {
 	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
 		"service_status_records":[
@@ -132,43 +100,22 @@ func TestReadyzDegradesWhenOpenedCampusServicesContactDirectoryUnavailable(t *te
 				"source_ref":"notice:bus-schedule-2026-04-20",
 				"is_current":true
 			}
-		],
-		"service_guide_records":[
-			{
-				"service_id":"shuttle_bus",
-				"service_name":"校车",
-				"required_materials":[],
-				"contact_refs":[]
-			}
 		]
 	}`
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
 		cfg.OpenCapabilities = []string{"campus_services"}
 	})
-	bundle := decodeProjectionBundleFixture(t, projectionFixture)
-	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
-		ServiceStatusReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		ServiceGuideReadModelStore: &fakeStructuredReadModelStore{
-			bundle: bundle,
-		},
-		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
-	})
+	useStructuredQueryRuntimeFixture(t, server, projectionFixture, "2026-04-24T10:30:00+08:00")
 	response := httptest.NewRecorder()
 
 	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/readyz", nil))
 
-	if response.Code != http.StatusServiceUnavailable {
-		t.Fatalf("status = %d, want 503, body: %s", response.Code, response.Body.String())
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200, body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
 	structuredQueryRuntime := expectRecord(t, body["structured_query_runtime"], "structured_query_runtime")
-	if structuredQueryRuntime["contact_directory_read_model_configured"] != false ||
-		structuredQueryRuntime["contact_directory_projection_ready"] != false {
+	if structuredQueryRuntime["transport_schedule_implemented"] != true {
 		t.Fatalf("unexpected structured_query_runtime: %#v", structuredQueryRuntime)
 	}
 }

@@ -21,7 +21,7 @@ function buildPlannerPage(
 ): OfficialWebPlannerPageCandidate {
 	return {
 		cadenceClass: "target_candidate",
-		consumerFamily: "contact_directory_candidate",
+		consumerFamily: "academic_calendar_candidate",
 		contentType: "text/html",
 		discoveredFromUrl: null,
 		discoveryMethod: "manual_requeue",
@@ -44,19 +44,19 @@ function buildPlannerPage(
 		mainContentHash: null,
 		materializationPolicy: "candidate_only",
 		nextEligibleFetchAt: "2026-05-01T08:00:00.000Z",
-		normalizedCanonicalUrl: "https://www.example.edu/contact/",
+		normalizedCanonicalUrl: "https://www.example.edu/calendar/",
 		pageFamily: "target_candidate",
 		pageTitleNormalized: "",
 		priorityScore: 90,
 		responseBodyHash: null,
 		retentionPolicy: "retain_source_truth",
 		reviewPolicy: "selected_write_requires_review",
-		selectedWriteTarget: "campus_services/contact_directory",
+		selectedWriteTarget: "calendar/academic_calendar",
 		siteId: "campus_public",
-		targetCandidateId: "owcand_contact",
+		targetCandidateId: "owcand_calendar",
 		targetDeclarationVersion: "campus_public_target_source_map_v2",
-		targetId: "campus-services-contact-directory",
-		targetJobId: "owtarget_contact",
+		targetId: "official-web-academic-calendar",
+		targetJobId: "owtarget_calendar",
 		worksetReason: "target_candidate_due",
 		...overrides,
 	};
@@ -100,35 +100,35 @@ describe("official web target workset executor", () => {
 			plannerPages: [buildPlannerPage()],
 		});
 
-		expect(requests.map((request) => request.url)).toEqual(["https://www.example.edu/contact/"]);
+		expect(requests.map((request) => request.url)).toEqual(["https://www.example.edu/calendar/"]);
 		expect(requests.map((request) => request.url)).not.toContain("https://www.example.edu/");
 	});
 
 	it("merges multiple target workset rows for the same URL into one fetch request", async () => {
 		const fixture = buildFixture();
-		const contactPage = buildPlannerPage();
+		const calendarPage = buildPlannerPage();
 		const servicePage = buildPlannerPage({
-			consumerFamily: "service_guide_candidate",
-			materializationPolicy: "candidate_only",
-			normalizedCanonicalUrl: contactPage.normalizedCanonicalUrl,
-			reviewPolicy: "selected_write_requires_review",
-			selectedWriteTarget: "campus_services/service_guide",
-			targetCandidateId: "owcand_service",
+			consumerFamily: "regulation_candidate",
+			materializationPolicy: "release_gate_required",
+			normalizedCanonicalUrl: calendarPage.normalizedCanonicalUrl,
+			reviewPolicy: "release_gate_required",
+			selectedWriteTarget: "regulations/institutional_rules",
+			targetCandidateId: "owcand_rules",
 			targetDeclarationVersion: "campus_public_target_source_map_v2",
-			targetId: "campus-services-service-guide",
-			targetJobId: "owtarget_service",
+			targetId: "official-web-institutional-rules",
+			targetJobId: "owtarget_rules",
 			worksetReason: "target_candidate_due",
 		});
 		const requests = await buildInitialRequests({
 			...fixture,
-			plannerPages: [contactPage, servicePage],
+			plannerPages: [calendarPage, servicePage],
 		});
 
 		expect(requests).toHaveLength(1);
 		expect(requests[0]?.userData.knownPages).toHaveLength(2);
 		expect(requests[0]?.userData.knownPages?.map((page) => page.targetId).sort()).toEqual([
-			"campus-services-contact-directory",
-			"campus-services-service-guide",
+			"official-web-academic-calendar",
+			"official-web-institutional-rules",
 		]);
 	});
 
@@ -158,15 +158,15 @@ describe("official web target workset executor", () => {
 			robotsState: fixture.robotsState,
 			plannerPageLookup: new Map([[plannerPage.normalizedCanonicalUrl, plannerPage]]),
 			html: load(`
-				<a href="/contact/">Contact</a>
-				<a href="/unadmitted/">Unadmitted</a>
-			`),
+					<a href="/calendar/">Calendar</a>
+					<a href="/unadmitted/">Unadmitted</a>
+				`),
 			baseUrl: "https://www.example.edu/",
 			depth: 1,
 			targetWorksetOnly: true,
 		});
 
-		expect(requests.map((request) => request.url)).toEqual(["https://www.example.edu/contact/"]);
+		expect(requests.map((request) => request.url)).toEqual(["https://www.example.edu/calendar/"]);
 	});
 
 	it("allows admitted source-pack discovery rows to manually requeue same-host detail pages with inherited lineage", () => {
@@ -575,8 +575,8 @@ describe("official web target workset executor", () => {
 			bundle: fixture.bundle,
 			plan: fixture.plan,
 			hostPolicy: fixture.hostPolicy,
-			requestedUrl: "https://www.example.edu/contact/",
-			finalUrl: "https://www.example.edu/contact/",
+			requestedUrl: "https://www.example.edu/calendar/",
+			finalUrl: "https://www.example.edu/calendar/",
 			declaredCanonicalUrl: null,
 			responseBody:
 				"<html><head><title>Contact</title></head><body><main>联系我们 010-12345678 office@example.edu 地址：一号楼</main></body></html>",
@@ -593,7 +593,7 @@ describe("official web target workset executor", () => {
 				targetCandidateId: targetLineage.targetCandidateId,
 				targetId: targetLineage.targetId,
 				targetDeclarationVersion: targetLineage.targetDeclarationVersion,
-				consumerFamily: "contact_directory_candidate",
+				consumerFamily: "academic_calendar_candidate",
 				retentionPolicy: "retain_source_truth",
 				materializationPolicy: "candidate_only",
 				selectedWriteTarget: targetLineage.selectedWriteTarget,
@@ -606,41 +606,41 @@ describe("official web target workset executor", () => {
 		});
 
 		expect(page.pageManifest).toMatchObject({
-			targetJobId: "owtarget_contact",
-			targetCandidateId: "owcand_contact",
+			targetJobId: "owtarget_calendar",
+			targetCandidateId: "owcand_calendar",
 			targetDeclarationVersion: "campus_public_target_source_map_v2",
 			materializationPolicy: "candidate_only",
-			selectedWriteTarget: "campus_services/contact_directory",
+			selectedWriteTarget: "calendar/academic_calendar",
 			reviewPolicy: "selected_write_requires_review",
 		});
 		expect(Object.keys(page.pageManifest)).not.toContain("target_job_id");
 		expect(page.pageManifest.targetMatches?.[0]).toMatchObject({
-			consumerFamily: "contact_directory_candidate",
+			consumerFamily: "academic_calendar_candidate",
 			worksetReason: "target_candidate_due",
 		});
 	});
 
 	it("preserves multiple target lineages on a single fetched page", () => {
 		const fixture = buildFixture();
-		const contactPage = buildPlannerPage();
+		const calendarPage = buildPlannerPage();
 		const servicePage = buildPlannerPage({
-			consumerFamily: "service_guide_candidate",
-			materializationPolicy: "candidate_only",
-			normalizedCanonicalUrl: contactPage.normalizedCanonicalUrl,
-			reviewPolicy: "selected_write_requires_review",
-			selectedWriteTarget: "campus_services/service_guide",
-			targetCandidateId: "owcand_service",
+			consumerFamily: "regulation_candidate",
+			materializationPolicy: "release_gate_required",
+			normalizedCanonicalUrl: calendarPage.normalizedCanonicalUrl,
+			reviewPolicy: "release_gate_required",
+			selectedWriteTarget: "regulations/institutional_rules",
+			targetCandidateId: "owcand_rules",
 			targetDeclarationVersion: "campus_public_target_source_map_v2",
-			targetId: "campus-services-service-guide",
-			targetJobId: "owtarget_service",
+			targetId: "official-web-institutional-rules",
+			targetJobId: "owtarget_rules",
 			worksetReason: "target_candidate_due",
 		});
 		const page = buildCollectedPageArtifacts({
 			bundle: fixture.bundle,
 			plan: fixture.plan,
 			hostPolicy: fixture.hostPolicy,
-			requestedUrl: "https://www.example.edu/contact/",
-			finalUrl: "https://www.example.edu/contact/",
+			requestedUrl: "https://www.example.edu/calendar/",
+			finalUrl: "https://www.example.edu/calendar/",
 			declaredCanonicalUrl: null,
 			responseBody:
 				"<html><head><title>Contact</title></head><body><main>联系我们 010-12345678 office@example.edu 地址：一号楼 办理流程：先登记后办理</main></body></html>",
@@ -654,25 +654,25 @@ describe("official web target workset executor", () => {
 			fetchedAt: "2026-05-01T08:00:00.000Z",
 			targetLineages: [
 				{
-					targetJobId: contactPage.targetJobId,
-					targetCandidateId: contactPage.targetCandidateId,
-					targetId: contactPage.targetId,
-					targetDeclarationVersion: contactPage.targetDeclarationVersion,
-					consumerFamily: "contact_directory_candidate",
+					targetJobId: calendarPage.targetJobId,
+					targetCandidateId: calendarPage.targetCandidateId,
+					targetId: calendarPage.targetId,
+					targetDeclarationVersion: calendarPage.targetDeclarationVersion,
+					consumerFamily: "academic_calendar_candidate",
 					retentionPolicy: "retain_source_truth",
 					materializationPolicy: "candidate_only",
-					selectedWriteTarget: contactPage.selectedWriteTarget,
-					reviewPolicy: contactPage.reviewPolicy,
-					worksetReason: contactPage.worksetReason,
+					selectedWriteTarget: calendarPage.selectedWriteTarget,
+					reviewPolicy: calendarPage.reviewPolicy,
+					worksetReason: calendarPage.worksetReason,
 				},
 				{
 					targetJobId: servicePage.targetJobId,
 					targetCandidateId: servicePage.targetCandidateId,
 					targetId: servicePage.targetId,
 					targetDeclarationVersion: servicePage.targetDeclarationVersion,
-					consumerFamily: "service_guide_candidate",
+					consumerFamily: "regulation_candidate",
 					retentionPolicy: "retain_source_truth",
-					materializationPolicy: "candidate_only",
+					materializationPolicy: "release_gate_required",
 					selectedWriteTarget: servicePage.selectedWriteTarget,
 					reviewPolicy: servicePage.reviewPolicy,
 					worksetReason: servicePage.worksetReason,
@@ -684,12 +684,12 @@ describe("official web target workset executor", () => {
 		});
 
 		expect(page.pageManifest.targetMatches?.map((match) => match.targetId).sort()).toEqual([
-			"campus-services-contact-directory",
-			"campus-services-service-guide",
+			"official-web-academic-calendar",
+			"official-web-institutional-rules",
 		]);
-		expect(page.pageManifest.targetJobId).toBe("owtarget_contact");
-		expect(page.pageManifest.targetCandidateId).toBe("owcand_contact");
-		expect(page.pageManifest.selectedWriteTarget).toBe("campus_services/contact_directory");
+		expect(page.pageManifest.targetJobId).toBe("owtarget_calendar");
+		expect(page.pageManifest.targetCandidateId).toBe("owcand_calendar");
+		expect(page.pageManifest.selectedWriteTarget).toBe("calendar/academic_calendar");
 	});
 
 	it("carries target lineage from page manifests into app-api page observations", () => {
@@ -699,8 +699,8 @@ describe("official web target workset executor", () => {
 			bundle: fixture.bundle,
 			plan: fixture.plan,
 			hostPolicy: fixture.hostPolicy,
-			requestedUrl: "https://www.example.edu/contact/",
-			finalUrl: "https://www.example.edu/contact/",
+			requestedUrl: "https://www.example.edu/calendar/",
+			finalUrl: "https://www.example.edu/calendar/",
 			declaredCanonicalUrl: null,
 			responseBody:
 				"<html><head><title>Contact</title></head><body><main>联系我们 010-12345678 office@example.edu 地址：一号楼</main></body></html>",
@@ -717,7 +717,7 @@ describe("official web target workset executor", () => {
 				targetCandidateId: targetLineage.targetCandidateId,
 				targetId: targetLineage.targetId,
 				targetDeclarationVersion: targetLineage.targetDeclarationVersion,
-				consumerFamily: "contact_directory_candidate",
+				consumerFamily: "academic_calendar_candidate",
 				retentionPolicy: "retain_source_truth",
 				materializationPolicy: "candidate_only",
 				selectedWriteTarget: targetLineage.selectedWriteTarget,
@@ -732,10 +732,10 @@ describe("official web target workset executor", () => {
 		expect(
 			buildPageObservationFromCollectedPage("campus_public", "owrun_workset_executor", "hot", page),
 		).toMatchObject({
-			targetCandidateId: "owcand_contact",
+			targetCandidateId: "owcand_calendar",
 			targetDeclarationVersion: "campus_public_target_source_map_v2",
-			targetId: "campus-services-contact-directory",
-			targetJobId: "owtarget_contact",
+			targetId: "official-web-academic-calendar",
+			targetJobId: "owtarget_calendar",
 		});
 	});
 });

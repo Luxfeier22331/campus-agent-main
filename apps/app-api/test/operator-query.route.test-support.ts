@@ -77,6 +77,7 @@ export function createOperatorQueryServiceMock(
 		getRuntimeHealth: vi.fn(),
 		listAutoscalerActuations: vi.fn(),
 		listAutoscalerDecisions: vi.fn(),
+		listAutoscalerPostures: vi.fn(),
 		listTemporalTaskQueues: vi.fn(),
 		getIntentSummary: vi.fn(),
 		getIntentTimeseries: vi.fn(),

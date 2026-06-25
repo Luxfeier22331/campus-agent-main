@@ -442,14 +442,14 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
                     "manual_review_pages": [],
                     "consumer_candidate_pages": [
                         {
-                            "consumer_family": "contact_directory_candidate",
+                            "consumer_family": "regulation_candidate",
                             "materialization_policy": "candidate_only",
-                            "target_corpus": "campus_services",
-                            "target_collection": "contact_directory",
-                            "normalized_canonical_url": "https://www.example.edu/contact",
-                            "raw_asset_id": "owasset_contact",
-                            "raw_version_id": "owver_contact",
-                            "title": "联系我们",
+                            "target_corpus": "regulations",
+                            "target_collection": "institutional_rules",
+                            "normalized_canonical_url": "https://www.example.edu/rules",
+                            "raw_asset_id": "owasset_rules",
+                            "raw_version_id": "owver_rules",
+                            "title": "中央民族大学测试办法",
                             "matched_evidence": [],
                             "selected_write_target": "",
                             "review_policy": "selected_write_requires_review",
@@ -465,7 +465,6 @@ class OfficialWebProjectionCoreMetadataTest(unittest.TestCase):
             self.assertEqual(validation.counts["consumer_candidate_pages"], 1)
             issue_codes = {issue["code"] for issue in validation.issues}
             self.assertIn("consumer_candidate_missing_matched_evidence", issue_codes)
-            self.assertIn("consumer_candidate_missing_selected_write_target", issue_codes)
             self.assertIn("consumer_candidate_missing_candidate_key", issue_codes)
             self.assertIn("consumer_candidate_missing_typed_candidate_schema_version", issue_codes)
             self.assertIn("consumer_candidate_missing_typed_candidate", issue_codes)

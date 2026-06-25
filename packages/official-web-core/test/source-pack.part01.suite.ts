@@ -17,18 +17,18 @@ export function registerOfficialWebSourcePackPart01() {
 			siteId: "campus_public",
 			sourcePackId: "tool-driven-first-slice.v1",
 		});
-		expect(config.sourcePackManifest.entries).toHaveLength(5);
-		expect(config.sourcePackManifest.entries[1]).toMatchObject({
-			entryId: "campus-card-contact",
-			ownerSurfaces: ["service_guide_lookup", "contact_directory_lookup"],
-			releaseTargets: ["campus_services/service_guide", "campus_services/contact_directory"],
+		expect(config.sourcePackManifest.entries).toHaveLength(3);
+		expect(config.sourcePackManifest.entries[0]).toMatchObject({
+			entryId: "academic-calendar",
+			ownerSurfaces: ["calendar/academic_calendar"],
+			releaseTargets: ["calendar/academic_calendar"],
 		});
-		expect(config.sourcePackManifest.entries[3]).toMatchObject({
+		expect(config.sourcePackManifest.entries[1]).toMatchObject({
 			entryId: "institutional-rules-column",
 			answerBearing: false,
 			targetWorksetExpansion: "same_host_manual_requeue",
 		});
-		expect(config.sourcePackManifest.entries[4]).toMatchObject({
+		expect(config.sourcePackManifest.entries[2]).toMatchObject({
 			entryId: "student-rules-column",
 			answerBearing: false,
 			targetWorksetExpansion: "same_host_manual_requeue",

@@ -43,7 +43,29 @@
 					"input_contract": { "type": "string", "minLength": 1 },
 					"output_contract": { "type": "string", "minLength": 1 },
 					"can_publish_alias": { "type": "boolean" }
-				}
+				},
+				"allOf": [
+					{
+						"if": {
+							"properties": {
+								"executor_kind": { "const": "rust_kernel" }
+							},
+							"required": ["executor_kind"]
+						},
+						"then": {
+							"required": ["kernel_id"]
+						}
+					},
+					{
+						"not": {
+							"properties": {
+								"task_kind": { "const": "alias_publish" },
+								"executor_kind": { "const": "rust_kernel" }
+							},
+							"required": ["task_kind", "executor_kind"]
+						}
+					}
+				]
 			}
 		}
 	}

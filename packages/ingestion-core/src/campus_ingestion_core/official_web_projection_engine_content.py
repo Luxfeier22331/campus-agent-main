@@ -3,10 +3,8 @@ from __future__ import annotations
 import re
 
 from campus_ingestion_core.official_web_projection_engine_common import (
-    _CAMPUS_ADDRESS_RE,
     _EMAIL_RE,
     _LOCATION_RE,
-    _OFFICE_HOURS_RE,
     _PHONE_RE,
     _optional_int,
     _require_optional_text,
@@ -33,19 +31,7 @@ def _candidate_content_blocks(
 ) -> list[dict[str, object]]:
     if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         return _regulation_candidate_content_blocks(blocks)
-    if consumer_family != "contact_directory_candidate":
-        return _main_content_blocks(blocks)
-    candidate_blocks: list[dict[str, object]] = []
-    for block in blocks:
-        text = _normalize_block_text(block)
-        if not text:
-            continue
-        if bool(block.get("isMainContent")) or block.get("blockRole") == "title":
-            candidate_blocks.append(block)
-            continue
-        if _has_contact_directory_signal(text):
-            candidate_blocks.append(block)
-    return candidate_blocks
+    return _main_content_blocks(blocks)
 
 
 def _regulation_candidate_content_blocks(
@@ -128,21 +114,7 @@ def _block_lines(blocks: list[dict[str, object]]) -> list[str]:
     return lines
 
 
-def _has_contact_directory_signal(text: str) -> bool:
-    return bool(
-        _PHONE_RE.search(text)
-        or _EMAIL_RE.search(text)
-        or _LOCATION_RE.search(text)
-        or _CAMPUS_ADDRESS_RE.search(text)
-        or _OFFICE_HOURS_RE.search(text)
-    )
-
-
 def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
-    from campus_ingestion_core.official_web_projection_engine_service_extract import (
-        _extract_locations,
-    )
-
     spans: list[dict[str, object]] = []
     for block in blocks:
         text = _normalize_block_text(block)
@@ -157,14 +129,6 @@ def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, obj
                     "evidence_type": "location",
                     "row_id": row_id,
                     "text": location.strip(),
-                }
-            )
-        for location in _extract_locations([text]):
-            spans.append(
-                {
-                    "evidence_type": "location",
-                    "row_id": row_id,
-                    "text": location,
                 }
             )
         for email in _EMAIL_RE.findall(text):

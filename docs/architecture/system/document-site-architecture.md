@@ -189,10 +189,10 @@ canonical doc 正文交付长期采用：
 
 - `apps/campus-web` 通过 Rspress build 生成 docs route assets
 - Vite/Worker 仍是 campus-web product shell 与 API proxy owner
-- `/docs/*` 优先交付 Rspress-built reader HTML；未 materialize 的 docs route 才回到
-  React docs shell 的 explicit error/empty path
-- React `DocsPage` 不再承担自研 reader/search；它只处理未命中 static reader route 时的
-  restricted / gated resolve handoff 或明确错误
+- `/docs/*` 优先交付 Rspress-built reader HTML；collection-level 或未 materialize 的 docs
+  route 进入 React docs handoff
+- React `DocsPage` 不承担自研全文 reader/search；它只处理 collection navigation、restricted /
+  gated resolve handoff 或明确错误
 - `/api/docs/*` 继续经 campus-web Worker Service Binding 进入 `app-api`
 - unknown `/api/*`、operator APIs 与 generic app-api proxy 继续 fail closed
 - published reader assets 的长期真相源在对象存储

@@ -7,6 +7,11 @@ import {
 import { DEFAULT_DOCS_READER_PATH } from "./platform/navigation/product-nav";
 import { CAMPUS_RUNTIME_CONFIG_SCRIPT_ID } from "./platform/runtime/config";
 import { isAllowedCampusAppApiRequest } from "./platform/worker-proxy/allowlist";
+import {
+	isPublicCacheableAppApiRequest,
+	proxyCacheableAppApiRequest,
+	withCampusEdgeCacheBypass,
+} from "./platform/worker-proxy/public-cache";
 
 export interface Env {
 	APP_API?: {
@@ -74,6 +79,7 @@ const SHELL_EXACT_PATHS = new Set([
 	"/",
 	"/map",
 	"/dining",
+	"/services",
 	"/feedback",
 	"/account",
 	"/account/login",
@@ -234,6 +240,13 @@ function getMissingRuntimeConfig(env: Env): string[] {
 }
 
 async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
+	if (isPublicCacheableAppApiRequest(request)) {
+		return proxyCacheableAppApiRequestWithEnv(request, env);
+	}
+	return proxyNoStoreAppApiRequest(request, env);
+}
+
+async function proxyNoStoreAppApiRequest(request: Request, env: Env): Promise<Response> {
 	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
 	if (!appApiBaseUrl) {
 		return jsonResponse(503, {
@@ -297,6 +310,36 @@ async function proxyToAppApi(request: Request, env: Env): Promise<Response> {
 			},
 		});
 	}
+}
+
+async function proxyCacheableAppApiRequestWithEnv(request: Request, env: Env): Promise<Response> {
+	const appApiBaseUrl = env.APP_API_BASE_URL?.trim();
+	if (!appApiBaseUrl) {
+		return withCampusEdgeCacheBypass(dependencyNotReadyResponse());
+	}
+	const appApiFetch = resolveAppApiFetch(appApiBaseUrl, env);
+	if (!appApiFetch) {
+		return withCampusEdgeCacheBypass(dependencyNotReadyResponse());
+	}
+	return proxyCacheableAppApiRequest({
+		appApiBaseUrl,
+		appApiFetch,
+		buildDependencyNotReadyResponse: dependencyNotReadyResponse,
+		isHtmlServerErrorResponse,
+		request,
+		securityHeaders: SECURITY_HEADERS,
+		withNoStore,
+	});
+}
+
+function resolveAppApiFetch(
+	appApiBaseUrl: string,
+	env: Env,
+): ((request: Request) => Promise<Response> | Response) | null {
+	if (isLoopbackAppApiBaseUrl(appApiBaseUrl)) {
+		return fetch;
+	}
+	return env.APP_API?.fetch.bind(env.APP_API) ?? null;
 }
 
 function isHtmlServerErrorResponse(response: Response): boolean {
@@ -668,17 +711,35 @@ function responseWithSecurityHeaders(response: Response): Response {
 	});
 }
 
-function withNoStore(response: Response): Response {
+async function withNoStore(response: Response): Promise<Response> {
 	const headers = new Headers(response.headers);
+	const shouldMaterializeBody = response.body && !isStreamingResponse(headers);
 	headers.set("cache-control", "no-store");
+	headers.delete("content-encoding");
+	headers.delete("content-length");
 	for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
 		headers.set(key, value);
 	}
-	return new Response(response.body, {
+	const body = shouldMaterializeBody ? await response.arrayBuffer() : response.body;
+	return new Response(body, {
 		headers,
 		status: response.status,
 		statusText: response.statusText,
 	});
+}
+
+function dependencyNotReadyResponse(): Response {
+	return jsonResponse(503, {
+		error: {
+			code: "dependency_not_ready",
+			message: "服务暂不可用，请稍后再试。",
+		},
+	});
+}
+
+function isStreamingResponse(headers: Headers): boolean {
+	const contentType = headers.get("content-type")?.toLowerCase() ?? "";
+	return contentType.includes("text/event-stream");
 }
 
 function withVaryAuth(response: Response): Response {

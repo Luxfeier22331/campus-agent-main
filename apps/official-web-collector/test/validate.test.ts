@@ -469,9 +469,9 @@ describe("official-web-collector validate", () => {
 						duePages: [
 							{
 								host: "www.example.edu",
-								normalizedCanonicalUrl: "https://www.example.edu/contact/",
-								targetJobId: "owtarget_contact",
-								consumerFamily: "contact_directory_candidate",
+								normalizedCanonicalUrl: "https://www.example.edu/calendar/",
+								targetJobId: "owtarget_calendar",
+								consumerFamily: "academic_calendar_candidate",
 							},
 						],
 						hostFilter: ["www.example.edu"],

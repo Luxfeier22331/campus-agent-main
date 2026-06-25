@@ -29,6 +29,7 @@ import {
 
 export {
 	resolvePublishedReaderObjectStoreBucket,
+	resolvePublishedReaderObjectStoreConfig,
 	resolvePublishedReaderObjectStoreCredentials,
 } from "./published-reader-object-store.mjs";
 export { parsePublishedReaderSyncArgs } from "./published-reader-sync-args.mjs";
@@ -126,6 +127,54 @@ export async function syncCampusPublishedReaderAssets(input) {
 		copiedPublicDocumentCount: entries.filter(
 			(entry) => entry.deliveryMode === "public_static_asset",
 		).length,
+	};
+}
+
+export async function checkCampusPublishedReaderInputs(input) {
+	const manifest = await loadPublishedReaderManifest(input);
+	const entries = manifest.entries.filter(
+		(entry) => entry.deliveryMode === "public_static_asset" || entry.deliveryMode === "gated_asset",
+	);
+	let checkedObjectCount = 0;
+	for (const entry of entries) {
+		const copies = [];
+		for (const [targetLabel, targetObject] of Object.entries(entry.targetObjects)) {
+			const sourceObject = resolvePublishedReaderSourceObjectKey(entry, targetLabel);
+			const target = resolveSafePublishedReaderAssetTarget({
+				targetObject: resolvePublishedReaderTargetObjectByDeliveryMode(
+					entry.deliveryMode,
+					targetObject,
+				),
+				targetRoot: input.targetRoot ?? DEFAULT_PUBLIC_ROOT,
+			});
+			const bytes = await input.client.readOptionalBytesObject({ key: sourceObject });
+			if (!bytes) {
+				throw new Error(`missing reader asset source object: ${sourceObject}`);
+			}
+			copies.push({ ...target, bytes });
+			checkedObjectCount += 1;
+		}
+		validatePublishedReaderAssetManifest(entry, copies);
+	}
+	const searchUnitsByVersionId = buildSearchUnitsByVersionId(manifest.searchUnits);
+	let checkedProtectedSearchIndexCount = 0;
+	for (const entry of entries) {
+		if (entry.deliveryMode !== "gated_asset" || !entry.isCurrent) {
+			continue;
+		}
+		const searchUnits = searchUnitsByVersionId.get(entry.versionId);
+		if (!searchUnits) {
+			throw new Error(`missing protected search units for version: ${entry.versionId}`);
+		}
+		for (const unit of searchUnits) {
+			assertSearchUnitMatchesEntry({ entry, unit });
+		}
+		checkedProtectedSearchIndexCount += 1;
+	}
+	return {
+		checkedDocumentCount: entries.length,
+		checkedObjectCount,
+		checkedProtectedSearchIndexCount,
 	};
 }
 
@@ -641,6 +690,17 @@ async function main() {
 		console.log(
 			JSON.stringify(
 				await syncCampusPublishedReaderAssets({
+					client,
+					manifestFilePath: options.manifestFilePath,
+					manifestObjectKey: options.manifestObjectKey,
+				}),
+			),
+		);
+	}
+	if (options.command === "check") {
+		console.log(
+			JSON.stringify(
+				await checkCampusPublishedReaderInputs({
 					client,
 					manifestFilePath: options.manifestFilePath,
 					manifestObjectKey: options.manifestObjectKey,

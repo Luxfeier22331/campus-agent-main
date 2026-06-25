@@ -201,121 +201,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "program_semester_facts")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "program_semester_facts")
 
-    def test_load_service_catalog_runtime_profile(self) -> None:
-        profile = load_runtime_profile("campus_services", "service_catalog")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "service_catalog")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
-        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertFalse(profile.structured_query_enabled)
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ())
-        self.assertEqual(profile.retrieval_top_k, 3)
-        self.assertIsNone(profile.no_hit_min_top_score)
-        self.assertIsNone(profile.no_hit_min_score_gap)
-        self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
-        self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
-
-    def test_load_service_guide_runtime_profile(self) -> None:
-        profile = load_runtime_profile("campus_services", "service_guide")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "service_guide")
-        self.assertEqual(profile.serving_stage, "structured_query_serving")
-        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
-        self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertTrue(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ("service_guide_lookup",))
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ())
-        self.assertEqual(profile.retrieval_top_k, 3)
-        self.assertIsNone(profile.no_hit_min_top_score)
-        self.assertIsNone(profile.no_hit_min_score_gap)
-        self.assertEqual(profile.cleaning_policy_version, "service_guide_projection_v1")
-        self.assertEqual(profile.chunk_profile_version, "service_guide_projection_v1")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_guide")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_guide")
-
-    def test_load_service_catalog_chunk_profile(self) -> None:
-        profile = load_chunk_profile("campus_services", "service_catalog")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "service_catalog")
-        self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
-        self.assertEqual(profile.structured_input, "document_units_jsonl")
-        self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
-        self.assertEqual(profile.runtime_defaults.strategy_name, "service_catalog_structure_v1")
-
-    def test_load_service_status_runtime_profile(self) -> None:
-        profile = load_runtime_profile("campus_services", "service_status")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "service_status")
-        self.assertEqual(profile.serving_stage, "structured_query_serving")
-        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
-        self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertTrue(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ("service_status_lookup",))
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ())
-        self.assertEqual(profile.retrieval_top_k, 3)
-        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
-        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_status")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_status")
-
-    def test_load_service_status_chunk_profile(self) -> None:
-        profile = load_chunk_profile("campus_services", "service_status")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "service_status")
-        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
-        self.assertEqual(profile.structured_input, "service_status_projection_json")
-        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
-        self.assertEqual(profile.runtime_defaults.strategy_name, "service_status_projection_v1")
-
-    def test_load_contact_directory_runtime_profile(self) -> None:
-        profile = load_runtime_profile("campus_services", "contact_directory")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "contact_directory")
-        self.assertEqual(profile.serving_stage, "structured_query_serving")
-        self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
-        self.assertFalse(profile.split_manifest_required)
-        self.assertFalse(profile.retrieval_enabled)
-        self.assertFalse(profile.query_enabled_by_default)
-        self.assertTrue(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ("contact_directory_lookup",))
-        self.assertFalse(profile.current_only)
-        self.assertEqual(profile.serving_revision_tracks, ())
-        self.assertEqual(profile.retrieval_top_k, 3)
-        self.assertIsNone(profile.no_hit_min_top_score)
-        self.assertIsNone(profile.no_hit_min_score_gap)
-        self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
-        self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
-        self.assertEqual(profile.qdrant_index_binding.alias_name, "contact_directory")
-        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "contact_directory")
-
-    def test_load_contact_directory_chunk_profile(self) -> None:
-        profile = load_chunk_profile("campus_services", "contact_directory")
-
-        self.assertEqual(profile.corpus, "campus_services")
-        self.assertEqual(profile.collection, "contact_directory")
-        self.assertEqual(profile.chunk_profile_version, "contact_directory_semantic_v1")
-        self.assertEqual(profile.structured_input, "document_units_jsonl")
-        self.assertEqual(profile.cleaning_policy_version, "contact_directory_cleaning_v1")
-        self.assertEqual(profile.runtime_defaults.strategy_name, "contact_directory_structure_v1")
-
     def test_load_transport_schedule_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "transport_schedule")
 
@@ -338,13 +223,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "calendar")
         self.assertEqual(profile.collection, "academic_calendar")
-        self.assertEqual(profile.serving_stage, "structured_query_serving")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
-        self.assertTrue(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ("academic_calendar_lookup",))
+        self.assertFalse(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ())
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -613,11 +498,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         profiles = {
             tool: load_runtime_profile(corpus, collection)
             for tool, corpus, collection in (
-                ("service_status_lookup", "campus_services", "service_status"),
-                ("service_guide_lookup", "campus_services", "service_guide"),
-                ("contact_directory_lookup", "campus_services", "contact_directory"),
                 ("transport_schedule_lookup", "campus_services", "transport_schedule"),
-                ("academic_calendar_lookup", "calendar", "academic_calendar"),
             )
         }
 
@@ -631,16 +512,16 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
     def test_structured_query_serving_profile_rejects_generic_query_opening(self) -> None:
         base_kwargs = {
             "corpus": "campus_services",
-            "collection": "service_status",
+            "collection": "transport_schedule",
             "serving_stage": "structured_query_serving",
             "allowed_artifact_modes": ("source_truth_only",),
             "split_manifest_required": False,
-            "cleaning_policy_version": "service_status_projection_v1",
-            "chunk_profile_version": "service_status_projection_v1",
+            "cleaning_policy_version": "transport_schedule_projection_v1",
+            "chunk_profile_version": "transport_schedule_projection_v1",
             "retrieval_enabled": False,
             "query_enabled_by_default": False,
             "structured_query_enabled": True,
-            "structured_query_tools": ("service_status_lookup",),
+            "structured_query_tools": ("transport_schedule_lookup",),
         }
 
         with self.assertRaisesRegex(

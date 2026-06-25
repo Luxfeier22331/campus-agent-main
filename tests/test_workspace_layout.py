@@ -9,7 +9,6 @@ EXPECTED_WORKSPACES = {
     "apps/app-api",
     "apps/authenticated-notice-collector",
     "apps/campus-web",
-    "apps/chatkit-adapter",
     "apps/ingestion-worker",
     "apps/official-web-collector",
     "apps/operator-console-web",
@@ -35,6 +34,9 @@ class WorkspaceLayoutTest(unittest.TestCase):
     def test_legacy_operator_surface_apps_are_retired(self) -> None:
         self.assertFalse((ROOT / "apps/protected-panel-web").exists())
         self.assertFalse((ROOT / "apps/campus-ops-web").exists())
+
+    def test_chatkit_adapter_app_is_retired(self) -> None:
+        self.assertFalse((ROOT / "apps/chatkit-adapter").exists())
 
     def test_contract_surface_exposes_generic_capability_request(self) -> None:
         request = CapabilityRequest(

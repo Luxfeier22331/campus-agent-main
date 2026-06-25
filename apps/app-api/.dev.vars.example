@@ -20,7 +20,6 @@ EXECUTION_CONTROL_BASE_URL=https://execution-control.internal
 EXECUTION_CONTROL_SHARED_SECRET=replace-with-execution-control-shared-secret
 EXECUTION_CONTROL_TIMEOUT_MS=8000
 EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
-CHATKIT_ADAPTER_BASE_URL=http://127.0.0.1:8765
 # Optional. Required only when EXECUTION_CONTROL_BASE_URL is protected by
 # Cloudflare Access service-token authentication.
 EXECUTION_CONTROL_ACCESS_CLIENT_ID=
@@ -45,7 +44,7 @@ APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local
-APP_API_OTEL_INGEST_ENDPOINT=http://127.0.0.1:27081
+APP_API_OTEL_INGEST_ENDPOINT=http://127.0.0.1:4318
 APP_API_OTEL_INGEST_SHARED_SECRET=
 # Optional panel deep-link templates. Placeholders are URL-encoded before use.
 # Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedCapability}, {surface}, {status}.

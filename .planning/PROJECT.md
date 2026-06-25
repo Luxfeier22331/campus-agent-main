@@ -28,10 +28,9 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 - Product entry surface is `campus-web` at `https://campus.muc.wiki`; staging
   browser validation uses `https://campus-staging.mucwiki-edge.link`.
-  `campus-web`, `operator-console-web`, and the legacy `public-chat-web` surface
-  enter shared `app-api`. Docs are now a `campus-web /docs/*`
-  Rspress-powered reader surface, not a separate forward `public-docs` product
-  surface.
+  `campus-web` and `operator-console-web` enter shared `app-api`. Docs are now
+  a `campus-web /docs/*` Rspress-powered reader surface, not a separate forward
+  docs product surface.
 - `campus-web` owns the student-facing campus experience and account browser
   shell. `apps/app-api` remains the only auth/session/identity/federation truth
   owner.
@@ -50,8 +49,9 @@ product data and sanitized run/event/step projection, not the execution queue.
   visible tool set to `agent.primary`, and uses neutral `any` memory recall
   instead of defaulting to `knowledge`.
 - Model-selected campus-services / notice read-only tools are callable through
-  the agent-runtime execution-control internal query executor; their success or
-  fail-close results now project as normalized
+  the agent-runtime execution-control internal query executor only when the
+  tool is model-visible in `tool-catalog.v1` and its workflow artifact producer
+  is open / `supported_go_runtime`; their success or fail-close results project as normalized
   `sdk_tool.execute.<tool>.<index>` steps instead of living only in SDK trace or
   finalization payload.
 - RAG remains available as a Go-owned seven-step Temporal activity support path:

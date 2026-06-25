@@ -94,14 +94,14 @@ func (Activities) PlanRouteActivity(
 	if capability == "campus_services" {
 		return PlanRouteActivityOutput{
 			AllowedCapabilities: []string{"campus_services"},
-			AllowedTools:        []string{"service_status_lookup"},
+			AllowedTools:        []string{"transport_schedule_lookup"},
 			Capability:          "campus_services",
 			PlanRef:             "projection://runs/" + input.RunID + "/plan/route",
 			RunID:               input.RunID,
 			Status:              "planned",
-			ToolName:            "service_status_lookup",
+			ToolName:            "transport_schedule_lookup",
 			WorkerRole:          "activity-worker-campus-services",
-			PayloadKind:         "service_status_lookup",
+			PayloadKind:         "transport_schedule_lookup",
 		}, nil
 	}
 	return PlanRouteActivityOutput{
@@ -129,8 +129,8 @@ func (Activities) PlanReplanActivity(
 		Steps: []CapabilityBranchStep{{
 			AllowedTools: append([]string{}, input.AllowedTools...),
 			Capability:   input.AllowedCapabilities[0],
-			PayloadKind:  "service_status_lookup",
-			StepID:       "capability:campus_services:service_status_lookup:replan",
+			PayloadKind:  "transport_schedule_lookup",
+			StepID:       "capability:campus_services:transport_schedule_lookup:replan",
 			ToolName:     input.AllowedTools[0],
 			WorkerRole:   "activity-worker-campus-services",
 		}},

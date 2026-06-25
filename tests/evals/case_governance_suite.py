@@ -41,10 +41,7 @@ class EvalCaseGovernanceTest(unittest.TestCase):
                 "institutional_rules",
                 "curriculum_plan",
                 "official_web/stable_reference",
-                "service_status_lookup",
                 "transport_schedule_lookup",
-                "service_guide_lookup",
-                "contact_directory_lookup",
                 "online_answer_feedback/operator_quality_intake",
             }.issubset(surface_ids)
         )

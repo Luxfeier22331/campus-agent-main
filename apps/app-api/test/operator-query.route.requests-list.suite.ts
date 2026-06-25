@@ -31,6 +31,7 @@ export function registerOperatorQueryRequestsListSuite(): void {
 				getCostTimeseries: vi.fn(),
 				listAutoscalerActuations: vi.fn(),
 				listAutoscalerDecisions: vi.fn(),
+				listAutoscalerPostures: vi.fn(),
 				listQualityBadcases: vi.fn(),
 				listQualityEvalCandidates: vi.fn(),
 				listTemporalTaskQueues: vi.fn(),

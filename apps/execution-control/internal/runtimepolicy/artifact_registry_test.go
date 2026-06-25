@@ -1,6 +1,9 @@
 package runtimepolicy
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestWorkflowArtifactRegistryLoadsDefaultOntology(t *testing.T) {
 	registry, err := LoadWorkflowArtifactRegistry("")
@@ -14,12 +17,8 @@ func TestWorkflowArtifactRegistryLoadsDefaultOntology(t *testing.T) {
 			WorkflowArtifactRegistrySchemaVersion,
 		)
 	}
-	if _, ok := registry.ArtifactByKind("academic_calendar_facts"); !ok {
-		t.Fatal("academic_calendar_facts missing from workflow artifact registry")
-	}
-	if artifact, ok := registry.ArtifactByKind("calendar_fact"); !ok ||
-		artifact.Kind != "academic_calendar_facts" {
-		t.Fatalf("calendar_fact alias = %#v/%v, want academic_calendar_facts", artifact, ok)
+	if _, ok := registry.ArtifactByKind("schedule_baseline"); !ok {
+		t.Fatal("schedule_baseline missing from workflow artifact registry")
 	}
 }
 
@@ -44,5 +43,121 @@ func TestWorkflowArtifactRegistryValidatesDefaultRuntimeBindings(t *testing.T) {
 	}
 	if err := ValidateCapabilityBindings(capabilities, tools, artifacts); err != nil {
 		t.Fatalf("workflow capability bindings drifted from runtime registries: %v", err)
+	}
+}
+
+func TestValidateCapabilityBindingsAllowsClosedBindingUnderOpenCapability(t *testing.T) {
+	capabilities, tools, artifacts := loadRuntimePolicyRegistries(t)
+
+	if err := ValidateCapabilityBindings(capabilities, tools, artifacts); err != nil {
+		t.Fatalf("ValidateCapabilityBindings() failed: %v", err)
+	}
+}
+
+func TestValidateCapabilityBindingsRejectsOpenUnsupportedProjection(t *testing.T) {
+	capabilities, tools, artifacts := loadRuntimePolicyRegistries(t)
+	markArtifactUnsupported(&artifacts, "schedule_baseline")
+
+	err := ValidateCapabilityBindings(capabilities, tools, artifacts)
+	if err == nil {
+		t.Fatal("ValidateCapabilityBindings() succeeded, want unsupported projection failure")
+	}
+	if got := err.Error(); !strings.Contains(got, "unsupported projection") {
+		t.Fatalf("ValidateCapabilityBindings() error = %q, want unsupported projection", got)
+	}
+}
+
+func TestValidateModelVisibleToolArtifactGateRejectsClosedBinding(t *testing.T) {
+	_, _, artifacts := loadRuntimePolicyRegistries(t)
+	tool := ToolSpec{
+		Name:             "transport_schedule_lookup",
+		OwnerCapability:  "campus_services",
+		Capability:       "campus_services",
+		PayloadKind:      "transport_schedule_lookup",
+		PayloadSchemaRef: transportPayloadSchemaRef,
+		ResultSchemaRef:  transportResultSchemaRef,
+		Backend:          "internal_structured_query_service",
+		Surface:          "structured_handoff",
+		ReadOnly:         true,
+		Active:           false,
+		FunctionSchema:   ToolFunctionSchemaSpec{Available: false, Strict: true},
+		RuntimePosture:   "closed",
+		Description:      "Lookup current campus shuttle timetable.",
+	}
+
+	err := ValidateModelVisibleToolArtifactGate(tool, artifacts)
+	if err == nil {
+		t.Fatal("ValidateModelVisibleToolArtifactGate() succeeded, want closed tool failure")
+	}
+	if got := err.Error(); !strings.Contains(got, "model-visible tool must be active") {
+		t.Fatalf("ValidateModelVisibleToolArtifactGate() error = %q, want active/posture failure", got)
+	}
+}
+
+func TestValidateModelVisibleToolArtifactGateRejectsOpenUnsupportedProjection(t *testing.T) {
+	_, tools, artifacts := loadRuntimePolicyRegistries(t)
+	markArtifactUnsupported(&artifacts, "schedule_baseline")
+	tool, ok := tools.ToolByName("transport_schedule_lookup")
+	if !ok {
+		t.Fatal("transport_schedule_lookup missing from tool registry")
+	}
+
+	err := ValidateModelVisibleToolArtifactGate(tool, artifacts)
+	if err == nil {
+		t.Fatal("ValidateModelVisibleToolArtifactGate() succeeded, want unsupported projection failure")
+	}
+	if got := err.Error(); !strings.Contains(got, "unsupported artifact schedule_baseline") {
+		t.Fatalf("ValidateModelVisibleToolArtifactGate() error = %q, want unsupported artifact", got)
+	}
+}
+
+func TestValidateModelVisibleToolArtifactGateAllowsOpenSupportedProjection(t *testing.T) {
+	_, tools, artifacts := loadRuntimePolicyRegistries(t)
+	tool, ok := tools.ToolByName("transport_schedule_lookup")
+	if !ok {
+		t.Fatal("transport_schedule_lookup missing from tool registry")
+	}
+
+	if err := ValidateModelVisibleToolArtifactGate(tool, artifacts); err != nil {
+		t.Fatalf("ValidateModelVisibleToolArtifactGate() failed: %v", err)
+	}
+}
+
+func loadRuntimePolicyRegistries(
+	t *testing.T,
+) (CapabilitySpecRegistry, ToolSpecRegistry, WorkflowArtifactRegistry) {
+	t.Helper()
+	capabilities, err := LoadCapabilitySpecRegistry("")
+	if err != nil {
+		t.Fatalf("LoadCapabilitySpecRegistry default failed: %v", err)
+	}
+	tools, err := LoadToolSpecRegistry("")
+	if err != nil {
+		t.Fatalf("LoadToolSpecRegistry default failed: %v", err)
+	}
+	artifacts, err := LoadWorkflowArtifactRegistry("")
+	if err != nil {
+		t.Fatalf("LoadWorkflowArtifactRegistry default failed: %v", err)
+	}
+	return capabilities, tools, artifacts
+}
+
+func openArtifactBinding(registry *WorkflowArtifactRegistry, bindingID string) {
+	for index, binding := range registry.Bindings {
+		if binding.BindingID != bindingID {
+			continue
+		}
+		registry.Bindings[index].OpeningGate = "open"
+		return
+	}
+}
+
+func markArtifactUnsupported(registry *WorkflowArtifactRegistry, kind string) {
+	for index, artifact := range registry.Artifacts {
+		if artifact.Kind != kind {
+			continue
+		}
+		registry.Artifacts[index].CurrentProjectionSupport = "planned_contract_gap"
+		return
 	}
 }

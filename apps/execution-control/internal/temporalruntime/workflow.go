@@ -110,7 +110,6 @@ func executePrimaryAgentWithBoundedReplan(
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentOptions := primaryAgentActivityOptions(activityOptions)
 	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
-	visibleCapabilities := visibleCapabilitiesForPrimaryAgent(requestedCapability)
 	agentInput := ExecutePrimaryAgentActivityInput{
 		ConversationID:       input.ConversationID,
 		MemoryContext:        memoryContext(memory),
@@ -120,7 +119,7 @@ func executePrimaryAgentWithBoundedReplan(
 		RunID:                input.RunID,
 		TraceID:              input.TraceID,
 		TurnID:               input.TurnID,
-		VisibleCapabilities:  visibleCapabilities,
+		VisibleCapabilities:  append([]string{}, input.VisibleCapabilities...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent); err != nil {
@@ -184,23 +183,6 @@ func memoryContext(memory MemoryRecallActivityOutput) *MemoryContext {
 		SchemaVersion:       memory.SchemaVersion,
 		SelectedMemoryChars: memory.SelectedMemoryChars,
 		SelectedMemoryCount: memory.SelectedMemoryCount,
-	}
-}
-
-func visibleCapabilitiesForPrimaryAgent(requestedCapability string) []string {
-	switch strings.TrimSpace(requestedCapability) {
-	case "knowledge":
-		return []string{"knowledge"}
-	case "campus_services":
-		return []string{"campus_services"}
-	case "notice":
-		return []string{"notice"}
-	case "place_lookup", "navigation":
-		return []string{"navigation"}
-	case "":
-		return []string{"knowledge", "campus_services", "notice"}
-	default:
-		return []string{}
 	}
 }
 

@@ -16,7 +16,7 @@ browser -> campus-web -> student experience / account shell
 
 campus-web same-origin allowlisted /api/* -> app-api
 
-browser -> campus-web Q&A -> app-api / chatkit-adapter -> app-api chat routes
+browser -> campus-web Q&A -> app-api assistant-ui chat routes
 -> execution-control -> Temporal -> workflow-worker / activity-worker-context /
 activity-worker-agent / activity-worker-knowledge-plan /
 activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
@@ -41,7 +41,9 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference`
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
-- `apps/execution-control` 是 Docker-first internal execution engine，不是产品后端
+- `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端；
+  Docker Compose 只保留 local / transitional runtime evidence，长期 production
+  target substrate 是 K8s + KEDA
 - 当前 online answer path 已硬切为 Go/Temporal durable envelope +
   OpenAI Agents SDK primary agent loop；ordinary chat 由 primary agent 在
   admitted tool catalog 内决定 direct/no-tool、notice、campus_services 或

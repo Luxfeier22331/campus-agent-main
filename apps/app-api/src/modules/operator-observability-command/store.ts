@@ -15,6 +15,7 @@ import {
 	workerAutoscalerActuation,
 	workerAutoscalerDecision,
 	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "../../db/schema";
 import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
 import type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
@@ -22,6 +23,7 @@ import type {
 	TemporalTaskQueueSnapshotWrite,
 	WorkerAutoscalerActuationWrite,
 	WorkerAutoscalerDecisionWrite,
+	WorkerAutoscalerPostureWrite,
 } from "../operator-runtime-observability";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
@@ -95,6 +97,7 @@ export interface TemporalTaskQueueRuntimeProjectionWrite {
 	actuations: WorkerAutoscalerActuationWrite[];
 	decisions: WorkerAutoscalerDecisionWrite[];
 	persistHistory?: boolean;
+	postures?: WorkerAutoscalerPostureWrite[];
 	snapshots: TemporalTaskQueueSnapshotWrite[];
 }
 
@@ -305,10 +308,12 @@ export function createPgOperatorObservabilityCommandStore(
 		},
 
 		async upsertTemporalTaskQueueRuntime(input) {
+			const postures = input.postures ?? [];
 			if (
 				input.snapshots.length === 0 &&
 				input.decisions.length === 0 &&
-				input.actuations.length === 0
+				input.actuations.length === 0 &&
+				postures.length === 0
 			) {
 				return;
 			}
@@ -491,6 +496,56 @@ export function createPgOperatorObservabilityCommandStore(
 								toReplicas: actuation.toReplicas,
 							},
 							target: workerAutoscalerActuation.actuationId,
+						});
+				}
+
+				for (const posture of postures) {
+					const postureId = `${posture.targetService}:${posture.observedAt}`;
+					await tx
+						.insert(workerAutoscalerPosture)
+						.values({
+							currentReplicas: posture.currentReplicas,
+							desiredReplicas: posture.desiredReplicas,
+							evidenceJson: posture.evidence,
+							lastScaleEventAt: posture.lastScaleEventAt
+								? new Date(posture.lastScaleEventAt)
+								: null,
+							lastScaleEventId: posture.lastScaleEventId,
+							maxReplicas: posture.maxReplicas,
+							metricFreshnessJson: posture.metricFreshness,
+							minReplicas: posture.minReplicas,
+							observedAt: new Date(posture.observedAt),
+							postureId,
+							projectedAt: new Date(posture.projectedAt),
+							reason: posture.reason,
+							scalerKind: posture.scalerKind,
+							scalerStatus: posture.scalerStatus,
+							targetService: posture.targetService,
+							taskQueue: posture.taskQueue,
+							taskQueueKind: posture.taskQueueKind,
+						})
+						.onConflictDoUpdate({
+							set: {
+								currentReplicas: posture.currentReplicas,
+								desiredReplicas: posture.desiredReplicas,
+								evidenceJson: posture.evidence,
+								lastScaleEventAt: posture.lastScaleEventAt
+									? new Date(posture.lastScaleEventAt)
+									: null,
+								lastScaleEventId: posture.lastScaleEventId,
+								maxReplicas: posture.maxReplicas,
+								metricFreshnessJson: posture.metricFreshness,
+								minReplicas: posture.minReplicas,
+								observedAt: new Date(posture.observedAt),
+								projectedAt: new Date(posture.projectedAt),
+								reason: posture.reason,
+								scalerKind: posture.scalerKind,
+								scalerStatus: posture.scalerStatus,
+								targetService: posture.targetService,
+								taskQueue: posture.taskQueue,
+								taskQueueKind: posture.taskQueueKind,
+							},
+							target: workerAutoscalerPosture.postureId,
 						});
 				}
 			});

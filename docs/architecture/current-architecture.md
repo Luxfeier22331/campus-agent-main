@@ -44,8 +44,7 @@ capability workers / activity-worker-finalization -> memory recall / typed
 capability branch / Go RAG DTO/runtime -> Qdrant / provider / structured read
 models -> sanitized projection`
 
-`browser -> campus-web /docs/* -> Rspress-powered canonical reader /
-current React docs shell`
+`browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
@@ -67,20 +66,19 @@ document/index release`
   调用走 `APP_API` Service Binding；
   `https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
-- `apps/chatkit-adapter` 仍是 legacy internal ChatKit protocol adapter；当前
-  `campus-web` 不消费它，它不拥有产品后端、conversation truth、execution truth、
-  provider call 或 direct DB writes
 - `apps/app-api` 当前是 neutral Identity Platform 的 canonical product owner；
   Better Auth 是 auth runtime adapter，不是产品账号、校园身份、access entitlement 或
   federation policy schema owner
 - `api-staging.mucwiki-edge.link` 如存在，只表示 app-api staging machine / ops
   ingress，不是 browser surface upstream
 - `apps/execution-control` 是 Go-owned internal execution engine，不是产品后端
-- `apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service
-- `apps/execution-control` 是当前 Docker execution-control service，负责
-  internal workflow command/query、admission/policy gate、Temporal
-  start/cancel/query seam、memory recall + RAG activity execution 与 sanitized
-  projection writeback
+- `apps/execution-control` 负责 internal workflow command/query、admission/policy gate、
+  Temporal start/cancel/query seam、memory recall + RAG activity execution 与
+  sanitized projection writeback
+- Docker Compose execution runtime 只保留 local / transitional evidence；长期
+  production target substrate 已由 ADR-0056 与 Kubernetes execution runtime
+  architecture 收口为 K8s + KEDA。live staging/prod substrate 不能只由本文
+  文档措辞推断，必须看 applied resources、runtime env、projection 与 E2E evidence。
 - Temporal-backed chat execution path 已进入当前代码事实：`apps/app-api` 通过
   `/internal/execution/runs*` 调用 `apps/execution-control`，`apps/execution-control`
   启动 / 取消 `CapabilityExecutionWorkflow`，Temporal task queue 承担 execution substrate
@@ -168,11 +166,11 @@ document/index release`
 - `curriculum/program_semester_facts` agent-internal retrieval surface；用于
   single-program + single-semester
   课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `campus_services/service_status`、`campus_services/service_guide`、
-  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
-  `calendar/academic_calendar` 当前保持 `structured_query_serving`：只通过 admitted
-  structured tools 消费 current projection/read model，不进入 generic retrieval 默认
-  query scope；`campus_services/service_catalog` 仍保持 `offline_preparation`
+- `campus_services/transport_schedule` 当前保持 `structured_query_serving`：只通过
+  admitted structured tool 消费 current projection/read model，不进入 generic retrieval
+  默认 query scope
+- `calendar/academic_calendar` 当前是 offline-preparation 数据资产；不作为
+  campus-services runtime tool
 
 当前非 serving capture-only scope：
 
@@ -187,9 +185,8 @@ document/index release`
 - public-facing Worker web surface for `campus.muc.wiki`
 - 拥有学生侧主体验、校园应用入口、conversation/map/dining/feedback shell 与
   `/account/*` account browser shell
-- 拥有 `/docs/*` docs browser route；当前 feature branch 已引入 Rspress-powered
-  canonical reader build boundary，同时 React docs shell 仍保留为未 materialize reader route
-  的临时错误/empty path
+- 拥有 `/docs/*` docs browser route；当前 docs browser surface 由
+  Rspress-powered canonical reader 承担，不再依赖独立 `public-docs` product surface
 - 通过 allowlisted same-origin seam 与 Worker `APP_API` Service Binding 调用
   `apps/app-api` 的 `/api/me/*`、必要 `/api/auth/*`、implemented `/api/federation/*`、
   docs/chat/map/dining/feedback endpoints；Q&A 主线程通过
@@ -206,16 +203,6 @@ document/index release`
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
 - 不拥有 auth/session/principal/identity/federation truth；canonical identity 仍属于
   `apps/app-api`
-
-### `apps/chatkit-adapter`（legacy）
-
-- internal FastAPI service that implements ChatKit custom server integration for
-  legacy Q&A experiments
-- 只做 ChatKit thread/item/action/event protocol adapter
-- 通过 `apps/app-api` 的显式 conversation / run / feedback routes 读写产品真相
-- 不生成 answer、不直连 `apps/execution-control`、不写 DB、不拥有 conversation truth
-- 通过 `x-app-internal-auth` 与 signed campus principal headers 调用 `apps/app-api`
-- 当前 `campus-web` allowlist 不开放 `/api/chatkit`
 
 ### `apps/operator-console-web`
 
@@ -283,17 +270,27 @@ document/index release`
   agent loop 内决定是否调用工具；无工具请求可直接产出 final output。knowledge
   请求只向模型暴露 `knowledge_query` workflow-signal tool，实际 RAG 仍进入
   Go-owned Temporal graph；`retrieval.query` 不作为 model-visible tool 暴露。
-  campus-services / notice read-only tools 通过 strict `tool-catalog.v1` 暴露给
-  `agent.primary`，并由 execution-control internal query endpoint 执行；Go runtime
-  通过 tool catalog / tool spec / endpoint drift test 约束可调用性。
+  runtime catalog 的 tool payload/result schema ref 只允许指向已登记 JSON
+  Schema `$id#/$defs/...`；Python `campus_contracts.*` dataclass 只是
+  language-local helper，不是 active runtime schema truth。
+  当前 projection-backed 且 runtime-supported 的 campus-services / notice read-only
+  tools 通过 strict `tool-catalog.v1` 暴露给 `agent.primary`，并由
+  execution-control internal query endpoint 执行；Go runtime 通过 tool catalog /
+  tool spec / workflow artifact binding / endpoint drift test 约束可调用性。存在
+  ToolSpec 或 contract 不等于 model-visible，未达到 `supported_go_runtime` 的
+  workflow artifact producer 必须保持 closed。
   每个主干 step 写入
   `RunStep -> StepAttempt -> StepResult` projection。attempt projection 已包含
   Temporal activity metadata、queue wait、duration、provider/model、token/cost、
   cancel/timeout outcome 字段。
 - 当前 public durable chat path 已具备 capability-neutral metadata、primary agent
   direct/no-tool terminal branch 与 agent-result finalization。`campus_services`
-  与 `notice` 已有 model-visible read-only tool catalog 与 typed/internal-query
-  bridge 基底。`navigation` 仍默认 closed，必须 fail closed。
+  与 `notice` 已有 typed/internal-query bridge 基底；只有 `tool-catalog.v1`
+  中 model-visible 且对应 workflow artifact binding 为 open /
+  `supported_go_runtime` 的工具会进入 primary agent 可见工具集。`navigation`
+  仍默认 closed，必须 fail closed。`campus_services` 当前 model-visible 范围只包含
+  `transport_schedule_lookup`；generic service status、service guide、contact
+  directory 与 academic calendar 不属于当前打开工具面。
 - 进程内 lifecycle registry、active count 与 bounded queue 只保留为本进程
   runtime protection；它们不再是 durable execution truth，也不得被多实例叠加
   解释为全局 scheduler。
@@ -364,14 +361,10 @@ document/index release`
   `place_lookup` 仍保持 fail-close，直到地图产品正式上线。deterministic place / point
   reads 必须先表现为 typed tool 或 internal query service；navigation specialist 只能作为
   typed `agent_step` / agent-as-tool 消费这些工具，不拥有 spatial source truth
-- `packages/campus_services` 是 campus services semantic specialist package；当前
-  capability family 覆盖 `service_status_lookup`、`service_guide_lookup`、
-  `transport_schedule_lookup`、`contact_directory_lookup` 与
-  `academic_calendar_lookup`。这些能力的 deterministic data access 默认是 typed tool /
-  projection-backed internal query service；semantic specialist 只能在 typed
-  `agent_step` / agent-as-tool 内消费工具输出。其中 `academic_calendar_lookup` 只消费
-  `calendar/academic_calendar` projection-backed read model，支持教学周、命名校历事件区间、
-  学期窗口与补课/调休上课事实，不负责校历查看入口说明
+- `campus_services` 当前由 `apps/execution-control` 拥有 Go structured runtime。
+  model-visible opened tool 只有 `transport_schedule_lookup`。generic service status、
+  service guide、contact directory、process guide 与 academic calendar 不属于当前
+  campus-services runtime surface。
 - repo-owned internal retrieval seam / Go RAG runtime 负责 retrieval abstraction、
   metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
   active workspace

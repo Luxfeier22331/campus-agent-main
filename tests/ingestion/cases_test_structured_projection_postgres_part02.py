@@ -7,75 +7,6 @@ from tests.ingestion.test_structured_projection_postgres_support import *
 
 
 class StructuredProjectionPostgresPublisherTestPart02(unittest.TestCase):
-    def test_publish_service_status_stage_writes_read_model_without_current_pointer(self) -> None:
-        publisher = object.__new__(PostgresStructuredProjectionPublisher)
-        publisher.database_url = "postgresql://projection.example/db"
-        publisher.schema = "ingestion_projection"
-        bundle = {
-            "schema_version": "campus_services_projection_bundle.v1",
-            "service_status_records": [
-                {
-                    "subject_id": "it-platform-portal",
-                    "display_name": "信息门户",
-                    "service_family": "it_platform",
-                    "aliases": ["信息门户", "统一身份认证平台"],
-                    "campus_scope": "all",
-                    "platform_refs": [{"label": "信息门户"}],
-                    "affected_scope": "全校",
-                    "observed_status": "temporarily_closed",
-                    "effective_from": "2026-04-28T00:00:00+08:00",
-                    "effective_until": "2026-04-28T06:00:00+08:00",
-                    "status_reason": "系统维护",
-                    "status_note": "维护期间暂停访问。",
-                    "severity": "notice",
-                    "override_source_refs": ["notice:muc_internal_portal:355901"],
-                    "related_notice_refs": ["notice:muc_internal_portal:355901"],
-                    "extraction_status": "ready",
-                }
-            ],
-            "service_status_rejected_sources": [],
-        }
-        cursor = _RecordingCursor()
-
-        with patch(
-            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
-            return_value=_FakeConnectionContextManager(cursor),
-        ):
-            report = publisher.publish_release(
-                corpus="campus_services",
-                collection="service_status",
-                release_id="service-status-stage-355901",
-                generated_at="2026-04-28T09:00:00+08:00",
-                schema_version="campus_services_projection_bundle.v1",
-                artifact_object_key=(
-                    "campus_services/releases/service_status/service-status-stage-355901/"
-                    "service-status-projection.json"
-                ),
-                artifact_checksum="sha256:test",
-                bundle=bundle,
-                validation_status="valid",
-                promote_current=False,
-            )
-
-        self.assertFalse(report.current)
-        typed_insert_index = next(
-            index
-            for index, (query, _params) in enumerate(cursor.execute_calls)
-            if "service_status_read_model" in query and "jsonb_to_recordset" in query
-        )
-        release_upsert_index = next(
-            index
-            for index, (query, _params) in enumerate(cursor.execute_calls)
-            if "structured_projection_releases" in query and "on conflict" in query
-        )
-        self.assertLess(typed_insert_index, release_upsert_index)
-        current_pointer_queries = [
-            query
-            for query, _params in cursor.execute_calls
-            if "structured_projection_current" in query and "on conflict" in query
-        ]
-        self.assertEqual(current_pointer_queries, [])
-
     def test_publish_contact_directory_release_writes_pg_read_model_and_aux_tables(self) -> None:
         publisher = object.__new__(PostgresStructuredProjectionPublisher)
         publisher.database_url = "postgresql://projection.example/db"
@@ -203,8 +134,8 @@ class StructuredProjectionPostgresPublisherTestPart02(unittest.TestCase):
 
     def test_typed_insert_outer_select_reads_cte_columns_not_recordset_alias(self) -> None:
         query = PostgresStructuredProjectionPublisher._recordset_insert_query(
-            "service_status_read_model",
-            '"ingestion_projection"."service_status_read_model"',
+            "transport_routes",
+            '"ingestion_projection"."transport_routes"',
         )
 
         outer_select = query.split(")\n            select", maxsplit=1)[1].split(
@@ -213,7 +144,7 @@ class StructuredProjectionPostgresPublisherTestPart02(unittest.TestCase):
         )[0]
 
         self.assertNotIn("item.", outer_select)
-        self.assertIn("subject_id", outer_select)
+        self.assertIn("route_id", outer_select)
         self.assertIn("array_agg(value)", query.split("from jsonb_to_recordset", maxsplit=1)[0])
 
     def test_release_upsert_updates_source_notice_ids_once(self) -> None:
@@ -307,7 +238,6 @@ class StructuredProjectionPostgresPublisherTestPart02(unittest.TestCase):
         self.assertIn("transport_schedule_snapshots", executed_sql)
         self.assertIn("transport_routes", executed_sql)
         self.assertIn("transport_scheduled_departures", executed_sql)
-        self.assertNotIn("service_status_read_model", executed_sql)
         self.assertNotIn("service_guide_read_model", executed_sql)
         self.assertNotIn("contact_directory_read_model", executed_sql)
         self.assertNotIn("academic_calendar_read_model", executed_sql)

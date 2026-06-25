@@ -23,11 +23,7 @@ CapabilityID = Literal[
     "notice",
 ]
 CapabilityToolName = Literal[
-    "service_status_lookup",
-    "service_guide_lookup",
     "transport_schedule_lookup",
-    "contact_directory_lookup",
-    "academic_calendar_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
     "campus_notice_period_summary",
@@ -54,22 +50,6 @@ PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
 VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
-AcademicCalendarQueryKind = Literal[
-    "date_week",
-    "named_event_range",
-    "day_status",
-    "class_day_pattern",
-    "term_window",
-]
-AcademicCalendarAnswerFocus = Literal[
-    "teaching_week",
-    "holiday_duration",
-    "campus_break_window",
-    "course_adjustment",
-    "day_status",
-    "term_window",
-    "official_notice_reference",
-]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -83,51 +63,6 @@ ToolFailCloseReason = Literal[
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "privacy_policy_restricted",
-    "stable_contact_unavailable",
-    "field_not_provided_by_source",
-]
-ServiceGuideFocus = Literal[
-    "overview",
-    "procedure",
-    "required_materials",
-    "entry",
-    "office_hours",
-    "contact",
-    "eligibility",
-    "full_guide",
-]
-ServiceGuideAudience = Literal["student", "faculty", "visitor", "unknown"]
-ServiceGuideClarificationReason = Literal[
-    "service_ambiguous",
-    "campus_scope_required",
-    "audience_required",
-    "guide_focus_required",
-]
-ContactDirectoryFocus = Literal[
-    "phone",
-    "email",
-    "location",
-    "office_hours",
-    "contact_person",
-    "all_contacts",
-]
-ContactDirectoryEntityType = Literal[
-    "department",
-    "office",
-    "service_point",
-    "role_contact",
-    "public_person_role",
-    "hotline",
-]
-ContactDirectoryChannelType = Literal["phone", "email", "fax", "website"]
-ContactDirectoryClarificationReason = Literal[
-    "contact_entity_ambiguous",
-    "contact_focus_required",
-    "department_required",
-    "campus_scope_required",
-    "audience_required",
-    "purpose_required",
 ]
 HistoricalDowngradeReason = Literal["current_year_miss", "current_effective_miss"]
 NoticeSourceFamily = Literal[
@@ -160,7 +95,6 @@ NoticeBodyAccessPolicy = Literal[
     "internal_context_only",
     "downstream_materialization_only",
 ]
-ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
     "running",
     "not_running",
@@ -215,11 +149,7 @@ ALLOWED_CAPABILITY_IDS = (
     "notice",
 )
 ALLOWED_CAPABILITY_TOOL_NAMES = (
-    "service_status_lookup",
-    "service_guide_lookup",
     "transport_schedule_lookup",
-    "contact_directory_lookup",
-    "academic_calendar_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
     "campus_notice_period_summary",
@@ -248,22 +178,6 @@ ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
 ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
-ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS = (
-    "date_week",
-    "named_event_range",
-    "day_status",
-    "class_day_pattern",
-    "term_window",
-)
-ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES = (
-    "teaching_week",
-    "holiday_duration",
-    "campus_break_window",
-    "course_adjustment",
-    "day_status",
-    "term_window",
-    "official_notice_reference",
-)
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",
@@ -277,56 +191,6 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "temporal_scope_ambiguous",
     "source_family_unavailable",
     "source_conflict",
-    "privacy_policy_restricted",
-    "stable_contact_unavailable",
-    "field_not_provided_by_source",
-)
-ALLOWED_SERVICE_GUIDE_FOCUSES = (
-    "overview",
-    "procedure",
-    "required_materials",
-    "entry",
-    "office_hours",
-    "contact",
-    "eligibility",
-    "full_guide",
-)
-ALLOWED_SERVICE_GUIDE_AUDIENCES = ("student", "faculty", "visitor", "unknown")
-ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS = (
-    "service_ambiguous",
-    "campus_scope_required",
-    "audience_required",
-    "guide_focus_required",
-)
-ALLOWED_CONTACT_DIRECTORY_FOCUSES = (
-    "phone",
-    "email",
-    "location",
-    "office_hours",
-    "contact_person",
-    "all_contacts",
-)
-ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES = (
-    "department",
-    "office",
-    "service_point",
-    "role_contact",
-    "public_person_role",
-    "hotline",
-)
-ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES = (
-    "phone",
-    "email",
-    "fax",
-    "website",
-)
-ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS = (
-    "contact_entity_ambiguous",
-    "contact_focus_required",
-    "department_required",
-    "campus_scope_required",
-    "audience_required",
-    "purpose_required",
 )
 ALLOWED_HISTORICAL_DOWNGRADE_REASONS = ("current_year_miss", "current_effective_miss")
 ALLOWED_NOTICE_SOURCE_FAMILIES = (
@@ -358,13 +222,6 @@ ALLOWED_NOTICE_BODY_ACCESS_POLICIES = (
     "none",
     "internal_context_only",
     "downstream_materialization_only",
-)
-ALLOWED_SERVICE_STATUS_VALUES = (
-    "open",
-    "closed",
-    "temporarily_closed",
-    "limited_service",
-    "unknown",
 )
 ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "running",
@@ -441,16 +298,6 @@ def _validate_version_query_mode(mode: str) -> None:
         raise ValueError(f"unsupported version mode: {mode}")
 
 
-def _validate_academic_calendar_query_kind(query_kind: str) -> None:
-    if query_kind not in ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS:
-        raise ValueError(f"unsupported academic calendar query_kind: {query_kind}")
-
-
-def _validate_academic_calendar_answer_focus(answer_focus: str) -> None:
-    if answer_focus not in ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES:
-        raise ValueError(f"unsupported academic calendar answer_focus: {answer_focus}")
-
-
 def _validate_tool_business_outcome(outcome: str) -> None:
     if outcome not in ALLOWED_TOOL_BUSINESS_OUTCOMES:
         raise ValueError(f"unsupported tool business outcome: {outcome}")
@@ -459,41 +306,6 @@ def _validate_tool_business_outcome(outcome: str) -> None:
 def _validate_tool_fail_close_reason(reason: str) -> None:
     if reason not in ALLOWED_TOOL_FAIL_CLOSE_REASONS:
         raise ValueError(f"unsupported tool fail-close reason: {reason}")
-
-
-def _validate_service_guide_focus(focus: str) -> None:
-    if focus not in ALLOWED_SERVICE_GUIDE_FOCUSES:
-        raise ValueError(f"unsupported service guide focus: {focus}")
-
-
-def _validate_service_guide_audience(audience: str) -> None:
-    if audience not in ALLOWED_SERVICE_GUIDE_AUDIENCES:
-        raise ValueError(f"unsupported service guide audience: {audience}")
-
-
-def _validate_service_guide_clarification_reason(reason: str) -> None:
-    if reason not in ALLOWED_SERVICE_GUIDE_CLARIFICATION_REASONS:
-        raise ValueError(f"unsupported service guide clarification reason: {reason}")
-
-
-def _validate_contact_directory_focus(focus: str) -> None:
-    if focus not in ALLOWED_CONTACT_DIRECTORY_FOCUSES:
-        raise ValueError(f"unsupported contact directory focus: {focus}")
-
-
-def _validate_contact_directory_entity_type(entity_type: str) -> None:
-    if entity_type not in ALLOWED_CONTACT_DIRECTORY_ENTITY_TYPES:
-        raise ValueError(f"unsupported contact directory entity_type: {entity_type}")
-
-
-def _validate_contact_directory_channel_type(channel_type: str) -> None:
-    if channel_type not in ALLOWED_CONTACT_DIRECTORY_CHANNEL_TYPES:
-        raise ValueError(f"unsupported contact directory channel_type: {channel_type}")
-
-
-def _validate_contact_directory_clarification_reason(reason: str) -> None:
-    if reason not in ALLOWED_CONTACT_DIRECTORY_CLARIFICATION_REASONS:
-        raise ValueError(f"unsupported contact directory clarification reason: {reason}")
 
 
 def _validate_historical_downgrade_reason(reason: str) -> None:
@@ -519,11 +331,6 @@ def _validate_notice_public_surface_policy(public_surface: str) -> None:
 def _validate_notice_body_access_policy(body_access: str) -> None:
     if body_access not in ALLOWED_NOTICE_BODY_ACCESS_POLICIES:
         raise ValueError(f"unsupported notice body access policy: {body_access}")
-
-
-def _validate_service_status_value(status: str) -> None:
-    if status not in ALLOWED_SERVICE_STATUS_VALUES:
-        raise ValueError(f"unsupported service status value: {status}")
 
 
 def _validate_transport_service_status_value(status: str) -> None:

@@ -14,6 +14,7 @@ export type {
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
 	NormalizedWorkerAutoscalerDecisionListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	OperatorAuditEventDetail,
 	OperatorAuditEventListItem,
 	OperatorAuditListFilters,
@@ -59,4 +60,7 @@ export type {
 	WorkerAutoscalerDecisionListFilters,
 	WorkerAutoscalerDecisionListResult,
 	WorkerAutoscalerDecisionRecord,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerPostureListResult,
+	WorkerAutoscalerPostureRecord,
 } from "./service-types";

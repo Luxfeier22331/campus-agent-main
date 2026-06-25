@@ -87,8 +87,6 @@ _RESPONSIBLE_OFFICE_RE = re.compile(
 _TARGET_WORKSET_COLLECTION_MODE = "target-workset"
 _TARGET_CONSUMER_FAMILIES = frozenset(
     {
-        "contact_directory_candidate",
-        "service_guide_candidate",
         "stable_reference_candidate",
         "regulation_candidate",
         "student_regulation_candidate",
@@ -98,26 +96,6 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
 _TARGET_MATERIALIZATION_POLICIES = frozenset(
     {"candidate_only", "release_gate_required", "inventory_only"}
 )
-_SERVICE_GUIDE_COMPOSITION_SPECS: dict[str, dict[str, object]] = {
-    "information_disclosure": {
-        "primary_role": "procedure_source",
-        "allowed_roles": frozenset(
-            {"policy_source", "procedure_source", "material_source", "contact_source"}
-        ),
-        "service_target_roles": frozenset(
-            {"procedure_source", "material_source", "contact_source"}
-        ),
-    },
-    "email_service": {
-        "primary_role": "policy_source",
-        "allowed_roles": frozenset(
-            {"policy_source", "entry_source", "material_source", "contact_source"}
-        ),
-        "service_target_roles": frozenset(
-            {"policy_source", "entry_source", "material_source", "contact_source"}
-        ),
-    },
-}
 
 
 def _matching_lines(lines: list[str], pattern: re.Pattern[str]) -> list[str]:

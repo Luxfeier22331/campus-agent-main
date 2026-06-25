@@ -174,17 +174,18 @@ function deriveRuntimeEnv(env, input) {
 		setValue(env, "AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
 	}
 
-	const otelIngestSharedSecret =
-		read(env, "OTEL_INGEST_SHARED_SECRET") ||
+	const appApiOtelIngestSharedSecret =
 		read(env, "APP_API_OTEL_INGEST_SHARED_SECRET") ||
 		deriveOtelIngestSecret(workerSharedSecret, internalQuerySharedSecret);
-	if (otelIngestSharedSecret) {
-		setValue(env, "OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
-		setValue(env, "APP_API_OTEL_INGEST_SHARED_SECRET", otelIngestSharedSecret);
+	if (appApiOtelIngestSharedSecret) {
+		setValue(env, "APP_API_OTEL_INGEST_SHARED_SECRET", appApiOtelIngestSharedSecret);
+		setDefault(
+			env,
+			"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS",
+			`authorization=Bearer ${appApiOtelIngestSharedSecret}`,
+		);
 	}
-	setDefault(env, "OTEL_INGEST_HOST_PORT", "127.0.0.1:27081");
-	setDefault(env, "OTEL_INGEST_MAX_BODY_BYTES", "1048576");
-	setDefault(env, "APP_API_OTEL_INGEST_ENDPOINT", "http://127.0.0.1:27081");
+	setDefault(env, "APP_API_OTEL_INGEST_ENDPOINT", "http://127.0.0.1:4318");
 
 	const explicitLangfuseBaseURL = read(env, "LANGFUSE_BASE_URL");
 	setDefault(env, "LANGFUSE_HOST_PORT", "3000");

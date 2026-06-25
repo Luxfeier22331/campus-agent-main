@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import type { ToolExecutionRequest } from "../src/primary-agent.ts";
 import { createExecutionControlToolExecutor } from "../src/tool-executor.ts";
 
+const transportPayloadSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupPayload",
+);
+const transportResultSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupResult",
+);
+
 describe("execution-control tool executor", () => {
 	it("fails closed when execution-control query config is missing", async () => {
 		const executor = createExecutionControlToolExecutor({
@@ -16,7 +25,7 @@ describe("execution-control tool executor", () => {
 
 		expect(result).toMatchObject({
 			status: "failed",
-			toolName: "service_status_lookup",
+			toolName: "transport_schedule_lookup",
 			failCloseReason: "tool_executor_not_configured",
 			result: {
 				error: "execution-control query base URL and shared secret are required",
@@ -44,6 +53,59 @@ describe("execution-control tool executor", () => {
 		expect(requests).toHaveLength(1);
 		expect(requests[0]?.headers.get("x-execution-query-auth")).toBe("query-secret");
 		expect(requests[0]?.headers.get("authorization")).toBeNull();
+	});
+
+	it("preserves campus services result envelopes from execution-control", async () => {
+		const executor = createExecutionControlToolExecutor({
+			baseUrl: "http://execution-control:8000",
+			sharedSecret: "query-secret",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						outcome: "resolved_current",
+						result_envelope: {
+							schema_version: "campus_services_tool_result.v1",
+							capability: "campus_services",
+							tool_name: "transport_schedule_lookup",
+							query_kind: "transport_schedule",
+							outcome: "resolved_current",
+							facts: {
+								kind: "schedule_facts",
+								result: { outcome: "resolved_current" },
+							},
+							source_refs: ["notice:bus-schedule-2026-04-20"],
+							projection_ref: "projection:campus_services:transport_schedule:test",
+							content_hash: "sha256:transport-schedule-test",
+							clarification_options: [],
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				),
+		});
+
+		const result = await executor({
+			...toolRequest(),
+			tool: {
+				...toolRequest().tool,
+				name: "transport_schedule_lookup",
+				payloadSchemaRef: transportPayloadSchemaRef,
+				resultSchemaRef: transportResultSchemaRef,
+				handler: {
+					type: "execution_control_internal_query",
+					endpoint: "/internal/query/campus-services/transport-schedule",
+				},
+			},
+		});
+
+		expect(result.status).toBe("completed");
+		expect(result.result.result_envelope).toMatchObject({
+			schema_version: "campus_services_tool_result.v1",
+			tool_name: "transport_schedule_lookup",
+			query_kind: "transport_schedule",
+		});
 	});
 
 	it("fails closed when structured query returns non-2xx", async () => {
@@ -127,22 +189,26 @@ function toolRequest(): ToolExecutionRequest {
 	return {
 		runId: "run-tool-executor",
 		traceId: "trace-tool-executor",
-		argumentsJson: { subject_query: "校车" },
+		argumentsJson: { query_text: "校车下一班几点", intent: "next_departure" },
 		tool: {
-			name: "service_status_lookup",
+			name: "transport_schedule_lookup",
 			capability: "campus_services",
-			description: "Lookup service status.",
+			description: "Lookup transport schedule.",
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
-			payloadSchemaRef: "manual.ServiceStatusLookupPayload",
-			resultSchemaRef: "manual.ServiceStatusLookupResult",
+			payloadSchemaRef: transportPayloadSchemaRef,
+			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
-				endpoint: "/internal/query/campus-services/service-status",
+				endpoint: "/internal/query/campus-services/transport-schedule",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
 		},
 	};
+}
+
+function schemaRef(schemaName: string, definitionName: string): string {
+	return `https://muc.wiki/campus-agent/schemas/${schemaName}.schema.json#/$defs/${definitionName}`;
 }

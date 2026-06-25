@@ -39,10 +39,11 @@ truth。
 - 顶层产品入口不先判 retrieval `scope`
 - 只有当 Execution Agent Layer 已把请求路由到 knowledge-family path 后，`requested_scope`、version
   mode、retrieval planning 才开始成立
-- `service_status_lookup`、`campus_notice_discover`、internal selected notice resolve
-  (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability 不应再被误读成
-  retrieval scope 的旁支；它们默认是 typed domain tools / projection-backed internal query
-  service，只有需要语义 specialist 时才进入 agent-as-tool
+- `transport_schedule_lookup`、`campus_notice_discover`、internal selected notice
+  resolve (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability
+  不应再被误读成 retrieval scope 的旁支；它们默认是 typed domain tools /
+  projection-backed internal query service，只有需要语义 specialist 时才进入
+  agent-as-tool
 
 ## Accepted Retrieval Model
 
@@ -427,10 +428,9 @@ structured query seam。
 当前已冻结方向包括：
 
 - campus services family
-  - `service_status_lookup`
   - `transport_schedule_lookup`
-  - later-wave `contact_directory_lookup`
-  - later-wave `service_process_lookup`
+  - generic service status、service guide、contact directory、service process 与
+    academic calendar 不属于当前 campus-services model-visible runtime surface
   - 这些 structured runtime seam 的领域边界、projection owner 与 fail-close 规则统一看
     `docs/architecture/domains/campus-services/architecture.md`
 - notice family

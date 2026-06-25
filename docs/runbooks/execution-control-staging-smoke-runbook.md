@@ -29,8 +29,8 @@ execution origin 为准。
 
 ## 当前补充真相
 
-- `apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
-  service
+- `apps/execution-control` smoke 只要求真实可达的 Go execution origin；Docker Compose
+  是 local / transitional evidence，不再作为冻结的 forward deploy truth
 - 当前 repo-owned staging execution runtime 在 `nc-arm-6c` 上运行：
   - `otel-collector`
   - `execution-control`

@@ -79,7 +79,6 @@ const (
 	StepOutputProjectionKindNoticeChangeSet     StepOutputProjectionKind = "notice_change_set"
 	StepOutputProjectionKindNoticePeriodSummary StepOutputProjectionKind = "notice_period_summary"
 	StepOutputProjectionKindScheduleBaseline    StepOutputProjectionKind = "schedule_baseline"
-	StepOutputProjectionKindServiceGuideFacts   StepOutputProjectionKind = "service_guide_facts"
 	StepOutputProjectionKindPlaceContext        StepOutputProjectionKind = "place_context"
 	StepOutputProjectionKindEvidenceBundle      StepOutputProjectionKind = "evidence_bundle"
 	StepOutputProjectionKindGroundingVerdict    StepOutputProjectionKind = "grounding_verdict"
@@ -602,7 +601,6 @@ func (value StepOutputProjectionKind) Valid() bool {
 		StepOutputProjectionKindNoticeChangeSet,
 		StepOutputProjectionKindNoticePeriodSummary,
 		StepOutputProjectionKindScheduleBaseline,
-		StepOutputProjectionKindServiceGuideFacts,
 		StepOutputProjectionKindPlaceContext,
 		StepOutputProjectionKindEvidenceBundle,
 		StepOutputProjectionKindGroundingVerdict:

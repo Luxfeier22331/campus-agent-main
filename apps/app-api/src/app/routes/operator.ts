@@ -446,6 +446,31 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/operator/runtime/autoscaler/postures", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerPostures({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					scalerStatus: c.req.query("scalerStatus") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
 	input.app.get("/api/operator/intent/timeseries", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

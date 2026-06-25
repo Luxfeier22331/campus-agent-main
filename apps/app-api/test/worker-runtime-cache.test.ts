@@ -130,8 +130,8 @@ describe("app-api worker runtime cache", () => {
 		const stagingEnv = {
 			...env,
 			APP_API_ENVIRONMENT: "staging" as never,
-			APP_API_OTEL_INGEST_ENDPOINT: "https://otel-ingest.internal",
-			APP_API_OTEL_INGEST_SHARED_SECRET: "otel-ingest-secret",
+			APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.internal",
+			APP_API_OTEL_INGEST_SHARED_SECRET: "otel-collector-secret",
 		};
 
 		await worker.fetch(

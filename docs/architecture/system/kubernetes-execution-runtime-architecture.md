@@ -27,7 +27,8 @@ Kubernetes deployment substrate 与 autoscaling boundary。
 - 每个 worker 的最终 CPU / memory request、node pool 或实际阈值
 - Temporal Cloud 与 self-hosted Temporal 的最终商业选择
 
-当前 accepted merged truth 仍以 `../current-architecture.md` 为准；本文描述目标
+当前拓扑 truth 仍以 `../current-architecture.md` 为准；live substrate truth 必须由
+applied resources、runtime env、projection 与 E2E evidence 证明。本文描述目标
 deployment substrate 和 supporting architecture。
 
 ## Core Conclusion
@@ -185,9 +186,30 @@ KEDA `fallback` must not hide source metric failure as success. If Temporal
 metric collection fails, runtime evidence must mark autoscaling posture as
 degraded and fail closed for release closeout.
 
-### Example ScaledObject Shape
+### Committed Staging Manifest Shape
 
-This is a target shape, not a committed manifest path:
+First-stage staging manifests live at:
+
+```text
+infra/k8s/execution-runtime/base
+infra/k8s/execution-runtime/overlays/staging
+```
+
+They use Kustomize/raw YAML and intentionally exclude `campus-web`,
+`operator-console-web` and `app-api`, which remain Cloudflare Worker surfaces.
+The staging overlay creates the internal execution plane only:
+
+- self-hosted Temporal and Temporal Postgres
+- `execution-control` internal Service / Deployment
+- `agent-runtime`
+- Hindsight API and Hindsight Postgres
+- OTel collector
+- workflow/activity worker Deployments
+- Temporal task queue sampler
+- KEDA/HPA posture collector
+- one KEDA `ScaledObject` per worker Deployment
+
+The example below is the committed baseline shape:
 
 ```yaml
 apiVersion: keda.sh/v1alpha1
@@ -219,6 +241,12 @@ spec:
         name: temporal-worker-scaler-auth
 ```
 
+The baseline sets `minReplicaCount=1`, `targetQueueSize="8"`,
+`pollingInterval=15`, `cooldownPeriod=180` and HPA scale-down stabilization to
+`300` seconds. `activity-worker-knowledge-retrieval` and
+`activity-worker-knowledge-synthesis` use `maxReplicaCount=5`; other worker
+pools use `maxReplicaCount=3`.
+
 ## Runtime Projection And Operator Evidence
 
 KEDA / HPA become the actuation owner, but app-api remains the operator-safe
@@ -237,8 +265,11 @@ Target projection families:
   - records KEDA/HPA scale events / Kubernetes workload replica changes
   - actuator kind becomes `keda_hpa`
 - `worker_autoscaler_posture.v1`
-  - optional aggregate for release closeout: scaler health, metric freshness,
-    paused state, fallback/degraded state and last scale event
+  - aggregate for release closeout: scaler health, metric freshness, paused
+    state, degraded state and last scale event
+  - produced in K8s by `keda-hpa-posture-collector`, which reads only
+    Deployment, HPA and KEDA ScaledObject status in the execution namespace and
+    publishes sanitized records through app-api internal ingest
 
 Operator Console reads only app-api operator endpoints. It does not call the
 Kubernetes API server, KEDA API, HPA API or Temporal history APIs directly.
@@ -256,8 +287,8 @@ Production readiness for K8s execution runtime requires:
   interval and cooldown / HPA scale-down behavior.
 - KEDA operator and metrics server are healthy.
 - HPA objects are present and not reporting metric fetch failures.
-- app-api operator runtime projection contains fresh queue metrics and scaler
-  evidence.
+- app-api operator runtime projection contains fresh queue metrics and
+  `worker_autoscaler_posture.v1` scaler evidence.
 - Release E2E evidence can show a task queue backlog increase causes HPA desired
   replicas to rise, and idle stabilization causes scale down without failed
   in-flight activities.
@@ -266,13 +297,13 @@ Production readiness for K8s execution runtime requires:
 
 The staged migration is:
 
-1. Keep Docker Compose runtime as current merged truth and local smoke path.
-2. Add K8s manifests / Helm or Kustomize overlays for execution-control,
-   workflow-worker and activity-worker Deployments.
-3. Add KEDA ScaledObjects for one worker first:
-   `activity-worker-knowledge-retrieval`.
-4. Add projection collector for KEDA/HPA evidence into app-api operator runtime
-   projection.
+1. Keep Docker Compose runtime as local / transitional smoke path while live
+   staging takeover remains unverified.
+2. Add K8s Kustomize overlays for execution-control, Temporal, agent-runtime,
+   Hindsight, OTel, workflow-worker and all activity-worker Deployments.
+3. Add KEDA ScaledObjects for all worker pools with no scale-to-zero.
+4. Add projection collector for KEDA/HPA posture evidence into app-api operator
+   runtime projection.
 5. Run staging shadow validation: KEDA computes desired replicas while Docker
    runtime still serves, or a dedicated K8s staging namespace serves non-production
    traffic.

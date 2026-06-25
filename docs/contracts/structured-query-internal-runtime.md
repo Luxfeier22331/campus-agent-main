@@ -25,11 +25,7 @@ It complements:
 
 Go `apps/execution-control` owns the internal structured query endpoint family:
 
-- `POST /internal/query/campus-services/service-status`
-- `POST /internal/query/campus-services/service-guide`
 - `POST /internal/query/campus-services/transport-schedule`
-- `POST /internal/query/campus-services/contact-directory`
-- `POST /internal/query/calendar/academic-calendar`
 - `POST /internal/query/notices/discover`
 - `POST /internal/query/notices/get`
 
@@ -52,12 +48,6 @@ Contract rules:
 The structured query family reads PostgreSQL release current pointer + typed
 read model backing for these deterministic capabilities:
 
-- `service_status_lookup`
-- `service_guide_lookup`
-- `contact_directory_lookup`
-- `academic_calendar_lookup`
-  - `academic_calendar_lookup` 只消费 `calendar/academic_calendar`
-    projection-backed 校历事实
 - `transport_schedule_lookup`
   - supports current snapshot metadata, route clarification, first / next /
     last departure, departure list, service window, timetable and temporary

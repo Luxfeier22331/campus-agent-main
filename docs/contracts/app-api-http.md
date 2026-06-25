@@ -185,6 +185,7 @@ Identity Platform detailed object families are frozen separately in
 
 - `GET /api/campus-map/places`
 - `GET /api/campus-map/places/:placeId`
+- `GET /api/campus-services/transport-schedule?serviceDate=YYYY-MM-DD`
 - `GET /api/dining/halls`
 - `GET /api/dining/halls/:hallId/floors/:floorId`
 - `POST /api/feedback`
@@ -197,8 +198,19 @@ the browser can highlight the matching MapLibre feature instead of inventing a
 point marker. `mapFeatureRefs[]` are the only binding contract between a product
 place and rendered campus map objects; browser interaction must not infer a
 place from base-map `name`, label text, `sourceRefs`, or nearest-geometry
-matching. Dining payloads read latest published release snapshots and return
-hall summaries plus window/assignment/offering floor projections; detailed field
+matching.
+
+Campus services status returns latest published service / transport status
+projection. Campus services transport schedule returns a public, cacheable
+schedule projection for one `serviceDate`; it reads execution-control structured
+query results through app-api, exposes route-grouped timetable rows, route-level
+operational notes, row-level departure `status` / `note`, and only clickable
+source URLs already present as `http(s)` refs. It must not expose
+execution-control `result_envelope`, raw notice body, internal object locators or
+non-URL provenance refs.
+
+Dining payloads read latest published release snapshots and return hall
+summaries plus window/assignment/offering floor projections; detailed field
 shape is frozen in `docs/contracts/app-api-dining-http.md`.
 Feedback accepts a global `category`, `routeContext`, `body`, and optional
 `contact`; it does not create per-page local feedback widgets.

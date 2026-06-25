@@ -62,12 +62,6 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		admission: "session principal required",
 	},
 	{
-		method: "POST",
-		path: "/api/chatkit",
-		callerClass: "browser-surface",
-		admission: "session principal plus chat access required; forwards to internal ChatKit adapter",
-	},
-	{
 		method: "GET",
 		path: "/api/chat/conversations",
 		callerClass: "browser-surface",
@@ -120,6 +114,12 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 		path: "/api/campus-map/places/:placeId",
 		callerClass: "browser-surface",
 		admission: "public campus map projection read",
+	},
+	{
+		method: "GET",
+		path: "/api/campus-services/transport-schedule",
+		callerClass: "browser-surface",
+		admission: "public campus services transport schedule projection read",
 	},
 	{
 		method: "GET",

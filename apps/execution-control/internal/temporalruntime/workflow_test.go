@@ -48,10 +48,8 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 				input.RequestedCapability == "" &&
 				len(input.MemoryProjectionRefs) == 1 &&
 				input.MemoryProjectionRefs[0] == "projection://runs/run-workflow-001/memory/recall" &&
-				len(input.VisibleCapabilities) == 3 &&
-				input.VisibleCapabilities[0] == "knowledge" &&
-				input.VisibleCapabilities[1] == "campus_services" &&
-				input.VisibleCapabilities[2] == "notice"
+				len(input.VisibleCapabilities) == 1 &&
+				input.VisibleCapabilities[0] == "knowledge"
 		}),
 	).Return(
 		ExecutePrimaryAgentActivityOutput{
@@ -114,7 +112,10 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 		TaskQueue:      WorkflowTaskQueue,
 		TraceID:        "trace-workflow-001",
 		TurnID:         "turn-workflow-001",
-		WorkflowID:     "campus-agent.chat.run-workflow-001",
+		VisibleCapabilities: []string{
+			"knowledge",
+		},
+		WorkflowID: "campus-agent.chat.run-workflow-001",
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -169,7 +170,7 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				len(input.VisibleCapabilities) == 3 &&
+				len(input.VisibleCapabilities) == 1 &&
 				input.VisibleCapabilities[0] == "knowledge"
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
@@ -283,7 +284,10 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 		TaskQueue:      WorkflowTaskQueue,
 		TraceID:        traceID,
 		TurnID:         "turn-workflow-knowledge-001",
-		WorkflowID:     "campus-agent.chat." + runID,
+		VisibleCapabilities: []string{
+			"knowledge",
+		},
+		WorkflowID: "campus-agent.chat." + runID,
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -374,6 +378,7 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 		TaskQueue:           WorkflowTaskQueue,
 		TraceID:             traceID,
 		TurnID:              "turn-workflow-primary-replan-001",
+		VisibleCapabilities: []string{"campus_services"},
 		WorkflowID:          "campus-agent.chat." + runID,
 	})
 
@@ -446,6 +451,7 @@ func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClo
 		TaskQueue:           WorkflowTaskQueue,
 		TraceID:             traceID,
 		TurnID:              "turn-workflow-primary-no-replan-001",
+		VisibleCapabilities: []string{"campus_services"},
 		WorkflowID:          "campus-agent.chat." + runID,
 	})
 
@@ -566,7 +572,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 			AgentResultRef: agentResultRef,
 			FinalOutput:    "当前班车正常运行。",
 			RunID:          "run-campus-services-001",
-			SelectedTools:  []string{"service_status_lookup"},
+			SelectedTools:  []string{"transport_schedule_lookup"},
 			Status:         "completed",
 			TerminalReason: "answer_completed",
 		},
@@ -602,6 +608,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 		TaskQueue:           WorkflowTaskQueue,
 		TraceID:             "trace-campus-services-001",
 		TurnID:              "turn-campus-services-001",
+		VisibleCapabilities: []string{"campus_services"},
 		WorkflowID:          "campus-agent.chat.run-campus-services-001",
 	})
 
@@ -681,6 +688,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t
 		TaskQueue:           WorkflowTaskQueue,
 		TraceID:             traceID,
 		TurnID:              "turn-notice-primary-001",
+		VisibleCapabilities: []string{"notice"},
 		WorkflowID:          "campus-agent.chat." + runID,
 	})
 
@@ -699,9 +707,9 @@ func TestWorkflowFailureAllowsReplanRejectsFailClosedTypedToolResult(t *testing.
 	allows := workflowFailureAllowsReplan(
 		CapabilityBranchStep{
 			Capability: "campus_services",
-			ToolName:   "service_status_lookup",
+			ToolName:   "transport_schedule_lookup",
 		},
-		errors.New("typed tool service_status_lookup fail_close_reason=current_state_unverifiable"),
+		errors.New("typed tool transport_schedule_lookup fail_close_reason=current_state_unverifiable"),
 	)
 	if allows {
 		t.Fatal("fail-closed typed tool result must not be replanned")
@@ -712,12 +720,12 @@ func TestValidateReplanWithinBoundsRejectsExpandedCapability(t *testing.T) {
 	err := validateReplanWithinBounds(
 		PlanRouteActivityOutput{
 			AllowedCapabilities: []string{"campus_services"},
-			AllowedTools:        []string{"service_status_lookup"},
+			AllowedTools:        []string{"transport_schedule_lookup"},
 		},
 		[]CapabilityBranchStep{{
-			AllowedTools: []string{"service_status_lookup"},
+			AllowedTools: []string{"transport_schedule_lookup"},
 			Capability:   "campus_services",
-			ToolName:     "service_status_lookup",
+			ToolName:     "transport_schedule_lookup",
 		}},
 		PlanReplanActivityOutput{
 			AllowedCapabilities: []string{"knowledge"},

@@ -71,17 +71,13 @@ Current status:
   not by fabricating an answer.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
-- Hosts the gate-closed structured query runtime foundation for campus services
-  and notice capabilities. `service_status_lookup` can read a configured file
-  projection fixture for deterministic runtime tests; `transport_schedule_lookup`
-  can resolve projection-backed schedule snapshot metadata, route clarification,
-  departures, service windows, timetables, and temporary suspension summaries;
-  `service_guide_lookup` reads a dedicated mounted service-guide projection for
-  source-linked guide sections, materials, entries, hours, contacts, eligibility
-  notes, ambiguity and fail-close outcomes; `campus_notice_discover` /
+- Hosts the structured query runtime foundation for campus services and notice
+  capabilities. `transport_schedule_lookup` can resolve projection-backed schedule
+  snapshot metadata, route clarification, departures, service windows,
+  timetables, and temporary suspension summaries. `campus_notice_discover` /
   `campus_notice_get` read the internal notice PG read model and S3-compatible
-  derived canonical bodies. This still does not open `campus_services` or
-  `notice` product serving.
+  derived canonical bodies. This does not make a tool model-visible unless
+  `tool-catalog.v1` and `workflow-artifacts.v2` both admit that producer.
 - When `campus_services`, `navigation`, or `notice` is explicitly opened, deterministic
   structured payloads run as typed Temporal activities and write sanitized
   projections. `app-api` remains the browser-facing answer/status/event surface.
@@ -142,11 +138,12 @@ Current structured query runtime boundary:
   wildcard values such as `*` or `all` are rejected.
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth
   and is injected by the execution runtime harness.
-- `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
-  `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
-  `contact_directory_lookup`, and `academic_calendar_lookup` for the release
-  catalog, current pointer, typed read models, and published
-  `campus_services_ops.releases` snapshots.
+- `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by the
+  current campus-services structured runtime: transport-schedule read model,
+  release catalog/current pointer, and published
+  `campus_services_ops.releases` snapshots. Database reachability is necessary
+  for those internal query surfaces but is not the primary-agent model-visible
+  opening gate.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
 - `EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime
@@ -282,7 +279,11 @@ docker build \
   -t campus-execution-control:local .
 ```
 
-Worker autoscaler dry-run proof:
+Docker Compose worker autoscaler transitional dry-run proof:
+
+These commands are for local / Docker Compose runtime only. K8s worker
+autoscaling is owned by KEDA/HPA; do not run this autoscaler against
+KEDA-managed worker Deployments.
 
 ```bash
 go run ./cmd/worker-autoscaler \
@@ -293,7 +294,7 @@ go run ./cmd/worker-autoscaler \
   --mode dry-run
 ```
 
-Worker autoscaler apply-mode proof:
+Docker Compose worker autoscaler transitional apply-mode proof:
 
 ```bash
 go run ./cmd/worker-autoscaler \

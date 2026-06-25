@@ -47,12 +47,12 @@ identity injection -> post-deploy smoke -> observability evidence artifact`
   `panel-staging.mucwiki-edge.link`；docs 作为
   `campus-staging.mucwiki-edge.link/docs/*` 内部支撑面验收；web surfaces 通过
   Worker `APP_API` Service Binding 调用 `app-api-staging`
-- `apps/execution-control` 的当前 accepted deploy substrate 是 Docker-first internal
-  execution service；production target deploy substrate 已由 ADR-0056 收口为
-  Kubernetes + KEDA
+- `apps/execution-control` 的 repo-owned Docker Compose runtime 只保留 local /
+  transitional evidence；production target deploy substrate 已由 ADR-0056 收口为
+  Kubernetes + KEDA。live staging/prod substrate 必须由环境证据证明。
 - `apps/execution-control` 仍不是 repo-level staging hostname truth；它继续通过显式 injected
   upstream 参与 staging execution seam
-- 当前 repo-owned staging execution runtime 已 hardcut 到
+- repo-owned transitional execution runtime shape 已 hardcut 到
   `execution-control + Temporal + workflow-worker + activity-worker-context +
   activity-worker-agent + agent-runtime + activity-worker-knowledge-plan +
   activity-worker-knowledge-retrieval + activity-worker-knowledge-synthesis +
@@ -133,9 +133,10 @@ release identity 的长期规则固定为：
 ### Upstream Execution Gate
 
 - `app-api` deploy 时必须显式注入真实可达的 `EXECUTION_CONTROL_BASE_URL`
-- 当前 staging forward deploy truth 可继续指向 Docker-first Go execution ingress；
+- staging forward deploy truth 必须指向真实可达的 Go `execution-control` origin；
   production target deploy truth 应指向 Kubernetes internal execution-control Service
-  或受保护 machine ingress
+  或受保护 machine ingress。不得只因旧 runbook/docs 仍提到 Compose 就推断 live
+  staging substrate。
 - 如果 Docker execution-control ingress 由 Cloudflare Access 保护，`app-api` 必须同时注入
   `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
 - `127.0.0.1`、repo placeholder 或失效 tunnel 不属于 deploy truth

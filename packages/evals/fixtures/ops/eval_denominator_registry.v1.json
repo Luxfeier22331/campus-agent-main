@@ -47,50 +47,8 @@
 			"eval_families": ["retrieval_qrels", "deterministic_answer", "workflow_trace", "release_gate"]
 		},
 		{
-			"surface_id": "service_status_lookup",
-			"domain_owner": "campus_services/service_status",
-			"capability_family": "campus_services",
-			"admission_state": "opened_tool",
-			"truth_scope": "denominator_expectation",
-			"authors_domain_truth": false,
-			"eval_families": [
-				"tool_argument_precision",
-				"tool_result_correctness",
-				"workflow_trace",
-				"release_gate"
-			]
-		},
-		{
 			"surface_id": "transport_schedule_lookup",
 			"domain_owner": "campus_services/transport_schedule",
-			"capability_family": "campus_services",
-			"admission_state": "opened_tool",
-			"truth_scope": "denominator_expectation",
-			"authors_domain_truth": false,
-			"eval_families": [
-				"tool_argument_precision",
-				"tool_result_correctness",
-				"workflow_trace",
-				"release_gate"
-			]
-		},
-		{
-			"surface_id": "service_guide_lookup",
-			"domain_owner": "campus_services/service_guide",
-			"capability_family": "campus_services",
-			"admission_state": "opened_tool",
-			"truth_scope": "denominator_expectation",
-			"authors_domain_truth": false,
-			"eval_families": [
-				"tool_argument_precision",
-				"tool_result_correctness",
-				"workflow_trace",
-				"release_gate"
-			]
-		},
-		{
-			"surface_id": "contact_directory_lookup",
-			"domain_owner": "campus_services/contact_directory",
 			"capability_family": "campus_services",
 			"admission_state": "opened_tool",
 			"truth_scope": "denominator_expectation",

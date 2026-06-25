@@ -162,8 +162,7 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   不能由 `scoped_rules` 路径或 scoped-rule promotion URL 满足
 - campus-services / notice tool-family denominator 固定在
   `packages/evals/fixtures/tools/family_denominators.v1.json` 与
-  `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
-  `transport_schedule_lookup`、`service_guide_lookup`、`contact_directory_lookup`、
+  `campus_evals.tool_family_denominator`；它覆盖 `transport_schedule_lookup`、
   `campus_notice_discover` 与 internal selected notice resolve 的 `campus_notice_get`。
   其中 `campus_notice_get` 不是 provider/SDK tool denominator，只验证 source-card /
   bounded-summary / authorization fail-close posture；failure class 固定为 routing error、
@@ -222,17 +221,14 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   --observations-path <observations.json>`；它只汇总 online answer usefulness、OCR semantic
   quality 与 agentic plan quality 的 calibration 观察和 pending review candidates，不参与
   deterministic pass/fail canonical truth。
-- service-guide 与 contact-directory 不再作为独立 `scripts.eval_gate`
-  profile 暴露。它们的 denominator 固定在 `tool-family-denominator` 与
-  `campus-services-product-path` 中；projection / selected-write runtime 证据由对应
-  TS/Go owner 产出，Python eval 只消费 sanitized observation 或 fixture artifact。
+- service-guide、contact-directory 与 academic-calendar 不再作为 campus-services runtime
+  tool denominator 暴露；对应办理指南、联系方式和流程内容由 wiki 维护，校历只作为
+  `calendar/academic_calendar` 数据资产/预计算输入。
 - `campus-services-product-path` opening gate 是 product-path admission gate，
   入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path`；v2 artifact 用 `open_candidate` /
-  `keep_closed` profile 区分正式开放工具和 later-wave 工具。当前
-  `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
-  与 `contact_directory_lookup` 是 opened tools，`service_process_lookup`
-  明确记录为 `keep_closed`。
+  `keep_closed` profile 区分正式开放工具和 later-wave 工具。当前只有
+  `transport_schedule_lookup` 是 opened campus-services tool。
 - `multi-agent-runtime-contract` gate 是 capability execution runtime contract
   的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
   accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
@@ -400,7 +396,8 @@ curl -fsS \
 ```
 
 - `app-api` 会校验 schema、current denominator、surface 顺序和 forbidden raw/local
-  fields，写入 `operator.eval_coverage_snapshot`；`protected-panel-web` 只读
+  fields，写入 `operator.eval_coverage_snapshot`。当前最小 `operator-console-web`
+  不暴露 eval coverage UI；后续若开放该 domain，必须通过明确 allowlist 读取
   `GET /api/operator/evals/coverage`
 - forbidden fields 包括 local artifact path、auth/header/cookie/token、raw prompt、
   raw answer 与 transcript；这些字段必须留在 eval evidence artifact，不得进入
@@ -443,18 +440,19 @@ curl -fsS \
   "$APP_API_BASE_URL/api/internal/operator/evals/diagnostic-badcases"
 ```
 
-- `app-api` 写入 `operator.eval_diagnostic_badcase_projection`；
-  `protected-panel-web` 通过 `GET /api/operator/quality/eval-candidates` 读取，
-  `intake.source` 固定为 `ragas_diagnostic`
+- `app-api` 写入 `operator.eval_diagnostic_badcase_projection`。当前最小
+  `operator-console-web` 不暴露 eval candidate UI；后续若开放该 domain，必须通过明确
+  allowlist 读取 `GET /api/operator/quality/eval-candidates`，`intake.source`
+  固定为 `ragas_diagnostic`
 - 该链路只把“发现问题 -> 定位阶段 -> 回归样本候选”暴露给 review；它不改变
   deterministic gate verdict，不创建 fix task，也不把 candidate 直接晋升为 golden truth
 
 ## Orchestration / Workflow Trace Eval Gap
 
 当前 eval 已经覆盖 retrieval qrels、intent gate、observability publish、formal
-benchmark artifact、supplemental judge / ragas adapter、`service_guide_lookup`
-release gate 与 shared workflow trace runtime gate。后续缺口不再是 artifact/gate
-shape，而是把更多真实产品路径和 domain-specific case 扩编进这些 gate。
+benchmark artifact、supplemental judge / ragas adapter、transport schedule release
+gate 与 shared workflow trace runtime gate。后续缺口不再是 artifact/gate shape，
+而是把更多真实产品路径和 domain-specific case 扩编进这些 gate。
 
 需要补齐的 shared suite family：
 

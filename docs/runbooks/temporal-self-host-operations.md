@@ -142,6 +142,8 @@ authorization header, raw source body, or object-store credentials.
 
 ## Worker Autoscaler Proof
 
+### Docker Compose Transitional Proof
+
 The worker autoscaler belongs to the Execution Operations Plane. It reads
 app-api operator runtime task queue projections, reads Docker Compose replica
 state, computes desired worker replicas, and publishes sanitized decision /
@@ -193,13 +195,67 @@ Apply mode is allowed only for the Docker Compose service allowlist documented i
 not write workflow state, run projection, step projection, event projection,
 terminal state, or downstream budget.
 
+### Kubernetes Staging Proof
+
+First-stage Kubernetes staging manifests live at:
+
+```bash
+kubectl kustomize infra/k8s/execution-runtime/overlays/staging
+```
+
+Before apply, create `execution-runtime-secrets` in `campus-agent-staging` from
+the same keys shown in
+`infra/k8s/execution-runtime/base/secret.example.yaml`. The example file is not
+part of the Kustomize resources and must not be applied as real credentials.
+
+Render and apply:
+
+```bash
+kubectl kustomize infra/k8s/execution-runtime/overlays/staging > /tmp/campus-agent-k8s-staging.yaml
+kubectl apply -f /tmp/campus-agent-k8s-staging.yaml
+kubectl -n campus-agent-staging wait \
+  --for=condition=available deploy/execution-control \
+  --timeout=300s
+kubectl -n campus-agent-staging wait \
+  --for=condition=available deploy/agent-runtime \
+  --timeout=300s
+```
+
+The K8s staging proof must confirm:
+
+- exactly one Deployment and one KEDA ScaledObject exist for each worker pool
+- every ScaledObject has `minReplicaCount=1`
+- `activity-worker-knowledge-retrieval` and
+  `activity-worker-knowledge-synthesis` have `maxReplicaCount=5`; other pools
+  have `maxReplicaCount=3`
+- every ScaledObject uses `targetQueueSize="8"`, `pollingInterval=15`,
+  `cooldownPeriod=180` and HPA scale-down stabilization `300`
+- `temporal-task-queue-sampler` writes fresh
+  `temporal_task_queue_metrics_snapshot.v1`
+- `keda-hpa-posture-collector` writes fresh
+  `worker_autoscaler_posture.v1`
+
+Operator-safe evidence is read through app-api only:
+
+```bash
+curl -fsS "$APP_API_BASE_URL/api/operator/runtime/temporal-task-queues" \
+  -H "authorization: Bearer $OPERATOR_TOKEN"
+
+curl -fsS "$APP_API_BASE_URL/api/operator/runtime/autoscaler/postures" \
+  -H "authorization: Bearer $OPERATOR_TOKEN"
+```
+
+Do not run Docker Compose `worker-autoscaler` against the same worker pool while
+KEDA/HPA owns the Kubernetes Deployments.
+
 ## Closeout
 
 A Temporal closeout is not complete until the evidence directory contains:
 
 - execution-control `/readyz` body
 - Temporal HTTP proof result
-- worker autoscaler dry-run evidence
+- Docker Compose worker-autoscaler dry-run evidence, or K8s
+  `worker_autoscaler_posture.v1` evidence when KEDA/HPA owns the worker pool
 - chat E2E run id / trace id
 - step trajectory projection for at least one run
 - Sentry / Axiom evidence for the same time window

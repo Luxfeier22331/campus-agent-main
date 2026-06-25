@@ -20,4 +20,8 @@ describe("campus worker app-api proxy allowlist", () => {
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/settings")).toBe(true);
 		expect(isAllowedCampusAppApiRequest("/api/me/profile-memory/items/mem_01HQ")).toBe(true);
 	});
+
+	it("allows the public campus services transport schedule projection", () => {
+		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule")).toBe(true);
+	});
 });

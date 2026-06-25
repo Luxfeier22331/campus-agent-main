@@ -1,0 +1,363 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/execution-control-runtime-profile.v1.schema.json",
+	"title": "campus-agent execution-control runtime profile",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"max_concurrent_answers",
+		"queue_capacity",
+		"queue_timeout_ms",
+		"request_timeout_ms",
+		"request_body_limit_bytes",
+		"shutdown_grace_ms",
+		"intent_policy_path",
+		"provider_pricing_path",
+		"query_serving_scopes_path",
+		"structured_query_timeout_ms",
+		"open_capabilities",
+		"multi_step_workflow_enabled",
+		"otel",
+		"execution_audit",
+		"lane_budgets",
+		"rag",
+		"personal_memory"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "campus_execution_control_runtime_profile.v1"
+		},
+		"max_concurrent_answers": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"queue_capacity": {
+			"type": "integer",
+			"minimum": 0
+		},
+		"queue_timeout_ms": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"request_timeout_ms": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"request_body_limit_bytes": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"shutdown_grace_ms": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"intent_policy_path": {
+			"type": "string",
+			"minLength": 1
+		},
+		"provider_pricing_path": {
+			"type": "string",
+			"minLength": 1
+		},
+		"query_serving_scopes_path": {
+			"type": "string",
+			"minLength": 1
+		},
+		"structured_query_timeout_ms": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"open_capabilities": {
+			"type": "array",
+			"items": {
+				"enum": ["knowledge", "navigation", "campus_services", "notice"]
+			}
+		},
+		"multi_step_workflow_enabled": {
+			"type": "boolean"
+		},
+		"otel": {
+			"$ref": "#/$defs/OTel"
+		},
+		"execution_audit": {
+			"$ref": "#/$defs/ExecutionAudit"
+		},
+		"lane_budgets": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["rag", "navigation", "campus_services", "notice", "default"],
+			"properties": {
+				"rag": {
+					"$ref": "#/$defs/LaneBudget"
+				},
+				"navigation": {
+					"$ref": "#/$defs/LaneBudget"
+				},
+				"campus_services": {
+					"$ref": "#/$defs/LaneBudget"
+				},
+				"notice": {
+					"$ref": "#/$defs/LaneBudget"
+				},
+				"default": {
+					"$ref": "#/$defs/LaneBudget"
+				}
+			}
+		},
+		"rag": {
+			"$ref": "#/$defs/RAG"
+		},
+		"personal_memory": {
+			"$ref": "#/$defs/PersonalMemory"
+		},
+		"worker_profiles": {
+			"type": "object",
+			"additionalProperties": {
+				"$ref": "#/$defs/WorkerProfile"
+			}
+		}
+	},
+	"$defs": {
+		"OTel": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"enabled",
+				"endpoint",
+				"metrics_enabled",
+				"metrics_endpoint",
+				"service_name",
+				"export_timeout_ms",
+				"export_interval_ms",
+				"sample_ratio",
+				"allowed_attributes_version",
+				"temporal_tracing_enabled"
+			],
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"endpoint": {
+					"type": "string",
+					"minLength": 1
+				},
+				"metrics_enabled": {
+					"type": "boolean"
+				},
+				"metrics_endpoint": {
+					"type": "string",
+					"minLength": 1
+				},
+				"headers": {
+					"type": "string"
+				},
+				"service_name": {
+					"type": "string",
+					"minLength": 1
+				},
+				"export_timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"export_interval_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"sample_ratio": {
+					"type": "number",
+					"minimum": 0,
+					"maximum": 1
+				},
+				"allowed_attributes_version": {
+					"type": "string",
+					"minLength": 1
+				},
+				"temporal_tracing_enabled": {
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"temporal_tracing_enabled": {
+								"const": true
+							}
+						},
+						"required": ["temporal_tracing_enabled"]
+					},
+					"then": {
+						"properties": {
+							"enabled": {
+								"const": true
+							}
+						}
+					}
+				}
+			]
+		},
+		"ExecutionAudit": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["enabled", "timeout_ms"],
+			"properties": {
+				"enabled": {
+					"type": "boolean"
+				},
+				"url": {
+					"type": "string"
+				},
+				"shared_secret": {
+					"type": "string"
+				},
+				"timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"LaneBudget": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["max_concurrent", "queue_capacity", "queue_timeout_ms"],
+			"properties": {
+				"max_concurrent": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"queue_capacity": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"queue_timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"RAG": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"top_k_max",
+				"selected_evidence_max",
+				"retrieval_max_concurrent",
+				"synthesis_max_concurrent",
+				"embedding_timeout_ms",
+				"qdrant_timeout_ms",
+				"provider_timeout_ms"
+			],
+			"properties": {
+				"top_k_max": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"selected_evidence_max": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"retrieval_max_concurrent": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"synthesis_max_concurrent": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"embedding_timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"qdrant_timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"provider_timeout_ms": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"synthesis_generation": {
+					"$ref": "#/$defs/RAGSynthesisGeneration"
+				}
+			}
+		},
+		"RAGSynthesisGeneration": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": [
+				"max_output_tokens",
+				"reasoning_effort",
+				"store_provider_output",
+				"text_verbosity"
+			],
+			"properties": {
+				"max_output_tokens": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"reasoning_effort": {
+					"enum": ["minimal", "low", "medium", "high"]
+				},
+				"store_provider_output": {
+					"type": "boolean"
+				},
+				"text_verbosity": {
+					"enum": ["low", "medium", "high"]
+				}
+			}
+		},
+		"PersonalMemory": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["runtime", "timeout_seconds", "recall_limit", "recall_max_chars"],
+			"properties": {
+				"runtime": {
+					"const": "hindsight"
+				},
+				"timeout_seconds": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"recall_limit": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"recall_max_chars": {
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"WorkerProfile": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"activity_slots": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"activity_task_pollers": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"task_queue_activities_per_second": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"worker_activities_per_second": {
+					"type": "number",
+					"exclusiveMinimum": 0
+				},
+				"workflow_task_slots": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"workflow_task_pollers": {
+					"type": "integer",
+					"minimum": 0
+				}
+			}
+		}
+	}
+}

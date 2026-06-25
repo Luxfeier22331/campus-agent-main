@@ -27,13 +27,9 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
 
         self.assertTrue(
             {
-                "workflow-service-status-sdk",
-                "workflow-service-guide-sdk",
-                "workflow-contact-directory-sdk",
                 "workflow-transport-schedule-sdk",
                 "workflow-transport-notice-override-multistep",
                 "workflow-notice-discover-sdk",
-                "workflow-academic-calendar-sdk",
                 "workflow-knowledge-delegate",
                 "workflow-notice-knowledge-followthrough-multistep",
                 "workflow-selected-notice-knowledge-followthrough-ineligible",
@@ -41,12 +37,11 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
                 "workflow-ambiguous-follow-up-clarification",
                 "workflow-product-scope-fail-close",
                 "workflow-transactional-approval-required",
-                "workflow-service-guide-no-result",
             }.issubset(case_ids)
         )
         branches = {case.expectation.direct_vs_delegate_branch for case in case_set.cases}
         self.assertTrue(
-            {"direct", "delegate", "multi_step", "clarification", "fail_close"}.issubset(branches)
+            {"delegate", "multi_step", "clarification", "fail_close"}.issubset(branches)
         )
         self.assertTrue(any(case.expectation.fail_close_expected for case in case_set.cases))
 
@@ -80,9 +75,9 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
                     expectation=WorkflowTraceExpectation(
                         direct_vs_delegate_branch="direct",
                         selected_capability="campus_services",
-                        selected_tools=("service_status_lookup",),
+                        selected_tools=("transport_schedule_lookup",),
                         handoff={"target": "campus_services"},
-                        tool_argument_summary={"payload_kind": "service_status_lookup"},
+                        tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
                         fail_close_expected=False,
                     ),
                 ),
@@ -97,7 +92,7 @@ class WorkflowTraceGateFixtureTestPart01(unittest.TestCase):
             WorkflowTraceExpectation(
                 direct_vs_delegate_branch="direct",
                 selected_capability="campus_services",
-                selected_tools=("service_status_lookup",),
+                selected_tools=("transport_schedule_lookup",),
                 handoff={"target": "campus_services"},
                 tool_argument_summary={"raw_transcript": "do not store"},
             )

@@ -133,20 +133,6 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
-    def test_dockerignore_keeps_otel_ingest_gateway_build_inputs(self) -> None:
-        repo_root = Path(__file__).resolve().parents[1]
-        patterns = _dockerignore_patterns(repo_root)
-
-        self.assertTrue(
-            {
-                "!package.json",
-                "!pnpm-lock.yaml",
-                "!pnpm-workspace.yaml",
-                "!apps/otel-ingest-gateway/",
-                "!apps/otel-ingest-gateway/**",
-            }.issubset(patterns)
-        )
-
     def test_dockerignore_keeps_ingestion_control_build_inputs(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
@@ -190,7 +176,6 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!configs/runtime/tool-function-schemas.v1.json",
                 "!configs/runtime/tools.v3.json",
                 "!configs/runtime/workflow-artifacts.v2.json",
-                "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
             }.issubset(patterns)
         )
 
@@ -210,7 +195,6 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             for pattern in (
                 "!apps/authenticated-notice-collector/**",
                 "!apps/agent-runtime/**",
-                "!apps/otel-ingest-gateway/**",
                 "!apps/ingestion-control/**",
             )
         )

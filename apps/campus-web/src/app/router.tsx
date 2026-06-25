@@ -17,6 +17,9 @@ const HomePage = lazy(() =>
 const MapPage = lazy(() =>
 	import("./routes/map-page").then((module) => ({ default: module.MapPage })),
 );
+const ServicesPage = lazy(() =>
+	import("./routes/services-page").then((module) => ({ default: module.ServicesPage })),
+);
 const AccountPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({ default: module.AccountPage })),
 );
@@ -91,6 +94,12 @@ const diningRoute = createRoute({
 	component: DiningPage,
 	getParentRoute: () => rootRoute,
 	path: "/dining",
+});
+
+const servicesRoute = createRoute({
+	component: ServicesPage,
+	getParentRoute: () => rootRoute,
+	path: "/services",
 });
 
 const feedbackRoute = createRoute({
@@ -170,6 +179,7 @@ const routeTree = rootRoute.addChildren([
 	conversationRoute,
 	mapRoute,
 	diningRoute,
+	servicesRoute,
 	feedbackRoute,
 	accountRoute,
 	accountLoginRoute,

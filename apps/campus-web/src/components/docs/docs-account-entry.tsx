@@ -124,10 +124,7 @@ function DocsAuthModal({
 									enableCaptcha
 									redirectTo={readDocsCurrentRouteTarget()}
 								>
-									<div
-										className="mx-auto w-full max-w-sm"
-										data-campus-account-surface="auth-modal"
-									>
+									<div className="mx-auto w-full max-w-sm" data-campus-account-surface="auth-modal">
 										<AuthPanel className="w-full" view="signIn" />
 									</div>
 								</CampusBrowserAuthUIProvider>

@@ -59,23 +59,23 @@ describe("campus services ops service", () => {
 		expect(JSON.stringify(audit)).not.toMatch(/截图|raw|bucket|objectKey/);
 	});
 
-	it("fails closed when non-operator principals attempt to mutate service ops truth", async () => {
+	it("fails closed when non-operator principals attempt to mutate transport ops truth", async () => {
 		const service = buildCampusServicesOpsService({
 			now: () => fixedNow,
 			store: createInMemoryCampusServicesOpsStore(),
 		});
 
 		await expect(
-			service.createStatusOverride({
+			service.createTransportOverride({
 				principal: createCampusPrincipal(),
 				payload: {
-					displayName: "医保窗口",
+					displayName: "海淀至丰台校车",
 					effectiveFrom: "2026-06-11T09:00:00.000Z",
 					effectiveUntil: "2026-06-11T12:00:00.000Z",
-					message: "暂停办理",
-					serviceId: "medical_insurance_counter",
+					message: "发车延迟 15 分钟。",
+					routeId: "haidian_fengtai_shuttle",
+					serviceStatus: "delayed",
 					sourceAttestationIds: [],
-					status: "closed",
 				},
 			}),
 		).rejects.toMatchObject({
@@ -84,23 +84,23 @@ describe("campus services ops service", () => {
 		});
 	});
 
-	it("requires bounded effective windows for status override drafts", async () => {
+	it("requires bounded effective windows for transport override drafts", async () => {
 		const service = buildCampusServicesOpsService({
 			now: () => fixedNow,
 			store: createInMemoryCampusServicesOpsStore(),
 		});
 
 		await expect(
-			service.createStatusOverride({
+			service.createTransportOverride({
 				principal: createOperatorPrincipal(),
 				payload: {
-					displayName: "医保窗口",
+					displayName: "海淀至丰台校车",
 					effectiveFrom: "2026-06-11T12:00:00.000Z",
 					effectiveUntil: "2026-06-11T09:00:00.000Z",
-					message: "暂停办理",
-					serviceId: "medical_insurance_counter",
+					message: "发车延迟 15 分钟。",
+					routeId: "haidian_fengtai_shuttle",
+					serviceStatus: "delayed",
 					sourceAttestationIds: [],
-					status: "closed",
 				},
 			}),
 		).rejects.toMatchObject({
@@ -109,7 +109,7 @@ describe("campus services ops service", () => {
 		});
 	});
 
-	it("previews and publishes current effective status and transport overrides atomically", async () => {
+	it("previews and publishes current effective transport overrides atomically", async () => {
 		const store = createInMemoryCampusServicesOpsStore();
 		const service = buildCampusServicesOpsService({
 			generateId: (prefix) => `${prefix}_${prefix.endsWith("release") ? "rel" : "001"}`,
@@ -124,18 +124,6 @@ describe("campus services ops service", () => {
 				confirmedAt: "2026-06-11T07:50:00.000Z",
 				sourceType: "phone_confirmation",
 				summary: "校车队电话确认晚间接驳车增开一班。",
-			},
-		});
-		const status = await service.createStatusOverride({
-			principal,
-			payload: {
-				displayName: "医保窗口",
-				effectiveFrom: "2026-06-11T07:00:00.000Z",
-				effectiveUntil: "2026-06-11T10:00:00.000Z",
-				message: "下午恢复办理前暂停服务。",
-				serviceId: "medical_insurance_counter",
-				sourceAttestationIds: [attestation.attestation.attestationId],
-				status: "closed",
 			},
 		});
 		const transport = await service.createTransportOverride({
@@ -156,12 +144,6 @@ describe("campus services ops service", () => {
 			principal,
 		});
 
-		expect(preview.preview.currentEffective.statusOverrides).toEqual([
-			expect.objectContaining({
-				overrideId: status.override.overrideId,
-				serviceId: "medical_insurance_counter",
-			}),
-		]);
 		expect(preview.preview.currentEffective.transportOverrides).toEqual([
 			expect.objectContaining({
 				overrideId: transport.override.overrideId,
@@ -176,13 +158,12 @@ describe("campus services ops service", () => {
 		});
 
 		expect(publish.release).toMatchObject({
-			itemCount: 2,
+			itemCount: 1,
 			notes: "发布今日人工校对服务调整。",
 			publishedAt: "2026-06-11T08:00:00.000Z",
 			releaseId: "services_release_rel",
 			status: "published",
 		});
-		expect(publish.currentEffective.statusOverrides).toHaveLength(1);
 		expect(publish.currentEffective.transportOverrides).toHaveLength(1);
 		await expect(service.listReleases({ principal })).resolves.toMatchObject({
 			releases: [

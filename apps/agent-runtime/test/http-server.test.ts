@@ -6,6 +6,24 @@ import type { AgentRunner } from "../src/primary-agent.ts";
 import { createPrimaryAgentRuntime } from "../src/primary-agent.ts";
 import type { ToolCatalog } from "../src/tool-catalog.ts";
 
+const testParameterSchema = {
+	type: "object" as const,
+	additionalProperties: false as const,
+	properties: {
+		query_text: { type: "string", minLength: 1 },
+	},
+	required: ["query_text"],
+};
+
+const transportPayloadSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupPayload",
+);
+const transportResultSchemaRef = schemaRef(
+	"campus-services-tool-contracts.v1",
+	"TransportScheduleLookupResult",
+);
+
 const catalog: ToolCatalog = {
 	schemaVersion: "tool-catalog.v1",
 	catalogVersion: "test",
@@ -17,17 +35,22 @@ const catalog: ToolCatalog = {
 			exposure: "model_visible",
 			readOnly: true,
 			requiresApproval: false,
-			payloadSchemaRef: "manual.TransportScheduleLookupPayload",
-			resultSchemaRef: "manual.TransportScheduleLookupResult",
+			payloadSchemaRef: transportPayloadSchemaRef,
+			resultSchemaRef: transportResultSchemaRef,
 			handler: {
 				type: "execution_control_internal_query",
 				endpoint: "/internal/query/campus-services/transport-schedule",
 			},
 			timeoutMs: 1000,
 			resultProjectionPolicy: "bounded_json",
+			parameterSchema: testParameterSchema,
 		},
 	],
 };
+
+function schemaRef(schemaName: string, definitionName: string): string {
+	return `https://muc.wiki/campus-agent/schemas/${schemaName}.schema.json#/$defs/${definitionName}`;
+}
 
 describe("agent runtime HTTP handler", () => {
 	it("rejects missing worker authorization", async () => {

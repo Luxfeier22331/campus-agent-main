@@ -479,49 +479,6 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             },
             guardrail_scope="in_scope",
         )
-    if profile == "service_status_sdk_opened":
-        return _tool_workflow_trace_summary(
-            capability="campus_services",
-            tool="service_status_lookup",
-            branch="delegate",
-            mode="single_step",
-            argument_summary={
-                "payload_kind": "service_status_lookup",
-                "selected_tool": "service_status_lookup",
-                "temporal_query_mode": "current",
-            },
-            guardrail_scope="in_scope",
-        )
-    if profile == "service_guide_sdk_opened":
-        return _tool_workflow_trace_summary(
-            capability="campus_services",
-            tool="service_guide_lookup",
-            branch="delegate",
-            mode="single_step",
-            argument_summary={
-                "payload_kind": "service_guide_lookup",
-                "selected_tool": "service_guide_lookup",
-                "guide_focus": "required_materials",
-                "temporal_query_mode": "current",
-                "audience": "unknown",
-            },
-            guardrail_scope="in_scope",
-        )
-    if profile == "contact_directory_sdk_opened":
-        return _tool_workflow_trace_summary(
-            capability="campus_services",
-            tool="contact_directory_lookup",
-            branch="delegate",
-            mode="single_step",
-            argument_summary={
-                "payload_kind": "contact_directory_lookup",
-                "selected_tool": "contact_directory_lookup",
-                "contact_focus": "phone",
-                "temporal_query_mode": "current",
-                "audience": "unknown",
-            },
-            guardrail_scope="in_scope",
-        )
     if profile == "notice_discover_sdk_opened":
         return _tool_workflow_trace_summary(
             capability="notice",
@@ -532,20 +489,6 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
                 "payload_kind": "campus_notice_discover",
                 "selected_tool": "campus_notice_discover",
                 "source_family": "authenticated_notice",
-            },
-            guardrail_scope="in_scope",
-        )
-    if profile == "academic_calendar_sdk_opened":
-        return _tool_workflow_trace_summary(
-            capability="campus_services",
-            tool="academic_calendar_lookup",
-            branch="delegate",
-            mode="single_step",
-            argument_summary={
-                "payload_kind": "academic_calendar_lookup",
-                "selected_tool": "academic_calendar_lookup",
-                "query_kind": "named_event_range",
-                "event_query": "五一",
             },
             guardrail_scope="in_scope",
         )

@@ -1,12 +1,8 @@
 import { GetObjectCommand, S3Client } from "@aws-sdk/client-s3";
 
 export function createS3ObjectStore() {
-	const endpoint = requireEnv("OBJECT_STORE_ENDPOINT");
-	const { accessKeyId, secretAccessKey } = resolvePublishedReaderObjectStoreCredentials(
-		process.env,
-	);
-	const region = process.env.OBJECT_STORE_REGION?.trim() || "us-east-1";
-	const bucket = resolvePublishedReaderObjectStoreBucket(process.env);
+	const { accessKeyId, bucket, endpoint, region, secretAccessKey } =
+		resolvePublishedReaderObjectStoreConfig(process.env);
 	const client = new S3Client({
 		credentials: { accessKeyId, secretAccessKey },
 		endpoint,
@@ -40,8 +36,24 @@ export function createS3ObjectStore() {
 	};
 }
 
+export function resolvePublishedReaderObjectStoreConfig(env) {
+	const endpoint = readRequiredEnv(env, "OBJECT_STORE_ENDPOINT");
+	const bucket = resolvePublishedReaderObjectStoreBucket(env);
+	const region = env.OBJECT_STORE_REGION?.trim() || "us-east-1";
+	const { accessKeyId, credentialMode, secretAccessKey } =
+		resolvePublishedReaderObjectStoreCredentials(env);
+	return {
+		accessKeyId,
+		bucket,
+		credentialMode,
+		endpoint,
+		region,
+		secretAccessKey,
+	};
+}
+
 export function resolvePublishedReaderObjectStoreBucket(env) {
-	return env.OBJECT_STORE_BUCKET_DERIVED?.trim() || "campus-rag-derived";
+	return readRequiredEnv(env, "OBJECT_STORE_BUCKET_DERIVED");
 }
 
 export function resolvePublishedReaderObjectStoreCredentials(env) {
@@ -50,13 +62,22 @@ export function resolvePublishedReaderObjectStoreCredentials(env) {
 	if (derivedAccessKey && derivedSecretKey) {
 		return {
 			accessKeyId: derivedAccessKey,
+			credentialMode: "derived",
 			secretAccessKey: derivedSecretKey,
 		};
 	}
-	return {
-		accessKeyId: requireEnvFrom(env, "OBJECT_STORE_ACCESS_KEY"),
-		secretAccessKey: requireEnvFrom(env, "OBJECT_STORE_SECRET_KEY"),
-	};
+	const sharedAccessKey = env.OBJECT_STORE_ACCESS_KEY?.trim();
+	const sharedSecretKey = env.OBJECT_STORE_SECRET_KEY?.trim();
+	if (sharedAccessKey && sharedSecretKey) {
+		return {
+			accessKeyId: sharedAccessKey,
+			credentialMode: "shared",
+			secretAccessKey: sharedSecretKey,
+		};
+	}
+	throw new Error(
+		"missing object-store credentials: provide OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or OBJECT_STORE_DERIVED_ACCESS_KEY/OBJECT_STORE_DERIVED_SECRET_KEY",
+	);
 }
 
 function isMissingObjectError(error) {
@@ -70,11 +91,7 @@ function isMissingObjectError(error) {
 	);
 }
 
-function requireEnv(name) {
-	return requireEnvFrom(process.env, name);
-}
-
-function requireEnvFrom(env, name) {
+function readRequiredEnv(env, name) {
 	const value = env[name]?.trim();
 	if (!value) {
 		throw new Error(`${name} is required for campus docs published reader sync`);

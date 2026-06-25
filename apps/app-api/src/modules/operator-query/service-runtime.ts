@@ -20,6 +20,7 @@ import {
 	normalizeTemporalTaskQueueListFilters,
 	normalizeWorkerAutoscalerActuationListFilters,
 	normalizeWorkerAutoscalerDecisionListFilters,
+	normalizeWorkerAutoscalerPostureListFilters,
 } from "./service-normalization";
 import type {
 	NormalizedOperatorOverviewFilters,
@@ -718,6 +719,13 @@ export function buildOperatorQueryService(
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.listAutoscalerActuations(
 				normalizeWorkerAutoscalerActuationListFilters(input.filters),
+			);
+		},
+
+		async listAutoscalerPostures(input) {
+			ensureOperatorPrincipal(input.principal);
+			return dependencies.store.listAutoscalerPostures(
+				normalizeWorkerAutoscalerPostureListFilters(input.filters),
 			);
 		},
 	};

@@ -40,6 +40,7 @@ REQUIRED_WORKFLOW_SCRIPT_CALLS = {
 REQUIRED_GOLANGCI_LINT_INSTALL = (
     "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
 )
+REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +93,7 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
         issues.extend(_audit_package_manager_versions(base, root_pnpm_version))
         issues.extend(_audit_workflow_pnpm_versions(base, root_pnpm_version))
     issues.extend(_audit_workflow_script_calls(base))
+    issues.extend(_audit_repo_static_lane_tooling(base))
     issues.extend(_audit_langfuse_lane_tooling(base))
     issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
@@ -205,6 +207,35 @@ def _audit_go_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     return ()
 
 
+def _audit_repo_static_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/lint.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    workflow = _read_yaml(workflow_path)
+    jobs = workflow.get("jobs")
+    if not isinstance(jobs, dict):
+        return ()
+    job = jobs.get("repo-static")
+    if not isinstance(job, dict):
+        return ()
+    raw_steps = job.get("steps")
+    if not isinstance(raw_steps, list):
+        return ()
+    setup_uv_step_index = _first_step_index_using(raw_steps, REQUIRED_UV_SETUP)
+    uv_sync_step_index = _first_step_index_containing(raw_steps, "uv sync --all-packages --dev")
+    if uv_sync_step_index is None:
+        return ()
+    if setup_uv_step_index is None or setup_uv_step_index >= uv_sync_step_index:
+        return (
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="repo-static must setup uv before uv sync",
+            ),
+        )
+    return ()
+
+
 def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
     workflow_relpath = ".github/workflows/lint.yml"
     workflow_path = root / workflow_relpath
@@ -232,6 +263,15 @@ def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, .
             ),
         )
     return ()
+
+
+def _first_step_index_using(steps: list[Any], uses: str) -> int | None:
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            continue
+        if step.get("uses") == uses:
+            return index
+    return None
 
 
 def _first_step_index_containing(steps: list[Any], text: str) -> int | None:

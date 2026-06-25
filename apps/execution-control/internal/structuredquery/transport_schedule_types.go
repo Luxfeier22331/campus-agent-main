@@ -46,6 +46,26 @@ type transportScheduleResult struct {
 	RelatedNoticeRefs    []string                      `json:"related_notice_refs,omitempty"`
 	OperationalNotices   []transportOperationalNotice  `json:"operational_notices,omitempty"`
 	FailCloseReason      string                        `json:"fail_close_reason,omitempty"`
+	ResultEnvelope       *campusServicesResultEnvelope `json:"result_envelope,omitempty"`
+}
+
+type campusServicesResultEnvelope struct {
+	SchemaVersion        string                      `json:"schema_version"`
+	Capability           string                      `json:"capability"`
+	ToolName             string                      `json:"tool_name"`
+	QueryKind            string                      `json:"query_kind"`
+	Outcome              string                      `json:"outcome"`
+	Facts                campusServicesScheduleFacts `json:"facts"`
+	SourceRefs           []string                    `json:"source_refs"`
+	ProjectionRef        string                      `json:"projection_ref"`
+	ContentHash          string                      `json:"content_hash"`
+	ClarificationOptions []string                    `json:"clarification_options"`
+	FailCloseReason      string                      `json:"fail_close_reason,omitempty"`
+}
+
+type campusServicesScheduleFacts struct {
+	Kind   string                  `json:"kind"`
+	Result transportScheduleResult `json:"result"`
 }
 
 type transportRouteRef struct {

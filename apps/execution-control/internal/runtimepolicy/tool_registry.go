@@ -5,12 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 )
 
 const (
 	ToolSpecSchemaVersion = "tool-spec-registry-v3"
 	defaultToolSpecPath   = "configs/runtime/tools.v3.json"
+)
+
+var toolSchemaRefPattern = regexp.MustCompile(
+	`^https://muc\.wiki/campus-agent/schemas/[A-Za-z0-9.-]+\.schema\.json#/\$defs/[A-Za-z0-9_]+$`,
 )
 
 var supportedCapabilityWorkerRoles = map[string]string{
@@ -124,11 +129,11 @@ func (t ToolSpec) Validate() error {
 	if strings.TrimSpace(t.PayloadKind) == "" {
 		return fmt.Errorf("%s payload_kind must not be empty", t.Name)
 	}
-	if strings.TrimSpace(t.PayloadSchemaRef) == "" {
-		return fmt.Errorf("%s payload_schema_ref must not be empty", t.Name)
+	if !toolSchemaRefPattern.MatchString(strings.TrimSpace(t.PayloadSchemaRef)) {
+		return fmt.Errorf("%s payload_schema_ref must reference a registered JSON Schema definition", t.Name)
 	}
-	if strings.TrimSpace(t.ResultSchemaRef) == "" {
-		return fmt.Errorf("%s result_schema_ref must not be empty", t.Name)
+	if !toolSchemaRefPattern.MatchString(strings.TrimSpace(t.ResultSchemaRef)) {
+		return fmt.Errorf("%s result_schema_ref must reference a registered JSON Schema definition", t.Name)
 	}
 	if _, ok := supportedToolBackends[t.Backend]; !ok {
 		return fmt.Errorf("%s backend is unsupported: %s", t.Name, t.Backend)

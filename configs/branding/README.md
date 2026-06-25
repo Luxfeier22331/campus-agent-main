@@ -6,8 +6,7 @@
 
 `configs/branding/web-public/favicon.ico` is the repo-owned canonical copy.
 
-- `online-answer-web`
-- `protected-panel-web`
 - `campus-web`
+- `operator-console-web`
 
 consume it through a shared Vite `publicDir`.

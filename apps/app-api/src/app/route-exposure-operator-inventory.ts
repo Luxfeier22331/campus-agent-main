@@ -183,12 +183,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/campus-services/status-overrides",
-		callerClass: "operator-via-panel",
-		admission: "panel internal bridge plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/campus-services/transport-overrides",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -400,6 +394,12 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/runtime/autoscaler/postures",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/runtime/temporal-task-queues",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -436,19 +436,7 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/operator/campus-services/status-overrides",
-		callerClass: "operator-via-panel",
-		admission: "panel internal bridge plus admitted operator principal",
-	},
-	{
-		method: "POST",
 		path: "/api/operator/campus-services/transport-overrides",
-		callerClass: "operator-via-panel",
-		admission: "panel internal bridge plus admitted operator principal",
-	},
-	{
-		method: "PATCH",
-		path: "/api/operator/campus-services/status-overrides/:overrideId",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},

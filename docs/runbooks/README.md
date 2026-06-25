@@ -41,7 +41,7 @@ updated: 2026-06-13
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
     bootstrap、worker identity、task queue poller evidence、failure-mode evidence
-    与 worker-autoscaler dry-run proof。
+    与 autoscaler posture / Docker Compose transitional proof。
 - `execution-control-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`

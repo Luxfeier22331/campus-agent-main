@@ -7,76 +7,6 @@ import (
 	"testing"
 )
 
-func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T) {
-	projectionFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"service_status_records":[
-			{
-				"subject_id":"library-haidian",
-				"display_name":"海淀校区图书馆",
-				"service_family":"library",
-				"aliases":["图书馆","海淀校区图书馆"],
-				"campus_scope":"haidian",
-				"observed_status":"open",
-				"status_note":"工作日开放，节假日另行通知",
-				"effective_from":"2026-04-24T08:00:00+08:00",
-				"effective_until":"2026-04-24T22:00:00+08:00",
-				"override_source_refs":["notice:library-hours"],
-				"related_notice_refs":["notice:library-hours"]
-			}
-		]
-	}`
-	server := newStructuredQueryAuthServerForTest()
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		projectionFixture,
-		"2026-04-24T10:30:00+08:00",
-	)
-
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/query/campus-services/service-status",
-		strings.NewReader(`{
-			"subject_query":"图书馆今天开门吗",
-			"temporal_query":{"mode":"current"},
-			"campus_scope":"haidian"
-		}`),
-	)
-	request.Header.Set("x-execution-query-auth", "query-secret")
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	if body["outcome"] != "resolved_current" {
-		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
-	}
-	if body["resolved_subject"] != "海淀校区图书馆" {
-		t.Fatalf("resolved_subject = %v", body["resolved_subject"])
-	}
-	if body["observed_status"] != "open" {
-		t.Fatalf("observed_status = %v", body["observed_status"])
-	}
-	if body["status_note"] != "工作日开放，节假日另行通知" {
-		t.Fatalf("status_note = %v", body["status_note"])
-	}
-	if body["queried_time_anchor"] != "2026-04-24T10:30:00+08:00" {
-		t.Fatalf("queried_time_anchor = %v", body["queried_time_anchor"])
-	}
-
-	metricsResponse := httptest.NewRecorder()
-	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
-	if !strings.Contains(
-		metricsResponse.Body.String(),
-		`campus_execution_control_structured_query_requests_total{tool="service_status_lookup",outcome="resolved_current",status_class="2xx"} 1`,
-	) {
-		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
-	}
-}
-
 func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testing.T) {
 	projectionFixture := `{
 		"schema_version":"campus_services_projection_bundle.v1",
@@ -148,272 +78,35 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 	if selectedDeparture["departure_at"] != "2026-04-25T06:50:00+08:00" {
 		t.Fatalf("departure_at = %v", selectedDeparture["departure_at"])
 	}
+	envelope := expectRecord(t, body["result_envelope"], "result_envelope")
+	if envelope["schema_version"] != "campus_services_tool_result.v1" ||
+		envelope["capability"] != "campus_services" ||
+		envelope["tool_name"] != "transport_schedule_lookup" ||
+		envelope["query_kind"] != "transport_schedule" ||
+		envelope["outcome"] != "resolved_current" {
+		t.Fatalf("result_envelope = %#v", envelope)
+	}
+	facts := expectRecord(t, envelope["facts"], "result_envelope.facts")
+	if facts["kind"] != "schedule_facts" {
+		t.Fatalf("facts.kind = %v, want schedule_facts", facts["kind"])
+	}
+	factResult := expectRecord(t, facts["result"], "result_envelope.facts.result")
+	if factResult["outcome"] != body["outcome"] {
+		t.Fatalf("facts.result.outcome = %v, want top-level outcome", factResult["outcome"])
+	}
+	sourceRefs, ok := envelope["source_refs"].([]any)
+	if !ok || len(sourceRefs) != 1 || sourceRefs[0] != "notice:bus-schedule-2026-04-20" {
+		t.Fatalf("source_refs = %#v, want schedule source", envelope["source_refs"])
+	}
+	if envelope["projection_ref"] == "" || envelope["content_hash"] == "" {
+		t.Fatalf("result_envelope missing projection_ref/content_hash: %#v", envelope)
+	}
 
 	metricsResponse := httptest.NewRecorder()
 	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
 	if !strings.Contains(
 		metricsResponse.Body.String(),
 		`campus_execution_control_structured_query_requests_total{tool="transport_schedule_lookup",outcome="resolved_current",status_class="2xx"} 1`,
-	) {
-		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
-	}
-}
-
-func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T) {
-	serviceGuideProjectionFixture := `{
-		"schema_version":"campus_services_service_guide_projection.v1",
-		"generated_at":"2026-04-25T10:00:00+08:00",
-		"source_families":["handbook_service_navigation_projection_v1"],
-		"service_guide_records":[
-			{
-				"service_id":"service:handbook:check-in",
-				"display_name":"公寓楼新生办理入住手续流程",
-				"aliases":["入住","住宿","宿舍"],
-				"category":"student_housing",
-				"campus_scope":"all",
-				"audience":["student"],
-				"effective_from":"2018-09-01T00:00:00+08:00",
-				"effective_until":"2099-12-31T23:59:59+08:00",
-				"source_refs":["handbook:student_rules:pages:252-255#page=253"],
-				"guide_sections":[
-					{
-						"section_id":"service:handbook:check-in:section:procedure",
-						"section_type":"procedure",
-						"title":"公寓楼新生办理入住手续流程",
-						"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
-						"order":1,
-						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
-					}
-				],
-				"procedure_groups":[
-					{
-						"group_id":"service:handbook:check-in:procedure_group:check_in",
-						"title":"入住流程",
-						"focus_tags":["procedure","入住","宿舍"],
-						"order":1,
-						"steps":[
-							{
-								"step_id":"service:handbook:check-in:procedure_group:check_in:step:1",
-								"content":"持通知书到院系注册。",
-								"order":1,
-								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
-							},
-							{
-								"step_id":"service:handbook:check-in:procedure_group:check_in:step:2",
-								"content":"到指定公寓楼报到。",
-								"order":2,
-								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
-							}
-						],
-						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
-					}
-				],
-				"materials":[],
-				"entry_refs":[],
-				"office_hours":[],
-				"contact_refs":[],
-				"eligibility_notes":["新生"],
-				"field_status":{"service_process":"present"},
-				"extraction_status":"ready"
-			}
-		],
-		"conflict_records":[],
-		"manual_review_sources":[]
-	}`
-	emptySharedProjectionFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"transport_schedule_snapshots":[]
-	}`
-	server := newStructuredQueryAuthServerForTest()
-	useStructuredQueryRuntimeFixtures(
-		t,
-		server,
-		emptySharedProjectionFixture,
-		emptySharedProjectionFixture,
-		serviceGuideProjectionFixture,
-		"2026-04-25T10:30:00+08:00",
-	)
-
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/query/campus-services/service-guide",
-		strings.NewReader(`{
-			"service_query":"宿舍入住怎么办理",
-			"guide_focus":"procedure",
-			"temporal_query":{"mode":"current"},
-			"audience":"student"
-		}`),
-	)
-	request.Header.Set("x-execution-query-auth", "query-secret")
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	if body["outcome"] != "resolved_current" {
-		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
-	}
-	resolvedService := expectRecord(t, body["resolved_service"], "resolved_service")
-	if resolvedService["display_name"] != "公寓楼新生办理入住手续流程" {
-		t.Fatalf("resolved_service.display_name = %v", resolvedService["display_name"])
-	}
-
-	metricsResponse := httptest.NewRecorder()
-	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
-	if !strings.Contains(
-		metricsResponse.Body.String(),
-		`campus_execution_control_structured_query_requests_total{tool="service_guide_lookup",outcome="resolved_current",status_class="2xx"} 1`,
-	) {
-		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
-	}
-}
-
-func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testing.T) {
-	contactProjectionFixture := `{
-		"schema_version":"campus_services_contact_directory_projection.v1",
-		"contact_records":[
-			{
-				"contact_id":"contact:grad-admission-office",
-				"display_name":"研究生院招生办公室",
-				"aliases":["研究生招生办","招生办公室"],
-				"contact_group":"招生咨询",
-				"department":"研究生院",
-				"phones":[
-					{
-						"phone_id":"phone:grad-admission-office:01068930001",
-						"label":"招生咨询",
-						"number":"010-68930001",
-						"source_refs":["handbook:contact-directory:2026#page=261"]
-					}
-				],
-				"emails":[
-					{
-						"email_id":"email:grad-admission-office:admission@muc.edu.cn",
-						"label":"招生邮箱",
-						"address":"admission@muc.edu.cn",
-						"source_refs":["handbook:contact-directory:2026#page=261"]
-					}
-				],
-				"location_refs":["海淀校区行政楼201"],
-				"source_refs":["handbook:contact-directory:2026#page=261"],
-				"extraction_status":"ready"
-			}
-		],
-		"contact_conflict_records":[],
-		"contact_manual_review_sources":[]
-	}`
-	server := newStructuredQueryAuthServerForTest()
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		contactProjectionFixture,
-		"2026-04-27T10:30:00+08:00",
-	)
-
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/query/campus-services/contact-directory",
-		strings.NewReader(`{
-			"query_text":"研究生院招生办公室电话是多少",
-			"contact_focus":"phone",
-			"temporal_query":{"mode":"current"},
-			"audience":"student"
-		}`),
-	)
-	request.Header.Set("x-execution-query-auth", "query-secret")
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	if body["outcome"] != "resolved_current" {
-		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
-	}
-	resolvedContact := expectRecord(t, body["resolved_contact"], "resolved_contact")
-	if resolvedContact["display_name"] != "研究生院招生办公室" {
-		t.Fatalf("resolved_contact.display_name = %v", resolvedContact["display_name"])
-	}
-	contactPoints, ok := body["contact_points"].([]any)
-	if !ok || len(contactPoints) != 1 {
-		t.Fatalf("contact_points = %#v", body["contact_points"])
-	}
-	firstPoint := expectRecord(t, contactPoints[0], "contact_point")
-	if firstPoint["value"] != "010-68930001" {
-		t.Fatalf("contact point value = %v", firstPoint["value"])
-	}
-
-	metricsResponse := httptest.NewRecorder()
-	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
-	if !strings.Contains(
-		metricsResponse.Body.String(),
-		`campus_execution_control_structured_query_requests_total{tool="contact_directory_lookup",outcome="resolved_current",status_class="2xx"} 1`,
-	) {
-		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
-	}
-}
-
-func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testing.T) {
-	academicCalendarProjectionFixture := `{
-		"schema_version":"academic_calendar_projection.v1",
-		"academic_calendar_records":[
-			{
-				"academic_year_label":"2025-2026学年",
-				"term_label":"春季学期",
-				"start_date":"2026-05-04",
-				"end_date":"2026-05-10",
-				"week_index":10,
-				"day_kind":"teaching_day",
-				"class_day_pattern":"",
-				"is_makeup_class":false,
-				"holiday_name":"",
-				"source_refs":["official_web:muc-public-academic-calendar:owver"]
-			}
-		]
-	}`
-	server := newStructuredQueryAuthServerForTest()
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		academicCalendarProjectionFixture,
-		"2026-05-04T09:00:00+08:00",
-	)
-
-	request := newTestRequest(
-		http.MethodPost,
-		"/internal/query/calendar/academic-calendar",
-		strings.NewReader(`{
-			"query_text":"今天第几教学周",
-			"temporal_query":{"mode":"current"},
-			"date_hint":"2026-05-04"
-		}`),
-	)
-	request.Header.Set("x-execution-query-auth", "query-secret")
-	response := httptest.NewRecorder()
-	server.ServeHTTP(response, request)
-
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
-	body := decodeBody(t, response)
-	if body["outcome"] != "resolved_current" {
-		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
-	}
-	if body["week_index"] != float64(10) {
-		t.Fatalf("week_index = %v, want 10", body["week_index"])
-	}
-	if body["resolved_date"] != "2026-05-04" {
-		t.Fatalf("resolved_date = %v, want 2026-05-04", body["resolved_date"])
-	}
-
-	metricsResponse := httptest.NewRecorder()
-	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
-	if !strings.Contains(
-		metricsResponse.Body.String(),
-		`campus_execution_control_structured_query_requests_total{tool="academic_calendar_lookup",outcome="resolved_current",status_class="2xx"} 1`,
 	) {
 		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
 	}

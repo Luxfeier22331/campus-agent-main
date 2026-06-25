@@ -60,72 +60,12 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				transportNoticeOverrideCapabilityPlan(request),
 			)
 		}
-		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
-		if runtimepolicy.IsAcademicCalendarFactQueryForPlanning(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "academic_calendar_lookup",
-				Payload:      academicCalendarPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "academic_calendar_lookup"),
-			})
-		}
-		if isContactDirectoryLookup(normalizedGoal, policy) &&
-			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "contact_directory_lookup",
-				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "contact_directory_lookup"),
-			})
-		}
-		if isTransportBoardingStatusLookup(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_status_lookup",
-				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "service_status_lookup"),
-			})
-		}
-		if isTransportServiceGuideLookup(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup"),
-			})
-		}
-		if shouldPreferServiceStatusLookup(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_status_lookup",
-				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "service_status_lookup"),
-			})
-		}
-		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
+		if runtimepolicy.IsTransportScheduleLookupQueryForPlanning(normalizedGoal, policy) {
 			return SingleStepPlan(Handoff{
 				Capability:   "campus_services",
 				PayloadKind:  "transport_schedule_lookup",
 				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "transport_schedule_lookup"),
-			})
-		}
-		if isServiceGuideLookup(normalizedGoal, policy) &&
-			serviceGuideFocus != "contact" &&
-			serviceGuideFocus != "procedure" {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup"),
-			})
-		}
-		if isServiceGuideLookup(normalizedGoal, policy) {
-			return SingleStepPlan(Handoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
-				AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup"),
 			})
 		}
 		return nil

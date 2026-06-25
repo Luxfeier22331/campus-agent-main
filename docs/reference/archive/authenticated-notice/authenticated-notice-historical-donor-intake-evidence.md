@@ -26,9 +26,11 @@ updated: 2026-04-12
 
 当前应优先阅读：
 
-- `docs/runbooks/archive/authenticated-notice/authenticated-notice-historical-donor-intake-runbook.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
+
+旧 historical donor intake runbook 正文只通过 git history 追溯，不再保留
+path-stub 文档。
 
 ## Historical Accepted Batches
 

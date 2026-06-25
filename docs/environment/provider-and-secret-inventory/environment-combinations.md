@@ -49,6 +49,24 @@ owns this section group; the original path remains the stable index.
 - object storage
 - eval-only provider override
 
+## 跑 campus-web docs reader build / docs smoke
+
+在 query / app-api / web 本地联调基础上再准备：
+
+- `env/commands/campus-docs-reader-build.env`
+  - `APP_API_OPERATOR_DATABASE_URL`
+  - `OBJECT_STORE_ENDPOINT`
+  - `OBJECT_STORE_BUCKET_DERIVED`
+  - shared `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY`，或 derived-only
+    `OBJECT_STORE_DERIVED_ACCESS_KEY` / `OBJECT_STORE_DERIVED_SECRET_KEY`
+
+如果在 feature worktree 中执行，先运行：
+
+```bash
+uv run --all-packages python -m scripts.link_worktree_app_local_env \
+  --repo-root "$PWD"
+```
+
 ## 跑 ingestion / replay / rebuild
 
 在上面的基础上再准备：
@@ -82,10 +100,9 @@ owns this section group; the original path remains the stable index.
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
 - [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev.vars.example)
-- [../../apps/campus-web/.dev.vars.example](../../apps/campus-web/.dev
-  .vars.example)
 - [../../apps/operator-console-web/.dev.vars.example](../../apps/operator-console-
   web/.dev.vars.example)
+- [../../env/commands/campus-docs-reader-build.env.example](../../env/commands/campus-docs-reader-build.env.example)
 - [../../apps/authenticated-notice-collector/.env.example](../../apps/authenticat
   ed-notice-collector/.env.example)
 - [../../apps/official-web-collector/.env.example](../../apps/official-web-colle

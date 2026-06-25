@@ -26,14 +26,14 @@
 		},
 		{
 			"id": "campus_services",
-			"owner_package": "packages/campus-services-capability",
+			"owner_package": "apps/execution-control",
 			"worker_role": "activity-worker-campus-services",
 			"runtime_adapter": "temporal_activity_worker",
-			"active": false,
-			"opening_gate": "closed",
-			"allowed_structured_tools": [],
-			"context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
-			"description": "Campus services capability is registered but closed while the service product path is being rebuilt."
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_tools": ["transport_schedule_lookup"],
+			"context_projection_kinds": ["schedule_baseline"],
+			"description": "Campus services capability for structured transport schedule queries."
 		},
 		{
 			"id": "notice",

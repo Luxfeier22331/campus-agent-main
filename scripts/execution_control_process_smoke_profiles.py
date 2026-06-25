@@ -5,11 +5,7 @@ TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME = "2026-05-07T08:00:00+08:00"
 SDK_STRUCTURED_OPENED_PROFILES = {
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
-    "service_status_sdk_opened",
-    "service_guide_sdk_opened",
-    "contact_directory_sdk_opened",
     "notice_discover_sdk_opened",
-    "academic_calendar_sdk_opened",
 }
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
@@ -36,10 +32,6 @@ def campus_services_sdk_profiles() -> set[str]:
     return {
         "transport_schedule_sdk_opened",
         "transport_schedule_sdk_opened_stream",
-        "service_status_sdk_opened",
-        "service_guide_sdk_opened",
-        "contact_directory_sdk_opened",
-        "academic_calendar_sdk_opened",
     }
 
 
@@ -201,52 +193,12 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             },
             (200,),
         )
-    if profile == "service_status_sdk_opened":
-        return (
-            {
-                "user_goal": "校园卡现在开放吗",
-                "request_id": "process-smoke-service-status-sdk-opened",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            (200,),
-        )
-    if profile == "service_guide_sdk_opened":
-        return (
-            {
-                "user_goal": "公费医疗报销需要什么材料",
-                "request_id": "process-smoke-service-guide-sdk-opened",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            (200,),
-        )
-    if profile == "contact_directory_sdk_opened":
-        return (
-            {
-                "user_goal": "卡务中心联系电话是多少",
-                "request_id": "process-smoke-contact-directory-sdk-opened",
-                "requested_capability": "campus_services",
-                "context": context,
-            },
-            (200,),
-        )
     if profile == "notice_discover_sdk_opened":
         return (
             {
                 "user_goal": "烟雾测试通知",
                 "request_id": "process-smoke-notice-discover-sdk-opened",
                 "requested_capability": "notice",
-                "context": context,
-            },
-            (200,),
-        )
-    if profile == "academic_calendar_sdk_opened":
-        return (
-            {
-                "user_goal": "今天第几教学周",
-                "request_id": "process-smoke-academic-calendar-sdk-opened",
-                "requested_capability": "campus_services",
                 "context": context,
             },
             (200,),
@@ -433,10 +385,6 @@ def _handoff_for_request(capability: str, request: dict[str, object]) -> dict[st
             "payload_kind": "campus_services_request",
             "allowed_tools": [
                 "transport_schedule_lookup",
-                "service_status_lookup",
-                "service_guide_lookup",
-                "contact_directory_lookup",
-                "academic_calendar_lookup",
             ],
             "payload": {"query_text": user_goal},
         }

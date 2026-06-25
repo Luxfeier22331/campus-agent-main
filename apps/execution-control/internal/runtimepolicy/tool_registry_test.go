@@ -3,7 +3,13 @@ package runtimepolicy
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+)
+
+const (
+	transportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
+	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
 )
 
 func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
@@ -16,11 +22,7 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolSpecSchemaVersion)
 	}
 	want := []string{
-		"service_status_lookup",
-		"service_guide_lookup",
 		"transport_schedule_lookup",
-		"contact_directory_lookup",
-		"academic_calendar_lookup",
 	}
 	if got := registry.AllowedToolsForCapability("campus_services"); !sameStrings(got, want) {
 		t.Fatalf("campus services tools = %#v, want %#v", got, want)
@@ -72,28 +74,6 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 			noticeGet.RuntimePosture,
 		)
 	}
-	serviceStatus, ok := registry.ToolByName("service_status_lookup")
-	if !ok {
-		t.Fatal("service_status_lookup missing from ToolSpec")
-	}
-	if !serviceStatus.FunctionSchema.Available || serviceStatus.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"service_status_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			serviceStatus.FunctionSchema,
-			serviceStatus.RuntimePosture,
-		)
-	}
-	serviceGuide, ok := registry.ToolByName("service_guide_lookup")
-	if !ok {
-		t.Fatal("service_guide_lookup missing from ToolSpec")
-	}
-	if !serviceGuide.FunctionSchema.Available || serviceGuide.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"service_guide_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			serviceGuide.FunctionSchema,
-			serviceGuide.RuntimePosture,
-		)
-	}
 	transport, ok := registry.ToolByName("transport_schedule_lookup")
 	if !ok {
 		t.Fatal("transport_schedule_lookup missing from ToolSpec")
@@ -103,35 +83,6 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 			"transport_schedule_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
 			transport.FunctionSchema,
 			transport.RuntimePosture,
-		)
-	}
-	contact, ok := registry.ToolByName("contact_directory_lookup")
-	if !ok {
-		t.Fatal("contact_directory_lookup missing from ToolSpec")
-	}
-	if !contact.FunctionSchema.Available || contact.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"contact_directory_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			contact.FunctionSchema,
-			contact.RuntimePosture,
-		)
-	}
-	calendar, ok := registry.ToolByName("academic_calendar_lookup")
-	if !ok {
-		t.Fatal("academic_calendar_lookup missing from ToolSpec")
-	}
-	if !calendar.FunctionSchema.Available || calendar.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"academic_calendar_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			calendar.FunctionSchema,
-			calendar.RuntimePosture,
-		)
-	}
-	if calendar.OwnerCapability != "campus_services" || calendar.Capability != "campus_services" {
-		t.Fatalf(
-			"academic_calendar_lookup owner/capability = %q/%q, want campus_services/campus_services",
-			calendar.OwnerCapability,
-			calendar.Capability,
 		)
 	}
 	noticeDiscover, ok := registry.ToolByName("campus_notice_discover")
@@ -169,8 +120,8 @@ func TestRuntimePolicyAllowedToolsMatchDefaultToolSpec(t *testing.T) {
 			t.Fatalf("%s allowed tools = %#v, want ToolSpec %#v", target, got, want)
 		}
 	}
-	if got := AllowedToolsForCapability("campus_services"); got != nil {
-		t.Fatalf("campus_services allowed tools = %#v, want nil while capability is closed", got)
+	if got, want := AllowedToolsForCapability("campus_services"), registry.AllowedToolsForCapability("campus_services"); !sameStrings(got, want) {
+		t.Fatalf("campus_services allowed tools = %#v, want ToolSpec %#v", got, want)
 	}
 }
 
@@ -182,34 +133,34 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 		  "registry_version": "test",
 		  "tools": [
 		    {
-		      "name": "service_status_lookup",
+		      "name": "transport_schedule_lookup",
 		      "owner_capability": "campus_services",
 		      "capability": "campus_services",
-		      "payload_kind": "service_status_lookup",
-		      "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
-		      "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+		      "payload_kind": "transport_schedule_lookup",
+			      "payload_schema_ref": "`+transportPayloadSchemaRef+`",
+			      "result_schema_ref": "`+transportResultSchemaRef+`",
 		      "backend": "internal_structured_query_service",
 		      "surface": "structured_handoff",
 		      "read_only": true,
 		      "active": true,
 		      "function_schema": {"available": true, "strict": true},
 		      "runtime_posture": "typed_activity_admitted",
-		      "description": "Lookup current or temporally qualified campus service status."
+		      "description": "Lookup current campus shuttle timetable."
 		    },
 		    {
-		      "name": "service_status_lookup",
+		      "name": "transport_schedule_lookup",
 		      "owner_capability": "campus_services",
 		      "capability": "campus_services",
-		      "payload_kind": "service_status_lookup",
-		      "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
-		      "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+		      "payload_kind": "transport_schedule_lookup",
+			      "payload_schema_ref": "`+transportPayloadSchemaRef+`",
+			      "result_schema_ref": "`+transportResultSchemaRef+`",
 		      "backend": "internal_structured_query_service",
 		      "surface": "structured_handoff",
 		      "read_only": true,
 		      "active": true,
 		      "function_schema": {"available": true, "strict": true},
 		      "runtime_posture": "typed_activity_admitted",
-		      "description": "Lookup current or temporally qualified campus service status."
+		      "description": "Lookup current campus shuttle timetable."
 		    }
 		  ]
 		}`,
@@ -235,8 +186,8 @@ func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *tes
 			    "owner_capability": "external",
 			    "capability": "campus_services",
 			    "payload_kind": "bad_tool",
-			    "payload_schema_ref": "x.Payload",
-			    "result_schema_ref": "x.Result",
+				    "payload_schema_ref": "` + transportPayloadSchemaRef + `",
+				    "result_schema_ref": "` + transportResultSchemaRef + `",
 			    "backend": "internal_structured_query_service",
 			    "surface": "structured_handoff",
 			    "read_only": true,
@@ -257,8 +208,8 @@ func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *tes
 			    "owner_capability": "campus_services",
 			    "capability": "campus_services",
 			    "payload_kind": "bad_tool",
-			    "payload_schema_ref": "x.Payload",
-			    "result_schema_ref": "x.Result",
+				    "payload_schema_ref": "` + transportPayloadSchemaRef + `",
+				    "result_schema_ref": "` + transportResultSchemaRef + `",
 			    "backend": "internal_structured_query_service",
 			    "surface": "structured_handoff",
 			    "read_only": false,
@@ -287,25 +238,58 @@ func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *test
 		  "schema_version": "tool-spec-registry-v3",
 		  "registry_version": "test",
 		  "tools": [{
-		    "name": "service_status_lookup",
+		    "name": "transport_schedule_lookup",
 		    "owner_capability": "campus_services",
 		    "capability": "campus_services",
-		    "payload_kind": "transport_schedule_lookup",
-		    "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
-		    "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+		    "payload_kind": "bad_payload",
+			    "payload_schema_ref": "`+transportPayloadSchemaRef+`",
+			    "result_schema_ref": "`+transportResultSchemaRef+`",
 		    "backend": "internal_structured_query_service",
 		    "surface": "structured_handoff",
 		    "read_only": true,
 		    "active": true,
 		    "function_schema": {"available": true, "strict": true},
 		    "runtime_posture": "typed_activity_admitted",
-		    "description": "Lookup current or temporally qualified campus service status."
+		    "description": "Lookup current campus shuttle timetable."
 		  }]
 		}`,
 	)
 
 	if _, err := LoadToolSpecRegistry(path); err == nil {
 		t.Fatal("LoadToolSpecRegistry accepted structured tool with mismatched payload_kind")
+	}
+}
+
+func TestToolSpecRegistryValidationRejectsPythonContractSchemaRefs(t *testing.T) {
+	path := writeToolRegistryFixture(
+		t,
+		`{
+		  "schema_version": "tool-spec-registry-v3",
+		  "registry_version": "test",
+		  "tools": [{
+		    "name": "transport_schedule_lookup",
+		    "owner_capability": "campus_services",
+		    "capability": "campus_services",
+		    "payload_kind": "transport_schedule_lookup",
+		    "payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
+		    "result_schema_ref": "`+transportResultSchemaRef+`",
+		    "backend": "internal_structured_query_service",
+		    "surface": "structured_handoff",
+		    "read_only": true,
+		    "active": true,
+		    "function_schema": {"available": true, "strict": true},
+		    "runtime_posture": "typed_activity_admitted",
+		    "description": "Lookup current campus shuttle timetable."
+		  }]
+		}`,
+	)
+
+	_, err := LoadToolSpecRegistry(path)
+	if err == nil {
+		t.Fatal("LoadToolSpecRegistry accepted Python contract schema ref")
+	}
+	if got := err.Error(); !strings.Contains(got, "payload_schema_ref must reference a registered JSON Schema definition") {
+		t.Fatalf("LoadToolSpecRegistry error = %q, want schema ref rejection", got)
 	}
 }
 
@@ -316,19 +300,19 @@ func TestToolSpecRegistryValidationRejectsLegacySdkAdapterCandidatePosture(t *te
 		  "schema_version": "tool-spec-registry-v3",
 		  "registry_version": "test",
 		  "tools": [{
-		    "name": "service_status_lookup",
+		    "name": "transport_schedule_lookup",
 		    "owner_capability": "campus_services",
 		    "capability": "campus_services",
-		    "payload_kind": "service_status_lookup",
-		    "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
-		    "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+		    "payload_kind": "transport_schedule_lookup",
+			    "payload_schema_ref": "`+transportPayloadSchemaRef+`",
+			    "result_schema_ref": "`+transportResultSchemaRef+`",
 		    "backend": "internal_structured_query_service",
 		    "surface": "structured_handoff",
 		    "read_only": true,
 		    "active": true,
 		    "function_schema": {"available": true, "strict": true},
 		    "runtime_posture": "sdk_adapter_candidate",
-		    "description": "Lookup current or temporally qualified campus service status."
+		    "description": "Lookup current campus shuttle timetable."
 		  }]
 		}`,
 	)

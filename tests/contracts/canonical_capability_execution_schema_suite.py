@@ -102,8 +102,8 @@ class CanonicalCapabilityExecutionSchemaTest(unittest.TestCase):
             [
                 "notice_context",
                 "notice_change_set",
+                "notice_period_summary",
                 "schedule_baseline",
-                "service_guide_facts",
                 "place_context",
                 "evidence_bundle",
                 "grounding_verdict",

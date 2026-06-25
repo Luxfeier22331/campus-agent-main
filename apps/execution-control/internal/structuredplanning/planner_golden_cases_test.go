@@ -60,7 +60,7 @@ func TestPlanGoldenCases(t *testing.T) {
 	}
 }
 
-func TestPlanWithPolicyDoesNotPreplanClosedCampusServicesCapability(t *testing.T) {
+func TestPlanWithPolicyPreplansCampusServicesTransportSchedule(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -69,7 +69,13 @@ func TestPlanWithPolicyDoesNotPreplanClosedCampusServicesCapability(t *testing.T
 		EffectiveCapability: "campus_services",
 		UserGoal:            "校车时刻表",
 	}, policy)
-	if plan != nil {
-		t.Fatalf("plan = %#v, want nil while campus_services is closed", plan)
+	if plan == nil {
+		t.Fatal("expected campus services transport schedule workflow plan")
+	}
+	handoff := plan.SelectedHandoff()
+	if handoff == nil ||
+		handoff.Capability != "campus_services" ||
+		handoff.PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("handoff = %#v", handoff)
 	}
 }

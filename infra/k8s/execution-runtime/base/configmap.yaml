@@ -1,0 +1,181 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: execution-runtime-config
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/part-of: campus-agent
+data:
+  DEPLOYMENT_ENVIRONMENT: staging
+  EXECUTION_CONTROL_RUNTIME_PROFILE: staging
+  EXECUTION_CONTROL_RUNTIME_RELEASE: execution-control@0000000
+  EXECUTION_CONTROL_RUNTIME_CONFIG_PATH: /etc/campus-agent/runtime-profile.staging.json
+  EXECUTION_CONTROL_RUN_PROJECTION_AUTO_MIGRATE: "false"
+  EXECUTION_CONTROL_TEMPORAL_ADDRESS: temporal:7233
+  EXECUTION_CONTROL_TEMPORAL_NAMESPACE: campus-agent-staging
+  EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: campus-agent.workflow
+  EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL: http://agent-runtime:27062
+  EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS: "180000"
+  EXECUTION_CONTROL_APP_API_INTERNAL_TIMEOUT_MS: "30000"
+  PERSONAL_MEMORY_BASE_URL: http://hindsight-api:8888
+  HINDSIGHT_API_HOST: 0.0.0.0
+  HINDSIGHT_API_PORT: "8888"
+  HINDSIGHT_API_EMBEDDINGS_PROVIDER: openai
+  HINDSIGHT_API_EMBEDDINGS_MODEL: text-embedding-3-small
+  HINDSIGHT_API_LLM_PROVIDER: openai
+  HINDSIGHT_API_LLM_MODEL: gpt-4o-mini
+  HINDSIGHT_API_RERANKER_PROVIDER: rrf
+  AGENT_RUNTIME_HOST: 0.0.0.0
+  AGENT_RUNTIME_PORT: "27062"
+  AGENT_RUNTIME_TOOL_CATALOG_PATH: configs/runtime/tool-catalog.v1.json
+  AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL: http://execution-control:8000
+  OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT: 0.0.0.0:4317
+  OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT: 0.0.0.0:4318
+  OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT: 0.0.0.0:13133
+  OTEL_COLLECTOR_MEMORY_LIMIT_MIB: "512"
+  OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB: "128"
+  OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE: "100"
+  OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE: "100"
+  OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION: "4"
+  otel-collector.yaml: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            endpoint: ${env:OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT}
+          http:
+            endpoint: ${env:OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT}
+            auth:
+              authenticator: bearertokenauth
+
+    extensions:
+      bearertokenauth:
+        token: "${env:APP_API_OTEL_INGEST_SHARED_SECRET}"
+      health_check:
+        endpoint: ${env:OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT}
+
+    processors:
+      memory_limiter:
+        check_interval: 1s
+        limit_mib: ${env:OTEL_COLLECTOR_MEMORY_LIMIT_MIB}
+        spike_limit_mib: ${env:OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB}
+      resource/campus:
+        attributes:
+          - key: service.namespace
+            value: campus-agent
+            action: upsert
+          - key: deployment.environment
+            value: staging
+            action: upsert
+          - key: telemetry.allowed_attributes_version
+            value: runtime-otel-attrs-v1
+            action: upsert
+      attributes/drop_forbidden:
+        actions:
+          - key: raw.prompt
+            action: delete
+          - key: raw.query
+            action: delete
+          - key: raw.answer
+            action: delete
+          - key: raw.chat_transcript
+            action: delete
+          - key: raw.retrieved_snippet
+            action: delete
+          - key: chunk.body
+            action: delete
+          - key: canonical.body
+            action: delete
+          - key: ocr.raw_text
+            action: delete
+          - key: authorization
+            action: delete
+          - key: cookie
+            action: delete
+          - key: jwt
+            action: delete
+          - key: api.key
+            action: delete
+          - key: database.url
+            action: delete
+          - key: object_store.secret
+            action: delete
+          - key: provider.secret
+            action: delete
+      filter/drop_marked:
+        error_mode: ignore
+        traces:
+          span:
+            - 'attributes["telemetry.drop"] == true'
+            - 'attributes["telemetry.drop"] == "true"'
+        metrics:
+          datapoint:
+            - 'attributes["telemetry.drop"] == true'
+            - 'attributes["telemetry.drop"] == "true"'
+        logs:
+          log_record:
+            - 'attributes["telemetry.drop"] == true'
+            - 'attributes["telemetry.drop"] == "true"'
+      batch:
+        timeout: 5s
+        send_batch_size: 512
+
+    exporters:
+      otlphttp/langfuse:
+        endpoint: "${env:OTEL_COLLECTOR_LANGFUSE_OTLP_ENDPOINT}"
+        headers:
+          authorization: "${env:OTEL_COLLECTOR_LANGFUSE_AUTH_HEADER}"
+          x-langfuse-ingestion-version: "${env:OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION}"
+        compression: gzip
+        encoding: proto
+        sending_queue:
+          enabled: true
+          num_consumers: 2
+          queue_size: 1024
+        retry_on_failure:
+          enabled: true
+          initial_interval: 1s
+          max_interval: 30s
+          max_elapsed_time: 300s
+      debug:
+        verbosity: basic
+
+    service:
+      extensions:
+        - bearertokenauth
+        - health_check
+      pipelines:
+        traces:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - resource/campus
+            - attributes/drop_forbidden
+            - filter/drop_marked
+            - batch
+          exporters:
+            - otlphttp/langfuse
+            - debug
+        metrics:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - resource/campus
+            - attributes/drop_forbidden
+            - filter/drop_marked
+            - batch
+          exporters:
+            - debug
+        logs:
+          receivers:
+            - otlp
+          processors:
+            - memory_limiter
+            - resource/campus
+            - attributes/drop_forbidden
+            - filter/drop_marked
+            - batch
+          exporters:
+            - debug

@@ -1,0 +1,60 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://muc.wiki/campus-agent/schemas/intent-drift-thresholds.v1.schema.json",
+	"title": "campus-agent intent drift thresholds artifact",
+	"type": "object",
+	"additionalProperties": false,
+	"required": [
+		"schema_version",
+		"policy_version",
+		"allowed_classifier_versions",
+		"allowed_intent_schema_versions",
+		"max_context_unresolved_rate",
+		"max_low_confidence_rate",
+		"max_ambiguity_rate",
+		"max_structured_subtype_missing_rate"
+	],
+	"properties": {
+		"schema_version": {
+			"const": "intent-drift-thresholds-v1"
+		},
+		"policy_version": {
+			"const": "runtime-policy-v1"
+		},
+		"allowed_classifier_versions": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
+		"allowed_intent_schema_versions": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "string",
+				"minLength": 1
+			}
+		},
+		"max_context_unresolved_rate": {
+			"$ref": "#/$defs/Rate"
+		},
+		"max_low_confidence_rate": {
+			"$ref": "#/$defs/Rate"
+		},
+		"max_ambiguity_rate": {
+			"$ref": "#/$defs/Rate"
+		},
+		"max_structured_subtype_missing_rate": {
+			"$ref": "#/$defs/Rate"
+		}
+	},
+	"$defs": {
+		"Rate": {
+			"type": "number",
+			"minimum": 0,
+			"maximum": 1
+		}
+	}
+}

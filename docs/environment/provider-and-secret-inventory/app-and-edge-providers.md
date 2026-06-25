@@ -330,7 +330,7 @@ root convenience keys：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
 - 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
-- 默认用 `surface` tag 区分 `app-api`、`campus-web`、`operator-console-web`、`hub-web`
+- 默认用 `surface` tag 区分 `app-api`、`campus-web`、`operator-console-web`
 - 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
@@ -374,7 +374,7 @@ root convenience keys：
   `deployment.environment`、`service.name`、`signal_type`、`event_type` 等低基数字段区分
 - 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
 - `apps/app-api` 不再配置 direct Axiom REST ingest；Worker-origin telemetry 通过
-  controlled OTLP ingest gateway 进入 Collector
+  protected Collector OTLP HTTP receiver
 
 ## 10. Langfuse
 

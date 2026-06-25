@@ -36,199 +36,68 @@ func isTargetedPoliticalPersuasion(normalizedGoal string, policy IntentPolicyArt
 }
 
 func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
-	if signal := matchAcademicCalendarCandidate(normalizedGoal, policy); signal != "" {
-		return signal
-	}
-	if signal := firstMatch(normalizedGoal, policy.Signals("structured_transport")); signal != "" {
-		return signal
-	}
-	if signal := matchStructuredContactDirectoryCandidate(normalizedGoal, policy); signal != "" {
+	if signal := matchStructuredTransportScheduleCandidate(normalizedGoal, policy); signal != "" {
 		return signal
 	}
 	if signal := firstMatch(normalizedGoal, policy.Signals("structured_notice")); signal != "" {
 		return signal
 	}
-	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
-	if serviceSubject == "" {
-		return matchStructuredServiceGuideCandidate(normalizedGoal, policy)
-	}
-	if !containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
-		if matchStructuredServiceGuideCandidate(normalizedGoal, policy) != "" {
-			return serviceSubject
-		}
-		return ""
-	}
-	return serviceSubject
+	return ""
 }
 
-func matchAcademicCalendarCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
-	if signal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_week_query")); signal != "" {
-		return signal
-	}
-	if signal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_makeup_query")); signal != "" {
-		return signal
-	}
-	if hasAcademicCalendarClassDayPatternQuestion(normalizedGoal) {
-		return "执行课表"
-	}
-	if hasAcademicCalendarDateStatusQuestion(normalizedGoal) {
-		return "上课"
-	}
-	if hasAcademicCalendarTermWindowSubject(normalizedGoal) &&
-		hasAcademicCalendarTermWindowAction(normalizedGoal) {
-		return "学期"
-	}
-	holidaySignal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_holiday_query"))
-	if holidaySignal == "" {
+func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	return matchStructuredTransportScheduleCandidate(normalizedGoal, policy) != ""
+}
+
+func IsTransportScheduleLookupQueryForPlanning(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) bool {
+	return matchStructuredTransportScheduleCandidate(normalizedGoal, policy) != ""
+}
+
+func matchStructuredTransportScheduleCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	signal := firstMatch(normalizedGoal, policy.Signals("structured_transport"))
+	if signal == "" {
 		return ""
 	}
-	if containsAny(normalizedGoal, policy.Signals("academic_calendar_semantic_subject")) {
-		return holidaySignal
-	}
-	if hasAcademicCalendarHolidaySubject(normalizedGoal, policy) &&
-		hasAcademicCalendarHolidayAction(normalizedGoal, policy) {
-		return holidaySignal
+	if isTransportScheduleLookupQuery(normalizedGoal, policy) {
+		return signal
 	}
 	return ""
 }
 
-func hasAcademicCalendarClassDayPatternQuestion(normalizedGoal string) bool {
-	return strings.Contains(normalizedGoal, "执行") &&
-		(strings.Contains(normalizedGoal, "课表") || strings.Contains(normalizedGoal, "哪天课"))
-}
-
-func hasAcademicCalendarDateStatusQuestion(normalizedGoal string) bool {
-	return strings.Contains(normalizedGoal, "上课") &&
-		(strings.Contains(normalizedGoal, "吗") || strings.Contains(normalizedGoal, "不上课"))
-}
-
-func hasAcademicCalendarTermWindowSubject(normalizedGoal string) bool {
-	return strings.Contains(normalizedGoal, "本学期") ||
-		strings.Contains(normalizedGoal, "春季学期") ||
-		strings.Contains(normalizedGoal, "秋季学期")
-}
-
-func hasAcademicCalendarTermWindowAction(normalizedGoal string) bool {
-	return strings.Contains(normalizedGoal, "什么时候") ||
-		strings.Contains(normalizedGoal, "哪天") ||
-		strings.Contains(normalizedGoal, "开始") ||
-		strings.Contains(normalizedGoal, "结束") ||
-		strings.Contains(normalizedGoal, "哪段时间")
-}
-
-func hasAcademicCalendarHolidaySubject(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	for _, signal := range policy.Signals("academic_calendar_holiday_query") {
-		normalizedSignal := NormalizeGoal(signal)
-		if normalizedSignal == "" || isAcademicCalendarHolidayActionSignal(normalizedSignal) {
-			continue
-		}
-		if strings.Contains(normalizedGoal, normalizedSignal) {
+func isTransportScheduleLookupQuery(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if containsAny(normalizedGoal, policy.Signals("structured_transport_boarding_status")) {
+		return true
+	}
+	for _, group := range []string{
+		"transport_intent_departure_list",
+		"transport_intent_first_departure",
+		"transport_intent_last_departure",
+		"transport_intent_service_window",
+		"transport_intent_snapshot_metadata",
+		"transport_intent_timetable",
+	} {
+		if containsAny(normalizedGoal, policy.Signals(group)) {
 			return true
 		}
 	}
+	if strings.Contains(normalizedGoal, "发车") ||
+		strings.Contains(normalizedGoal, "班次") ||
+		strings.Contains(normalizedGoal, "几点") ||
+		strings.Contains(normalizedGoal, "什么时候") {
+		return true
+	}
+	if strings.Contains(normalizedGoal, "还有") &&
+		(strings.Contains(normalizedGoal, "车") || strings.Contains(normalizedGoal, "班")) {
+		return true
+	}
+	if strings.Contains(normalizedGoal, "跑") &&
+		(strings.Contains(normalizedGoal, "还") || strings.Contains(normalizedGoal, "停")) {
+		return true
+	}
 	return false
-}
-
-func hasAcademicCalendarHolidayAction(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	for _, signal := range policy.Signals("academic_calendar_holiday_query") {
-		normalizedSignal := NormalizeGoal(signal)
-		if normalizedSignal == "" || !strings.Contains(normalizedGoal, normalizedSignal) {
-			continue
-		}
-		if isAcademicCalendarHolidayActionSignal(normalizedSignal) {
-			return true
-		}
-	}
-	return false
-}
-
-func isAcademicCalendarHolidayActionSignal(normalizedSignal string) bool {
-	return strings.Contains(normalizedSignal, "放") ||
-		strings.Contains(normalizedSignal, "安排") ||
-		strings.Contains(normalizedSignal, "怎么")
-}
-
-func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	if matchAcademicCalendarCandidate(normalizedGoal, policy) != "" || isAcademicCalendarGuideQuery(normalizedGoal) {
-		return true
-	}
-	if firstMatch(normalizedGoal, policy.Signals("structured_transport")) != "" {
-		return true
-	}
-	if matchStructuredContactDirectoryCandidate(normalizedGoal, policy) != "" {
-		return true
-	}
-	if isDirectoryLookupGuideQuery(normalizedGoal) {
-		return true
-	}
-	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
-	if serviceSubject == "" {
-		return matchStructuredServiceGuideCandidate(normalizedGoal, policy) != ""
-	}
-	return containsAny(normalizedGoal, policy.Signals("structured_service_status")) ||
-		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
-}
-
-func matchStructuredServiceGuideCandidate(
-	normalizedGoal string,
-	policy IntentPolicyArtifact,
-) string {
-	if isDirectoryLookupGuideQuery(normalizedGoal) {
-		if strings.Contains(normalizedGoal, "办公电话") {
-			return "办公电话"
-		}
-		return "通讯录"
-	}
-	serviceGuideSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_guide_subject"))
-	if serviceGuideSubject == "" {
-		return ""
-	}
-	if !containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) {
-		return ""
-	}
-	return serviceGuideSubject
-}
-
-func isDirectoryLookupGuideQuery(normalizedGoal string) bool {
-	if !strings.Contains(normalizedGoal, "办公电话") && !strings.Contains(normalizedGoal, "通讯录") {
-		return false
-	}
-	return strings.Contains(normalizedGoal, "怎么查") ||
-		strings.Contains(normalizedGoal, "如何查") ||
-		strings.Contains(normalizedGoal, "怎么找") ||
-		strings.Contains(normalizedGoal, "如何找") ||
-		strings.Contains(normalizedGoal, "在哪里找") ||
-		strings.Contains(normalizedGoal, "在哪找") ||
-		strings.Contains(normalizedGoal, "在哪儿找")
-}
-
-func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
-	if !strings.Contains(normalizedGoal, "校历") {
-		return false
-	}
-	return strings.Contains(normalizedGoal, "怎么看") ||
-		strings.Contains(normalizedGoal, "如何看") ||
-		strings.Contains(normalizedGoal, "在哪里看") ||
-		strings.Contains(normalizedGoal, "在哪看") ||
-		strings.Contains(normalizedGoal, "在哪儿看") ||
-		strings.Contains(normalizedGoal, "怎么查") ||
-		strings.Contains(normalizedGoal, "如何查") ||
-		strings.Contains(normalizedGoal, "网址") ||
-		strings.Contains(normalizedGoal, "链接")
-}
-
-func matchStructuredContactDirectoryCandidate(
-	normalizedGoal string,
-	policy IntentPolicyArtifact,
-) string {
-	contactSubject := firstMatch(normalizedGoal, policy.Signals("structured_contact_directory"))
-	if contactSubject == "" {
-		return ""
-	}
-	if !containsAny(normalizedGoal, policy.Signals("structured_contact_directory_action")) {
-		return ""
-	}
-	return contactSubject
 }
 
 func matchOpenDomainPoliticalFact(normalizedGoal string, policy IntentPolicyArtifact) string {

@@ -3,7 +3,34 @@ from __future__ import annotations
 import unittest
 from pathlib import Path
 
+import campus_contracts
+from campus_contracts import models_runtime
+
 CONTRACTS_PACKAGE = Path("packages/contracts/src/campus_contracts")
+RETIRED_CAMPUS_SERVICES_LOOKUP_SYMBOLS = (
+    "AcademicCalendarLookupPayload",
+    "AcademicCalendarLookupResult",
+    "AcademicCalendarRelatedContext",
+    "ContactDirectoryCandidate",
+    "ContactDirectoryContactPoint",
+    "ContactDirectoryContactRef",
+    "ContactDirectoryEntitySelector",
+    "ContactDirectoryLocationRef",
+    "ContactDirectoryLookupPayload",
+    "ContactDirectoryLookupResult",
+    "ContactDirectoryOfficeHours",
+    "ServiceGuideCandidate",
+    "ServiceGuideContactRef",
+    "ServiceGuideEntryRef",
+    "ServiceGuideLookupPayload",
+    "ServiceGuideLookupResult",
+    "ServiceGuideMaterial",
+    "ServiceGuideOfficeHours",
+    "ServiceGuideProcedureGroup",
+    "ServiceGuideProcedureStep",
+    "ServiceGuideSection",
+    "ServiceGuideServiceRef",
+)
 
 
 class ContractBoundaryGuardrailsTest(unittest.TestCase):
@@ -38,6 +65,23 @@ class ContractBoundaryGuardrailsTest(unittest.TestCase):
             with self.subTest(path=str(path)):
                 for fragment in forbidden_fragments:
                     self.assertNotIn(fragment, source)
+
+    def test_retired_campus_services_lookups_are_not_public_contracts(self) -> None:
+        public_exports = set(campus_contracts.__all__)
+        runtime_annotations = "\n".join(
+            str(value)
+            for value in (
+                models_runtime.CapabilityRequest.__annotations__["payload"],
+                models_runtime.CapabilityResponse.__annotations__["result"],
+                models_runtime.ExecutionResponse.__annotations__["result"],
+            )
+        )
+
+        for symbol in RETIRED_CAMPUS_SERVICES_LOOKUP_SYMBOLS:
+            with self.subTest(symbol=symbol):
+                self.assertNotIn(symbol, public_exports)
+                self.assertFalse(hasattr(campus_contracts, symbol))
+                self.assertNotIn(symbol, runtime_annotations)
 
 
 if __name__ == "__main__":

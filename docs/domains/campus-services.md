@@ -18,19 +18,15 @@ updated: 2026-04-27
 ## 长期边界与决策
 
 - `../architecture/domains/campus-services/architecture.md`
-- `../contracts/service-status-lookup-contract.md`
-- `../contracts/service-guide-lookup-contract.md`
 - `../contracts/transport-schedule-lookup-contract.md`
-- `../contracts/contact-directory-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 - `../reference/runtime-serving-and-index-terms.md`
 
 ## Data / Reference
 
-- `../data/campus-services-service-guide-source-truth-schema.md`
-- `../data/campus-services-contact-directory-source-truth-schema.md`
-- `../data/campus-services-service-catalog-source-truth-schema.md`
+- `../data/campus-services-ops-source-truth-schema.md`
+- `../data/campus-services-transport-schedule-source-truth-schema.md`
 - `../reference/student-handbook-normalization-strategy.md`
 - `../reference/runtime-serving-and-index-terms.md`
 - `../runbooks/ingestion-control-clean-target-runbook.md`

@@ -460,6 +460,25 @@ export function registerInternalRoutes(input: {
 		);
 	});
 
+	input.app.get("/api/internal/operator/runtime/autoscaler/postures", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorQueryService().listAutoscalerPostures({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					limit: c.req.query("limit") ? Number.parseInt(c.req.query("limit") ?? "", 10) : null,
+					scalerStatus: c.req.query("scalerStatus") ?? null,
+					targetService: c.req.query("targetService") ?? null,
+				},
+				principal: buildInternalRuntimeOperatorPrincipal(),
+			}),
+		);
+	});
+
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {

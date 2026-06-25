@@ -7,23 +7,28 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
 
+const (
+	testTransportPayloadSchemaRef = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupPayload"
+	testTransportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
+)
+
 func TestDirectStructuredHandoffDecisionSkipsTypedActivityAdmittedTools(t *testing.T) {
 	handoff := &execution.RuntimeHandoff{
 		Capability:   "campus_services",
-		PayloadKind:  "service_status_lookup",
-		AllowedTools: []string{"service_status_lookup"},
+		PayloadKind:  "transport_schedule_lookup",
+		AllowedTools: []string{"transport_schedule_lookup"},
 	}
 	registry := runtimepolicy.ToolSpecRegistry{
 		SchemaVersion:   runtimepolicy.ToolSpecSchemaVersion,
 		RegistryVersion: "test",
 		Tools: []runtimepolicy.ToolSpec{
 			{
-				Name:             "service_status_lookup",
+				Name:             "transport_schedule_lookup",
 				OwnerCapability:  "campus_services",
 				Capability:       "campus_services",
-				PayloadKind:      "service_status_lookup",
-				PayloadSchemaRef: "campus_contracts.models_tools.ServiceStatusLookupPayload",
-				ResultSchemaRef:  "campus_contracts.models_tools.ServiceStatusLookupResult",
+				PayloadKind:      "transport_schedule_lookup",
+				PayloadSchemaRef: testTransportPayloadSchemaRef,
+				ResultSchemaRef:  testTransportResultSchemaRef,
 				Backend:          "internal_structured_query_service",
 				Surface:          "structured_handoff",
 				ReadOnly:         true,
@@ -45,20 +50,20 @@ func TestDirectStructuredHandoffDecisionSkipsTypedActivityAdmittedTools(t *testi
 func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T) {
 	handoff := &execution.RuntimeHandoff{
 		Capability:   "campus_services",
-		PayloadKind:  "service_status_lookup",
-		AllowedTools: []string{"service_status_lookup"},
+		PayloadKind:  "transport_schedule_lookup",
+		AllowedTools: []string{"transport_schedule_lookup"},
 	}
 	registry := runtimepolicy.ToolSpecRegistry{
 		SchemaVersion:   runtimepolicy.ToolSpecSchemaVersion,
 		RegistryVersion: "test",
 		Tools: []runtimepolicy.ToolSpec{
 			{
-				Name:             "service_status_lookup",
+				Name:             "transport_schedule_lookup",
 				OwnerCapability:  "campus_services",
 				Capability:       "campus_services",
-				PayloadKind:      "service_status_lookup",
-				PayloadSchemaRef: "campus_contracts.models_tools.ServiceStatusLookupPayload",
-				ResultSchemaRef:  "campus_contracts.models_tools.ServiceStatusLookupResult",
+				PayloadKind:      "transport_schedule_lookup",
+				PayloadSchemaRef: testTransportPayloadSchemaRef,
+				ResultSchemaRef:  testTransportResultSchemaRef,
 				Backend:          "internal_structured_query_service",
 				Surface:          "structured_handoff",
 				ReadOnly:         true,
@@ -80,7 +85,7 @@ func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T
 func TestShapeStructuredExecutionResponseReturnsExplicitFinalizerFailureEnvelope(t *testing.T) {
 	response := shapeStructuredExecutionResponse(
 		"campus_services",
-		"service_status_lookup",
+		"transport_schedule_lookup",
 		map[string]any{
 			"outcome": "resolved_current",
 		},

@@ -229,15 +229,15 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             projected["EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY"],
             "staging:temporal-task-queue-sampler:001",
         )
+        self.assertRegex(projected["APP_API_OTEL_INGEST_SHARED_SECRET"], r"^[0-9a-f]{64}$")
         self.assertEqual(
-            projected["OTEL_INGEST_SHARED_SECRET"],
-            projected["APP_API_OTEL_INGEST_SHARED_SECRET"],
+            projected["EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS"],
+            f"authorization=Bearer {projected['APP_API_OTEL_INGEST_SHARED_SECRET']}",
         )
         self.assertEqual(
             projected["APP_API_OTEL_INGEST_ENDPOINT"],
-            "https://otel-ingest-staging.mucwiki-edge.link",
+            "https://otel-collector-staging.mucwiki-edge.link",
         )
-        self.assertRegex(projected["OTEL_INGEST_SHARED_SECRET"], r"^[0-9a-f]{64}$")
         self.assertEqual(projected["HINDSIGHT_API_LLM_API_KEY"], "llm-key")
         self.assertEqual(projected["HINDSIGHT_API_LLM_BASE_URL"], "https://llm.example.com/v1")
         self.assertEqual(projected["HINDSIGHT_API_LLM_MODEL"], "gpt-test")

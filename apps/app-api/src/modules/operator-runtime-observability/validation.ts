@@ -3,12 +3,15 @@ import type {
 	AutoscalerActuationStatus,
 	AutoscalerBudgetState,
 	AutoscalerDecisionKind,
+	AutoscalerScalerKind,
+	AutoscalerScalerStatus,
 	CountSourceMetric,
 	DurationSourceMetric,
 	TemporalTaskQueueKind,
 	TemporalTaskQueueSnapshotWrite,
 	WorkerAutoscalerActuationWrite,
 	WorkerAutoscalerDecisionWrite,
+	WorkerAutoscalerPostureWrite,
 } from "./types";
 
 const SCHEMA_VERSION = "temporal_task_queue_metrics_snapshot.v1";
@@ -17,6 +20,8 @@ const METRIC_STATES = new Set(["observed", "unsupported_by_source"]);
 const DECISIONS = new Set(["scale_up", "scale_down", "hold"]);
 const BUDGET_STATES = new Set(["within_budget", "budget_exhausted", "actuation_disabled"]);
 const ACTUATION_STATUSES = new Set(["applied", "skipped", "failed"]);
+const SCALER_KINDS = new Set(["docker_compose", "keda_temporal"]);
+const SCALER_STATUSES = new Set(["healthy", "degraded", "paused", "disabled"]);
 const FORBIDDEN_RUNTIME_KEYS = new Set([
 	"authorization",
 	"cookie",
@@ -31,6 +36,7 @@ const FORBIDDEN_RUNTIME_KEYS = new Set([
 export interface TemporalTaskQueueRuntimePayload {
 	actuations?: unknown;
 	decisions?: unknown;
+	postures?: unknown;
 	schemaVersion?: unknown;
 	snapshots?: unknown;
 }
@@ -38,6 +44,7 @@ export interface TemporalTaskQueueRuntimePayload {
 export interface NormalizedTemporalTaskQueueRuntimePayload {
 	actuations: WorkerAutoscalerActuationWrite[];
 	decisions: WorkerAutoscalerDecisionWrite[];
+	postures: WorkerAutoscalerPostureWrite[];
 	snapshots: TemporalTaskQueueSnapshotWrite[];
 }
 
@@ -126,6 +133,13 @@ function normalizeIsoTimestamp(value: unknown, field: string): string {
 	return timestamp.toISOString();
 }
 
+function normalizeNullableIsoTimestamp(value: unknown, field: string): string | null {
+	if (value === null || value === undefined || value === "") {
+		return null;
+	}
+	return normalizeIsoTimestamp(value, field);
+}
+
 function normalizeNonNegativeInteger(value: unknown, field: string): number {
 	if (
 		typeof value === "number" &&
@@ -171,6 +185,22 @@ function normalizeActuationStatus(value: unknown, field: string): AutoscalerActu
 		throw validationError(field, `${field} must be applied, skipped, or failed.`);
 	}
 	return normalized as AutoscalerActuationStatus;
+}
+
+function normalizeScalerKind(value: unknown, field: string): AutoscalerScalerKind {
+	const normalized = normalizeRequiredString(value, field);
+	if (!SCALER_KINDS.has(normalized)) {
+		throw validationError(field, `${field} must be docker_compose or keda_temporal.`);
+	}
+	return normalized as AutoscalerScalerKind;
+}
+
+function normalizeScalerStatus(value: unknown, field: string): AutoscalerScalerStatus {
+	const normalized = normalizeRequiredString(value, field);
+	if (!SCALER_STATUSES.has(normalized)) {
+		throw validationError(field, `${field} must be healthy, degraded, paused, or disabled.`);
+	}
+	return normalized as AutoscalerScalerStatus;
 }
 
 function normalizeStringArray(value: unknown, field: string): string[] {
@@ -292,6 +322,50 @@ function normalizeActuation(
 	};
 }
 
+function normalizePosture(
+	value: unknown,
+	index: number,
+	projectedAt: string,
+): WorkerAutoscalerPostureWrite {
+	const field = `postures[${index}]`;
+	const record = normalizeRecord(value, field);
+	const minReplicas = normalizeNonNegativeInteger(record.minReplicas, `${field}.minReplicas`);
+	const maxReplicas = normalizeNonNegativeInteger(record.maxReplicas, `${field}.maxReplicas`);
+	if (maxReplicas < minReplicas) {
+		throw validationError(
+			field,
+			`${field}.maxReplicas must be greater than or equal to minReplicas.`,
+		);
+	}
+	return {
+		currentReplicas: normalizeNonNegativeInteger(
+			record.currentReplicas,
+			`${field}.currentReplicas`,
+		),
+		desiredReplicas: normalizeNonNegativeInteger(
+			record.desiredReplicas,
+			`${field}.desiredReplicas`,
+		),
+		evidence: normalizeRecordCopy(record.evidence, `${field}.evidence`),
+		lastScaleEventAt: normalizeNullableIsoTimestamp(
+			record.lastScaleEventAt,
+			`${field}.lastScaleEventAt`,
+		),
+		lastScaleEventId: normalizeNullableString(record.lastScaleEventId),
+		maxReplicas,
+		metricFreshness: normalizeDurationMetric(record.metricFreshness, `${field}.metricFreshness`),
+		minReplicas,
+		observedAt: normalizeIsoTimestamp(record.observedAt, `${field}.observedAt`),
+		projectedAt,
+		reason: normalizeRequiredString(record.reason, `${field}.reason`),
+		scalerKind: normalizeScalerKind(record.scalerKind, `${field}.scalerKind`),
+		scalerStatus: normalizeScalerStatus(record.scalerStatus, `${field}.scalerStatus`),
+		taskQueue: normalizeRequiredString(record.taskQueue, `${field}.taskQueue`),
+		taskQueueKind: normalizeTaskQueueKind(record.taskQueueKind, `${field}.taskQueueKind`),
+		targetService: normalizeRequiredString(record.targetService, `${field}.targetService`),
+	};
+}
+
 export function normalizeTemporalTaskQueueRuntimePayload(
 	payload: unknown,
 	input: {
@@ -313,5 +387,8 @@ export function normalizeTemporalTaskQueueRuntimePayload(
 	const actuations = normalizeArray(record.actuations, "actuations").map((item, index) =>
 		normalizeActuation(item, index, input.projectedAt),
 	);
-	return { actuations, decisions, snapshots };
+	const postures = normalizeArray(record.postures, "postures").map((item, index) =>
+		normalizePosture(item, index, input.projectedAt),
+	);
+	return { actuations, decisions, postures, snapshots };
 }

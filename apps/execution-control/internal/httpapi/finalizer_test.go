@@ -375,15 +375,15 @@ func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing
 				PlanningOutcome:    "preplanned",
 				RoutingNextAction:  "delegate",
 				SelectedCapability: "campus_services",
-				SelectedTool:       "service_status_lookup",
+				SelectedTool:       "transport_schedule_lookup",
 			},
 			Handoff: &execution.RuntimeHandoff{
 				Capability:   "campus_services",
-				PayloadKind:  "service_status_lookup",
-				Payload:      map[string]any{"subject_query": "校园卡"},
-				AllowedTools: []string{"service_status_lookup"},
+				PayloadKind:  "transport_schedule_lookup",
+				Payload:      map[string]any{"query_text": "今天去丰台最早班车"},
+				AllowedTools: []string{"transport_schedule_lookup"},
 			},
-			SelectedTool: "service_status_lookup",
+			SelectedTool: "transport_schedule_lookup",
 		},
 	)
 
@@ -397,7 +397,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",
-			"answer_text":        "校园卡服务当前正常。",
+			"answer_text":        "海淀到丰台最早班车为 06:50。",
 			"follow_up_question": "",
 			"confidence":         "high",
 			"result": map[string]any{
@@ -405,7 +405,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
 			},
 			"capability_observability": map[string]any{
-				"selected_tool":    "service_status_lookup",
+				"selected_tool":    "transport_schedule_lookup",
 				"tool_attempted":   true,
 				"tool_outcome":     "resolved_current",
 				"source_ref_count": float64(1),
@@ -414,8 +414,8 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 					"agent_execution_projection": map[string]any{
 						"schema_version":        "agent-execution-projection-v1",
 						"projection_owner":      "campus_services",
-						"selected_tool":         "service_status_lookup",
-						"payload_kind":          "service_status_lookup",
+						"selected_tool":         "transport_schedule_lookup",
+						"payload_kind":          "transport_schedule_lookup",
 						"tool_selection_reason": "typed_payload_allowed_tool",
 					},
 					"provider_tool_call_projection": map[string]any{
@@ -443,7 +443,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
 				SelectedCapability:    "campus_services",
-				SelectedTool:          "service_status_lookup",
+				SelectedTool:          "transport_schedule_lookup",
 				RuntimeVersions: map[string]any{
 					"execution_control_runtime": "go-runtime-control-plane-v1",
 				},
@@ -452,13 +452,23 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 				},
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   "campus_services",
-				PayloadKind:  "service_status_lookup",
-				Payload:      map[string]any{"campus_scope": "haidian", "subject_query": "校园卡服务"},
-				AllowedTools: []string{"transport_schedule_lookup", "service_status_lookup"},
+				Capability:  "campus_services",
+				PayloadKind: "transport_schedule_lookup",
+				Payload: map[string]any{
+					"query_text": "今天去丰台最早班车",
+					"route_selector": map[string]any{
+						"destination_campus": "fengtai",
+						"origin_campus":      "haidian",
+					},
+					"service_time_query": map[string]any{
+						"date_mode": "today",
+						"daypart":   "morning",
+					},
+				},
+				AllowedTools: []string{"transport_schedule_lookup"},
 			},
 			Branch:       "delegate",
-			SelectedTool: "service_status_lookup",
+			SelectedTool: "transport_schedule_lookup",
 		},
 	)
 	if err != nil {
@@ -466,20 +476,20 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	}
 	traceSummary := response["workflow_trace_summary"].(map[string]any)
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
-	if !ok || len(selectedTools) != 1 || selectedTools[0] != "service_status_lookup" {
-		t.Fatalf("selected_tools = %#v, want actual service_status_lookup only", traceSummary["selected_tools"])
+	if !ok || len(selectedTools) != 1 || selectedTools[0] != "transport_schedule_lookup" {
+		t.Fatalf("selected_tools = %#v, want actual transport_schedule_lookup only", traceSummary["selected_tools"])
 	}
 	toolCalls, ok := traceSummary["tool_call_summaries"].([]map[string]any)
 	if !ok || len(toolCalls) != 1 {
 		t.Fatalf("tool_call_summaries = %#v, want one tool call", traceSummary["tool_call_summaries"])
 	}
 	toolCall := toolCalls[0]
-	if toolCall["tool_name"] != "service_status_lookup" {
-		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
+	if toolCall["tool_name"] != "transport_schedule_lookup" {
+		t.Fatalf("tool_name = %v, want transport_schedule_lookup", toolCall["tool_name"])
 	}
 	if toolCall["schema_version"] != "tool-call-summary-v1" ||
-		toolCall["tool_call_id"] != "single_step:campus_services:service_status_lookup:tool_call" ||
-		toolCall["workflow_run_ref"] != "single_step:campus_services:service_status_lookup" ||
+		toolCall["tool_call_id"] != "single_step:campus_services:transport_schedule_lookup:tool_call" ||
+		toolCall["workflow_run_ref"] != "single_step:campus_services:transport_schedule_lookup" ||
 		toolCall["step_id"] != "tool_call" ||
 		toolCall["lifecycle_state"] != "completed" ||
 		toolCall["result_projection"] != "bounded_summary" ||
@@ -497,7 +507,8 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 		t.Fatalf("source_ids = %#v, want notice source ref", toolCall["source_ids"])
 	}
 	argumentSummary, ok := toolCall["argument_summary"].(map[string]any)
-	if !ok || argumentSummary["campus_scope"] != "haidian" {
+	routeSelector, routeSelectorOK := argumentSummary["route_selector"].(map[string]any)
+	if !ok || !routeSelectorOK || routeSelector["destination_campus"] != "fengtai" {
 		t.Fatalf("argument_summary = %#v, want safe handoff args", toolCall["argument_summary"])
 	}
 	traceSteps, ok := traceSummary["trace_steps"].([]map[string]any)

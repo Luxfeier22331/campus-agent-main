@@ -62,8 +62,10 @@ owns the current truth summary and links to executable procedure groups.
 
 ## 当前真相
 
-- `apps/execution-control` 当前 staging deploy substrate 是 Docker-first internal execution
-  service；production target deploy substrate 已由 ADR-0056 收口为 Kubernetes + KEDA
+- `apps/execution-control` staging deploy substrate 必须由 live env / ingress /
+  projection evidence 证明；本文的 Compose runtime 是 local / transitional
+  operations baseline，production target deploy substrate 已由 ADR-0056 收口为
+  Kubernetes + KEDA
 - `app-api` 是唯一 product/API gateway；`execution-control` 不进入用户可见 endpoint
   list，也不作为 QA public endpoint
 - 当前 repo-owned staging execution runtime：

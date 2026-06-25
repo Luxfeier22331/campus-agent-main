@@ -46,3 +46,44 @@ func TestBuildAppAPIRuntimePayloadKeepsSchemaAndSafeEvidence(t *testing.T) {
 		}
 	}
 }
+
+func TestAppAPIRuntimePayloadCarriesWorkerAutoscalerPostures(t *testing.T) {
+	payload := AppAPIRuntimePayload{
+		Postures: []WorkerAutoscalerPosture{{
+			CurrentReplicas:  1,
+			DesiredReplicas:  2,
+			Evidence:         map[string]any{"hpaName": "keda-hpa-activity-worker-knowledge-retrieval"},
+			LastScaleEventAt: ptrString("2026-06-15T10:00:06Z"),
+			LastScaleEventID: ptrString("hpa-scale-event-1"),
+			MaxReplicas:      5,
+			MetricFreshness:  SourceMetric{MS: ptrInt(15000), State: SourceMetricObserved},
+			MinReplicas:      1,
+			ObservedAt:       "2026-06-15T10:00:20Z",
+			Reason:           "hpa_desired_replicas_above_current",
+			ScalerKind:       ScalerKindKEDATemporal,
+			ScalerStatus:     ScalerStatusHealthy,
+			TargetService:    "activity-worker-knowledge-retrieval",
+			TaskQueue:        "campus-agent.activity.knowledge.retrieval",
+			TaskQueueKind:    TaskQueueKindActivity,
+		}},
+		SchemaVersion: SchemaVersion,
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+	if !strings.Contains(string(body), `"postures"`) ||
+		!strings.Contains(string(body), `"scalerKind":"keda_temporal"`) ||
+		!strings.Contains(string(body), `"metricFreshness":{"ms":15000,"state":"observed"}`) {
+		t.Fatalf("posture payload not encoded correctly: %s", body)
+	}
+}
+
+func ptrInt(value int) *int {
+	return &value
+}
+
+func ptrString(value string) *string {
+	return &value
+}

@@ -56,10 +56,10 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 	}
 }
 
-func TestResolveCapabilityPlanRejectsClosedCampusServicesTransportNoticeOverrideWorkflowPlan(t *testing.T) {
+func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testing.T) {
 	capabilities, tools, artifacts := loadResolverRegistries(t)
 
-	_, err := ResolveCapabilityPlan(
+	plan, err := ResolveCapabilityPlan(
 		transportNoticeOverrideCapabilityPlan(Request{
 			EffectiveCapability: "campus_services",
 			UserGoal:            "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
@@ -73,7 +73,20 @@ func TestResolveCapabilityPlanRejectsClosedCampusServicesTransportNoticeOverride
 		tools,
 		artifacts,
 	)
-	assertResolverFailure(t, err, "producer_closed")
+	if err != nil {
+		t.Fatalf("ResolveCapabilityPlan failed: %v", err)
+	}
+	if plan.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
+	}
+	handoffs := plan.Handoffs()
+	if len(handoffs) != 3 {
+		t.Fatalf("handoff count = %d, want 3", len(handoffs))
+	}
+	if handoffs[0].Capability != "campus_services" ||
+		handoffs[0].PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("first handoff = %#v", handoffs[0])
+	}
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenArtifactOwnerIsMissing(t *testing.T) {
@@ -91,6 +104,17 @@ func TestResolveCapabilityPlanFailsClosedWhenProducerIsClosed(t *testing.T) {
 
 	_, err := ResolveCapabilityPlan(plan, capabilities, tools, artifacts)
 	assertResolverFailure(t, err, "producer_closed")
+}
+
+func TestResolveCapabilityPlanFailsClosedWhenOpenProducerProjectionIsUnsupported(t *testing.T) {
+	capabilities, tools, artifacts := loadResolverRegistries(t)
+	markArtifactUnsupported(&artifacts, "schedule_baseline")
+	plan := sampleResolverCapabilityPlan()
+	plan.Capability = "campus_services"
+	plan.RequiredArtifacts = []string{"schedule_baseline"}
+
+	_, err := ResolveCapabilityPlan(plan, capabilities, tools, artifacts)
+	assertResolverFailure(t, err, "producer_projection_unsupported")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenToolGateIsClosed(t *testing.T) {
@@ -242,6 +266,16 @@ func appendAmbiguousBinding(
 	)
 }
 
+func markArtifactUnsupported(registry *runtimepolicy.WorkflowArtifactRegistry, kind string) {
+	for index, artifact := range registry.Artifacts {
+		if artifact.Kind != kind {
+			continue
+		}
+		registry.Artifacts[index].CurrentProjectionSupport = "planned_contract_gap"
+		return
+	}
+}
+
 func introduceCycle(registry *runtimepolicy.WorkflowArtifactRegistry) {
 	for index, binding := range registry.Bindings {
 		switch binding.BindingID {
@@ -250,5 +284,15 @@ func introduceCycle(registry *runtimepolicy.WorkflowArtifactRegistry) {
 		case "rag.grounding_verdict.retrieval_query":
 			registry.Bindings[index].Consumes = []string{"notice_context"}
 		}
+	}
+}
+
+func openResolverBinding(registry *runtimepolicy.WorkflowArtifactRegistry, bindingID string) {
+	for index, binding := range registry.Bindings {
+		if binding.BindingID != bindingID {
+			continue
+		}
+		registry.Bindings[index].OpeningGate = "open"
+		return
 	}
 }

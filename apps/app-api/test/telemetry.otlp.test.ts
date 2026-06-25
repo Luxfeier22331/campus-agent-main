@@ -18,7 +18,7 @@ describe("app-api OTLP runtime event sink", () => {
 		const sink = createOtlpRuntimeEventSink(
 			{
 				APP_API_ENVIRONMENT: "staging",
-				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-ingest.example.com",
+				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.example.com",
 				APP_API_OTEL_INGEST_SHARED_SECRET: "ingest-secret",
 			},
 			{
@@ -42,7 +42,7 @@ describe("app-api OTLP runtime event sink", () => {
 		expect(fetchImplementation).toHaveBeenCalledTimes(2);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
-			"https://otel-ingest.example.com/v1/traces",
+			"https://otel-collector.example.com/v1/traces",
 			expect.objectContaining({
 				headers: expect.objectContaining({
 					authorization: "Bearer ingest-secret",
@@ -53,7 +53,7 @@ describe("app-api OTLP runtime event sink", () => {
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			2,
-			"https://otel-ingest.example.com/v1/logs",
+			"https://otel-collector.example.com/v1/logs",
 			expect.objectContaining({
 				headers: expect.objectContaining({
 					authorization: "Bearer ingest-secret",
@@ -81,7 +81,7 @@ describe("app-api OTLP runtime event sink", () => {
 		expect(() =>
 			createAppTelemetry({
 				APP_API_ENVIRONMENT: "production",
-				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-ingest.example.com",
+				APP_API_OTEL_INGEST_ENDPOINT: "https://otel-collector.example.com",
 			}),
 		).toThrow("APP_API_OTEL_INGEST_SHARED_SECRET is required for deployed app-api telemetry");
 	});

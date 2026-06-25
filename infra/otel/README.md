@@ -19,15 +19,15 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   local debug pipeline.
 - `collector.env.example`: required environment variables. Secret-bearing
   values are intentionally blank and must be supplied by the deployment secret
-  manager. It also documents the controlled OTLP ingest gateway inputs used by
+  manager. It also documents the protected Collector OTLP HTTP inputs used by
   Worker-origin telemetry.
 
 ## Signal Routing
 
 - Runtime apps send OTLP to this Collector, not directly to vendor sinks.
-- Cloudflare Worker surfaces send OTLP HTTP to the controlled
-  `otel-ingest-gateway`; only that gateway forwards accepted `/v1/traces` and
-  `/v1/logs` requests to the Collector HTTP receiver.
+- Cloudflare Worker surfaces send OTLP HTTP to the protected Collector OTLP
+  HTTP receiver. The receiver uses bearer auth and only accepts valid OTLP
+  signal paths such as `/v1/traces` and `/v1/logs`.
 - The Collector deletes the repo forbidden fields before any exporter runs.
 - Sentry receives traces only. Langfuse receives traces only. Axiom receives
   traces/logs through `x-axiom-dataset` in the project-level
@@ -54,8 +54,9 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   `EXECUTION_CONTROL_STAGING_OBSERVABILITY_MODE=fanout` and
   `EXECUTION_CONTROL_STAGING_OTEL_COLLECTOR_CONFIG_FILE=../otel/collector-staging-template.yaml`
   only when Sentry/Axiom/Langfuse sink credentials are intentionally deployed.
-- The staging runtime compose exposes only `otel-ingest-gateway` for Worker
-  OTLP. It does not expose raw Collector OTLP receivers.
+- The staging runtime compose exposes the Collector OTLP HTTP receiver through
+  the protected `otel-collector-staging.mucwiki-edge.link` route. It does not
+  expose vendor sinks or bypass the Collector pipeline.
 
 ## Validation
 
@@ -63,14 +64,18 @@ Use `otelcol-contrib` for these configs because the repo pipeline relies on
 processors that may not be present in every minimal Collector distribution:
 
 ```bash
-otelcol-contrib validate --config=infra/otel/collector-staging-template.yaml
-otelcol-contrib validate --config=infra/otel/collector-local-debug.yaml
-otelcol-contrib validate --config=infra/otel/collector-local-prodlike.yaml
+APP_API_OTEL_INGEST_SHARED_SECRET=local-otel-proof-token \
+  otelcol-contrib validate --config=infra/otel/collector-staging-template.yaml
+APP_API_OTEL_INGEST_SHARED_SECRET=local-otel-proof-token \
+  otelcol-contrib validate --config=infra/otel/collector-local-debug.yaml
+APP_API_OTEL_INGEST_SHARED_SECRET=local-otel-proof-token \
+  otelcol-contrib validate --config=infra/otel/collector-local-prodlike.yaml
 ```
 
-The staging template uses environment substitution. Populate
-`collector.env.example` values before validating it with a real Collector
-binary.
+The Collector receiver fails closed when `APP_API_OTEL_INGEST_SHARED_SECRET` is
+missing. The staging template also uses environment substitution for exporter
+values; populate `collector.env.example` values before validating fan-out with a
+real Collector binary.
 
 Without a local Collector binary, run the repo structural guard:
 

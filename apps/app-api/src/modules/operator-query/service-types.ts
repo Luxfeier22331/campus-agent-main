@@ -16,9 +16,11 @@ import type { VersionQuery, VersionQueryMode } from "../version-query";
 export type {
 	AutoscalerActuationStatus as WorkerAutoscalerActuationStatus,
 	AutoscalerDecisionKind as WorkerAutoscalerDecisionKind,
+	AutoscalerScalerStatus as WorkerAutoscalerScalerStatus,
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
 	NormalizedWorkerAutoscalerDecisionListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	TemporalTaskQueueKind,
 	TemporalTaskQueueListFilters,
 	TemporalTaskQueueListResult,
@@ -29,6 +31,9 @@ export type {
 	WorkerAutoscalerDecisionListFilters,
 	WorkerAutoscalerDecisionListResult,
 	WorkerAutoscalerDecisionRecord,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerPostureListResult,
+	WorkerAutoscalerPostureRecord,
 } from "../operator-runtime-observability";
 
 import type {

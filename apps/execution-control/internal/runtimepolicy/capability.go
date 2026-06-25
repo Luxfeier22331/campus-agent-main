@@ -23,21 +23,8 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 	if normalized == "" {
 		return "knowledge"
 	}
-	if isDirectoryLookupGuideQuery(normalized) {
-		return "campus_services"
-	}
 	if containsAny(normalized, policy.Signals("structured_notice")) {
 		return "notice"
-	}
-	if isAcademicCalendarGuideQuery(normalized) {
-		return "campus_services"
-	}
-	if isAcademicCalendarFactQuery(normalized, policy) {
-		return "campus_services"
-	}
-	if containsAny(normalized, policy.Signals("structured_service_guide_subject")) &&
-		containsAny(normalized, policy.Signals("structured_service_guide_action")) {
-		return "campus_services"
 	}
 	if containsAny(normalized, policy.Signals("structured_transport")) &&
 		containsAny(normalized, policy.Signals("structured_transport_boarding_status")) {
@@ -54,29 +41,10 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 		containsAny(normalized, policy.Signals("structured_place_location_noun")) {
 		return "place_lookup"
 	}
-	if containsAny(normalized, policy.Signals("structured_transport")) {
-		return "campus_services"
-	}
-	if containsAny(normalized, policy.Signals("structured_contact_directory")) &&
-		containsAny(normalized, policy.Signals("structured_contact_directory_action")) {
-		return "campus_services"
-	}
-	if containsAny(normalized, policy.Signals("structured_service_status")) &&
-		containsAny(normalized, policy.Signals("structured_service_subject")) {
+	if matchStructuredTransportScheduleCandidate(normalized, policy) != "" {
 		return "campus_services"
 	}
 	return "knowledge"
-}
-
-func isAcademicCalendarFactQuery(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	return matchAcademicCalendarCandidate(normalizedGoal, policy) != ""
-}
-
-func IsAcademicCalendarFactQueryForPlanning(
-	normalizedGoal string,
-	policy IntentPolicyArtifact,
-) bool {
-	return isAcademicCalendarFactQuery(normalizedGoal, policy)
 }
 
 func effectiveCapability(

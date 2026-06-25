@@ -174,8 +174,9 @@ workflow/activity workers -> sanitized run event + step/attempt/result projectio
   auth/session/conversation
 - panel、eval、badcase 与 release evidence 只能消费 app-api materialized projection；
   `workflow_trace_summary` 只作为兼容摘要，主诊断事实源是 step trajectory
-- `execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution
-  service；这不改变本文冻结的 request/response 语义
+- `execution-control` 的 deploy substrate 不改变本文冻结的 request/response 语义；
+  Docker Compose 只保留 local / transitional evidence，production target substrate
+  由 K8s + KEDA 承接
 
 ## Transport Conclusion
 

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-06-13
+updated: 2026-06-24
 ---
 # Contracts
 
@@ -56,11 +56,9 @@ updated: 2026-06-13
 
 ## Campus services contract
 
-- `service-status-lookup-contract.md`
-- `service-guide-lookup-contract.md`
+- `campus-services-tool-standard.md`
 - `transport-schedule-lookup-contract.md`
   - `transport-schedule-lookup-contract/examples.md`
-- `contact-directory-lookup-contract.md`
 
 ## Notice runtime contract
 
@@ -70,10 +68,37 @@ updated: 2026-06-13
 
 - `knowledge-retrieval-plan-contract.md`
 
+## Machine-readable schemas
+
+- `schemas/capability-execution.openapi.yaml` 是 app-api -> execution-control
+  private wire contract。
+- `../packages/contracts/schemas/contract-schema-registry.v1.json` 是当前
+  JSON Schema / OpenAPI registry，登记 active schema、runtime JSON artifact、
+  language-local helper 与 legacy helper 的边界身份。
+- `../packages/contracts/schemas/campus-services-tool-result.v1.schema.json`
+  是 `campus_services` typed tool result envelope 的 canonical schema。
+- `../packages/contracts/schemas/campus-services-tool-contracts.v1.schema.json`
+  是 `campus_services` typed tool payload / result packet 的 canonical schema。
+- `../packages/contracts/schemas/notice-tool-contracts.v1.schema.json` 是
+  `notice` typed tool payload / result packet 的 canonical schema。
+- `../packages/contracts/schemas/runtime-*.schema.json` 校验 execution runtime
+  实际读取的 runtime JSON artifacts。
+- `capability-execution.openapi.yaml` 覆盖 app-api -> execution-control durable
+  run create / read / events / steps / cancel，以及 private capability execution
+  wire shape。
+
 ## 使用规则
 
 - contract 只写稳定 seam，不写执行历史
 - request/response shape 的 current truth 以这里为准，不以 panel UI 或 sink payload 为准
+- 跨语言或跨 runtime 的 contract 默认使用 JSON Schema / OpenAPI 作为 canonical
+  source；Python dataclass、Go struct、TS interface / Zod parser 是消费侧 helper、
+  runtime parser 或生成物，不单独成为跨语言真相源
+- typed tool payload / result 的 machine-readable schema 应登记在
+  `packages/contracts/schemas/contract-schema-registry.v1.json`，并配套正反
+  fixture；不要只把 Python dataclass、Go struct 或 provider function schema 当作
+  完整 contract
+- 新增或修改 machine-readable contract 后必须运行 `pnpm contracts:check`
 - contract 可以说明“当前已冻结的接口子集”或“当前已落地的字段语义”，但不承担 `.planning` 中的 active lane /
   pending work / closeout 状态说明
 - 当 supporting architecture 已冻结 forward design，但 current wire shape

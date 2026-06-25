@@ -210,7 +210,8 @@ owns this section group; the original path remains the stable index.
 用途：
 
 - document reader control-plane 的 collection read model
-- 支撑 `public-docs` same-site `/api/docs/*` navigation / search / resolve seam
+- 支撑 `campus-web /docs/*` same-origin `/api/docs/*` navigation / search /
+  resolve seam
 
 最小列：
 
@@ -284,7 +285,7 @@ owns this section group; the original path remains the stable index.
 
 - Phase 2 首发只开放 `visibility_level=public`、`delivery_mode=public_static_asset` 且无
   entitlement groups 的 public current subset
-- `gated_asset` 只能进入受控 delivery phase，不得误入匿名 `public-docs` static bundle
+- `gated_asset` 只能进入受控 delivery phase，不得误入匿名 docs static bundle
 
 ## `docs.reader_assets`
 

@@ -20,7 +20,7 @@
 			"case_id": "provider-notice-discover-wrong-tool",
 			"user_goal": "找春假通知",
 			"allowed_tools": ["campus_notice_discover"],
-			"expected_tool": "service_status_lookup",
+			"expected_tool": "transport_schedule_lookup",
 			"expected_outcome": "wrong_tool_call"
 		},
 		{

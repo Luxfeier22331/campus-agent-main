@@ -1,0 +1,26 @@
+{
+	"schema_version": "campus_services_tool_contracts.v1",
+	"tool_name": "transport_schedule_lookup",
+	"packet_kind": "payload",
+	"payload": {
+		"query_text": "明天去丰台最早校车几点",
+		"intent": "first_departure",
+		"route_selector": {
+			"origin_campus": "haidian",
+			"destination_campus": "fengtai"
+		},
+		"snapshot_query": {
+			"mode": "latest",
+			"as_of": null,
+			"year_hint": null
+		},
+		"service_time_query": {
+			"date_mode": "tomorrow",
+			"service_date": null,
+			"daypart": "morning",
+			"departure_not_before": null,
+			"departure_not_after": null
+		},
+		"result_limit": 3
+	}
+}

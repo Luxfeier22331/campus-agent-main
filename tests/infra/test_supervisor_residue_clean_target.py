@@ -42,8 +42,10 @@ ALLOWLISTED_PATH_PARTS = {
     ("docs", "runbooks", "archive"),
 }
 ALLOWLISTED_FILES = {
+    Path("apps/execution-control/internal/config/retired_settings.go"),
     Path("apps/execution-control/internal/config/config.go"),
     Path("apps/execution-control/internal/config/config_test.go"),
+    Path("configs/runtime/env-surface-policy.v1.json"),
     Path("tests/infra/test_execution_control_architecture_residue.py"),
     Path("tests/infra/test_supervisor_residue_clean_target.py"),
 }

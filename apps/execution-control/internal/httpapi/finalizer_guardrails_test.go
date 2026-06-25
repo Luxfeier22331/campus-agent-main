@@ -288,8 +288,8 @@ func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult
 			},
 			Handoff: &execution.RuntimeHandoff{
 				Capability:   "campus_services",
-				PayloadKind:  "service_status_lookup",
-				AllowedTools: []string{"service_status_lookup", "service_guide_lookup"},
+				PayloadKind:  "transport_schedule_lookup",
+				AllowedTools: []string{"transport_schedule_lookup"},
 			},
 		},
 	)

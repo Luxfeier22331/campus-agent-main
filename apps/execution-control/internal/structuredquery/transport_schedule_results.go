@@ -87,5 +87,5 @@ func failClosedTransportScheduleWithReason(
 		QueriedTimeAnchor: timeAnchor,
 		FailCloseReason:   reason,
 	}
-	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+	return transportScheduleResponse(body)
 }

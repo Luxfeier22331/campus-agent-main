@@ -205,8 +205,9 @@ fail-close checks。
 - 不把 execution-control / Temporal raw event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
-- forward deploy substrate 已冻结为 Docker-first internal execution service；当前 execution
-  origin 必须指向 Go `apps/execution-control`，而不是 Python private bridge worker
+- execution origin 必须指向 Go `apps/execution-control`，而不是 Python private bridge
+  worker；Docker Compose 只保留 local / transitional evidence，production target
+  substrate 由 K8s + KEDA 承接
 
 ### Step 4: Finalize
 

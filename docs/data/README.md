@@ -29,9 +29,6 @@ canonical truth”“哪些只是 projection carrier”。
 - `authenticated-notice-source-truth-schema.md`
 - `campus-services-ops-source-truth-schema.md`
 - `campus-services-transport-schedule-source-truth-schema.md`
-- `campus-services-service-guide-source-truth-schema.md`
-- `campus-services-contact-directory-source-truth-schema.md`
-- `campus-services-service-catalog-source-truth-schema.md`
 - `wechat-official-account-source-truth-schema.md`
 
 ## Navigation / Entity Data

@@ -53,7 +53,7 @@ current truth 文档负责。
 - 支持上下文 token budget、裁剪、摘要预留和可诊断 truncation reason。
 - 支持同一 conversation 下连续消息、重试、取消和 regenerate 的顺序与分支语义。
 - 支持 Langfuse 记录上下文装配、query rewrite、evidence reuse 与 eval score。
-- 保持当前 Temporal + typed capability 架构，不把 RAG 细节泄漏到顶层 agent contract。
+- 保持当前 Temporal + typed capability 架构，不把 RAG 细节泄漏到顶层 capability handoff contract。
 - 保持 context envelope capability-neutral，不让 RAG、notice、navigation、services 或
   direct answer 各自发明上下文拼接逻辑。
 

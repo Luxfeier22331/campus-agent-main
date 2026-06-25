@@ -88,6 +88,7 @@ ONLINE_LEASE_FORBIDDEN_PATTERNS = (
 )
 
 ONLINE_LEASE_ALLOWED_PATH_PARTS = (
+    "/apps/app-api/scripts/reconcile-shared-db-drift.mjs",
     "/tests/infra/test_execution_control_architecture_residue.py",
     "/apps/execution-control/internal/execution/run_projection_postgres_store_test.go",
     "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
@@ -196,6 +197,27 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "SDK runtime 默认开启",
     "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false",
     "在公开 answer / stream 入口同样走 `single_step` bridge lane",
+)
+
+ACTIVE_DOCKER_FIRST_SUBSTRATE_FORBIDDEN_SNIPPETS = (
+    "`apps/execution-control` 是 Docker-first internal execution engine",
+    "`apps/execution-control` 的部署 substrate 已冻结为 Docker-first internal execution service",
+    "`apps/execution-control` 的前向 deploy substrate 已冻结为 Docker-first internal execution\n  service",
+    "`apps/execution-control` 当前是 Docker-first internal execution engine",
+    "`apps/execution-control` 当前部署 substrate 是 Docker-first internal execution service",
+    "`apps/execution-control` 的当前 accepted deploy substrate 是 Docker-first internal\n  execution service",
+    "`apps/execution-control` 当前 staging deploy substrate 是 Docker-first internal execution\n  service",
+    "当前 forward deploy substrate 是 Docker-first internal execution service",
+    "forward deploy substrate 已冻结为 Docker-first internal execution service",
+    "Keep Docker Compose runtime as current merged truth",
+)
+
+ACTIVE_DOCKER_FIRST_SUBSTRATE_ALLOWED_PATH_PARTS = (
+    "/docs/decisions/adr-0043-execution-control-docker-first-runtime.md",
+    "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
+    "/docs/reference/runtime-orchestration-full-audit.md",
+    "/docs/runbooks/archive/",
+    "/tests/infra/test_execution_control_architecture_residue.py",
 )
 
 LOCAL_RUNTIME_REQUIRED_SERVICES = (
@@ -457,6 +479,29 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
                 continue
             text = read_text(path)
             for snippet in ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS:
+                if snippet in text:
+                    offenders.append(f"{path.relative_to(ROOT)} contains {snippet}")
+
+        self.assertEqual(offenders, [])
+
+    def test_active_docs_do_not_restore_docker_first_as_current_execution_substrate(
+        self,
+    ) -> None:
+        offenders: list[str] = []
+
+        for path in tracked_files():
+            relative = normalized_relative(path)
+            if is_historical(path):
+                continue
+            if any(part in relative for part in ACTIVE_DOCKER_FIRST_SUBSTRATE_ALLOWED_PATH_PARTS):
+                continue
+            if not is_under(
+                path,
+                ACTIVE_TRUTH_PREFIXES + ACTIVE_PLANNING_ENTRY_PREFIXES,
+            ):
+                continue
+            text = read_text(path)
+            for snippet in ACTIVE_DOCKER_FIRST_SUBSTRATE_FORBIDDEN_SNIPPETS:
                 if snippet in text:
                     offenders.append(f"{path.relative_to(ROOT)} contains {snippet}")
 

@@ -167,8 +167,9 @@ app-api internal HTTP seam。
 - `docs/contracts/operator-runtime-observability-contract.md` 必须允许
   `actuatorKind=keda_hpa` 的 target projection，同时保留 Docker Compose actuation 为当前
   transitional shape。
-- `docs/architecture/current-architecture.md` 在 K8s 未合入并验收前仍可保留
-  Docker-first merged truth；不得提前宣称 production K8s 已实现。
+- `docs/architecture/current-architecture.md` 不应继续把 Docker-first 写成高置信
+  live substrate truth；不得提前宣称 production K8s 已实现，live takeover 必须由
+  applied resources、runtime env、projection 与 E2E evidence 证明。
 - Docker Compose runbook 可以继续作为 local / staging transitional baseline，但不得被写成
   production target。
 

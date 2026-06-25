@@ -4,17 +4,21 @@ import {
 	temporalTaskQueueCurrent,
 	workerAutoscalerActuation,
 	workerAutoscalerDecisionCurrent,
+	workerAutoscalerPosture,
 } from "../../../db/schema";
 import type {
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
 	NormalizedWorkerAutoscalerDecisionListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	TemporalTaskQueueListResult,
 	TemporalTaskQueueSnapshotRecord,
 	WorkerAutoscalerActuationListResult,
 	WorkerAutoscalerActuationRecord,
 	WorkerAutoscalerDecisionListResult,
 	WorkerAutoscalerDecisionRecord,
+	WorkerAutoscalerPostureListResult,
+	WorkerAutoscalerPostureRecord,
 } from "../service";
 import { decodeRuntimeProjectionCursor, encodeRuntimeProjectionCursor } from "./cursors";
 import type {
@@ -22,6 +26,7 @@ import type {
 	TemporalTaskQueueCurrentRow,
 	WorkerAutoscalerActuationRow,
 	WorkerAutoscalerDecisionCurrentRow,
+	WorkerAutoscalerPostureRow,
 } from "./runtime";
 
 function toTemporalTaskQueueSnapshotRecord(
@@ -77,6 +82,29 @@ function toWorkerAutoscalerActuationRecord(
 		status: row.status as WorkerAutoscalerActuationRecord["status"],
 		targetService: row.targetService,
 		toReplicas: row.toReplicas,
+	};
+}
+
+function toWorkerAutoscalerPostureRecord(
+	row: WorkerAutoscalerPostureRow,
+): WorkerAutoscalerPostureRecord {
+	return {
+		currentReplicas: row.currentReplicas,
+		desiredReplicas: row.desiredReplicas,
+		evidence: row.evidenceJson,
+		lastScaleEventAt: row.lastScaleEventAt?.toISOString() ?? null,
+		lastScaleEventId: row.lastScaleEventId ?? null,
+		maxReplicas: row.maxReplicas,
+		metricFreshness: row.metricFreshnessJson,
+		minReplicas: row.minReplicas,
+		observedAt: row.observedAt.toISOString(),
+		projectedAt: row.projectedAt.toISOString(),
+		reason: row.reason,
+		scalerKind: row.scalerKind,
+		scalerStatus: row.scalerStatus,
+		targetService: row.targetService,
+		taskQueue: row.taskQueue,
+		taskQueueKind: row.taskQueueKind,
 	};
 }
 
@@ -238,6 +266,56 @@ export function createRuntimeOpsStoreHandlers(runtime: OperatorQueryRuntime) {
 							})
 						: null,
 				},
+			};
+		},
+
+		async listAutoscalerPostures(
+			filters: NormalizedWorkerAutoscalerPostureListFilters,
+		): Promise<WorkerAutoscalerPostureListResult> {
+			const db = await runtime.getDb();
+			const conditions: SQL[] = [];
+			if (filters.targetService) {
+				conditions.push(eq(workerAutoscalerPosture.targetService, filters.targetService));
+			}
+			if (filters.scalerStatus) {
+				conditions.push(eq(workerAutoscalerPosture.scalerStatus, filters.scalerStatus));
+			}
+			const cursor = filters.cursor ? decodeRuntimeProjectionCursor(filters.cursor) : null;
+			if (cursor) {
+				const cursorObservedAt = new Date(cursor.timestamp);
+				const cursorCondition = or(
+					lt(workerAutoscalerPosture.observedAt, cursorObservedAt),
+					and(
+						eq(workerAutoscalerPosture.observedAt, cursorObservedAt),
+						lt(workerAutoscalerPosture.postureId, cursor.id),
+					),
+				);
+				if (cursorCondition) {
+					conditions.push(cursorCondition);
+				}
+			}
+
+			const rows = await (conditions.length > 0
+				? db
+						.select()
+						.from(workerAutoscalerPosture)
+						.where(and(...conditions))
+				: db.select().from(workerAutoscalerPosture)
+			)
+				.orderBy(desc(workerAutoscalerPosture.observedAt), desc(workerAutoscalerPosture.postureId))
+				.limit(filters.limit + 1);
+			const visibleRows = rows.slice(0, filters.limit);
+			const cursorRow = rows.length > filters.limit ? visibleRows.at(-1) : null;
+			return {
+				page: {
+					nextCursor: cursorRow
+						? encodeRuntimeProjectionCursor({
+								id: cursorRow.postureId,
+								timestamp: cursorRow.observedAt.toISOString(),
+							})
+						: null,
+				},
+				postures: visibleRows.map(toWorkerAutoscalerPostureRecord),
 			};
 		},
 	};

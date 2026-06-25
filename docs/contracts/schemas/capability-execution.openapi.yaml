@@ -55,6 +55,12 @@ paths:
           schema:
             type: integer
             minimum: 0
+        - name: wait_ms
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
       responses:
         "200":
           description: Execution run events.
@@ -70,6 +76,18 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/ExecutionRunEvent"
+  /internal/execution/runs/{runId}/steps:
+    get:
+      summary: Read sanitized execution run step trajectory projection.
+      parameters:
+        - $ref: "#/components/parameters/RunId"
+      responses:
+        "200":
+          description: Execution run step trajectory projection.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExecutionRunStepTrajectory"
   /internal/execution/runs/{runId}/cancel:
     post:
       summary: Cancel a Temporal-backed execution run.
@@ -252,6 +270,226 @@ components:
           type: string
         payload:
           $ref: "#/components/schemas/SafeObject"
+    ExecutionRunStepTrajectory:
+      type: object
+      additionalProperties: false
+      required:
+        - steps
+        - attempts
+        - results
+      properties:
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStep"
+        attempts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStepAttempt"
+        results:
+          type: array
+          items:
+            $ref: "#/components/schemas/ExecutionRunStepResult"
+    ExecutionRunStep:
+      type: object
+      additionalProperties: false
+      required:
+        - capability
+        - completed_at
+        - conversation_id
+        - parent_step_id
+        - payload_schema_version
+        - run_id
+        - sanitized_payload
+        - started_at
+        - status
+        - step_id
+        - step_kind
+        - task_queue
+        - updated_at
+        - worker_id
+      properties:
+        capability:
+          type: string
+        completed_at:
+          type: string
+        conversation_id:
+          type: string
+        parent_step_id:
+          type: string
+        payload_schema_version:
+          type: string
+        run_id:
+          type: string
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        started_at:
+          type: string
+        status:
+          type: string
+        step_id:
+          type: string
+        step_kind:
+          type: string
+        task_queue:
+          type: string
+        updated_at:
+          type: string
+        worker_id:
+          type: string
+    ExecutionRunStepAttempt:
+      type: object
+      additionalProperties: false
+      required:
+        - activity_attempt
+        - activity_id
+        - activity_type
+        - attempt
+        - attempt_id
+        - cached_input_tokens
+        - cancel_outcome
+        - completed_at
+        - duration_ms
+        - estimated_cost_microusd
+        - fail_close_reason
+        - input_tokens
+        - late_completion_outcome
+        - model_name
+        - model_provider
+        - output_tokens
+        - payload_schema_version
+        - pricing_version
+        - provider_request_ref
+        - provider_response_id
+        - run_id
+        - sanitized_payload
+        - schedule_to_start_ms
+        - scheduled_at
+        - started_at
+        - status
+        - step_id
+        - task_queue
+        - temporal_run_id
+        - terminal_reason
+        - timeout_outcome
+        - updated_at
+        - replan_reason
+        - worker_id
+        - workflow_id
+      properties:
+        activity_attempt:
+          type: integer
+          minimum: 0
+        activity_id:
+          type: string
+        activity_type:
+          type: string
+        attempt:
+          type: integer
+          minimum: 0
+        attempt_id:
+          type: string
+        cached_input_tokens:
+          type: integer
+          minimum: 0
+        cancel_outcome:
+          type: string
+        completed_at:
+          type: string
+        duration_ms:
+          type: integer
+          minimum: 0
+        estimated_cost_microusd:
+          type: integer
+          minimum: 0
+        fail_close_reason:
+          type: string
+        input_tokens:
+          type: integer
+          minimum: 0
+        late_completion_outcome:
+          type: string
+        model_name:
+          type: string
+        model_provider:
+          type: string
+        output_tokens:
+          type: integer
+          minimum: 0
+        payload_schema_version:
+          type: string
+        pricing_version:
+          type: string
+        provider_request_ref:
+          type: string
+        provider_response_id:
+          type: string
+        run_id:
+          type: string
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        schedule_to_start_ms:
+          type: integer
+          minimum: 0
+        scheduled_at:
+          type: string
+        started_at:
+          type: string
+        status:
+          type: string
+        step_id:
+          type: string
+        task_queue:
+          type: string
+        temporal_run_id:
+          type: string
+        terminal_reason:
+          type: string
+        timeout_outcome:
+          type: string
+        updated_at:
+          type: string
+        replan_reason:
+          type: string
+        worker_id:
+          type: string
+        workflow_id:
+          type: string
+    ExecutionRunStepResult:
+      type: object
+      additionalProperties: false
+      required:
+        - attempt_id
+        - created_at
+        - payload_schema_version
+        - projection_ref
+        - result_id
+        - result_kind
+        - run_id
+        - sanitized_payload
+        - status
+        - step_id
+      properties:
+        attempt_id:
+          type: string
+        created_at:
+          type: string
+        payload_schema_version:
+          type: string
+        projection_ref:
+          type: string
+        result_id:
+          type: string
+        result_kind:
+          type: string
+        run_id:
+          type: string
+        sanitized_payload:
+          $ref: "#/components/schemas/SafeObject"
+        status:
+          type: string
+        step_id:
+          type: string
     CapabilityID:
       type: string
       enum:
@@ -302,7 +540,6 @@ components:
         - notice_change_set
         - notice_period_summary
         - schedule_baseline
-        - service_guide_facts
         - place_context
         - evidence_bundle
         - grounding_verdict

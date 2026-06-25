@@ -243,6 +243,7 @@ describe("operator observability internal ingest routes", () => {
 			ingestTemporalTaskQueueSnapshots: vi.fn().mockResolvedValue({
 				acceptedActuations: 1,
 				acceptedDecisions: 1,
+				acceptedPostures: 1,
 				acceptedSnapshots: 1,
 			}),
 			ingestGrades: vi.fn(),
@@ -284,6 +285,28 @@ describe("operator observability internal ingest routes", () => {
 					taskQueueKind: "activity",
 				},
 			],
+			postures: [
+				{
+					currentReplicas: 1,
+					desiredReplicas: 2,
+					evidence: {
+						hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
+						kedaScaledObject: "activity-worker-knowledge-retrieval",
+					},
+					lastScaleEventAt: "2026-06-15T10:00:06.000Z",
+					lastScaleEventId: "actuation_01",
+					maxReplicas: 5,
+					metricFreshness: { ms: 15000, state: "observed" },
+					minReplicas: 1,
+					observedAt: "2026-06-15T10:00:08.000Z",
+					reason: "hpa desired replicas above current replicas",
+					scalerKind: "keda_temporal",
+					scalerStatus: "healthy",
+					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueueKind: "activity",
+					targetService: "activity-worker-knowledge-retrieval",
+				},
+			],
 			schemaVersion: "temporal_task_queue_metrics_snapshot.v1",
 			snapshots: [
 				{
@@ -320,6 +343,7 @@ describe("operator observability internal ingest routes", () => {
 		await expect(response.json()).resolves.toEqual({
 			acceptedActuations: 1,
 			acceptedDecisions: 1,
+			acceptedPostures: 1,
 			acceptedSnapshots: 1,
 		});
 		expect(service.ingestTemporalTaskQueueSnapshots).toHaveBeenCalledWith({

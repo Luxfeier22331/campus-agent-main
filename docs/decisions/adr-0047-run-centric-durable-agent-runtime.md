@@ -26,11 +26,12 @@ baseline；当前 active workspace 已删除该 app，online execution 以 ADR-0
 
 ## 背景
 
-`campus-agent` 当前已经冻结了以下方向：
+`campus-agent` 当时已经冻结了以下方向：
 
 - `apps/app-api` 是 product-layer auth、session、principal、conversation 与 surface
   capability policy owner
-- `apps/execution-control` 是 Docker-first internal execution engine
+- `apps/execution-control` 是 Docker-first internal execution engine；该 deploy
+  substrate 表述后来已由 ADR-0056 supersede 为 K8s + KEDA production target
 - semantic execution worker 当时作为 private worker baseline 参与设计
 - supervisor role 拥有 deterministic governance、workflow planning、admission、
   budget 与 finalization；当前不再对应 Python app
@@ -165,7 +166,8 @@ repo-owned canonical execution substrate 固定为：
 原因：
 
 - repo 已有 shared Postgres product/runtime schema boundary
-- `apps/execution-control` 已冻结为 Docker-first internal execution service
+- 当时 `apps/execution-control` 已冻结为 Docker-first internal execution service；
+  该 deploy substrate 表述后来已由 ADR-0056 supersede 为 K8s + KEDA production target
 - PG row lock、transaction、index 与 audit model 能表达 run / step / lease truth
 - self-hosted data plane 已存在，不需要把 Redis 或 provider graph 推进 canonical queue path
 

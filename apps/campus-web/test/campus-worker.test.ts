@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import worker, { type Env } from "../src/index";
 
@@ -25,6 +25,10 @@ function readTextFixture(relativePath: string): string {
 }
 
 describe("campus worker boundary", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("serves healthz without requiring app-api", async () => {
 		const response = await worker.fetch(
 			new Request("https://campus.muc.wiki/healthz"),
@@ -88,6 +92,7 @@ describe("campus worker boundary", () => {
 			"/api/docs/collections/regulations/student_rules/navigation",
 			"/api/docs/collections/regulations/student_rules/documents/index/resolve",
 			"/api/docs/collections/regulations/student_rules/documents/index/admission",
+			"/api/campus-services/transport-schedule",
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
 			"/api/dining/halls",
@@ -118,6 +123,7 @@ describe("campus worker boundary", () => {
 			"/c/conv_1",
 			"/map",
 			"/dining",
+			"/services",
 			"/feedback",
 			"/account",
 			"/account/login",
@@ -413,6 +419,40 @@ describe("campus worker boundary", () => {
 		await expect(forwarded.text()).resolves.toBe(
 			JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
 		);
+		await expect(response.text()).resolves.toContain("请先登录。");
+	});
+
+	it("strips stale entity encoding headers from proxied app-api responses", async () => {
+		const env = createEnv({
+			fetch() {
+				return new Response(
+					JSON.stringify({
+						error: { code: "session_required", message: "请先登录。" },
+					}),
+					{
+						headers: {
+							"content-encoding": "gzip",
+							"content-length": "9999",
+							"content-type": "application/json",
+						},
+						status: 401,
+					},
+				);
+			},
+		});
+
+		const response = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/chat/requests/stream", {
+				body: JSON.stringify({ prompt: "国家奖学金什么时候评审？" }),
+				headers: { "content-type": "application/json" },
+				method: "POST",
+			}),
+			env,
+		);
+
+		expect(response.status).toBe(401);
+		expect(response.headers.get("content-encoding")).toBeNull();
+		expect(response.headers.get("content-length")).toBeNull();
 		await expect(response.text()).resolves.toContain("请先登录。");
 	});
 

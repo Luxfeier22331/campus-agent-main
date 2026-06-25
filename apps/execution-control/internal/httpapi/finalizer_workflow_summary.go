@@ -17,12 +17,6 @@ func workflowHandoffPayloadSummary(handoff *execution.RuntimeHandoff) map[string
 		return workflowRagPayloadSummary(payload)
 	case "transport_schedule_lookup":
 		return workflowTransportPayloadSummary(payload)
-	case "service_status_lookup":
-		return workflowServiceStatusPayloadSummary(payload)
-	case "service_guide_lookup":
-		return workflowServiceGuidePayloadSummary(payload)
-	case "contact_directory_lookup":
-		return workflowContactDirectoryPayloadSummary(payload)
 	case "campus_notice_discover":
 		return workflowNoticeDiscoverPayloadSummary(payload)
 	case "campus_notice_period_summary":
@@ -86,31 +80,6 @@ func workflowTransportPayloadSummary(payload map[string]any) map[string]any {
 			summary["route_selector"] = routeSelectorSummary
 		}
 	}
-	return summary
-}
-
-func workflowServiceStatusPayloadSummary(payload map[string]any) map[string]any {
-	summary := map[string]any{}
-	copyStringField(summary, payload, "campus_scope")
-	if temporalQuery, ok := payload["temporal_query"].(map[string]any); ok {
-		copyPrefixedStringField(summary, temporalQuery, "mode", "temporal_query_mode")
-		copyPrefixedStringField(summary, temporalQuery, "year_hint", "temporal_query_year_hint")
-		copyPrefixedStringField(summary, temporalQuery, "as_of", "temporal_query_as_of")
-	}
-	return summary
-}
-
-func workflowServiceGuidePayloadSummary(payload map[string]any) map[string]any {
-	summary := workflowServiceStatusPayloadSummary(payload)
-	copyStringField(summary, payload, "guide_focus")
-	copyStringField(summary, payload, "audience")
-	return summary
-}
-
-func workflowContactDirectoryPayloadSummary(payload map[string]any) map[string]any {
-	summary := workflowServiceStatusPayloadSummary(payload)
-	copyStringField(summary, payload, "contact_focus")
-	copyStringField(summary, payload, "audience")
 	return summary
 }
 

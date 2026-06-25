@@ -42,7 +42,11 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 					"今晚六点还有丰台去海淀的班车吗",
 				),
 				"result_ref": "agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup",
-				"result":     map[string]any{"outcome": "temporarily_unverifiable"},
+				"result": campusServicesToolResultForTest(
+					"transport_schedule_lookup",
+					"temporarily_unverifiable",
+					"agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup",
+				),
 			}, {
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
@@ -52,7 +56,11 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 					"今晚六点还有丰台去海淀的班车吗",
 				),
 				"result_ref": "agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup/2",
-				"result":     map[string]any{"outcome": "resolved_current"},
+				"result": campusServicesToolResultForTest(
+					"transport_schedule_lookup",
+					"resolved_current",
+					"agent-runtime://run-primary-agent-sdk-tool/tools/transport_schedule_lookup/2",
+				),
 			}},
 			"terminal_reason": "answer_completed",
 			"usage": map[string]any{
@@ -144,6 +152,39 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		secondToolResult.SanitizedPayload["outcome"] != "resolved_current" {
 		t.Fatalf("sdk typed tool result payloads = %#v / %#v", firstToolResult.SanitizedPayload, secondToolResult.SanitizedPayload)
 	}
+	secondEnvelope, ok := secondToolResult.SanitizedPayload["result_envelope"].(map[string]any)
+	if !ok {
+		t.Fatalf("second sdk typed tool result_envelope = %#v", secondToolResult.SanitizedPayload["result_envelope"])
+	}
+	if secondEnvelope["schema_version"] != "campus_services_tool_result.v1" ||
+		secondEnvelope["capability"] != "campus_services" ||
+		secondEnvelope["tool_name"] != "transport_schedule_lookup" ||
+		secondEnvelope["query_kind"] != "transport_schedule" ||
+		secondEnvelope["projection_ref"] != secondToolResult.ProjectionRef ||
+		secondEnvelope["outcome"] != "resolved_current" {
+		t.Fatalf("second sdk typed tool result_envelope = %#v", secondEnvelope)
+	}
+	if secondEnvelope["content_hash"] == "" {
+		t.Fatalf("second sdk typed tool result_envelope missing content_hash: %#v", secondEnvelope)
+	}
+	run, err := store.GetRun(context.Background(), "run-primary-agent-sdk-tool")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	agentMetadata := cloneAnyMapFromMetadata(run.Metadata["temporal_agent"])
+	toolResults, ok := agentMetadata["tool_results"].([]map[string]any)
+	if !ok || len(toolResults) != 2 {
+		t.Fatalf("agent metadata tool_results = %#v", agentMetadata["tool_results"])
+	}
+	secondMetadataResult := expectMetadataMapForTest(t, toolResults[1]["result"], "tool_results[1].result")
+	secondMetadataEnvelope := expectMetadataMapForTest(
+		t,
+		secondMetadataResult["result_envelope"],
+		"tool_results[1].result.result_envelope",
+	)
+	if secondMetadataEnvelope["projection_ref"] != secondToolResult.ProjectionRef {
+		t.Fatalf("metadata result_envelope.projection_ref = %v, want %s", secondMetadataEnvelope["projection_ref"], secondToolResult.ProjectionRef)
+	}
 }
 
 func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
@@ -175,7 +216,11 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 					"今晚六点还有丰台去海淀的班车吗",
 				),
 				"result_ref": "agent-runtime://run-primary-agent-sdk-tool-replan/tools/transport_schedule_lookup/2",
-				"result":     map[string]any{"outcome": "resolved_current"},
+				"result": campusServicesToolResultForTest(
+					"transport_schedule_lookup",
+					"resolved_current",
+					"agent-runtime://run-primary-agent-sdk-tool-replan/tools/transport_schedule_lookup/2",
+				),
 			}},
 			"terminal_reason": "answer_completed",
 		})
@@ -412,6 +457,84 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 	}
 }
 
+func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnvelope(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 12, 10, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-sdk-tool-missing-envelope",
+		"conv-primary-agent-sdk-tool-missing-envelope",
+		now,
+		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		writeJSON(response, http.StatusOK, map[string]any{
+			"status":               "completed",
+			"run_id":               "run-primary-agent-sdk-tool-missing-envelope",
+			"final_output":         "不应在缺少标准结果 envelope 后完成。",
+			"provider_response_id": "resp-primary-agent-sdk-tool-missing-envelope",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-missing-envelope",
+			"selected_tools":       []string{"transport_schedule_lookup"},
+			"tool_results": []map[string]any{{
+				"status":       "completed",
+				"tool_name":    "transport_schedule_lookup",
+				"capability":   "campus_services",
+				"payload_kind": "transport_schedule_lookup",
+				"arguments_json": validTransportScheduleLookupArguments(
+					"今晚六点还有丰台去海淀的班车吗",
+				),
+				"result_ref": "agent-runtime://run-primary-agent-sdk-tool-missing-envelope/tools/transport_schedule_lookup",
+				"result":     map[string]any{"outcome": "resolved_current"},
+			}},
+			"terminal_reason": "answer_completed",
+		})
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:sdk-tool-missing-envelope",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		ConversationID:      "conv-primary-agent-sdk-tool-missing-envelope",
+		RequestID:           "req-primary-agent-sdk-tool-missing-envelope",
+		RunID:               "run-primary-agent-sdk-tool-missing-envelope",
+		TraceID:             "trace-executor-001",
+		TurnID:              "turn-primary-agent-sdk-tool-missing-envelope",
+		VisibleCapabilities: []string{"campus_services"},
+	})
+	if err == nil {
+		t.Fatal("execute primary agent accepted campus_services SDK tool result without envelope")
+	}
+	if !strings.Contains(err.Error(), "fail_close_reason=result_contract_drift") {
+		t.Fatalf("error = %q, want result_contract_drift fail close", err.Error())
+	}
+	attempts, listErr := store.ListStepAttempts(context.Background(), "run-primary-agent-sdk-tool-missing-envelope")
+	if listErr != nil {
+		t.Fatalf("list attempts: %v", listErr)
+	}
+	var toolAttempt *execution.StepAttemptProjection
+	for index := range attempts {
+		if attempts[index].StepID == "sdk_tool.execute.transport_schedule_lookup.1" {
+			toolAttempt = &attempts[index]
+			break
+		}
+	}
+	if toolAttempt == nil {
+		t.Fatalf("sdk tool failure attempt missing: %#v", attempts)
+		return
+	}
+	if toolAttempt.Status != "failed" ||
+		toolAttempt.FailCloseReason != "result_contract_drift" {
+		t.Fatalf("tool attempt = %#v, want failed result_contract_drift", toolAttempt)
+	}
+}
+
 func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 11, 25, 0, 0, time.UTC)
@@ -589,4 +712,40 @@ func validCampusNoticeDiscoverArguments(queryText string) map[string]any {
 		"target_surfaces": []any{"notice_level_query"},
 		"max_results":     5,
 	}
+}
+
+func campusServicesToolResultForTest(
+	toolName string,
+	outcome string,
+	projectionRef string,
+) map[string]any {
+	return map[string]any{
+		"outcome": outcome,
+		"result_envelope": map[string]any{
+			"schema_version": "campus_services_tool_result.v1",
+			"capability":     "campus_services",
+			"tool_name":      toolName,
+			"query_kind":     "transport_schedule",
+			"outcome":        outcome,
+			"facts": map[string]any{
+				"kind": "schedule_facts",
+				"result": map[string]any{
+					"outcome": outcome,
+				},
+			},
+			"source_refs":           []any{"notice:bus-schedule-2026-04-20"},
+			"projection_ref":        projectionRef,
+			"content_hash":          "sha256:transport-schedule-test",
+			"clarification_options": []any{},
+		},
+	}
+}
+
+func expectMetadataMapForTest(t *testing.T, value any, name string) map[string]any {
+	t.Helper()
+	record, ok := value.(map[string]any)
+	if !ok {
+		t.Fatalf("%s = %#v, want map", name, value)
+	}
+	return record
 }

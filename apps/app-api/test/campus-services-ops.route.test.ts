@@ -36,16 +36,16 @@ describe("campus services ops routes", () => {
 				method: "POST",
 			}),
 		);
-		const statusResponse = await app.fetch(
-			new Request("https://app-api.internal/api/operator/campus-services/status-overrides", {
+		const transportResponse = await app.fetch(
+			new Request("https://app-api.internal/api/operator/campus-services/transport-overrides", {
 				body: JSON.stringify({
-					displayName: "医保窗口",
+					displayName: "海淀至丰台校车",
 					effectiveFrom: "2026-06-11T07:00:00.000Z",
 					effectiveUntil: "2026-06-11T10:00:00.000Z",
-					message: "暂停办理。",
-					serviceId: "medical_insurance_counter",
+					message: "发车延迟 15 分钟。",
+					routeId: "haidian_fengtai_shuttle",
+					serviceStatus: "delayed",
 					sourceAttestationIds: ["services_attestation_route"],
-					status: "closed",
 				}),
 				headers: { "content-type": "application/json" },
 				method: "POST",
@@ -70,21 +70,21 @@ describe("campus services ops routes", () => {
 		);
 
 		expect(attestationResponse.status).toBe(200);
-		expect(statusResponse.status).toBe(200);
+		expect(transportResponse.status).toBe(200);
 		expect(previewResponse.status).toBe(200);
 		expect(publishResponse.status).toBe(200);
 		expect(auditResponse.status).toBe(200);
 		await expect(previewResponse.json()).resolves.toMatchObject({
 			preview: {
 				currentEffective: {
-					statusOverrides: [expect.objectContaining({ serviceId: "medical_insurance_counter" })],
+					transportOverrides: [expect.objectContaining({ routeId: "haidian_fengtai_shuttle" })],
 				},
 				warnings: [],
 			},
 		});
 		await expect(publishResponse.json()).resolves.toMatchObject({
 			currentEffective: {
-				statusOverrides: [expect.objectContaining({ serviceId: "medical_insurance_counter" })],
+				transportOverrides: [expect.objectContaining({ routeId: "haidian_fengtai_shuttle" })],
 			},
 			release: expect.objectContaining({
 				itemCount: 1,
@@ -118,7 +118,7 @@ describe("campus services ops routes", () => {
 		});
 	});
 
-	it("returns validation_failed for invalid override effective windows", async () => {
+	it("returns validation_failed for invalid transport override effective windows", async () => {
 		const app = createApp(env, {
 			campusServicesOpsService: buildCampusServicesOpsService({
 				store: createInMemoryCampusServicesOpsStore(),
@@ -127,15 +127,15 @@ describe("campus services ops routes", () => {
 		} as Parameters<typeof createApp>[1]);
 
 		const response = await app.fetch(
-			new Request("https://app-api.internal/api/operator/campus-services/status-overrides", {
+			new Request("https://app-api.internal/api/operator/campus-services/transport-overrides", {
 				body: JSON.stringify({
-					displayName: "医保窗口",
+					displayName: "海淀至丰台校车",
 					effectiveFrom: "2026-06-11T10:00:00.000Z",
 					effectiveUntil: "2026-06-11T07:00:00.000Z",
-					message: "暂停办理。",
-					serviceId: "medical_insurance_counter",
+					message: "发车延迟 15 分钟。",
+					routeId: "haidian_fengtai_shuttle",
+					serviceStatus: "delayed",
 					sourceAttestationIds: [],
-					status: "closed",
 				}),
 				headers: { "content-type": "application/json" },
 				method: "POST",

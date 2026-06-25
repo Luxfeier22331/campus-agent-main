@@ -104,7 +104,6 @@ func TestStepOutputProjectionKindValidAcceptsAllSchemaProjectionKinds(t *testing
 		StepOutputProjectionKindNoticeChangeSet,
 		StepOutputProjectionKindNoticePeriodSummary,
 		StepOutputProjectionKindScheduleBaseline,
-		StepOutputProjectionKindServiceGuideFacts,
 		StepOutputProjectionKindPlaceContext,
 		StepOutputProjectionKindEvidenceBundle,
 		StepOutputProjectionKindGroundingVerdict,

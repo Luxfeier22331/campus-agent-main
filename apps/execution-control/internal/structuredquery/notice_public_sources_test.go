@@ -297,32 +297,6 @@ func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
 	}
 }
 
-func TestNewRuntimeConfiguresServiceGuideReadModelStoreFromOptions(t *testing.T) {
-	runtime := NewRuntime(Options{
-		StructuredProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-	})
-
-	status := runtime.Status(context.Background())
-	if !status.ServiceGuideReadModelConfigured {
-		t.Fatal("service guide read model should be configured")
-	}
-}
-
-func TestServiceGuidePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
-	config, err := serviceGuidePostgresPoolConfig(ServiceGuidePostgresOptions{
-		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-	})
-	if err != nil {
-		t.Fatalf("pool config error: %v", err)
-	}
-	if config.MinConns != 0 {
-		t.Fatalf("MinConns = %d, want 0", config.MinConns)
-	}
-	if config.MaxConns != 2 {
-		t.Fatalf("MaxConns = %d, want 2", config.MaxConns)
-	}
-}
-
 func TestNoticePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
 	config, err := noticePostgresPoolConfig(NoticePostgresOptions{
 		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",

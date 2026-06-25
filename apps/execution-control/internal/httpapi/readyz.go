@@ -365,21 +365,9 @@ func (s *Server) capabilityGateStatus() map[string]any {
 func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) bool {
 	if s.config.CapabilityOpen("campus_services") &&
 		(!status.Configured ||
-			!status.ServiceStatusReadModelConfigured ||
-			!status.ServiceStatusReadModelHealthy ||
-			!status.ServiceStatusProjectionReady ||
-			!status.ServiceGuideReadModelConfigured ||
-			!status.ServiceGuideReadModelHealthy ||
-			!status.ServiceGuideProjectionReady ||
-			!status.ContactDirectoryReadModelConfigured ||
-			!status.ContactDirectoryReadModelHealthy ||
-			!status.ContactDirectoryProjectionReady ||
 			!status.TransportScheduleReadModelConfigured ||
 			!status.TransportScheduleReadModelHealthy ||
-			!status.TransportScheduleImplemented ||
-			!status.AcademicCalendarReadModelConfigured ||
-			!status.AcademicCalendarReadModelHealthy ||
-			!status.AcademicCalendarProjectionReady) {
+			!status.TransportScheduleImplemented) {
 		return false
 	}
 	if s.config.CapabilityOpen("notice") &&

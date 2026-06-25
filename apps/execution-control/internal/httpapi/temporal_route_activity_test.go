@@ -11,7 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestPlanRouteActivityRejectsClosedCampusServicesPlanFromExecutionPayload(t *testing.T) {
+func TestPlanRouteActivityPlansCampusServicesTransportNoticeOverride(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -63,7 +63,7 @@ func TestPlanRouteActivityRejectsClosedCampusServicesPlanFromExecutionPayload(t 
 		t.Fatalf("create run: %v", err)
 	}
 
-	_, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
+	route, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
 		ConversationID:      "conv-route-campus-services",
 		Namespace:           "campus-agent-test",
 		PayloadSHA256:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -74,11 +74,19 @@ func TestPlanRouteActivityRejectsClosedCampusServicesPlanFromExecutionPayload(t 
 		TurnID:              "turn-route-campus-services",
 		WorkflowID:          "campus-agent.chat.run-route-campus-services",
 	})
-	if err == nil {
-		t.Fatal("expected closed campus_services plan.route to fail")
+	if err != nil {
+		t.Fatalf("PlanRouteActivity failed: %v", err)
 	}
-	if !strings.Contains(err.Error(), "capability campus_services is not open for plan.route") {
-		t.Fatalf("error = %v, want capability not open", err)
+	if route.WorkflowMode != "multi_step" ||
+		route.Capability != "campus_services" ||
+		len(route.Steps) != 3 {
+		t.Fatalf("route = %#v, want campus_services multi_step with three steps", route)
+	}
+	first := route.Steps[0]
+	if first.Capability != "campus_services" ||
+		first.PayloadKind != "transport_schedule_lookup" ||
+		first.ToolName != "transport_schedule_lookup" {
+		t.Fatalf("first route step = %#v", first)
 	}
 }
 

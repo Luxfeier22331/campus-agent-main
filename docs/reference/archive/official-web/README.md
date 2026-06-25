@@ -10,10 +10,10 @@ updated: 2026-04-20
 
 ## Archive Status
 
-This archive groups historical `official_web` snapshots that are no longer on
-the default reading path. These documents keep traceability only; they do not
-define current collection scope, runtime opening, source-truth schema, contract
-shape or release readiness.
+This archive groups historical `official_web` summaries that are no longer on
+the default reading path. They keep traceability only; they do not define
+current collection scope, runtime opening, source-truth schema, contract shape
+or release readiness.
 
 Current canonical entry points are:
 
@@ -31,30 +31,20 @@ Current canonical entry points are:
 - `docs/reference/official-web-fresh-news-surface-handoff.md`
 - `docs/reference/official-web-news-surface-opening-checklist.md`
 
-## Archived Snapshot Set
+## Archived Snapshot Summary
 
-- `official-web-muc-public-host-survey.md`
-  - `2026-03-28` 首版 host survey；历史意义是把 `official_web` 的 host
-    admission 从经验判断收口到显式 allowlist
-- `official-web-muc-public-batch-a-law-history-audit-20260402.md`
-  - `2026-04-02` 首轮 bounded host expansion；历史意义是证明 `law` /
-    `history` 可进入 baseline batch，但不等于 hot lane admission
-- `official-web-muc-public-pages-release-20260402.md`
-  - `2026-04-02` mixed `muc_public_pages` 首次 registry-backed release；
-    历史意义是 release plumbing 跑通，但内容质量仍不适合作为长期 baseline
-- `official-web-muc-public-pages-page-qc-inventory-20260403.md`
-  - `2026-04-03` mixed page inventory 分层；历史意义是明确 stable-like、
-    inventory-only 与 future fresh-news handoff 的早期拆分
-- `official-web-muc-public-pages-current-truth-qc-20260403.md`
-  - `2026-04-03` 到 `2026-04-05` mixed current-truth QC；历史意义是说明
-    `muc_public_pages` 如何从 mixed bridge 走向 split scope
-- `official-web-stable-reference-bootstrap-release-20260404.md`
-  - `2026-04-04` 首次 `stable_reference` routed replay/import/release；
-    历史意义是后续 active baseline 的 bootstrap 执行快照
-- `official-web-stable-reference-eval-baseline-20260405.md`
-  - historical redirect to the active stable-reference eval baseline.
-- `official-web-fresh-news-eval-baseline-20260405.md`
-  - historical redirect to the active fresh-news eval baseline.
+- `2026-03-28` 首版 host survey 把 `official_web` host admission 从经验判断
+  收口到显式 allowlist。
+- `2026-04-02` 首轮 bounded host expansion 证明 `law` / `history` 可进入
+  baseline batch，但不等于 hot lane admission。
+- `2026-04-02` mixed `muc_public_pages` 首次 registry-backed release 跑通
+  release plumbing，但也证明内容质量不足以成为长期 baseline。
+- `2026-04-03` mixed page inventory 分层明确了 stable-like、
+  inventory-only 与 future fresh-news handoff 的早期拆分。
+- `2026-04-03` 到 `2026-04-05` mixed current-truth QC 推动
+  `official_web` 从 mixed bridge 收口到 split scope。
+- `2026-04-04` 首次 `stable_reference` routed replay/import/release 是后续
+  active baseline 的 bootstrap 执行快照。
 
 ## Historical Throughline
 
@@ -71,6 +61,4 @@ Current canonical entry points are:
 ## Usage Rule
 
 - 需要当前真相时，不要从这些 historical snapshot 反推当前策略
-- 需要追溯某个历史文件路径时，可直接打开原文件；原路径现在只保留
-  redirect/archive note
-- 如需完整旧正文，可通过 git history 追溯
+- 需要追溯旧执行细节或已删除 path-stub 正文时，通过 git history 追溯

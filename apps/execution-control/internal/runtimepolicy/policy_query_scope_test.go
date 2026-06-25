@@ -12,20 +12,14 @@ func TestAllowedToolsForCapabilityPayloadKindIsScopedToCapability(t *testing.T) 
 	if allowed != nil {
 		t.Fatalf("allowed = %#v, want nil for closed campus_notice_get", allowed)
 	}
-	if AllowedToolsForCapabilityPayloadKind("notice", "service_status_lookup") != nil {
-		t.Fatal("notice must not allow service_status_lookup")
+	if AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup") != nil {
+		t.Fatal("campus_services must not allow service_guide_lookup")
 	}
-	if serviceGuideAllowed := AllowedToolsForCapabilityPayloadKind(
-		"campus_services",
-		"service_guide_lookup",
-	); serviceGuideAllowed != nil {
-		t.Fatalf("service guide allowed = %#v, want nil while campus_services is closed", serviceGuideAllowed)
+	if AllowedToolsForCapabilityPayloadKind("campus_services", "contact_directory_lookup") != nil {
+		t.Fatal("campus_services must not allow contact_directory_lookup")
 	}
-	if contactAllowed := AllowedToolsForCapabilityPayloadKind(
-		"campus_services",
-		"contact_directory_lookup",
-	); contactAllowed != nil {
-		t.Fatalf("contact allowed = %#v, want nil while campus_services is closed", contactAllowed)
+	if AllowedToolsForCapabilityPayloadKind("campus_services", "academic_calendar_lookup") != nil {
+		t.Fatal("campus_services must not allow academic_calendar_lookup")
 	}
 	if AllowedToolsForCapabilityPayloadKind("navigation", "place_lookup") != nil {
 		t.Fatal("navigation must not allow place_lookup before map rollout")

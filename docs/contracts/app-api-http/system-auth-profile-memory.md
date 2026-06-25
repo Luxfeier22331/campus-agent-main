@@ -48,14 +48,8 @@ owns this section group; the original path remains the stable index.
       "capabilityGate": "open",
       "projectionSource": "postgres",
       "checks": {
-        "serviceStatusProjection": "ready",
-        "serviceStatusReadModel": "ready",
         "transportSchedule": "ready",
         "transportScheduleReadModel": "ready",
-        "serviceGuideProjection": "ready",
-        "serviceGuideReadModel": "ready",
-        "contactDirectoryProjection": "ready",
-        "contactDirectoryReadModel": "ready",
         "structuredQueryRuntime": "ready"
       },
       "blockers": {}

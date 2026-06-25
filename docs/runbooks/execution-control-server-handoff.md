@@ -10,7 +10,7 @@ updated: 2026-06-09
 
 ## 文档边界
 
-这份 runbook 只定义 Docker-first `execution-control` server handoff baseline：
+这份 runbook 只定义 Compose-based `execution-control` server handoff baseline：
 
 - `execution-control + Temporal + split workers` compose deployment contract
 - server env / health / logging / restart / resource 基线

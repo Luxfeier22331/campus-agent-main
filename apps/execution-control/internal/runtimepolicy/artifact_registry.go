@@ -272,9 +272,9 @@ func ValidateCapabilityBindings(
 	toolRegistry ToolSpecRegistry,
 	artifactRegistry WorkflowArtifactRegistry,
 ) error {
-	artifactKinds := map[string]struct{}{}
+	artifactsByKind := map[string]WorkflowArtifact{}
 	for _, artifact := range artifactRegistry.Artifacts {
-		artifactKinds[artifact.Kind] = struct{}{}
+		artifactsByKind[artifact.Kind] = artifact
 	}
 	seenBindingIDs := map[string]struct{}{}
 	openProducers := map[string]WorkflowCapabilityBinding{}
@@ -298,12 +298,12 @@ func ValidateCapabilityBindings(
 				binding.OpeningGate,
 			)
 		}
-		if binding.OpeningGate != capability.OpeningGate {
+		if binding.OpeningGate == "open" && (!capability.Active || capability.OpeningGate != "open") {
 			return fmt.Errorf(
-				"%s opening_gate=%s does not match capability spec %s opening_gate=%s",
+				"%s opening_gate=open requires active/open capability spec %s, got active=%t opening_gate=%s",
 				binding.BindingID,
-				binding.OpeningGate,
 				binding.OwnerCapability,
+				capability.Active,
 				capability.OpeningGate,
 			)
 		}
@@ -346,7 +346,7 @@ func ValidateCapabilityBindings(
 			}
 		}
 		for _, kind := range append(append([]string{}, binding.Produces...), binding.Consumes...) {
-			if _, ok := artifactKinds[kind]; !ok {
+			if _, ok := artifactsByKind[kind]; !ok {
 				return fmt.Errorf("%s references unknown artifact kind: %s", binding.BindingID, kind)
 			}
 		}
@@ -373,6 +373,15 @@ func ValidateCapabilityBindings(
 			continue
 		}
 		for _, producedKind := range binding.Produces {
+			artifact := artifactsByKind[producedKind]
+			if artifact.CurrentProjectionSupport != "supported_go_runtime" {
+				return fmt.Errorf(
+					"%s open binding produces unsupported projection %s current_projection_support=%s",
+					binding.BindingID,
+					producedKind,
+					artifact.CurrentProjectionSupport,
+				)
+			}
 			prior, exists := openProducers[producedKind]
 			if exists && prior.Priority == binding.Priority {
 				return fmt.Errorf(
@@ -388,6 +397,60 @@ func ValidateCapabilityBindings(
 		}
 	}
 	return nil
+}
+
+func ValidateModelVisibleToolArtifactGate(
+	tool ToolSpec,
+	artifactRegistry WorkflowArtifactRegistry,
+) error {
+	if tool.Surface != "structured_handoff" {
+		return fmt.Errorf("%s model-visible tool must use structured_handoff surface", tool.Name)
+	}
+	if !tool.Active || !tool.ReadOnly || tool.effectiveRuntimePosture() != "typed_activity_admitted" {
+		return fmt.Errorf(
+			"%s model-visible tool must be active read-only typed_activity_admitted",
+			tool.Name,
+		)
+	}
+	if !tool.effectiveFunctionSchema().Available || !tool.effectiveFunctionSchema().Strict {
+		return fmt.Errorf("%s model-visible tool must have strict function schema", tool.Name)
+	}
+	for _, binding := range artifactRegistry.Bindings {
+		if binding.ToolName != tool.Name || binding.OwnerCapability != tool.OwnerCapability {
+			continue
+		}
+		if binding.OpeningGate != "open" {
+			continue
+		}
+		if len(binding.Produces) == 0 {
+			return fmt.Errorf("%s open binding must produce at least one artifact", binding.BindingID)
+		}
+		for _, producedKind := range binding.Produces {
+			artifact, ok := artifactRegistry.ArtifactByKind(producedKind)
+			if !ok {
+				return fmt.Errorf("%s produces unknown artifact %s", binding.BindingID, producedKind)
+			}
+			if artifact.OwnerCapability != tool.OwnerCapability {
+				return fmt.Errorf(
+					"%s produces artifact %s owner=%s, want %s",
+					binding.BindingID,
+					producedKind,
+					artifact.OwnerCapability,
+					tool.OwnerCapability,
+				)
+			}
+			if artifact.CurrentProjectionSupport != "supported_go_runtime" {
+				return fmt.Errorf(
+					"%s produces unsupported artifact %s current_projection_support=%s",
+					binding.BindingID,
+					producedKind,
+					artifact.CurrentProjectionSupport,
+				)
+			}
+		}
+		return nil
+	}
+	return fmt.Errorf("%s has no open supported workflow artifact binding", tool.Name)
 }
 
 func resolveWorkflowArtifactRegistryPath(registryPath string) string {

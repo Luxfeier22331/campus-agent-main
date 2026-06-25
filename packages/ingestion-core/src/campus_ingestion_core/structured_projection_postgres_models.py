@@ -64,26 +64,6 @@ class _TypedColumn:
 _COMMON_SEARCH_COLUMN = _TypedColumn("search_text", "text", "text not null default ''")
 
 _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
-    "service_status_read_model": (
-        _TypedColumn("subject_id", "text", "text not null default ''"),
-        _TypedColumn("display_name", "text", "text not null default ''"),
-        _TypedColumn("service_family", "text", "text not null default ''"),
-        _TypedColumn("aliases", "text_array", "text[] not null default '{}'"),
-        _TypedColumn("campus_scope", "text", "text not null default ''"),
-        _TypedColumn("location_refs", "jsonb", "jsonb not null default '[]'::jsonb"),
-        _TypedColumn("platform_refs", "jsonb", "jsonb not null default '[]'::jsonb"),
-        _TypedColumn("affected_scope", "text", "text not null default ''"),
-        _TypedColumn("observed_status", "text", "text not null default ''"),
-        _TypedColumn("effective_from", "timestamptz", "timestamptz"),
-        _TypedColumn("effective_until", "timestamptz", "timestamptz"),
-        _TypedColumn("status_reason", "text", "text not null default ''"),
-        _TypedColumn("status_note", "text", "text not null default ''"),
-        _TypedColumn("severity", "text", "text not null default ''"),
-        _TypedColumn("override_source_refs", "text_array", "text[] not null default '{}'"),
-        _TypedColumn("related_notice_refs", "text_array", "text[] not null default '{}'"),
-        _TypedColumn("extraction_status", "text", "text not null default ''"),
-        _COMMON_SEARCH_COLUMN,
-    ),
     "service_guide_read_model": (
         _TypedColumn("service_id", "text", "text not null default ''"),
         _TypedColumn("display_name", "text", "text not null default ''"),

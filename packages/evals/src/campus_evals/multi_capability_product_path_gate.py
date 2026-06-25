@@ -231,7 +231,6 @@ def _domain_capability_adapter_command() -> tuple[str, ...]:
         "python",
         "-m",
         "unittest",
-        "tests.agent.test_campus_services_capability",
         "tests.agent.test_notice_capability",
     )
 

@@ -9,6 +9,7 @@ dependencies = []
 [dependency-groups]
 dev = [
   "html5lib>=1.1",
+  "jsonschema>=4.26.0",
   "pre-commit>=4.2.0",
   "pytest>=8.0.0",
   "ruff>=0.15.11",
@@ -124,7 +125,6 @@ package = false
 [tool.uv.workspace]
 members = [
   "apps/app-api",
-  "apps/chatkit-adapter",
   "apps/authenticated-notice-collector",
   "apps/ingestion-worker",
   "apps/legacy-office-conversion-service",

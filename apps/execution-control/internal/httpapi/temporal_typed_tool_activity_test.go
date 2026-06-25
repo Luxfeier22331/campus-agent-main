@@ -16,14 +16,14 @@ func TestTemporalToolResultFromRunFindsSelectedToolResult(t *testing.T) {
 		RunID: "run-tool-result",
 		Metadata: map[string]any{
 			"temporal_tools": map[string]any{
-				"service_status_lookup": map[string]any{
+				"transport_schedule_lookup": map[string]any{
 					"capability":   "campus_services",
-					"payload_kind": "service_status_lookup",
+					"payload_kind": "transport_schedule_lookup",
 					"result": map[string]any{
 						"outcome": "resolved_current",
 					},
-					"result_ref": "projection://runs/run-tool-result/tools/service_status_lookup",
-					"tool_name":  "service_status_lookup",
+					"result_ref": "projection://runs/run-tool-result/tools/transport_schedule_lookup",
+					"tool_name":  "transport_schedule_lookup",
 				},
 			},
 		},
@@ -31,8 +31,8 @@ func TestTemporalToolResultFromRunFindsSelectedToolResult(t *testing.T) {
 
 	result, err := temporalToolResultFromRun(
 		run,
-		"projection://runs/run-tool-result/tools/service_status_lookup",
-		"service_status_lookup",
+		"projection://runs/run-tool-result/tools/transport_schedule_lookup",
+		"transport_schedule_lookup",
 	)
 	if err != nil {
 		t.Fatalf("temporal tool result: %v", err)
@@ -40,13 +40,13 @@ func TestTemporalToolResultFromRunFindsSelectedToolResult(t *testing.T) {
 	if result.Capability != "campus_services" {
 		t.Fatalf("capability = %q", result.Capability)
 	}
-	if result.PayloadKind != "service_status_lookup" {
+	if result.PayloadKind != "transport_schedule_lookup" {
 		t.Fatalf("payload kind = %q", result.PayloadKind)
 	}
-	if result.ToolName != "service_status_lookup" {
+	if result.ToolName != "transport_schedule_lookup" {
 		t.Fatalf("tool name = %q", result.ToolName)
 	}
-	if result.ResultRef != "projection://runs/run-tool-result/tools/service_status_lookup" {
+	if result.ResultRef != "projection://runs/run-tool-result/tools/transport_schedule_lookup" {
 		t.Fatalf("result ref = %q", result.ResultRef)
 	}
 	if result.Result["outcome"] != "resolved_current" {
@@ -59,12 +59,12 @@ func TestTemporalToolResultFromRunRejectsResultRefDrift(t *testing.T) {
 		RunID: "run-tool-drift",
 		Metadata: map[string]any{
 			"temporal_tools": map[string]any{
-				"service_status_lookup": map[string]any{
+				"transport_schedule_lookup": map[string]any{
 					"capability":   "campus_services",
-					"payload_kind": "service_status_lookup",
+					"payload_kind": "transport_schedule_lookup",
 					"result":       map[string]any{"outcome": "resolved_current"},
-					"result_ref":   "projection://runs/run-tool-drift/tools/service_status_lookup",
-					"tool_name":    "service_status_lookup",
+					"result_ref":   "projection://runs/run-tool-drift/tools/transport_schedule_lookup",
+					"tool_name":    "transport_schedule_lookup",
 				},
 			},
 		},
@@ -73,7 +73,7 @@ func TestTemporalToolResultFromRunRejectsResultRefDrift(t *testing.T) {
 	_, err := temporalToolResultFromRun(
 		run,
 		"projection://runs/run-tool-drift/tools/other",
-		"service_status_lookup",
+		"transport_schedule_lookup",
 	)
 	if err == nil {
 		t.Fatal("expected result ref drift error")
@@ -96,25 +96,25 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 		now,
 		map[string]any{
 			"capability":    "campus_services",
-			"payload_kind":  "service_status_lookup",
-			"allowed_tools": []any{"service_status_lookup"},
-			"payload":       map[string]any{"service_id": "library"},
+			"payload_kind":  "transport_schedule_lookup",
+			"allowed_tools": []any{"transport_schedule_lookup"},
+			"payload":       map[string]any{"route_id": "library"},
 		},
 	)
-	toolRef := temporalProjectionRef("run-tool-finalization", "tools/service_status_lookup")
+	toolRef := temporalProjectionRef("run-tool-finalization", "tools/transport_schedule_lookup")
 	run, err := store.GetRun(context.Background(), "run-tool-finalization")
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
 	if err := server.replaceTemporalToolMetadata(context.Background(), run, func(metadata map[string]any) {
-		metadata["service_status_lookup"] = map[string]any{
+		metadata["transport_schedule_lookup"] = map[string]any{
 			"capability":   "campus_services",
-			"payload_kind": "service_status_lookup",
+			"payload_kind": "transport_schedule_lookup",
 			"result": map[string]any{
 				"outcome": "resolved_current",
 			},
 			"result_ref": toolRef,
-			"tool_name":  "service_status_lookup",
+			"tool_name":  "transport_schedule_lookup",
 		}
 	}); err != nil {
 		t.Fatalf("replace temporal tool metadata: %v", err)
@@ -143,7 +143,7 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 		temporalruntime.WriteFinalizationActivityInput{
 			RunID:              "run-tool-finalization",
 			SelectedCapability: "campus_services",
-			SelectedTool:       "service_status_lookup",
+			SelectedTool:       "transport_schedule_lookup",
 			ToolResultRef:      toolRef,
 			TraceID:            "trace-executor-001",
 		},
@@ -160,7 +160,7 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 		temporalruntime.WriteFinalizationActivityInput{
 			RunID:              "run-tool-finalization",
 			SelectedCapability: "campus_services",
-			SelectedTool:       "service_status_lookup",
+			SelectedTool:       "transport_schedule_lookup",
 			ToolResultRef:      toolRef,
 			TraceID:            "trace-executor-001",
 		},
@@ -189,23 +189,23 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 		now,
 		map[string]any{
 			"capability":    "campus_services",
-			"payload_kind":  "service_status_lookup",
-			"allowed_tools": []any{"service_status_lookup"},
-			"payload":       map[string]any{"service_id": "library"},
+			"payload_kind":  "transport_schedule_lookup",
+			"allowed_tools": []any{"transport_schedule_lookup"},
+			"payload":       map[string]any{"route_id": "library"},
 		},
 	)
-	toolRef := temporalProjectionRef("run-tool-late-cancel", "tools/service_status_lookup")
+	toolRef := temporalProjectionRef("run-tool-late-cancel", "tools/transport_schedule_lookup")
 	run, err := store.GetRun(context.Background(), "run-tool-late-cancel")
 	if err != nil {
 		t.Fatalf("get run: %v", err)
 	}
 	if err := server.replaceTemporalToolMetadata(context.Background(), run, func(metadata map[string]any) {
-		metadata["service_status_lookup"] = map[string]any{
+		metadata["transport_schedule_lookup"] = map[string]any{
 			"capability":   "campus_services",
-			"payload_kind": "service_status_lookup",
+			"payload_kind": "transport_schedule_lookup",
 			"result":       map[string]any{"outcome": "resolved_current"},
 			"result_ref":   toolRef,
-			"tool_name":    "service_status_lookup",
+			"tool_name":    "transport_schedule_lookup",
 		}
 	}); err != nil {
 		t.Fatalf("replace temporal tool metadata: %v", err)
@@ -241,7 +241,7 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 		temporalruntime.WriteFinalizationActivityInput{
 			RunID:              "run-tool-late-cancel",
 			SelectedCapability: "campus_services",
-			SelectedTool:       "service_status_lookup",
+			SelectedTool:       "transport_schedule_lookup",
 			ToolResultRef:      toolRef,
 			TraceID:            "trace-executor-001",
 		},

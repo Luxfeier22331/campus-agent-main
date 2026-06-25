@@ -12,11 +12,7 @@ import (
 
 func isStructuredPayloadKind(payloadKind string) bool {
 	switch payloadKind {
-	case structuredquery.ToolServiceStatusLookup,
-		structuredquery.ToolServiceGuideLookup,
-		structuredquery.ToolTransportScheduleLookup,
-		structuredquery.ToolContactDirectoryLookup,
-		structuredquery.ToolAcademicCalendarLookup,
+	case structuredquery.ToolTransportScheduleLookup,
 		structuredquery.ToolCampusNoticeDiscover,
 		structuredquery.ToolCampusNoticeChangeSet,
 		structuredquery.ToolCampusNoticeGet:
@@ -84,16 +80,8 @@ func (s *Server) executeStructuredRuntime(
 	rawPayload []byte,
 ) structuredquery.Response {
 	switch payloadKind {
-	case structuredquery.ToolServiceStatusLookup:
-		return s.structuredQuery.LookupServiceStatus(ctx, rawPayload)
-	case structuredquery.ToolServiceGuideLookup:
-		return s.structuredQuery.LookupServiceGuide(ctx, rawPayload)
 	case structuredquery.ToolTransportScheduleLookup:
 		return s.structuredQuery.LookupTransportSchedule(ctx, rawPayload)
-	case structuredquery.ToolContactDirectoryLookup:
-		return s.structuredQuery.LookupContactDirectory(ctx, rawPayload)
-	case structuredquery.ToolAcademicCalendarLookup:
-		return s.structuredQuery.LookupAcademicCalendar(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticeDiscover:
 		return s.structuredQuery.LookupCampusNoticeDiscover(ctx, rawPayload)
 	case structuredquery.ToolCampusNoticePeriodSummary:

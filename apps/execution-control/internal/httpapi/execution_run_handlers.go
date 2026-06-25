@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -52,6 +53,12 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
+	visibleCapabilities, err := s.visibleCapabilitiesForRun(run.RequestedCapability)
+	if err != nil {
+		setOutcome(response, "capability_not_open")
+		writeError(response, http.StatusConflict, "capability_not_open", err.Error(), false)
+		return
+	}
 	created, err := s.runProjectionStore.CreateRun(request.Context(), run)
 	if err != nil {
 		if errors.Is(err, execution.ErrConversationActiveRun) {
@@ -89,7 +96,7 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusInternalServerError, "execution_run_event_failed", err.Error(), true)
 		return
 	}
-	workflowInput, err := s.workflowInputForQueuedRun(body, queued)
+	workflowInput, err := s.workflowInputForQueuedRun(body, queued, visibleCapabilities)
 	if err != nil {
 		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "execution_workflow_input_invalid")
@@ -148,6 +155,7 @@ func (s *Server) appendExecutionRunStartEvents(
 func (s *Server) workflowInputForQueuedRun(
 	rawBody json.RawMessage,
 	run execution.DurableRun,
+	visibleCapabilities []string,
 ) (temporalruntime.CapabilityExecutionWorkflowInput, error) {
 	payloadHash := sha256.Sum256(rawBody)
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
@@ -164,8 +172,32 @@ func (s *Server) workflowInputForQueuedRun(
 		TaskQueue:           defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
 		TraceID:             run.TraceID,
 		TurnID:              run.TurnID,
+		VisibleCapabilities: append([]string{}, visibleCapabilities...),
 		WorkflowID:          workflowID,
 	}, nil
+}
+
+func (s *Server) visibleCapabilitiesForRun(requestedCapability string) ([]string, error) {
+	normalized := strings.TrimSpace(requestedCapability)
+	switch normalized {
+	case "":
+		capabilities := []string{"knowledge"}
+		for _, capability := range []string{"campus_services", "notice", "navigation"} {
+			if s.config.CapabilityOpen(capability) {
+				capabilities = append(capabilities, capability)
+			}
+		}
+		return capabilities, nil
+	case "knowledge":
+		return []string{"knowledge"}, nil
+	case "campus_services", "notice", "navigation":
+		if !s.config.CapabilityOpen(normalized) {
+			return nil, fmt.Errorf("capability %s is not open in runtime profile", normalized)
+		}
+		return []string{normalized}, nil
+	default:
+		return nil, fmt.Errorf("capability %s is not admitted by execution-control", normalized)
+	}
 }
 
 func (s *Server) handleExecutionRunCancel(

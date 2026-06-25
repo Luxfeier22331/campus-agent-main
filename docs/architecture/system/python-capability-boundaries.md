@@ -81,7 +81,7 @@ serving truth。Rust 或其他语言重写必须以 step-level profiling 证明 
 内部拆分规则：
 
 - projection modules 不再同时承载 DTO、常量、validation 与 build/release orchestration
-- service guide projection 的 constants、models、validation、support helpers 分文件维护
+- 具体 projection 的 constants、models、validation、support helpers 分文件维护
 - internal notice consumption projection 的 status models 与 multimodal
   consumption policy 分文件维护
 - projection build/release 主文件只保留领域编排和 source-channel 映射

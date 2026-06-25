@@ -55,17 +55,14 @@ projection / operator read model / operator-safe operations domains`
 - `campus-web` Q&A 不再加载 ChatKit browser runtime；Q&A browser path 只消费
   durable chat lifecycle SSE、conversation read model 与明确 allowlisted support
   endpoints
-- `apps/chatkit-adapter` 是 legacy internal ChatKit protocol adapter；当前
-  `campus-web` 不消费它，它不拥有 product backend、conversation truth 或 execution
-  engine 责任
 - `apps/public-docs` 已删除；当前 docs browser surface 只由 `campus-web /docs/*`
   承担
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/app-api` 同时是 Identity Platform owner；Better Auth 只承担 credential/session
   runtime adapter role
-- `apps/execution-control` 当前是 Docker-first internal execution engine；production
-  target deployment substrate 已接受 Kubernetes + KEDA，但不改变 product/runtime owner
-  boundary
+- `apps/execution-control` 是 Go-owned internal execution engine；Docker Compose
+  只保留 local / transitional runtime evidence，production target deployment
+  substrate 已接受 Kubernetes + KEDA，但不改变 product/runtime owner boundary
 - 长期 chat execution 不是 browser HTTP request 直挂 agent execution；`apps/app-api`
   应创建 / 查询 / 取消 durable run，并把 browser streaming 建模为 run event
   subscription
@@ -107,13 +104,6 @@ projection / operator read model / operator-safe operations domains`
     raw records
   - public production endpoint 固定为 `https://campus.muc.wiki`，staging endpoint 固定为
     `https://campus-staging.mucwiki-edge.link`
-- `chatkit-adapter`（legacy）
-  - internal protocol adapter for ChatKit custom server integration
-  - maps ChatKit thread/item/action/event protocol to app-api conversation, message,
-    run, feedback, cancel, and stream contracts
-  - does not generate answers, own conversation truth, write DB rows, or call
-    `apps/execution-control` directly
-  - current `campus-web` allowlist does not expose `/api/chatkit`
 - `Operator Console`
   - 长期是唯一受控 operator product concept，承接 read-only observability domains 与受控
     operations domains
@@ -168,16 +158,6 @@ projection / operator read model / operator-safe operations domains`
 - same-origin allowlisted `/api/*` seam into `apps/app-api`
 - no generic app-api proxy
 - no auth/session/identity/federation backend ownership
-
-### `apps/chatkit-adapter`（legacy）
-
-- internal ChatKit custom server integration adapter for legacy Q&A experiments
-- consumes signed app-api principal headers and calls app-api explicit chat routes
-- maps ChatKit history, item, feedback, retry, cancel, and stream semantics to app-api
-  contracts
-- does not own account/session, conversation truth, execution truth, database writes,
-  provider calls, or direct execution-control transport
-- current `campus-web` does not consume this adapter
 
 ### Operator Console implementation surfaces
 
@@ -238,12 +218,12 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 - internal execution admission
 - typed execution transport
-- 当前 forward deploy substrate 是 Docker-first internal execution service；production
-  target deploy substrate 是 Kubernetes internal execution-control Service + KEDA/HPA
-  worker autoscaling
-- Docker-side Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
-  bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
-  browser-facing capability policy
+- runtime substrate must point to a real Go `execution-control` origin. Docker Compose
+  is local / transitional evidence; production target deploy substrate is a
+  Kubernetes internal execution-control Service + KEDA/HPA worker autoscaling.
+- Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
+  metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
+  capability policy
 - 长期上，production run admission 与 workflow/activity dispatch 必须落在
   `execution-control` + Temporal execution plane；当前 Go 进程内 admission 只表达
   single-process protection
@@ -393,8 +373,9 @@ contract 或 auth family route/endpoint truth。
 - shared `apps/app-api` runtime 已冻结为 Worker
 - public/protected browser surface 可以是独立 Worker web surface
 - public 与 protected surface 即使共享基础设施，也不合并成一个 exposure model 或 rollback unit
-- `apps/execution-control` 当前部署 substrate 是 Docker-first internal execution service；
-  production target substrate 是 Kubernetes + KEDA，详见
+- `apps/execution-control` live substrate must be proven by environment evidence;
+  committed Docker Compose config is local / transitional evidence, and production
+  target substrate is Kubernetes + KEDA，详见
   `kubernetes-execution-runtime-architecture.md`
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
   semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与

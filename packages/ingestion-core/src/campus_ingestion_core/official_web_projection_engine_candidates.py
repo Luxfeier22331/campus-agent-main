@@ -5,9 +5,6 @@ import json
 import re
 
 from campus_ingestion_core.official_web_projection_engine_common import (
-    _EMAIL_RE,
-    _OFFICE_HOURS_RE,
-    _PHONE_RE,
     _REGULATION_NON_BODY_RE,
     _regulation_release_scope,
     _require_optional_text,
@@ -15,26 +12,14 @@ from campus_ingestion_core.official_web_projection_engine_common import (
     _string_list,
     _target_matches,
     _target_projection_fields,
-    _unique,
 )
 from campus_ingestion_core.official_web_projection_engine_content import (
     _block_lines,
     _build_evidence_spans,
     _candidate_content_blocks,
-    _main_content_lines,
 )
 from campus_ingestion_core.official_web_projection_engine_service_extract import (
-    _contact_candidate_display_name,
-    _extract_contact_points,
-    _extract_locations,
-    _extract_responsible_offices,
-    _extract_service_entry_points,
-    _extract_service_materials,
-    _extract_service_procedure_groups,
-    _extract_service_process_steps,
     _regulation_selected_write_suppressed,
-    _selected_write_suppressed,
-    _service_candidate_name,
 )
 from campus_ingestion_core.official_web_projection_shared import _normalize_block_text
 from campus_ingestion_core.official_web_projection_units import _resolve_document_title
@@ -157,96 +142,9 @@ def _build_typed_candidate(
     title: str,
     target_lineage: dict[str, object] | None = None,
 ) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
-    main_lines = _main_content_lines(blocks)
     candidate_blocks = _candidate_content_blocks(blocks=blocks, consumer_family=consumer_family)
     lines = _block_lines(candidate_blocks)
-    page_text = "\n".join(lines)
-    phones = _unique(_PHONE_RE.findall(page_text))
-    emails = _unique(_EMAIL_RE.findall(page_text))
-    locations = _extract_locations(lines)
-    office_hours = _unique(match.strip() for match in _OFFICE_HOURS_RE.findall(page_text))
     evidence_spans = _build_evidence_spans(candidate_blocks)
-    suppressed = _selected_write_suppressed(title=title, lines=main_lines)
-
-    if consumer_family == "contact_directory_candidate":
-        contact_points = _extract_contact_points(lines)
-        typed_candidate = {
-            "display_name": _contact_candidate_display_name(
-                title=title,
-                contact_points=contact_points,
-                target_lineage=target_lineage,
-            ),
-            "phones": phones,
-            "emails": emails,
-            "locations": locations,
-            "office_hours": office_hours,
-            "contact_points": contact_points,
-            "source_url": normalized_canonical_url,
-            "source_title": title,
-        }
-        return (
-            "official_web_contact_directory_candidate.v1",
-            typed_candidate,
-            _quality_gate(
-                suppressed=suppressed,
-                has_identity=bool(title.strip()),
-                has_required_evidence=bool(phones or emails),
-                has_source=bool(normalized_canonical_url.strip()),
-            ),
-            evidence_spans,
-        )
-
-    if consumer_family == "service_guide_candidate":
-        process_steps = _extract_service_process_steps(lines)
-        procedure_groups = _extract_service_procedure_groups(
-            title=title,
-            target_lineage=target_lineage,
-            normalized_canonical_url=normalized_canonical_url,
-            process_steps=process_steps,
-        )
-        materials = _extract_service_materials(lines)
-        entry_points = _extract_service_entry_points(lines)
-        responsible_office = _extract_responsible_offices(lines)
-        typed_candidate = {
-            "service_name": _service_candidate_name(
-                title=title,
-                target_lineage=target_lineage,
-            ),
-            "process_steps": process_steps,
-            "procedure_groups": procedure_groups,
-            "materials": materials,
-            "responsible_office": responsible_office,
-            "entry_points": entry_points,
-            "contacts": {
-                "phones": phones,
-                "emails": emails,
-                "locations": locations,
-                "office_hours": office_hours,
-            },
-            "field_source_urls": {
-                "process_steps": [normalized_canonical_url] if process_steps else [],
-                "procedure_groups": [normalized_canonical_url] if procedure_groups else [],
-                "materials": [normalized_canonical_url] if materials else [],
-                "entry_points": [normalized_canonical_url] if entry_points else [],
-                "responsible_office": [normalized_canonical_url] if responsible_office else [],
-                "contacts": [normalized_canonical_url]
-                if (phones or emails or locations or office_hours)
-                else [],
-            },
-            "source_url": normalized_canonical_url,
-            "source_title": title,
-        }
-        return (
-            "official_web_service_guide_candidate.v1",
-            typed_candidate,
-            _quality_gate(
-                suppressed=suppressed,
-                has_identity=bool(title.strip()),
-                has_required_evidence=bool(process_steps),
-                has_source=bool(normalized_canonical_url.strip()),
-            ),
-            evidence_spans,
-        )
 
     if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         structure = build_official_web_regulation_structure(

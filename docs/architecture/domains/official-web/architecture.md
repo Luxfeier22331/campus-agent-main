@@ -78,13 +78,9 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 允许的 retained consumer families：
 
-- `contact_directory_candidate`：只进入 contact directory selected-write candidate；
-  需要 review 或 deterministic extraction 后才可写 current read model
-- `service_guide_candidate`：只进入 service guide selected-write candidate；需要
-  review 或 deterministic extraction 后才可写 current read model
 - `academic_calendar_candidate`：只进入 `calendar/academic_calendar` 结构化投影
-  selected-write / curated release lane；官方网页与校历图片只保留 source evidence，必须经
-  人工/OCR 校验后的结构化 records 才可写 current read model
+  offline-preparation source evidence；官方网页与校历图片只保留 source evidence，必须经
+  人工/OCR 校验后的结构化 records 才可进入 calendar data asset
 - `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
 - `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
   不再把校级规章候选页混入 `official_web/stable_reference`
@@ -98,32 +94,16 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 - collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
   downstream read model
-- ingestion staging 负责 replay、candidate review report、selected-write dry-run
-  admission 与 no-promotion proof；contact/service 的 current read model 写入必须再经过
-  ingestion-control owned release task state machine 与 registry executor；
+- ingestion staging 负责 replay、candidate review report 与 release gate 证据；
   app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
   operator release gate command ledger
-- selected-write preview 与 release-task operator summary 固定采用双轨语义：
-  task-scope bundle / `recordCount` / `taskScopeDisplayNames` 只表示本次 admitted target
-  将写入的记录；full bundle / `fullRecordCount` / `fullImpactDisplayNames` 表示 merge 进当前
-  projection 后的全量 current 影响面。这个语义由 ingestion-control 产出，app-api 与
-  Operator Console 只消费 redacted projection，不自行重算
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的
   deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
   structured projection
-- listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
-  answer-bearing source-truth
-- target-first official-web source pack 可以声明小范围、多页 composition（例如
-  `information_disclosure`、`email_service`），但组合后的 candidate 仍必须由单一 admitted
-  target 驱动，且所有字段都必须可回链到明确 source page；不得借 composition 恢复 broad crawl
-  或生成 query-time fetch 依赖
-- 对带 composition 的 `service_guide_candidate`，必须显式声明 group-specific role contract：
-  恰好一个 primary role 页面负责主 guide candidate，其余可选 role 仅能来自该 group 允许的页面类型；
-  missing / duplicate / unknown role 必须在 candidate extraction 阶段 fail close，不得退回单页
-  candidate 发布
-- 对 `service_guide_candidate`，official-web extraction 必须直接产出 canonical grouped
-  procedure fields（如 `procedure_groups`），不得把多模式流程只压平成一段 procedure 文本后期再
-  由 runtime 反解析
+- listing pages 默认只作 discovery；除非自身命中 stable/regulation/calendar/notice
+  denominator，否则不作为 answer-bearing source-truth
+- target-first official-web source pack 不再产出 service-guide 或 contact-directory
+  selected-write candidate；这类 wiki-maintained 内容不进入 repo runtime truth
 
 ### Target Source Map
 

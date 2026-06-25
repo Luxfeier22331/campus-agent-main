@@ -207,6 +207,48 @@ func TestLookupTransportScheduleFindsTomorrowMorningFirstDepartureToFengtai(t *t
 	}
 }
 
+func TestLookupTransportScheduleIncludesCampusServicesResultEnvelope(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixture(),
+		"2026-04-24T20:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"我明天早上要去丰台上课，最早的班车是几点",
+		"intent":"first_departure",
+		"route_selector":{"destination_campus":"fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"tomorrow","daypart":"morning"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	envelope := result.ResultEnvelope
+	if envelope == nil {
+		t.Fatal("result_envelope is nil")
+	}
+	if envelope.SchemaVersion != "campus_services_tool_result.v1" ||
+		envelope.Capability != "campus_services" ||
+		envelope.ToolName != "transport_schedule_lookup" ||
+		envelope.QueryKind != "transport_schedule" ||
+		envelope.Outcome != "resolved_current" {
+		t.Fatalf("result_envelope = %#v", envelope)
+	}
+	if envelope.Facts.Kind != "schedule_facts" {
+		t.Fatalf("facts.kind = %q, want schedule_facts", envelope.Facts.Kind)
+	}
+	if envelope.Facts.Result.SelectedDeparture == nil ||
+		envelope.Facts.Result.SelectedDeparture.DepartureAt != "2026-04-25T06:50:00+08:00" {
+		t.Fatalf("facts.result.selected_departure = %#v", envelope.Facts.Result.SelectedDeparture)
+	}
+	if len(envelope.SourceRefs) != 1 || envelope.SourceRefs[0] != "notice:bus-schedule-2026-04-20" {
+		t.Fatalf("source_refs = %#v", envelope.SourceRefs)
+	}
+	if envelope.ProjectionRef == "" || envelope.ContentHash == "" {
+		t.Fatalf("projection_ref/content_hash missing: %#v", envelope)
+	}
+}
+
 func TestLookupTransportScheduleResolvesDirectionFromOriginAndDestinationStops(t *testing.T) {
 	runtime := newRuntimeWithTransportReadModel(
 		t,

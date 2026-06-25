@@ -139,4 +139,3 @@ Historical / superseded：
   `docs/reference/`、`docs/contracts/` 或 `docs/data/` 承接
 - 旧 ADR 不删除；若失效，标成 `superseded` 或 `deprecated`
 - replacement 必须写进 front matter 或正文显式回链
-- ADR 体系审计记录见 `docs/reference/adr-governance-audit.md`

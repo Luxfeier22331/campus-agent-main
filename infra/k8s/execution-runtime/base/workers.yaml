@@ -1,0 +1,610 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: workflow-worker
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: workflow-worker
+    app.kubernetes.io/part-of: campus-agent
+    campus-agent.muc.wiki/temporal-task-queue: workflow
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: workflow-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: workflow-worker
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/workflow-worker"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/workflow-worker", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-context
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-context
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-context
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-context
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-context"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-context", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-context", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-agent
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-agent
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-agent
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-agent"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-agent", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 150m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-knowledge-plan
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-knowledge-plan
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-knowledge-plan
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-knowledge-plan
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-knowledge-plan"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-plan", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-plan", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-knowledge-retrieval
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-knowledge-retrieval
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-knowledge-retrieval
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-knowledge-retrieval
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-knowledge-retrieval"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-retrieval", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-retrieval", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-knowledge-synthesis
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-knowledge-synthesis
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-knowledge-synthesis
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-knowledge-synthesis
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 90
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-knowledge-synthesis"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-synthesis", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-knowledge-synthesis", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-campus-services
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-campus-services
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-campus-services
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-campus-services
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-campus-services"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-campus-services", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-campus-services", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-notice
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-notice
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-notice
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-notice
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-notice"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-notice", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-notice", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-navigation
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-navigation
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-navigation
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-navigation
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-navigation"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-navigation", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-navigation", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: activity-worker-finalization
+  namespace: campus-agent-staging
+  labels:
+    app.kubernetes.io/name: activity-worker-finalization
+    app.kubernetes.io/part-of: campus-agent
+spec:
+  replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: activity-worker-finalization
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: activity-worker-finalization
+        app.kubernetes.io/part-of: campus-agent
+    spec:
+      serviceAccountName: execution-runtime
+      terminationGracePeriodSeconds: 60
+      containers:
+        - name: worker
+          image: ghcr.io/muc-wiki/campus-agent/execution-control:staging
+          imagePullPolicy: IfNotPresent
+          command: ["/usr/local/bin/activity-worker-finalization"]
+          envFrom:
+            - configMapRef:
+                name: execution-runtime-config
+            - secretRef:
+                name: execution-runtime-secrets
+          env:
+            - name: EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          readinessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-finalization", "--check-runtime"]
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command: ["/usr/local/bin/activity-worker-finalization", "--check-runtime"]
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 6
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 1Gi

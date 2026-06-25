@@ -91,7 +91,7 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
 
         self.assertEqual(case_set.case_family, "online_answer_path.v1")
         case_ids = {case.case_id for case in case_set.cases}
-        self.assertIn("online-answer-service-guide-happy-path", case_ids)
+        self.assertIn("online-answer-transport-schedule-routing", case_ids)
         self.assertNotIn("main-institutional-campus-network-password", case_ids)
 
     def test_report_requires_request_trace_target_terminal_status_and_semantic_outcome(
@@ -158,9 +158,9 @@ class OnlineAnswerPathEvalTest(unittest.TestCase):
     def test_report_rejects_raw_payload_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
             OnlineAnswerPathObservation(
-                case_id="online-answer-service-guide-happy-path",
-                request_id="req_service_guide_001",
-                trace_id="trace_service_guide_001",
+                case_id="online-answer-transport-schedule-routing",
+                request_id="req_transport_001",
+                trace_id="trace_transport_001",
                 selected_capability="campus_services",
                 terminal_status="completed",
                 semantic_outcome="answered",

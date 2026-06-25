@@ -9,14 +9,6 @@ import (
 
 func NewRuntime(options Options) *Runtime {
 	structuredProjectionDatabaseURL := strings.TrimSpace(options.StructuredProjectionDatabaseURL)
-	serviceStatusReadModelStore := options.ServiceStatusReadModelStore
-	if serviceStatusReadModelStore == nil {
-		serviceStatusReadModelStore = NewPostgresServiceStatusReadModelStore(
-			ServiceStatusPostgresOptions{
-				DatabaseURL: structuredProjectionDatabaseURL,
-			},
-		)
-	}
 	campusServicesOpsReleaseStore := options.CampusServicesOpsReleaseStore
 	if campusServicesOpsReleaseStore == nil {
 		campusServicesOpsReleaseStore = NewPostgresCampusServicesOpsReleaseStore(
@@ -29,28 +21,6 @@ func NewRuntime(options Options) *Runtime {
 	if transportScheduleReadModelStore == nil {
 		transportScheduleReadModelStore = NewPostgresTransportScheduleReadModelStore(
 			TransportSchedulePostgresOptions{
-				DatabaseURL: structuredProjectionDatabaseURL,
-			},
-		)
-	}
-	serviceGuideReadModelStore := options.ServiceGuideReadModelStore
-	if serviceGuideReadModelStore == nil {
-		serviceGuideReadModelStore = NewPostgresServiceGuideReadModelStore(ServiceGuidePostgresOptions{
-			DatabaseURL: structuredProjectionDatabaseURL,
-		})
-	}
-	contactDirectoryReadModelStore := options.ContactDirectoryReadModelStore
-	if contactDirectoryReadModelStore == nil {
-		contactDirectoryReadModelStore = NewPostgresContactDirectoryReadModelStore(
-			ContactDirectoryPostgresOptions{
-				DatabaseURL: structuredProjectionDatabaseURL,
-			},
-		)
-	}
-	academicCalendarReadModelStore := options.AcademicCalendarReadModelStore
-	if academicCalendarReadModelStore == nil {
-		academicCalendarReadModelStore = NewPostgresAcademicCalendarReadModelStore(
-			AcademicCalendarPostgresOptions{
 				DatabaseURL: structuredProjectionDatabaseURL,
 			},
 		)
@@ -74,12 +44,8 @@ func NewRuntime(options Options) *Runtime {
 		})
 	}
 	runtime := &Runtime{
-		serviceStatusReadModelStore:     serviceStatusReadModelStore,
 		campusServicesOpsReleaseStore:   campusServicesOpsReleaseStore,
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
-		serviceGuideReadModelStore:      serviceGuideReadModelStore,
-		contactDirectoryReadModelStore:  contactDirectoryReadModelStore,
-		academicCalendarReadModelStore:  academicCalendarReadModelStore,
 		noticeReadModelStore:            noticeReadModelStore,
 		noticeBodyStore:                 noticeBodyStore,
 	}
@@ -93,22 +59,10 @@ func NewRuntime(options Options) *Runtime {
 }
 
 func (r *Runtime) Close() {
-	if closer, ok := r.serviceStatusReadModelStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
 	if closer, ok := r.campusServicesOpsReleaseStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := r.transportScheduleReadModelStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := r.serviceGuideReadModelStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := r.contactDirectoryReadModelStore.(interface{ Close() }); ok {
-		closer.Close()
-	}
-	if closer, ok := r.academicCalendarReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {

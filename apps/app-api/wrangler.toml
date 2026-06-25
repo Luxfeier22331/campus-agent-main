@@ -20,8 +20,7 @@ APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
 EXECUTION_CONTROL_BASE_URL = "http://127.0.0.1:27051"
 EXECUTION_CONTROL_TIMEOUT_MS = "180000"
-CHATKIT_ADAPTER_BASE_URL = "http://127.0.0.1:8765"
-APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:27081"
+APP_API_OTEL_INGEST_ENDPOINT = "http://127.0.0.1:4318"
 
 [env.local.secrets]
 required = [
@@ -47,9 +46,8 @@ APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
 EXECUTION_CONTROL_TIMEOUT_MS = "95000"
-CHATKIT_ADAPTER_BASE_URL = "https://chatkit-adapter-staging.mucwiki-edge.link"
 SENTRY_ENVIRONMENT = "staging"
-APP_API_OTEL_INGEST_ENDPOINT = "https://otel-ingest-staging.mucwiki-edge.link"
+APP_API_OTEL_INGEST_ENDPOINT = "https://otel-collector-staging.mucwiki-edge.link"
 
 [env.staging.secrets]
 required = [

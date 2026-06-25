@@ -38,13 +38,13 @@ This taxonomy follows the OpenTelemetry direction that:
 | ----------------- | ------------------ | ---------------- |
 | `apps/execution-control` | yes | Online trace owner for request admission, orchestration, Temporal workflow/activity attempts, Go RAG/finalization workers, finalization, error and telemetry self-health |
 | `apps/ingestion-control` | yes, or runtime event bridge | Emit offline task telemetry for canonicalize, parse/OCR, chunk, embedding, index release, publish and audit jobs |
-| `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to controlled OTLP ingest; not retrieval or ingestion telemetry truth |
+| `apps/app-api` | limited | Request lifecycle telemetry, trace propagation and product-surface events emitted to protected Collector OTLP ingest; not retrieval or ingestion telemetry truth |
 | Retrieval runtime seam | no | Vendor-neutral `RetrievalObservationSink` only |
 | Knowledge / RAG runtime | runtime adapter only | Accept injected retrieval observation sink; no OTel/Sentry/Axiom dependency in contracts |
 | `packages/ingestion-core` | no by default | Business/data-plane logic remains vendor-neutral; runtime shell adapts run outcomes into telemetry |
 | `packages/contracts` | no | No OTel, Collector, Sentry or Axiom types |
-| Controlled OTLP ingest gateway | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress, method/path allowlist and payload size guard before Collector |
-| OTel Collector / equivalent adapter | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
+| Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
+| OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
 | Sentry | sink only | Error, trace and performance debugging |
 | Axiom | sink only | High-volume structured runtime events, retrieval/ingestion analysis and quality slicing through Collector exporter |
 

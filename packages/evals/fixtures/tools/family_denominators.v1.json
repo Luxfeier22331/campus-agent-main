@@ -3,27 +3,7 @@
 	"updated_at": "2026-04-29",
 	"tools": [
 		{
-			"tool_name": "service_status_lookup",
-			"capability_family": "campus_services",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
-			"tool_name": "service_guide_lookup",
-			"capability_family": "campus_services",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
 			"tool_name": "transport_schedule_lookup",
-			"capability_family": "campus_services",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
-			"tool_name": "contact_directory_lookup",
-			"capability_family": "campus_services",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
-			"tool_name": "academic_calendar_lookup",
 			"capability_family": "campus_services",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
@@ -54,46 +34,6 @@
 		}
 	],
 	"cases": [
-		{
-			"case_id": "tool-service-status-smoke-current-open",
-			"tool_name": "service_status_lookup",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"service_key": "campus_card",
-				"status_kind": "current"
-			}
-		},
-		{
-			"case_id": "tool-service-status-release-current-open",
-			"tool_name": "service_status_lookup",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"service_key": "campus_card",
-				"status_kind": "current"
-			}
-		},
-		{
-			"case_id": "tool-service-status-regression-projection-missing",
-			"tool_name": "service_status_lookup",
-			"split": "regression_locked",
-			"expected_result_status": "projection_missing",
-			"expected_arguments": {
-				"service_key": "unknown",
-				"status_kind": "current"
-			}
-		},
-		{
-			"case_id": "tool-service-status-exploratory-temporary-unavailable",
-			"tool_name": "service_status_lookup",
-			"split": "exploratory",
-			"expected_result_status": "temporarily_unavailable",
-			"expected_arguments": {
-				"service_key": "campus_card",
-				"status_kind": "temporary_adjustment"
-			}
-		},
 		{
 			"case_id": "tool-transport-schedule-smoke-current-window",
 			"tool_name": "transport_schedule_lookup",
@@ -132,118 +72,6 @@
 			"expected_arguments": {
 				"service_key": "transport_commute",
 				"time_scope": "ambiguous"
-			}
-		},
-		{
-			"case_id": "tool-service-guide-smoke-campus-card-lost",
-			"tool_name": "service_guide_lookup",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"guide_key": "campus_card_lost"
-			}
-		},
-		{
-			"case_id": "tool-service-guide-release-medical-reimbursement",
-			"tool_name": "service_guide_lookup",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"guide_key": "medical_reimbursement"
-			}
-		},
-		{
-			"case_id": "tool-service-guide-regression-not-found",
-			"tool_name": "service_guide_lookup",
-			"split": "regression_locked",
-			"expected_result_status": "not_found",
-			"expected_arguments": {
-				"guide_key": "unknown"
-			}
-		},
-		{
-			"case_id": "tool-service-guide-exploratory-missing-entry",
-			"tool_name": "service_guide_lookup",
-			"split": "exploratory",
-			"expected_result_status": "projection_missing",
-			"expected_arguments": {
-				"guide_key": "source_not_projected"
-			}
-		},
-		{
-			"case_id": "tool-contact-directory-smoke-campus-card",
-			"tool_name": "contact_directory_lookup",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"unit_query": "校园卡"
-			}
-		},
-		{
-			"case_id": "tool-contact-directory-release-medical",
-			"tool_name": "contact_directory_lookup",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"unit_query": "公费医疗"
-			}
-		},
-		{
-			"case_id": "tool-contact-directory-regression-not-found",
-			"tool_name": "contact_directory_lookup",
-			"split": "regression_locked",
-			"expected_result_status": "not_found",
-			"expected_arguments": {
-				"unit_query": "不存在的单位"
-			}
-		},
-		{
-			"case_id": "tool-contact-directory-exploratory-ambiguous",
-			"tool_name": "contact_directory_lookup",
-			"split": "exploratory",
-			"expected_result_status": "argument_ambiguity",
-			"expected_arguments": {
-				"unit_query": "办公室"
-			}
-		},
-		{
-			"case_id": "tool-academic-calendar-smoke-current-week",
-			"tool_name": "academic_calendar_lookup",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "date_week",
-				"academic_year_label": "current"
-			}
-		},
-		{
-			"case_id": "tool-academic-calendar-release-holiday",
-			"tool_name": "academic_calendar_lookup",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "named_event_range",
-				"event_query": "劳动节"
-			}
-		},
-		{
-			"case_id": "tool-academic-calendar-regression-not-found",
-			"tool_name": "academic_calendar_lookup",
-			"split": "regression_locked",
-			"expected_result_status": "not_found",
-			"expected_arguments": {
-				"query_kind": "named_event_range",
-				"event_query": "不存在的假期"
-			}
-		},
-		{
-			"case_id": "tool-academic-calendar-exploratory-ambiguous-year",
-			"tool_name": "academic_calendar_lookup",
-			"split": "exploratory",
-			"expected_result_status": "argument_ambiguity",
-			"expected_arguments": {
-				"query_kind": "term_window",
-				"academic_year_label": "ambiguous"
 			}
 		},
 		{

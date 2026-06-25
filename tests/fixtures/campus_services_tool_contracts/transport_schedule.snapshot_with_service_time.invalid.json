@@ -1,0 +1,12 @@
+{
+	"schema_version": "campus_services_tool_contracts.v1",
+	"tool_name": "transport_schedule_lookup",
+	"packet_kind": "payload",
+	"payload": {
+		"query_text": "校车时刻表什么时候发布的",
+		"intent": "schedule_snapshot_metadata",
+		"service_time_query": {
+			"date_mode": "today"
+		}
+	}
+}

@@ -501,17 +501,17 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                         "answerText": "ok",
                         "traceId": "trace_runtime_01",
                         "observability": {
-                            "selectedTool": "service_status_lookup",
+                            "selectedTool": "transport_schedule_lookup",
                             "toolBusinessOutcome": "completed",
                         },
                         "workflow_trace_summary": {
                             "planning_outcome": "direct_structured_tool",
                             "direct_vs_delegate_branch": "direct",
                             "selected_capability": "campus_services",
-                            "selected_tools": ["service_status_lookup"],
+                            "selected_tools": ["transport_schedule_lookup"],
                             "tool_call_summaries": [
                                 {
-                                    "tool_name": "service_status_lookup",
+                                    "tool_name": "transport_schedule_lookup",
                                     "result_status": "completed",
                                 }
                             ],
@@ -536,9 +536,9 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
 
         execution = client.execute_chat_request(
             case_id="runtime-case-1",
-            prompt="校园卡丢了怎么办",
+            prompt="明天上午丰台到海淀的班车有哪些",
             requested_capability="campus_services",
-            requested_scope={"corpus": "campus_services", "collection": "service_status"},
+            requested_scope={"corpus": "campus_services", "collection": "transport_schedule"},
         )
 
         self.assertEqual(seen["path"], "/api/internal/evals/chat/requests")
@@ -547,11 +547,11 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         self.assertEqual(
             seen["body"],
             {
-                "prompt": "校园卡丢了怎么办",
+                "prompt": "明天上午丰台到海淀的班车有哪些",
                 "requestedCapability": "campus_services",
                 "requestedScope": {
                     "corpus": "campus_services",
-                    "collection": "service_status",
+                    "collection": "transport_schedule",
                 },
             },
         )
@@ -561,10 +561,12 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
             execution.request_correlation.trace_link,
             "https://traces.example/trace_runtime_01",
         )
-        self.assertEqual(execution.response.observability.selected_tool, "service_status_lookup")
+        self.assertEqual(
+            execution.response.observability.selected_tool, "transport_schedule_lookup"
+        )
         self.assertEqual(
             execution.response.workflow_trace_summary.tool_call_summaries,
-            ({"tool_name": "service_status_lookup", "result_status": "completed"},),
+            ({"tool_name": "transport_schedule_lookup", "result_status": "completed"},),
         )
 
     def test_execute_chat_request_decodes_product_path_without_requested_scope(self) -> None:
@@ -659,7 +661,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                         "traceId": "trace_runtime_01",
                         "workflowTraceSummary": {
                             "selectedCapability": "campus_services",
-                            "selectedTools": ["service_status_lookup"],
+                            "selectedTools": ["transport_schedule_lookup"],
                             "workflowMode": "agent_loop",
                         },
                     },
@@ -687,7 +689,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         self.assertEqual(execution.response.selected_capability, "campus_services")
         self.assertEqual(
             execution.response.workflow_trace_summary.selected_tools,
-            ("service_status_lookup",),
+            ("transport_schedule_lookup",),
         )
 
 

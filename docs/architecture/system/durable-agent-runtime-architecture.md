@@ -307,8 +307,9 @@ context.memory_recall when needed
 - `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与
   `grounding.verify` evidence-integrity verification；该 step 不适用于
   direct/no-tool terminal、campus-services typed tool 或 notice typed tool。
-- `campus_services` branch 承接 service guide/status/schedule/contact/calendar typed
-  tools 或明确 semantic specialist step。
+- `campus_services` branch 当前只承接 transport schedule typed tool；service guide、
+  contact、calendar、process 与 generic service status 不属于当前
+  model-visible runtime surface。
 - `notice` branch 承接 notice discovery、selected notice ref resolution、source card
   与 bounded notice context。
 - `navigation` branch 在产品/worker path 未开放前 fail closed；开放后只消费 place /

@@ -1,0 +1,20 @@
+{
+	"schema_version": "campus_services_tool_result.v1",
+	"capability": "campus_services",
+	"tool_name": "transport_schedule_lookup",
+	"query_kind": "transport_schedule",
+	"outcome": "temporarily_unverifiable",
+	"facts": {
+		"kind": "schedule_facts",
+		"result": {
+			"query_text": "校车下一班几点",
+			"intent": "next_departure",
+			"outcome": "temporarily_unverifiable"
+		}
+	},
+	"source_refs": [],
+	"projection_ref": "projection:campus_services:transport_schedule:missing-reason",
+	"content_hash": "sha256:7e081c9d0f1234567e081c9d0f1234567e081c9d0f1234567e081c9d0f123456",
+	"clarification_options": [],
+	"fail_close_reason": ""
+}

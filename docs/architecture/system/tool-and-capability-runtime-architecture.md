@@ -41,8 +41,7 @@ summary, cross-tool reasoning, clarification or answer shaping.
 ## Tool Classes
 
 - Capability-facing tool: user-intent-level read-only capability such as notice
-  discovery, transport schedule lookup, service status lookup or knowledge
-  query signal.
+  discovery, transport schedule lookup or knowledge query signal.
 - Deterministic query function: internal read-model function such as resolving a
   selected notice ref, reading a source card or fetching bounded context.
 - Capability-internal function: admitted internal function used inside one
@@ -62,7 +61,9 @@ and eval denominator.
 
 `ToolSpec` / `tool-catalog.v1` defines model-visible tools and controlled
 function surfaces. Provider or SDK function schemas must be generated from, or
-checked against, repo-owned artifacts.
+checked against, repo-owned artifacts. Tool payload/result schema references
+must point to registered JSON Schema definitions, not language-local Python,
+Go or TypeScript model names.
 
 The registries must support:
 
@@ -76,8 +77,7 @@ The registries must support:
 
 Cross-step data must flow through bounded typed artifacts, not raw prompt text.
 Examples include schedule baselines, notice change sets, canonical notice
-context, place context, service guide facts, evidence bundles and grounding
-verdicts.
+context, place context, evidence bundles and grounding verdicts.
 
 Every projection consumed by a later step must carry kind, source step, source
 refs, visibility posture, hash, length budget and safety summary. Missing or

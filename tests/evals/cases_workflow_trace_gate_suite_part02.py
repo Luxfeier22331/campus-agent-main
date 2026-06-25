@@ -165,16 +165,16 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
     def test_fails_tool_order_result_status_and_source_selection_mismatches(self) -> None:
         results = evaluate_workflow_trace_case(
             _workflow_case(
-                selected_tools=("service_status_lookup", "transport_schedule_lookup"),
-                expected_tool_order=("service_status_lookup", "transport_schedule_lookup"),
+                selected_tools=("campus_notice_discover", "transport_schedule_lookup"),
+                expected_tool_order=("campus_notice_discover", "transport_schedule_lookup"),
                 expected_tool_result_statuses={
-                    "service_status_lookup": "completed",
+                    "campus_notice_discover": "completed",
                     "transport_schedule_lookup": "completed",
                 },
-                expected_source_ids=("service_status:campus_card",),
+                expected_source_ids=("notice:schedule-change",),
             ),
             _trace_summary(
-                selected_tools=("transport_schedule_lookup", "service_status_lookup"),
+                selected_tools=("transport_schedule_lookup", "campus_notice_discover"),
                 tool_call_summaries=(
                     {
                         "tool_name": "transport_schedule_lookup",
@@ -182,7 +182,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                         "source_ids": ["transport_schedule:commute"],
                     },
                     {
-                        "tool_name": "service_status_lookup",
+                        "tool_name": "campus_notice_discover",
                         "result_status": "projection_missing",
                         "source_ids": [],
                     },
@@ -209,7 +209,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
     def test_fails_selected_tools_mismatch_even_when_arguments_match(self) -> None:
         results = evaluate_workflow_trace_case(
             _workflow_case(),
-            _trace_summary(selected_tools=("service_status_lookup",)),
+            _trace_summary(selected_tools=("campus_notice_discover",)),
         )
 
         self.assertFalse(results.tool_argument_precision.passed)

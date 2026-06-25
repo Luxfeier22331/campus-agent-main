@@ -35,8 +35,6 @@ from campus_contracts.models_shared import (
     RequestedCapability,
 )
 from campus_contracts.models_tools import (
-    AcademicCalendarLookupPayload,
-    AcademicCalendarLookupResult,
     CampusNoticeChangeSetLookupPayload,
     CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
@@ -45,14 +43,8 @@ from campus_contracts.models_tools import (
     CampusNoticeGetResult,
     CampusNoticePeriodSummaryPayload,
     CampusNoticePeriodSummaryResult,
-    ContactDirectoryLookupPayload,
-    ContactDirectoryLookupResult,
     PlaceLookupPayload,
     PlaceLookupResult,
-    ServiceGuideLookupPayload,
-    ServiceGuideLookupResult,
-    ServiceStatusLookupPayload,
-    ServiceStatusLookupResult,
     TransportScheduleLookupPayload,
     TransportScheduleLookupResult,
 )
@@ -305,7 +297,6 @@ class ExecutionObservability:
     tool_business_outcome: str = ""
     tool_fail_close_reason: str = ""
     tool_historical_downgrade_reason: str = ""
-    service_guide_focus: str = ""
     matched_service_category: str = ""
     notice_source_family_summary: str = ""
     temporal_posture: str = ""
@@ -386,11 +377,7 @@ class CapabilityRequest:
     payload: (
         RagRequestPayload
         | PlaceLookupPayload
-        | AcademicCalendarLookupPayload
-        | ServiceGuideLookupPayload
-        | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
-        | ContactDirectoryLookupPayload
         | CampusNoticeChangeSetLookupPayload
         | CampusNoticeDiscoverPayload
         | CampusNoticePeriodSummaryPayload
@@ -429,11 +416,7 @@ class CapabilityResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
-        | AcademicCalendarLookupResult
-        | ServiceGuideLookupResult
-        | ServiceStatusLookupResult
         | TransportScheduleLookupResult
-        | ContactDirectoryLookupResult
         | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticePeriodSummaryResult
@@ -462,11 +445,7 @@ class ExecutionResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
-        | AcademicCalendarLookupResult
-        | ServiceGuideLookupResult
-        | ServiceStatusLookupResult
         | TransportScheduleLookupResult
-        | ContactDirectoryLookupResult
         | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticePeriodSummaryResult

@@ -3,6 +3,8 @@ export type SourceMetricState = "observed" | "unsupported_by_source";
 export type AutoscalerDecisionKind = "scale_up" | "scale_down" | "hold";
 export type AutoscalerBudgetState = "within_budget" | "budget_exhausted" | "actuation_disabled";
 export type AutoscalerActuationStatus = "applied" | "skipped" | "failed";
+export type AutoscalerScalerKind = "docker_compose" | "keda_temporal";
+export type AutoscalerScalerStatus = "healthy" | "degraded" | "paused" | "disabled";
 
 export interface UnsupportedSourceMetric {
 	state: "unsupported_by_source";
@@ -63,10 +65,30 @@ export interface WorkerAutoscalerActuationWrite {
 	toReplicas: number;
 }
 
+export interface WorkerAutoscalerPostureWrite {
+	currentReplicas: number;
+	desiredReplicas: number;
+	evidence: Record<string, unknown>;
+	lastScaleEventAt: string | null;
+	lastScaleEventId: string | null;
+	maxReplicas: number;
+	metricFreshness: DurationSourceMetric;
+	minReplicas: number;
+	observedAt: string;
+	projectedAt: string;
+	reason: string;
+	scalerKind: AutoscalerScalerKind;
+	scalerStatus: AutoscalerScalerStatus;
+	taskQueue: string;
+	taskQueueKind: TemporalTaskQueueKind;
+	targetService: string;
+}
+
 export interface TemporalTaskQueueSnapshotRecord extends TemporalTaskQueueSnapshotWrite {}
 export interface WorkerAutoscalerDecisionRecord
 	extends Omit<WorkerAutoscalerDecisionWrite, "evidence"> {}
 export interface WorkerAutoscalerActuationRecord extends WorkerAutoscalerActuationWrite {}
+export interface WorkerAutoscalerPostureRecord extends WorkerAutoscalerPostureWrite {}
 
 export interface TemporalTaskQueueListFilters {
 	cursor?: string | null;
@@ -112,11 +134,32 @@ export interface NormalizedWorkerAutoscalerActuationListFilters {
 	targetService: string | null;
 }
 
+export interface WorkerAutoscalerPostureListFilters {
+	cursor?: string | null;
+	limit?: number | null;
+	scalerStatus?: string | null;
+	targetService?: string | null;
+}
+
+export interface NormalizedWorkerAutoscalerPostureListFilters {
+	cursor: string | null;
+	limit: number;
+	scalerStatus: AutoscalerScalerStatus | null;
+	targetService: string | null;
+}
+
 export interface TemporalTaskQueueListResult {
 	page: {
 		nextCursor: string | null;
 	};
 	snapshots: TemporalTaskQueueSnapshotRecord[];
+}
+
+export interface WorkerAutoscalerPostureListResult {
+	page: {
+		nextCursor: string | null;
+	};
+	postures: WorkerAutoscalerPostureRecord[];
 }
 
 export interface WorkerAutoscalerDecisionListResult {

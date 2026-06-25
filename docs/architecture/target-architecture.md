@@ -402,12 +402,13 @@ collector/source admission
   形态是：repo 先提供 system instructions、tool catalog 与 deterministic gates，模型
   在 SDK loop 内决定是否使用已暴露工具；repo durable workflow 只接收 sanitized
   final output、selected tool summary 与 result refs。
-- campus services 的只读结构化查询默认由 typed tools / projection-backed internal query
-  service 承接，包括 transport schedule、service status、service guide、temporary override
-  与 contact directory。`campus_services` 只在需要语义消歧、跨工具编排、说明生成或
+- campus services 的当前只读结构化查询由 typed tools / projection-backed internal
+  query service 承接，model-visible opened surface 只有 transport schedule；
+  service status 仅保留 closed/internal status projection prework。service guide、
+  contact directory、process guide 与 academic calendar 不属于当前 campus-services
+  runtime surface；指南/联系方式/流程内容由 wiki 或 official-web stable reference
+  承接。`campus_services` 只在需要语义消歧、跨工具编排、说明生成或
   agent-owned clarification 时作为 agent-as-tool；它不拥有服务 source truth。
-  其中 `service_guide_lookup` 只回答办理指南、材料、入口说明、服务时间、
-  联系方式与来源引用，不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
 - notice discovery、selected notice ref resolution 与 official source card
   rendering 默认由 typed tools / projection-backed internal query service 承接。
   `notice` 只在需要候选消歧、historical posture、短摘要/事实抽取或向
@@ -444,8 +445,8 @@ collector/source admission
   service 落地，而不是回退成 Execution Agent Layer inline ad hoc function
 - `routing clarification` 与 `agent clarification` 必须显式分层；前者由 Execution Agent Layer
   拥有，后者由对应 agent 拥有
-- 对 `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`、
-  `campus_notice_discover` 与 selected notice card/context resolution 这类结构化 runtime
+- 对 `transport_schedule_lookup`、`campus_notice_discover` 与 selected notice
+  card/context resolution 这类结构化 runtime
   capability，目标实现形态固定为
   `projection-backed internal query service + typed tool + optional agent-as-tool`，而不是
   query-time raw source scan、browser/public API 直连，或 execution path 回调

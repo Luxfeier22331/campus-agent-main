@@ -17,8 +17,6 @@ updated: 2026-06-13
 - `documentation-inventory.md`
   - Documentation SoT cleanup 的 Phase 0 盘点基线；记录文档 owner class 与
     likely drift signals，不替代 `docs/documentation-architecture.md`
-- `adr-governance-audit.md`
-  - 全量 ADR corpus 的 drift、overlap 与分层审计记录
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `testing-and-verification-lanes.md`
@@ -26,6 +24,9 @@ updated: 2026-06-13
 - `eval-benchmark-artifact-contract.md`
 - `golden-dataset-case-matrix.md`
 - `runtime-otel-telemetry-taxonomy.md`
+- `runtime-orchestration-full-audit.md`
+  - 当前 runtime / module / infra / script orchestration 审计；用于判断哪些
+    surface 保留、删除、留在本地 transitional 或需要重审，不替代架构 truth。
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 

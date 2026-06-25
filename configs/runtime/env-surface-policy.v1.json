@@ -9,6 +9,7 @@
 		"apps/official-web-collector/.env.example",
 		"apps/operator-console-web/.dev.vars.example",
 		"apps/wechat-official-account-collector/.env.example",
+		"env/commands/campus-docs-reader-build.env.example",
 		"env/commands/execution-control-runtime.env.example",
 		"env/commands/legacy-office-conversion-service.env.example",
 		"infra/otel/collector.env.example"
@@ -16,6 +17,7 @@
 	"template_key_limits": {
 		".env.example": 14,
 		"apps/authenticated-notice-collector/.env.example": 44,
+		"env/commands/campus-docs-reader-build.env.example": 8,
 		"env/commands/execution-control-runtime.env.example": 39
 	},
 	"keys": {
@@ -294,6 +296,16 @@
 			"scopes": ["root", "command", "staging-local"],
 			"secret": false
 		},
+		"APP_API_OTEL_INGEST_SHARED_SECRET": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
+		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS": {
+			"owner": "runtime-observability",
+			"scopes": ["infra"],
+			"secret": true
+		},
 		"LANGFUSE_BASE_URL": {
 			"owner": "runtime-observability",
 			"scopes": ["staging-local"],
@@ -319,14 +331,13 @@
 		"ACCESS_": ["operator-console-web"],
 		"AGENT_RUNTIME_": ["root", "command"],
 		"API_": ["root", "command"],
-		"APP_API_": ["root", "app-api", "campus-web", "staging-local"],
+		"APP_API_": ["root", "app-api", "campus-web", "command", "staging-local"],
 		"AUTH_": ["app-api", "campus-web"],
 		"AUTHENTICATED_NOTICE_": ["authenticated-notice-collector"],
 		"BETTER_AUTH_": ["app-api"],
 		"CAMPUS_AGENT_": ["root"],
 		"CAMPUS_SHARED_": ["root", "command"],
 		"CAMPUS_WEB_": ["campus-web"],
-		"CHATKIT_": ["app-api"],
 		"CLOUDFLARE_": ["app-api"],
 		"DEPLOYMENT_": ["infra"],
 		"DOCUMENT_REGISTRY_": ["root"],
@@ -345,6 +356,7 @@
 			"app-api",
 			"authenticated-notice-collector",
 			"campus-web",
+			"command",
 			"official-web-collector",
 			"wechat-official-account-collector"
 		],

@@ -13,6 +13,7 @@ type CapabilityExecutionWorkflowInput struct {
 	TaskQueue           string            `json:"task_queue"`
 	TraceID             string            `json:"trace_id"`
 	TurnID              string            `json:"turn_id"`
+	VisibleCapabilities []string          `json:"visible_capabilities"`
 	WorkflowID          string            `json:"workflow_id"`
 }
 

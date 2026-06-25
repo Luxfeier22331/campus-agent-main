@@ -73,7 +73,7 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "乘车位置",
         )
     ) and any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
-        return ("service_status_lookup",)
+        return ("transport_schedule_lookup",)
     if any(
         signal in goal
         for signal in (
@@ -88,7 +88,7 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "预约入口",
         )
     ) and any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
-        return ("service_guide_lookup",)
+        return ()
     if any(signal in goal for signal in ("校车", "班车", "通勤车", "接驳车")):
         return ("transport_schedule_lookup",)
     if any(
@@ -137,8 +137,8 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
             "一卡通",
         )
     ):
-        return ("service_guide_lookup",)
-    return ("service_status_lookup",)
+        return ()
+    return ()
 
 
 def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
@@ -151,22 +151,7 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
         ("通识课学分要求是多少？", None),
         ("转专业需要满足什么条件？", None),
         ("学籍异动流程是什么？", None),
-        (
-            "校历里春假怎么安排？",
-            IntentCase(
-                case_id="intent-knowledge-009",
-                user_goal="校历里春假怎么安排？",
-                requested_capability="knowledge",
-                expected_capability="campus_services",
-                expected_task_kind="campus_services_lookup",
-                expected_launch_state="open",
-                expected_next_action="delegate",
-                expected_scope_class="in_scope",
-                expected_scope_reason="structured_runtime_candidate_signal",
-                expected_allowed_tools=("academic_calendar_lookup",),
-                expected_target="campus_services",
-            ),
-        ),
+        ("校历里春假怎么安排？", None),
         ("习近平新时代中国特色社会主义思想概论有哪些专业要上", None),
         ("马原一般什么时候开课？", None),
         ("民概课程学分是多少？", None),
@@ -274,7 +259,14 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
         "一卡通挂失电话是多少",
     )
     return tuple(
-        IntentCase(
+        _service_candidate_case(index=index, goal=goal) for index, goal in enumerate(goals, start=1)
+    )
+
+
+def _service_candidate_case(*, index: int, goal: str) -> IntentCase:
+    allowed_tools = _campus_services_allowed_tools(goal)
+    if allowed_tools:
+        return IntentCase(
             case_id=f"intent-service-candidate-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
@@ -285,12 +277,56 @@ def _service_candidate_cases() -> tuple[IntentCase, ...]:
             expected_next_action="delegate",
             expected_scope_class="in_scope",
             expected_scope_reason="structured_runtime_candidate_signal",
-            expected_allowed_tools=_campus_services_allowed_tools(goal),
+            expected_allowed_tools=allowed_tools,
             critical=True,
-            tags=("campus_services", "candidate_only"),
+            tags=("campus_services", "transport_schedule", "candidate_only"),
         )
-        for index, goal in enumerate(goals, start=1)
+    if goal in _NON_TRANSPORT_SERVICE_PRODUCT_BOUNDARY_GOALS:
+        return IntentCase(
+            case_id=f"intent-service-candidate-{index:03d}",
+            user_goal=goal,
+            requested_capability="knowledge",
+            expected_target="none",
+            expected_capability="knowledge",
+            expected_task_kind="knowledge_lookup",
+            expected_launch_state="closed",
+            expected_next_action="out_of_scope",
+            expected_scope_class="out_of_scope",
+            expected_policy_reason="product_scope_boundary",
+            expected_scope_reason="product_scope_boundary",
+            critical=True,
+            tags=("knowledge", "non_transport_service", "out_of_scope"),
+        )
+    return IntentCase(
+        case_id=f"intent-service-candidate-{index:03d}",
+        user_goal=goal,
+        requested_capability="knowledge",
+        expected_target="knowledge",
+        expected_capability="knowledge",
+        expected_task_kind="knowledge_lookup",
+        expected_launch_state="open",
+        expected_next_action="delegate",
+        expected_scope_class="in_scope",
+        expected_scope_reason="campus_scope_signal",
+        critical=True,
+        tags=("knowledge", "non_transport_service"),
     )
+
+
+_NON_TRANSPORT_SERVICE_PRODUCT_BOUNDARY_GOALS = frozenset(
+    (
+        "地铁接驳车怎么预约",
+        "通勤班车乘车规则是什么",
+        "会议室开放状态",
+        "校园卡服务开放吗",
+        "本科生申请不住宿需要什么材料",
+        "研究生申请退宿流程",
+        "退宿怎么办",
+        "校园卡丢了怎么办",
+        "校园卡在哪里补办",
+        "一卡通挂失电话是多少",
+    )
+)
 
 
 def _notice_candidate_cases() -> tuple[IntentCase, ...]:
@@ -359,19 +395,7 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         "评奖通知",
     )
     cases = [
-        IntentCase(
-            case_id=f"intent-explicit-campus-services-{index:03d}",
-            user_goal=goal,
-            requested_capability="campus_services",
-            expected_target="campus_services",
-            expected_capability="campus_services",
-            expected_task_kind="campus_services_lookup",
-            expected_launch_state="open",
-            expected_next_action="delegate",
-            expected_scope_class="in_scope",
-            expected_scope_reason="explicit_requested_capability",
-            expected_allowed_tools=_campus_services_allowed_tools(goal),
-        )
+        _explicit_campus_services_case(index=index, goal=goal)
         for index, goal in enumerate(service_goals, start=1)
     ]
     cases.extend(
@@ -391,6 +415,37 @@ def _explicit_structured_capability_cases() -> tuple[IntentCase, ...]:
         for index, goal in enumerate(notice_goals, start=1)
     )
     return tuple(cases)
+
+
+def _explicit_campus_services_case(*, index: int, goal: str) -> IntentCase:
+    allowed_tools = _campus_services_allowed_tools(goal)
+    if allowed_tools:
+        return IntentCase(
+            case_id=f"intent-explicit-campus-services-{index:03d}",
+            user_goal=goal,
+            requested_capability="campus_services",
+            expected_target="campus_services",
+            expected_capability="campus_services",
+            expected_task_kind="campus_services_lookup",
+            expected_launch_state="open",
+            expected_next_action="delegate",
+            expected_scope_class="in_scope",
+            expected_scope_reason="explicit_requested_capability",
+            expected_allowed_tools=allowed_tools,
+        )
+    return IntentCase(
+        case_id=f"intent-explicit-campus-services-{index:03d}",
+        user_goal=goal,
+        requested_capability="campus_services",
+        expected_target="none",
+        expected_capability="campus_services",
+        expected_task_kind="campus_services_lookup",
+        expected_launch_state="candidate_only",
+        expected_next_action="clarify",
+        expected_scope_class="in_scope",
+        expected_scope_reason="structured_subtype_missing",
+        expected_missing_slots=("campus_service_task",),
+    )
 
 
 def _open_domain_cases() -> tuple[IntentCase, ...]:
@@ -466,8 +521,6 @@ def _transaction_guardrail_cases() -> tuple[IntentCase, ...]:
 
 
 def _transaction_guardrail_expected_capability(goal: str) -> str:
-    if any(signal in goal for signal in ("退宿", "入住", "不住宿", "离校")):
-        return "campus_services"
     return "knowledge"
 
 

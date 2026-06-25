@@ -53,19 +53,6 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"temporal_daypart_evening",
 		"campus_scope_haidian",
 		"campus_scope_fengtai",
-		"service_guide_focus_required_materials",
-		"service_guide_focus_entry",
-		"service_guide_focus_office_hours",
-		"service_guide_focus_contact",
-		"service_guide_focus_eligibility",
-		"service_guide_focus_full_guide",
-		"structured_contact_directory",
-		"structured_contact_directory_action",
-		"contact_directory_focus_phone",
-		"contact_directory_focus_email",
-		"contact_directory_focus_location",
-		"contact_directory_focus_office_hours",
-		"contact_directory_focus_contact_person",
 		"notice_knowledge_followthrough",
 	} {
 		if len(policy.SignalGroups[group]) == 0 {
@@ -93,90 +80,45 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
 		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
-		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
-		{name: "vpn service guide signal", goal: "VPN入口在哪里", want: "campus_services"},
-		{name: "vpn install service guide signal", goal: "VPN客户端怎么安装", want: "campus_services"},
-		{
-			name:       "network auth entry is institutional knowledge",
-			goal:       "校园网认证入口在哪里",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "campus_services"},
-		{
-			name:       "unified auth password reset is institutional knowledge",
-			goal:       "统一身份认证密码怎么改",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "unified auth forgot password is institutional knowledge",
-			goal:       "统一身份认证密码忘了怎么办",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "portal password reset is institutional knowledge",
-			goal:       "信息门户密码怎么改",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "plain portal forgot password is institutional knowledge",
-			goal:       "门户密码忘了怎么办",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "smart portal forgot password is institutional knowledge",
-			goal:       "智慧门户忘记密码怎么办",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "network auth login is institutional knowledge",
-			goal:       "校园网怎么认证登录",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{
-			name:       "network auth url is institutional knowledge",
-			goal:       "校园网认证网址是什么",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{name: "vpn address signal", goal: "VPN地址是什么", want: "campus_services"},
-		{name: "remote access guide signal", goal: "校外怎么用VPN访问校园网资源", want: "campus_services"},
-		{name: "email download form signal", goal: "校园邮箱申请表在哪里下载", want: "campus_services"},
-		{name: "enterprise wechat guide signal", goal: "企业微信怎么绑定", want: "campus_services"},
-		{name: "enterprise wechat faq signal", goal: "企业微信提示需要同事扫码验证怎么办", want: "campus_services"},
-		{name: "enterprise wechat phone update signal", goal: "企业微信绑定手机号怎么改", want: "campus_services"},
-		{name: "directory lookup guide signal", goal: "办公电话怎么查", want: "campus_services"},
-		{name: "directory lookup guide alias signal", goal: "通讯录在哪里找", want: "campus_services"},
-		{name: "academic calendar guide signal", goal: "校历怎么看", want: "campus_services"},
-		{name: "academic calendar teaching week signal", goal: "今天第几教学周", want: "campus_services"},
-		{name: "academic calendar holiday signal", goal: "五一放几天", want: "campus_services"},
-		{name: "academic calendar makeup class signal", goal: "哪周补课", want: "campus_services"},
-		{
-			name:       "network account application is institutional knowledge",
-			goal:       "上网账号申请去哪里办",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-		{name: "staff campus card guide signal", goal: "教职工校园卡丢了怎么办", want: "campus_services"},
-		{name: "academic calendar guide url signal", goal: "校历网址是什么", want: "campus_services"},
-		{name: "card center office hours guide signal", goal: "卡务中心几点上班", want: "campus_services"},
-		{name: "public medical eligibility guide signal", goal: "公费医疗哪些学生能享受", want: "campus_services"},
-		{name: "campus card full guide signal", goal: "校园卡服务有哪些内容", want: "campus_services"},
-		{name: "information disclosure materials guide signal", goal: "信息公开申请要准备什么", want: "campus_services"},
-		{name: "information disclosure contact signal", goal: "信息公开联系电话是多少", want: "campus_services"},
-		{name: "information service contact signal", goal: "信息化服务办公地点在哪里", want: "campus_services"},
-		{name: "logistics contact signal", goal: "后勤服务热线是多少", want: "campus_services"},
-		{name: "network service contact signal", goal: "网络服务电话是多少", want: "campus_services"},
-		{name: "conference center contact signal", goal: "会务服务中心电话是多少", want: "campus_services"},
-		{name: "dorm management center contact signal", goal: "学生公寓管理服务中心电话是多少", want: "campus_services"},
-		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
-		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "campus_services"},
+		{name: "contact directory signal", goal: "招生办电话是多少", want: "knowledge", wantSource: "default"},
+		{name: "vpn service guide signal", goal: "VPN入口在哪里", want: "knowledge", wantSource: "default"},
+		{name: "vpn install service guide signal", goal: "VPN客户端怎么安装", want: "knowledge", wantSource: "default"},
+		{name: "network auth service guide signal", goal: "校园网认证入口在哪里", want: "knowledge", wantSource: "default"},
+		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "knowledge", wantSource: "default"},
+		{name: "unified auth password reset signal", goal: "统一身份认证密码怎么改", want: "knowledge", wantSource: "default"},
+		{name: "unified auth forgot password signal", goal: "统一身份认证密码忘了怎么办", want: "knowledge", wantSource: "default"},
+		{name: "portal password reset signal", goal: "信息门户密码怎么改", want: "knowledge", wantSource: "default"},
+		{name: "plain portal forgot password signal", goal: "门户密码忘了怎么办", want: "knowledge", wantSource: "default"},
+		{name: "smart portal forgot password signal", goal: "智慧门户忘记密码怎么办", want: "knowledge", wantSource: "default"},
+		{name: "network auth login signal", goal: "校园网怎么认证登录", want: "knowledge", wantSource: "default"},
+		{name: "network auth url signal", goal: "校园网认证网址是什么", want: "knowledge", wantSource: "default"},
+		{name: "vpn address signal", goal: "VPN地址是什么", want: "knowledge", wantSource: "default"},
+		{name: "remote access guide signal", goal: "校外怎么用VPN访问校园网资源", want: "knowledge", wantSource: "default"},
+		{name: "email download form signal", goal: "校园邮箱申请表在哪里下载", want: "knowledge", wantSource: "default"},
+		{name: "enterprise wechat guide signal", goal: "企业微信怎么绑定", want: "knowledge", wantSource: "default"},
+		{name: "enterprise wechat faq signal", goal: "企业微信提示需要同事扫码验证怎么办", want: "knowledge", wantSource: "default"},
+		{name: "enterprise wechat phone update signal", goal: "企业微信绑定手机号怎么改", want: "knowledge", wantSource: "default"},
+		{name: "directory lookup guide signal", goal: "办公电话怎么查", want: "knowledge", wantSource: "default"},
+		{name: "directory lookup guide alias signal", goal: "通讯录在哪里找", want: "knowledge", wantSource: "default"},
+		{name: "academic calendar guide signal", goal: "校历怎么看", want: "knowledge", wantSource: "default"},
+		{name: "academic calendar teaching week signal", goal: "今天第几教学周", want: "knowledge", wantSource: "default"},
+		{name: "academic calendar holiday signal", goal: "五一放几天", want: "knowledge", wantSource: "default"},
+		{name: "academic calendar makeup class signal", goal: "哪周补课", want: "knowledge", wantSource: "default"},
+		{name: "network account guide signal", goal: "上网账号申请去哪里办", want: "knowledge", wantSource: "default"},
+		{name: "staff campus card guide signal", goal: "教职工校园卡丢了怎么办", want: "knowledge", wantSource: "default"},
+		{name: "academic calendar guide url signal", goal: "校历网址是什么", want: "knowledge", wantSource: "default"},
+		{name: "card center office hours guide signal", goal: "卡务中心几点上班", want: "knowledge", wantSource: "default"},
+		{name: "public medical eligibility guide signal", goal: "公费医疗哪些学生能享受", want: "knowledge", wantSource: "default"},
+		{name: "campus card full guide signal", goal: "校园卡服务有哪些内容", want: "knowledge", wantSource: "default"},
+		{name: "information disclosure materials guide signal", goal: "信息公开申请要准备什么", want: "knowledge", wantSource: "default"},
+		{name: "information disclosure contact signal", goal: "信息公开联系电话是多少", want: "knowledge", wantSource: "default"},
+		{name: "information service contact signal", goal: "信息化服务办公地点在哪里", want: "knowledge", wantSource: "default"},
+		{name: "logistics contact signal", goal: "后勤服务热线是多少", want: "knowledge", wantSource: "default"},
+		{name: "network service contact signal", goal: "网络服务电话是多少", want: "knowledge", wantSource: "default"},
+		{name: "conference center contact signal", goal: "会务服务中心电话是多少", want: "knowledge", wantSource: "default"},
+		{name: "dorm management center contact signal", goal: "学生公寓管理服务中心电话是多少", want: "knowledge", wantSource: "default"},
+		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "knowledge", wantSource: "default"},
+		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "knowledge", wantSource: "default"},
 		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
 		{
 			name:       "scholarship category discovery remains knowledge",
@@ -268,13 +210,15 @@ func TestIntentPolicyArtifactLoadsExplicitPath(t *testing.T) {
 	}
 }
 
-func TestIntentPolicyArtifactValidateRequiresContactDirectorySignalGroups(t *testing.T) {
+func TestIntentPolicyArtifactDoesNotRequireRetiredCampusServiceSignalGroups(t *testing.T) {
 	policy, err := LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load default intent policy: %v", err)
 	}
 
 	for _, group := range []string{
+		"structured_service_guide_action",
+		"structured_service_guide_subject",
 		"structured_contact_directory",
 		"structured_contact_directory_action",
 		"contact_directory_focus_phone",
@@ -282,6 +226,10 @@ func TestIntentPolicyArtifactValidateRequiresContactDirectorySignalGroups(t *tes
 		"contact_directory_focus_location",
 		"contact_directory_focus_office_hours",
 		"contact_directory_focus_contact_person",
+		"academic_calendar_week_query",
+		"academic_calendar_holiday_query",
+		"academic_calendar_makeup_query",
+		"academic_calendar_semantic_subject",
 	} {
 		t.Run(group, func(t *testing.T) {
 			mutated := policy
@@ -289,11 +237,8 @@ func TestIntentPolicyArtifactValidateRequiresContactDirectorySignalGroups(t *tes
 			delete(mutated.SignalGroups, group)
 
 			err := mutated.Validate()
-			if err == nil {
-				t.Fatalf("expected missing %s to fail validation", group)
-			}
-			if !strings.Contains(err.Error(), group) {
-				t.Fatalf("validation error = %v, want mention %s", err, group)
+			if err != nil {
+				t.Fatalf("retired signal group %s must not be required: %v", group, err)
 			}
 		})
 	}
@@ -458,43 +403,43 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 			wantRisk:   "low",
 		},
 		{
-			name: "structured service status candidate stays candidate only",
+			name: "retired service status lookup stays ordinary campus knowledge",
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "食堂营业到几点",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "campus_scope_signal",
 			wantRisk:   "low",
 		},
 		{
-			name: "structured public medical service guide candidate stays candidate only",
+			name: "retired service guide lookup stays ordinary campus knowledge",
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "公费医疗报销需要什么材料",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "campus_scope_signal",
 			wantRisk:   "low",
 		},
 		{
-			name: "structured public medical contact guide candidate stays candidate only",
+			name: "retired service guide contact lookup stays ordinary campus knowledge",
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "公费医疗报销联系电话是多少",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "campus_scope_signal",
 			wantRisk:   "low",
 		},
 		{
-			name: "structured contact directory candidate stays candidate only",
+			name: "retired contact directory lookup stays ordinary campus knowledge",
 			request: Request{
 				EffectiveCapability: "knowledge",
 				UserGoal:            "研究生院招生办公室电话是多少",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "campus_scope_signal",
 			wantRisk:   "low",
 		},
 		{
@@ -684,34 +629,35 @@ func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.
 	}
 }
 
-func TestEvaluateRuntimePolicyFailsClosedUnplannableCampusServicesSubtypeWhileCapabilityClosed(t *testing.T) {
+func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "校园卡余额怎么查",
 	})
 
-	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
-		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
 	}
-	if decision.RoutingFrame.ScopeReason != "capability_not_open" {
-		t.Fatalf("scope reason = %q, want capability_not_open", decision.RoutingFrame.ScopeReason)
+	if decision.RoutingFrame.ScopeReason != "structured_subtype_missing" {
+		t.Fatalf("scope reason = %q, want structured_subtype_missing", decision.RoutingFrame.ScopeReason)
 	}
-	if len(decision.RoutingFrame.MissingSlots) != 0 {
-		t.Fatalf("missing slots = %#v, want none while capability is closed", decision.RoutingFrame.MissingSlots)
+	if len(decision.RoutingFrame.MissingSlots) != 1 ||
+		decision.RoutingFrame.MissingSlots[0] != "campus_service_task" {
+		t.Fatalf("missing slots = %#v, want campus_service_task", decision.RoutingFrame.MissingSlots)
 	}
 }
 
-func TestEvaluateRuntimePolicyFailsClosedCampusServiceGuideSubtypeWhileCapabilityClosed(t *testing.T) {
+func TestEvaluateRuntimePolicyClarifiesRetiredCampusServiceGuideSubtype(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "宿舍入住怎么办理",
 	})
 
-	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
-		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
+	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
+		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
 	}
-	if decision.RoutingFrame.ScopeReason != "capability_not_open" {
-		t.Fatalf("scope reason = %q, want capability_not_open", decision.RoutingFrame.ScopeReason)
+	if decision.RoutingFrame.ScopeReason != "structured_subtype_missing" {
+		t.Fatalf("scope reason = %q, want structured_subtype_missing", decision.RoutingFrame.ScopeReason)
 	}
 }
 

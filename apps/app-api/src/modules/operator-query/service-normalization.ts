@@ -8,6 +8,7 @@ import type {
 	NormalizedTemporalTaskQueueListFilters,
 	NormalizedWorkerAutoscalerActuationListFilters,
 	NormalizedWorkerAutoscalerDecisionListFilters,
+	NormalizedWorkerAutoscalerPostureListFilters,
 	OperatorAuditListFilters,
 	OperatorOverviewFilters,
 	OperatorOverviewWindow,
@@ -20,6 +21,8 @@ import type {
 	WorkerAutoscalerActuationStatus,
 	WorkerAutoscalerDecisionKind,
 	WorkerAutoscalerDecisionListFilters,
+	WorkerAutoscalerPostureListFilters,
+	WorkerAutoscalerScalerStatus,
 } from "./service-types";
 
 const DEFAULT_LIMIT = 20;
@@ -35,6 +38,7 @@ const OPERATOR_GRANULARITIES = new Set<OperatorResultWindow["granularity"]>([
 const TEMPORAL_TASK_QUEUE_KINDS = new Set(["workflow", "activity"]);
 const WORKER_AUTOSCALER_DECISIONS = new Set(["scale_up", "scale_down", "hold"]);
 const WORKER_AUTOSCALER_ACTUATION_STATUSES = new Set(["applied", "skipped", "failed"]);
+const WORKER_AUTOSCALER_SCALER_STATUSES = new Set(["healthy", "degraded", "paused", "disabled"]);
 
 function validationFailed(message: string): AppApiRouteError {
 	return new AppApiRouteError({
@@ -221,6 +225,21 @@ export function normalizeWorkerAutoscalerActuationListFilters(
 		decisionId: normalizeOptionalString(input.decisionId),
 		limit: normalizeLimit(input.limit),
 		status: status ? (status as WorkerAutoscalerActuationStatus) : null,
+		targetService: normalizeOptionalString(input.targetService),
+	};
+}
+
+export function normalizeWorkerAutoscalerPostureListFilters(
+	input: WorkerAutoscalerPostureListFilters,
+): NormalizedWorkerAutoscalerPostureListFilters {
+	const scalerStatus = normalizeOptionalString(input.scalerStatus);
+	if (scalerStatus && !WORKER_AUTOSCALER_SCALER_STATUSES.has(scalerStatus)) {
+		throw validationFailed("scalerStatus is invalid.");
+	}
+	return {
+		cursor: normalizeOptionalString(input.cursor),
+		limit: normalizeLimit(input.limit),
+		scalerStatus: scalerStatus ? (scalerStatus as WorkerAutoscalerScalerStatus) : null,
 		targetService: normalizeOptionalString(input.targetService),
 	};
 }

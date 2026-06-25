@@ -255,7 +255,7 @@ func (r *Runtime) lookupTransportSchedule(
 			QueriedTimeAnchor: anchor.Format(time.RFC3339),
 			ScheduleSnapshot:  transportScheduleSnapshotRefFromRecord(snapshot.record),
 		}
-		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+		return transportScheduleResponse(body)
 	}
 
 	routeSelection := selectTransportRoute(bundle.TransportRoutes, request)
@@ -277,7 +277,7 @@ func (r *Runtime) lookupTransportSchedule(
 			SelectedDeparture:   nil,
 			ServiceWindow:       nil,
 		}
-		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+		return transportScheduleResponse(body)
 	}
 
 	serviceDate, serviceDateText, err := requestedTransportServiceDate(request, anchor)
@@ -290,7 +290,7 @@ func (r *Runtime) lookupTransportSchedule(
 			ResolvedRoute:       transportRouteRefFromRecord(routeSelection.record),
 			ClarificationReason: "service_date_required",
 		}
-		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+		return transportScheduleResponse(body)
 	}
 
 	snapshot, ok := selectTransportScheduleSnapshotForServiceDate(
@@ -344,7 +344,7 @@ func (r *Runtime) lookupTransportSchedule(
 			exception.RelatedNoticeRefs,
 			base.RelatedNoticeRefs,
 		)
-		return Response{StatusCode: 200, Outcome: base.Outcome, Body: base}
+		return transportScheduleResponse(base)
 	}
 
 	departures := buildTransportDepartures(
@@ -357,7 +357,7 @@ func (r *Runtime) lookupTransportSchedule(
 	if len(departures) == 0 {
 		base.Outcome = "not_found"
 		base.ServiceStatus = "not_running"
-		return Response{StatusCode: 200, Outcome: base.Outcome, Body: base}
+		return transportScheduleResponse(base)
 	}
 
 	switch request.Intent {
@@ -381,5 +381,5 @@ func (r *Runtime) lookupTransportSchedule(
 			"source_family_unavailable",
 		)
 	}
-	return Response{StatusCode: 200, Outcome: base.Outcome, Body: base}
+	return transportScheduleResponse(base)
 }
