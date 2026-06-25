@@ -35,8 +35,8 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 276
-- Git tracked docs Markdown files: 276
+- Current-worktree docs Markdown files: 277
+- Git tracked docs Markdown files: 277
 - Untracked docs Markdown files included: 0
 - Generated on: 2026-06-21
 
@@ -45,7 +45,7 @@ class defined by `docs/documentation-architecture.md`.
 - `decisions`: 58
 - `runbooks`: 48
 - `reference`: 43
-- `contracts`: 44
+- `contracts`: 45
 - `architecture`: 40
 - `data`: 21
 - `domains`: 8
@@ -58,7 +58,7 @@ class defined by `docs/documentation-architecture.md`.
 ### By `doc_type`
 
 - `decision`: 57
-- `contract`: 43
+- `contract`: 44
 - `runbook`: 43
 - `reference`: 40
 - `architecture`: 37
@@ -75,7 +75,7 @@ class defined by `docs/documentation-architecture.md`.
 - `repository`: 79
 - `data`: 41
 - `product`: 32
-- `capability`: 18
+- `capability`: 19
 - `execution`: 15
 - `eval`: 13
 
@@ -83,7 +83,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `decision_record`: 57
 - `operational_truth`: 48
-- `contract_truth`: 43
+- `contract_truth`: 44
 - `reference`: 39
 - `reference_index`: 31
 - `supporting_architecture`: 27
@@ -98,7 +98,7 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Governance Action
 
-- `keep_executable_truth`: 62
+- `keep_executable_truth`: 63
 - `preserve_adr`: 57
 - `keep_ops_procedure`: 48
 - `keep_owner_truth`: 40
@@ -116,7 +116,7 @@ class defined by `docs/documentation-architecture.md`.
 - `official-web`: 22
 - `operator-observability`: 15
 - `app-api`: 10
-- `campus-services`: 11
+- `campus-services`: 12
 - `retrieval`: 9
 - `eval`: 8
 - `regulation`: 8
@@ -727,6 +727,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
   - Owner boundary: `domains/campus-services`
   - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=424`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/transport-status.md`
+  - Title: Transport Status
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=139`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/transport-schedule-lookup-contract/examples.md`

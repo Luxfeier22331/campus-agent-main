@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/campus-services
 status: active
 created: 2026-04-24
-updated: 2026-04-28
+updated: 2026-06-26
 ---
 # Campus Services Transport Schedule Source-Truth Schema
 
@@ -42,6 +42,9 @@ ready transport candidates。
   不得在下游重新扫描全部 notice inventory
 - `campus_services/transport_schedule` 是下游 structured projection owner，不是
   generic retrieval collection
+- public transport status page consumes a materialized status projection from
+  the same published transport schedule release/read model. Its contract is
+  `docs/contracts/transport-status.md`; it is not a model-visible tool.
 - 班次时间、停运、临时调整必须有 notice provenance
 - route / stop canonical seed 由 repo config/code 持有；具体班次事实不得无来源手写
 - builder 离线展开 baseline 的 90 天服务日；bounded temporary overlay 按显式服务日期范围展开，

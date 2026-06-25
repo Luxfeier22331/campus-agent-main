@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/contracts
 status: active
 created: 2026-04-12
-updated: 2026-06-24
+updated: 2026-06-26
 ---
 # Contracts
 
@@ -57,6 +57,7 @@ updated: 2026-06-24
 ## Campus services contract
 
 - `campus-services-tool-standard.md`
+- `transport-status.md`
 - `transport-schedule-lookup-contract.md`
   - `transport-schedule-lookup-contract/examples.md`
 
