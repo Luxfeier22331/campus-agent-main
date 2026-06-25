@@ -125,6 +125,7 @@ describe("staging runtime db proof runner", () => {
 	it("combines durable chat with Postgres projection and Hyperdrive usage proof", async () => {
 		const chatRunner = vi.fn(async () => ({
 			conversation: {
+				assistantAnswerText: "链路验证完成。",
 				assistantMessageCount: 1,
 				hasAssistantMessageForRequest: true,
 				id: "conv_01",
@@ -160,6 +161,7 @@ describe("staging runtime db proof runner", () => {
 				status: "completed",
 				traceId: "trace_01",
 			},
+			runtimeStepResults: [],
 			session: null,
 			sessionMintAttempted: true,
 			submit: {
@@ -242,6 +244,7 @@ describe("staging runtime db proof runner", () => {
 				collectPostgresSnapshot: async () => afterPostgres,
 				runChatDurableE2eStaging: async () => ({
 					conversation: {
+						assistantAnswerText: "链路验证完成。",
 						assistantMessageCount: 1,
 						hasAssistantMessageForRequest: true,
 						id: "conv_01",
@@ -270,6 +273,7 @@ describe("staging runtime db proof runner", () => {
 						status: "completed",
 						traceId: "trace_01",
 					},
+					runtimeStepResults: [],
 					session: null,
 					sessionMintAttempted: true,
 					submit: {
@@ -334,6 +338,7 @@ describe("staging runtime db proof runner", () => {
 					status: "completed",
 					traceId: "trace_01",
 				},
+				runtimeStepResults: [],
 				session: null,
 				sessionMintAttempted: true,
 				submit: {

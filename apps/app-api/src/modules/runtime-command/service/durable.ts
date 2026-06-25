@@ -39,6 +39,68 @@ function asJsonRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
+function firstAssistantMessage(input: ChatCommandResponse): {
+	id: string;
+	text: string;
+} | null {
+	const messages = input.answer.conversation.messages;
+	const message = [...messages].reverse().find((item) => item.role === "assistant");
+	if (!message || message.text.trim() === "") {
+		return null;
+	}
+	return { id: message.id, text: message.text };
+}
+
+function answerDeltaEvent(input: {
+	context: DurableRunEventContext;
+	finalized: ChatCommandResponse;
+	occurredAt: string;
+	sequence?: number;
+}): ChatCommandStreamEvent | null {
+	if (input.finalized.answer.result.kind !== "answer") {
+		return null;
+	}
+	const assistantMessage = firstAssistantMessage(input.finalized);
+	if (!assistantMessage) {
+		return null;
+	}
+	return {
+		data: {
+			accumulatedText: assistantMessage.text,
+			delta: assistantMessage.text,
+			messageId: assistantMessage.id,
+			occurredAt: input.occurredAt,
+			requestId: input.context.requestId,
+			runId: input.context.runId,
+			sequence: input.sequence,
+			status: "streaming",
+			traceId: input.context.traceId,
+		},
+		event: "answer.delta",
+	};
+}
+
+function chatStreamEventsForFinalized(input: {
+	context: DurableRunEventContext;
+	finalized: ChatCommandResponse;
+	occurredAt: string;
+	sourceEvent?: "execution.completed" | "execution.failed";
+	sequence?: number;
+}): ChatCommandStreamEvent[] {
+	const terminal = toTerminalChatStreamEvent({
+		occurredAt: input.occurredAt,
+		response: input.finalized,
+		sourceEvent: input.sourceEvent,
+	});
+	const delta = answerDeltaEvent({
+		context: input.context,
+		finalized: input.finalized,
+		occurredAt: input.occurredAt,
+		sequence: input.sequence,
+	});
+	return delta ? [delta, terminal] : [terminal];
+}
+
 function getRequiredString(record: Record<string, unknown>, key: string, message: string): string {
 	const value = record[key];
 	if (typeof value !== "string" || value.trim() === "") {
@@ -407,11 +469,15 @@ export async function* streamDurableRunEventsUntilTerminal<
 					executionResponse: terminalOutcome.response,
 					transportError: terminalOutcome.transportError,
 				});
-				yield toTerminalChatStreamEvent({
+				for (const event of chatStreamEventsForFinalized({
+					context,
+					finalized,
 					occurredAt: runEvent.occurredAt,
-					response: finalized,
+					sequence: runEvent.sequence,
 					sourceEvent: terminalOutcome.sourceEvent,
-				});
+				})) {
+					yield event;
+				}
 				return;
 			}
 			if (emptyPollAttempts < polling.maxAttempts && polling.pollIntervalMs > 0) {
@@ -428,10 +494,13 @@ export async function* streamDurableRunEventsUntilTerminal<
 				retryable: handled.error.retryable,
 			},
 		});
-		yield toTerminalChatStreamEvent({
+		for (const event of chatStreamEventsForFinalized({
+			context,
+			finalized,
 			occurredAt: now().toISOString(),
-			response: finalized,
-		});
+		})) {
+			yield event;
+		}
 		return;
 	}
 	const finalized = await input.finalizeAcceptedCommand({
@@ -442,10 +511,13 @@ export async function* streamDurableRunEventsUntilTerminal<
 			retryable: true,
 		},
 	});
-	yield toTerminalChatStreamEvent({
+	for (const event of chatStreamEventsForFinalized({
+		context,
+		finalized,
 		occurredAt: now().toISOString(),
-		response: finalized,
-	});
+	})) {
+		yield event;
+	}
 }
 
 type DurableCloseoutQueueItem =
@@ -532,14 +604,15 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 						executionResponse: terminalOutcome.response,
 						transportError: terminalOutcome.transportError,
 					});
-					queue.push({
-						event: toTerminalChatStreamEvent({
-							occurredAt: runEvent.occurredAt,
-							response: finalized,
-							sourceEvent: terminalOutcome.sourceEvent,
-						}),
-						kind: "event",
-					});
+					for (const event of chatStreamEventsForFinalized({
+						context,
+						finalized,
+						occurredAt: runEvent.occurredAt,
+						sequence: runEvent.sequence,
+						sourceEvent: terminalOutcome.sourceEvent,
+					})) {
+						queue.push({ event, kind: "event" });
+					}
 					queue.push({ kind: "done" });
 					return finalized;
 				}
@@ -557,13 +630,13 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					retryable: handled.error.retryable,
 				},
 			});
-			queue.push({
-				event: toTerminalChatStreamEvent({
-					occurredAt: now().toISOString(),
-					response: finalized,
-				}),
-				kind: "event",
-			});
+			for (const event of chatStreamEventsForFinalized({
+				context,
+				finalized,
+				occurredAt: now().toISOString(),
+			})) {
+				queue.push({ event, kind: "event" });
+			}
 			queue.push({ kind: "done" });
 			return finalized;
 		}
@@ -576,13 +649,13 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 				retryable: true,
 			},
 		});
-		queue.push({
-			event: toTerminalChatStreamEvent({
-				occurredAt: now().toISOString(),
-				response: finalized,
-			}),
-			kind: "event",
-		});
+		for (const event of chatStreamEventsForFinalized({
+			context,
+			finalized,
+			occurredAt: now().toISOString(),
+		})) {
+			queue.push({ event, kind: "event" });
+		}
 		queue.push({ kind: "done" });
 		return finalized;
 	})().catch((error) => {

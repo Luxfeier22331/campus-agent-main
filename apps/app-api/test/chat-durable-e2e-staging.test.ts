@@ -28,8 +28,13 @@ function sseResponse(blocks: string[]): Response {
 
 describe("chat durable staging e2e runner", () => {
 	it("aborts the submit stream after request.accepted and resumes the same durable run by cursor", async () => {
-		const calls: Array<{ afterSequence?: number; body?: unknown; method?: string; url: string }> =
-			[];
+		const calls: Array<{
+			afterSequence?: number;
+			body?: unknown;
+			method?: string;
+			password?: string;
+			url: string;
+		}> = [];
 		const abortSubmitStream = vi.fn();
 
 		const result = await runChatDurableE2eStaging(
@@ -38,6 +43,11 @@ describe("chat durable staging e2e runner", () => {
 				"https://campus.example.com",
 				"--app-api-readyz-url",
 				"https://api.example.com/readyz",
+				"--conversation-id",
+				"conv_existing",
+				"--no-reset-identity",
+				"--password",
+				"StableSmokePass!123",
 			],
 			{
 				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
@@ -95,7 +105,14 @@ describe("chat durable staging e2e runner", () => {
 									workflowId: "campus-agent.chat.run_01HQ",
 								},
 							],
-							results: [],
+							results: [
+								{
+									resultKind: "agent_plan_result",
+									sanitizedPayload: {
+										planned_steps: ["indexed_lookup"],
+									},
+								},
+							],
 							run: {
 								conversationId: "conv_01HQ",
 								phase: "completed",
@@ -110,8 +127,15 @@ describe("chat durable staging e2e runner", () => {
 									status: "completed",
 								},
 								{
-									selectedCapability: "knowledge",
 									stepId: "agent.primary",
+									status: "completed",
+								},
+								{
+									stepId: "rag.plan",
+									status: "completed",
+								},
+								{
+									stepId: "retrieval.indexed_lookup",
 									status: "completed",
 								},
 							],
@@ -149,7 +173,12 @@ describe("chat durable staging e2e runner", () => {
 					}
 					throw new Error(`unexpected json request: ${input.url}`);
 				},
-				async mintSmokeSession() {
+				async mintSmokeSession(input) {
+					calls.push({
+						body: { resetIdentity: input.resetIdentity },
+						password: input.password,
+						url: "mintSmokeSession",
+					});
 					return "session=staging";
 				},
 				async openRunEventStream(input) {
@@ -203,18 +232,39 @@ describe("chat durable staging e2e runner", () => {
 				selected_capability: "knowledge",
 				trace_steps: [
 					{ status: "completed", step_id: "memory.recall" },
-					{ selected_capability: "knowledge", status: "completed", step_id: "agent.primary" },
+					{ status: "completed", step_id: "agent.primary" },
+					{ selected_capability: "knowledge", status: "completed", step_id: "rag.plan" },
+					{
+						selected_capability: "knowledge",
+						status: "completed",
+						step_id: "retrieval.indexed_lookup",
+					},
 				],
 			},
 		});
 		expect(result.resume.events.map((event) => event.sequence)).toEqual([2, 3]);
+		expect(result.conversation?.assistantAnswerText).toBe("国家奖学金每学年评审一次。");
 		expect(result.conversation?.hasAssistantMessageForRequest).toBe(true);
+		expect(result.runtimeStepResults).toEqual([
+			{
+				resultKind: "agent_plan_result",
+				sanitizedPayload: {
+					planned_steps: ["indexed_lookup"],
+				},
+			},
+		]);
 		expect(calls).toEqual(
 			expect.arrayContaining([
 				{ url: "https://api.example.com/readyz" },
 				{ url: "https://campus.example.com/readyz" },
+				{
+					body: { resetIdentity: false },
+					password: "StableSmokePass!123",
+					url: "mintSmokeSession",
+				},
 				expect.objectContaining({
 					body: {
+						conversationId: "conv_existing",
 						prompt: "中央民族大学本科学生国家奖学金评审办法",
 					},
 					method: "POST",
@@ -330,6 +380,214 @@ describe("chat durable staging e2e runner", () => {
 				url: "https://campus.example.com/api/chat/runs/run_01HQ/events/stream?after_sequence=2",
 			},
 		]);
+	});
+
+	it("includes accepted run identity when durable run event streams end before completion", async () => {
+		let resumeOpenCount = 0;
+		await expect(
+			runChatDurableE2eStaging(
+				["--chat-base-url", "https://campus.example.com"],
+				{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+				{
+					async fetchReadyz() {
+						return { payload: { ok: true }, status: 200 };
+					},
+					async fetchJsonWithCookie<T>(
+						input: Parameters<NonNullable<ChatDurableE2eDependencies["fetchJsonWithCookie"]>>[0],
+					) {
+						if (input.url.endsWith("/api/me")) {
+							return jsonResult({
+								permissions: { chat: true, operator: false },
+								principal: { principalId: "user_staging" },
+								session: null,
+							} as T);
+						}
+						throw new Error(`unexpected json request: ${input.url}`);
+					},
+					async mintSmokeSession() {
+						return "session=staging";
+					},
+					async openRunEventStream() {
+						resumeOpenCount += 1;
+						if (resumeOpenCount > 1) {
+							return sseResponse([]);
+						}
+						return sseResponse([
+							'event: execution.running\ndata: {"occurredAt":"2026-06-04T00:00:01.000Z","requestId":"req_timeout","runId":"run_timeout","sequence":2,"status":"running","traceId":"trace_timeout"}\n\n',
+						]);
+					},
+					async openSubmitStream() {
+						return sseResponse([
+							'event: request.accepted\ndata: {"requestId":"req_timeout","runId":"run_timeout","status":"accepted","traceId":"trace_timeout"}\n\n',
+						]);
+					},
+				},
+			),
+		).rejects.toThrow(
+			"Run event streams ended before request.completed for runId=run_timeout requestId=req_timeout traceId=trace_timeout lastSequence=2",
+		);
+	});
+
+	it("returns failed terminal durable runs as diagnostic artifacts", async () => {
+		const result = await runChatDurableE2eStaging(
+			["--chat-base-url", "https://campus.example.com"],
+			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz() {
+					return { payload: { ok: true }, status: 200 };
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatDurableE2eDependencies["fetchJsonWithCookie"]>>[0],
+				) {
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: { chat: true, operator: false },
+							principal: { principalId: "user_staging" },
+							session: null,
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/runs/run_failed")) {
+						return jsonResult({
+							run: {
+								conversationId: "conv_failed",
+								requestId: "req_failed",
+								runId: "run_failed",
+								status: "failed",
+								traceId: "trace_failed",
+							},
+						} as T);
+					}
+					throw new Error(`unexpected json request: ${input.url}`);
+				},
+				async mintSmokeSession() {
+					return "session=staging";
+				},
+				async openRunEventStream() {
+					return sseResponse([
+						'event: request.failed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_failed","runId":"run_failed","sequence":6,"status":"failed","traceId":"trace_failed"}\n\n',
+					]);
+				},
+				async openSubmitStream() {
+					return sseResponse([
+						'event: request.accepted\ndata: {"requestId":"req_failed","runId":"run_failed","status":"accepted","traceId":"trace_failed"}\n\n',
+					]);
+				},
+			},
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.run).toMatchObject({
+			conversationId: "conv_failed",
+			requestId: "req_failed",
+			runId: "run_failed",
+			status: "failed",
+			traceId: "trace_failed",
+		});
+		expect(result.resume.terminalEvent).toMatchObject({
+			event: "request.failed",
+			runId: "run_failed",
+			status: "failed",
+		});
+		expect(result.workflowTraceSummary).toBeNull();
+		expect(result.conversation).toBeNull();
+	});
+
+	it("returns completed runs without assistant answers as diagnostic artifacts", async () => {
+		const result = await runChatDurableE2eStaging(
+			["--chat-base-url", "https://campus.example.com"],
+			{ APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret" } as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz() {
+					return { payload: { ok: true }, status: 200 };
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatDurableE2eDependencies["fetchJsonWithCookie"]>>[0],
+				) {
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: { chat: true, operator: false },
+							principal: { principalId: "user_staging" },
+							session: null,
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/runs/run_no_answer")) {
+						return jsonResult({
+							run: {
+								conversationId: "conv_no_answer",
+								requestId: "req_no_answer",
+								runId: "run_no_answer",
+								status: "completed",
+								traceId: "trace_no_answer",
+							},
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/runs/run_no_answer/steps")) {
+						return jsonResult({
+							attempts: [{ runId: "run_no_answer", workflowId: "workflow_no_answer" }],
+							results: [
+								{
+									resultKind: "agent_plan_result",
+									sanitizedPayload: {
+										planned_steps: ["indexed_lookup"],
+									},
+								},
+							],
+							run: {
+								conversationId: "conv_no_answer",
+								requestId: "req_no_answer",
+								runId: "run_no_answer",
+								status: "completed",
+								traceId: "trace_no_answer",
+							},
+							steps: [{ stepId: "rag.plan", status: "completed" }],
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations/conv_no_answer")) {
+						return jsonResult({
+							conversation: {
+								id: "conv_no_answer",
+								messages: [
+									{
+										kind: null,
+										requestId: "req_no_answer",
+										role: "user",
+										text: "现在校园卡丢了怎么办",
+									},
+								],
+							},
+						} as T);
+					}
+					throw new Error(`unexpected json request: ${input.url}`);
+				},
+				async mintSmokeSession() {
+					return "session=staging";
+				},
+				async openRunEventStream() {
+					return sseResponse([
+						'event: request.completed\ndata: {"occurredAt":"2026-06-04T00:00:02.000Z","requestId":"req_no_answer","runId":"run_no_answer","sequence":6,"status":"completed","traceId":"trace_no_answer"}\n\n',
+					]);
+				},
+				async openSubmitStream() {
+					return sseResponse([
+						'event: request.accepted\ndata: {"requestId":"req_no_answer","runId":"run_no_answer","status":"accepted","traceId":"trace_no_answer"}\n\n',
+					]);
+				},
+			},
+		);
+
+		expect(result.passed).toBe(false);
+		expect(result.workflowTraceSummary).toMatchObject({
+			selected_capability: "knowledge",
+		});
+		expect(result.runtimeStepResults).toEqual([
+			{
+				resultKind: "agent_plan_result",
+				sanitizedPayload: {
+					planned_steps: ["indexed_lookup"],
+				},
+			},
+		]);
+		expect(result.conversation).toBeNull();
 	});
 
 	it("fails closed when the accepted stream event does not include a durable run id", async () => {

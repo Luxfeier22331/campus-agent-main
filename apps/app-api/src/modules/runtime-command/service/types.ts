@@ -48,6 +48,7 @@ export interface ChatCommandResponse {
 
 export type ChatCommandStreamEventName =
 	| "request.accepted"
+	| "answer.delta"
 	| "execution.queued"
 	| "execution.running"
 	| "request.completed"
@@ -62,10 +63,14 @@ export interface ChatCommandStreamEvent {
 			message: string;
 			retryable?: boolean;
 		};
+		accumulatedText?: string;
+		delta?: string;
+		messageId?: string;
 		occurredAt: string;
 		requestId: string;
 		runId?: string | null;
 		runPhase?: RuntimeRunPhase;
+		sequence?: number;
 		status: string;
 		traceId: string;
 	};

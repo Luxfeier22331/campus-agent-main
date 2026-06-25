@@ -238,6 +238,7 @@ describe("chat command durable stream closeout", () => {
 		});
 
 		const events: string[] = [];
+		const deltas: unknown[] = [];
 		for await (const event of service.submitStream?.({
 			payload: {
 				conversationId: "conv_01HQ",
@@ -251,11 +252,27 @@ describe("chat command durable stream closeout", () => {
 			},
 		}) ?? []) {
 			events.push(event.event);
+			if (event.event === "answer.delta") {
+				deltas.push(event);
+			}
 		}
 
 		expect(waitUntilPromises).toHaveLength(1);
 		await waitUntilPromises[0];
-		expect(events).toEqual(["request.accepted", "request.completed"]);
+		expect(events).toEqual(["request.accepted", "answer.delta", "request.completed"]);
+		expect(deltas).toEqual([
+			expect.objectContaining({
+				data: expect.objectContaining({
+					accumulatedText: "国家奖学金每学年评审一次。",
+					delta: "国家奖学金每学年评审一次。",
+					messageId: "msg_0002",
+					requestId: "req_0001",
+					runId: "run_0001",
+					traceId: "trace_0001",
+				}),
+				event: "answer.delta",
+			}),
+		]);
 		expect(finalWrites).toHaveLength(1);
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 		expect(supervisor.execute).not.toHaveBeenCalled();
@@ -338,7 +355,7 @@ describe("chat command durable stream closeout", () => {
 			events.push(event.event);
 		}
 
-		expect(events).toEqual(["request.accepted", "request.completed"]);
+		expect(events).toEqual(["request.accepted", "answer.delta", "request.completed"]);
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: null,

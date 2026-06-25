@@ -17,9 +17,12 @@ interface ReadyzProbe {
 interface ChatDurableE2eArgs {
 	appApiReadyzUrl: string;
 	chatBaseUrl: string;
+	conversationId: string | null;
 	email: string;
 	name: string;
+	password: string | null;
 	prompt: string;
+	resetIdentity: boolean;
 	smokeAuthSecret: string;
 }
 
@@ -65,6 +68,7 @@ interface AcceptedRunIdentity {
 
 interface RuntimeStepTrajectory {
 	attempts: Array<{ runId: string; workflowId: string }>;
+	results?: Record<string, unknown>[];
 	run: RuntimeRunSummary;
 	steps?: Record<string, unknown>[];
 }
@@ -94,6 +98,7 @@ export interface WorkflowTraceSummary {
 
 export interface ChatDurableE2eResult {
 	conversation: {
+		assistantAnswerText: string;
 		assistantMessageCount: number;
 		hasAssistantMessageForRequest: boolean;
 		id: string;
@@ -116,6 +121,7 @@ export interface ChatDurableE2eResult {
 		terminalEvent: DurableRunEventProjection | null;
 	};
 	run: RuntimeRunSummary | null;
+	runtimeStepResults: Record<string, unknown>[];
 	session: unknown | null;
 	sessionMintAttempted: boolean;
 	submit: AcceptedRunIdentity | null;
@@ -162,9 +168,12 @@ function normalizeOptionalValue(value: string | undefined): string | null {
 function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDurableE2eArgs {
 	let appApiReadyzUrl = DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
 	let chatBaseUrl = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
+	let conversationId: string | null = null;
 	let email = DEFAULT_SMOKE_EMAIL;
 	let name = DEFAULT_SMOKE_NAME;
+	let password: string | null = null;
 	let prompt = DEFAULT_CHAT_E2E_PROMPT;
+	let resetIdentity = true;
 	let smokeAuthSecret =
 		normalizeOptionalValue(env.APP_API_STAGING_SMOKE_AUTH_SECRET) ??
 		normalizeOptionalValue(env.STAGING_APP_API_SMOKE_AUTH_SECRET) ??
@@ -202,12 +211,30 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 			index += 1;
 			continue;
 		}
+		if (token === "--conversation-id") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--conversation-id requires a non-empty value.");
+			}
+			conversationId = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--name") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
 				throw new Error("--name requires a non-empty value.");
 			}
 			name = value;
+			index += 1;
+			continue;
+		}
+		if (token === "--password") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--password requires a non-empty value.");
+			}
+			password = value;
 			index += 1;
 			continue;
 		}
@@ -218,6 +245,10 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 			}
 			prompt = value;
 			index += 1;
+			continue;
+		}
+		if (token === "--no-reset-identity") {
+			resetIdentity = false;
 			continue;
 		}
 		if (token === "--smoke-auth-secret") {
@@ -242,9 +273,12 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): ChatDu
 	return {
 		appApiReadyzUrl,
 		chatBaseUrl,
+		conversationId,
 		email,
 		name,
+		password,
 		prompt,
+		resetIdentity,
 		smokeAuthSecret,
 	};
 }
@@ -471,7 +505,19 @@ function isFinalizationCompleted(event: DurableRunEventProjection): boolean {
 	return event.event === "request.completed" && event.status === "completed";
 }
 
-function assertRunMatchesAccepted(run: RuntimeRunSummary, accepted: AcceptedRunIdentity): void {
+function isTerminalRunEvent(event: DurableRunEventProjection): boolean {
+	return (
+		isFinalizationCompleted(event) ||
+		event.event === "request.failed" ||
+		event.event === "request.cancelled"
+	);
+}
+
+function assertRunMatchesAccepted(
+	run: RuntimeRunSummary,
+	accepted: AcceptedRunIdentity,
+	expectedStatus = "completed",
+): void {
 	if (
 		run.runId !== accepted.runId ||
 		run.requestId !== accepted.requestId ||
@@ -479,8 +525,8 @@ function assertRunMatchesAccepted(run: RuntimeRunSummary, accepted: AcceptedRunI
 	) {
 		throw new Error("durable run status identity does not match request.accepted.");
 	}
-	if (run.status !== "completed") {
-		throw new Error(`Expected durable run status completed, received ${run.status}.`);
+	if (run.status !== expectedStatus) {
+		throw new Error(`Expected durable run status ${expectedStatus}, received ${run.status}.`);
 	}
 	if (!run.conversationId.trim()) {
 		throw new Error("durable run status must include conversationId.");
@@ -599,10 +645,16 @@ async function readRunEventsUntilFinalization(input: {
 				assertFinalEventMatchesAccepted(event, input.accepted);
 				return { events, terminalEvent: event };
 			}
+			if (isTerminalRunEvent(event)) {
+				assertFinalEventMatchesAccepted(event, input.accepted);
+				return { events, terminalEvent: event };
+			}
 		}
 	}
 
-	throw new Error("Run event streams ended before request.completed.");
+	throw new Error(
+		`Run event streams ended before request.completed for runId=${input.accepted.runId} requestId=${input.accepted.requestId} traceId=${input.accepted.traceId} lastSequence=${lastSequence} events=${JSON.stringify(events)}`,
+	);
 }
 
 function summarizeConversation(
@@ -622,7 +674,12 @@ function summarizeConversation(
 	if (assistantMessages.length === 0) {
 		throw new Error("conversation is missing an assistant answer message for the durable request.");
 	}
+	const assistantAnswerText = assistantMessages.at(-1)?.text.trim();
+	if (!assistantAnswerText) {
+		throw new Error("conversation assistant answer text is empty.");
+	}
 	return {
+		assistantAnswerText,
 		assistantMessageCount: assistantMessages.length,
 		hasAssistantMessageForRequest: true,
 		id: conversation.id,
@@ -668,6 +725,7 @@ export async function runChatDurableE2eStaging(
 			terminalEvent: null,
 		},
 		run: null,
+		runtimeStepResults: [],
 		session: null,
 		sessionMintAttempted: false,
 		submit: null,
@@ -681,14 +739,14 @@ export async function runChatDurableE2eStaging(
 		new URL("/readyz", args.chatBaseUrl).toString(),
 	);
 
-	const smokePassword = buildSmokePassword();
+	const smokePassword = args.password ?? buildSmokePassword();
 	result.sessionMintAttempted = true;
 	const cookieHeader = await resolvedDeps.mintSmokeSession({
 		appApiReadyzUrl: args.appApiReadyzUrl,
 		email: args.email,
 		name: args.name,
 		password: smokePassword,
-		resetIdentity: true,
+		resetIdentity: args.resetIdentity,
 		smokeAuthSecret: args.smokeAuthSecret,
 	});
 
@@ -714,6 +772,7 @@ export async function runChatDurableE2eStaging(
 	const submit = await readAcceptedEvent({
 		abortSubmitStream: resolvedDeps.abortSubmitStream,
 		body: {
+			...(args.conversationId ? { conversationId: args.conversationId } : {}),
 			prompt: args.prompt,
 		},
 		cookieHeader,
@@ -747,8 +806,13 @@ export async function runChatDurableE2eStaging(
 			args.chatBaseUrl,
 		).toString(),
 	});
-	assertRunMatchesAccepted(runResult.payload.run, submit.accepted);
+	assertRunMatchesAccepted(runResult.payload.run, submit.accepted, resume.terminalEvent.status);
 	result.run = runResult.payload.run;
+
+	if (!isFinalizationCompleted(resume.terminalEvent)) {
+		result.passed = false;
+		return result;
+	}
 
 	const stepsResult = await resolvedDeps.fetchJsonWithCookie<RuntimeStepTrajectory>({
 		cookieHeader,
@@ -761,6 +825,7 @@ export async function runChatDurableE2eStaging(
 	});
 	result.workflow = readWorkflowIdentity(stepsResult.payload, submit.accepted);
 	result.workflowTraceSummary = summarizeWorkflowTrace(stepsResult.payload);
+	result.runtimeStepResults = stepsResult.payload.results ?? [];
 	result.langfuseCloseout = {
 		productTraceId: runResult.payload.run.traceId,
 		requestId: runResult.payload.run.requestId,
@@ -781,10 +846,15 @@ export async function runChatDurableE2eStaging(
 			args.chatBaseUrl,
 		).toString(),
 	});
-	result.conversation = summarizeConversation(
-		conversationResult.payload.conversation,
-		runResult.payload.run,
-	);
+	try {
+		result.conversation = summarizeConversation(
+			conversationResult.payload.conversation,
+			runResult.payload.run,
+		);
+	} catch {
+		result.passed = false;
+		return result;
+	}
 	result.passed = true;
 	return result;
 }
@@ -793,11 +863,9 @@ function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTrac
 	const traceSteps = (trajectory.steps ?? []).map((step) => {
 		const stepId = requireStepString(step, "stepId", "step_id");
 		const status = requireStepString(step, "status");
-		const selectedCapability = optionalStepString(
-			step,
-			"selectedCapability",
-			"selected_capability",
-		);
+		const selectedCapability =
+			optionalStepString(step, "selectedCapability", "selected_capability") ||
+			capabilityFromStepId(stepId);
 		return {
 			...(selectedCapability ? { selected_capability: selectedCapability } : {}),
 			status,
@@ -810,6 +878,40 @@ function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTrac
 		selected_capability: selectedCapability,
 		trace_steps: traceSteps,
 	};
+}
+
+function capabilityFromStepId(stepId: string): string {
+	const normalized = stepId.trim();
+	if (
+		normalized === "rag.plan" ||
+		normalized.startsWith("retrieval.") ||
+		normalized === "evidence.selection" ||
+		normalized === "synthesis" ||
+		normalized === "grounding.verify" ||
+		normalized.startsWith("capability:knowledge:")
+	) {
+		return "knowledge";
+	}
+	if (
+		normalized.startsWith("capability:navigation:") ||
+		normalized.startsWith("sdk_tool.execute.navigation")
+	) {
+		return "navigation";
+	}
+	if (
+		normalized.startsWith("capability:notice:") ||
+		normalized.startsWith("agent_as_tool:notice") ||
+		normalized.startsWith("sdk_tool.execute.campus_notice")
+	) {
+		return "notice";
+	}
+	if (
+		normalized.startsWith("capability:campus_services:") ||
+		normalized.startsWith("sdk_tool.execute.campus_services")
+	) {
+		return "campus_services";
+	}
+	return "";
 }
 
 function requireStepString(step: Record<string, unknown>, ...keys: string[]): string {

@@ -18,6 +18,7 @@ function completedChatResult(input: {
 }): ChatDurableE2eResult {
 	return {
 		conversation: {
+			assistantAnswerText: "已完成回答。",
 			assistantMessageCount: 1,
 			hasAssistantMessageForRequest: true,
 			id: "conv_01",
@@ -80,6 +81,7 @@ function completedChatResult(input: {
 			status: "completed",
 			traceId: input.traceId,
 		},
+		runtimeStepResults: [],
 		session: null,
 		sessionMintAttempted: true,
 		submit: {
