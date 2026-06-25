@@ -164,15 +164,13 @@ func TestRuntimePolicyAllowedToolsMatchDefaultToolSpec(t *testing.T) {
 	if err != nil {
 		t.Fatalf("LoadToolSpecRegistry default failed: %v", err)
 	}
-	for _, target := range []string{
-		"knowledge",
-		"navigation",
-		"campus_services",
-		"notice",
-	} {
+	for _, target := range []string{"knowledge", "navigation", "notice"} {
 		if got, want := AllowedToolsForCapability(target), registry.AllowedToolsForCapability(target); !sameStrings(got, want) {
 			t.Fatalf("%s allowed tools = %#v, want ToolSpec %#v", target, got, want)
 		}
+	}
+	if got := AllowedToolsForCapability("campus_services"); got != nil {
+		t.Fatalf("campus_services allowed tools = %#v, want nil while capability is closed", got)
 	}
 }
 

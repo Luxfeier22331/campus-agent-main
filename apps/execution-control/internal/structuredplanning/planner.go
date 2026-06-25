@@ -2,6 +2,7 @@ package structuredplanning
 
 import (
 	"regexp"
+	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
 )
@@ -47,6 +48,9 @@ type Handoff struct {
 func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) *WorkflowPlan {
 	normalizedGoal := runtimepolicy.NormalizeGoal(request.UserGoal)
 	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal, policy) {
+		return nil
+	}
+	if !capabilityOpenForPlanning(request.EffectiveCapability) {
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
@@ -165,4 +169,16 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		})
 	}
 	return nil
+}
+
+func capabilityOpenForPlanning(capability string) bool {
+	if strings.TrimSpace(capability) == "" {
+		return true
+	}
+	registry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
+	if !ok {
+		return false
+	}
+	spec, ok := registry.CapabilityByID(capability)
+	return ok && spec.Active && spec.OpeningGate == "open"
 }

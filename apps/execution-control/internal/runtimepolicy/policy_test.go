@@ -684,35 +684,34 @@ func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.
 	}
 }
 
-func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
+func TestEvaluateRuntimePolicyFailsClosedUnplannableCampusServicesSubtypeWhileCapabilityClosed(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "校园卡余额怎么查",
 	})
 
-	if decision.RoutingFrame.SuggestedNextAction != "clarify" {
-		t.Fatalf("next action = %q, want clarify", decision.RoutingFrame.SuggestedNextAction)
+	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
+		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
 	}
-	if decision.RoutingFrame.ScopeReason != "structured_subtype_missing" {
-		t.Fatalf("scope reason = %q, want structured_subtype_missing", decision.RoutingFrame.ScopeReason)
+	if decision.RoutingFrame.ScopeReason != "capability_not_open" {
+		t.Fatalf("scope reason = %q, want capability_not_open", decision.RoutingFrame.ScopeReason)
 	}
-	if len(decision.RoutingFrame.MissingSlots) != 1 ||
-		decision.RoutingFrame.MissingSlots[0] != "campus_service_task" {
-		t.Fatalf("missing slots = %#v, want campus_service_task", decision.RoutingFrame.MissingSlots)
+	if len(decision.RoutingFrame.MissingSlots) != 0 {
+		t.Fatalf("missing slots = %#v, want none while capability is closed", decision.RoutingFrame.MissingSlots)
 	}
 }
 
-func TestEvaluateRuntimePolicyDelegatesCampusServiceGuideSubtype(t *testing.T) {
+func TestEvaluateRuntimePolicyFailsClosedCampusServiceGuideSubtypeWhileCapabilityClosed(t *testing.T) {
 	decision := Evaluate(Request{
 		EffectiveCapability: "campus_services",
 		UserGoal:            "宿舍入住怎么办理",
 	})
 
-	if decision.RoutingFrame.SuggestedNextAction != "delegate" {
-		t.Fatalf("next action = %q, want delegate", decision.RoutingFrame.SuggestedNextAction)
+	if decision.RoutingFrame.SuggestedNextAction != "out_of_scope" {
+		t.Fatalf("next action = %q, want out_of_scope", decision.RoutingFrame.SuggestedNextAction)
 	}
-	if decision.RoutingFrame.ScopeReason != "explicit_requested_capability" {
-		t.Fatalf("scope reason = %q, want explicit_requested_capability", decision.RoutingFrame.ScopeReason)
+	if decision.RoutingFrame.ScopeReason != "capability_not_open" {
+		t.Fatalf("scope reason = %q, want capability_not_open", decision.RoutingFrame.ScopeReason)
 	}
 }
 

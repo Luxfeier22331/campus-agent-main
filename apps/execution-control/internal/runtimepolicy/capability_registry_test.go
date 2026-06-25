@@ -50,22 +50,15 @@ func TestLoadCapabilitySpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if !ok {
 		t.Fatal("campus_services missing from CapabilitySpec")
 	}
-	if !campusServices.Active || campusServices.WorkerRole != "activity-worker-campus-services" {
-		t.Fatalf("campus services capability = %#v, want active campus_services worker", campusServices)
+	if campusServices.Active ||
+		campusServices.OpeningGate != "closed" ||
+		campusServices.WorkerRole != "activity-worker-campus-services" {
+		t.Fatalf("campus services capability = %#v, want closed campus_services worker registration", campusServices)
 	}
-	if !containsString(campusServices.AllowedStructuredTools, "academic_calendar_lookup") {
+	if len(campusServices.AllowedStructuredTools) != 0 {
 		t.Fatalf(
-			"campus services structured tools = %#v, want academic_calendar_lookup",
+			"campus services structured tools = %#v, want none while closed",
 			campusServices.AllowedStructuredTools,
 		)
 	}
-}
-
-func containsString(values []string, target string) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
 }

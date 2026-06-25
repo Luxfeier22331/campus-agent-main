@@ -8,7 +8,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule(t *testing.T) {
+func TestParseAnswerRequestFailsClosedForClosedCampusServicesCapability(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"我明天早上要去丰台上课，最早的班车是几点",
@@ -58,71 +58,33 @@ func TestParseAnswerRequestProjectsBridgeV5CapabilityRequestForTransportSchedule
 	if summary["schema_version"] != "runtime-decision-summary-v1" {
 		t.Fatalf("runtime_decision_summary.schema_version = %v, want runtime-decision-summary-v1", summary["schema_version"])
 	}
-	if summary["planning_outcome"] != "preplanned" {
-		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
+	if summary["planning_outcome"] != "not_preplanned" ||
+		summary["terminal_outcome"] != "no_answer" ||
+		summary["fail_close_reason"] != "capability_not_open" {
+		t.Fatalf("runtime_decision_summary = %#v", summary)
 	}
-	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
-	if handoff["planning_outcome"] != "preplanned" {
-		t.Fatalf("handoff.planning_outcome = %v, want preplanned", handoff["planning_outcome"])
+	if _, ok := runtimeDecisions["handoff"]; ok {
+		t.Fatalf("runtime decisions must not expose handoff for closed capability: %#v", runtimeDecisions["handoff"])
 	}
-	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
-	if workflowPlan["schema_version"] != "workflow-plan-v1" {
-		t.Fatalf("workflow_plan.schema_version = %v, want workflow-plan-v1", workflowPlan["schema_version"])
+	if _, ok := runtimeDecisions["workflow_plan"]; ok {
+		t.Fatalf("runtime decisions must not expose workflow_plan for closed capability: %#v", runtimeDecisions["workflow_plan"])
 	}
-	if workflowPlan["workflow_mode"] != "single_step" {
-		t.Fatalf("workflow_plan.workflow_mode = %v, want single_step", workflowPlan["workflow_mode"])
+	terminal := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminal["status"] != "no_answer" {
+		t.Fatalf("terminal status = %v, want no_answer", terminal["status"])
 	}
-	allowedAgents, ok := workflowPlan["allowed_capabilities"].([]any)
-	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus_services" {
-		t.Fatalf("workflow_plan.allowed_capabilities = %#v, want campus_services", workflowPlan["allowed_capabilities"])
+	observability := expectExecutionRecord(t, terminal["observability"], "terminal_envelope.observability")
+	if observability["policy_reason"] != "capability_not_open" ||
+		observability["fail_closed"] != true {
+		t.Fatalf("terminal observability = %#v", observability)
 	}
-	if workflowPlan["workflow_mode"] == "multi_step" {
-		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
-	}
-	planSteps, ok := workflowPlan["steps"].([]any)
-	if !ok || len(planSteps) != 1 {
-		t.Fatalf("workflow_plan.steps = %#v, want one handoff step", workflowPlan["steps"])
-	}
-	planStep := expectExecutionRecord(t, planSteps[0], "workflow_plan.steps[0]")
-	if planStep["step_kind"] != "handoff" || planStep["capability"] != "campus_services" {
-		t.Fatalf("workflow plan step = %#v, want campus-services handoff", planStep)
-	}
-	if handoff["capability"] != "campus_services" {
-		t.Fatalf("handoff.capability = %v, want campus_services", handoff["capability"])
-	}
-	allowedTools, ok := handoff["allowed_tools"].([]any)
-	if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
-		t.Fatalf("handoff.allowed_tools = %#v, want transport_schedule_lookup", handoff["allowed_tools"])
-	}
-	legacyHandoffPayloadKey := "agent" + "_" + "payload"
-	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
-		t.Fatalf("handoff must not expose legacy payload fragment: %#v", handoff)
-	}
-	agentRequest := expectExecutionRecord(t, handoff["capability_request"], "handoff.capability_request")
-	if agentRequest["capability"] != "campus_services" {
-		t.Fatalf("capability_request.capability = %v, want campus_services", agentRequest["capability"])
-	}
-	if agentRequest["request_id"] != "req-transport-preplan" {
-		t.Fatalf("capability_request.request_id = %v, want req-transport-preplan", agentRequest["request_id"])
-	}
-	payloadRecord := expectExecutionRecord(t, agentRequest["payload"], "handoff.capability_request.payload")
-	if payloadRecord["kind"] != "transport_schedule_lookup" {
-		t.Fatalf("capability_request.payload.kind = %v, want transport_schedule_lookup", payloadRecord["kind"])
-	}
-	payloadBody := expectExecutionRecord(t, payloadRecord["payload"], "handoff.capability_request.payload.payload")
-	if _, ok := payloadRecord["intent"]; ok {
-		t.Fatalf("legacy payload intent should not be present at payload wrapper level: %#v", payloadRecord)
-	}
-	if payloadBody["intent"] != "first_departure" {
-		t.Fatalf("intent = %v, want first_departure", payloadBody["intent"])
-	}
-	routeSelector := expectExecutionRecord(t, payloadBody["route_selector"], "route_selector")
-	if routeSelector["destination_campus"] != "fengtai" {
-		t.Fatalf("destination_campus = %v, want fengtai", routeSelector["destination_campus"])
-	}
-	serviceTimeQuery := expectExecutionRecord(t, payloadBody["service_time_query"], "service_time_query")
-	if serviceTimeQuery["date_mode"] != "tomorrow" || serviceTimeQuery["daypart"] != "morning" {
-		t.Fatalf("service_time_query = %#v, want tomorrow morning", serviceTimeQuery)
+	if request.StructuredHandoff != nil || request.WorkflowMode != "" || len(request.PlannedHandoffs) != 0 {
+		t.Fatalf(
+			"request handoff/workflow/planned = %#v/%q/%#v, want none",
+			request.StructuredHandoff,
+			request.WorkflowMode,
+			request.PlannedHandoffs,
+		)
 	}
 }
 
@@ -316,7 +278,7 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	}
 }
 
-func TestParseAnswerRequestResolvesTransportNoticeOverrideWorkflowPlan(t *testing.T) {
+func TestParseAnswerRequestRejectsTransportNoticeOverrideWhileCampusServicesIsClosed(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"今天丰台到海淀通勤车乘车点有没有调整",
@@ -342,51 +304,25 @@ func TestParseAnswerRequestResolvesTransportNoticeOverrideWorkflowPlan(t *testin
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if request.WorkflowMode != WorkflowModeMultiStep {
-		t.Fatalf("workflow mode = %q, want multi_step", request.WorkflowMode)
-	}
-	if request.StructuredHandoff == nil {
-		t.Fatal("structured handoff must be present")
-	}
-	if request.StructuredHandoff.Capability != "campus_services" ||
-		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" {
-		t.Fatalf("first structured handoff = %#v", request.StructuredHandoff)
-	}
-	if len(request.PlannedHandoffs) != 3 {
-		t.Fatalf("planned handoffs = %#v, want schedule then notice then rag", request.PlannedHandoffs)
-	}
-	if request.PlannedHandoffs[1].RequiredProjectionKind != "schedule_baseline" {
+	if request.WorkflowMode != "" || request.StructuredHandoff != nil || len(request.PlannedHandoffs) != 0 {
 		t.Fatalf(
-			"planned handoff[1].required_projection_kind = %q, want schedule_baseline",
-			request.PlannedHandoffs[1].RequiredProjectionKind,
-		)
-	}
-	if request.PlannedHandoffs[2].RequiredProjectionKind != "notice_change_set" {
-		t.Fatalf(
-			"planned handoff[2].required_projection_kind = %q, want notice_change_set",
-			request.PlannedHandoffs[2].RequiredProjectionKind,
+			"request handoff/workflow/planned = %#v/%q/%#v, want none",
+			request.StructuredHandoff,
+			request.WorkflowMode,
+			request.PlannedHandoffs,
 		)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
-	if workflowPlan["workflow_mode"] != "multi_step" {
-		t.Fatalf("workflow_plan.workflow_mode = %v, want multi_step", workflowPlan["workflow_mode"])
+	if _, ok := runtimeDecisions["workflow_plan"]; ok {
+		t.Fatalf("runtime decisions must not expose workflow_plan for closed capability: %#v", runtimeDecisions["workflow_plan"])
 	}
-	steps, ok := workflowPlan["steps"].([]any)
-	if !ok || len(steps) != 3 {
-		t.Fatalf("workflow_plan.steps = %#v, want three handoff steps", workflowPlan["steps"])
+	terminal := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
+	if terminal["status"] != "no_answer" {
+		t.Fatalf("terminal status = %v, want no_answer", terminal["status"])
 	}
-	edges, ok := workflowPlan["edges"].([]any)
-	if !ok || len(edges) != 2 {
-		t.Fatalf("workflow_plan.edges = %#v, want two dependency edges", workflowPlan["edges"])
-	}
-	firstEdge := expectExecutionRecord(t, edges[0], "workflow_plan.edges[0]")
-	secondEdge := expectExecutionRecord(t, edges[1], "workflow_plan.edges[1]")
-	if firstEdge["required_projection_kind"] != "schedule_baseline" {
-		t.Fatalf("first edge = %#v, want schedule_baseline dependency", firstEdge)
-	}
-	if secondEdge["required_projection_kind"] != "notice_change_set" {
-		t.Fatalf("second edge = %#v, want notice_change_set dependency", secondEdge)
+	observability := expectExecutionRecord(t, terminal["observability"], "terminal_envelope.observability")
+	if observability["policy_reason"] != "capability_not_open" {
+		t.Fatalf("terminal observability = %#v", observability)
 	}
 }

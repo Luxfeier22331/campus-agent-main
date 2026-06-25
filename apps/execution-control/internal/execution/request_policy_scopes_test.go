@@ -104,7 +104,7 @@ func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *test
 	}
 }
 
-func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge(t *testing.T) {
+func TestParseAnswerRequestFailsClosedForCampusServicesSubtypeWhileCapabilityIsClosed(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"校园卡余额怎么查",
@@ -125,20 +125,20 @@ func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
 	if request.StructuredHandoff != nil {
-		t.Fatalf("unplannable subtype must not preplan capability: %#v", request.StructuredHandoff)
+		t.Fatalf("closed capability must not preplan capability: %#v", request.StructuredHandoff)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
 	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
-	if routingFrame["suggested_next_action"] != "clarify" {
-		t.Fatalf("routing_frame.suggested_next_action = %v, want clarify", routingFrame["suggested_next_action"])
+	if routingFrame["suggested_next_action"] != "out_of_scope" {
+		t.Fatalf("routing_frame.suggested_next_action = %v, want out_of_scope", routingFrame["suggested_next_action"])
 	}
-	if routingFrame["scope_reason"] != "structured_subtype_missing" {
-		t.Fatalf("routing_frame.scope_reason = %v, want structured_subtype_missing", routingFrame["scope_reason"])
+	if routingFrame["scope_reason"] != "capability_not_open" {
+		t.Fatalf("routing_frame.scope_reason = %v, want capability_not_open", routingFrame["scope_reason"])
 	}
 	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminalEnvelope["status"] != "needs_clarification" {
-		t.Fatalf("terminal_envelope.status = %v, want needs_clarification", terminalEnvelope["status"])
+	if terminalEnvelope["status"] != "no_answer" {
+		t.Fatalf("terminal_envelope.status = %v, want no_answer", terminalEnvelope["status"])
 	}
 }
 

@@ -151,7 +151,7 @@ func TestPlanWithPolicyBuildsCapabilityOnlyNoticeKnowledgeFollowthroughPreplan(t
 	}
 }
 
-func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
+func TestPlanWithPolicyRejectsClosedTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -169,29 +169,8 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 		},
 	}, policy)
 
-	if plan == nil {
-		t.Fatal("expected planner to emit capability preplan")
-		return
-	}
-	if plan.WorkflowMode != WorkflowModeMultiStep {
-		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
-	}
-	if handoff := plan.SelectedHandoff(); handoff != nil {
-		t.Fatalf("capability preplan must not bake selected handoff: %#v", handoff)
-	}
-	if handoffs := plan.Handoffs(); len(handoffs) != 0 {
-		t.Fatalf("capability preplan handoffs = %#v, want none", handoffs)
-	}
-	capabilityPlan := plan.CapabilityPlan()
-	if capabilityPlan == nil {
-		t.Fatal("expected internal capability plan")
-		return
-	}
-	if !sameCapabilityArtifacts(
-		capabilityPlan.RequiredArtifacts,
-		[]string{"schedule_baseline", "notice_change_set", "evidence_bundle", "grounding_verdict"},
-	) {
-		t.Fatalf("required artifacts = %#v", capabilityPlan.RequiredArtifacts)
+	if plan != nil {
+		t.Fatalf("plan = %#v, want nil while campus_services is closed", plan)
 	}
 }
 
@@ -264,16 +243,8 @@ func TestPlanWithPolicyUsesIntentPolicyArtifactSignals(t *testing.T) {
 		UserGoal:            "摆渡车最早几点",
 	}, policy)
 
-	handoff := plan.SelectedHandoff()
-	if handoff == nil {
-		t.Fatal("expected policy-backed transport signal to produce handoff")
-		return
-	}
-	if handoff.PayloadKind != "transport_schedule_lookup" {
-		t.Fatalf("payload kind = %q, want transport_schedule_lookup", handoff.PayloadKind)
-	}
-	if handoff.Payload["intent"] != "first_departure" {
-		t.Fatalf("intent = %v, want first_departure", handoff.Payload["intent"])
+	if plan != nil {
+		t.Fatalf("plan = %#v, want nil because policy signals must not override capability opening gate", plan)
 	}
 }
 

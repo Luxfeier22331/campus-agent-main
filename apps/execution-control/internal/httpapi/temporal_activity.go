@@ -350,6 +350,12 @@ func (s *Server) plannedRouteForRun(
 	if capability == "" {
 		capability = "knowledge"
 	}
+	if !temporalPlanningCapabilityOpen(capability) {
+		return temporalruntime.PlanRouteActivityOutput{}, true, fmt.Errorf(
+			"capability %s is not open for plan.route",
+			capability,
+		)
+	}
 	version := cloneAnyMapFromMetadata(payload["version_query"])
 	scope := cloneAnyMapFromMetadata(payload["requested_scope"])
 	selectedNotice := cloneAnyMapFromMetadata(nestedAny(payload, "context", "session", "selected_notice_ref"))
@@ -387,6 +393,21 @@ func (s *Server) plannedRouteForRun(
 	}
 	route, err := temporalRouteOutputFromStructuredPlan(run.RunID, capability, plan)
 	return route, true, err
+}
+
+func temporalPlanningCapabilityOpen(capability string) bool {
+	if strings.TrimSpace(capability) == "" {
+		return true
+	}
+	if capability == "place_lookup" {
+		return false
+	}
+	registry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
+	if !ok {
+		return false
+	}
+	spec, ok := registry.CapabilityByID(capability)
+	return ok && spec.Active && spec.OpeningGate == "open"
 }
 
 func resolveStructuredCapabilityPlan(

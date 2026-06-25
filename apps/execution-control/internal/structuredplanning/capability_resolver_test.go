@@ -56,10 +56,10 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 	}
 }
 
-func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testing.T) {
+func TestResolveCapabilityPlanRejectsClosedCampusServicesTransportNoticeOverrideWorkflowPlan(t *testing.T) {
 	capabilities, tools, artifacts := loadResolverRegistries(t)
 
-	plan, err := ResolveCapabilityPlan(
+	_, err := ResolveCapabilityPlan(
 		transportNoticeOverrideCapabilityPlan(Request{
 			EffectiveCapability: "campus_services",
 			UserGoal:            "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
@@ -73,51 +73,7 @@ func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testi
 		tools,
 		artifacts,
 	)
-	if err != nil {
-		t.Fatalf("ResolveCapabilityPlan failed: %v", err)
-	}
-	if plan.WorkflowMode != WorkflowModeMultiStep {
-		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
-	}
-	handoffs := plan.Handoffs()
-	if len(handoffs) != 3 {
-		t.Fatalf("handoff count = %d, want 3", len(handoffs))
-	}
-	if handoffs[0].PayloadKind != "transport_schedule_lookup" {
-		t.Fatalf("first handoff = %#v", handoffs[0])
-	}
-	serviceTimeQuery := handoffs[0].Payload["service_time_query"].(map[string]any)
-	if serviceTimeQuery["date_mode"] != "date" ||
-		serviceTimeQuery["service_date"] != "2026-05-07" {
-		t.Fatalf(
-			"service_time_query = %#v, want explicit fixture service date",
-			serviceTimeQuery,
-		)
-	}
-	routeSelector := handoffs[0].Payload["route_selector"].(map[string]any)
-	if routeSelector["origin_campus"] != "fengtai" ||
-		routeSelector["destination_campus"] != "haidian" {
-		t.Fatalf("route_selector = %#v, want fengtai -> haidian", routeSelector)
-	}
-	if handoffs[1].PayloadKind != "campus_notice_change_set_lookup" {
-		t.Fatalf("second handoff = %#v", handoffs[1])
-	}
-	if handoffs[1].Payload["service_date"] != "2026-05-07" ||
-		handoffs[1].Payload["query_time_anchor"] != "today" {
-		t.Fatalf("change-set payload = %#v, want explicit date plus today anchor", handoffs[1].Payload)
-	}
-	if handoffs[2].PayloadKind != "rag_request" {
-		t.Fatalf("third handoff = %#v", handoffs[2])
-	}
-	if len(plan.Edges) != 2 {
-		t.Fatalf("workflow edges = %#v, want two dependency edges", plan.Edges)
-	}
-	if plan.Edges[0].RequiredProjectionKind != "schedule_baseline" {
-		t.Fatalf("first edge required projection = %q", plan.Edges[0].RequiredProjectionKind)
-	}
-	if plan.Edges[1].RequiredProjectionKind != "notice_change_set" {
-		t.Fatalf("second edge required projection = %q", plan.Edges[1].RequiredProjectionKind)
-	}
+	assertResolverFailure(t, err, "producer_closed")
 }
 
 func TestResolveCapabilityPlanFailsClosedWhenArtifactOwnerIsMissing(t *testing.T) {

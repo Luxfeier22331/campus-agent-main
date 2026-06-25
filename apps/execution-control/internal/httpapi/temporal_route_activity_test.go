@@ -11,7 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestPlanRouteActivityBuildsCampusServicesPlanFromExecutionPayload(t *testing.T) {
+func TestPlanRouteActivityRejectsClosedCampusServicesPlanFromExecutionPayload(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -63,7 +63,7 @@ func TestPlanRouteActivityBuildsCampusServicesPlanFromExecutionPayload(t *testin
 		t.Fatalf("create run: %v", err)
 	}
 
-	route, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
+	_, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
 		ConversationID:      "conv-route-campus-services",
 		Namespace:           "campus-agent-test",
 		PayloadSHA256:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -74,19 +74,11 @@ func TestPlanRouteActivityBuildsCampusServicesPlanFromExecutionPayload(t *testin
 		TurnID:              "turn-route-campus-services",
 		WorkflowID:          "campus-agent.chat.run-route-campus-services",
 	})
-	if err != nil {
-		t.Fatalf("plan route: %v", err)
+	if err == nil {
+		t.Fatal("expected closed campus_services plan.route to fail")
 	}
-	if route.Capability != "campus_services" || route.WorkflowMode != "multi_step" {
-		t.Fatalf("route = %#v, want campus_services multi_step plan", route)
-	}
-	if len(route.Steps) != 3 {
-		t.Fatalf("route steps = %#v, want schedule, notice change-set, knowledge", route.Steps)
-	}
-	if route.Steps[0].ToolName != "transport_schedule_lookup" ||
-		route.Steps[1].ToolName != "campus_notice_change_set_lookup" ||
-		route.Steps[2].Capability != "knowledge" {
-		t.Fatalf("route steps = %#v, want typed tools followed by knowledge", route.Steps)
+	if !strings.Contains(err.Error(), "capability campus_services is not open for plan.route") {
+		t.Fatalf("error = %v, want capability not open", err)
 	}
 }
 

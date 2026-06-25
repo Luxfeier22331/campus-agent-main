@@ -99,6 +99,25 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
+	if request.EffectiveCapability != "" &&
+		request.EffectiveCapability != "place_lookup" &&
+		!defaultCapabilityOpen(request.EffectiveCapability) {
+		reason := "capability_not_open"
+		frame.DomainCandidates = []string{request.EffectiveCapability}
+		frame.SuggestedNextAction = "out_of_scope"
+		frame.ScopeClass = "in_scope"
+		frame.PolicyReason = reason
+		frame.LaunchState = "closed"
+		frame.ScopeReason = reason
+		frame.RoutingConfidence = "high"
+		policyGate = PolicyGate{
+			Decision:  "out_of_scope",
+			Reason:    reason,
+			RiskLevel: "low",
+		}
+		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
+	}
+
 	switch request.EffectiveCapability {
 	case "place_lookup":
 		frame.DomainCandidates = []string{"out_of_scope"}

@@ -23,6 +23,9 @@ func TestPlanGoldenCases(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			if !capabilityOpenForPlanning(tt.request.EffectiveCapability) {
+				t.Skipf("%s capability is closed for current product runtime", tt.request.EffectiveCapability)
+			}
 			policy, err := runtimepolicy.LoadIntentPolicy("")
 			if err != nil {
 				t.Fatalf("load intent policy: %v", err)
@@ -54,5 +57,19 @@ func TestPlanGoldenCases(t *testing.T) {
 				assertPayloadValue(t, handoff.Payload, key, want)
 			}
 		})
+	}
+}
+
+func TestPlanWithPolicyDoesNotPreplanClosedCampusServicesCapability(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+	plan := PlanWithPolicy(Request{
+		EffectiveCapability: "campus_services",
+		UserGoal:            "校车时刻表",
+	}, policy)
+	if plan != nil {
+		t.Fatalf("plan = %#v, want nil while campus_services is closed", plan)
 	}
 }

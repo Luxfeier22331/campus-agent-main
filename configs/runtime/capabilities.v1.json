@@ -29,17 +29,11 @@
 			"owner_package": "packages/campus-services-capability",
 			"worker_role": "activity-worker-campus-services",
 			"runtime_adapter": "temporal_activity_worker",
-			"active": true,
-			"opening_gate": "open",
-			"allowed_structured_tools": [
-				"service_status_lookup",
-				"service_guide_lookup",
-				"transport_schedule_lookup",
-				"contact_directory_lookup",
-				"academic_calendar_lookup"
-			],
+			"active": false,
+			"opening_gate": "closed",
+			"allowed_structured_tools": [],
 			"context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
-			"description": "Campus services capability for deterministic structured service queries."
+			"description": "Campus services capability is registered but closed while the service product path is being rebuilt."
 		},
 		{
 			"id": "notice",
