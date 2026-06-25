@@ -44,6 +44,6 @@ describe("AssistantConversationSurface", () => {
 		expect(thread).toHaveAttribute("data-placeholder", "输入校园问题");
 		expect(thread).toHaveAttribute("data-assistant-avatar", "问");
 		expect(thread).toHaveAttribute("data-has-tool-fallback", "true");
-		expect(thread).toHaveAttribute("data-allow-attachments", "true");
+		expect(thread).toHaveAttribute("data-allow-attachments", "false");
 	});
 });

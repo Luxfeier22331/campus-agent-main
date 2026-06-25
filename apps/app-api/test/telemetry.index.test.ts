@@ -231,6 +231,36 @@ describe("app telemetry", () => {
 		);
 	});
 
+	it("does not fail request-path telemetry when runtime event ingest fails", async () => {
+		const telemetry = createAppTelemetry(
+			{
+				APP_API_ENVIRONMENT: "test",
+			},
+			{
+				runtimeEventSink: {
+					emit: vi.fn().mockRejectedValue(new Error("Network connection lost.")),
+				},
+			},
+		);
+
+		await expect(
+			telemetry.recordRequestAccepted({
+				actor: {
+					principalType: "campus_member",
+					subject: "user_01",
+				},
+				conversationId: "conv_01",
+				requestId: "req_01",
+				requestedCapability: null,
+				requestedScope: null,
+				safetyIdentifier: "safety_01",
+				status: "accepted",
+				surface: "campus_web",
+				traceId: "trace_01",
+			}),
+		).resolves.toBeUndefined();
+	});
+
 	it("emits identity endpoint telemetry without auth-sensitive fields", async () => {
 		const runtimeEventSink = { emit: vi.fn().mockResolvedValue(undefined) };
 		const telemetry = createAppTelemetry(

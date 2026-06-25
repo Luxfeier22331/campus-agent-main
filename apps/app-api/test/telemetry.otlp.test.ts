@@ -1,12 +1,16 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createAppTelemetry } from "../src/modules/telemetry";
 import {
 	createOtlpRuntimeEventSink,
 	sanitizeRuntimeEventPayload,
 } from "../src/modules/telemetry/otlp";
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+});
 
 describe("app-api OTLP runtime event sink", () => {
 	it("posts sanitized lifecycle events to the controlled OTLP ingest endpoint", async () => {
@@ -102,6 +106,34 @@ describe("app-api OTLP runtime event sink", () => {
 		});
 
 		expect(fetchImplementation).not.toHaveBeenCalled();
+	});
+
+	it("keeps default worker fetch bound to the global runtime object", async () => {
+		vi.stubGlobal("fetch", function (
+			this: unknown,
+			_input: RequestInfo | URL,
+			_init?: RequestInit,
+		): Promise<Response> {
+			if (this !== globalThis) {
+				throw new TypeError("Illegal invocation: function called with incorrect `this` reference.");
+			}
+			return Promise.resolve(new Response(null, { status: 200 }));
+		} as typeof fetch);
+		const sink = createOtlpRuntimeEventSink({
+			APP_API_ENVIRONMENT: "test",
+			APP_API_OTEL_INGEST_ENDPOINT: "https://otel-ingest.example.com",
+			APP_API_OTEL_INGEST_SHARED_SECRET: "ingest-secret",
+		});
+
+		await expect(
+			sink.emit({
+				event_type: "request.accepted",
+				request_id: "req_01",
+				status: "accepted",
+				surface: "campus_web",
+				trace_id: "trace_01",
+			}),
+		).resolves.toBeUndefined();
 	});
 
 	it("uses the shared runtime event allowlist", () => {

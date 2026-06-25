@@ -34,11 +34,12 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	traceId: string;
 } {
 	if (error instanceof ExecutionControlTransportError) {
+		const publicMessage = publicTransportErrorMessage(error);
 		return {
 			answerText: "",
 			error: {
 				code: error.code,
-				message: error.message,
+				message: publicMessage,
 				retryable: error.retryable,
 			},
 			followUpQuestion: "",
@@ -62,6 +63,13 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		status: "error",
 		traceId: "",
 	};
+}
+
+function publicTransportErrorMessage(error: ExecutionControlTransportError): string {
+	if (error.code === "execution_control_unavailable") {
+		return "问答服务暂时无法连接，请稍后再试。";
+	}
+	return error.message;
 }
 
 export function buildAbuseThrottleRejectedResponse(input: {

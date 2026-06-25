@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 
 import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "../../config";
+import { defaultRuntimeFetch } from "../integration/execution-control-runtime";
 import type { RuntimeEventScalar, RuntimeEventSink } from "./runtime-event";
 import { sanitizeRuntimeEventPayload as sanitizeSharedRuntimeEventPayload } from "./runtime-event";
 
@@ -42,7 +43,7 @@ export function createOtlpRuntimeEventSink(
 	const environment = resolveEnvironment(env);
 	const endpoint = env.APP_API_OTEL_INGEST_ENDPOINT?.trim().replace(/\/+$/u, "");
 	const sharedSecret = env.APP_API_OTEL_INGEST_SHARED_SECRET?.trim();
-	const fetchImplementation = input.fetchImplementation ?? fetch;
+	const fetchImplementation = input.fetchImplementation ?? defaultRuntimeFetch;
 	const now = input.now ?? (() => new Date());
 	const timeoutMs =
 		typeof input.timeoutMs === "number" && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0

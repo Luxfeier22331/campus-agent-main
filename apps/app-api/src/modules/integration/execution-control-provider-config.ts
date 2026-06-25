@@ -1,6 +1,10 @@
 import type { Env } from "../../config";
 import type { TracePropagationHeaders } from "../telemetry/trace";
-import { createExecutionControlRequester, type JsonRecord } from "./execution-control-runtime";
+import {
+	createExecutionControlRequester,
+	defaultRuntimeFetch,
+	type JsonRecord,
+} from "./execution-control-runtime";
 import { ExecutionControlTransportError } from "./execution-control-transport";
 
 type ExecutionControlRuntimeEnv = Pick<
@@ -43,7 +47,7 @@ export function createExecutionControlProviderConfigClient(
 	} = {},
 ): ExecutionControlProviderConfigClient {
 	const requestExecutionControl = createExecutionControlRequester(env, {
-		fetchImplementation: input.fetchImplementation ?? fetch,
+		fetchImplementation: input.fetchImplementation ?? defaultRuntimeFetch,
 		traceDataProvider: input.traceDataProvider ?? (() => ({})),
 	});
 

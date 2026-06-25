@@ -8,6 +8,7 @@ const assistantUiMock = vi.hoisted(() => ({
 	externalStoreInput: null as null | {
 		isRunning: boolean;
 		messages: unknown[];
+		onCancel: () => Promise<void>;
 		onNew: (message: { content: { text: string; type: "text" }[] }) => Promise<void>;
 	},
 	initialize: vi.fn(),
@@ -294,6 +295,60 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("aborts the active stream and requests durable run cancellation", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseStream: () => void = () => {
+			throw new Error("stream release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			await new Promise<void>((resolve) => {
+				releaseStream = resolve;
+			});
+		});
+		conversationApiMock.cancelRun.mockResolvedValue(undefined);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(observedSignal?.aborted).toBe(false);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+
+		expect(observedSignal?.aborted).toBe(true);
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+
+		releaseStream();
+		await act(async () => {
+			await submitPromise;
+		});
 	});
 
 	it("keeps local streaming messages when assistant-ui publishes the newly initialized remote thread", async () => {

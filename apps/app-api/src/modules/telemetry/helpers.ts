@@ -40,6 +40,16 @@ export function runTelemetrySideEffectWithoutRequestFailure(operation: () => voi
 	}
 }
 
+export async function runTelemetryAsyncSideEffectWithoutRequestFailure(
+	operation: () => Promise<void>,
+): Promise<void> {
+	try {
+		await operation();
+	} catch {
+		// Telemetry must never become a request-path failure source.
+	}
+}
+
 export function readTelemetryTraceDataWithoutRequestFailure(
 	traceDataProvider: () => TraceDataLike | null | undefined,
 ): TraceDataLike {

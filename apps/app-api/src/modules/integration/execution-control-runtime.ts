@@ -237,7 +237,7 @@ export function createExecutionControlRuntimeClient(
 		traceDataProvider?: () => Record<string, unknown>;
 	} = {},
 ): ExecutionControlRuntimeClient {
-	const fetchImplementation = input.fetchImplementation ?? fetch;
+	const fetchImplementation = input.fetchImplementation ?? defaultRuntimeFetch;
 	const traceDataProvider = input.traceDataProvider ?? (() => ({}));
 	const requestExecutionControl = createExecutionControlRequester(env, {
 		fetchImplementation,
@@ -313,7 +313,7 @@ export function createExecutionControlPersonalMemoryClient(
 	} = {},
 ): ExecutionControlPersonalMemoryClient {
 	const requestExecutionControl = createExecutionControlRequester(env, {
-		fetchImplementation: input.fetchImplementation ?? fetch,
+		fetchImplementation: input.fetchImplementation ?? defaultRuntimeFetch,
 		traceDataProvider: input.traceDataProvider ?? (() => ({})),
 	});
 
@@ -373,6 +373,8 @@ export function createExecutionControlPersonalMemoryClient(
 		},
 	};
 }
+
+export const defaultRuntimeFetch: typeof fetch = (input, init) => globalThis.fetch(input, init);
 
 function parsePersonalMemoryOwnerDisableResult(value: JsonRecord): {
 	status: string;

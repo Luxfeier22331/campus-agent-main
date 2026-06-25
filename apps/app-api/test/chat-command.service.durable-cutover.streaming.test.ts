@@ -166,6 +166,77 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
 	});
 
+	it("keeps execution-control transport details out of user-visible streaming errors", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockRejectedValue(
+				new ExecutionControlTransportError({
+					code: "execution_control_unavailable",
+					message: "Network connection lost.",
+					retryable: true,
+					status: 503,
+				}),
+			),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn(),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "hi 你是谁",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		}) ?? []) {
+			events.push(event);
+		}
+
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			data: {
+				answer: {
+					result: {
+						errorCode: "execution_control_unavailable",
+						kind: "error",
+						message: "问答服务暂时无法连接，请稍后再试。",
+						retryable: true,
+					},
+				},
+				error: {
+					code: "execution_control_unavailable",
+					message: "问答服务暂时无法连接，请稍后再试。",
+					retryable: true,
+				},
+				status: "error",
+			},
+			event: "request.failed",
+		});
+		expect(events[0]?.data.answer?.conversation.messages.at(-1)).toMatchObject({
+			kind: "error",
+			role: "assistant",
+			text: "问答服务暂时无法连接，请稍后再试。",
+		});
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "execution_control_unavailable",
+				status: "error",
+			},
+		});
+	});
+
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
@@ -402,11 +473,31 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "accepted",
 				text: undefined,
 			},
-			{ event: "execution.queued", runId: undefined, status: "queued", text: undefined },
-			{ event: "execution.running", runId: undefined, status: "running", text: undefined },
+			{
+				event: "execution.queued",
+				runId: undefined,
+				runPhase: undefined,
+				status: "queued",
+				text: undefined,
+			},
+			{
+				event: "execution.running",
+				runId: undefined,
+				runPhase: undefined,
+				status: "running",
+				text: undefined,
+			},
+			{
+				event: "answer.delta",
+				runId: "run_0001",
+				runPhase: undefined,
+				status: "streaming",
+				text: undefined,
+			},
 			{
 				event: "request.completed",
 				runId: undefined,
+				runPhase: undefined,
 				status: "completed",
 				text: "国家奖学金每学年评审一次。",
 			},
