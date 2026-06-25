@@ -20,6 +20,7 @@ COPY configs/runtime/tool-catalog.v1.json /src/configs/runtime/tool-catalog.v1.j
 COPY configs/runtime/tool-function-schemas.v1.json /src/configs/runtime/tool-function-schemas.v1.json
 COPY configs/runtime/tools.v3.json /src/configs/runtime/tools.v3.json
 COPY configs/runtime/workflow-artifacts.v2.json /src/configs/runtime/workflow-artifacts.v2.json
+COPY configs/runtime/execution-control /src/configs/runtime/execution-control
 COPY configs/ingestion /src/configs/ingestion
 COPY tests/fixtures/capability_execution_contract /src/tests/fixtures/capability_execution_contract
 
