@@ -6,11 +6,18 @@
 
 这个 app 是 Go-owned deterministic runtime / control-plane。
 
-- 负责 request lifecycle、admission、queue、deadline、cancel、drain 与 bridge circuit breaker
-- 负责 deterministic capability / policy gate、structured runtime planning、direct structured
-  runtime dispatch、Go finalization 与 runtime observability
-- 不负责 agent semantic reasoning、prompt/provider execution、retrieval backend 细节或 ingestion
-  data plane
+- 负责 internal execution admission、Temporal command / query / cancel、deadline、
+  drain、readiness 与 sanitized projection writeback
+- 负责 deterministic capability / policy gate、structured runtime planning、
+  primary-agent activity bridge、typed tool activity、Go-owned RAG graph、Go
+  finalization 与 runtime observability
+- 普通 chat 的模型-facing semantic reasoning / tool loop 由
+  `apps/agent-runtime` 承接；本 app 保留 durable envelope、visible tool
+  allowlist、timeout/cancel、projection 与 fail-closed policy ownership
+- knowledge/RAG 分支内的 retrieval planning、indexed lookup、synthesis provider execution、
+  usage/cost projection 与 grounding verification 属于本 app 的 Go-owned Temporal graph
+- 不负责 product-layer auth/session/conversation、browser-facing capability policy、Qdrant
+  collection lifecycle 或 ingestion data plane
 
 ## Module Rules
 

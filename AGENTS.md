@@ -5,14 +5,19 @@
 `campus-agent` 是校园助理系统的 v2 入口 monorepo。
 
 - 当前在线回答主路径是 `app-api -> execution-control -> Temporal ->
-  CapabilityExecutionWorkflow -> activity-worker-context /
-  activity-worker-knowledge / capability workers /
-  activity-worker-finalization ->
-  memory recall / typed capability branch / Go RAG DTO/runtime ->
-  Qdrant / provider / structured read models -> sanitized projection`
+  CapabilityExecutionWorkflow -> workflow-worker / activity-worker-context /
+  activity-worker-agent / activity-worker-knowledge-plan /
+  activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
+  capability workers / activity-worker-finalization -> memory recall /
+  OpenAI Agents SDK primary agent loop / typed capability branch / Go RAG
+  DTO/runtime -> Qdrant / provider / structured read models -> sanitized
+  projection`
 - 当前 product entry surface 已收口到 `campus-web -> student experience /
   account shell / docs reader`；`operator-console-web` 作为受控 browser surface
   进入 shared `app-api`
+- 当前 docs browser surface 是 `campus-web /docs/*` 的 Rspress-powered canonical
+  reader；Q&A 主线程是 first-party assistant chat surface，不再依赖 ChatKit
+  vendor runtime
 - 架构目标是 capability-neutral orchestrated execution：顶层由 Execution Agent Layer
   做 admission、routing、workflow planning 与 finalization；RAG、navigation、
   notice、services 等能力默认以 typed tool / workflow capability 进入，只有存在明确语义职责时才表现为
@@ -23,14 +28,19 @@
   `operator-console-web`、`app-api` 等前向产品形态；
   但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
-- runtime 当前事实是 `apps/app-api = Worker`，`apps/execution-control =
+- runtime 当前事实是 `apps/app-api = Worker`，`apps/agent-runtime =
+  OpenAI Agents SDK primary agent runtime`，`apps/execution-control =
   Go-owned internal execution-control service`，Temporal 是 execution
   substrate，PG 只承载 sanitized run / event / step projection；Docker Compose
   只保留 local / transitional runtime evidence，production target substrate 已由
-  K8s + KEDA 文档收口；online path
-  已硬切为 `context.memory_recall -> agent.primary -> direct/no-tool or
-  admitted typed tool / RAG branch -> finalization.write`，knowledge 分支由
-  Go-owned RAG Temporal graph 执行，worker plane / autoscaler 仍按对应架构文档继续收口
+  K8s + KEDA 文档收口；online path 已硬切为
+  `context.memory_recall -> agent.primary -> direct/no-tool or admitted typed
+  tool / knowledge_query RAG branch -> finalization.write`，knowledge 分支由
+  Go-owned RAG Temporal graph 执行，ordinary chat 缺失 `requested_capability` 时保持
+  capability-neutral，不再默认改写成 `knowledge`
+- 当前 model-visible typed tool 由 `configs/runtime/tool-catalog.v1.json` 与
+  `configs/runtime/workflow-artifacts.v2.json` 共同收口；`campus_services` 当前只开放
+  `transport_schedule_lookup`，`navigation` 默认保持 closed / fail closed
 - Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过
   git history 追溯，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
@@ -48,6 +58,7 @@
 
 - `README.md`
 - `docs/README.md`
+- `docs/documentation-architecture.md`
 - `docs/architecture/product-positioning.md`
 - `docs/architecture/current-architecture.md`
 - `docs/architecture/target-architecture.md`
@@ -58,6 +69,11 @@
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/prompt-and-instruction-architecture.md`
+- `docs/architecture/system/kubernetes-execution-runtime-architecture.md`
+- `docs/architecture/system/langfuse-observability-and-eval-architecture.md`
+- `docs/architecture/system/document-site-architecture.md`
+- `docs/architecture/system/operator-console-operations-architecture.md`
 - `docs/architecture/system/code-organization-and-decomposition-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/identity-platform-architecture.md`
@@ -66,6 +82,8 @@
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/navigation/architecture.md`
+- `docs/architecture/domains/campus-services/architecture.md`
+- `docs/architecture/domains/dining/architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/domains/official-web/architecture.md`
 - `docs/data/official-web-source-truth-schema.md`
@@ -76,6 +94,12 @@
 - `docs/contracts/campus-notice-runtime-contract.md`
 - `docs/contracts/app-api-identity-platform-http.md`
 - `docs/contracts/app-api-federation-http.md`
+- `docs/contracts/app-api-document-reader-http.md`
+- `docs/contracts/app-api-operator-ops-http.md`
+- `docs/contracts/app-api-dining-http.md`
+- `docs/contracts/app-api-dining-ops-http.md`
+- `docs/contracts/langfuse-runtime-observability-contract.md`
+- `docs/data/dining-operations-schema.md`
 - `docs/reference/authenticated-notice-file-release-export-contract.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
@@ -93,6 +117,10 @@
 - `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
 - `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
 - `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`
+- `docs/decisions/adr-0055-unified-operator-console-surface.md`
+- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
+- `docs/decisions/adr-0059-langfuse-observability-and-eval-platform.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/policies/official-web-crawl-policy.md`
 - `.planning/PROJECT.md`
@@ -104,6 +132,8 @@
 - 这个仓库当前没有业务意义上的 `refs/` 目录；默认把 `README.md` 和
   `docs/` 视为实现与架构的参考材料
 - 产品定位、目标用户与产品边界以 `docs/architecture/product-positioning.md` 为准
+- 文档 truth class、冲突裁决顺序与入口路由以 `docs/documentation-architecture.md` 和
+  `docs/README.md` 为准
 - 当前 accepted merged-truth topology 与已开放 serving surface 以
   `docs/architecture/current-architecture.md` 为准
 - 目标架构、supporting architecture、accepted architecture constraint 与术语约束分别以对应
@@ -253,6 +283,11 @@
 - 任何实现都应先尊重已冻结的 contract 和 package 边界，再考虑 runtime 或框架便利性
 - query-serving surface 由 collection runtime profile 显式控制；如需新增或收缩 serving
   surface，必须同步更新决策/计划文档并保持范围显式
+- `ToolSpec`、contract 或 JSON Schema 的存在不等于 model-visible；primary agent 可见工具必须同时被
+  `tool-catalog.v1` 和 `workflow-artifacts.v2` 以当前 runtime posture 打开
+- `campus_services` 的当前 model-visible 范围只包含 `transport_schedule_lookup`；
+  generic service status、service guide、contact directory、academic calendar 与
+  dining lookup 在正式 admission 前不得顺手打开
 
 ### Architecture Over Patchwork
 
@@ -319,8 +354,8 @@
 优先把可独立处理的子任务拆开处理，但前提是任务天然可并行、边界清晰、责任可分配。
 
 - 先判断是否存在独立子任务；如果可以拆开，优先按模块边界委派，而不是把所有工作串行堆给主代理
-- 优先按模块边界切分子任务，例如 `contracts`、`ingestion-core`、`retrieval-core`、
-  `supervisor-agent-worker` / `knowledge`、`evals`
+- 优先按模块边界切分子任务，例如 `contracts`、`app-api`、`campus-web`、
+  `execution-control`、`agent-runtime`、`ingestion-core`、`evals`
 - 按依赖顺序并行，不要无视 contract 和强耦合关系；当前执行分批以 `.planning/` 中的 active phase/context/plan
   为准
 - 并行工作时避免共享写集；每个 subagent 应拥有明确的文件或模块责任
@@ -366,6 +401,7 @@ uv sync --all-packages --dev
 ```bash
 pnpm repo:guard
 pnpm repo:static
+pnpm go:check
 pnpm web:lint
 uv run --all-packages ruff check .
 uv run --all-packages ruff format . --check
@@ -382,6 +418,7 @@ pnpm web:test
 pnpm web:test:worker
 pnpm web:test:integration
 pnpm web:build
+pnpm ci:web-graph:full
 ```
 
 面向 `develop` 的增量验证命令：
