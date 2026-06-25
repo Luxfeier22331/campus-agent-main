@@ -178,16 +178,13 @@ Notice export note:
   export writes `started` then `success` / `failed` source-channel run ledger
   state with collection mode, selected notices, attachment outcome counts,
   verified source-bucket artifact refs, hash/size summary, and failure reason
-- when `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS=true`,
-  `bootstrap:export` builds an ingestion-control task envelope only after the
-  collector run ledger row is `success` and `verified`. The collector does not
-  write source-truth, projection, read model, chunk, index, or task internals;
-  it only hands off the verified `run_id`.
+- collector does not enqueue ingestion-control tasks. A successful run writes
+  verified source-bucket bundle / manifest refs plus run ledger facts; operators
+  must admit source-truth materialization through ingestion-control using
+  explicit object-store refs.
 - historical collected content is not auto-enqueued by the collector; operators
   must admit replay work through ingestion-control when they decide to replay
   captured verified/repair ledger rows.
-- `AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR` optionally sets the
-  enqueue evidence directory for the generated ingestion-control task envelope.
 - when `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DATABASE_URL` is configured and
   `AUTHENTICATED_NOTICE_COLLECTOR_LEASE_DISABLE` is not true, `bootstrap:export`
   acquires a `notice` run lease before writing artifacts; a live holder causes

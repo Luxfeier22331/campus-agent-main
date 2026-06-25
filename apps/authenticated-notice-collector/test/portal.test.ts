@@ -559,8 +559,6 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 		collectorRunLeaseDatabaseUrl: null,
 		collectorRunLeaseDisabled: false,
 		collectorRunLeaseTtlSeconds: 3600,
-		ingestQueueEnqueueOnSuccess: false,
-		ingestQueueEnqueueOutputDir: null,
 		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: null,
 		noticeTypeAllowlist: null,

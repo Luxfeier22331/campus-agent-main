@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-06-15
+updated: 2026-06-26
 ---
 # Authenticated Notice Source Architecture
 
@@ -179,10 +179,8 @@ clean target 中，`source_truth_materialize` 的 mainline input 必须指向 so
 `s3://...` URI。`run_id`、site id 与 source surface 只用于 idempotency、audit、
 operator projection 与 ledger correlation。
 
-当前代码中如果仍存在 `inline` collector-run task envelope，它只能被解释为
-staged migration residue：它可以证明 collector run 已 verified，但不能证明
-ingestion-control 已具备 authenticated notice source-truth materialization handler。
-迁移完成的判据是 verified collector run 通过 object-store refs 被
+历史代码中曾存在的 `inline` collector-run task envelope 已作为 staged migration
+residue 移除。剩余迁移完成判据是 verified collector run 通过 object-store refs 被
 `apps/ingestion-control` admit / claim / execute / complete，并产出
 `authenticated_notice_source_truth.v1` artifact closeout。
 

@@ -22,7 +22,6 @@ import {
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config.js";
-import { buildVerifiedCollectorRunTask } from "./ingest-queue-enqueue.js";
 import * as noticeTypeConfig from "./notice-types.js";
 
 export async function main(): Promise<void> {
@@ -80,23 +79,6 @@ export async function main(): Promise<void> {
 					outputDir: config.exportsDir,
 					siteId: config.siteId,
 					sourceHomeUrl: config.sourceHomeUrl,
-					verifiedRunEnqueue: config.ingestQueueEnqueueOnSuccess
-						? ({ ledgerRecord }) =>
-								Promise.resolve(
-									console.log(
-										JSON.stringify(
-											{
-												ingestionTask: buildVerifiedCollectorRunTask({
-													ledgerRecord,
-													siteId: config.siteId,
-												}),
-											},
-											null,
-											2,
-										),
-									),
-								)
-						: undefined,
 					writeLocalArtifacts: config.writeLocalExports,
 				});
 				console.log(
