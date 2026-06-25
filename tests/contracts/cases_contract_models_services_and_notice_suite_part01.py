@@ -232,6 +232,37 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
             }.issubset({field.name for field in fields(TransportScheduleLookupResult)})
         )
 
+    def test_scheduled_departure_exposes_status_kind_note_and_source_refs(self) -> None:
+        departure = ScheduledDeparture(
+            departure_at="2026-06-24T07:00:00+08:00",
+            departure_status="changed",
+            departure_kind="student",
+            operational_note="该班次临时改至南门上车",
+            related_notice_refs=("https://portal.muc.edu.cn/notice/456",),
+        )
+
+        payload = asdict(departure)
+
+        self.assertEqual(payload["departure_status"], "changed")
+        self.assertEqual(payload["departure_kind"], "student")
+        self.assertEqual(payload["operational_note"], "该班次临时改至南门上车")
+        self.assertEqual(
+            tuple(payload["related_notice_refs"]),
+            ("https://portal.muc.edu.cn/notice/456",),
+        )
+
+    def test_scheduled_departure_rejects_invalid_status_and_kind(self) -> None:
+        with self.assertRaises(ValueError):
+            ScheduledDeparture(
+                departure_at="2026-06-24T07:00:00+08:00",
+                departure_status="silently_normalized",
+            )
+        with self.assertRaises(ValueError):
+            ScheduledDeparture(
+                departure_at="2026-06-24T07:00:00+08:00",
+                departure_kind="vip",
+            )
+
     def test_transport_schedule_result_serializes_stop_refs(self) -> None:
         result = TransportScheduleLookupResult(
             query_text="今天校车还有吗",

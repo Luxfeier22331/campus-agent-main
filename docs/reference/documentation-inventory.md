@@ -35,8 +35,8 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 275
-- Git tracked docs Markdown files: 275
+- Current-worktree docs Markdown files: 276
+- Git tracked docs Markdown files: 276
 - Untracked docs Markdown files included: 0
 - Generated on: 2026-06-21
 
@@ -44,7 +44,7 @@ class defined by `docs/documentation-architecture.md`.
 
 - `decisions`: 58
 - `runbooks`: 48
-- `reference`: 42
+- `reference`: 43
 - `contracts`: 44
 - `architecture`: 40
 - `data`: 21
@@ -60,7 +60,7 @@ class defined by `docs/documentation-architecture.md`.
 - `decision`: 57
 - `contract`: 43
 - `runbook`: 43
-- `reference`: 39
+- `reference`: 40
 - `architecture`: 37
 - `index`: 31
 - `data`: 20
@@ -72,7 +72,7 @@ class defined by `docs/documentation-architecture.md`.
 ### By `truth_scope`
 
 - `ops`: 84
-- `repository`: 78
+- `repository`: 79
 - `data`: 41
 - `product`: 32
 - `capability`: 18
@@ -84,7 +84,7 @@ class defined by `docs/documentation-architecture.md`.
 - `decision_record`: 57
 - `operational_truth`: 48
 - `contract_truth`: 43
-- `reference`: 38
+- `reference`: 39
 - `reference_index`: 31
 - `supporting_architecture`: 27
 - `data_truth`: 20
@@ -102,7 +102,7 @@ class defined by `docs/documentation-architecture.md`.
 - `preserve_adr`: 57
 - `keep_ops_procedure`: 48
 - `keep_owner_truth`: 40
-- `keep_reference_truth`: 30
+- `keep_reference_truth`: 31
 - `keep_thin_index`: 24
 - `keep_archive_historical`: 7
 - `keep_thin_domain_hub`: 7
@@ -116,7 +116,7 @@ class defined by `docs/documentation-architecture.md`.
 - `official-web`: 22
 - `operator-observability`: 15
 - `app-api`: 10
-- `campus-services`: 10
+- `campus-services`: 11
 - `retrieval`: 9
 - `eval`: 8
 - `regulation`: 8
@@ -726,7 +726,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `contract_truth`
   - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
   - Owner boundary: `domains/campus-services`
-  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=420`
+  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=424`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/contracts/transport-schedule-lookup-contract/examples.md`
@@ -809,7 +809,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `data_truth`
   - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
   - Owner boundary: `domains/campus-services`
-  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=189`
+  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=171`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/data/campus-services-transport-schedule-source-truth-schema.md`
@@ -817,7 +817,7 @@ class defined by `docs/documentation-architecture.md`.
   - Owner class: `data_truth`
   - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
   - Owner boundary: `domains/campus-services`
-  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=360`
+  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=370`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/data/canonical-document-reader-model.md`
@@ -1623,6 +1623,14 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
   - Owner boundary: `domains/navigation`
   - Ledger: `area=reference`, `cluster=navigation`, `state=tracked`, `lines=223`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/campus-services-content-corpus-completion-audit.md`
+  - Title: Campus Services And Content Corpus Completion Audit
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=campus-services`, `state=tracked`, `lines=518`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
 - `docs/reference/curriculum-plan-eval-metrics.md`

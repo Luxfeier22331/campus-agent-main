@@ -127,6 +127,9 @@ app-api Drizzle-owned schema：`campus_services_ops`
 
 - `current_effective_json` 是 release 时刻的 transport override summary。
 - app-api publish 必须原子写入 release 与 audit event。
+- 接入 execution-control 的环境必须至少发布一个空或非空 `published`
+  current-effective release；没有任何 published release 表示 ops overlay
+  currentness 不可证明，不等同于“没有 override”。
 - runtime lookup 不得 query-time 扫描 attestation 或 raw source；runtime consumption
   必须显式读取 release/projection/read model。
 

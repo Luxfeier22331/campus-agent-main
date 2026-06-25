@@ -59,6 +59,8 @@ type scheduledDepartureRecord struct {
 	DestinationStopID  string   `json:"destination_stop_id"`
 	RelatedNoticeRefs  []string `json:"related_notice_refs"`
 	OperationalComment string   `json:"operational_comment"`
+	DepartureStatus    string   `json:"departure_status"`
+	DepartureKind      string   `json:"departure_kind"`
 }
 
 type transportServiceExceptionRecord struct {
@@ -347,12 +349,19 @@ func (r *Runtime) lookupTransportSchedule(
 		return transportScheduleResponse(base)
 	}
 
-	departures := buildTransportDepartures(
+	departures, departureErr := buildTransportDepartures(
 		bundle.ScheduledDepartures,
 		snapshot.record,
 		routeSelection.record,
 		serviceDate,
 	)
+	if departureErr != nil {
+		return failClosedTransportScheduleWithReason(
+			request,
+			anchor.Format(time.RFC3339),
+			departureErr.Error(),
+		)
+	}
 	departures = filterTransportDepartures(departures, request, anchor, serviceDate)
 	if len(departures) == 0 {
 		base.Outcome = "not_found"

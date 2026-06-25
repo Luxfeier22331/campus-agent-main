@@ -61,6 +61,7 @@ func (s *fakeTransportScheduleReadModelStore) LoadBundleForRelease(
 type fakeCampusServicesOpsReleaseStore struct {
 	release            campusServicesOpsRelease
 	loadCount          int
+	latestErr          error
 	projectionReady    bool
 	projectionReadySet bool
 	projectionReadyErr error
@@ -74,6 +75,9 @@ func (s *fakeCampusServicesOpsReleaseStore) LatestPublishedRelease(
 	context.Context,
 ) (campusServicesOpsRelease, error) {
 	s.loadCount++
+	if s.latestErr != nil {
+		return campusServicesOpsRelease{}, s.latestErr
+	}
 	return normalizeCampusServicesOpsRelease(s.release), nil
 }
 

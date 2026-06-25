@@ -356,3 +356,49 @@ func transportProjectionFixtureWithTemporaryOverlay() string {
 		"transport_service_exceptions":[]
 	}`
 }
+
+func transportProjectionFixtureWithDepartureMetadata() string {
+	return `{
+		"schema_version":"campus_services_projection_bundle.v1",
+		"transport_schedule_snapshots":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"published_at":"2026-04-20T18:00:00+08:00",
+				"effective_from":"2026-04-21T00:00:00+08:00",
+				"source_ref":"https://example.edu/bus-source",
+				"is_current":true,
+				"service_date_ranges":[
+					{"start_date":"2026-04-24","end_date":"2026-04-24"}
+				]
+			}
+		],
+		"transport_routes":[
+			{
+				"route_id":"route:haidian-to-fengtai",
+				"display_name":"海淀到丰台通勤车",
+				"service_family":"intercampus_commute",
+				"origin_campus":"haidian",
+				"destination_campus":"fengtai",
+				"stops":[
+					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
+					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
+				]
+			}
+		],
+		"scheduled_departures":[
+			{
+				"snapshot_id":"snapshot:bus:2026-04-20",
+				"route_id":"route:haidian-to-fengtai",
+				"service_dates":["2026-04-24"],
+				"departure_time":"08:00",
+				"origin_stop_id":"stop:haidian-east-gate",
+				"destination_stop_id":"stop:fengtai-main-gate",
+				"related_notice_refs":["https://example.edu/bus-source"],
+				"operational_comment":"仅限学生乘坐",
+				"departure_status":"changed",
+				"departure_kind":"student"
+			}
+		],
+		"transport_service_exceptions":[]
+	}`
+}

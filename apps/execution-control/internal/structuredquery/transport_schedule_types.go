@@ -84,6 +84,10 @@ type scheduledDeparture struct {
 	ArrivalAt          string            `json:"arrival_at,omitempty"`
 	OriginStopRef      *transportStopRef `json:"origin_stop_ref,omitempty"`
 	DestinationStopRef *transportStopRef `json:"destination_stop_ref,omitempty"`
+	DepartureStatus    string            `json:"departure_status"`
+	DepartureKind      string            `json:"departure_kind"`
+	OperationalNote    string            `json:"operational_note,omitempty"`
+	RelatedNoticeRefs  []string          `json:"related_notice_refs,omitempty"`
 }
 
 type transportServiceWindow struct {

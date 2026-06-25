@@ -35,9 +35,10 @@ func (r *Runtime) loadTransportScheduleBundle(ctx context.Context) (projectionBu
 			r.campusServicesOpsReleaseStore,
 			&r.campusServicesOpsReleaseCache,
 		)
-		if err == nil {
-			bundle = applyCampusServicesOpsTransportOverrides(bundle, release, r.timeAnchor())
+		if err != nil {
+			return projectionBundle{}, err
 		}
+		bundle = applyCampusServicesOpsTransportOverrides(bundle, release, r.timeAnchor())
 	}
 	return bundle, nil
 }

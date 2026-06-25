@@ -2,7 +2,9 @@ package structuredquery
 
 import (
 	"context"
+	"errors"
 	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -391,6 +393,69 @@ func TestLookupTransportScheduleListsDeparturesAfterTimeWithLimit(t *testing.T) 
 	}
 }
 
+func TestLookupTransportScheduleTimetableEntriesIncludeDepartureMetadata(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixtureWithDepartureMetadata(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台有哪些班车",
+		"intent":"timetable",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.TimetableEntries) != 1 {
+		t.Fatalf("timetable_entries length = %d, want 1", len(result.TimetableEntries))
+	}
+	entry := result.TimetableEntries[0]
+	if entry.DepartureStatus != "changed" {
+		t.Fatalf("departure_status = %q, want changed", entry.DepartureStatus)
+	}
+	if entry.DepartureKind != "student" {
+		t.Fatalf("departure_kind = %q, want student", entry.DepartureKind)
+	}
+	if entry.OperationalNote != "仅限学生乘坐" {
+		t.Fatalf("operational_note = %q, want metadata note", entry.OperationalNote)
+	}
+	if !reflect.DeepEqual(entry.RelatedNoticeRefs, []string{"https://example.edu/bus-source"}) {
+		t.Fatalf("related_notice_refs = %#v", entry.RelatedNoticeRefs)
+	}
+}
+
+func TestLookupTransportScheduleFailsClosedOnInvalidDepartureMetadata(t *testing.T) {
+	fixture := strings.Replace(
+		transportProjectionFixtureWithDepartureMetadata(),
+		`"departure_status":"changed"`,
+		`"departure_status":"silently_normalized"`,
+		1,
+	)
+	runtime := newRuntimeWithTransportReadModel(t, fixture, "2026-04-24T10:30:00+08:00")
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台有哪些班车",
+		"intent":"timetable",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+}
+
 func TestLookupTransportScheduleClampsDepartureListResultLimit(t *testing.T) {
 	runtime := newRuntimeWithTransportReadModel(
 		t,
@@ -550,6 +615,37 @@ func TestLookupTransportScheduleIgnoresExpiredOpsTransportOverrideAtQueryTime(t 
 	}
 	if result.ServiceStatus != "running" {
 		t.Fatalf("service_status = %q, want running", result.ServiceStatus)
+	}
+}
+
+func TestLookupTransportScheduleFailsClosedWhenConfiguredOpsReleaseStoreFails(t *testing.T) {
+	runtime := NewRuntime(Options{
+		CampusServicesOpsReleaseStore: &fakeCampusServicesOpsReleaseStore{
+			latestErr: errors.New("ops release store unavailable"),
+		},
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			bundle: mustProjectionBundle(t, transportProjectionFixture()),
+		},
+		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"今天去丰台的班车还跑吗",
+		"intent":"service_window",
+		"route_selector":{"route_id":"route:haidian-to-fengtai"},
+		"snapshot_query":{"mode":"current"},
+		"service_time_query":{"date_mode":"today"}
+	}`))
+
+	result := response.Body.(transportScheduleResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+	if result.ServiceStatus != "unknown" {
+		t.Fatalf("service_status = %q, want unknown", result.ServiceStatus)
 	}
 }
 

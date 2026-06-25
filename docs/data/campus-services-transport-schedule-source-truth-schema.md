@@ -217,6 +217,16 @@ service date 覆盖 baseline。范围外查询必须回落到 current baseline�
 - `destination_stop_id`
 - `related_notice_refs`
 - `operational_comment`
+- `departure_status`
+  - `normal`
+  - `added`
+  - `cancelled`
+  - `changed`
+  - `delayed`
+- `departure_kind`
+  - `student`
+  - `teacher`
+  - `other`
 
 `transport_service_exceptions` 覆盖基础班次：
 

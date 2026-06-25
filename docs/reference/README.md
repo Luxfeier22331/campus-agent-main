@@ -27,6 +27,9 @@ updated: 2026-06-13
 - `runtime-orchestration-full-audit.md`
   - 当前 runtime / module / infra / script orchestration 审计；用于判断哪些
     surface 保留、删除、留在本地 transitional 或需要重审，不替代架构 truth。
+- `campus-services-content-corpus-completion-audit.md`
+  - Campus Services 与进入主链路消费的内容语料资产 completion 审计；用于区分
+    campus-services 产品缺口、内容语料质量缺口与 release closeout / eval proof。
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 

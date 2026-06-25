@@ -31,6 +31,9 @@ class StructuredProjectionPostgresPublisherTestPart01(unittest.TestCase):
                     "route_id": "route:haidian-to-fengtai",
                     "service_dates": ["2026-04-25"],
                     "departure_time": "06:50",
+                    "operational_comment": "仅限学生乘坐",
+                    "departure_status": "changed",
+                    "departure_kind": "student",
                 }
             ],
             "transport_service_exceptions": [],
@@ -76,6 +79,15 @@ class StructuredProjectionPostgresPublisherTestPart01(unittest.TestCase):
         typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
         self.assertEqual(typed_payload[0]["release_id"], "transport-schedule-20260427T090000")
         self.assertEqual(typed_payload[0]["record"]["snapshot_id"], "snapshot:bus:2026-04-20")
+        departure_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "transport_scheduled_departures" in query and "jsonb_to_recordset" in query
+        )
+        departure_payload = json.loads(cursor.execute_calls[departure_insert_index][1][0])
+        self.assertEqual(departure_payload[0]["operational_comment"], "仅限学生乘坐")
+        self.assertEqual(departure_payload[0]["departure_status"], "changed")
+        self.assertEqual(departure_payload[0]["departure_kind"], "student")
 
     def test_publish_release_can_stage_without_current_pointer(self) -> None:
         publisher = object.__new__(PostgresStructuredProjectionPublisher)

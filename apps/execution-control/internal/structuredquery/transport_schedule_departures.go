@@ -89,7 +89,7 @@ func buildTransportDepartures(
 	snapshot transportScheduleSnapshotRecord,
 	route transportRouteRecord,
 	serviceDate time.Time,
-) []scheduledDeparture {
+) ([]scheduledDeparture, error) {
 	departures := []scheduledDeparture{}
 	serviceDateText := serviceDate.Format(transportLocalDateLayout)
 	for _, record := range records {
@@ -102,7 +102,10 @@ func buildTransportDepartures(
 		if len(record.ServiceDates) > 0 && !stringSliceContains(record.ServiceDates, serviceDateText) {
 			continue
 		}
-		departure, ok := buildTransportDeparture(record, route, serviceDate)
+		departure, ok, err := buildTransportDeparture(record, route, serviceDate)
+		if err != nil {
+			return nil, err
+		}
 		if ok {
 			departures = append(departures, departure)
 		}
@@ -110,17 +113,17 @@ func buildTransportDepartures(
 	sort.SliceStable(departures, func(i, j int) bool {
 		return departures[i].DepartureAt < departures[j].DepartureAt
 	})
-	return departures
+	return departures, nil
 }
 
 func buildTransportDeparture(
 	record scheduledDepartureRecord,
 	route transportRouteRecord,
 	serviceDate time.Time,
-) (scheduledDeparture, bool) {
+) (scheduledDeparture, bool, error) {
 	departureAt, ok := combineTransportDateAndTime(serviceDate, record.DepartureTime)
 	if !ok {
-		return scheduledDeparture{}, false
+		return scheduledDeparture{}, false, nil
 	}
 	arrivalAt := ""
 	if record.ArrivalTime != "" {
@@ -128,13 +131,49 @@ func buildTransportDeparture(
 			arrivalAt = parsed.Format(time.RFC3339)
 		}
 	}
+	departureStatus, err := normalizeTransportDepartureStatus(record.DepartureStatus)
+	if err != nil {
+		return scheduledDeparture{}, false, err
+	}
+	departureKind, err := normalizeTransportDepartureKind(record.DepartureKind)
+	if err != nil {
+		return scheduledDeparture{}, false, err
+	}
 	departure := scheduledDeparture{
 		DepartureAt:        departureAt.Format(time.RFC3339),
 		ArrivalAt:          arrivalAt,
 		OriginStopRef:      stopRefByID(route, record.OriginStopID),
 		DestinationStopRef: stopRefByID(route, record.DestinationStopID),
+		DepartureStatus:    departureStatus,
+		DepartureKind:      departureKind,
+		OperationalNote:    strings.TrimSpace(record.OperationalComment),
+		RelatedNoticeRefs:  appendUniqueTransportRefs(nil, record.RelatedNoticeRefs),
 	}
-	return departure, true
+	return departure, true, nil
+}
+
+func normalizeTransportDepartureStatus(value string) (string, error) {
+	normalized := strings.TrimSpace(value)
+	switch normalized {
+	case "":
+		return "normal", nil
+	case "added", "cancelled", "changed", "delayed", "normal":
+		return normalized, nil
+	default:
+		return "", errors.New("source_truth_unavailable")
+	}
+}
+
+func normalizeTransportDepartureKind(value string) (string, error) {
+	normalized := strings.TrimSpace(value)
+	switch normalized {
+	case "":
+		return "other", nil
+	case "student", "teacher", "other":
+		return normalized, nil
+	default:
+		return "", errors.New("source_truth_unavailable")
+	}
 }
 
 func combineTransportDateAndTime(serviceDate time.Time, wallClock string) (time.Time, bool) {

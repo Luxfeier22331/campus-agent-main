@@ -260,6 +260,10 @@ ScheduledDeparture
 - arrival_at: RFC3339 datetime | null
 - origin_stop_ref: TransportStopRef | null
 - destination_stop_ref: TransportStopRef | null
+- departure_status: str
+- departure_kind: str
+- operational_note: str | null
+- related_notice_refs[]: str
 ```
 
 ### `TransportServiceWindow`

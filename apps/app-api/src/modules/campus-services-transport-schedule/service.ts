@@ -12,6 +12,7 @@ import type {
 	CampusServicesTransportScheduleResponse,
 	CampusServicesTransportScheduleService,
 	CampusServicesTransportSourceNotice,
+	CampusTransportDepartureStatus,
 	CampusTransportRouteStatus,
 } from "./types";
 
@@ -74,19 +75,33 @@ export function buildCampusServicesTransportScheduleService(
 				return unavailableSchedule(serviceDate, routeResults[0] ?? seed);
 			}
 
-			const routes = routeResults.map((result) => publicRouteFromResult(result));
+			const routeProjections = routeResults.map((result) => publicRouteFromResult(result));
+			if (routeProjections.some((route) => route === null)) {
+				return unavailableSchedule(serviceDate, routeResults[0] ?? seed);
+			}
+			const routes = routeProjections.filter(
+				(route): route is CampusServicesTransportRoute => route !== null,
+			);
 			const notices = sourceNoticesFromResults(routeResults);
 			const snapshot = firstSnapshot(routeResults);
+			const adjustmentCount = countAdjustments(routes);
 			return {
-				adjustmentCount: countAdjustments(routes),
+				adjustmentCount,
 				calendarLabel: "以发布时刻表为准",
 				generatedAt: new Date().toISOString(),
-				hasAdjustments: countAdjustments(routes) > 0,
+				hasAdjustments: adjustmentCount > 0,
 				notices,
 				publishedAt: snapshot?.publishedAt ?? null,
+				release: snapshot
+					? {
+							publishedAt: snapshot.publishedAt,
+							releaseId: snapshot.snapshotId,
+						}
+					: null,
 				releaseId: snapshot?.snapshotId ?? null,
 				routes,
 				serviceDate,
+				serviceDayKind: "unknown",
 				status: "available",
 			};
 		},
@@ -227,20 +242,26 @@ function readRouteCandidates(result: StructuredQueryRecord): StructuredQueryReco
 		);
 }
 
-function publicRouteFromResult(result: StructuredQueryRecord): CampusServicesTransportRoute {
+function publicRouteFromResult(result: StructuredQueryRecord): CampusServicesTransportRoute | null {
 	const route = readRecord(result.resolved_route) ?? {};
 	const entries = Array.isArray(result.timetable_entries) ? result.timetable_entries : [];
 	const status = normalizeRouteStatus(readString(result.service_status));
 	const relatedRefs = readStringArray(result.related_notice_refs);
-	const departures = entries
-		.map((entry, index) =>
-			publicDepartureFromEntry(readRecord(entry) ?? {}, {
-				index,
-				relatedRefs,
-				routeId: readString(route.route_id),
-			}),
-		)
-		.filter((departure): departure is CampusServicesTransportDeparture => Boolean(departure));
+	const departures: CampusServicesTransportDeparture[] = [];
+	for (const [index, entry] of entries.entries()) {
+		const departure = publicDepartureFromEntry(readRecord(entry) ?? {}, {
+			index,
+			relatedRefs,
+			routeId: readString(route.route_id),
+		});
+		if (departure === undefined) {
+			continue;
+		}
+		if (departure === null) {
+			return null;
+		}
+		departures.push(departure);
+	}
 	return {
 		departures: status === "running" ? departures : [],
 		destination: firstStopName(entries, "destination_stop_ref"),
@@ -255,13 +276,18 @@ function publicRouteFromResult(result: StructuredQueryRecord): CampusServicesTra
 function publicDepartureFromEntry(
 	entry: StructuredQueryRecord,
 	input: { index: number; relatedRefs: string[]; routeId: string },
-): CampusServicesTransportDeparture | null {
+): CampusServicesTransportDeparture | null | undefined {
 	const departureAt = readString(entry.departure_at);
 	if (!departureAt) {
-		return null;
+		return;
 	}
 	const departureDate = new Date(departureAt);
 	if (Number.isNaN(departureDate.valueOf())) {
+		return;
+	}
+	const status = normalizeDepartureStatus(readString(entry.departure_status));
+	const type = normalizeDepartureKind(readString(entry.departure_kind));
+	if (!(status && type)) {
 		return null;
 	}
 	return {
@@ -272,11 +298,14 @@ function publicDepartureFromEntry(
 			timeZone: "Asia/Shanghai",
 		}).format(departureDate),
 		id: `${input.routeId}:${departureAt}`,
-		note: null,
+		note: readString(entry.operational_note) || null,
 		sequence: input.index + 1,
-		sourceNoticeRefs: input.relatedRefs,
-		status: "normal",
-		type: "其他",
+		sourceNoticeRefs: mergeStringArrays(
+			readStringArray(entry.related_notice_refs),
+			input.relatedRefs,
+		),
+		status,
+		type,
 	};
 }
 
@@ -356,19 +385,54 @@ function unavailableSchedule(
 		hasAdjustments: false,
 		notices: sourceNoticesFromResults([result]),
 		publishedAt: null,
+		release: null,
 		releaseId: null,
 		routes: [],
 		serviceDate,
+		serviceDayKind: "unknown",
 		status: "unavailable",
 	};
 }
 
 function countAdjustments(routes: CampusServicesTransportRoute[]): number {
-	return routes.reduce(
-		(total, route) =>
-			total + route.departures.filter((departure) => departure.status !== "normal").length,
-		0,
-	);
+	return routes.reduce((total, route) => {
+		const routeAdjustment = route.status !== "running" && route.status !== "unknown" ? 1 : 0;
+		const routeNoticeAdjustment = route.note ? 1 : 0;
+		const departureAdjustments = route.departures.filter(
+			(departure) => departure.status !== "normal",
+		).length;
+		return total + routeAdjustment + routeNoticeAdjustment + departureAdjustments;
+	}, 0);
+}
+
+function normalizeDepartureStatus(value: string): CampusTransportDepartureStatus | null {
+	switch (value) {
+		case "":
+			return "normal";
+		case "added":
+		case "cancelled":
+		case "changed":
+		case "delayed":
+		case "normal":
+			return value;
+		default:
+			return null;
+	}
+}
+
+function normalizeDepartureKind(value: string): CampusServicesTransportDeparture["type"] | null {
+	switch (value) {
+		case "":
+			return "其他";
+		case "teacher":
+			return "教师班次";
+		case "student":
+			return "学生班次";
+		case "other":
+			return "其他";
+		default:
+			return null;
+	}
 }
 
 function normalizeRouteStatus(value: string): CampusTransportRouteStatus {
@@ -398,6 +462,10 @@ function readStringArray(value: unknown): string[] {
 		return [];
 	}
 	return [...new Set(value.map(readString).filter(Boolean))];
+}
+
+function mergeStringArrays(...groups: string[][]): string[] {
+	return [...new Set(groups.flat().map(readString).filter(Boolean))];
 }
 
 function validationError(message: string): AppApiRouteError {

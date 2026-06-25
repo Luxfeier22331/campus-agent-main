@@ -32,6 +32,14 @@ const routeStatusLabels: Record<CampusTransportRoute["status"], string> = {
 	unknown: "待确认",
 };
 
+const serviceDayKindLabels: Record<CampusTransportScheduleResponse["serviceDayKind"], string> = {
+	holiday: "节假日",
+	temporary: "临时安排",
+	unknown: "以发布时刻表为准",
+	weekend: "周末",
+	workday: "工作日",
+};
+
 type ScheduleTableColumnId = "departureTime" | "note" | "status" | "type";
 
 interface ScheduleTableColumn {
@@ -131,7 +139,7 @@ function TransportScheduleSection({
 				<div>
 					<div className="flex items-center gap-2 text-sm text-[var(--sys-text-muted)]">
 						<CalendarDays aria-hidden="true" className="size-4" />
-						<span>{payload?.calendarLabel ?? "以发布时刻表为准"}</span>
+						<span>{serviceDayLabel(payload)}</span>
 					</div>
 					<h2
 						className="mt-1 text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]"
@@ -139,6 +147,12 @@ function TransportScheduleSection({
 					>
 						班车时刻表
 					</h2>
+					{payload?.release ? (
+						<p className="mt-1 text-xs leading-5 text-[var(--sys-text-muted)]">
+							发布于 {formatDisplayDateTime(payload.release.publishedAt)} ·{" "}
+							{payload.release.releaseId}
+						</p>
+					) : null}
 				</div>
 				<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
 					<div className="grid gap-1.5">
@@ -315,6 +329,33 @@ function dedupeSourceNotices(notices: CampusTransportScheduleResponse["notices"]
 		seen.add(notice.url);
 		return true;
 	});
+}
+
+function serviceDayLabel(payload: CampusTransportScheduleResponse | null): string {
+	if (!payload) {
+		return "以发布时刻表为准";
+	}
+	const dayKindLabel = serviceDayKindLabels[payload.serviceDayKind];
+	if (payload.serviceDayKind === "unknown") {
+		return payload.calendarLabel || dayKindLabel;
+	}
+	return dayKindLabel;
+}
+
+function formatDisplayDateTime(value: string): string {
+	const date = new Date(value);
+	if (Number.isNaN(date.valueOf())) {
+		return value;
+	}
+	return new Intl.DateTimeFormat("zh-CN", {
+		day: "2-digit",
+		hour: "2-digit",
+		hour12: false,
+		minute: "2-digit",
+		month: "2-digit",
+		timeZone: "Asia/Shanghai",
+		year: "numeric",
+	}).format(date);
 }
 
 function formatLocalDate(value: Date): string {

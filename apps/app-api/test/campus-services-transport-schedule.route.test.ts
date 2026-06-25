@@ -85,6 +85,8 @@ describe("public campus services transport schedule route", () => {
 								routeId === "route:haidian-to-fengtai"
 									? "2026-06-24T07:00:00+08:00"
 									: "2026-06-24T07:30:00+08:00",
+							departure_kind: routeId === "route:haidian-to-fengtai" ? "teacher" : "student",
+							departure_status: routeId === "route:haidian-to-fengtai" ? "normal" : "changed",
 							origin_stop_ref: {
 								stop_id:
 									routeId === "route:haidian-to-fengtai"
@@ -99,6 +101,12 @@ describe("public campus services transport schedule route", () => {
 										: "stop:haidian-east-gate",
 								display_name: routeId === "route:haidian-to-fengtai" ? "丰台校区" : "海淀校区",
 							},
+							operational_note:
+								routeId === "route:fengtai-to-haidian" ? "该班次临时改至南门上车" : "",
+							related_notice_refs:
+								routeId === "route:fengtai-to-haidian"
+									? ["https://portal.muc.edu.cn/notice/456"]
+									: ["https://portal.muc.edu.cn/notice/123"],
 						},
 					],
 					related_notice_refs: ["https://portal.muc.edu.cn/notice/123"],
@@ -130,8 +138,8 @@ describe("public campus services transport schedule route", () => {
 		expect(payload).toMatchObject({
 			serviceDate: "2026-06-24",
 			status: "available",
-			hasAdjustments: false,
-			adjustmentCount: 0,
+			hasAdjustments: true,
+			adjustmentCount: 2,
 			routes: [
 				{
 					routeId: "route:haidian-to-fengtai",
@@ -144,7 +152,7 @@ describe("public campus services transport schedule route", () => {
 							id: "route:haidian-to-fengtai:2026-06-24T07:00:00+08:00",
 							sequence: 1,
 							departureTime: "07:00",
-							type: "其他",
+							type: "教师班次",
 							status: "normal",
 							note: null,
 							sourceNoticeRefs: ["https://portal.muc.edu.cn/notice/123"],
@@ -163,10 +171,13 @@ describe("public campus services transport schedule route", () => {
 							id: "route:fengtai-to-haidian:2026-06-24T07:30:00+08:00",
 							sequence: 1,
 							departureTime: "07:30",
-							type: "其他",
-							status: "normal",
-							note: null,
-							sourceNoticeRefs: ["https://portal.muc.edu.cn/notice/123"],
+							type: "学生班次",
+							status: "changed",
+							note: "该班次临时改至南门上车",
+							sourceNoticeRefs: [
+								"https://portal.muc.edu.cn/notice/456",
+								"https://portal.muc.edu.cn/notice/123",
+							],
 						},
 					],
 				},
@@ -217,6 +228,65 @@ describe("public campus services transport schedule route", () => {
 					service_status: "unknown",
 					fail_close_reason: "source_truth_unavailable",
 				}),
+		});
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/campus-services/transport-schedule?serviceDate=2026-06-24",
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toMatchObject({
+			serviceDate: "2026-06-24",
+			status: "unavailable",
+			routes: [],
+		});
+	});
+
+	it("returns unavailable when execution-control returns invalid departure metadata", async () => {
+		const app = createApp(env, {
+			campusServicesTransportScheduleFetch: async (request) => {
+				const body = (await request.json()) as {
+					route_selector?: { route_id?: string };
+				};
+				if (!body.route_selector) {
+					return jsonResponse({
+						query_text: "公开班车时刻表",
+						intent: "timetable",
+						outcome: "resolved_current",
+						resolved_route: {
+							display_name: "海淀校区→丰台校区",
+							route_id: "route:haidian-to-fengtai",
+							service_family: "intercampus_commute",
+						},
+					});
+				}
+				return jsonResponse({
+					query_text: "公开班车时刻表",
+					intent: "timetable",
+					outcome: "resolved_current",
+					queried_time_anchor: "2026-06-24T09:00:00+08:00",
+					resolved_route: {
+						display_name: "海淀校区→丰台校区",
+						route_id: "route:haidian-to-fengtai",
+						service_family: "intercampus_commute",
+					},
+					schedule_snapshot: {
+						published_at: "2026-03-20T00:00:00+08:00",
+						snapshot_id: "snapshot:bus:2026-03-20",
+						source_ref: "https://portal.muc.edu.cn/notice/123",
+					},
+					service_status: "running",
+					timetable_entries: [
+						{
+							departure_at: "2026-06-24T07:00:00+08:00",
+							departure_kind: "student",
+							departure_status: "silently_normalized",
+						},
+					],
+				});
+			},
 		});
 
 		const response = await app.fetch(

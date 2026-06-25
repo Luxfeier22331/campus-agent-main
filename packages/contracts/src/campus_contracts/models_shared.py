@@ -102,6 +102,8 @@ TransportServiceStatusValue = Literal[
     "limited_service",
     "unknown",
 ]
+TransportDepartureStatus = Literal["normal", "added", "cancelled", "changed", "delayed"]
+TransportDepartureKind = Literal["student", "teacher", "other"]
 TransportScheduleIntent = Literal[
     "next_departure",
     "first_departure",
@@ -230,6 +232,8 @@ ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES = (
     "limited_service",
     "unknown",
 )
+ALLOWED_TRANSPORT_DEPARTURE_STATUSES = ("normal", "added", "cancelled", "changed", "delayed")
+ALLOWED_TRANSPORT_DEPARTURE_KINDS = ("student", "teacher", "other")
 ALLOWED_TRANSPORT_SCHEDULE_INTENTS = (
     "next_departure",
     "first_departure",
@@ -336,6 +340,16 @@ def _validate_notice_body_access_policy(body_access: str) -> None:
 def _validate_transport_service_status_value(status: str) -> None:
     if status not in ALLOWED_TRANSPORT_SERVICE_STATUS_VALUES:
         raise ValueError(f"unsupported transport service status value: {status}")
+
+
+def _validate_transport_departure_status(status: str) -> None:
+    if status not in ALLOWED_TRANSPORT_DEPARTURE_STATUSES:
+        raise ValueError(f"unsupported transport departure status: {status}")
+
+
+def _validate_transport_departure_kind(kind: str) -> None:
+    if kind not in ALLOWED_TRANSPORT_DEPARTURE_KINDS:
+        raise ValueError(f"unsupported transport departure kind: {kind}")
 
 
 def _validate_transport_schedule_intent(intent: str) -> None:

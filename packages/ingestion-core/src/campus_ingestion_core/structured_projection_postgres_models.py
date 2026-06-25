@@ -157,6 +157,9 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
         _TypedColumn("origin_stop_id", "text", "text not null default ''"),
         _TypedColumn("destination_stop_id", "text", "text not null default ''"),
         _TypedColumn("related_notice_refs", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("operational_comment", "text", "text not null default ''"),
+        _TypedColumn("departure_status", "text", "text not null default ''"),
+        _TypedColumn("departure_kind", "text", "text not null default ''"),
     ),
     "transport_service_exceptions": (
         _TypedColumn("snapshot_id", "text", "text not null default ''"),

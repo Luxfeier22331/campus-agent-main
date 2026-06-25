@@ -45,8 +45,13 @@ export interface CampusTransportScheduleResponse {
 	hasAdjustments: boolean;
 	notices: CampusTransportSourceNotice[];
 	publishedAt: string | null;
+	release: {
+		publishedAt: string;
+		releaseId: string;
+	} | null;
 	releaseId: string | null;
 	routes: CampusTransportRoute[];
 	serviceDate: string;
+	serviceDayKind: "holiday" | "temporary" | "unknown" | "weekend" | "workday";
 	status: "available" | "unavailable";
 }

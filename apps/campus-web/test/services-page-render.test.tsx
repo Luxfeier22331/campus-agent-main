@@ -28,6 +28,10 @@ describe("campus services page", () => {
 				},
 			],
 			publishedAt: "2026-03-20T00:00:00+08:00",
+			release: {
+				publishedAt: "2026-03-20T00:00:00+08:00",
+				releaseId: "snapshot:bus:2026-03-20",
+			},
 			releaseId: "snapshot:bus:2026-03-20",
 			routes: [
 				{
@@ -60,6 +64,7 @@ describe("campus services page", () => {
 				},
 			],
 			serviceDate: "2026-06-24",
+			serviceDayKind: "workday",
 			status: "available",
 		});
 
@@ -74,6 +79,7 @@ describe("campus services page", () => {
 		const serviceDateInput = screen.getByLabelText("服务日期") as HTMLInputElement;
 		expect(serviceDateInput.value).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 		expect(screen.getByText("工作日")).toBeInTheDocument();
+		expect(screen.getByText(/snapshot:bus:2026-03-20/)).toBeInTheDocument();
 		expect(screen.getByText("今日含 1 条调整")).toBeInTheDocument();
 		expect(screen.getByText("海淀校区→丰台校区")).toBeInTheDocument();
 		expect(screen.getByText("07:00")).toBeInTheDocument();
@@ -109,9 +115,11 @@ describe("campus services page", () => {
 			hasAdjustments: false,
 			notices: [],
 			publishedAt: null,
+			release: null,
 			releaseId: null,
 			routes: [],
 			serviceDate: "2026-06-11",
+			serviceDayKind: "unknown",
 			status: "unavailable",
 		});
 		const { unmount } = render(<ServicesPage />);
