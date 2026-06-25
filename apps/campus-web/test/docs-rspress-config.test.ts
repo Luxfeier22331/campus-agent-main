@@ -1,4 +1,13 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	readdirSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PageIndexInfo } from "@rspress/core";
@@ -150,9 +159,11 @@ describe("campus docs Rspress build boundary", () => {
 			"utf8",
 		);
 		const gitignore = readFileSync(join(appDir, ".gitignore"), "utf8");
+		const scaffoldDocsRoot = join(appDir, "docs");
 
 		expect(buildDocsSource).toContain('CAMPUS_WEB_RSPRESS_DOCS_ROOT: ".generated/docs"');
 		expect(packageJson.scripts["docs:build:scaffold"]).toBeUndefined();
+		expect(listFiles(scaffoldDocsRoot)).toEqual([]);
 		expect(configSource).toContain("CAMPUS_WEB_RSPRESS_DOCS_ROOT");
 		expect(configSource).toContain("builderConfig");
 		expect(configSource).toContain('"@": path.resolve(__dirname, "src")');
@@ -248,6 +259,25 @@ describe("campus docs Rspress build boundary", () => {
 		});
 	});
 });
+
+function listFiles(root: string): string[] {
+	if (!existsSync(root)) {
+		return [];
+	}
+	const files: string[] = [];
+	for (const entry of readdirSync(root)) {
+		const absolutePath = join(root, entry);
+		const stat = statSync(absolutePath);
+		if (stat.isDirectory()) {
+			for (const child of listFiles(absolutePath)) {
+				files.push(join(entry, child));
+			}
+			continue;
+		}
+		files.push(entry);
+	}
+	return files.sort();
+}
 
 function createPageIndexInfo(input: {
 	content: string;
