@@ -85,6 +85,7 @@ services:
       - supervisor-runtime
 
   temporal-ui:
+    profiles: ["ui"]
     image: temporalio/ui:2.43.3
     restart: unless-stopped
     depends_on:
@@ -330,6 +331,7 @@ services:
       - data-plane
 
   worker-autoscaler-bin:
+    profiles: ["ops-proof"]
     init: true
     restart: "no"
     build:
@@ -679,6 +681,7 @@ services:
       - data-plane
 
   activity-worker-campus-services:
+    profiles: ["structured-tools"]
     init: true
     restart: unless-stopped
     extra_hosts: *host-gateway
@@ -729,6 +732,7 @@ services:
       - data-plane
 
   activity-worker-notice:
+    profiles: ["structured-tools"]
     init: true
     restart: unless-stopped
     extra_hosts: *host-gateway
@@ -779,6 +783,7 @@ services:
       - data-plane
 
   activity-worker-navigation:
+    profiles: ["structured-tools"]
     init: true
     restart: unless-stopped
     extra_hosts: *host-gateway

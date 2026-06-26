@@ -6,6 +6,38 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=infra/local/staging/execution-control-staging-common.sh
 source "${script_dir}/execution-control-staging-common.sh"
 
+usage() {
+  cat >&2 <<'EOF'
+Usage: start-execution-control-staging.sh [--with-langfuse] [--with-ui] [--with-structured-capabilities]
+
+Default starts only the main answer serving runtime. Langfuse self-host,
+Temporal UI, and closed structured capability workers are opt-in.
+EOF
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --with-langfuse)
+      execution_control_staging_enable_langfuse_compose
+      ;;
+    --with-ui)
+      execution_control_staging_enable_compose_profile "ui"
+      ;;
+    --with-structured-capabilities)
+      execution_control_staging_enable_compose_profile "structured-tools"
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+  shift
+done
+
 execution_control_staging_ensure_runtime_dirs
 execution_control_staging_acquire_lock "${execution_control_staging_lock_wait_seconds}"
 execution_control_staging_require_deploy_checkout_clean

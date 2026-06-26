@@ -41,10 +41,13 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-knowledge-plan`
   - `activity-worker-knowledge-retrieval`
   - `activity-worker-knowledge-synthesis`
+  - `activity-worker-finalization`
+- 以下服务不是默认 serving startup，必须显式 opt-in：
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
-  - `activity-worker-finalization`
+  - `temporal-ui`
+  - self-hosted Langfuse stack
 - `worker-autoscaler`
   - explicit Docker Compose transitional autoscaler proof command
   - not part of default serving startup
@@ -109,15 +112,14 @@ owns the current truth summary and links to executable procedure groups.
   - `activity-worker-knowledge-synthesis`
     - Go-owned provider synthesis poller for
       `campus-agent.activity.knowledge.synthesis`
-  - `activity-worker-campus-services`
-    - Go-owned campus services typed-tool poller for
-      `campus-agent.activity.campus_services`
-  - `activity-worker-notice`
-    - Go-owned notice typed-tool poller for `campus-agent.activity.notice`
-  - `activity-worker-navigation`
-    - Go-owned navigation typed-tool poller for `campus-agent.activity.navigation`
   - `activity-worker-finalization`
     - Go-owned finalization activity poller for `campus-agent.activity.finalization`
+  - `activity-worker-campus-services` / `activity-worker-notice` /
+    `activity-worker-navigation`
+    - Go-owned structured capability pollers behind the `structured-tools`
+      Compose profile
+    - not part of default staging serving while the corresponding product
+      capabilities are not open in the staging runtime profile
   - `worker-autoscaler`
     - explicit Docker Compose dry-run / apply evidence producer behind the
       `ops-proof` Compose profile; it does not write workflow/run/step/event or
@@ -131,6 +133,13 @@ owns the current truth summary and links to executable procedure groups.
     - dedicated Temporal Postgres persistence / visibility store
   - `temporal-ui`
     - local-only operator UI
+    - behind the `ui` Compose profile; not started by default
+  - self-hosted Langfuse stack
+    - optional eval / trace UI runtime
+    - not part of default staging serving startup; start with
+      `infra/local/staging/start-execution-control-staging.sh --with-langfuse`
+      only when a session needs the self-host UI and ClickHouse-backed trace
+      store
 - machine ingress：
   - hostname: `execution-control-staging.mucwiki-edge.link`
   - Cloudflare DNS: proxied A/AAAA/CNAME 指向 staging VM
@@ -146,6 +155,25 @@ owns the current truth summary and links to executable procedure groups.
   - strict health check:
     `infra/local/staging/status-execution-control-staging.sh --check`
   - lifecycle lock: `.tmp/execution-control-staging/lifecycle.lock`
+
+默认启动只拉起主问答 serving runtime。按需入口：
+
+```bash
+# 主链路 serving runtime
+infra/local/staging/start-execution-control-staging.sh
+
+# 同时打开 Temporal UI
+infra/local/staging/start-execution-control-staging.sh --with-ui
+
+# 同时打开 closed structured capability workers
+infra/local/staging/start-execution-control-staging.sh --with-structured-capabilities
+
+# 同时打开 self-hosted Langfuse stack
+infra/local/staging/start-execution-control-staging.sh --with-langfuse
+
+# 只停止 Langfuse 重服务，保留 volumes 和主链路
+infra/local/staging/stop-execution-control-langfuse.sh
+```
 
 以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
 

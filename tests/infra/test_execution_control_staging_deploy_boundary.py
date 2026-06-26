@@ -72,13 +72,33 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         compose_file = ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
         compose_source = compose_file.read_text(encoding="utf-8")
 
-        for service_name in ("temporal-task-queue-sampler", "worker-autoscaler"):
+        for service_name in (
+            "temporal-task-queue-sampler",
+            "worker-autoscaler-bin",
+            "worker-autoscaler",
+        ):
             with self.subTest(service=service_name):
                 service_block = _compose_service_block(compose_source, service_name)
                 self.assertIn('profiles: ["ops-proof"]', service_block)
                 self.assertIn('restart: "no"', service_block)
                 self.assertNotIn("while true", service_block)
                 self.assertNotIn('sleep "$${', service_block)
+
+    def test_default_runtime_compose_keeps_heavy_and_closed_surfaces_opt_in(
+        self,
+    ) -> None:
+        compose_file = ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
+        compose_source = compose_file.read_text(encoding="utf-8")
+
+        for service_name, profile in (
+            ("temporal-ui", "ui"),
+            ("activity-worker-campus-services", "structured-tools"),
+            ("activity-worker-notice", "structured-tools"),
+            ("activity-worker-navigation", "structured-tools"),
+        ):
+            with self.subTest(service=service_name):
+                service_block = _compose_service_block(compose_source, service_name)
+                self.assertIn(f'profiles: ["{profile}"]', service_block)
 
     def test_staging_helper_exposes_explicit_ops_proof_command(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
@@ -118,12 +138,37 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         )
         self.assertNotIn('-c "ALTER ROLE hindsight PASSWORD', command_body)
 
-    def test_canonical_compose_defaults_include_langfuse_runtime(self) -> None:
+    def test_canonical_compose_defaults_exclude_langfuse_runtime(self) -> None:
         common_script = (STAGING_DIR / "execution-control-staging-common.sh").read_text(
             encoding="utf-8"
         )
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+        default_lines = [
+            line
+            for line in common_script.splitlines()
+            if line.startswith("execution_control_staging_default_compose_files=")
+        ]
 
-        self.assertIn("docker-compose.execution-control-runtime.langfuse.yml", common_script)
+        self.assertGreaterEqual(len(default_lines), 1)
+        for line in default_lines:
+            with self.subTest(default_line=line):
+                self.assertNotIn("langfuse", line)
+        self.assertIn("execution_control_staging_langfuse_compose_file", common_script)
+        self.assertIn("execution_control_staging_enable_langfuse_compose()", core_script)
+
+    def test_staging_langfuse_public_route_override_is_opt_in(self) -> None:
+        staging_compose = (
+            ROOT / "infra/local/docker-compose.execution-control-runtime.staging.yml"
+        ).read_text(encoding="utf-8")
+        langfuse_staging_compose = (
+            ROOT / "infra/local/docker-compose.execution-control-runtime.langfuse.staging.yml"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("langfuse-web:", staging_compose)
+        self.assertIn("langfuse-web:", langfuse_staging_compose)
+        self.assertIn("langfuse-staging.mucwiki-edge.link", langfuse_staging_compose)
 
     def test_compose_wrapper_projects_primary_agent_runtime_env(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
@@ -335,6 +380,46 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             r"^[0-9a-f]{64}$",
         )
 
+    def test_env_loader_preserves_explicit_compose_profiles(self) -> None:
+        result = run_common_script_with_env(
+            repo_env="",
+            staging_env="\n".join(
+                (
+                    "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES=ui:structured-tools",
+                    "EXECUTION_CONTROL_STAGING_COMPOSE_FILES=/runtime/base.yml:/runtime/staging.yml",
+                    "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_RAW_ASSET_REGISTRY_DATABASE_URL=postgresql://raw@staging-raw.example.com:5432/campus_agent",
+                    "STAGING_INGESTION_OBJECT_STORE_ENDPOINT=https://5943f31433be5dd57beb3bb92bd1c660.r2.cloudflarestorage.com",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY=derived-access",
+                    "STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY=derived-secret",
+                    "STAGING_INGESTION_OBJECT_STORE_REGION=auto",
+                    "STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED=campus-rag-derived-staging",
+                    "STAGING_INGESTION_QDRANT_URL=https://qdrant.staging.example.com",
+                    "STAGING_INGESTION_QDRANT_API_KEY=qdrant-key",
+                    "STAGING_INGESTION_QDRANT_READ_ONLY_API_KEY=qdrant-readonly-key",
+                    "STAGING_INGESTION_QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem",
+                    "STAGING_INGESTION_EMBEDDING_BASE_URL=https://ai.gitee.com/v1",
+                    "STAGING_INGESTION_EMBEDDING_API_KEY=embedding-key",
+                    "EXECUTION_CONTROL_METRICS_BEARER_TOKEN=metrics-token",
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET=query-secret",
+                    "EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://projection@staging-db.example.com:5432/campus_agent",
+                )
+            ),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        projected = json.loads(result.stdout)
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES"],
+            "ui:structured-tools",
+        )
+        self.assertEqual(
+            projected["EXECUTION_CONTROL_STAGING_COMPOSE_FILES"],
+            "/runtime/base.yml:/runtime/staging.yml",
+        )
+
     def test_env_loader_projects_internal_hindsight_memory_defaults_without_manual_secret(
         self,
     ) -> None:
@@ -379,9 +464,29 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
             encoding="utf-8"
         )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_compose_project_running() {"
+            ) : core_script.index("execution_control_staging_compose_langfuse_running() {")
+        ]
 
-        self.assertIn('"agent-runtime"', core_script)
-        self.assertIn('"activity-worker-agent"', core_script)
+        for required_service in (
+            '"agent-runtime"',
+            '"activity-worker-agent"',
+            '"activity-worker-knowledge-plan"',
+            '"activity-worker-knowledge-retrieval"',
+            '"activity-worker-knowledge-synthesis"',
+            '"activity-worker-finalization"',
+        ):
+            with self.subTest(required_service=required_service):
+                self.assertIn(required_service, command_body)
+        for closed_surface_service in (
+            '"activity-worker-campus-services"',
+            '"activity-worker-notice"',
+            '"activity-worker-navigation"',
+        ):
+            with self.subTest(closed_surface_service=closed_surface_service):
+                self.assertNotIn(closed_surface_service, command_body)
 
     def test_start_status_and_preflight_enforce_clean_pinned_checkout(self) -> None:
         for relative_path in (
@@ -399,6 +504,39 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("reconciling images and containers", script)
         self.assertIn("execution_control_staging_compose up -d --build --remove-orphans", script)
         self.assertNotIn("runtime already running", script)
+
+    def test_start_requires_explicit_flags_for_optional_runtime_surfaces(self) -> None:
+        script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--with-langfuse", script)
+        self.assertIn("execution_control_staging_enable_langfuse_compose", script)
+        self.assertIn("--with-ui", script)
+        self.assertIn('"ui"', script)
+        self.assertIn("--with-structured-capabilities", script)
+        self.assertIn('"structured-tools"', script)
+
+    def test_status_requires_explicit_langfuse_check(self) -> None:
+        script = (STAGING_DIR / "status-execution-control-staging.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--require-langfuse", script)
+        self.assertIn("execution_control_staging_enable_langfuse_compose", script)
+        self.assertIn("execution_control_staging_compose_langfuse_running", script)
+
+    def test_langfuse_stop_script_preserves_volumes(self) -> None:
+        script = (STAGING_DIR / "stop-execution-control-langfuse.sh").read_text(encoding="utf-8")
+        core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
+            encoding="utf-8"
+        )
+        command_body = core_script[
+            core_script.index(
+                "execution_control_staging_stop_langfuse_compose() {"
+            ) : core_script.index("execution_control_staging_run_projection_schema_command() {")
+        ]
+
+        self.assertIn("execution_control_staging_stop_langfuse_compose", script)
+        self.assertIn("execution_control_staging_compose stop", command_body)
+        self.assertIn("execution_control_staging_compose rm -f", command_body)
+        self.assertNotIn(" -v", command_body)
 
     def test_start_checks_personal_memory_after_compose_up(self) -> None:
         script = (STAGING_DIR / "start-execution-control-staging.sh").read_text(encoding="utf-8")

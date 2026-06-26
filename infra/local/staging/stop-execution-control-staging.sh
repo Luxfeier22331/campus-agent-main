@@ -49,6 +49,7 @@ stop_process() {
 
 execution_control_staging_ensure_runtime_dirs
 execution_control_staging_acquire_lock "${execution_control_staging_lock_wait_seconds}"
+execution_control_staging_enable_langfuse_compose
 execution_control_staging_load_env
 
 execution_control_staging_capture_compose_logs
