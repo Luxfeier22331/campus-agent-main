@@ -333,10 +333,6 @@ describe("agent eval TS runner", () => {
 		const spawnSync = vi.fn(() => ({
 			status: 0,
 			stdout: JSON.stringify({
-				conversation: {
-					assistantAnswerText: "需要看学习成绩、综合测评和奖励标准。",
-					id: "conv_01",
-				},
 				passed: true,
 				run: {
 					conversationId: "conv_01",
@@ -354,13 +350,16 @@ describe("agent eval TS runner", () => {
 						selected_capability: "knowledge",
 					},
 					rag: {
-						required_facts: ["学习成绩", "综合测评", "奖励标准"],
 						source_refs: [
 							{
 								title: "本科生国家奖学金评审办法",
 							},
 						],
 					},
+				},
+				conversation: {
+					assistantAnswerText: "申请时需要看学习成绩、综合测评排名，并按规定确认奖励标准。",
+					id: "conv_01",
 				},
 				runtimeStepResults: [
 					{

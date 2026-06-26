@@ -472,9 +472,9 @@ func buildAgentRuntimeEvalProjection(
 			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
 			"requires_clarification": projectedBoolFromResults(results, "requires_clarification"),
 		},
-		"planning": projectedRecordFromResults(results, "planning"),
-		"rag":      projectedRecordFromResults(results, "rag"),
-		"memory":   projectedRecordFromResults(results, "memory"),
+		"planning": projectedPlanningForEval(results),
+		"rag":      projectedRAGForEval(results),
+		"memory":   projectedMemoryForEval(results),
 	}
 }
 

@@ -13,6 +13,7 @@ vi.mock("../src/db/runtime", () => ({
 }));
 
 import { createPgChatConversationStore } from "../src/modules/chat/store";
+import { normalizeSourceItemsPart } from "../src/modules/runtime-command/service/normalize";
 
 describe("chat structured parts", () => {
 	beforeEach(() => {
@@ -229,6 +230,42 @@ describe("chat structured parts", () => {
 					type: "source_items",
 				},
 			],
+		});
+	});
+
+	it("derives previous-evidence proof metadata from safe RAG source fields", () => {
+		const parts = normalizeSourceItemsPart({
+			result: {
+				evidence: {
+					sources: [
+						{
+							chunk_id: "handbook:scholarship:chunk-0019",
+							doc_id: "handbook:scholarship",
+							source_ref: "campus-agent://regulations/student_rules/docs/handbook:scholarship",
+							source_title: "中央民族大学本科学生国家奖学金评审办法",
+							structural_ref: "span://handbook:scholarship/handbook:scholarship:chunk-0019",
+						},
+					],
+				},
+			},
+			selectedCapability: "knowledge",
+			status: "completed",
+		});
+
+		expect(parts).toHaveLength(1);
+		expect(parts[0]).toMatchObject({
+			sourceItems: [
+				{
+					accessScope: "public",
+					collection: "regulations/student_rules",
+					contentHash: "sha256:handbook:scholarship:chunk-0019",
+					documentId: "handbook:scholarship",
+					evidenceId: "handbook:scholarship:chunk-0019",
+					sourceId: "campus-agent://regulations/student_rules/docs/handbook:scholarship",
+					versionId: "span://handbook:scholarship/handbook:scholarship:chunk-0019",
+				},
+			],
+			type: "source_items",
 		});
 	});
 

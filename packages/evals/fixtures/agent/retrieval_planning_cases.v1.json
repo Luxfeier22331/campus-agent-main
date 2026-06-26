@@ -4,10 +4,10 @@
 	"cases": [
 		{
 			"case_id": "agent-planning-current-policy",
-			"user_goal": "现在校园卡丢了怎么办",
+			"user_goal": "国家奖学金申请需要满足什么基本条件",
 			"split": "release_gate",
 			"expected": {
-				"decomposition": ["campus_card", "current_policy"],
+				"decomposition": ["student_rules", "current_policy"],
 				"freshness_branch": "current",
 				"planned_steps": ["indexed_lookup", "supporting_evidence_selection"],
 				"final_status": "completed",

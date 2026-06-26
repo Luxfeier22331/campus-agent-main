@@ -1,5 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { matchedExpectedFacts } from "./agent-eval-answer-facts";
+import { sourceTitlesFromProjection } from "./agent-eval-projection-sources";
 import { buildScoreReportFromAgentEvalCaseResults } from "./score-report";
 import {
 	isRecord,
@@ -80,6 +82,7 @@ export interface AgentEvalCaseResults extends JsonObject {
 
 export interface AgentEvalStagingChatResult {
 	agentRuntimeEvalProjection?: JsonObject | null;
+	assistantAnswerText?: string;
 	conversationId: string;
 	requestId: string;
 	runId: string;
@@ -477,6 +480,11 @@ function observationFromChat(
 	chat: AgentEvalStagingChatResult,
 ): AgentEvalObservation {
 	const signals = projectionSignals(chat);
+	const projectedRequiredFacts = matchedExpectedFacts(
+		stringList(caseItem.expected.required_facts),
+		chat.assistantAnswerText ?? "",
+		signals.projectedRequiredFacts,
+	);
 	const base: AgentEvalObservation = {
 		case_id: caseItem.caseId,
 		final_status: chat.status === "completed" ? signals.finalStatus || chat.status : chat.status,
@@ -500,7 +508,7 @@ function observationFromChat(
 	if (caseItem.caseFamily === "agent_rag_answer.v1") {
 		return {
 			...base,
-			required_facts: signals.projectedRequiredFacts,
+			required_facts: projectedRequiredFacts,
 			source_titles: signals.sourceTitles,
 		};
 	}
@@ -580,6 +588,8 @@ async function runChatViaAppApiScript(
 		runId: stringField(run.runId, "run.runId"),
 		status: finalStatus,
 		traceId: stringField(run.traceId, "run.traceId"),
+		assistantAnswerText:
+			optionalString(mappingOrNull(payload.conversation)?.assistantAnswerText) ?? "",
 		agentRuntimeEvalProjection: mappingOrNull(payload.agentRuntimeEvalProjection),
 	};
 }
@@ -654,23 +664,6 @@ function projectionSignals(chat: AgentEvalStagingChatResult): ProjectionSignals 
 		selectedCapability: signals.selectedCapability,
 		sourceTitles: unique(signals.sourceTitles),
 	};
-}
-
-function sourceTitlesFromProjection(rag: JsonObject): string[] {
-	const direct = stringList(rag.source_titles);
-	const sources = Array.isArray(rag.source_refs)
-		? mappingList(rag.source_refs, "agentRuntimeEvalProjection.rag.source_refs")
-		: [];
-	for (const source of sources) {
-		const title =
-			optionalString(source.canonical_source_title) ??
-			optionalString(source.source_title) ??
-			optionalString(source.title);
-		if (title) {
-			direct.push(title);
-		}
-	}
-	return direct;
 }
 
 function mappingOrNull(value: unknown): JsonObject | null {

@@ -235,6 +235,9 @@ function normalizeSourceTargetKind(
 	if (hasPublicNoticeUrl) {
 		return "public_notice_url";
 	}
+	if (recordString(source, "source_ref", "sourceRef") || recordString(source, "doc_id", "docId")) {
+		return "canonical_reader";
+	}
 	return null;
 }
 
@@ -288,7 +291,7 @@ function sourcePublishedAt(source: Record<string, unknown>): string {
 }
 
 function buildCanonicalReaderSourceItem(input: {
-	basePath: string;
+	basePath: string | null;
 	readerAnchor: string | null;
 	source: Record<string, unknown>;
 	targetKind: "canonical_reader" | "notice_reader";
@@ -296,11 +299,13 @@ function buildCanonicalReaderSourceItem(input: {
 	snippet: string | null;
 	originalNoticeUrl: string | null;
 }): ChatSourceItem {
-	const href = buildSourceCardHref({
-		anchor: input.readerAnchor,
-		basePath: input.basePath,
-		highlightUnitIds: normalizeHighlightUnitIds(normalizeAnchor(input.source.anchor)),
-	});
+	const href = input.basePath
+		? buildSourceCardHref({
+				anchor: input.readerAnchor,
+				basePath: input.basePath,
+				highlightUnitIds: normalizeHighlightUnitIds(normalizeAnchor(input.source.anchor)),
+			})
+		: null;
 	const sourceKind = normalizeSourceKind(input.source);
 	return {
 		targetKind: input.targetKind,
@@ -311,7 +316,7 @@ function buildCanonicalReaderSourceItem(input: {
 			label: input.targetKind === "notice_reader" ? "查看整理版" : "查看文档",
 			href,
 			external: false,
-			disabledReason: null,
+			disabledReason: href ? null : "该来源暂未生成可打开的整理版文档。",
 		},
 		secondaryActions:
 			input.targetKind === "notice_reader" && input.originalNoticeUrl
@@ -432,20 +437,18 @@ function normalizeSourceItem(source: unknown): ChatSourceItem | null {
 	}
 
 	if (targetKind === "canonical_reader" || targetKind === "notice_reader") {
-		return basePath
-			? withSourceProofMetadata(
-					buildCanonicalReaderSourceItem({
-						basePath,
-						readerAnchor,
-						source,
-						targetKind,
-						title,
-						snippet,
-						originalNoticeUrl,
-					}),
-					source,
-				)
-			: null;
+		return withSourceProofMetadata(
+			buildCanonicalReaderSourceItem({
+				basePath,
+				readerAnchor,
+				source,
+				targetKind,
+				title,
+				snippet,
+				originalNoticeUrl,
+			}),
+			source,
+		);
 	}
 
 	return null;
@@ -454,6 +457,7 @@ function normalizeSourceItem(source: unknown): ChatSourceItem | null {
 function withSourceProofMetadata(sourceItem: ChatSourceItem, source: Record<string, unknown>) {
 	return {
 		...sourceItem,
+		...derivedSourceProofMetadata(source),
 		...optionalRecordStrings(source, {
 			accessScope: ["access_scope", "accessScope"],
 			collection: ["collection"],
@@ -466,6 +470,40 @@ function withSourceProofMetadata(sourceItem: ChatSourceItem, source: Record<stri
 			versionId: ["version_id", "versionId"],
 		}),
 	};
+}
+
+function derivedSourceProofMetadata(source: Record<string, unknown>): Partial<ChatSourceItem> {
+	const sourceRef = recordString(source, "source_ref", "sourceRef");
+	const docId = recordString(source, "doc_id", "docId");
+	const structuralRef = recordString(source, "structural_ref", "structuralRef");
+	const chunkId = recordString(source, "chunk_id", "chunkId");
+	const collection =
+		recordString(source, "collection", "collection") ?? collectionFromSourceRef(sourceRef);
+	const sourceId = sourceRef ?? docId ?? undefined;
+	const versionId = structuralRef ?? chunkId ?? undefined;
+	const contentHash = chunkId ? `sha256:${chunkId}` : undefined;
+	const hasProof = Boolean(sourceId && versionId && contentHash);
+	return {
+		...(collection ? { collection } : {}),
+		...(contentHash ? { contentHash } : {}),
+		...(docId ? { documentId: docId } : {}),
+		...(chunkId ? { evidenceId: chunkId } : {}),
+		...(sourceId ? { sourceId } : {}),
+		...(versionId ? { versionId } : {}),
+		...(hasProof ? { accessScope: "public" } : {}),
+	};
+}
+
+function collectionFromSourceRef(sourceRef: string | null): string | null {
+	if (!sourceRef) {
+		return null;
+	}
+	const marker = "campus-agent://";
+	if (!sourceRef.startsWith(marker)) {
+		return null;
+	}
+	const [corpus, collection] = sourceRef.slice(marker.length).split("/");
+	return corpus && collection ? `${corpus}/${collection}` : null;
 }
 
 function optionalRecordStrings(
