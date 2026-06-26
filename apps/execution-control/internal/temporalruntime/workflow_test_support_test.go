@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/testsuite"
 )
 
 type Activities struct{}
@@ -42,6 +43,37 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 	env.RegisterActivityWithOptions(activities.VerifyGroundingActivity, activity.RegisterOptions{Name: VerifyGroundingActivityName})
 	env.RegisterActivityWithOptions(activities.ExecuteTypedToolActivity, activity.RegisterOptions{Name: ExecuteTypedToolActivityName})
 	env.RegisterActivityWithOptions(activities.WriteFinalizationActivity, activity.RegisterOptions{Name: WriteFinalizationActivityName})
+}
+
+func newWorkflowTestEnvironment() *testsuite.TestWorkflowEnvironment {
+	var suite testsuite.WorkflowTestSuite
+	env := suite.NewTestWorkflowEnvironment()
+	registerWorkflowTestActivities(env, &Activities{})
+	return env
+}
+
+func workflowTestInput(runID string) CapabilityExecutionWorkflowInput {
+	return CapabilityExecutionWorkflowInput{
+		ConversationID: "conv-" + runID,
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "d8a73157ce10cd94a91c2079fc9a92c8f9f42f71360e4de7b80bf2e7d5e75c5c",
+		RequestID:      "req-" + runID,
+		RunID:          runID,
+		TaskQueue:      WorkflowTaskQueue,
+		TraceID:        "trace-" + runID,
+		TurnID:         "turn-" + runID,
+		VisibleCapabilities: []string{
+			"knowledge",
+		},
+		WorkflowID: "campus-agent.chat." + runID,
+	}
+}
+
+func expectWorkflowCompletedWithoutError(env *testsuite.TestWorkflowEnvironment) error {
+	if !env.IsWorkflowCompleted() {
+		return context.Canceled
+	}
+	return env.GetWorkflowError()
 }
 
 func (Activities) MemoryRecallActivity(
