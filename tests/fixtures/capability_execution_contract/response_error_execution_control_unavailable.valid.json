@@ -6,8 +6,8 @@
 	"confidence": "low",
 	"result": null,
 	"error": {
-		"code": "supervisor_execution_control_unavailable",
-		"message": "Supervisor bridge is unavailable.",
+		"code": "execution_control_unavailable",
+		"message": "Execution control is unavailable.",
 		"retryable": true
 	},
 	"workflow_trace_summary": {
@@ -26,11 +26,11 @@
 		"answer_artifact_kinds": [],
 		"tool_argument_summary": {},
 		"guardrail_outcomes": {},
-		"fail_close_reason": "supervisor_execution_control_unavailable",
+		"fail_close_reason": "execution_control_unavailable",
 		"runtime_versions": {
 			"workflow_trace_summary": "workflow-trace-summary-v4"
 		},
 		"policy_artifact_versions": {}
 	},
-	"trace_id": "trace-contract-bridge-unavailable"
+	"trace_id": "trace-contract-execution-control-unavailable"
 }

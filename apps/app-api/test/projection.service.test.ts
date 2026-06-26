@@ -634,17 +634,15 @@ describe("request projection projector", () => {
 		const store: RequestProjectionProjectorStore = {
 			getRequestExecution: vi.fn().mockResolvedValue(
 				createExecutionSource({
-					errorCode: "supervisor_bridge_timeout",
+					errorCode: "execution_control_timeout",
 					status: "error",
 				}),
 			),
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
-					eventId: "execution-control:req_01HQ:execution.bridge_failed",
-					eventType: "execution.bridge_failed",
-					payload: {
-						bridgeDurationMs: 35000,
-						decision: null,
+					eventId: "execution-control:req_01HQ:execution.runtime_failed",
+					eventType: "execution.runtime_failed",
+					payload: {						decision: null,
 						durationMs: 35012,
 						failureKind: "timeout",
 						httpStatus: 504,
@@ -673,11 +671,9 @@ describe("request projection projector", () => {
 
 		expect(store.upsertAuditProjection).toHaveBeenCalledWith(
 			expect.objectContaining({
-				auditEventId: "execution-control:req_01HQ:execution.bridge_failed",
+				auditEventId: "execution-control:req_01HQ:execution.runtime_failed",
 				diagnostics: {
-					aclAnomalyCode: null,
-					bridgeDurationMs: 35000,
-					decision: null,
+					aclAnomalyCode: null,					decision: null,
 					durationMs: 35012,
 					failClosed: false,
 					failureKind: "timeout",
@@ -687,9 +683,9 @@ describe("request projection projector", () => {
 					retryable: true,
 					sourceDocIds: ["handbook:library-hours"],
 				},
-				eventType: "execution.bridge_failed",
+				eventType: "execution.runtime_failed",
 				status: "error",
-				summary: "Execution bridge failed: timeout.",
+				summary: "Execution runtime failed: timeout.",
 				terminalCode: "error",
 			}),
 		);

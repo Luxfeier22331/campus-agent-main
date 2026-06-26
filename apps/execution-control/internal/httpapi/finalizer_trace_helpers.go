@@ -286,14 +286,14 @@ func workflowTraceRun(
 	status string,
 	decisions execution.RuntimeDecisionSummary,
 	failCloseReason string,
-	bridgeAttemptCount int,
-	bridgeRetryCount int,
+	runtimeAttemptCount int,
+	runtimeRetryCount int,
 ) execution.WorkflowRun {
-	if bridgeAttemptCount <= 0 {
-		bridgeAttemptCount = 1
+	if runtimeAttemptCount <= 0 {
+		runtimeAttemptCount = 1
 	}
-	if bridgeRetryCount < 0 {
-		bridgeRetryCount = 0
+	if runtimeRetryCount < 0 {
+		runtimeRetryCount = 0
 	}
 	run := execution.WorkflowRun{
 		Mode:   execution.WorkflowMode(workflowMode),
@@ -353,8 +353,8 @@ func workflowTraceRun(
 		ParentStepID:      workflowFinalizationParentStep(branch, selectedTool),
 		Outcome:           status,
 		ResultStatus:      status,
-		AttemptCount:      bridgeAttemptCount,
-		RuntimeRetryCount: bridgeRetryCount,
+		AttemptCount:      runtimeAttemptCount,
+		RuntimeRetryCount: runtimeRetryCount,
 		FailCloseReason:   failCloseReason,
 	})
 	return run

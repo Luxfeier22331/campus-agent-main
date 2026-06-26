@@ -24,6 +24,7 @@ type fakeTransportScheduleReadModelStore struct {
 	releaseID          string
 	bundle             projectionBundle
 	loadCount          int
+	enrichURLs         bool
 	projectionReady    bool
 	projectionReadySet bool
 	projectionReadyErr error
@@ -56,6 +57,21 @@ func (s *fakeTransportScheduleReadModelStore) LoadBundleForRelease(
 ) (projectionBundle, error) {
 	s.loadCount++
 	return s.bundle, nil
+}
+
+func (s *fakeTransportScheduleReadModelStore) EnrichTransportReleaseNoticeURLs(
+	_ context.Context,
+	bundle projectionBundle,
+) (projectionBundle, error) {
+	if !s.enrichURLs {
+		return bundle, nil
+	}
+	for index := range bundle.TransportReleaseNotices {
+		if bundle.TransportReleaseNotices[index].normalizedSourceNoticeID() == "355867" {
+			bundle.TransportReleaseNotices[index].SourceURL = "https://my.muc.edu.cn/#/print?type=5&notice_id=355867&show_type=1"
+		}
+	}
+	return bundle, nil
 }
 
 type fakeCampusServicesOpsReleaseStore struct {

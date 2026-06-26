@@ -29,7 +29,7 @@ const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
 	"execution.admission_rejected",
 	"execution.cancel_requested",
 	"execution.cancelled",
-	"execution.bridge_failed",
+	"execution.runtime_failed",
 	"execution.timed_out",
 ]);
 const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
@@ -70,7 +70,6 @@ export interface OperatorTraceBacklinkPayloadItem {
 }
 
 export interface OperatorExecutionAuditEventPayloadItem {
-	bridge_duration_ms?: unknown;
 	decision?: unknown;
 	duration_ms?: unknown;
 	event_id?: unknown;
@@ -132,7 +131,6 @@ export interface OperatorObservabilityCommandServiceDependencies {
 	store: OperatorObservabilityCommandStore;
 	telemetry?: {
 		recordExecutionAuditEvent?(input: {
-			bridgeDurationMs: number | null;
 			decision: string | null;
 			durationMs: number | null;
 			eventType: string;
@@ -458,7 +456,6 @@ export function buildOperatorObservabilityCommandService(
 			);
 			const writes: ExecutionAuditEventWrite[] = [];
 			const telemetryEvents: Array<{
-				bridgeDurationMs: number | null;
 				decision: string | null;
 				durationMs: number | null;
 				eventType: string;
@@ -483,10 +480,6 @@ export function buildOperatorObservabilityCommandService(
 				const traceId = normalizeRequiredString(item.trace_id, `${prefix}.trace_id`);
 				const eventType = normalizeExecutionAuditEventType(item.event_type, `${prefix}.event_type`);
 				const occurredAt = normalizeIsoTimestamp(item.occurred_at, `${prefix}.occurred_at`);
-				const bridgeDurationMs = normalizeNullableNonNegativeInteger(
-					item.bridge_duration_ms,
-					`${prefix}.bridge_duration_ms`,
-				);
 				const durationMs = normalizeNullableNonNegativeInteger(
 					item.duration_ms,
 					`${prefix}.duration_ms`,
@@ -526,7 +519,6 @@ export function buildOperatorObservabilityCommandService(
 				}
 
 				const payload = {
-					bridgeDurationMs,
 					decision,
 					durationMs,
 					failureKind,

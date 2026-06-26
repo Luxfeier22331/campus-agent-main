@@ -4,7 +4,7 @@ set -euo pipefail
 
 script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "${script_dir}/../../.." && pwd)"
-task_name="${EXECUTION_CONTROL_STAGING_TASK_NAME:-CampusAgent-SupervisorApiStaging}"
+task_name="${EXECUTION_CONTROL_STAGING_TASK_NAME:-CampusAgent-ExecutionControlStaging}"
 wsl_distro_name="${WSL_DISTRO_NAME:-}"
 linux_user="$(id -un)"
 

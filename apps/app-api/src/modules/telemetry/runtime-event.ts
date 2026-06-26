@@ -147,10 +147,9 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		]),
 	],
 	[
-		"execution.bridge_failed",
+		"execution.runtime_failed",
 		new Set([
 			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"bridge_duration_ms",
 			"decision",
 			"duration_ms",
 			"failure_kind",
@@ -164,7 +163,6 @@ const RUNTIME_EVENT_ALLOWED_FIELDS_BY_EVENT_TYPE = new Map<string, ReadonlySet<s
 		"execution.timed_out",
 		new Set([
 			...RUNTIME_EVENT_BASE_ALLOWED_FIELDS,
-			"bridge_duration_ms",
 			"decision",
 			"duration_ms",
 			"failure_kind",

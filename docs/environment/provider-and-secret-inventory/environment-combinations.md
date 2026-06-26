@@ -35,7 +35,7 @@ owns this section group; the original path remains the stable index.
   - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
   - `AUTH_SHELL_ORIGIN`
   - `EXECUTION_CONTROL_*`
-  - 如果 supervisor ingress 受 Cloudflare Access 保护，补充
+  - 如果 execution-control ingress 受 Cloudflare Access 保护，补充
     `EXECUTION_CONTROL_ACCESS_CLIENT_ID` 与 `EXECUTION_CONTROL_ACCESS_CLIENT_SECRET`
   - `APP_API_INTERNAL_SHARED_SECRET`
 - `apps/campus-web/.dev.vars`

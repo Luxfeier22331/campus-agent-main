@@ -54,6 +54,15 @@ func (r *Runtime) TransportStatusProjection(ctx context.Context) Response {
 	if err != nil {
 		return transportStatusFailClosed("source_truth_unavailable")
 	}
+	if enricher, ok := r.transportScheduleReadModelStore.(interface {
+		EnrichTransportReleaseNoticeURLs(context.Context, projectionBundle) (projectionBundle, error)
+	}); ok {
+		var err error
+		bundle, err = enricher.EnrichTransportReleaseNoticeURLs(ctx, bundle)
+		if err != nil {
+			return transportStatusFailClosed("source_truth_unavailable")
+		}
+	}
 	if r.campusServicesOpsReleaseStore != nil {
 		release, err := loadCampusServicesOpsReleaseFromStore(
 			ctx,
@@ -103,12 +112,13 @@ func buildTransportStatusProjection(
 	if !ok {
 		return TransportStatusProjection{}, errors.New("current transport status snapshot missing")
 	}
-	releaseRefs := appendUniqueTransportURLRefs(nil, []string{snapshot.SourceRef})
+	sourceURLByRef := transportStatusSourceURLByRef(bundle)
+	releaseRefs := transportStatusSourceRefs([]string{snapshot.SourceRef}, sourceURLByRef)
 	if len(releaseRefs) == 0 {
 		return TransportStatusProjection{}, errors.New("transport status release source refs missing")
 	}
 	serviceDate := beginningOfTransportDay(anchor)
-	routes := buildTransportStatusRoutes(bundle, snapshot, serviceDate, releaseRefs)
+	routes := buildTransportStatusRoutes(bundle, snapshot, serviceDate, releaseRefs, sourceURLByRef)
 	if len(routes) == 0 {
 		return TransportStatusProjection{}, errors.New("transport status routes missing")
 	}
@@ -156,11 +166,19 @@ func buildTransportStatusRoutes(
 	snapshot transportScheduleSnapshotRecord,
 	serviceDate time.Time,
 	releaseRefs []string,
+	sourceURLByRef map[string]string,
 ) []TransportStatusRoute {
 	routes := append([]transportRouteRecord(nil), bundle.TransportRoutes...)
 	statusRoutes := []TransportStatusRoute{}
 	for _, route := range routes {
-		departures := buildTransportStatusDepartures(bundle, snapshot, route, serviceDate, releaseRefs)
+		departures := buildTransportStatusDepartures(
+			bundle,
+			snapshot,
+			route,
+			serviceDate,
+			releaseRefs,
+			sourceURLByRef,
+		)
 		if len(departures) == 0 {
 			continue
 		}
@@ -179,6 +197,7 @@ func buildTransportStatusDepartures(
 	route transportRouteRecord,
 	serviceDate time.Time,
 	releaseRefs []string,
+	sourceURLByRef map[string]string,
 ) []TransportStatusDeparture {
 	serviceDateText := serviceDate.Format(transportLocalDateLayout)
 	departures := []TransportStatusDeparture{}
@@ -192,7 +211,7 @@ func buildTransportStatusDepartures(
 		if len(record.ServiceDates) > 0 && !stringSliceContains(record.ServiceDates, serviceDateText) {
 			continue
 		}
-		departure, ok := transportStatusDepartureFromRecord(record, releaseRefs)
+		departure, ok := transportStatusDepartureFromRecord(record, releaseRefs, sourceURLByRef)
 		if ok {
 			departures = append(departures, departure)
 		}
@@ -204,7 +223,11 @@ func buildTransportStatusDepartures(
 		serviceDateText,
 	); err == nil && ok {
 		for index := range departures {
-			departures[index] = applyTransportStatusException(departures[index], exception)
+			departures[index] = applyTransportStatusException(
+				departures[index],
+				exception,
+				sourceURLByRef,
+			)
 		}
 	}
 	sort.SliceStable(departures, func(i, j int) bool {
@@ -216,6 +239,7 @@ func buildTransportStatusDepartures(
 func transportStatusDepartureFromRecord(
 	record scheduledDepartureRecord,
 	releaseRefs []string,
+	sourceURLByRef map[string]string,
 ) (TransportStatusDeparture, bool) {
 	departureTime := strings.TrimSpace(record.DepartureTime)
 	if _, err := time.Parse(transportWallTimeLayout, departureTime); err != nil {
@@ -229,7 +253,7 @@ func transportStatusDepartureFromRecord(
 	if err != nil {
 		return TransportStatusDeparture{}, false
 	}
-	sourceRefs := appendUniqueTransportURLRefs(nil, record.RelatedNoticeRefs)
+	sourceRefs := transportStatusSourceRefs(record.RelatedNoticeRefs, sourceURLByRef)
 	if len(sourceRefs) == 0 {
 		sourceRefs = appendUniqueTransportURLRefs(nil, releaseRefs)
 	}
@@ -245,6 +269,7 @@ func transportStatusDepartureFromRecord(
 func applyTransportStatusException(
 	departure TransportStatusDeparture,
 	exception transportServiceExceptionRecord,
+	sourceURLByRef map[string]string,
 ) TransportStatusDeparture {
 	status := transportStatusFromServiceStatus(exception.ServiceStatus)
 	if status != "" {
@@ -255,7 +280,7 @@ func applyTransportStatusException(
 		departure.Note = note
 	}
 	departure.SourceRefs = appendUniqueTransportRefs(
-		appendUniqueTransportURLRefs(nil, exception.RelatedNoticeRefs),
+		transportStatusSourceRefs(exception.RelatedNoticeRefs, sourceURLByRef),
 		departure.SourceRefs,
 	)
 	return departure
@@ -295,6 +320,85 @@ func filterTransportStatusURLRefs(refs []string) []string {
 func isTransportStatusURLRef(ref string) bool {
 	ref = strings.TrimSpace(ref)
 	return strings.HasPrefix(ref, "https://") || strings.HasPrefix(ref, "http://")
+}
+
+func transportStatusSourceURLByRef(bundle projectionBundle) map[string]string {
+	urlByRef := map[string]string{}
+	for _, notice := range bundle.TransportReleaseNotices {
+		url := strings.TrimSpace(notice.SourceURL)
+		if !isTransportStatusURLRef(url) {
+			continue
+		}
+		for _, ref := range notice.sourceRefs() {
+			urlByRef[ref] = url
+		}
+	}
+	return urlByRef
+}
+
+func transportStatusSourceRefs(refs []string, sourceURLByRef map[string]string) []string {
+	urls := []string{}
+	for _, ref := range refs {
+		ref = strings.TrimSpace(ref)
+		if isTransportStatusURLRef(ref) {
+			urls = appendUniqueTransportRefs(urls, []string{ref})
+			continue
+		}
+		if url := sourceURLByRef[ref]; url != "" {
+			urls = appendUniqueTransportRefs(urls, []string{url})
+		}
+	}
+	return urls
+}
+
+func (r transportReleaseNoticeRecord) normalizedSourceNoticeID() string {
+	noticeID := strings.TrimSpace(r.SourceNoticeID)
+	if noticeID != "" {
+		return noticeID
+	}
+	sourceRef := strings.TrimSpace(r.SourceRef)
+	if strings.HasPrefix(sourceRef, "notice:muc_internal_portal:") {
+		return strings.TrimPrefix(sourceRef, "notice:muc_internal_portal:")
+	}
+	return ""
+}
+
+func (r transportReleaseNoticeRecord) sourceRefs() []string {
+	noticeID := r.normalizedSourceNoticeID()
+	refs := []string{}
+	if ref := strings.TrimSpace(r.SourceRef); ref != "" {
+		refs = append(refs, ref)
+	}
+	if noticeID != "" {
+		refs = append(refs, "notice:muc_internal_portal:"+noticeID)
+	}
+	return refs
+}
+
+func uniqueTransportReleaseNoticeIDs(releaseNotices []transportReleaseNoticeRecord) []string {
+	ids := []string{}
+	seen := map[string]struct{}{}
+	for _, notice := range releaseNotices {
+		noticeID := notice.normalizedSourceNoticeID()
+		if noticeID == "" {
+			continue
+		}
+		if _, ok := seen[noticeID]; ok {
+			continue
+		}
+		seen[noticeID] = struct{}{}
+		ids = append(ids, noticeID)
+	}
+	return ids
+}
+
+func transportReleaseNoticesHaveURLs(releaseNotices []transportReleaseNoticeRecord) bool {
+	for _, notice := range releaseNotices {
+		if !isTransportStatusURLRef(notice.SourceURL) {
+			return false
+		}
+	}
+	return true
 }
 
 func transportStatusFromServiceStatus(status string) string {

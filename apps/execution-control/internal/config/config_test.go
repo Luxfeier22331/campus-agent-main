@@ -649,40 +649,6 @@ func TestLoadFromEnvRejectsRetiredPromptRuntimeSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvRejectsRetiredSupervisorPromptModel(t *testing.T) {
-	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
-
-	if _, err := LoadFromEnv(); err == nil {
-		t.Fatal("expected retired supervisor prompt model env to fail")
-	} else if !strings.Contains(err.Error(), "SUPERVISOR_PROMPT_MODEL is retired") {
-		t.Fatalf("error = %q, want retired supervisor prompt model error", err.Error())
-	}
-}
-
-func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
-	for _, tc := range []struct {
-		name  string
-		value string
-	}{
-		{"SUPERVISOR_AGENT_WORKER_BASE_URL", "http://127.0.0.1:27052"},
-		{"SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "bridge-secret"},
-		{"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048"},
-		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000"},
-		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", "500"},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3"},
-		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500"},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4"},
-		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15"},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Setenv(tc.name, tc.value)
-			if _, err := LoadFromEnv(); err == nil {
-				t.Fatalf("expected retired Python bridge setting %s to fail", tc.name)
-			}
-		})
-	}
-}
-
 func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "legacy-key")
 	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")

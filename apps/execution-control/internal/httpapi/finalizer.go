@@ -18,15 +18,15 @@ var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
 }
 
 type executionFinalizerContext struct {
-	SelectedTool       string
-	RuntimeDecisions   execution.RuntimeDecisionSummary
-	Handoff            *execution.RuntimeHandoff
-	Branch             string
-	RuntimeVersions    map[string]any
-	PolicyVersions     map[string]any
-	BridgeAttemptCount int
-	BridgeRetryCount   int
-	WorkflowRun        *execution.WorkflowRun
+	SelectedTool        string
+	RuntimeDecisions    execution.RuntimeDecisionSummary
+	Handoff             *execution.RuntimeHandoff
+	Branch              string
+	RuntimeVersions     map[string]any
+	PolicyVersions      map[string]any
+	RuntimeAttemptCount int
+	RuntimeRetryCount   int
+	WorkflowRun         *execution.WorkflowRun
 }
 
 type executionAttemptState struct {
@@ -50,14 +50,14 @@ func finalizerContextFromExecutionRequest(
 		runState.RetryCount = 0
 	}
 	return executionFinalizerContext{
-		SelectedTool:       request.RuntimeDecisions.SelectedTool,
-		RuntimeDecisions:   request.RuntimeDecisions,
-		Handoff:            request.StructuredHandoff,
-		Branch:             branch,
-		RuntimeVersions:    request.RuntimeDecisions.RuntimeVersions,
-		PolicyVersions:     request.RuntimeDecisions.PolicyArtifactVersions,
-		BridgeAttemptCount: runState.AttemptCount,
-		BridgeRetryCount:   runState.RetryCount,
+		SelectedTool:        request.RuntimeDecisions.SelectedTool,
+		RuntimeDecisions:    request.RuntimeDecisions,
+		Handoff:             request.StructuredHandoff,
+		Branch:              branch,
+		RuntimeVersions:     request.RuntimeDecisions.RuntimeVersions,
+		PolicyVersions:      request.RuntimeDecisions.PolicyArtifactVersions,
+		RuntimeAttemptCount: runState.AttemptCount,
+		RuntimeRetryCount:   runState.RetryCount,
 	}
 }
 
@@ -114,7 +114,7 @@ func workflowBranchForRequest(request execution.AnswerExecutionRequest) string {
 	return "delegate"
 }
 
-func finalizeAgentBridgeResponse(
+func finalizeCapabilityResponse(
 	agentResponse map[string]any,
 	traceID string,
 	context executionFinalizerContext,
@@ -285,8 +285,8 @@ func buildWorkflowTraceSummaryWire(
 		status,
 		decisions,
 		failCloseReason,
-		context.BridgeAttemptCount,
-		context.BridgeRetryCount,
+		context.RuntimeAttemptCount,
+		context.RuntimeRetryCount,
 	)
 	if context.WorkflowRun != nil {
 		run = *context.WorkflowRun

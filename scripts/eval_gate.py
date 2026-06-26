@@ -498,7 +498,7 @@ def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, 
         "workflow_contract_generation_check",
         workflow_path,
         (
-            "scripts.generate_supervisor_execution_contracts",
+            "scripts.generate_capability_execution_contracts",
             "--check",
             "multi-agent-runtime-contract",
             "actions/upload-artifact",

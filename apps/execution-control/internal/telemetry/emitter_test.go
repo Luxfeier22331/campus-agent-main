@@ -84,7 +84,7 @@ func TestEmitterStatusRedactsTransportErrorDetails(t *testing.T) {
 	}
 }
 
-func TestEmitterUnavailableLogUsesSupervisorAPIEventName(t *testing.T) {
+func TestEmitterUnavailableLogUsesExecutionControlEventName(t *testing.T) {
 	var logBuffer bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&logBuffer, nil))
 
@@ -102,7 +102,7 @@ func TestEmitterUnavailableLogUsesSupervisorAPIEventName(t *testing.T) {
 	}
 }
 
-func TestEmitterSpanUsesSupervisorAPINamespace(t *testing.T) {
+func TestEmitterSpanUsesExecutionControlNamespace(t *testing.T) {
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	emitter := &Emitter{
@@ -142,7 +142,7 @@ func TestEmitterPreservesIncomingTraceParent(t *testing.T) {
 		},
 	)
 
-	if err := emitter.Emit(ctx, Event{Name: "agent.bridge.started"}); err != nil {
+	if err := emitter.Emit(ctx, Event{Name: "agent.runtime.started"}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
 	}
 
@@ -193,7 +193,6 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 
 	if err := emitter.Emit(context.Background(), Event{
-		BridgeDuration:        25 * time.Millisecond,
 		ContextPreflightState: "not_follow_up",
 		CanonicalIndexTruth:   "true",
 		CandidateCount:        3,
@@ -203,10 +202,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		ActivityType:          "WriteFinalization",
 		Duration:              50 * time.Millisecond,
 		FailureCode:           "timeout",
-		BridgeCancelStatus:    "accepted",
 		Lane:                  "rag",
 		Name:                  "answer.failed",
-		Outcome:               "supervisor_bridge_timeout",
+		Outcome:               "execution_control_timeout",
 		PlanID:                "rag:regulations:student_rules:historical",
 		PlanningOutcome:       "not_preplanned",
 		PolicyGateDecision:    "out_of_scope",
@@ -243,8 +241,6 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
-		"bridge_duration_ms":                    true,
-		"bridge_cancel_status":                  true,
 		"context_preflight_state":               true,
 		"canonical_index_truth":                 true,
 		"candidate_count":                       true,
@@ -320,7 +316,6 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"terminal_state":          "failed_closed",
 		"step_id":                 "retrieval.indexed_lookup",
 		"fail_close_reason":       "product_scope_boundary",
-		"bridge_cancel_status":    "accepted",
 		"activity_type":           "WriteFinalization",
 		"projection_ref":          "projection://runs/run-attrs/finalization/write",
 		"status":                  "completed",

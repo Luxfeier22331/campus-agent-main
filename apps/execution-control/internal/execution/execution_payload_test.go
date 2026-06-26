@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
+func TestExecutionPayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 	base := json.RawMessage(`{
 		"user_goal":"这条通知依据学生手册哪条规定？",
 		"request_id":"req-001",
@@ -21,7 +21,7 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 	if !ok {
 		t.Fatal("expected notice context projection")
 	}
-	payload, err := BridgePayloadForHandoff(
+	payload, err := ExecutionPayloadForHandoff(
 		base,
 		RuntimeHandoff{
 			Capability:   "knowledge",
@@ -32,11 +32,11 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 		projection,
 	)
 	if err != nil {
-		t.Fatalf("bridge payload: %v", err)
+		t.Fatalf("execution payload: %v", err)
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("decode bridge payload: %v", err)
+		t.Fatalf("decode execution payload: %v", err)
 	}
 	userGoal, _ := decoded["user_goal"].(string)
 	if !strings.Contains(userGoal, "摘要：通知短摘要要求结合学生手册相关规定理解。") {
@@ -47,7 +47,7 @@ func TestBridgePayloadForHandoffUsesNoticeSummaryNotBodyLabel(t *testing.T) {
 	}
 }
 
-func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *testing.T) {
+func TestExecutionPayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *testing.T) {
 	base := json.RawMessage(`{
 		"user_goal":"这条通知依据学生手册哪条规定？",
 		"request_id":"req-001",
@@ -87,7 +87,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		t.Fatal("expected notice context projection")
 	}
 
-	payload, err := BridgePayloadForHandoff(
+	payload, err := ExecutionPayloadForHandoff(
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
@@ -100,20 +100,20 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 		projection,
 	)
 	if err != nil {
-		t.Fatalf("bridge payload: %v", err)
+		t.Fatalf("execution payload: %v", err)
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("decode bridge payload: %v", err)
+		t.Fatalf("decode execution payload: %v", err)
 	}
-	decisions := expectBridgePayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
-	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
-	agentRequest := expectBridgePayloadRecord(
+	decisions := expectExecutionPayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
+	handoff := expectExecutionPayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
+	agentRequest := expectExecutionPayloadRecord(
 		t,
 		handoff["capability_request"],
 		"runtime_decisions.handoff.capability_request",
 	)
-	context := expectBridgePayloadRecord(
+	context := expectExecutionPayloadRecord(
 		t,
 		agentRequest["context"],
 		"runtime_decisions.handoff.capability_request.context",
@@ -121,7 +121,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	if context["raw_transcript"] != nil {
 		t.Fatalf("capability_request.context leaked raw transcript: %#v", context)
 	}
-	conversation := expectBridgePayloadRecord(
+	conversation := expectExecutionPayloadRecord(
 		t,
 		context["conversation"],
 		"runtime_decisions.handoff.capability_request.context.conversation",
@@ -129,7 +129,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	if conversation["schema_version"] != "conversation_context.v1" {
 		t.Fatalf("conversation context = %#v", conversation)
 	}
-	workflowContext := expectBridgePayloadRecord(
+	workflowContext := expectExecutionPayloadRecord(
 		t,
 		agentRequest["workflow_context"],
 		"runtime_decisions.handoff.capability_request.workflow_context",
@@ -138,7 +138,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	if !ok || len(projectionRefs) != 1 {
 		t.Fatalf("workflow_context.projection_refs = %#v, want one projection", workflowContext["projection_refs"])
 	}
-	projected := expectBridgePayloadRecord(t, projectionRefs[0], "projection_refs[0]")
+	projected := expectExecutionPayloadRecord(t, projectionRefs[0], "projection_refs[0]")
 	if projected["projection_kind"] != "notice_context" ||
 		projected["projection_id"] != projection.ProjectionID ||
 		projected["content_hash"] != projection.ContentHash {
@@ -153,7 +153,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 	}
 }
 
-func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing.T) {
+func TestExecutionPayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing.T) {
 	base := json.RawMessage(`{
 		"user_goal":"这条通知依据学生手册哪条规定？",
 		"request_id":"req-001",
@@ -173,7 +173,7 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 		t.Fatal("expected notice context projection")
 	}
 
-	payload, err := BridgePayloadForHandoff(
+	payload, err := ExecutionPayloadForHandoff(
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
@@ -186,20 +186,20 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 		projection,
 	)
 	if err != nil {
-		t.Fatalf("bridge payload: %v", err)
+		t.Fatalf("execution payload: %v", err)
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("decode bridge payload: %v", err)
+		t.Fatalf("decode execution payload: %v", err)
 	}
-	decisions := expectBridgePayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
-	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
-	agentRequest := expectBridgePayloadRecord(
+	decisions := expectExecutionPayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
+	handoff := expectExecutionPayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
+	agentRequest := expectExecutionPayloadRecord(
 		t,
 		handoff["capability_request"],
 		"runtime_decisions.handoff.capability_request",
 	)
-	workflowContext := expectBridgePayloadRecord(
+	workflowContext := expectExecutionPayloadRecord(
 		t,
 		agentRequest["workflow_context"],
 		"runtime_decisions.handoff.capability_request.workflow_context",
@@ -225,14 +225,14 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 	}
 }
 
-func TestBridgePayloadForHandoffFailsClosedWhenRequiredProjectionMissing(t *testing.T) {
+func TestExecutionPayloadForHandoffFailsClosedWhenRequiredProjectionMissing(t *testing.T) {
 	base := json.RawMessage(`{
 		"user_goal":"这条通知依据学生手册哪条规定？",
 		"request_id":"req-001",
 		"runtime_decisions":{"runtime_decision_summary":{}}
 	}`)
 
-	_, err := BridgePayloadForHandoff(
+	_, err := ExecutionPayloadForHandoff(
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
@@ -244,11 +244,11 @@ func TestBridgePayloadForHandoffFailsClosedWhenRequiredProjectionMissing(t *test
 	)
 
 	if err == nil || !strings.Contains(err.Error(), "required projection") {
-		t.Fatalf("BridgePayloadForHandoff error = %v, want required projection fail-close", err)
+		t.Fatalf("ExecutionPayloadForHandoff error = %v, want required projection fail-close", err)
 	}
 }
 
-func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *testing.T) {
+func TestExecutionPayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *testing.T) {
 	base := json.RawMessage(`{
 		"user_goal":"这条班车通知依据学生手册哪条规定？",
 		"request_id":"req-001",
@@ -277,7 +277,7 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		t.Fatal("expected notice context projection")
 	}
 
-	payload, err := BridgePayloadForHandoff(
+	payload, err := ExecutionPayloadForHandoff(
 		base,
 		RuntimeHandoff{
 			Capability:             "knowledge",
@@ -290,11 +290,11 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		noticeProjection,
 	)
 	if err != nil {
-		t.Fatalf("bridge payload: %v", err)
+		t.Fatalf("execution payload: %v", err)
 	}
 	var decoded map[string]any
 	if err := json.Unmarshal(payload, &decoded); err != nil {
-		t.Fatalf("decode bridge payload: %v", err)
+		t.Fatalf("decode execution payload: %v", err)
 	}
 	userGoal, _ := decoded["user_goal"].(string)
 	if !strings.Contains(userGoal, "已读取的班车基线") ||
@@ -303,14 +303,14 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 		!strings.Contains(userGoal, "已读取的通知上下文") {
 		t.Fatalf("user_goal = %q, want schedule + notice context", userGoal)
 	}
-	decisions := expectBridgePayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
-	handoff := expectBridgePayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
-	agentRequest := expectBridgePayloadRecord(
+	decisions := expectExecutionPayloadRecord(t, decoded["runtime_decisions"], "runtime_decisions")
+	handoff := expectExecutionPayloadRecord(t, decisions["handoff"], "runtime_decisions.handoff")
+	agentRequest := expectExecutionPayloadRecord(
 		t,
 		handoff["capability_request"],
 		"runtime_decisions.handoff.capability_request",
 	)
-	workflowContext := expectBridgePayloadRecord(
+	workflowContext := expectExecutionPayloadRecord(
 		t,
 		agentRequest["workflow_context"],
 		"runtime_decisions.handoff.capability_request.workflow_context",
@@ -321,7 +321,7 @@ func TestBridgePayloadForRagHandoffIncludesScheduleAndNoticeProjectionRefs(t *te
 	}
 }
 
-func expectBridgePayloadRecord(t *testing.T, value any, name string) map[string]any {
+func expectExecutionPayloadRecord(t *testing.T, value any, name string) map[string]any {
 	t.Helper()
 	record, ok := value.(map[string]any)
 	if !ok {

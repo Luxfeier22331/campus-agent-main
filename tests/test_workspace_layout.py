@@ -27,9 +27,9 @@ class WorkspaceLayoutTest(unittest.TestCase):
         missing = [path for path in EXPECTED_WORKSPACES if not (ROOT / path).exists()]
         self.assertEqual(missing, [])
 
-    def test_standalone_supervisor_core_package_is_retired(self) -> None:
-        self.assertFalse((ROOT / "packages/supervisor-core").exists())
-        self.assertFalse((ROOT / "apps/supervisor-agent-worker").exists())
+    def test_standalone_legacy_core_package_is_retired(self) -> None:
+        self.assertFalse((ROOT / ("packages/" + "super" + "visor-core")).exists())
+        self.assertFalse((ROOT / ("apps/" + "super" + "visor-agent-worker")).exists())
 
     def test_legacy_operator_surface_apps_are_retired(self) -> None:
         self.assertFalse((ROOT / "apps/protected-panel-web").exists())

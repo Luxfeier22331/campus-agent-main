@@ -190,13 +190,13 @@ staging 不应依赖 repo-root `.env.staging.local`。
   `postgresql://postgres:postgres@campus-agent-postgres:5432/campus_agent?sslmode=disable`。
   只有外接 Postgres 时才填写 `EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL`。
 
-以下 internal bridge runtime env 不需要在 canonical `runtime.env` 手写；staging
+以下 internal agent-runtime link env 不需要在 canonical `runtime.env` 手写；staging
 `execution_control_staging_load_env` 会在部署/start/preflight/status 时投影：
 
 - `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL=http://agent-runtime:27062`
 - `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET` 与 `AGENT_RUNTIME_SHARED_SECRET`；
   如未显式覆盖，loader 会从 `EXECUTION_CONTROL_SHARED_SECRET` 和
-  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 派生同一 bridge secret，并同时注入
+  `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` 派生同一 shared secret，并同时注入
   execution-control 与 agent-runtime 进程。
 - `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL=http://execution-control:8000`
 - `AGENT_RUNTIME_EXECUTION_CONTROL_SHARED_SECRET`；默认等于

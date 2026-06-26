@@ -291,7 +291,7 @@ doctor/env readiness contract。
   获取方式: deploy host ops secret store 渲染，不放入 `/srv/apps/campus-agent`
   deploy checkout；machine ingress 固定为 `execution-control-staging.mucwiki-edge.link`
 
-- Provider / system: Supervisor local runtime command template
+- Provider / system: Execution-control local runtime command template
   作用: 本地 Docker `execution-control + Temporal + split workers` runtime 的
   command-scoped override
   主要 env keys: `EXECUTION_CONTROL_RUNTIME_*` `EXECUTION_CONTROL_*`

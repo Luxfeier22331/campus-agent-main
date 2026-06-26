@@ -341,7 +341,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		intentPolicyErr,
 	)
 
-	bridgePayload := map[string]any{
+	executionPayload := map[string]any{
 		"execution_contract_version": contractsv1.ExecutionContractVersion,
 		"response_contract":          contractsv1.ResponseContract,
 		"user_goal":                  userGoal,
@@ -364,30 +364,30 @@ func ParseAnswerRequestWithIntentPolicy(
 		"runtime_decisions": runtimeDecisionPayload,
 	}
 	if safetyIdentifier != "" {
-		bridgePayload["safety_identifier"] = safetyIdentifier
+		executionPayload["safety_identifier"] = safetyIdentifier
 	}
 	if effectiveRequestedCapability != "" {
-		bridgePayload["requested_capability"] = effectiveRequestedCapability
+		executionPayload["requested_capability"] = effectiveRequestedCapability
 	}
 	if hasRequestedScope {
-		bridgePayload["requested_scope"] = map[string]any{
+		executionPayload["requested_scope"] = map[string]any{
 			"corpus":     requestedScope.Corpus,
 			"collection": requestedScope.Collection,
 		}
 	}
 
-	bridgeJSON, marshalErr := json.Marshal(bridgePayload)
+	executionJSON, marshalErr := json.Marshal(executionPayload)
 	if marshalErr != nil {
 		return AnswerExecutionRequest{}, &HTTPError{
 			Status:    500,
-			Code:      "bridge_request_encode_failed",
-			Message:   "Supervisor bridge request could not be encoded.",
+			Code:      "execution_request_encode_failed",
+			Message:   "Execution request could not be encoded.",
 			Retryable: false,
 		}
 	}
 
 	return AnswerExecutionRequest{
-		Payload:             bridgeJSON,
+		Payload:             executionJSON,
 		ConversationID:      conversationID,
 		OwnerUserID:         actor.UserID,
 		RequestID:           requestID,

@@ -16,7 +16,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -39,7 +39,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -62,8 +62,8 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			}
 		}
 
-		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(supervisor.executeStream).toHaveBeenCalledWith(
+		expect(executionClient.execute).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).toHaveBeenCalledWith(
 			expect.objectContaining({
 				conversationId: "conv_01HQ",
 				requestId: "req_0001",
@@ -114,11 +114,11 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 		});
 	});
-	it("finalizes invalid supervisor stream terminal errors without defaulting missing fields", async () => {
+	it("finalizes invalid executionClient stream terminal errors without defaulting missing fields", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -137,7 +137,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -174,11 +174,11 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			}),
 		);
 	});
-	it("leaves omitted requestedCapability unset so supervisor can infer the entrance intent", async () => {
+	it("leaves omitted requestedCapability unset so executionClient can infer the entrance intent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆在海淀校区主教学区西侧。",
 				error: null,
@@ -203,7 +203,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			telemetry,
 		});
 
@@ -216,7 +216,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestedCapability: null,
 				userGoal: "图书馆在哪里",

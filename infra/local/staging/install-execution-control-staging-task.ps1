@@ -1,5 +1,5 @@
 param(
-  [string]$TaskName = "CampusAgent-SupervisorApiStaging",
+  [string]$TaskName = "CampusAgent-ExecutionControlStaging",
   [Parameter(Mandatory = $true)]
   [string]$WslDistroName,
   [Parameter(Mandatory = $true)]

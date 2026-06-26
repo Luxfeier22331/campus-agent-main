@@ -48,7 +48,7 @@ updated: 2026-06-09
 
 ## Server Env Baseline
 
-建议通过 server-local env file（例如 `/etc/campus-agent/supervisor-runtime.env`）注入：
+建议通过 server-local env file（例如 `/etc/campus-agent/execution-runtime.env`）注入：
 
 - required:
   - `API_WORKER_SHARED_SECRET`
@@ -89,13 +89,13 @@ updated: 2026-06-09
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。
 
-Deployment/start 脚本必须投影同机 internal bridge runtime env：
+Deployment/start 脚本必须投影同机 internal agent-runtime link env：
 
 - `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`：execution-control 调用
   `agent-runtime` `/internal/agent-runs` 的地址；compose / staging baseline 使用
   `http://agent-runtime:27062`。
 - `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET` 与 `AGENT_RUNTIME_SHARED_SECRET`：
-  两个进程之间的 bridge secret，必须一致；canonical staging loader 未收到显式值时会从
+  两个进程之间的 shared secret，必须一致；canonical staging loader 未收到显式值时会从
   `EXECUTION_CONTROL_SHARED_SECRET` 和 `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET`
   派生并同时注入。
 - `AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL`：primary agent runtime 调用

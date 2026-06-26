@@ -7,5 +7,5 @@
 	"result": null,
 	"error": null,
 	"trace_id": "trace-contract-extra-response",
-	"legacy_target": "supervisor-core"
+	"legacy_target": "retired-core"
 }

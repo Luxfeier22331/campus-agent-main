@@ -188,7 +188,7 @@ updated: 2026-06-12
 
 定义：
 
-- supervisor 在 agent-owned execution 之前识别的顶层能力类别
+- Execution Agent Layer 在 agent-owned execution 之前识别的顶层能力类别
 
 说明：
 
@@ -226,7 +226,7 @@ updated: 2026-06-12
 
 定义：
 
-- supervisor 为了判定 admission、capability route 或 handoff path，在 agent-owned
+- Execution Agent Layer 为了判定 admission、capability route 或 handoff path，在 agent-owned
   execution 之前发起的澄清
 
 说明：

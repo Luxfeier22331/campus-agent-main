@@ -34,7 +34,7 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
             expected_next_action="",
             expected_scope_class="",
             expected_target="none",
-            expected_error_code="invalid_supervisor_request",
+            expected_error_code="invalid_execution_request",
             critical=True,
         ),
         IntentCase(
@@ -48,7 +48,7 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
             expected_next_action="",
             expected_scope_class="",
             expected_target="none",
-            expected_error_code="invalid_supervisor_request",
+            expected_error_code="invalid_execution_request",
             critical=True,
         ),
         IntentCase(
@@ -62,7 +62,7 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
             expected_next_action="",
             expected_scope_class="",
             expected_target="none",
-            expected_error_code="invalid_supervisor_request",
+            expected_error_code="invalid_execution_request",
             critical=True,
         ),
         IntentCase(
@@ -76,7 +76,7 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
             expected_next_action="",
             expected_scope_class="",
             expected_target="none",
-            expected_error_code="invalid_supervisor_request",
+            expected_error_code="invalid_execution_request",
             critical=True,
         ),
     )

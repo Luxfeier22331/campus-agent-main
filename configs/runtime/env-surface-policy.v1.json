@@ -33,12 +33,6 @@
 			"secret": false,
 			"retired": true
 		},
-		"SUPERVISOR_PROMPT_MODEL": {
-			"owner": "retired",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
 		"EXECUTION_CONTROL_INTENT_POLICY_PATH": {
 			"owner": "execution-control-runtime-profile",
 			"scopes": [],

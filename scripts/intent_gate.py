@@ -23,7 +23,7 @@ INTENT_RUNNERS = ("execution-control-go",)
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Run deterministic supervisor intent gate suites.")
+    parser = argparse.ArgumentParser(description="Run deterministic execution intent gate suites.")
     parser.add_argument(
         "--output",
         default=str(DEFAULT_OUTPUT),

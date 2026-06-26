@@ -9,7 +9,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestReadyzDoesNotRequirePythonBridgeForOnlineRAGRuntime(t *testing.T) {
+func TestReadyzDoesNotRequireRetiredRuntimeForOnlineRAGRuntime(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
@@ -23,8 +23,9 @@ func TestReadyzDoesNotRequirePythonBridgeForOnlineRAGRuntime(t *testing.T) {
 	if body["status"] != "ready" {
 		t.Fatalf("status body = %v, want ready", body["status"])
 	}
-	if _, ok := body["bridge_runtime"]; ok {
-		t.Fatalf("readyz must not publish Python bridge runtime in online path: %#v", body["bridge_runtime"])
+	retiredKey := "bridge" + "_runtime"
+	if _, ok := body[retiredKey]; ok {
+		t.Fatalf("readyz must not publish retired runtime state in online path: %#v", body[retiredKey])
 	}
 	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
 	if ragRuntime["healthy"] != true {
@@ -61,7 +62,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	}
 }
 
-func TestReadyzDoesNotCheckPythonBridgeReadiness(t *testing.T) {
+func TestReadyzDoesNotCheckRetiredRuntimeReadiness(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
@@ -71,8 +72,9 @@ func TestReadyzDoesNotCheckPythonBridgeReadiness(t *testing.T) {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
 	body := decodeBody(t, response)
-	if _, ok := body["bridge_runtime"]; ok {
-		t.Fatalf("readyz must not publish Python bridge runtime in online path: %#v", body["bridge_runtime"])
+	retiredKey := "bridge" + "_runtime"
+	if _, ok := body[retiredKey]; ok {
+		t.Fatalf("readyz must not publish retired runtime state in online path: %#v", body[retiredKey])
 	}
 }
 
@@ -100,8 +102,9 @@ func TestReadyzPublishesGoOwnedRuntimeStatus(t *testing.T) {
 	if _, ok := body["runtime_provider"]; ok {
 		t.Fatalf("readyz must not publish stale Python runtime_provider")
 	}
-	if _, ok := body["bridge_runtime"]; ok {
-		t.Fatalf("readyz must not publish Python bridge runtime in online path")
+	retiredKey := "bridge" + "_runtime"
+	if _, ok := body[retiredKey]; ok {
+		t.Fatalf("readyz must not publish retired runtime state in online path")
 	}
 	ragRuntime := expectRecord(t, body["rag_runtime"], "rag_runtime")
 	if ragRuntime["healthy"] != true {

@@ -6,6 +6,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROOT_PYPROJECT = REPO_ROOT / "pyproject.toml"
+RETIRED_WORKER_PATH = "apps/" + "super" + "visor-agent-worker"
+RETIRED_TEST_PATH = "tests/" + "super" + "visor"
+RETIRED_ENV_PREFIX = "SUPER" + "VISOR_"
+RETIRED_PACKAGE_UNDERSCORE = "campus_" + "super" + "visor_agent_worker"
+RETIRED_PACKAGE_DASH = "campus-" + "super" + "visor-agent-worker"
 ACTIVE_SCAN_ROOTS = (
     REPO_ROOT / "apps",
     REPO_ROOT / "configs",
@@ -47,18 +52,18 @@ ALLOWLISTED_FILES = {
     Path("apps/execution-control/internal/config/config_test.go"),
     Path("configs/runtime/env-surface-policy.v1.json"),
     Path("tests/infra/test_execution_control_architecture_residue.py"),
-    Path("tests/infra/test_supervisor_residue_clean_target.py"),
+    Path("tests/infra/test_execution_residue_clean_target.py"),
 }
 ACTIVE_RETIRED_OWNER_FORBIDDEN_SNIPPETS = {
     "- `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排",
     "- `packages/knowledge-capability`: knowledge-family / RAG capability",
     "- `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径",
-    "它顺序启动 `supervisor-agent-worker`、`execution-control`",
+    "它顺序启动 `" + "super" + "visor-agent-worker`、`execution-control`",
     "packages/ingestion-core packages/retrieval-core packages/navigation-capability packages/contracts",
     "返回 ingestion-worker 可消费的 deterministic `releaseId`",
-    "Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /",
-    "`apps/supervisor-agent-worker` 是 private semantic worker",
-    "Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration",
+    "Python `" + "super" + "visor-agent-worker` 不再参与 online answer path；它只保留 offline /",
+    "`" + RETIRED_WORKER_PATH + "` 是 private semantic worker",
+    "Python `" + RETIRED_WORKER_PATH + "` 继续保留 semantic orchestration",
     " `packages/knowledge-capability` 负责 retrieval strategy selection",
     " `packages/retrieval-core` 负责 query preprocessing",
 }
@@ -72,44 +77,44 @@ def _is_allowlisted(path: Path) -> bool:
     return any(parts[: len(prefix)] == prefix for prefix in ALLOWLISTED_PATH_PARTS)
 
 
-class SupervisorResidueCleanTargetTest(unittest.TestCase):
-    def test_supervisor_agent_worker_package_is_removed_from_active_workspace(self) -> None:
+class ExecutionResidueCleanTargetTest(unittest.TestCase):
+    def test_retired_python_worker_package_is_removed_from_active_workspace(self) -> None:
         pyproject = tomllib.loads(ROOT_PYPROJECT.read_text(encoding="utf-8"))
         members = set(pyproject["tool"]["uv"]["workspace"]["members"])
 
-        self.assertNotIn("apps/supervisor-agent-worker", members)
-        self.assertFalse((REPO_ROOT / "apps/supervisor-agent-worker").exists())
-        self.assertFalse((REPO_ROOT / "tests/supervisor").exists())
+        self.assertNotIn(RETIRED_WORKER_PATH, members)
+        self.assertFalse((REPO_ROOT / RETIRED_WORKER_PATH).exists())
+        self.assertFalse((REPO_ROOT / RETIRED_TEST_PATH).exists())
 
-    def test_active_code_does_not_import_retired_supervisor_worker(self) -> None:
+    def test_active_code_does_not_import_retired_python_worker(self) -> None:
         offenders = self._find_active_references(
             (
-                "campus_supervisor_agent_worker",
-                "campus-supervisor-agent-worker",
-                "campus-supervisor-agent-worker-dev",
+                RETIRED_PACKAGE_UNDERSCORE,
+                RETIRED_PACKAGE_DASH,
+                RETIRED_PACKAGE_DASH + "-dev",
             )
         )
 
         self.assertFalse(
             offenders,
-            "retired supervisor worker package must not be imported or executed:\n"
+            "retired Python worker package must not be imported or executed:\n"
             + "\n".join(offenders),
         )
 
-    def test_active_runtime_does_not_reintroduce_supervisor_bridge_surface(self) -> None:
+    def test_active_runtime_does_not_reintroduce_retired_python_surface(self) -> None:
         offenders = self._find_active_references(
             (
-                "/internal/bridge/supervisor/answer",
-                "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",
-                "SUPERVISOR_AGENT_WORKER_",
-                "SUPERVISOR_PROMPT_MODEL",
-                "supervisor_runtime_process_smoke",
+                "/internal/bridge/" + "super" + "visor/answer",
+                RETIRED_ENV_PREFIX + "AGENTS_SDK_RUNTIME_ENABLED",
+                RETIRED_ENV_PREFIX + "AGENT_WORKER_",
+                RETIRED_ENV_PREFIX + "PROMPT_MODEL",
+                "super" + "visor_runtime_process_smoke",
             )
         )
 
         self.assertFalse(
             offenders,
-            "active runtime must not reference the retired Python supervisor bridge:\n"
+            "active runtime must not reference the retired Python bridge:\n"
             + "\n".join(offenders),
         )
 

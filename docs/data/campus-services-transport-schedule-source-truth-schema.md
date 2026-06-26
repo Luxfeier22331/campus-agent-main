@@ -267,6 +267,7 @@ operational notice 的候选：
 
 - `source_notice_id`
 - `source_ref`
+- `source_url`
 - `source_notice_release_time`
 - `admitted_at`
 - `materialized_at`
@@ -345,6 +346,8 @@ exposes a public cacheable facade.
 `transport_release_notices` typed read model 必须保留：
 
 - `source_notice_id`
+- `source_ref`
+- `source_url`
 - `source_notice_release_time`
 - `admitted_at`
 - `materialized_at`

@@ -17,7 +17,7 @@ describe("chat command service", () => {
 	it("fails closed instead of using a legacy direct execution path", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const legacySupervisor = {
+		const legacyExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -42,8 +42,8 @@ describe("chat command service", () => {
 			retryable: true,
 			status: 503,
 		});
-		expect(legacySupervisor.execute).not.toHaveBeenCalled();
-		expect(legacySupervisor.executeStream).not.toHaveBeenCalled();
+		expect(legacyExecutionClient.execute).not.toHaveBeenCalled();
+		expect(legacyExecutionClient.executeStream).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(1);
 		expect(finalWrites).toHaveLength(0);
 	});

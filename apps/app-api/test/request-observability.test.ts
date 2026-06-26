@@ -226,7 +226,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("prefers explicit supervisor observability semantics when provided", () => {
+	it("prefers explicit executionClient observability semantics when provided", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-05T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -275,7 +275,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("persists structured tool and workflow trace summaries from supervisor response", () => {
+	it("persists structured tool and workflow trace summaries from executionClient response", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-13T08:00:01.000Z",
 			conversationId: "conv_workflow_01HQ",
@@ -370,7 +370,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("projects prompt metadata and model execution state from supervisor observability", () => {
+	it("projects prompt metadata and model execution state from executionClient observability", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-12T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -441,7 +441,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("derives out-of-scope supervisor stop semantics from diagnostics when observability is absent", () => {
+	it("derives out-of-scope executionClient stop semantics from diagnostics when observability is absent", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-11T09:00:01.000Z",
 			conversationId: "conv_01HQ",

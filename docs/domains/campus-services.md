@@ -21,6 +21,7 @@ updated: 2026-04-27
 - `../contracts/transport-schedule-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
+  （historical title；当前术语为 Execution Agent Layer routing / surface policy）
 - `../reference/runtime-serving-and-index-terms.md`
 
 ## Data / Reference

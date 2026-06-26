@@ -207,11 +207,10 @@ describe("operator observability command service", () => {
 				payload: {
 					events: [
 						{
-							bridge_duration_ms: 35000,
-							decision: null,
+														decision: null,
 							duration_ms: 35012,
-							event_id: "execution-control:req_01HQ:execution.bridge_failed",
-							event_type: "execution.bridge_failed",
+							event_id: "execution-control:req_01HQ:execution.runtime_failed",
+							event_type: "execution.runtime_failed",
 							failure_kind: "timeout",
 							http_status: 504,
 							lane: "rag",
@@ -231,12 +230,10 @@ describe("operator observability command service", () => {
 			events: [
 				{
 					availableAt: "2026-04-24T10:00:00.000Z",
-					eventId: "execution-control:req_01HQ:execution.bridge_failed",
-					eventType: "execution.bridge_failed",
+					eventId: "execution-control:req_01HQ:execution.runtime_failed",
+					eventType: "execution.runtime_failed",
 					occurredAt: "2026-04-24T10:00:00.000Z",
-					payload: {
-						bridgeDurationMs: 35000,
-						decision: null,
+					payload: {						decision: null,
 						durationMs: 35012,
 						failureKind: "timeout",
 						httpStatus: 504,
@@ -282,8 +279,8 @@ describe("operator observability command service", () => {
 				payload: {
 					events: [
 						{
-							event_id: "execution-control:req_01HQ:execution.bridge_failed",
-							event_type: "execution.bridge_failed",
+							event_id: "execution-control:req_01HQ:execution.runtime_failed",
+							event_type: "execution.runtime_failed",
 							occurred_at: "2026-04-24T10:00:00.000Z",
 							prompt: "图书馆开放到几点？",
 							request_id: "req_01HQ",

@@ -437,7 +437,7 @@ Worker gated reader 交付：
 - source-only collector（例如
   `official-web-collector`、`authenticated-notice-collector`）可以只配置
   `OBJECT_STORE_SOURCE_*`
-- derived-only online runtime（例如 supervisor notice canonical body reads）只配置
+- derived-only online runtime（例如 execution-control notice canonical body reads）只配置
   `OBJECT_STORE_DERIVED_*`
 - ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；
   shared mode 和 bucket-scoped mode 都是当前 accepted runtime contract，不是 fallback。

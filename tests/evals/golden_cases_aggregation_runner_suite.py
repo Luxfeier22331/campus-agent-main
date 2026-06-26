@@ -283,7 +283,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
 
     def test_runner_accepts_execution_clarification_without_rag_evidence(self) -> None:
         case = GoldenCase(
-            case_id="supervisor-clarify-1",
+            case_id="execution-clarify-1",
             split="release_gate",
             source_type="expert_authored",
             user_goal="奖学金怎么申请？",
@@ -317,7 +317,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
         self.assertTrue(result.retrieval_result.passed)
         self.assertEqual(report.by_metric["clarification_accuracy"].passed, 1)
 
-    def test_runner_supports_supervisor_only_terminal_statuses(self) -> None:
+    def test_runner_supports_execution_terminal_statuses(self) -> None:
         approval_case = GoldenCase(
             case_id="approval-required-1",
             split="release_gate",

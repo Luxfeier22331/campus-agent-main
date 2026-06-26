@@ -163,9 +163,6 @@ repo-tracked 自动化基线：
 
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
   tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_core tests.agent.test_knowledge_capability
-  tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 
 retrieval benchmark scorer：
 

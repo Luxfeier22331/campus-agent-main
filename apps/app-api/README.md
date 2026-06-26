@@ -34,7 +34,7 @@ It owns:
 It does not own:
 
 - browser-facing UI shells
-- supervisor routing or agent orchestration
+- executionClient routing or agent orchestration
 - panel business actions
 
 Current runtime scope:
@@ -74,7 +74,7 @@ Current runtime scope:
 Runtime hardening baseline:
 
 - `GET /readyz` now fails closed unless database binding, Better Auth origin,
-  operator allowlist, internal bridge secret, and supervisor config are all
+  operator allowlist, internal bridge secret, and executionClient config are all
   present
 - end-user Better Auth email/password sign-up and sign-in are admitted only for
   configured campus email domain suffixes plus optional exact-email exceptions
@@ -144,7 +144,7 @@ Canonical references:
 - `docs/contracts/app-api-identity-platform-http.md`
 - `docs/contracts/app-api-federation-http.md`
 - `docs/data/identity-platform-schema.md`
-- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+- `docs/decisions/adr-0017-executionClient-internal-execution-admission.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-official-web-http.md`

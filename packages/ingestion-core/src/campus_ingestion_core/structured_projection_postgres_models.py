@@ -185,6 +185,7 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
     ),
     "transport_release_notices": (
         _TypedColumn("source_notice_id", "text", "text not null default ''"),
+        _TypedColumn("source_url", "text", "text not null default ''"),
         _TypedColumn("source_notice_release_time", "timestamptz", "timestamptz"),
         _TypedColumn("admitted_at", "timestamptz", "timestamptz"),
         _TypedColumn("materialized_at", "timestamptz", "timestamptz"),

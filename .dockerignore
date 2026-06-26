@@ -9,8 +9,6 @@
 !apps/agent-runtime/**
 !apps/execution-control/
 !apps/execution-control/**
-!apps/supervisor-agent-worker/
-!apps/supervisor-agent-worker/**
 !apps/ingestion-worker/
 !apps/ingestion-worker/**
 !apps/ingestion-control/
@@ -36,8 +34,6 @@
 !tests/fixtures/capability_execution_contract/**
 !tests/fixtures/capability_execution_contract/
 !tests/fixtures/capability_execution_contract/**
-!tests/fixtures/supervisor_execution_contract/
-!tests/fixtures/supervisor_execution_contract/**
 !packages/campus-services-capability/
 !packages/campus-services-capability/**
 !packages/contracts/

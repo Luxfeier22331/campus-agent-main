@@ -182,11 +182,10 @@ describe("operator observability internal ingest routes", () => {
 				body: JSON.stringify({
 					events: [
 						{
-							bridge_duration_ms: 35000,
-							decision: null,
+														decision: null,
 							duration_ms: 35012,
-							event_id: "execution-control:req_01HQ:execution.bridge_failed",
-							event_type: "execution.bridge_failed",
+							event_id: "execution-control:req_01HQ:execution.runtime_failed",
+							event_type: "execution.runtime_failed",
 							failure_kind: "timeout",
 							http_status: 504,
 							lane: "rag",
@@ -213,11 +212,10 @@ describe("operator observability internal ingest routes", () => {
 			payload: {
 				events: [
 					{
-						bridge_duration_ms: 35000,
-						decision: null,
+												decision: null,
 						duration_ms: 35012,
-						event_id: "execution-control:req_01HQ:execution.bridge_failed",
-						event_type: "execution.bridge_failed",
+						event_id: "execution-control:req_01HQ:execution.runtime_failed",
+						event_type: "execution.runtime_failed",
 						failure_kind: "timeout",
 						http_status: 504,
 						lane: "rag",

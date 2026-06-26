@@ -58,10 +58,10 @@ product data and sanitized run/event/step projection, not the execution queue.
   `planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
-- Python `apps/supervisor-agent-worker` has been removed from the active
-  workspace. Historical bridge code is recoverable only through git history. The
-  `supervisor` concept is an abstract admission/routing/planning/finalization
-  role, not an app name.
+- The retired Python semantic worker has been removed from the active
+  workspace. Historical code is recoverable only through git history. The active
+  admission/routing/planning/finalization role is the Execution Agent Layer, not
+  a standalone app name.
 - Qdrant remains self-hosted authenticated private data-plane infrastructure.
   API keys are data-plane secrets; transport hardening is an ops issue, not a
   reason to remove authentication.

@@ -32,7 +32,7 @@ func TestParseOptionsRequiresExecutionControlURLSharedSecretAndEvidencePath(t *t
 		"--evidence-path", "proof.json",
 	})
 	if !errors.Is(err, errInvalidOptions) {
-		t.Fatalf("parse missing supervisor url error = %v, want errInvalidOptions", err)
+		t.Fatalf("parse missing execution-control url error = %v, want errInvalidOptions", err)
 	}
 }
 

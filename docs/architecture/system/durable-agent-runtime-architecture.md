@@ -479,8 +479,8 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
 
 ### Retired Python Semantic Bridge
 
-`apps/supervisor-agent-worker` 已从 active workspace 删除。旧 Python semantic
-bridge code 只可通过 git history 追溯；不得作为 serving fallback、staging readiness
+retired Python semantic worker 已从 active workspace 删除。旧 Python semantic bridge
+code 只可通过 git history 追溯；不得作为 serving fallback、staging readiness
 dependency 或 Temporal workflow branch 恢复。
 
 它不负责：

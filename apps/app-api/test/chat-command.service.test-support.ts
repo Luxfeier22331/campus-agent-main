@@ -28,7 +28,6 @@ export interface CapabilityExecutionClient {
 	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 	executeStream?(input: CapabilityExecutionInput): Promise<Response>;
 }
-export type SupervisorExecutionClient = CapabilityExecutionClient;
 export type {
 	ChatCommandStore,
 	ChatConversationStore,

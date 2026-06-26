@@ -141,7 +141,7 @@ class RunCasesMatchingRunnerTest(unittest.TestCase):
         self.assertTrue(report.results[1].metric_results["retrieval_adequacy_accuracy"].passed)
         self.assertTrue(report.results[1].metric_results["grounding_claim_accuracy"].passed)
 
-    def test_policy_risk_and_grounding_release_gate_cases_grade_supervisor_stop_and_agent_paths(
+    def test_policy_risk_and_grounding_release_gate_cases_grade_execution_stop_and_agent_paths(
         self,
     ) -> None:
         cases = policy_risk_and_grounding_release_gate_cases()

@@ -15,14 +15,14 @@ import {
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCurriculumSuite(): void {
-	it("writes curriculum follow-up session slots from resolved curriculum completion and replays them into the next supervisor request", async () => {
+	it("writes curriculum follow-up session slots from resolved curriculum completion and replays them into the next executionClient request", async () => {
 		const conversation = {
 			...createConversation(),
 			title: "培养方案",
 		};
 		const commandStore = createCommandStore({ conversation });
 		const { store: conversationStore } = createConversationStore({ conversation });
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi
 				.fn()
 				.mockResolvedValueOnce({
@@ -73,7 +73,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store: commandStore.store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		await service.submit({
@@ -140,7 +140,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 			],
 		});
 
-		expect(supervisor.execute).toHaveBeenNthCalledWith(
+		expect(executionClient.execute).toHaveBeenNthCalledWith(
 			2,
 			expect.objectContaining({
 				context: expect.objectContaining({

@@ -594,7 +594,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                             "text": "ok",
                         },
                     },
-                    "supervisor": {
+                    "execution": {
                         "status": "completed",
                         "selectedCapability": "campus_services",
                         "answerText": "ok",

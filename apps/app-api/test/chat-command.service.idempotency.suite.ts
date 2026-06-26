@@ -33,7 +33,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			shouldThrottle: true,
 			throttleReason: "requests_per_minute",
 		});
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -45,7 +45,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				...store,
 				getAbuseControlState,
 			} as ChatCommandStore,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			telemetry,
 		});
 
@@ -63,7 +63,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			safetyIdentifier: expectedSafetyIdentifier,
 			surface: "campus_web",
 		});
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(response.answer.result).toEqual({
 			errorCode: "rate_limit_exceeded",
 			kind: "error",
@@ -98,7 +98,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		);
 	});
 
-	it("finalizes a handled execution error when the supervisor transport fails after accept", async () => {
+	it("finalizes a handled execution error when the executionClient transport fails after accept", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -282,7 +282,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				status: "completed",
 			});
 		store.findIdempotentRequest = findIdempotentRequest;
-		const supervisor = {
+		const executionClient = {
 			execute: vi.fn(),
 		} satisfies CapabilityExecutionClient;
 
@@ -292,7 +292,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		const replay = await service.submit({
@@ -305,7 +305,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		});
 
 		expect(replay).toEqual(replayResponse);
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 
 		await expect(
 			service.submit({
@@ -340,7 +340,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -362,7 +362,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		const response = await service.submit({
@@ -387,7 +387,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				conversationId: "conv_client_0001",
 			},
 		});
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				conversationId: "conv_client_0001",
 			}),
@@ -401,7 +401,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -423,7 +423,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		const response = await service.submit({
@@ -449,7 +449,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			actorUserId: "user_01HQ",
 			idempotencyKey: "idem-001",
 		});
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				conversationId: "conv_0001",
 			}),

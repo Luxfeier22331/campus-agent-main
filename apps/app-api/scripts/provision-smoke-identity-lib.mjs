@@ -9,8 +9,8 @@ const DEFAULT_AUTH_SHELL_ORIGIN = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn";
 const DEFAULT_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com";
 const DEFAULT_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com";
-const DEFAULT_SUPERVISOR_BASE_URL = "https://execution-control.internal";
-const DEFAULT_SUPERVISOR_SHARED_SECRET = "smoke-identity-supervisor-secret";
+const DEFAULT_EXECUTION_CONTROL_BASE_URL = "https://execution-control.internal";
+const DEFAULT_EXECUTION_CONTROL_SHARED_SECRET = "smoke-identity-execution-control-secret";
 const DEFAULT_INTERNAL_SHARED_SECRET = "smoke-identity-internal-secret";
 const DEFAULT_BETTER_AUTH_SECRET = "smoke-identity-secret-smoke-identity-secret";
 const DEFAULT_TURNSTILE_TEST_SECRET_KEY = "1x0000000000000000000000000000000AA";
@@ -150,9 +150,9 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 		password,
 		passwordEnvKey,
 		authShellOrigin,
-		supervisorApiBaseUrl: env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_SUPERVISOR_BASE_URL,
-		supervisorApiSharedSecret:
-			env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || DEFAULT_SUPERVISOR_SHARED_SECRET,
+		executionControlBaseUrl: env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_EXECUTION_CONTROL_BASE_URL,
+		executionControlSharedSecret:
+			env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || DEFAULT_EXECUTION_CONTROL_SHARED_SECRET,
 	};
 }
 
@@ -181,8 +181,8 @@ export function buildSmokeIdentityProvisionRuntimeEnv(input) {
 		BETTER_AUTH_SECRET: input.betterAuthSecret,
 		AUTH_SHELL_ORIGIN: input.authShellOrigin,
 		RESEND_API_KEY: input.resendApiKey || DEFAULT_RESEND_API_KEY,
-		EXECUTION_CONTROL_BASE_URL: input.supervisorApiBaseUrl,
-		EXECUTION_CONTROL_SHARED_SECRET: input.supervisorApiSharedSecret,
+		EXECUTION_CONTROL_BASE_URL: input.executionControlBaseUrl,
+		EXECUTION_CONTROL_SHARED_SECRET: input.executionControlSharedSecret,
 	};
 }
 

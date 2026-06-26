@@ -267,8 +267,8 @@ function buildAuditSummary(input: {
 	if (input.eventType === "execution.cancelled") {
 		return "Execution cancelled.";
 	}
-	if (input.eventType === "execution.bridge_failed") {
-		return `Execution bridge failed: ${readNullableString(input.payload.failureKind) ?? "unknown"}.`;
+	if (input.eventType === "execution.runtime_failed") {
+		return `Execution runtime failed: ${readNullableString(input.payload.failureKind) ?? "unknown"}.`;
 	}
 	if (input.eventType === "execution.timed_out") {
 		return "Execution timed out.";
@@ -316,7 +316,6 @@ function buildAuditDiagnostics(input: {
 		sourceDocIds: input.execution.sourceDocIds,
 	};
 	if (input.event.eventType.startsWith("execution.")) {
-		diagnostics.bridgeDurationMs = readNullableNumber(input.event.payload.bridgeDurationMs);
 		diagnostics.decision = readNullableString(input.event.payload.decision);
 		diagnostics.durationMs = readNullableNumber(input.event.payload.durationMs);
 		diagnostics.failureKind = readNullableString(input.event.payload.failureKind);

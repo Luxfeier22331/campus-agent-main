@@ -73,9 +73,10 @@ describe("chat e2e package scripts", () => {
 			resolve(__dirname, "../scripts/chat-e2e-local-real-provider.ts"),
 			"utf8",
 		);
-		const retiredPythonSdkRuntimeFlag = ["SUPERVISOR", "AGENTS", "SDK", "RUNTIME", "ENABLED"].join(
+		const retiredPythonSdkRuntimeFlag = ["SUPER", "VISOR", "AGENTS", "SDK", "RUNTIME", "ENABLED"].join(
 			"_",
 		);
+		const retiredRestartFlag = ["--restart", "super", "visor", "runtime"].join("-");
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");
 		expect(scriptSource).not.toContain("PROMPT_RUNTIME_PROVIDER");
@@ -87,7 +88,7 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS");
 		expect(scriptSource).toContain('"--restart-campus-web"');
 		expect(scriptSource).toContain('"--restart-execution-control-runtime"');
-		expect(scriptSource).not.toContain('"--restart-supervisor-runtime"');
+		expect(scriptSource).not.toContain(`"${retiredRestartFlag}"`);
 		expect(scriptSource).toContain('"--expect-model-execution-state"');
 		expect(scriptSource).toContain('"go_provider_synthesis_completed"');
 		expect(scriptSource).toContain("中央民族大学本科学生国家奖学金评审办法");

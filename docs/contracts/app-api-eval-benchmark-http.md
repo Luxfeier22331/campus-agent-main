@@ -35,13 +35,13 @@ ingress seam。
 长期 internal eval 调用形态固定为：
 
 `packages/evals / trusted automation -> POST /api/internal/evals/chat/requests
--> app-api -> supervisor path`
+-> app-api -> execution-control path`
 
 这里的目标是：
 
 - 通过真实 `app-api` command path 执行 accepted eval request
 - 返回 canonical `requestId` / `traceId`
-- 可选返回 `supervisor` payload 供 eval trace / deterministic gate 消费
+- 可选返回 `execution` payload 供 eval trace / deterministic gate 消费
 - 不创建 browser-facing BFF 或 same-site contract
 
 ## Admission Rules
@@ -125,7 +125,7 @@ ingress seam。
 
 - `surface = eval_benchmark`
 - identity 取自 internal eval headers，而不是 session principal
-- 非 `current` 的 eval case 现在通过同一条 `app-api` command path 进入 supervisor，不再走
+- 非 `current` 的 eval case 现在通过同一条 `app-api` command path 进入 execution，不再走
   legacy shortcut
 
 ## Success Response
@@ -156,7 +156,7 @@ response body：
       "traceId": "trace_eval_01HQ"
     }
   },
-  "supervisor": {
+  "execution": {
     "status": "completed",
     "selectedCapability": "knowledge",
     "traceId": "trace_eval_01HQ",
@@ -186,7 +186,7 @@ response body：
 补充约束：
 
 - `answer` 与 browser-facing contract 保持同一 shape
-- `supervisor` 是 eval-only internal payload；browser-facing app contract 不默认暴露它
+- `execution` 是 eval-only internal payload；browser-facing app contract 不默认暴露它
 - `requestId` / `traceId` 是 eval artifact 后续 publish / backflow 的 canonical
   correlation truth
 
@@ -204,7 +204,7 @@ response body：
 ## Lifecycle Notes
 
 - internal eval ingress 通过真实 `app-api` command path 执行，不是直接调用 agent /
-  supervisor shortcut
+  execution shortcut
 - 它服务 live benchmark、request correlation、operator publish backflow 与
   deterministic trace observation
 - 它不替代 accepted benchmark artifact contract；artifact 布局与 accept/publish 入口见

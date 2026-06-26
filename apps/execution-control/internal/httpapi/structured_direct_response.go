@@ -12,7 +12,7 @@ func shapeStructuredExecutionResponse(
 	outcome := stringValue(result["outcome"])
 	status := executionStatusForStructuredOutcome(outcome)
 	answerText := structuredAnswerText(payloadKind, result, status)
-	executionResponse, err := finalizeAgentBridgeResponse(
+	executionResponse, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":               target,
 			"status":                   status,

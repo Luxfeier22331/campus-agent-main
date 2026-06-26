@@ -20,7 +20,7 @@ describe("runtime event sanitizer", () => {
 			"execution.admission_rejected",
 			"execution.cancel_requested",
 			"execution.cancelled",
-			"execution.bridge_failed",
+			"execution.runtime_failed",
 			"execution.timed_out",
 		]);
 	});
@@ -71,11 +71,10 @@ describe("runtime event sanitizer", () => {
 		expect(
 			sanitizeRuntimeEventPayload({
 				answer: "raw answer must not pass",
-				bridge_duration_ms: 35000,
-				decision: "queue_full",
+								decision: "queue_full",
 				duration_ms: 35012,
 				environment: "staging",
-				event_type: "execution.bridge_failed",
+				event_type: "execution.runtime_failed",
 				failure_kind: "timeout",
 				http_status: 504,
 				lane: "rag",
@@ -91,11 +90,10 @@ describe("runtime event sanitizer", () => {
 				trace_id: "trace_01HQ",
 			}),
 		).toEqual({
-			bridge_duration_ms: 35000,
-			decision: "queue_full",
+						decision: "queue_full",
 			duration_ms: 35012,
 			environment: "staging",
-			event_type: "execution.bridge_failed",
+			event_type: "execution.runtime_failed",
 			failure_kind: "timeout",
 			http_status: 504,
 			lane: "rag",

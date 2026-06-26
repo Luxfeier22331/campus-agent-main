@@ -106,7 +106,7 @@ describe("chat command durable stream closeout", () => {
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -179,8 +179,8 @@ describe("chat command durable stream closeout", () => {
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		expect(waitUntilPromises).toHaveLength(1);
 		await waitUntilPromises[0];
-		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
@@ -206,7 +206,7 @@ describe("chat command durable stream closeout", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -276,8 +276,8 @@ describe("chat command durable stream closeout", () => {
 		]);
 		expect(finalWrites).toHaveLength(1);
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
-		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 	});
 
 	it("streams durable answer delta events before terminal finalization without duplicating the final text", async () => {
@@ -397,7 +397,7 @@ describe("chat command durable stream closeout", () => {
 	it("does not consume the empty-poll budget while durable progress events keep advancing", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -480,8 +480,8 @@ describe("chat command durable stream closeout", () => {
 			},
 		});
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(4);
-		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 	});
 
 	it("reconciles accepted durable requests after the original stream lifetime ends", async () => {

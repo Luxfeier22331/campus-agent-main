@@ -220,7 +220,7 @@ eval attribution / badcase projection / release_evidence fixture`
 ## Execution Audit Backflow
 
 Go `apps/execution-control` runtime 负责 admission、queue/backpressure、timeout、
-cancel 与 bridge failure 等 runtime kernel 事实。它产生的 execution audit
+cancel 与 runtime failure 等 runtime kernel 事实。它产生的 execution audit
 events 只能按以下路径进入 Operator Console：
 
 `execution-control execution event` -> `app-api internal ingest` ->
@@ -232,7 +232,7 @@ events 只能按以下路径进入 Operator Console：
 - `execution.admission_rejected`
 - `execution.cancel_requested`
 - `execution.cancelled`
-- `execution.bridge_failed`
+- `execution.runtime_failed`
 - `execution.timed_out`
 
 规则：
@@ -242,7 +242,7 @@ events 只能按以下路径进入 Operator Console：
 - `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
   scheduled drain 只承担周期性一致性检查，不承担 answer path 的补救语义
 - ingest payload 只允许 `request_id`、`trace_id`、lane、decision、failure kind、
-  duration、queue wait、bridge duration、HTTP status、retryable 等 safe fields
+  duration、queue wait、HTTP status、retryable 等 safe fields
 - payload 禁止 raw prompt、raw answer、raw transcript、auth material、retrieval
   payload、provider raw response
 - `Sentry` 与 `Axiom` 可以接收同类 sanitized event 用于 trace / analysis / alert，
@@ -676,9 +676,9 @@ ownership matrix 固定在
 runtime、`ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖
 Sentry、Axiom、Collector 或 OpenTelemetry SDK。
 
-当前 runtime bridge 已收口为：
+当前 runtime telemetry link 已收口为：
 
-- `apps/execution-control` 是 online trace owner，负责 request admission、bridge
+- `apps/execution-control` 是 online trace owner，负责 request admission、runtime
   attempt、Temporal workflow/activity attempt 与 finalization 的 sanitized OTLP
   trace signal
 - `apps/execution-control` 在启用 OTel 后对 configured product answer paths

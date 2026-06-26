@@ -83,6 +83,34 @@ func TestTransportStatusProjectionReturnsCurrentEffectiveTimetable(t *testing.T)
 	}
 }
 
+func TestTransportStatusProjectionMapsNoticeRefsToReleaseNoticeURLs(t *testing.T) {
+	runtime := NewRuntime(Options{
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			releaseID:  "transport-release-current",
+			bundle:     mustProjectionBundle(t, transportStatusProjectionNoticeRefFixture()),
+			enrichURLs: true,
+		},
+		TrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+	})
+
+	response := runtime.TransportStatusProjection(context.Background())
+
+	if response.StatusCode != 200 || response.Outcome != "resolved_current" {
+		t.Fatalf("response = %#v, want 200 resolved_current", response)
+	}
+	projection, ok := response.Body.(TransportStatusProjection)
+	if !ok {
+		t.Fatalf("body = %T, want TransportStatusProjection", response.Body)
+	}
+	wantRefs := []string{"https://my.muc.edu.cn/#/print?type=5&notice_id=355867&show_type=1"}
+	if !reflect.DeepEqual(projection.Release.SourceRefs, wantRefs) {
+		t.Fatalf("release.source_refs = %#v, want %#v", projection.Release.SourceRefs, wantRefs)
+	}
+	if got := projection.Groups[0].Routes[0].Departures[0].SourceRefs; !reflect.DeepEqual(got, wantRefs) {
+		t.Fatalf("departure.source_refs = %#v, want %#v", got, wantRefs)
+	}
+}
+
 func transportStatusProjectionFixture() string {
 	return strings.ReplaceAll(
 		strings.ReplaceAll(
@@ -92,6 +120,19 @@ func transportStatusProjectionFixture() string {
 		),
 		"notice:metro-shuttle-suspended",
 		"https://portal.muc.edu.cn/notice/metro-shuttle-suspended",
+	)
+}
+
+func transportStatusProjectionNoticeRefFixture() string {
+	return strings.ReplaceAll(
+		strings.ReplaceAll(
+			transportProjectionFixture(),
+			`"source_ref":"notice:bus-schedule-2026-04-20"`,
+			`"source_ref":"notice:muc_internal_portal:355867"`,
+		),
+		`"transport_service_exceptions":[`,
+		`"transport_release_notices":[{"source_notice_id":"355867","source_ref":"notice:muc_internal_portal:355867"}],
+		"transport_service_exceptions":[`,
 	)
 }
 

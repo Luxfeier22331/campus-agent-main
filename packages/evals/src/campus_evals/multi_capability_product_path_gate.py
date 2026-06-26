@@ -242,7 +242,7 @@ def _app_api_multi_capability_observability_command() -> tuple[str, ...]:
         "run",
         "-c",
         "vitest.node.config.mts",
-        "test/supervisor-adapter.test.ts",
+        "test/execution-control-durable-adapter.test.ts",
         "test/operator-query.store.test.ts",
         "test/request-observability.test.ts",
     )

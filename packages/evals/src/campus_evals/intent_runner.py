@@ -192,7 +192,7 @@ def _is_critical_case(case: IntentCase) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description="Run deterministic supervisor intent eval cases.")
+    parser = argparse.ArgumentParser(description="Run deterministic execution intent eval cases.")
     parser.add_argument("--output", required=True, help="Path to write JSON report.")
     parser.add_argument(
         "--suite",

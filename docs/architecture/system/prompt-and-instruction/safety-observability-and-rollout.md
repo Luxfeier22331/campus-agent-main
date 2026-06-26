@@ -311,8 +311,8 @@ offline/eval hardening：
 - `apps/execution-control` 已承担 prompt config admission summary；online RAG
   synthesis 由 Go provider adapter 创建 provider request、抽取 usage/cost、
   记录 cancel/timeout outcome，并将 sanitized provider summary 写入 step
-  projection。Python `apps/supervisor-agent-worker` 已从 active workspace 删除，
-  不再拥有 online provider hot path
+  projection。retired Python semantic worker 已从 active workspace 删除，不再拥有
+  online provider hot path
 - provider-backed strict structured outputs、fail-close refusal handling 与 typed
   prompt metadata 已成为 repo-default posture
 - Execution Agent Layer 的 `policy gate + scope gate` 与 Go knowledge-path

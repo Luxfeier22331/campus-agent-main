@@ -132,8 +132,7 @@ Minimum semantics:
 - credential/runtime source summary
 
 Session may be projected to campus-web for account overview, but raw session material
-never crosses into
-supervisor, retrieval or MediaWiki.
+never crosses into Execution Agent Layer, retrieval or MediaWiki.
 
 ### Identity
 

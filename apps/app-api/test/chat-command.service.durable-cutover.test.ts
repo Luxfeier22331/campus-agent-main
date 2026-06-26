@@ -28,7 +28,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -59,13 +59,13 @@ describe("chat command durable runtime cutover", () => {
 
 		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 	});
 
 	it("rejects streaming deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -98,14 +98,14 @@ describe("chat command durable runtime cutover", () => {
 
 		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
-		expect(supervisor.execute).not.toHaveBeenCalled();
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 	});
 
 	it("rejects blocking deployed chat commands before accept when required durable config is absent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -152,14 +152,14 @@ describe("chat command durable runtime cutover", () => {
 		expect(executionRuntime.createRun).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(0);
 		expect(finalWrites).toHaveLength(0);
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 	});
 
 	it("finalizes blocking accepted chat requests from durable finalization events", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -356,7 +356,7 @@ describe("chat command durable runtime cutover", () => {
 				status: "completed",
 			},
 		});
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,
 			runId: "run_0001",
@@ -534,7 +534,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -604,7 +604,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(metadata).not.toHaveProperty("handoff");
 		expect(JSON.stringify(metadata)).not.toContain("selected_tool");
 		expect(JSON.stringify(metadata)).not.toContain("allowed_tools");
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(1);
 		expect(finalWrites).toHaveLength(1);
 		expect(response.answer.result).toMatchObject({
@@ -683,7 +683,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const listRunEvents = vi
@@ -740,7 +740,7 @@ describe("chat command durable runtime cutover", () => {
 			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(listRunEvents).toHaveBeenNthCalledWith(1, {
 			afterSequence: 0,
 			runId: "run_0001",

@@ -327,7 +327,7 @@ describe("execution control runtime adapter", () => {
 		]);
 	});
 
-	it("passes durable run event sequence cursor to supervisor events query", async () => {
+	it("passes durable run event sequence cursor to executionClient events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ events: [] }), {
 				status: 200,
@@ -355,7 +355,7 @@ describe("execution control runtime adapter", () => {
 		);
 	});
 
-	it("passes bounded wait budget to supervisor events query", async () => {
+	it("passes bounded wait budget to executionClient events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ events: [] }), {
 				status: 200,
@@ -702,7 +702,7 @@ describe("execution control runtime adapter", () => {
 		});
 	});
 
-	it("maps durable supervisor error envelopes without widening them", async () => {
+	it("maps durable executionClient error envelopes without widening them", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
@@ -742,7 +742,7 @@ describe("execution control runtime adapter", () => {
 		});
 	});
 
-	it("rejects invalid durable run projections from supervisor", async () => {
+	it("rejects invalid durable run projections from executionClient", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({

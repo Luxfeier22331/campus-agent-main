@@ -239,10 +239,10 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   dry-run artifact。真实产品路径 E2E 使用
   `online-answer-path --collect-runtime` 和后续 online answer acceptance lane。
 - `multi-agent-live-smoke` 是历史 direct-process live gate alias。Python
-  supervisor worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
+  semantic worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
   当前 runtime smoke 应以 `execution-control` / `agent-runtime` / typed activity
   workers / `app-api` 的目标 runbook 和 affected test lane 为准。历史 workflow trace
-  replay fixture 可继续作为 eval 输入，但不得要求恢复 Python supervisor process。
+  replay fixture 可继续作为 eval 输入，但不得要求恢复旧 Python semantic process。
 - institutional rules 不再作为独立 Python release profile 暴露。42 条校级制度的
   release acceptance、golden retrieval qrels 与 answer-quality contract 仍保留为
   repo-owned fixture / artifact truth；`eval_coverage_gate_artifacts` 通过
@@ -498,7 +498,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases
   tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
 - `uv run --all-packages python -m unittest
-  tests.supervisor.test_supervisor_core tests.agent.test_knowledge_capability
+  tests.agent.test_knowledge_capability
   tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
   `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`

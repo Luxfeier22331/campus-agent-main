@@ -199,14 +199,14 @@ def _parse_execution_result(value: object) -> RagResultPayload | None:
         evidence=EvidenceBundle(
             query_text=_optional_string(evidence_record.get("query_text")) or "",
             corpus=_required_string(
-                evidence_record.get("corpus"), "supervisor.result.evidence.corpus"
+                evidence_record.get("corpus"), "execution.result.evidence.corpus"
             ),
             collection=_required_string(
                 evidence_record.get("collection"),
-                "supervisor.result.evidence.collection",
+                "execution.result.evidence.collection",
             ),
             sources=tuple(
-                _parse_evidence_source(item, field=f"supervisor.result.evidence.sources[{index}]")
+                _parse_evidence_source(item, field=f"execution.result.evidence.sources[{index}]")
                 for index, item in enumerate(_optional_list(evidence_record.get("sources")))
             ),
         ),
@@ -527,7 +527,7 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         claim_supports=tuple(
             _parse_claim_support(
                 item,
-                field=f"supervisor.result.diagnostics.claim_supports[{index}]",
+                field=f"execution.result.diagnostics.claim_supports[{index}]",
             )
             for index, item in enumerate(
                 _optional_list(
@@ -566,7 +566,7 @@ def _parse_rag_result_diagnostics(value: object) -> RagResultDiagnostics | None:
         retrieved_sources=tuple(
             _parse_observed_source(
                 item,
-                field=f"supervisor.result.diagnostics.retrieved_sources[{index}]",
+                field=f"execution.result.diagnostics.retrieved_sources[{index}]",
             )
             for index, item in enumerate(
                 _optional_list(

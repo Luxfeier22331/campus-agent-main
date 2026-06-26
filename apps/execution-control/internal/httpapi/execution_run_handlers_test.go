@@ -238,7 +238,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	traceHeaders := telemetry.InjectBridgeTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
+	traceHeaders := telemetry.InjectRuntimeTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
 	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
 		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
 	}

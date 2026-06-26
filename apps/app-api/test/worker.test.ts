@@ -213,7 +213,7 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).not.toMatch(
 			/EXECUTION_CONTROL_ACCESS_CLIENT_SECRET:\$\{accessClientSecret\}/,
 		);
-		expect(deployStagingSource).not.toContain("supervisor origin");
+		expect(deployStagingSource).not.toContain("execution-control origin");
 		expect(stagingPreflightSource).toContain("bootstrap-shared-product-with-seeds.mjs");
 		expect(stagingPreflightSource).toContain("reconcile-shared-db-drift.mjs");
 	});

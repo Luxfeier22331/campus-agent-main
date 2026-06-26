@@ -123,6 +123,10 @@ Source references exist only at two levels:
 - `departure.sourceRefs`: source URLs for the specific row or row-level change.
 
 No group-level or route-level `sourceRefs` are defined in this version.
+Internal notice refs such as `notice:muc_internal_portal:{notice_id}` may exist
+inside the transport schedule read model, but the status projection must resolve
+them through same-release `transport_release_notices.source_url` provenance and
+only expose `http(s)` URLs.
 
 ## Storage And Validation
 

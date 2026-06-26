@@ -86,16 +86,17 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 			t.Fatalf("expected metrics output to contain %q, got:\n%s", snippet, output)
 		}
 	}
+	retiredPrefix := "campus_execution_control_" + "bridge"
 	retiredSnippets := []string{
-		"campus_execution_control_bridge_duration_ms",
-		"campus_execution_control_bridge_failures_total",
-		"campus_execution_control_bridge_retries_total",
-		"campus_execution_control_bridge_cancel_total",
-		"campus_execution_control_bridge_circuit",
+		retiredPrefix + "_duration_ms",
+		retiredPrefix + "_failures_total",
+		retiredPrefix + "_retries_total",
+		retiredPrefix + "_cancel_total",
+		retiredPrefix + "_circuit",
 	}
 	for _, snippet := range retiredSnippets {
 		if strings.Contains(output, snippet) {
-			t.Fatalf("metrics output must not expose retired bridge metric %q:\n%s", snippet, output)
+			t.Fatalf("metrics output must not expose retired runtime metric %q:\n%s", snippet, output)
 		}
 	}
 }

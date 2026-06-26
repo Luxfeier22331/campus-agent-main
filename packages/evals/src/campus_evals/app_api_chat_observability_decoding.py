@@ -46,7 +46,7 @@ def _parse_execution_observability(value: object) -> ExecutionObservability | No
         retrieved_sources=tuple(
             _parse_observed_source(
                 item,
-                field=f"supervisor.observability.retrieved_sources[{index}]",
+                field=f"execution.observability.retrieved_sources[{index}]",
             )
             for index, item in enumerate(
                 _optional_list(

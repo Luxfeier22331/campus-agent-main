@@ -326,7 +326,7 @@ owns this section group; the original path remains the stable index.
   request.approval_required`、`request.rejected`、`request.cancelled`
 - execution runtime kernel event 可以通过 `app-api` internal ingest 进入同一 audit
   projection；第一版只允许 `execution.admission_rejected`、`execution.cancel_requested`、
-  `execution.cancelled`、`execution.bridge_failed`、`execution.timed_out`
+  `execution.cancelled`、`execution.runtime_failed`、`execution.timed_out`
 - 更细粒度的 `authz.decision`、`retrieval.summary`、`operator.action` 后续可以在不破坏 owner
   模型的前提下追加，但不能回退成 raw log query
 

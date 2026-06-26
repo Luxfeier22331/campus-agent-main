@@ -179,7 +179,7 @@ func normalizeJSONObjectJSON(rawBody []byte) ([]byte, error) {
 	return json.Marshal(body)
 }
 
-func bridgeErrorCode(rawBody []byte) string {
+func executionErrorCode(rawBody []byte) string {
 	body, err := decodeJSONObject(rawBody)
 	if err != nil {
 		return ""

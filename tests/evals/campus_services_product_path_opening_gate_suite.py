@@ -49,7 +49,7 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         self.assertEqual(
             [check["check_id"] for check in artifact["checks"]],
             [
-                "supervisor_go_structured_runtime_tests",
+                "execution_control_go_structured_runtime_tests",
                 "app_api_campus_services_runtime_tests",
                 "campus_web_worker_e2e_tests",
                 "app_api_typecheck",
@@ -146,7 +146,7 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
         for tool_name in artifact["summary"]["blocked_tools"]:
             self.assertEqual(tool_verdicts[tool_name]["status"], "blocked")
             self.assertIn(
-                "supervisor_go_structured_runtime_tests",
+                "execution_control_go_structured_runtime_tests",
                 tool_verdicts[tool_name]["failed_checks"],
             )
 
@@ -162,7 +162,7 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                     profile_cls(
                         tool_name="transport_schedule_lookup",
                         product_path_status="open_candidate",
-                        required_checks=("supervisor_go_structured_runtime_tests",),
+                        required_checks=("execution_control_go_structured_runtime_tests",),
                         reason="ready",
                     ),
                     profile_cls(
@@ -201,7 +201,7 @@ class CampusServicesProductPathOpeningGateTest(unittest.TestCase):
                     profile_cls(
                         tool_name="new_tool",
                         product_path_status="keep_closed",
-                        required_checks=("supervisor_go_structured_runtime_tests",),
+                        required_checks=("execution_control_go_structured_runtime_tests",),
                         reason="closed",
                     ),
                 )

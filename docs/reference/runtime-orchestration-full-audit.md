@@ -307,7 +307,7 @@ Committed guards that should catch architecture regression:
   - checks worker Deployments, ScaledObjects, KEDA posture collector, RBAC,
     network policy, PDBs and forbidden workload identities
 - `tests/test_workspace_layout.py`
-  - checks retired supervisor, legacy operator surfaces and ChatKit adapter stay
+  - checks retired Python semantic worker, legacy operator surfaces and ChatKit adapter stay
     absent
 - `tests/infra/test_execution_control_architecture_residue.py`
   - checks active docs do not restore Docker-first execution-control substrate

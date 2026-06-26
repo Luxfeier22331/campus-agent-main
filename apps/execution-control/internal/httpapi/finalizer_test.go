@@ -9,8 +9,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestFinalizeAgentBridgeResponseBuildsExecutionEnvelope(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseBuildsExecutionEnvelope(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "knowledge",
 			"status":             "completed",
@@ -115,8 +115,8 @@ func TestTerminalExecutionResponseIncludesCanonicalNullableFields(t *testing.T) 
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "knowledge",
 			"status":             "completed",
@@ -146,10 +146,10 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
 				AllowedTools: []string{"retrieval.query"},
 			},
-			Branch:             "delegate",
-			SelectedTool:       "retrieval.query",
-			BridgeAttemptCount: 2,
-			BridgeRetryCount:   1,
+			Branch:              "delegate",
+			SelectedTool:        "retrieval.query",
+			RuntimeAttemptCount: 2,
+			RuntimeRetryCount:   1,
 		},
 	)
 	if err != nil {
@@ -183,8 +183,8 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 	}
 }
 
-func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseProjectsWorkflowTraceSummary(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",
@@ -333,8 +333,8 @@ func TestWorkflowSummarySourceIDsUsesExplicitSafeDetails(t *testing.T) {
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",
@@ -359,8 +359,8 @@ func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testi
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsSelectedCapabilityMismatch(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "notice",
 			"status":             "completed",
@@ -392,8 +392,8 @@ func TestFinalizeAgentBridgeResponseRejectsSelectedCapabilityMismatch(t *testing
 	}
 }
 
-func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseProjectsActualToolCallsAndVersions(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",

@@ -158,7 +158,7 @@ owns this section group; the original path remains the stable index.
   quality posture，不携带 raw transcript、raw auth material、provider raw response 或 retrieval
   payload
 - feedback 不参与 authorization、serving surface、tool permission、memory projection 或
-  supervisor admission
+  execution admission
 - rollout / rollback 不改变表语义：关闭 campus-web UI 只停止新浏览器入口，不删除
   `chat.message_feedback`；已写入 feedback 继续作为 app-api-owned quality signal
   供 operator summary、timeseries 和 eval candidate export 读取
@@ -189,12 +189,12 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 它属于 `chat.*` 的当前会话状态，不属于 `runtime.request_execution`
-- 第一版只承载可回灌到 supervisor 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
+- 第一版只承载可回灌到 execution input 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
 - 当前已冻结的 curriculum slot contract：
   - `curriculum_program_family`
   - `curriculum_program`
   - `curriculum_semester`
-- 这些 slot 只有在 `app-api` 从 finalized supervisor/rag diagnostics 中拿到 resolved
+- 这些 slot 只有在 `app-api` 从 finalized execution / RAG diagnostics 中拿到 resolved
   curriculum follow-up truth 时才写入
 - `needs_clarification`、generic alias conflict、soft preference 或无 typed
   follow-up truth 的请求不得写入这些 slot
@@ -362,7 +362,7 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 缺省 setting 等价于 `profile_memory_enabled=true`
-- 关闭 projection 不删除 memory item，但后续 supervisor input 必须投影为空
+- 关闭 projection 不删除 memory item，但后续 execution input 必须投影为空
 - setting 只影响 personalization input，不影响 authz / serving surface / approval truth
 
 ## `profile.memory_items`

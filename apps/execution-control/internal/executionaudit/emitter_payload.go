@@ -8,8 +8,6 @@ import (
 func eventPayload(event Event) map[string]any {
 	eventType := strings.TrimSpace(event.EventType)
 	return map[string]any{
-		"bridge_duration_ms":      durationMilliseconds(event.BridgeDuration),
-		"bridge_cancel_status":    nullableString(event.BridgeCancelStatus),
 		"context_preflight_state": nullableString(event.ContextPreflightState),
 		"decision":                nullableString(event.Decision),
 		"duration_ms":             durationMilliseconds(event.Duration),

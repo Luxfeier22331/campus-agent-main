@@ -22,7 +22,7 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 	)
 
 	if context.RuntimeVersions["execution_contract"] != "capability_execution_v1" {
-		t.Fatalf("runtime versions = %#v, want bridge contract", context.RuntimeVersions)
+		t.Fatalf("runtime versions = %#v, want execution contract", context.RuntimeVersions)
 	}
 	if context.PolicyVersions["intent_case_set"] != "intent-case-set-v2" {
 		t.Fatalf("policy versions = %#v, want intent case set", context.PolicyVersions)
@@ -89,8 +89,8 @@ func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t 
 	}
 }
 
-func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseProjectsSafeRagToolArguments(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "knowledge",
 			"status":             "completed",
@@ -169,8 +169,8 @@ func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T)
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsRawCapabilityObservabilityKeys(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsRawCapabilityObservabilityKeys(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",
@@ -192,8 +192,8 @@ func TestFinalizeAgentBridgeResponseRejectsRawCapabilityObservabilityKeys(t *tes
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "knowledge",
 			"status":             "completed",
@@ -248,8 +248,8 @@ func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsUnsupportedTarget(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":  "unexpected-capability",
 			"status":      "completed",
@@ -265,8 +265,8 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 	}
 }
 
-func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "campus_services",
 			"status":             "completed",
@@ -312,8 +312,8 @@ func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
-	_, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseRejectsUnsupportedConfidence(t *testing.T) {
+	_, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":  "knowledge",
 			"status":      "completed",
@@ -329,7 +329,7 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
 	}
 }
 
-func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
+func TestFinalizeCapabilityResponseRejectsMalformedScalarFields(t *testing.T) {
 	for name, body := range map[string]map[string]any{
 		"non_string_confidence": {
 			"capability":         "knowledge",
@@ -399,7 +399,7 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := finalizeAgentBridgeResponse(
+			_, err := finalizeCapabilityResponse(
 				body,
 				"trace-finalizer-malformed",
 				executionFinalizerContext{},

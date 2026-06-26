@@ -148,6 +148,15 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 	if err != nil {
 		return projectionBundle{}, err
 	}
+	releaseNotices, err := fetchStructuredJSONRecords[transportReleaseNoticeRecord](
+		ctx,
+		s.pool,
+		s.tableSQL("transport_release_notices"),
+		releaseID,
+	)
+	if err != nil {
+		return projectionBundle{}, err
+	}
 	return projectionBundle{
 		SchemaVersion:               "campus_services_projection_bundle.v1",
 		TransportScheduleSnapshots:  snapshots,
@@ -155,7 +164,73 @@ func (s *PostgresTransportScheduleReadModelStore) LoadBundleForRelease(
 		ScheduledDepartures:         departures,
 		TransportServiceExceptions:  exceptions,
 		TransportOperationalNotices: operationalNotices,
+		TransportReleaseNotices:     releaseNotices,
 	}, nil
+}
+
+func (s *PostgresTransportScheduleReadModelStore) EnrichTransportReleaseNoticeURLs(
+	ctx context.Context,
+	bundle projectionBundle,
+) (projectionBundle, error) {
+	if len(bundle.TransportReleaseNotices) == 0 || transportReleaseNoticesHaveURLs(bundle.TransportReleaseNotices) {
+		return bundle, nil
+	}
+	urlByNoticeID, err := s.fetchAuthenticatedNoticeURLs(ctx, bundle.TransportReleaseNotices)
+	if err != nil {
+		return projectionBundle{}, err
+	}
+	for index := range bundle.TransportReleaseNotices {
+		if strings.TrimSpace(bundle.TransportReleaseNotices[index].SourceURL) != "" {
+			continue
+		}
+		if url := urlByNoticeID[bundle.TransportReleaseNotices[index].normalizedSourceNoticeID()]; url != "" {
+			bundle.TransportReleaseNotices[index].SourceURL = url
+		}
+	}
+	return bundle, nil
+}
+
+func (s *PostgresTransportScheduleReadModelStore) fetchAuthenticatedNoticeURLs(
+	ctx context.Context,
+	releaseNotices []transportReleaseNoticeRecord,
+) (map[string]string, error) {
+	noticeIDs := uniqueTransportReleaseNoticeIDs(releaseNotices)
+	if len(noticeIDs) == 0 {
+		return map[string]string{}, nil
+	}
+	query := fmt.Sprintf(
+		`select notice_id,
+		        coalesce(
+		            record->>'notice_browser_url',
+		            record->>'portal_print_url',
+		            record #>> '{parent_snapshot,notice_browser_url}',
+		            record #>> '{parent_snapshot,portal_print_url}',
+		            ''
+		        ) as source_url
+		   from %s
+		  where site_id = 'muc_internal_portal'
+		    and notice_id = any($1)`,
+		s.tableSQL("authenticated_notice_source_truth_inventory"),
+	)
+	rows, err := s.pool.Query(ctx, query, noticeIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	urls := map[string]string{}
+	for rows.Next() {
+		var noticeID string
+		var sourceURL string
+		if err := rows.Scan(&noticeID, &sourceURL); err != nil {
+			return nil, err
+		}
+		noticeID = strings.TrimSpace(noticeID)
+		sourceURL = strings.TrimSpace(sourceURL)
+		if noticeID != "" && sourceURL != "" {
+			urls[noticeID] = sourceURL
+		}
+	}
+	return urls, rows.Err()
 }
 
 func (s *PostgresTransportScheduleReadModelStore) currentReleaseID(

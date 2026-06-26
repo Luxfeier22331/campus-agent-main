@@ -38,38 +38,6 @@ func rejectRetiredDurableRecoveryLoopSettings() error {
 	return nil
 }
 
-func rejectRetiredPythonBridgeSettings() error {
-	retired := []string{
-		"SUPERVISOR_AGENT_WORKER_BASE_URL",
-		"SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
-		"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES",
-		"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
-		"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",
-		"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
-		"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
-		"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
-		"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
-	}
-	for _, name := range retired {
-		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; online answer execution uses Temporal RAG activities", name)
-		}
-	}
-	return nil
-}
-
-func rejectRetiredSupervisorSettings() error {
-	retired := []string{
-		"SUPERVISOR_PROMPT_MODEL",
-	}
-	for _, name := range retired {
-		if strings.TrimSpace(os.Getenv(name)) != "" {
-			return fmt.Errorf("%s is retired; use provider-config projection profiles", name)
-		}
-	}
-	return nil
-}
-
 func rejectRetiredPromptRuntimeSettings() error {
 	retired := []string{
 		"PROMPT_RUNTIME_PROVIDER",

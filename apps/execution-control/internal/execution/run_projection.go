@@ -222,7 +222,7 @@ const (
 	CancelOutcomeNotRequested                CancelOutcome = "not_requested"
 	CancelOutcomeRequestedBeforeStart        CancelOutcome = "requested_before_start"
 	CancelOutcomeActivityContextCanceled     CancelOutcome = "activity_context_canceled"
-	CancelOutcomeBridgeCancelDelivered       CancelOutcome = "bridge_cancel_delivered"
+	CancelOutcomeRuntimeCancelDelivered      CancelOutcome = "runtime_cancel_delivered"
 	CancelOutcomeProviderConnectionAborted   CancelOutcome = "provider_connection_aborted"
 	CancelOutcomeProviderBackgroundCancelled CancelOutcome = "provider_background_cancelled"
 	CancelOutcomeCompletedBeforeCancel       CancelOutcome = "completed_before_cancel"
@@ -234,7 +234,7 @@ type TimeoutOutcome string
 const (
 	TimeoutOutcomeNotTimedOut     TimeoutOutcome = "not_timed_out"
 	TimeoutOutcomeActivityTimeout TimeoutOutcome = "activity_timeout"
-	TimeoutOutcomeBridgeTimeout   TimeoutOutcome = "bridge_timeout"
+	TimeoutOutcomeRuntimeTimeout  TimeoutOutcome = "runtime_timeout"
 	TimeoutOutcomeProviderTimeout TimeoutOutcome = "provider_timeout"
 	TimeoutOutcomeWorkflowTimeout TimeoutOutcome = "workflow_timeout"
 )

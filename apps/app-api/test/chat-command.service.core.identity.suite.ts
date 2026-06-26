@@ -49,7 +49,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			),
 		).toBeNull();
 	});
-	it("accepts a chat request, calls supervisor with explicit actor, and finalizes a completed answer", async () => {
+	it("accepts a chat request, calls executionClient with explicit actor, and finalizes a completed answer", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -57,7 +57,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
 			.digest("hex");
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -79,7 +79,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			telemetry,
 		});
 
@@ -98,7 +98,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith({
+		expect(executionClient.execute).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",
 			context: {
 				actor: createPrincipal().actor,
@@ -265,7 +265,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
@@ -282,7 +282,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		await service.submit({
@@ -295,7 +295,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.not.objectContaining({
 					profileMemory: expect.anything(),

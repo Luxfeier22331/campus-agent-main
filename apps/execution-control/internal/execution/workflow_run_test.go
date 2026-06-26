@@ -71,7 +71,7 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 		t.Fatalf("tool retry_count = %#v, want explicit zero", steps[1])
 	}
 	if steps[2]["attempt_count"] != 2 || steps[2]["runtime_retry_count"] != 1 {
-		t.Fatalf("finalization step = %#v, want bridge run state", steps[2])
+		t.Fatalf("finalization step = %#v, want runtime run state", steps[2])
 	}
 	agentInvocations := run.CapabilityInvocationMaps()
 	if len(agentInvocations) != 1 {

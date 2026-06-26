@@ -6,8 +6,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "notice",
 			"status":             "completed",
@@ -65,20 +65,20 @@ func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testi
 	if !ok || len(toolCalls) != 0 {
 		t.Fatalf("tool_call_summaries = %#v, want none for internal notice resolve", toolCalls)
 	}
-	supervisorObservability, ok := response["observability"].(map[string]any)
+	executionObservability, ok := response["observability"].(map[string]any)
 	if !ok {
 		t.Fatalf("observability = %#v, want object", response["observability"])
 	}
-	if supervisorObservability["selected_tool"] != "" {
+	if executionObservability["selected_tool"] != "" {
 		t.Fatalf(
 			"execution_observability.selected_tool = %v, want empty",
-			supervisorObservability["selected_tool"],
+			executionObservability["selected_tool"],
 		)
 	}
 }
 
-func TestFinalizeAgentBridgeResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *testing.T) {
-	response, err := finalizeAgentBridgeResponse(
+func TestFinalizeCapabilityResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *testing.T) {
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "notice",
 			"status":             "completed",
@@ -143,7 +143,7 @@ func TestFinalizeAgentBridgeResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *
 	}
 }
 
-func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *testing.T) {
+func TestFinalizeCapabilityResponseUsesRecordedNoticeMultiStepWorkflowRun(t *testing.T) {
 	workflowRun := execution.WorkflowRun{
 		RunID:  "run-multi-001",
 		Mode:   execution.WorkflowModeMultiStep,
@@ -199,7 +199,7 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 			},
 		},
 	}
-	response, err := finalizeAgentBridgeResponse(
+	response, err := finalizeCapabilityResponse(
 		map[string]any{
 			"capability":         "knowledge",
 			"status":             "completed",

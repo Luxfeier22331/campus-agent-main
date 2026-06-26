@@ -37,7 +37,7 @@ def release_gate_commands() -> tuple[tuple[str, ...], ...]:
             "run",
             "-c",
             "vitest.node.config.mts",
-            "test/supervisor-adapter.test.ts",
+            "test/execution-control-durable-adapter.test.ts",
             "test/chat-command.service.observability.suite.ts",
             "test/operator-query.store.test.ts",
         ),

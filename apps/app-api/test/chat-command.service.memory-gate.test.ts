@@ -13,7 +13,7 @@ import {
 	createTelemetryMock,
 } from "./chat-command.service.test-support";
 
-function createCompletedSupervisor(): CapabilityExecutionClient {
+function createCompletedExecutionClient(): CapabilityExecutionClient {
 	return {
 		execute: vi.fn().mockResolvedValue({
 			answerText: "可以，先看培养方案和学院通知。",
@@ -37,14 +37,14 @@ describe("chat command service memory gate projection", () => {
 				itemCount: 3,
 			}),
 		};
-		const supervisor = createCompletedSupervisor();
+		const executionClient = createCompletedExecutionClient();
 
 		const service = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			profileMemoryStore,
 		});
 
@@ -61,7 +61,7 @@ describe("chat command service memory gate projection", () => {
 		expect(profileMemoryStore.loadSummary).toHaveBeenCalledWith({
 			ownerUserId: "user_01HQ",
 		});
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.objectContaining({
 					memory: {
@@ -71,7 +71,7 @@ describe("chat command service memory gate projection", () => {
 				tenantId: "tenant-main",
 			}),
 		);
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.not.objectContaining({
 					profileMemory: expect.anything(),
@@ -87,14 +87,14 @@ describe("chat command service memory gate projection", () => {
 		const profileMemoryStore = {
 			loadSummary: vi.fn().mockRejectedValue(new Error("profile memory unavailable")),
 		};
-		const supervisor = createCompletedSupervisor();
+		const executionClient = createCompletedExecutionClient();
 
 		const service = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			profileMemoryStore,
 			telemetry,
 		});
@@ -117,7 +117,7 @@ describe("chat command service memory gate projection", () => {
 				traceId: "trace_0001",
 			}),
 		);
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				context: expect.not.objectContaining({
 					memory: expect.anything(),

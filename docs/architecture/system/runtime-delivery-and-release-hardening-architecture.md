@@ -148,9 +148,9 @@ release identity 的长期规则固定为：
 Execution runtime 的 release gate 长期至少覆盖：
 
 - `execution-control /healthz`、`/readyz` 与 `/metrics` 可达
-- Python private bridge readiness 已被 `execution-control /readyz` 聚合
+- retired Python private bridge readiness 已被 `execution-control /readyz` 聚合
 - configured global budget 与 per-lane budget 未漂移
-- queue full、queue timeout、draining、bridge timeout 与 bridge unavailable 都有
+- queue full、queue timeout、draining、runtime timeout 与 runtime unavailable 都有
   typed failure fingerprint
 - cancel / client disconnect path 不继续占用 Go request slot
 - audit writer / runtime log sink 不阻塞 answer path，并暴露 dropped / last-error 状态

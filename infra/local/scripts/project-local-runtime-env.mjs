@@ -168,7 +168,7 @@ function deriveRuntimeEnv(env, input) {
 	const agentRuntimeSharedSecret =
 		read(env, "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
 		read(env, "AGENT_RUNTIME_SHARED_SECRET") ||
-		deriveAgentRuntimeBridgeSecret(workerSharedSecret, internalQuerySharedSecret);
+		deriveAgentRuntimeLinkSecret(workerSharedSecret, internalQuerySharedSecret);
 	if (agentRuntimeSharedSecret) {
 		setValue(env, "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
 		setValue(env, "AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
@@ -446,12 +446,12 @@ function deriveRuntimeRelease(repoRoot) {
 	return "execution-control@local";
 }
 
-function deriveAgentRuntimeBridgeSecret(workerSharedSecret, internalQuerySharedSecret) {
+function deriveAgentRuntimeLinkSecret(workerSharedSecret, internalQuerySharedSecret) {
 	if (!(workerSharedSecret && internalQuerySharedSecret)) {
 		return "";
 	}
 	return createHash("sha256")
-		.update("campus-agent:agent-runtime-bridge:v1\0")
+		.update("campus-agent:agent-runtime-link:v1\0")
 		.update(workerSharedSecret)
 		.update("\0")
 		.update(internalQuerySharedSecret)

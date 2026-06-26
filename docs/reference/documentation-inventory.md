@@ -418,7 +418,7 @@ class defined by `docs/documentation-architecture.md`.
   - Title: Python Capability Boundaries
   - Owner class: `supporting_architecture`
   - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
-  - Owner boundary: `supervisor-agent-worker`
+  - Owner boundary: `python-capability-boundaries`
   - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=105`
   - Governance action: `keep_owner_truth`
   - Drift signal: `ok`

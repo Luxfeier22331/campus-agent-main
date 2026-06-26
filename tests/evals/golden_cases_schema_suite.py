@@ -36,11 +36,11 @@ class GoldenCaseSchemaTest(unittest.TestCase):
 
     def test_trace_expectation_rejects_unknown_capability(self) -> None:
         with self.assertRaisesRegex(ValueError, "expected_capability"):
-            TraceExpectation(expected_capability="supervisor-direct")
+            TraceExpectation(expected_capability="execution-direct")
 
     def test_trace_expectation_rejects_unknown_capability_family(self) -> None:
         with self.assertRaisesRegex(ValueError, "expected_capability_family"):
-            TraceExpectation(expected_capability_family="supervisor")
+            TraceExpectation(expected_capability_family="execution")
 
     def test_trace_expectation_rejects_capability_family_mismatch(self) -> None:
         with self.assertRaisesRegex(ValueError, "same lane"):

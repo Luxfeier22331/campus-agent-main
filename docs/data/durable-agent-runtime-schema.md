@@ -363,7 +363,7 @@ forward-required projection fields：
 - `not_requested`
 - `requested_before_start`
 - `activity_context_canceled`
-- `bridge_cancel_delivered`
+- `runtime_cancel_delivered`
 - `provider_connection_aborted`
 - `provider_background_cancelled`
 - `completed_before_cancel`
@@ -373,7 +373,7 @@ forward-required projection fields：
 
 - `not_timed_out`
 - `activity_timeout`
-- `bridge_timeout`
+- `runtime_timeout`
 - `provider_timeout`
 - `workflow_timeout`
 

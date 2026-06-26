@@ -80,6 +80,7 @@ type projectionBundle struct {
 	ScheduledDepartures         []scheduledDepartureRecord         `json:"scheduled_departures"`
 	TransportServiceExceptions  []transportServiceExceptionRecord  `json:"transport_service_exceptions"`
 	TransportOperationalNotices []transportOperationalNoticeRecord `json:"transport_operational_notices"`
+	TransportReleaseNotices     []transportReleaseNoticeRecord     `json:"transport_release_notices"`
 }
 
 type ProjectionBundle = projectionBundle

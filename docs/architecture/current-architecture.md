@@ -114,7 +114,7 @@ document/index release`
   trajectory 已承载 activity metadata、queue wait、duration、provider/model、
   token/cost、cancel/timeout outcome 字段。`provider_execution_summary_v1` 与
   provider pricing readiness contract 已存在；activity timeout / context cancel
-  可以投影为 first-class `bridge_timeout` / `activity_context_canceled` outcome。
+  可以投影为 first-class `runtime_timeout` / `activity_context_canceled` outcome。
 - 当前 online RAG lookup 由 Go Qdrant native adapter 执行，Qdrant 仍是
   self-hosted authenticated private data-plane；embedding/provider 调用使用 Go
   cancellable HTTP context，synthesis provider execution 由
@@ -125,7 +125,7 @@ document/index release`
   projection 承接；repo-local projection path 已能记录
   `activity_context_canceled`、`requested_before_start`、
   `provider_connection_aborted`、provider timeout 与 late completion ignored。
-- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge/server
+- 旧 Python semantic worker 已从 active workspace 删除；旧 bridge/server
   code 只可通过 git history 追溯，不得作为 staging readiness、online fallback 或
   active workflow branch 恢复。
 - opened deterministic structured capability 必须作为 Go-owned typed Temporal
@@ -369,7 +369,7 @@ document/index release`
   metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
   active workspace
 - `packages/ingestion-core` ingestion/data-plane consumption logic
-- `packages/contracts` supervisor / capability handoff 与 shared typed seam
+- `packages/contracts` capability handoff 与 shared typed seam
 
 ## 当前术语真相
 

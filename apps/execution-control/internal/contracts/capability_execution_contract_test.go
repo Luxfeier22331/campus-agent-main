@@ -152,7 +152,7 @@ func TestDecodeCapabilityExecutionRequestWireJSONRejectsInvalidFixtures(t *testi
 	} {
 		t.Run(fixtureName, func(t *testing.T) {
 			if _, err := DecodeCapabilityExecutionRequestWireJSON(readContractFixture(t, fixtureName)); err == nil {
-				t.Fatal("expected invalid bridge fixture to be rejected")
+				t.Fatal("expected invalid execution fixture to be rejected")
 			}
 		})
 	}
@@ -200,7 +200,7 @@ func TestDecodeCapabilityExecutionResponseWireJSONRejectsErrorWithoutRetryable(t
 		"follow_up_question":     "",
 		"confidence":             "low",
 		"result":                 nil,
-		"error":                  map[string]any{"code": "bridge_failed", "message": "bridge failed"},
+		"error":                  map[string]any{"code": "execution_failed", "message": "execution failed"},
 		"observability":          map[string]any{},
 		"workflow_trace_summary": nil,
 		"trace_id":               "trace-missing-retryable",

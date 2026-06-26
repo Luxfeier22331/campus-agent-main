@@ -315,7 +315,7 @@ infra/local/staging/start-execution-control-staging.sh
 `status --check` 报 `app-api readyz ...`
 
 - 说明本地 execution-control runtime 可能健康，但 shared staging `app-api`
-  自身或它到 supervisor 的依赖不健康
+  自身或它到 execution-control 的依赖不健康
 - 直接检查：
 
 ```bash

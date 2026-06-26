@@ -30,8 +30,8 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
-						code: "supervisor_timeout",
-						message: "supervisor timed out",
+						code: "execution_control_timeout",
+						message: "execution control timed out",
 						retryable: true,
 					},
 					followUpQuestion: "",
@@ -54,14 +54,14 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 		});
 
 		expect(response.answer.result).toMatchObject({
-			errorCode: "supervisor_timeout",
+			errorCode: "execution_control_timeout",
 			kind: "error",
 			requestId: "req_0001",
 			traceId: "trace_0002",
 		});
 		expect(traceBacklinkRecorder.record).toHaveBeenCalledTimes(1);
 		expect(traceBacklinkRecorder.record).toHaveBeenCalledWith({
-			errorCode: "supervisor_timeout",
+			errorCode: "execution_control_timeout",
 			requestId: "req_0001",
 			selectedCapability: "knowledge",
 			status: "error",

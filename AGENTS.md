@@ -41,8 +41,8 @@
 - 当前 model-visible typed tool 由 `configs/runtime/tool-catalog.v1.json` 与
   `configs/runtime/workflow-artifacts.v2.json` 共同收口；`campus_services` 当前只开放
   `transport_schedule_lookup`，`navigation` 默认保持 closed / fail closed
-- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过
-  git history 追溯，不得重新接入 serving
+- 旧 Python semantic worker 已从 active workspace 删除；旧实现只可通过 git
+  history 追溯，不得重新接入 serving
 - 不要按旧 bootstrap 的 tool-adapter 模式扩展当前仓库；如需追溯旧实现请查看 git 历史
 
 ### Branch Model

@@ -1,7 +1,7 @@
 {
 	"selectedCapability": "knowledge",
 	"status": "completed",
-	"answerText": "This is not canonical supervisor wire.",
+	"answerText": "This is not canonical execution wire.",
 	"followUpQuestion": "",
 	"confidence": "high",
 	"result": null,

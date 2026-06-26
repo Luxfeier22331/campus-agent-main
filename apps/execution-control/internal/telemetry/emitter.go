@@ -23,8 +23,6 @@ import (
 )
 
 type Event struct {
-	BridgeDuration         time.Duration
-	BridgeCancelStatus     string
 	CanonicalIndexTruth    string
 	CandidateCount         int
 	Collection             string
@@ -113,7 +111,6 @@ type Emitter struct {
 	meter          metric.Meter
 	requestCounter metric.Int64Counter
 	errorCounter   metric.Int64Counter
-	bridgeDuration metric.Float64Histogram
 	logger         *slog.Logger
 }
 
@@ -238,8 +235,6 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("langfuse.release", event.Release),
 		attribute.String("langfuse.trace.tags", langfuseTraceTags(event)),
 		attribute.String("deployment.environment", event.DeploymentEnvironment),
-		attribute.Int64("bridge_duration_ms", event.BridgeDuration.Milliseconds()),
-		attribute.String("bridge_cancel_status", event.BridgeCancelStatus),
 		attribute.String("canonical_index_truth", event.CanonicalIndexTruth),
 		attribute.Int("candidate_count", event.CandidateCount),
 		attribute.String("context_preflight_state", event.ContextPreflightState),
@@ -364,10 +359,6 @@ func (e *Emitter) configureMetrics() {
 	if err == nil {
 		e.errorCounter = errorCounter
 	}
-	bridgeDuration, err := e.meter.Float64Histogram("campus.execution_control.bridge_duration_ms")
-	if err == nil {
-		e.bridgeDuration = bridgeDuration
-	}
 }
 
 func (e *Emitter) recordMetric(event Event) {
@@ -386,13 +377,6 @@ func (e *Emitter) recordMetric(event Event) {
 	}
 	if e.errorCounter != nil && strings.TrimSpace(event.FailureCode) != "" {
 		e.errorCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
-	}
-	if e.bridgeDuration != nil && event.BridgeDuration > 0 {
-		e.bridgeDuration.Record(
-			context.Background(),
-			float64(event.BridgeDuration)/float64(time.Millisecond),
-			metric.WithAttributes(attrs...),
-		)
 	}
 }
 

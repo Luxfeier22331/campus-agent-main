@@ -26,7 +26,7 @@ type IntentEvalObservation struct {
 	ErrorCode              string   `json:"error_code"`
 }
 
-type intentEvalBridgePayload struct {
+type intentEvalExecutionPayload struct {
 	RuntimeDecisions struct {
 		RoutingFrame struct {
 			Capability             string   `json:"capability"`
@@ -70,20 +70,20 @@ func ObserveIntentForEval(
 		}, nil
 	}
 
-	var bridgePayload intentEvalBridgePayload
-	if err := json.Unmarshal(request.Payload, &bridgePayload); err != nil {
+	var executionPayload intentEvalExecutionPayload
+	if err := json.Unmarshal(request.Payload, &executionPayload); err != nil {
 		return IntentEvalObservation{}, err
 	}
-	frame := bridgePayload.RuntimeDecisions.RoutingFrame
-	handoff := bridgePayload.RuntimeDecisions.Handoff
-	summary := bridgePayload.RuntimeDecisions.RuntimeDecisionSummary
+	frame := executionPayload.RuntimeDecisions.RoutingFrame
+	handoff := executionPayload.RuntimeDecisions.Handoff
+	summary := executionPayload.RuntimeDecisions.RuntimeDecisionSummary
 	selectedCapability := "none"
 	if handoff.Capability != "" {
 		selectedCapability = handoff.Capability
 	} else if summary.SelectedCapability != "" {
 		selectedCapability = summary.SelectedCapability
 	}
-	terminalStatus := bridgePayload.RuntimeDecisions.TerminalEnvelope.Status
+	terminalStatus := executionPayload.RuntimeDecisions.TerminalEnvelope.Status
 	if terminalStatus == "" {
 		terminalStatus = summary.TerminalOutcome
 	}
@@ -109,7 +109,7 @@ func ObserveIntentForEval(
 
 func canonicalIntentEvalErrorCode(code string) string {
 	if code == "invalid_request" {
-		return "invalid_supervisor_request"
+		return "invalid_execution_request"
 	}
 	return code
 }

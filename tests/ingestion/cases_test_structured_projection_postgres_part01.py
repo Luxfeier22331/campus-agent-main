@@ -154,6 +154,7 @@ class StructuredProjectionPostgresPublisherTestPart01(unittest.TestCase):
                 {
                     "source_notice_id": "355881",
                     "source_ref": "notice:muc_internal_portal:355881",
+                    "source_url": "https://my.muc.edu.cn/#/print?type=5&notice_id=355881&show_type=1",
                     "source_notice_release_time": "2026-04-25T16:26:00+08:00",
                     "admitted_at": "2026-04-28T08:30:00+08:00",
                     "materialized_at": "2026-04-28T09:00:00+08:00",
@@ -189,6 +190,10 @@ class StructuredProjectionPostgresPublisherTestPart01(unittest.TestCase):
         )
         release_notice_payload = json.loads(cursor.execute_calls[release_notice_index][1][0])
         self.assertEqual(release_notice_payload[0]["source_notice_id"], "355881")
+        self.assertEqual(
+            release_notice_payload[0]["source_url"],
+            "https://my.muc.edu.cn/#/print?type=5&notice_id=355881&show_type=1",
+        )
         self.assertEqual(
             release_notice_payload[0]["source_notice_release_time"],
             "2026-04-25T16:26:00+08:00",

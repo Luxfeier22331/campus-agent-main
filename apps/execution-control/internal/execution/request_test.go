@@ -7,7 +7,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 )
 
-func TestParseAnswerRequestProjectsBearerRequestIntoBridgePayload(t *testing.T) {
+func TestParseAnswerRequestProjectsBearerRequestIntoExecutionPayload(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"library hours",

@@ -15,7 +15,7 @@ services:
       traefik.http.routers.otel-collector-staging.tls: "true"
       traefik.http.services.otel-collector-staging.loadbalancer.server.port: "4318"
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - proxy
 
   execution-control:
@@ -30,7 +30,7 @@ services:
       traefik.http.routers.execution-control-staging.tls: "true"
       traefik.http.services.execution-control-staging.loadbalancer.server.port: "8000"
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
       - proxy
 
@@ -45,7 +45,7 @@ services:
       traefik.http.routers.langfuse-staging.tls: "true"
       traefik.http.services.langfuse-staging.loadbalancer.server.port: "3000"
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - proxy
 
   activity-worker-knowledge-retrieval:

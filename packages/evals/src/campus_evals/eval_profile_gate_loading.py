@@ -177,20 +177,20 @@ def _online_answer_observation_from_response(
     payload = response.json()
     answer = _mapping(payload.get("answer") or {}, "answer")
     result = _mapping(answer.get("result") or {}, "answer.result")
-    supervisor = payload.get("supervisor") if isinstance(payload.get("supervisor"), dict) else {}
+    execution = payload.get("execution") if isinstance(payload.get("execution"), dict) else {}
     request_id = str(result.get("requestId") or response.headers.get("x-request-id") or "")
     trace_id = str(result.get("traceId") or response.headers.get("x-trace-id") or "")
     selected_capability = str(
-        supervisor.get("selectedCapability")
-        or supervisor.get("selected_capability")
+        execution.get("selectedCapability")
+        or execution.get("selected_capability")
         or result.get("selectedCapability")
         or result.get("selected_capability")
         or "none"
     )
-    terminal_status = str(supervisor.get("status") or result.get("status") or "")
+    terminal_status = str(execution.get("status") or result.get("status") or "")
     fail_close_reason = str(
-        supervisor.get("failCloseReason")
-        or supervisor.get("fail_close_reason")
+        execution.get("failCloseReason")
+        or execution.get("fail_close_reason")
         or result.get("failCloseReason")
         or result.get("fail_close_reason")
         or ""

@@ -36,7 +36,7 @@ func ExtractIncomingContext(ctx context.Context, headers http.Header) context.Co
 	return runtimeTextMapPropagator.Extract(ctx, carrier)
 }
 
-func InjectBridgeTraceHeaders(ctx context.Context, requestID string, traceID string) map[string]string {
+func InjectRuntimeTraceHeaders(ctx context.Context, requestID string, traceID string) map[string]string {
 	headers := http.Header{}
 	runtimeTextMapPropagator.Inject(ctx, propagation.HeaderCarrier(headers))
 

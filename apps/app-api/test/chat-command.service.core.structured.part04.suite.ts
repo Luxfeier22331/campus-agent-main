@@ -14,7 +14,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
 				error: null,
@@ -56,7 +56,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-04-11T10:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		await service.submit({

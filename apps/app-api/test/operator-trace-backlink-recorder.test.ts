@@ -25,7 +25,7 @@ describe("operator trace backlink recorder", () => {
 		});
 
 		await recorder.record({
-			errorCode: "supervisor_timeout",
+			errorCode: "execution_control_timeout",
 			requestId: "req_01HQ",
 			selectedCapability: "knowledge",
 			surface: "campus_web",
@@ -36,8 +36,8 @@ describe("operator trace backlink recorder", () => {
 			payload: {
 				backlinks: [
 					{
-						issueFingerprint: "supervisor_timeout:knowledge",
-						issueLink: "https://axiom.example/query?request=req_01HQ&error=supervisor_timeout",
+						issueFingerprint: "execution_control_timeout:knowledge",
+						issueLink: "https://axiom.example/query?request=req_01HQ&error=execution_control_timeout",
 						requestId: "req_01HQ",
 						traceId: "trace_01HQ",
 						traceLink: "https://sentry.example/traces/trace_01HQ",
@@ -63,7 +63,7 @@ describe("operator trace backlink recorder", () => {
 		});
 
 		await recorder.record({
-			errorCode: "bridge_failed",
+			errorCode: "runtime_failed",
 			requestId: "req_01HQ",
 			selectedCapability: null,
 			surface: "app_api",
@@ -74,7 +74,7 @@ describe("operator trace backlink recorder", () => {
 			payload: {
 				backlinks: [
 					{
-						issueFingerprint: "bridge_failed:app_api",
+						issueFingerprint: "runtime_failed:app_api",
 						issueLink: null,
 						requestId: "req_01HQ",
 						traceId: "trace_01HQ",

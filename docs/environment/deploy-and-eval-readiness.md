@@ -55,8 +55,8 @@ uv run --all-packages python -m scripts.doctor_env <surface> --json
 from Worker staging:
 
 - shared LLM provider resolution
-- supervisor / agent prompt model selection
-- bridge base URL / shared secret
+- execution / agent prompt model selection
+- execution-control base URL / shared secret
 - prompt HTTP timeout and connection-pool tuning keys
 - async audit queue capacity
 - answer admission and worker-thread tuning keys
@@ -79,7 +79,7 @@ Runtime `/readyz` is stricter than liveness:
 - outside the `local` runtime profile, execution-control full `/readyz` requires
   internal worker auth and must not be used as an unauthenticated public deploy
   probe; public staging closure should use `app-api /readyz`, which performs the
-  supervisor readiness probe with the configured shared secret
+  execution-control readiness probe with the configured shared secret
 - `/readyz` is still not a full deploy closure; deploy readiness also depends
   on config truth, smoke, and evidence artifacts
 

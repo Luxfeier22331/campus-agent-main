@@ -41,14 +41,10 @@ Current status:
 - Owns Go RAG lookup via Qdrant native adapter and Go provider-backed synthesis;
   provider usage, estimated cost, cancel outcome and timeout outcome are written
   to sanitized step attempt/result projection.
-- Retired Python bridge env and bridge breaker env are rejected by config parsing;
-  they are not serving compatibility knobs.
 - Owns deterministic runtime planning in `internal/structuredplanning`,
   including RAG DTO projection and structured campus-services / notice payload
   projection; `internal/execution` adapts request projection into current
   runtime decisions.
-- Retired bridge v6 handoff artifacts may remain for offline/eval compatibility
-  tests; they are not an active online serving compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
   preflight, query-enabled scope admission, and structured tool policy version.
@@ -58,7 +54,7 @@ Current status:
 - Owns Temporal workflow command admission and sanitized run projection writes.
   Terminal answer delivery is read from product projection through `app-api`,
   not from a synchronous execution-control answer endpoint.
-- Owns the primary agent activity bridge configuration:
+- Owns the primary agent activity runtime configuration:
   `EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL`,
   `EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET`, and
   `EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS`. Missing agent runtime config
@@ -90,9 +86,9 @@ Current status:
 - Repo-local `Phase 8-12` implementation is in place: the structured query runtime
   foundation and transport schedule query kernel are landed without opening
   `campus_services` product serving.
-- Python `apps/supervisor-agent-worker` has been removed from the active
-  workspace. Historical bridge code is recoverable only through git history and
-  is not part of readiness aggregation or worker topology.
+- The retired Python semantic worker has been removed from the active
+  workspace. Historical code is recoverable only through git history and is not
+  part of readiness aggregation or worker topology.
 - Repo-local lifecycle streaming is owned by `app-api` over projection/event
   reads. `execution-control` does not expose the retired lifecycle answer SSE
   endpoint.
@@ -109,9 +105,6 @@ Current admission boundary:
   `default`.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
-- Retired bridge settings and retired Python worker settings fail closed in
-  online execution-control config. Do not use them as local or staging runtime
-  inputs.
 - The runtime profile points at the Go-owned query-serving scope allowlist,
   intent policy artifact, and online provider pricing catalog. `/readyz` fails
   closed when any required artifact is missing or when an admitted online model
@@ -125,7 +118,7 @@ Current cancellation boundary:
 - Activity cancel/timeout is projected through step attempts. Go lookup/provider
   adapters must use cancellable context and record whether downstream work was
   aborted, timed out, completed before cancel, or remained `abort_unproven`.
-- Old request-id cancel route and Python cooperative bridge cancel are retired
+- Old request-id cancel route and Python cooperative runtime cancel are retired
   from online serving.
 
 Current structured query runtime boundary:
@@ -198,7 +191,7 @@ Current observability boundary:
   into Temporal activity projection.
 - Execution audit backflow is disabled by default. When enabled, Go
   `apps/execution-control` sends only safe runtime event summaries for admission
-  rejection, cancel, bridge failure, and timeout to `app-api`; it never includes
+  rejection, cancel, runtime failure, and timeout to `app-api`; it never includes
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
   or provider response. The runtime decision summary is limited to low-cardinality
   labels such as scope gate, policy gate, context preflight, routing next action,

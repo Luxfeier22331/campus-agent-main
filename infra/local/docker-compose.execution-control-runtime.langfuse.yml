@@ -59,7 +59,7 @@ services:
       LANGFUSE_BULLMQ_SKIP_REDIS_VERSION_CHECK: "false"
       REDIS_TLS_ENABLED: "false"
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   langfuse-web:
     image: docker.io/langfuse/langfuse:3
@@ -104,7 +104,7 @@ services:
       retries: 30
       start_period: 120s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   langfuse-clickhouse:
     image: docker.io/clickhouse/clickhouse-server:latest
@@ -134,7 +134,7 @@ services:
       retries: 20
       start_period: 20s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   langfuse-minio:
     image: cgr.dev/chainguard/minio:latest
@@ -169,7 +169,7 @@ services:
       retries: 20
       start_period: 20s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   langfuse-redis:
     image: docker.io/redis:7
@@ -200,7 +200,7 @@ services:
     environment:
       LANGFUSE_REDIS_AUTH: ${LANGFUSE_REDIS_AUTH:?set LANGFUSE_REDIS_AUTH}
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   langfuse-postgres:
     image: docker.io/postgres:17-alpine
@@ -229,7 +229,7 @@ services:
       retries: 60
       start_period: 180s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
 volumes:
   langfuse-clickhouse-data:

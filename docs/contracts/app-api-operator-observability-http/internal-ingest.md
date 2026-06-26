@@ -187,10 +187,10 @@ Rules:
 {
   "events": [
     {
-      "event_id": "execution-control:req_01HQ:execution.bridge_failed",
+      "event_id": "execution-control:req_01HQ:execution.runtime_failed",
       "request_id": "req_01HQ",
       "trace_id": "trace_01HQ",
-      "event_type": "execution.bridge_failed",
+      "event_type": "execution.runtime_failed",
       "occurred_at": "2026-04-24T10:00:00.000Z",
       "lane": "rag",
       "requested_capability": "knowledge",
@@ -199,8 +199,7 @@ Rules:
       "http_status": 504,
       "retryable": true,
       "duration_ms": 35012,
-      "queue_wait_ms": 12,
-      "bridge_duration_ms": 35000
+      "queue_wait_ms": 12
     }
   ]
 }

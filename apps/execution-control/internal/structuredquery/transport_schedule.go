@@ -82,6 +82,15 @@ type transportOperationalNoticeRecord struct {
 	OperationalComment string   `json:"operational_comment"`
 }
 
+type transportReleaseNoticeRecord struct {
+	SourceNoticeID          string `json:"source_notice_id"`
+	SourceRef               string `json:"source_ref"`
+	SourceURL               string `json:"source_url"`
+	SourceNoticeReleaseTime string `json:"source_notice_release_time"`
+	AdmittedAt              string `json:"admitted_at"`
+	MaterializedAt          string `json:"materialized_at"`
+}
+
 type transportSnapshotSelection struct {
 	record  transportScheduleSnapshotRecord
 	outcome string

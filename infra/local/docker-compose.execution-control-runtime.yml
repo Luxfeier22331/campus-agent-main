@@ -27,7 +27,7 @@ services:
       retries: 60
       start_period: 180s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   temporal:
     image: temporalio/auto-setup:1.29.6.1
@@ -59,7 +59,7 @@ services:
       retries: 60
       start_period: 180s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   temporal-namespace-setup:
     image: temporalio/admin-tools:1.29.6.1-tctl-1.18.4-cli-1.7.0
@@ -82,7 +82,7 @@ services:
             temporal operator namespace create --namespace "$${namespace}" --retention 30d
         done
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   temporal-ui:
     image: temporalio/ui:2.43.3
@@ -103,7 +103,7 @@ services:
     ports:
       - "${TEMPORAL_UI_HOST_PORT:-127.0.0.1:8233}:8080"
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   hindsight-postgres:
     image: pgvector/pgvector:pg18
@@ -136,7 +136,7 @@ services:
       retries: 60
       start_period: 180s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   hindsight-api:
     build:
@@ -182,7 +182,7 @@ services:
       retries: 60
       start_period: 180s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.127.0
@@ -229,7 +229,7 @@ services:
       retries: 12
       start_period: 10s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   execution-control:
     init: true
@@ -326,7 +326,7 @@ services:
       retries: 12
       start_period: 20s
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   worker-autoscaler-bin:
@@ -349,7 +349,7 @@ services:
     volumes:
       - execution-control-runtime-bin:/runtime-bin
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   agent-runtime:
     init: true
@@ -380,7 +380,7 @@ services:
       retries: 12
       start_period: 20s
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   workflow-worker:
     init: true
@@ -422,7 +422,7 @@ services:
       EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT: ${EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT:?set EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT}
       EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS: ${EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS:-30000}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-agent:
@@ -474,7 +474,7 @@ services:
     volumes:
       - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-context:
@@ -518,7 +518,7 @@ services:
       PERSONAL_MEMORY_API_SECRET: ${PERSONAL_MEMORY_API_SECRET}
       PERSONAL_MEMORY_OWNER_SALT: ${PERSONAL_MEMORY_OWNER_SALT}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-knowledge-plan:
@@ -562,7 +562,7 @@ services:
       INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
       INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-knowledge-retrieval:
@@ -625,7 +625,7 @@ services:
       - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
       - ${QDRANT_TLS_DIR:-./infra/local/qdrant-tls}:${QDRANT_TLS_DIR:-/etc/campus-agent/qdrant/tls}:ro
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-knowledge-synthesis:
@@ -675,7 +675,7 @@ services:
     volumes:
       - ${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH}:${CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH:?set CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH}:ro
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-campus-services:
@@ -725,7 +725,7 @@ services:
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}
       EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES: ${EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES:-1048576}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-notice:
@@ -775,7 +775,7 @@ services:
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}
       EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES: ${EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES:-1048576}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-navigation:
@@ -825,7 +825,7 @@ services:
       EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET: ${EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET:-}
       EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES: ${EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES:-1048576}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   activity-worker-finalization:
@@ -868,7 +868,7 @@ services:
       INTERNAL_NOTICE_READ_MODEL_DATABASE_URL: ${INTERNAL_NOTICE_READ_MODEL_DATABASE_URL:-}
       INTERNAL_NOTICE_READ_MODEL_TABLE: ${INTERNAL_NOTICE_READ_MODEL_TABLE:-ingestion_projection.internal_notice_read_model}
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - data-plane
 
   temporal-task-queue-sampler:
@@ -908,7 +908,7 @@ services:
       EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE:-campus-agent.workflow}
       EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY: ${EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY:?set EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY}
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
   worker-autoscaler:
     profiles: ["ops-proof"]
@@ -954,10 +954,10 @@ services:
       - execution-control-runtime-bin:/runtime-bin:ro
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
-      - supervisor-runtime
+      - execution-runtime
 
 networks:
-  supervisor-runtime:
+  execution-runtime:
     name: ${EXECUTION_CONTROL_RUNTIME_INTERNAL_NETWORK:-campus-execution-control-runtime}
   data-plane:
     external: true

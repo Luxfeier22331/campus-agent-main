@@ -7,7 +7,7 @@
 	"result": null,
 	"error": {
 		"code": "execution_timeout",
-		"message": "Supervisor execution timed out.",
+		"message": "Execution timed out.",
 		"retryable": true
 	},
 	"workflow_trace_summary": {

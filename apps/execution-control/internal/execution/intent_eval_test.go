@@ -75,7 +75,7 @@ func TestObserveIntentForEvalReportsTerminalOutcomeForClosedPlaceLookup(t *testi
 	}
 }
 
-func TestObserveIntentForEvalMapsInvalidEnvelopeToSupervisorErrorCode(t *testing.T) {
+func TestObserveIntentForEvalMapsInvalidEnvelopeToExecutionErrorCode(t *testing.T) {
 	observed, err := ObserveIntentForEval(
 		json.RawMessage(`{
 			"user_goal":"图书馆在哪里",
@@ -93,8 +93,8 @@ func TestObserveIntentForEvalMapsInvalidEnvelopeToSupervisorErrorCode(t *testing
 	if err != nil {
 		t.Fatalf("unexpected eval error: %#v", err)
 	}
-	if observed.ErrorCode != "invalid_supervisor_request" {
-		t.Fatalf("error_code = %q, want invalid_supervisor_request", observed.ErrorCode)
+	if observed.ErrorCode != "invalid_execution_request" {
+		t.Fatalf("error_code = %q, want invalid_execution_request", observed.ErrorCode)
 	}
 }
 

@@ -91,7 +91,7 @@ export function registerChatCommandServiceObservabilityDiagnosticsSuite(): void 
 		});
 	});
 
-	it("keeps requested scope empty and records resolved curriculum scope when supervisor selects the serving surface", async () => {
+	it("keeps requested scope empty and records resolved curriculum scope when executionClient selects the serving surface", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const service = buildChatCommandService({

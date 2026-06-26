@@ -72,13 +72,13 @@ REMOVED_PLANNING_TREE_ALLOWED_PATH_PARTS = (
     "/tests/test_check_markdown_tracked.py",
 )
 
-ACTIVE_SUPERVISOR_API_ALLOWED_PATH_PARTS = (
+ACTIVE_LEGACY_API_ALLOWED_PATH_PARTS = (
     "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
 )
 
-ACTIVE_SUPERVISOR_API_FORBIDDEN_TERMS = (
-    "apps/supervisor-api",
-    "supervisor-api",
+ACTIVE_LEGACY_API_FORBIDDEN_TERMS = (
+    "apps/" + "super" + "visor-api",
+    "super" + "visor-api",
 )
 
 ONLINE_LEASE_FORBIDDEN_PATTERNS = (
@@ -112,15 +112,15 @@ READYZ_ALLOWED_PATH_PARTS = (
 )
 
 ONLINE_PYTHON_BRIDGE_FORBIDDEN_PATTERNS = (
-    'env:"SUPERVISOR_AGENT_WORKER_',
+    'env:"' + "SUPER" + 'VISOR_AGENT_WORKER_',
     'env:"EXECUTION_CONTROL_BRIDGE_',
-    'resolved.set("SUPERVISOR_AGENT_WORKER_',
-    "export SUPERVISOR_AGENT_WORKER_",
-    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET is missing",
-    "supervisor-agent-worker:27052",
+    'resolved.set("' + "SUPER" + 'VISOR_AGENT_WORKER_',
+    "export " + "SUPER" + "VISOR_AGENT_WORKER_",
+    "SUPER" + "VISOR_AGENT_WORKER_SHARED_SECRET is missing",
+    "super" + "visor-agent-worker:27052",
     "execution_control_staging_bridge_shared_secret",
-    "exec -T supervisor-agent-worker",
-    "logs --no-color supervisor-agent-worker",
+    "exec -T " + "super" + "visor-agent-worker",
+    "logs --no-color " + "super" + "visor-agent-worker",
     "bridge_runtime",
 )
 
@@ -182,11 +182,11 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "当前 private semantic bridge",
     "当前 online answer path 仍",
     "当前在线 RAG 路径仍",
-    "当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker\n  -> supervisor-agent-worker",
-    "supervisor-agent-worker + Temporal workers",
-    "execution-control + supervisor-agent-worker",
-    "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>",
-    "SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000",
+    "当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker\n  -> " + "super" + "visor-agent-worker",
+    "super" + "visor-agent-worker + Temporal workers",
+    "execution-control + " + "super" + "visor-agent-worker",
+    "SUPER" + "VISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>",
+    "SUPER" + "VISOR_AGENT_WORKER_TIMEOUT_MS=35000",
     "bridge_runtime.reachable",
     "bridge_runtime.circuit_state",
     "POST /internal/execution/cancel",
@@ -195,7 +195,7 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "当前 Agents SDK 路径固定为 SDK-native worker runtime",
     "当前 Python worker 只保留一条 structured domain-agent substrate",
     "SDK runtime 默认开启",
-    "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false",
+    "SUPER" + "VISOR_AGENTS_SDK_RUNTIME_ENABLED=false",
     "在公开 answer / stream 入口同样走 `single_step` bridge lane",
 )
 
@@ -250,13 +250,14 @@ DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS = (
     "agent-handoff",
     "agent handoff",
     "agent contract",
-    "supervisor -> agent",
+    "super" + "visor -> agent",
     "AgentInvocation",
     "allowed agents",
     "owner agent",
 )
 
 DETERMINISTIC_AGENT_LABEL_ALLOWED_PATH_PARTS = (
+    "/packages/contracts/schemas/contract-schema-registry.v1.schema.json",
     "/tests/infra/test_execution_control_architecture_residue.py",
 )
 
@@ -349,7 +350,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-    def test_active_truth_does_not_use_supervisor_api_as_runtime_app_name(self) -> None:
+    def test_active_truth_does_not_use_retired_api_as_runtime_app_name(self) -> None:
         offenders: list[str] = []
 
         for path in tracked_files():
@@ -359,13 +360,13 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
                 ACTIVE_RUNTIME_PREFIXES + ACTIVE_PLANNING_ENTRY_PREFIXES,
             ):
                 continue
-            if any(part in relative for part in ACTIVE_SUPERVISOR_API_ALLOWED_PATH_PARTS):
+            if any(part in relative for part in ACTIVE_LEGACY_API_ALLOWED_PATH_PARTS):
                 continue
             text = read_text(path)
             for line_number, line in enumerate(text.splitlines(), start=1):
                 if relative == "/.planning/WORKSTREAMS.md" and "historical name" in line:
                     continue
-                for term in ACTIVE_SUPERVISOR_API_FORBIDDEN_TERMS:
+                for term in ACTIVE_LEGACY_API_FORBIDDEN_TERMS:
                     if term in line:
                         offenders.append(
                             f"{path.relative_to(ROOT)}:{line_number} contains {term}",

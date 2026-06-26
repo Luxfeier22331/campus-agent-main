@@ -58,7 +58,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				},
 			},
 		] as const;
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(async (input) => {
 				const currentCase = cases.find((candidate) => candidate.prompt === input.userGoal);
 				if (!currentCase) {
@@ -80,7 +80,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		for (const [index, currentCase] of cases.entries()) {

@@ -13,8 +13,6 @@ import (
 )
 
 type Event struct {
-	BridgeDuration        time.Duration
-	BridgeCancelStatus    string
 	ContextPreflightState string
 	Decision              string
 	Duration              time.Duration

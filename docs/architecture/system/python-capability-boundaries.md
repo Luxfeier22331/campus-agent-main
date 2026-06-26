@@ -18,14 +18,14 @@ execution-control 的 ownership，只说明 Python 不再参与 online answer ho
 
 Python 不再拥有 deterministic execution runtime truth。
 
-- `apps/supervisor-agent-worker` 已从 active workspace 删除；旧实现只可通过 git
-  history 追溯
+- retired Python semantic worker 已从 active workspace 删除；旧实现只可通过 git history
+  追溯
 - Go `apps/execution-control` 拥有 admission、routing frame、structured runtime、
   lifecycle、observability、Temporal memory + RAG graph、provider usage/cost projection、
   final response shaping 与 fail-close terminal envelope
 - Python worker 不消费 online Go canonical bridge envelope，也不作为 Temporal activity backend
 - 新增 Python 只能用于明确隔离的 offline ingestion / eval / tooling；不得恢复旧
-  supervisor worker serving bridge
+  online serving bridge
 - Python 不拥有 online RAG provider cancellation、token / estimated cost accounting、
   sanitized step projection、workflow step truth 或 top-level semantic orchestration
 

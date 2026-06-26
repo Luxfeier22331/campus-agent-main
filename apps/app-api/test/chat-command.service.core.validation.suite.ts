@@ -14,7 +14,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 	it("passes explicit versionQuery through validation, capability execution, and request writes", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "2024 版学生手册中图书馆开放到 21:30。",
 				error: null,
@@ -34,7 +34,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 		});
 
 		await service.submit({
@@ -53,7 +53,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			principal: createPrincipal(),
 		});
 
-		expect(supervisor.execute).toHaveBeenCalledWith(
+		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
 				versionQuery: {

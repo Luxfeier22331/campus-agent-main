@@ -269,7 +269,7 @@ class RagasProjectionTest(unittest.TestCase):
 
     def test_build_ragas_projection_accepts_execution_response_shape(self) -> None:
         case = GoldenCase(
-            case_id="ragas-supervisor-1",
+            case_id="ragas-execution-1",
             split="release_gate",
             source_type="expert_authored",
             user_goal="library hours",

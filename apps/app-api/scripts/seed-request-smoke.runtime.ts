@@ -165,7 +165,7 @@ interface ScriptedCapabilityExecutionFixture {
 	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 }
 
-function buildScriptedSupervisor(
+function buildScriptedExecutionClient(
 	scenarios: RequestSmokeSeedScenario[],
 ): ScriptedCapabilityExecutionFixture {
 	let currentIndex = 0;
@@ -196,7 +196,7 @@ function buildScriptedSupervisor(
 function buildScriptedExecutionRuntime(
 	scenarios: RequestSmokeSeedScenario[],
 ): ExecutionControlRuntimeClient {
-	const scripted = buildScriptedSupervisor(scenarios);
+	const scripted = buildScriptedExecutionClient(scenarios);
 	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
 	const runsById = new Map<string, ExecutionControlRun>();
 	return {

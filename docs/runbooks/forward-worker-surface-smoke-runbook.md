@@ -216,7 +216,7 @@ uv run --all-packages python -m scripts.execution_control_process_smoke \
 
 - 不证明 Operator Console 的浏览器 UI 已完成端到端验收
 - 不证明 repo-level 一键多 Worker dev server 拓扑已经全部固化
-- 不证明真实数据库、真实 Better Auth session 或真实 supervisor live execution 已接通
+- 不证明真实数据库、真实 Better Auth session 或真实 execution-control live execution 已接通
 - 不证明 retrieval、grounding 或答案质量达标
 
 ## 与旧 smoke 的关系

@@ -37,7 +37,7 @@ Contract rules:
 
 - 仅允许 repo-owned trusted internal runtime caller 使用
 - 请求头使用 `x-execution-query-auth`，语义为 execution-control owned internal
-  query authorization；不接受旧 supervisor header alias。
+  query authorization；不接受旧 runtime header alias。
 - JSON 命名保持 `snake_case`
 - response body 对齐对应 tool result contract 的 safe typed summary
 - runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw

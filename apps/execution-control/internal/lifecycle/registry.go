@@ -18,7 +18,7 @@ type State string
 const (
 	StateAccepted        State = "accepted"
 	StateQueued          State = "queued"
-	StateRunningBridge   State = "running_bridge"
+	StateRunningRuntime  State = "running_runtime"
 	StateCancelRequested State = "cancel_requested"
 	StateCompleted       State = "completed"
 	StateFailed          State = "failed"

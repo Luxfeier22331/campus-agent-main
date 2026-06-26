@@ -46,7 +46,7 @@ function createCampusPrincipal(): ResolvedAppPrincipal {
 }
 
 describe("docs routes", () => {
-	it("returns docs control-plane readiness without depending on supervisor readiness", async () => {
+	it("returns docs control-plane readiness without depending on executionClient readiness", async () => {
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(null),
 			getAppAuth: vi.fn().mockResolvedValue({}) as never,

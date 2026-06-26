@@ -198,8 +198,7 @@ run command/query contract，不是 browser-facing public API。
 JSON 命名保持 `snake_case`，原因如下：
 
 - 当前 `apps/execution-control` 与 `apps/app-api` 的 active internal DTO 已收口到
-  capability execution wire；旧 supervisor 命名只允许出现在 historical/offline
-  bridge 语境
+  capability execution wire；旧顶层编排命名只允许出现在 historical/offline bridge 语境
 - 这里是 internal execution seam，不是 browser product API
 - 这样可以减少 `app-api -> execution-control` 之间的翻译噪音
 
@@ -322,17 +321,11 @@ browser-facing execution response，也不是 Operator Console query backend。
 - `execution.admission_rejected`
 - `execution.cancel_requested`
 - `execution.cancelled`
-- `execution.bridge_failed`
+- `execution.runtime_failed`
 - `execution.timed_out`
 
-`execution.bridge_failed` 与 `bridge_duration` 是 historical bridge-era event / field
-names，当前 active durable path 不得用它们表达 Temporal activity、typed tool 或
-provider failure。后续 schema cleanup 应迁到 `execution.activity_failed`、
-`execution.provider_failed` 或等价 execution-owned reason code，并同步 app-api /
-Operator Console / eval consumer；在迁移前只能作为 legacy event vocabulary 读取。
-
 payload 只允许 safe runtime summary：lane、requested capability、decision、failure
-kind、HTTP status、retryable、duration、queue wait、execution duration。禁止 raw
+kind、HTTP status、retryable、duration、queue wait。禁止 raw
 `user_goal`、raw prompt、raw answer、raw transcript、auth material、retrieval
 payload 或 provider raw response。
 
@@ -642,9 +635,8 @@ shared product path 已收口为：
   identity header 来恢复最终业务 actor
 - top-level `actor` 不是 canonical request body 的必需字段；如果出现在 trusted-worker
   请求里，只能作为与 `context.actor` 一致的冗余投影
-- Python `apps/supervisor-agent-worker` 已从 active workspace 删除；旧 bridge code
-  只可通过 git history 追溯，不再暴露 public compatibility ingress，也不参与
-  online serving
+- retired Python semantic worker 已从 active workspace 删除；旧 bridge code 只可通过
+  git history 追溯，不再暴露 public compatibility ingress，也不参与 online serving
 
 这不重开 `packages/contracts`，因为 `ActorContext` 本身已经是 accepted shared contract。
 

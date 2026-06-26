@@ -113,7 +113,6 @@ export function createAppTelemetry(
 		async recordExecutionAuditEvent(input) {
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
-					bridge_duration_ms: input.bridgeDurationMs,
 					decision: input.decision,
 					duration_ms: input.durationMs,
 					failure_kind: input.failureKind,

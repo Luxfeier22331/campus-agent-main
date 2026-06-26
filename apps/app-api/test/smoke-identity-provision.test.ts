@@ -73,7 +73,7 @@ describe("app-api smoke identity provisioning", () => {
 				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
 				authShellOrigin: "https://campus-staging.mucwiki-edge.link",
 				executionControlBaseUrl: "https://execution-control.internal",
-				executionControlSharedSecret: "smoke-identity-supervisor-secret",
+				executionControlSharedSecret: "smoke-identity-execution-control-secret",
 			}),
 		).toThrow("operatorDatabaseUrl is required");
 	});

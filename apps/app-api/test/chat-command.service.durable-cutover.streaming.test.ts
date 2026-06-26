@@ -28,7 +28,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes accepted requests as errors when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -71,7 +71,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "accepted",
 			},
 		});
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "conversation_active_run",
@@ -92,7 +92,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("does not expose a resumable accepted event when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -162,7 +162,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				status: "error",
 			},
 		});
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 		expect(executionRuntime.listRunEvents).not.toHaveBeenCalled();
 	});
 
@@ -240,7 +240,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -313,7 +313,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			surface: "campus_web",
 		});
 
-		expect(supervisor.execute).not.toHaveBeenCalled();
+		expect(executionClient.execute).not.toHaveBeenCalled();
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
 				errorCode: "execution_timeout",
@@ -334,7 +334,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const supervisor: CapabilityExecutionClient = {
+		const executionClient: CapabilityExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -441,7 +441,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			});
 		}
 
-		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(executionClient.executeStream).not.toHaveBeenCalled();
 		expect(executionRuntime.createRun).toHaveBeenCalledOnce();
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledWith({
 			afterSequence: 0,

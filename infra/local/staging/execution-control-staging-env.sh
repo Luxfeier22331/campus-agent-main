@@ -599,7 +599,7 @@ function hindsightProviderSlug(provider) {
   return normalized;
 }
 
-function deriveAgentRuntimeBridgeSecret() {
+function deriveAgentRuntimeLinkSecret() {
   const executionControlSecret = envValue("EXECUTION_CONTROL_SHARED_SECRET");
   const internalQuerySecret = envValue("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET");
   if (!executionControlSecret || !internalQuerySecret) {
@@ -607,7 +607,7 @@ function deriveAgentRuntimeBridgeSecret() {
   }
   return crypto
     .createHash("sha256")
-    .update("campus-agent:agent-runtime-bridge:v1\0")
+    .update("campus-agent:agent-runtime-link:v1\0")
     .update(executionControlSecret)
     .update("\0")
     .update(internalQuerySecret)
@@ -863,21 +863,21 @@ if (
   )
 ) {
   dataPlaneErrors.push(
-    "staging supervisor object-store credentials are required: configure shared or derived credential pair",
+    "staging execution-control object-store credentials are required: configure shared or derived credential pair",
   );
 }
-const supervisorNoticeBodyAccessKey = hasDerivedObjectStorePair
+const executionControlNoticeBodyAccessKey = hasDerivedObjectStorePair
   ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY")
   : envValue("STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY");
-const supervisorNoticeBodySecretKey = hasDerivedObjectStorePair
+const executionControlNoticeBodySecretKey = hasDerivedObjectStorePair
   ? envValue("STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY")
   : envValue("STAGING_INGESTION_OBJECT_STORE_SECRET_KEY");
 resolved.set(
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT",
   projectObjectStoreForDocker(envValue("STAGING_INGESTION_OBJECT_STORE_ENDPOINT")),
 );
-resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", supervisorNoticeBodyAccessKey);
-resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", supervisorNoticeBodySecretKey);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY", executionControlNoticeBodyAccessKey);
+resolved.set("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY", executionControlNoticeBodySecretKey);
 resolved.set(
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_REGION",
   envValue("STAGING_INGESTION_OBJECT_STORE_REGION") || "us-east-1",
@@ -1021,7 +1021,7 @@ if (!resolved.has("AGENT_RUNTIME_TOOL_CATALOG_PATH")) {
 const agentRuntimeSharedSecret =
   envValue("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
   envValue("AGENT_RUNTIME_SHARED_SECRET") ||
-  deriveAgentRuntimeBridgeSecret();
+  deriveAgentRuntimeLinkSecret();
 if (
   envValue("EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") &&
   envValue("AGENT_RUNTIME_SHARED_SECRET") &&
@@ -1372,7 +1372,7 @@ execution_control_staging_require_runtime_env_core() {
   fi
 
   if [[ -z "${EXECUTION_CONTROL_METRICS_BEARER_TOKEN:-}" ]]; then
-    echo "EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
+    echo "EXECUTION_CONTROL_METRICS_BEARER_TOKEN is required for staging execution-control metrics." >&2
     return 1
   fi
 
@@ -1447,7 +1447,7 @@ execution_control_staging_require_runtime_env_core() {
   fi
 
   if [[ -z "${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL:-}" ]]; then
-    echo "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL was not projected for primary agent runtime bridge; fix staging env projection." >&2
+    echo "EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL was not projected for primary agent runtime link; fix staging env projection." >&2
     return 1
   fi
   if [[ "${EXECUTION_CONTROL_AGENT_RUNTIME_BASE_URL}" != http://agent-runtime:27062 ]]; then
@@ -1455,7 +1455,7 @@ execution_control_staging_require_runtime_env_core() {
     return 1
   fi
   if [[ -z "${EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET:-}" ]]; then
-    echo "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET was not projected for primary agent runtime bridge; fix staging env projection." >&2
+    echo "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET was not projected for primary agent runtime link; fix staging env projection." >&2
     return 1
   fi
   if [[ -z "${AGENT_RUNTIME_SHARED_SECRET:-}" ]]; then

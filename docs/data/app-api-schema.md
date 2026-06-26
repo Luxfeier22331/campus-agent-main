@@ -170,7 +170,7 @@ details live in split data documents.
 不服务：
 
 - operator request list/detail
-- authorization、routing、memory 或 supervisor admission
+- authorization、routing、memory 或 execution admission
 
 ### Runtime Ownership
 

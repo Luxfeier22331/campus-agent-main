@@ -337,9 +337,8 @@ collector/source admission
 
 ## 长期 execution / agent 形态
 
-- active target terminology 不再使用 `supervisor` 作为主语；历史 ADR、legacy
-  contract 文件名、旧 schema / symbol 中的 `supervisor` 在目标态映射为
-  `Execution Agent Layer`
+- active target terminology 不再使用旧顶层编排名作为主语；历史 ADR、legacy
+  contract 文件名、旧 schema / symbol 在目标态映射为 `Execution Agent Layer`
 - product-level agent 是 `Campus Assistant`；runtime-level agentic logic 位于
   `Execution Agent Layer` 和明确的 semantic specialist / agent-as-tool step。
 - `CapabilityExecutionWorkflow` 是 durable execution substrate；它承载 run lifecycle、

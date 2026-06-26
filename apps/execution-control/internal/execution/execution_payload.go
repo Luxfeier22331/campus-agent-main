@@ -6,21 +6,21 @@ import (
 	"strings"
 )
 
-func BridgePayloadForHandoff(
+func ExecutionPayloadForHandoff(
 	basePayload json.RawMessage,
 	handoff RuntimeHandoff,
 	projections ...StepOutputProjection,
 ) (json.RawMessage, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(basePayload, &payload); err != nil {
-		return nil, fmt.Errorf("decode bridge payload: %w", err)
+		return nil, fmt.Errorf("decode execution payload: %w", err)
 	}
 	decisions, ok := payload["runtime_decisions"].(map[string]any)
 	if !ok {
 		return nil, fmt.Errorf("runtime_decisions must be an object")
 	}
 	selectedTool := selectedToolForRuntimeHandoff(handoff)
-	userGoal := bridgeUserGoalForHandoff(
+	userGoal := executionUserGoalForHandoff(
 		payload["user_goal"],
 		handoff,
 		firstScheduleProjection(projections),
@@ -64,7 +64,7 @@ func BridgePayloadForHandoff(
 	}
 	raw, err := json.Marshal(payload)
 	if err != nil {
-		return nil, fmt.Errorf("encode bridge payload: %w", err)
+		return nil, fmt.Errorf("encode execution payload: %w", err)
 	}
 	return raw, nil
 }
@@ -156,7 +156,7 @@ func firstNoticeChangeSetProjection(projections []StepOutputProjection) StepOutp
 	return projection
 }
 
-func bridgeUserGoalForHandoff(
+func executionUserGoalForHandoff(
 	rawUserGoal any,
 	handoff RuntimeHandoff,
 	scheduleProjection StepOutputProjection,

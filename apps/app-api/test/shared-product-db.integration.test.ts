@@ -264,7 +264,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		};
 		expect(createResponse.status).toBe(201);
 
-		const supervisor: {
+		const executionClient: {
 			execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
 		} = {
 			execute: vi
@@ -316,7 +316,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(env),
 				store: createPgChatCommandStore(env),
-				executionRuntime: createExecutionRuntimeFromCapabilityClient(supervisor),
+				executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
 			}),
 		});
 

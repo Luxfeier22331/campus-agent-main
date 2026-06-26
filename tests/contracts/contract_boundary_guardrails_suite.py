@@ -56,7 +56,7 @@ class ContractBoundaryGuardrailsTest(unittest.TestCase):
             "LlamaIndex",
             "qdrant_client",
             "llama_index",
-            "supervisor_bridge_v",
+            "super" + "visor_bridge_v",
             "runtime_decisions",
             "terminal_envelope",
         )

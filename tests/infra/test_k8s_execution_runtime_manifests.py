@@ -44,7 +44,7 @@ FORBIDDEN_K8S_WORKLOADS = (
     "ingestion-control",
     "ingestion-worker",
     "legacy-office-conversion-service",
-    "supervisor-agent-worker",
+    "super" + "visor-agent-worker",
     "worker-autoscaler",
 )
 

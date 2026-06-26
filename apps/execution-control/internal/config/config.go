@@ -20,18 +20,11 @@ type Config struct {
 	WorkerSharedSecret                  string
 	DefaultActorID                      string
 	DefaultActorRoles                   []string
-	BridgeResponseLimitBytes            int64
-	BridgeBreakerFailureThreshold       int
-	BridgeBreakerOpenMS                 int
-	BridgeRetryMaxAttempts              int
-	BridgeRetryBaseMS                   int
 	MaxConcurrentAnswers                int
 	QueueCapacity                       int
 	QueueTimeoutMS                      int
 	RequestTimeoutMS                    int
 	RequestBodyLimitBytes               int64
-	BridgeTimeoutMS                     int
-	BridgeCancelTimeoutMS               int
 	ShutdownGraceMS                     int
 	MetricsBearerToken                  string
 	IntentPolicyPath                    string
@@ -306,12 +299,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		return Config{}, err
 	}
 	if err := rejectRetiredDurableRecoveryLoopSettings(); err != nil {
-		return Config{}, err
-	}
-	if err := rejectRetiredPythonBridgeSettings(); err != nil {
-		return Config{}, err
-	}
-	if err := rejectRetiredSupervisorSettings(); err != nil {
 		return Config{}, err
 	}
 	if err := rejectRetiredPersonalMemoryQdrantSettings(); err != nil {

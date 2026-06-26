@@ -41,7 +41,6 @@ export interface AppTelemetry {
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
 	recordExecutionAuditEvent(input: {
-		bridgeDurationMs: number | null;
 		decision: string | null;
 		durationMs: number | null;
 		eventType: string;

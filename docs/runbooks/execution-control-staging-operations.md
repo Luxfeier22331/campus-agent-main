@@ -156,9 +156,8 @@ owns the current truth summary and links to executable procedure groups.
   activity worker 与 app-api execution runtime ready。
 - staging 不再使用 PG lease worker loop / recovery loop 作为 online serving path；旧 lease
   表只允许作为 historical migration artifact 存在。
-- `execution-control-control`、`supervisor-scheduler`、`supervisor-recovery`、
-  `supervisor-worker-{lane}` 与 `worker-autoscaler` 是 ADR-0047 时代的历史 target role
-  label；target execution substrate 已由 ADR-0048 收口为
+- ADR-0047 时代的 scheduler / recovery / lane worker label 只作为历史 target role
+  label 存在；target execution substrate 已由 ADR-0048 收口为
   `execution-control` + Temporal workflow/activity worker pools。
 - staging 的 Docker Compose、origin reverse proxy、Cloudflare DNS 与 Cloudflare Access
   只负责部署与连接；不拥有 workflow history、task queue、run projection、event 或
