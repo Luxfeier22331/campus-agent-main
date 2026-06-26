@@ -200,6 +200,9 @@ export function createStreamingOpenAIAgentsRunner(
 			}
 			const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
 			accumulatedVisibleText = nextVisibleText;
+			if (visibleDelta.trim() === "" || nextVisibleText.trim() === "") {
+				continue;
+			}
 			chunkIndex += 1;
 			yield {
 				accumulatedText: accumulatedVisibleText,
@@ -214,7 +217,7 @@ export function createStreamingOpenAIAgentsRunner(
 				throw new Error("streamed answer text drifted from final output");
 			}
 			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
-			if (tail !== "") {
+			if (tail.trim() !== "") {
 				chunkIndex += 1;
 				yield {
 					accumulatedText: finalResult.finalOutput,
@@ -287,18 +290,26 @@ function visibleTextFromPartialTerminalOutput(value: string): string {
 	}
 	switch (kind) {
 		case "answer":
-			return extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value ?? "";
+			return trimStringValue(
+				extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value,
+			);
 		case "clarification_required":
-			return (
-				extractJsonStringFieldPrefix(value, ["followUpQuestion", "follow_up_question"]).value ?? ""
+			return trimStringValue(
+				extractJsonStringFieldPrefix(value, ["followUpQuestion", "follow_up_question"]).value,
 			);
 		case "out_of_scope":
 		case "policy_refusal":
 		case "unsupported_by_evidence":
-			return extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value ?? "";
+			return trimStringValue(
+				extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value,
+			);
 		default:
 			return "";
 	}
+}
+
+function trimStringValue(value: string | undefined): string {
+	return value?.trim() ?? "";
 }
 
 function extractJsonStringFieldPrefix(
