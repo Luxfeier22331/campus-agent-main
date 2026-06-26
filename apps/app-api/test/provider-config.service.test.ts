@@ -46,7 +46,40 @@ describe("provider config service", () => {
 		}
 	});
 
-	it("validates chat-completions prompt providers by message content shape", async () => {
+	it("rejects chat-completions prompt providers that ignore structured response format", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					choices: [{ message: { content: "ok", role: "assistant" } }],
+					id: "chatcmpl_unstructured",
+				}),
+				{ headers: { "content-type": "application/json" }, status: 200 },
+			)) as typeof fetch;
+		try {
+			await expect(
+				defaultValidatePromptProvider({
+					apiKey: "provider-key",
+					baseUrl: "https://provider.example/v1",
+					capabilityConfig: {},
+					dimensions: null,
+					model: "gpt-compatible",
+					provider: "openai-compatible",
+					role: "primary_agent",
+					timeoutMs: 30000,
+					transport: "chat_completions",
+				}),
+			).resolves.toMatchObject({
+				errorCode: "prompt_response_shape_invalid",
+				ok: false,
+				status: "failed",
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("validates chat-completions prompt providers by strict structured message shape", async () => {
 		const observedRequests: Array<{ body: unknown; url: string }> = [];
 		const originalFetch = globalThis.fetch;
 		globalThis.fetch = (async (input, init) => {
@@ -56,7 +89,7 @@ describe("provider config service", () => {
 			});
 			return new Response(
 				JSON.stringify({
-					choices: [{ message: { content: "ok", role: "assistant" } }],
+					choices: [{ message: { content: '{"status":"ok"}', role: "assistant" } }],
 					id: "chatcmpl_compatible",
 				}),
 				{ headers: { "content-type": "application/json" }, status: 200 },
@@ -85,6 +118,19 @@ describe("provider config service", () => {
 						max_tokens: 8,
 						messages: [{ content: "provider config validation", role: "user" }],
 						model: "gpt-compatible",
+						response_format: {
+							json_schema: {
+								name: "provider_config_validation",
+								schema: {
+									additionalProperties: false,
+									properties: { status: { const: "ok", type: "string" } },
+									required: ["status"],
+									type: "object",
+								},
+								strict: true,
+							},
+							type: "json_schema",
+						},
 					},
 					url: "https://provider.example/v1/chat/completions",
 				},
