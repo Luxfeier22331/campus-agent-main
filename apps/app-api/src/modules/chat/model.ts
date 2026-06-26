@@ -403,6 +403,38 @@ function normalizeSecondarySourceActions(value: unknown): ChatSourceAction[] {
 		.slice(0, 2);
 }
 
+function optionalSourceProofFields(value: Record<string, unknown>): Partial<ChatSourceItem> {
+	return {
+		...(normalizeOptionalString(value.accessScope)
+			? { accessScope: normalizeOptionalString(value.accessScope) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.collection)
+			? { collection: normalizeOptionalString(value.collection) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.contentHash)
+			? { contentHash: normalizeOptionalString(value.contentHash) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.documentId)
+			? { documentId: normalizeOptionalString(value.documentId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.evidenceId)
+			? { evidenceId: normalizeOptionalString(value.evidenceId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.evidenceRole)
+			? { evidenceRole: normalizeOptionalString(value.evidenceRole) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.sourceId)
+			? { sourceId: normalizeOptionalString(value.sourceId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.snapshotId)
+			? { snapshotId: normalizeOptionalString(value.snapshotId) ?? undefined }
+			: {}),
+		...(normalizeOptionalString(value.versionId)
+			? { versionId: normalizeOptionalString(value.versionId) ?? undefined }
+			: {}),
+	};
+}
+
 function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	if (!isRecord(value)) {
 		return null;
@@ -421,6 +453,7 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	}
 
 	return {
+		...optionalSourceProofFields(value),
 		targetKind,
 		sourceKind,
 		title,

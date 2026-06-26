@@ -5,9 +5,12 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	buildChatCommandService,
 	createCommandStore,
+	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
+	createExecutionRuntimeFromCapabilityClient,
 	createPrincipal,
+	type FinalizeRequestWrite,
 } from "./chat-command.service.test-support";
 
 describe("chat command service", () => {
@@ -43,5 +46,109 @@ describe("chat command service", () => {
 		expect(legacySupervisor.executeStream).not.toHaveBeenCalled();
 		expect(acceptedWrites).toHaveLength(1);
 		expect(finalWrites).toHaveLength(0);
+	});
+
+	it("carries prior RAG source proof into the next durable execution payload", async () => {
+		const sharedConversation = createConversation();
+		const { finalWrites, store } = createCommandStore({ conversation: sharedConversation });
+		const { store: conversationStore } = createConversationStore({
+			conversation: sharedConversation,
+		});
+		const execute = vi
+			.fn()
+			.mockResolvedValueOnce({
+				answerText: "国家奖学金要求学习成绩排名和综合测评排名均在前10%。",
+				error: null,
+				followUpQuestion: "",
+				result: {
+					evidence: {
+						sources: [
+							{
+								chunk_id:
+									"handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+								collection: "student_rules",
+								doc_id: "handbook:55f7",
+								snippet: "所评学年学习成绩排名与综合测评排名均位于前10%以内。",
+								source_ref: "campus-agent://regulations/student_rules/docs/handbook:55f7",
+								source_title: "中央民族大学本科学生国家奖学金评审办法",
+								structural_ref:
+									"span://handbook:55f7/handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+							},
+						],
+					},
+				},
+				selectedCapability: "knowledge",
+				status: "completed",
+				traceId: "trace_0001",
+			})
+			.mockResolvedValueOnce({
+				answerText: "第二条指单科成绩不能低于80分。",
+				error: null,
+				followUpQuestion: "",
+				result: {},
+				selectedCapability: null,
+				status: "completed",
+				traceId: "trace_0002",
+			});
+		const executionRuntime = createExecutionRuntimeFromCapabilityClient({ execute });
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-04-27T09:00:00.000Z"),
+			conversationStore,
+			store,
+			executionRuntime,
+		});
+
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "国家奖学金申请条件是什么",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		});
+		await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "第二条具体是什么意思",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		});
+
+		const firstFinalWrite = finalWrites[0] as FinalizeRequestWrite | undefined;
+		expect(firstFinalWrite?.assistantMessage.structuredParts).toEqual([
+			{
+				sourceItems: [
+					expect.objectContaining({
+						accessScope: "public",
+						contentHash:
+							"sha256:handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+						sourceId: "campus-agent://regulations/student_rules/docs/handbook:55f7",
+					}),
+				],
+				type: "source_items",
+			},
+		]);
+		const secondCreateRunInput = vi.mocked(executionRuntime.createRun).mock.calls[1]?.[0];
+		const executionPayload = secondCreateRunInput?.metadata.execution_payload as
+			| Record<string, unknown>
+			| undefined;
+		const context = executionPayload?.context as Record<string, unknown> | undefined;
+		const conversationPayload = context?.conversation as Record<string, unknown> | undefined;
+		expect(conversationPayload?.previous_evidence_refs).toEqual([
+			expect.objectContaining({
+				access_scope: "public",
+				content_hash:
+					"sha256:handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+				document_id: "handbook:55f7",
+				evidence_id:
+					"handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+				source_id: "campus-agent://regulations/student_rules/docs/handbook:55f7",
+				title: "中央民族大学本科学生国家奖学金评审办法",
+				version_id:
+					"span://handbook:55f7/handbook:55f7:source-faithful:v1:d18cc0664629829168c0562e2b22c3982b35371e:chunk-0019",
+			}),
+		]);
 	});
 });
