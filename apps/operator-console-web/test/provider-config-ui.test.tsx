@@ -159,4 +159,52 @@ describe("provider config UI", () => {
 			expect(within(row).getByText("provider unavailable")).toBeInTheDocument();
 		});
 	});
+
+	it("creates OpenAI-compatible chat-completions prompt profiles for non-OpenAI endpoints", async () => {
+		const fetchSpy = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(mockProfileList([]))
+			.mockResolvedValueOnce(
+				new Response(JSON.stringify({ profile: { profileId: "provider_profile_created" } }), {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+			);
+
+		renderWithQueryClient(<ProviderConfigPage />);
+
+		await screen.findByText("暂无模型服务配置");
+		fireEvent.change(screen.getByLabelText("模型名称"), { target: { value: "gpt-compatible" } });
+		fireEvent.change(screen.getByLabelText("服务端点"), {
+			target: { value: "https://llm-compatible.example/v1" },
+		});
+		fireEvent.change(screen.getByLabelText("密钥"), { target: { value: "provider-key" } });
+		const transportSelect = document.querySelectorAll("select")[1];
+		if (transportSelect === undefined) {
+			throw new Error("provider transport select was not rendered");
+		}
+		fireEvent.change(transportSelect, { target: { value: "chat_completions" } });
+		fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+
+		await waitFor(() => {
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/operator/provider-config/profiles",
+				expect.objectContaining({ method: "POST" }),
+			);
+		});
+		const [, init] =
+			fetchSpy.mock.calls.find(
+				(call) =>
+					call[0] === "/api/operator/provider-config/profiles" && call[1]?.method === "POST",
+			) ?? [];
+		const payload = JSON.parse(String(init?.body));
+		expect(payload).toMatchObject({
+			baseUrl: "https://llm-compatible.example/v1",
+			kind: "prompt",
+			model: "gpt-compatible",
+			provider: "openai-compatible",
+			role: "primary_agent",
+			transport: "chat_completions",
+		});
+	});
 });

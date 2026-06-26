@@ -196,6 +196,43 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
+	it("accepts chat-completions prompt provider profiles at the HTTP boundary", async () => {
+		let observedProvider: unknown;
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run(input) {
+					observedProvider = input.providerConfig;
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
+				},
+				stream(input) {
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).stream(input);
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: {
+						...validPromptProviderConfig(),
+						provider: "openai-compatible",
+						transport: "chat_completions",
+					},
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(observedProvider).toMatchObject({
+			provider: "openai-compatible",
+			transport: "chat_completions",
+		});
+	});
+
 	it("streams primary agent answer deltas before the terminal result", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",

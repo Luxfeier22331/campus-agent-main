@@ -1,4 +1,5 @@
 export type ProviderConfigKind = "embedding" | "prompt";
+export type ProviderConfigTransport = "chat_completions" | "embeddings" | "responses";
 export type ProviderConfigStatus = "active" | "draft" | "validation_failed" | "validated";
 export type ProviderConfigRole =
 	| "eval_judge_llm"
@@ -45,10 +46,10 @@ export interface ProviderConfigCreatePayload {
 	dimensions?: number;
 	kind: ProviderConfigKind;
 	model: string;
-	provider: "openai";
+	provider: "openai" | "openai-compatible";
 	role: ProviderConfigRole;
 	timeoutMs: number;
-	transport: "embeddings" | "responses";
+	transport: ProviderConfigTransport;
 }
 
 export interface ProviderConfigUpdatePayload {
@@ -57,5 +58,5 @@ export interface ProviderConfigUpdatePayload {
 	dimensions?: number;
 	model?: string;
 	timeoutMs?: number;
-	transport?: "embeddings" | "responses";
+	transport?: ProviderConfigTransport;
 }

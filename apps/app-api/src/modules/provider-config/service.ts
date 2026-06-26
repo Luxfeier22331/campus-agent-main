@@ -538,8 +538,10 @@ function normalizeTransport(value: unknown, kind: ProviderConfigKind): string {
 	if (!/^[a-z0-9][a-z0-9_-]{1,62}$/.test(transport)) {
 		throw validationError("transport must be a lowercase transport slug.", { field: "transport" });
 	}
-	if (kind === "prompt" && transport !== "responses") {
-		throw validationError("transport must be responses.", { field: "transport" });
+	if (kind === "prompt" && transport !== "responses" && transport !== "chat_completions") {
+		throw validationError("transport must be responses or chat_completions.", {
+			field: "transport",
+		});
 	}
 	if (kind === "embedding" && transport !== "embeddings" && transport !== "openai_embeddings") {
 		throw validationError("transport must be embeddings.", { field: "transport" });

@@ -58,19 +58,20 @@ export function openAIAgentsRunnerOptionsFromProviderConfig(
 	if (model === undefined) {
 		throw new Error("provider model is required for agent-runtime");
 	}
-	if (trimmed(config.transport) !== "responses") {
-		throw new Error("provider transport must be responses for agent-runtime");
+	const transport = trimmed(config.transport);
+	if (transport !== "responses" && transport !== "chat_completions") {
+		throw new Error("provider transport must be responses or chat_completions for agent-runtime");
 	}
 	const provider = trimmed(config.provider);
-	if (provider !== undefined && provider !== "openai") {
-		throw new Error("provider must be openai for agent-runtime");
+	if (provider !== undefined && provider !== "openai" && provider !== "openai-compatible") {
+		throw new Error("provider must be openai or openai-compatible for agent-runtime");
 	}
 	return {
 		model,
 		modelProvider: createProvider({
 			apiKey,
 			baseURL: trimmed(config.baseUrl),
-			useResponses: true,
+			useResponses: transport === "responses",
 		}),
 	};
 }

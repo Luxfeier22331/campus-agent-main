@@ -9,12 +9,8 @@ export async function defaultValidatePromptProvider(
 	input: Parameters<ProviderConfigValidators["validatePrompt"]>[0],
 ): Promise<ProviderConfigValidationResult> {
 	try {
-		const response = await fetch(`${input.baseUrl}/responses`, {
-			body: JSON.stringify({
-				input: "provider config validation",
-				max_output_tokens: 8,
-				model: input.model,
-			}),
+		const response = await fetch(promptValidationUrl(input), {
+			body: JSON.stringify(promptValidationPayload(input)),
 			headers: {
 				authorization: `Bearer ${input.apiKey}`,
 				"content-type": "application/json",
@@ -30,6 +26,15 @@ export async function defaultValidatePromptProvider(
 				status: "failed",
 			};
 		}
+		const payload = await response.json();
+		if (!promptValidationResponseLooksUsable(input.transport, payload)) {
+			return {
+				errorCode: "prompt_response_shape_invalid",
+				message: `prompt provider ${input.transport} response shape is not compatible.`,
+				ok: false,
+				status: "failed",
+			};
+		}
 		return { message: "prompt provider validated", ok: true, status: "passed" };
 	} catch (error) {
 		return {
@@ -39,6 +44,54 @@ export async function defaultValidatePromptProvider(
 			status: "failed",
 		};
 	}
+}
+
+function promptValidationResponseLooksUsable(transport: string, payload: unknown): boolean {
+	const record = recordFromUnknown(payload);
+	if (record === undefined) {
+		return false;
+	}
+	if (transport === "chat_completions") {
+		const choice = Array.isArray(record.choices) ? record.choices[0] : undefined;
+		const message = recordFromUnknown(recordFromUnknown(choice)?.message);
+		return typeof message?.content === "string" && message.content.trim() !== "";
+	}
+	const outputItem = Array.isArray(record.output) ? record.output[0] : undefined;
+	const output = recordFromUnknown(outputItem);
+	return (
+		output?.type === "message" &&
+		(output.status === "in_progress" ||
+			output.status === "completed" ||
+			output.status === "incomplete")
+	);
+}
+
+function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
+	return value !== null && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function promptValidationUrl(input: Parameters<ProviderConfigValidators["validatePrompt"]>[0]) {
+	if (input.transport === "chat_completions") {
+		return `${input.baseUrl}/chat/completions`;
+	}
+	return `${input.baseUrl}/responses`;
+}
+
+function promptValidationPayload(input: Parameters<ProviderConfigValidators["validatePrompt"]>[0]) {
+	if (input.transport === "chat_completions") {
+		return {
+			messages: [{ content: "provider config validation", role: "user" }],
+			max_tokens: 8,
+			model: input.model,
+		};
+	}
+	return {
+		input: "provider config validation",
+		max_output_tokens: 8,
+		model: input.model,
+	};
 }
 
 export async function defaultValidateEmbeddingProvider(

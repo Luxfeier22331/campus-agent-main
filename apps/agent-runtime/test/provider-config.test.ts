@@ -40,6 +40,41 @@ describe("agent runtime provider config", () => {
 		]);
 	});
 
+	it("uses SDK chat-completions transport for OpenAI-compatible prompt profiles", () => {
+		const provider: ModelProvider = {
+			async getModel() {
+				throw new Error("provider should not be resolved by config tests");
+			},
+		};
+		const providerConfigs: unknown[] = [];
+
+		const options = openAIAgentsRunnerOptionsFromProviderConfig(
+			{
+				apiKey: "request-provider-key",
+				baseUrl: "https://request-provider.example/v1",
+				model: "gpt-request",
+				provider: "openai-compatible",
+				transport: "chat_completions",
+			},
+			{
+				createProvider(config) {
+					providerConfigs.push(config);
+					return provider;
+				},
+			},
+		);
+
+		expect(options.model).toBe("gpt-request");
+		expect(options.modelProvider).toBe(provider);
+		expect(providerConfigs).toEqual([
+			{
+				apiKey: "request-provider-key",
+				baseURL: "https://request-provider.example/v1",
+				useResponses: false,
+			},
+		]);
+	});
+
 	it("rejects incomplete request scoped provider config", () => {
 		expect(() =>
 			openAIAgentsRunnerOptionsFromProviderConfig({
@@ -65,9 +100,9 @@ describe("agent runtime provider config", () => {
 				baseUrl: "https://provider.example/v1",
 				model: "gpt-agent",
 				provider: "openai",
-				transport: "chat_completions",
+				transport: "legacy_completions",
 			}),
-		).toThrow("provider transport must be responses");
+		).toThrow("provider transport must be responses or chat_completions");
 	});
 
 	it("does not expose env-based provider config entrypoints", () => {

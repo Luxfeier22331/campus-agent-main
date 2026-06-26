@@ -34,6 +34,7 @@ import type {
 	ProviderConfigKind,
 	ProviderConfigProfile,
 	ProviderConfigRole,
+	ProviderConfigTransport,
 	ProviderConfigUpdatePayload,
 } from "./model";
 
@@ -59,6 +60,12 @@ const STATUS_LABEL = {
 	validated: "已校验",
 } as const;
 
+const TRANSPORT_LABEL: Record<ProviderConfigTransport, string> = {
+	chat_completions: "Chat Completions",
+	embeddings: "Embeddings",
+	responses: "Responses",
+};
+
 const ROLE_OPTIONS: Array<{ kind: ProviderConfigKind; role: ProviderConfigRole }> = [
 	{ kind: "prompt", role: "primary_agent" },
 	{ kind: "prompt", role: "rag_synthesis" },
@@ -78,6 +85,7 @@ interface ProviderConfigFormState {
 	model: string;
 	role: ProviderConfigRole;
 	timeoutMs: string;
+	transport: ProviderConfigTransport;
 }
 
 const providerConfigFormSchema = z.object({
@@ -95,6 +103,7 @@ const providerConfigFormSchema = z.object({
 		"eval_ragas_embedding",
 	]),
 	timeoutMs: z.string().regex(/^\d+$/, "请输入数字。"),
+	transport: z.enum(["responses", "chat_completions", "embeddings"]),
 });
 
 function initialProviderConfigForm(): ProviderConfigFormState {
@@ -105,6 +114,7 @@ function initialProviderConfigForm(): ProviderConfigFormState {
 		model: "",
 		role: "primary_agent",
 		timeoutMs: "30000",
+		transport: "responses",
 	};
 }
 
@@ -180,6 +190,7 @@ export function ProviderConfigPage() {
 	});
 	const selectedRole = form.watch("role");
 	const selectedKind = kindForRole(selectedRole);
+	const selectedTransport = form.watch("transport");
 	const isEditing = editingProfileId !== null;
 	const missingRequiredApiKey = !(isEditing || form.watch("apiKey").trim());
 	const profiles = sortProfiles(profilesQuery.data?.profiles ?? []);
@@ -213,7 +224,19 @@ export function ProviderConfigPage() {
 							render={({ field }) => (
 								<Field>
 									<FieldLabel htmlFor="provider-role">使用位置</FieldLabel>
-									<Select disabled={isEditing} onValueChange={field.onChange} value={field.value}>
+									<Select
+										disabled={isEditing}
+										onValueChange={(value) => {
+											field.onChange(value);
+											form.setValue(
+												"transport",
+												kindForRole(value as ProviderConfigRole) === "embedding"
+													? "embeddings"
+													: "responses",
+											);
+										}}
+										value={field.value}
+									>
 										<SelectTrigger id="provider-role">
 											<SelectValue />
 										</SelectTrigger>
@@ -259,6 +282,31 @@ export function ProviderConfigPage() {
 								<FieldError>{form.formState.errors.timeoutMs.message}</FieldError>
 							) : null}
 						</Field>
+						<Controller
+							control={form.control}
+							name="transport"
+							render={({ field }) => (
+								<Field>
+									<FieldLabel htmlFor="provider-transport">接口协议</FieldLabel>
+									<Select
+										disabled={selectedKind === "embedding"}
+										onValueChange={field.onChange}
+										value={selectedKind === "embedding" ? "embeddings" : selectedTransport}
+									>
+										<SelectTrigger id="provider-transport">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="responses">Responses</SelectItem>
+											<SelectItem value="chat_completions">Chat Completions</SelectItem>
+											{selectedKind === "embedding" ? (
+												<SelectItem value="embeddings">Embeddings</SelectItem>
+											) : null}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						/>
 						<Field>
 							<FieldLabel htmlFor="provider-dimensions">向量维度</FieldLabel>
 							<Input
@@ -342,6 +390,7 @@ export function ProviderConfigPage() {
 									<TableHead>使用位置</TableHead>
 									<TableHead>类型</TableHead>
 									<TableHead>状态</TableHead>
+									<TableHead>接口协议</TableHead>
 									<TableHead>模型名称</TableHead>
 									<TableHead>服务端点</TableHead>
 									<TableHead>密钥</TableHead>
@@ -365,6 +414,7 @@ export function ProviderConfigPage() {
 													{STATUS_LABEL[profile.status]}
 												</span>
 											</TableCell>
+											<TableCell>{transportLabel(profile.transport)}</TableCell>
 											<TableCell className="font-mono text-xs">{profile.model}</TableCell>
 											<TableCell className="font-mono text-xs">{profile.baseUrl}</TableCell>
 											<TableCell className="font-mono text-xs">****{profile.secretLast4}</TableCell>
@@ -485,6 +535,7 @@ function buildCreatePayload(form: {
 	model: string;
 	role: ProviderConfigRole;
 	timeoutMs: string;
+	transport: ProviderConfigTransport;
 }): ProviderConfigCreatePayload {
 	const kind = kindForRole(form.role);
 	const payload: ProviderConfigCreatePayload = {
@@ -492,10 +543,10 @@ function buildCreatePayload(form: {
 		baseUrl: form.baseUrl,
 		kind,
 		model: form.model,
-		provider: "openai",
+		provider: providerForBaseUrl(form.baseUrl),
 		role: form.role,
 		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : "responses",
+		transport: kind === "embedding" ? "embeddings" : form.transport,
 	};
 	if (kind === "embedding") {
 		payload.dimensions = Number.parseInt(form.dimensions, 10);
@@ -509,7 +560,7 @@ function buildUpdatePayload(form: ProviderConfigFormState): ProviderConfigUpdate
 		baseUrl: form.baseUrl,
 		model: form.model,
 		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : "responses",
+		transport: kind === "embedding" ? "embeddings" : form.transport,
 	};
 	if (form.apiKey.trim()) {
 		payload.apiKey = form.apiKey;
@@ -528,5 +579,23 @@ function formFromProfile(profile: ProviderConfigProfile): ProviderConfigFormStat
 		model: profile.model,
 		role: profile.role,
 		timeoutMs: profile.timeoutMs.toString(),
+		transport: normalizeTransport(profile.transport, profile.kind),
 	};
+}
+
+function transportLabel(value: string): string {
+	return TRANSPORT_LABEL[
+		normalizeTransport(value, value === "embeddings" ? "embedding" : "prompt")
+	];
+}
+
+function normalizeTransport(value: string, kind: ProviderConfigKind): ProviderConfigTransport {
+	if (kind === "embedding") {
+		return "embeddings";
+	}
+	return value === "chat_completions" ? "chat_completions" : "responses";
+}
+
+function providerForBaseUrl(baseUrl: string): ProviderConfigCreatePayload["provider"] {
+	return new URL(baseUrl).hostname === "api.openai.com" ? "openai" : "openai-compatible";
 }

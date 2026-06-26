@@ -6,9 +6,94 @@ import {
 	buildProviderConfigService,
 	createInMemoryProviderConfigStore,
 } from "../src/modules/provider-config";
+import { defaultValidatePromptProvider } from "../src/modules/provider-config/validators";
 import { createOperatorPrincipal } from "./operator-query.route.test-support";
 
 describe("provider config service", () => {
+	it("rejects responses providers that do not return SDK-compatible output item status", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					id: "resp_incomplete_compatible",
+					output: [
+						{ content: [{ text: "ok", type: "output_text" }], role: "assistant", type: "message" },
+					],
+					status: "completed",
+				}),
+				{ headers: { "content-type": "application/json" }, status: 200 },
+			)) as typeof fetch;
+		try {
+			await expect(
+				defaultValidatePromptProvider({
+					apiKey: "provider-key",
+					baseUrl: "https://provider.example/v1",
+					capabilityConfig: {},
+					dimensions: null,
+					model: "gpt-compatible",
+					provider: "openai-compatible",
+					role: "primary_agent",
+					timeoutMs: 30000,
+					transport: "responses",
+				}),
+			).resolves.toMatchObject({
+				errorCode: "prompt_response_shape_invalid",
+				ok: false,
+				status: "failed",
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("validates chat-completions prompt providers by message content shape", async () => {
+		const observedRequests: Array<{ body: unknown; url: string }> = [];
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async (input, init) => {
+			observedRequests.push({
+				body: init?.body ? JSON.parse(String(init.body)) : null,
+				url: String(input),
+			});
+			return new Response(
+				JSON.stringify({
+					choices: [{ message: { content: "ok", role: "assistant" } }],
+					id: "chatcmpl_compatible",
+				}),
+				{ headers: { "content-type": "application/json" }, status: 200 },
+			);
+		}) as typeof fetch;
+		try {
+			await expect(
+				defaultValidatePromptProvider({
+					apiKey: "provider-key",
+					baseUrl: "https://provider.example/v1",
+					capabilityConfig: {},
+					dimensions: null,
+					model: "gpt-compatible",
+					provider: "openai-compatible",
+					role: "primary_agent",
+					timeoutMs: 30000,
+					transport: "chat_completions",
+				}),
+			).resolves.toMatchObject({
+				ok: true,
+				status: "passed",
+			});
+			expect(observedRequests).toEqual([
+				{
+					body: {
+						max_tokens: 8,
+						messages: [{ content: "provider config validation", role: "user" }],
+						model: "gpt-compatible",
+					},
+					url: "https://provider.example/v1/chat/completions",
+				},
+			]);
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
 	it("passes connection and profile fields to embedding compatibility checks", async () => {
 		let compatibilityInput: unknown = null;
 		const service = buildProviderConfigService({
@@ -421,6 +506,72 @@ describe("provider config service", () => {
 				},
 			});
 		}
+	});
+
+	it("allows prompt provider profiles to use chat-completions transport", async () => {
+		let validationInput: unknown = null;
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_chat_completions`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async validatePrompt(input) {
+					validationInput = input;
+					return { message: "prompt provider validated", ok: true, status: "passed" };
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "openai-compatible-key",
+				baseUrl: "https://llm-compatible.example/v1",
+				capabilities: ["prompt"],
+				provider: "openai-compatible",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				kind: "prompt",
+				model: "gpt-compatible",
+				role: "primary_agent",
+				timeoutMs: 30000,
+				transport: "chat_completions",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+		await service.activateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		expect(validationInput).toMatchObject({
+			baseUrl: "https://llm-compatible.example/v1",
+			model: "gpt-compatible",
+			provider: "openai-compatible",
+			role: "primary_agent",
+			transport: "chat_completions",
+		});
+		await expect(
+			service.getActiveRuntimeSnapshot({ role: "primary_agent" }),
+		).resolves.toMatchObject({
+			profile: {
+				api_key: "openai-compatible-key",
+				base_url: "https://llm-compatible.example/v1",
+				kind: "prompt",
+				model: "gpt-compatible",
+				provider: "openai-compatible",
+				role: "primary_agent",
+				transport: "chat_completions",
+			},
+		});
 	});
 
 	it("resolves Hindsight LLM active projection snapshots", async () => {

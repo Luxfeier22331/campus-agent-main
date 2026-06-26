@@ -250,6 +250,55 @@ describe("operator provider config routes", () => {
 		});
 	});
 
+	it("exposes active chat-completions prompt provider snapshots", async () => {
+		const service = buildTestProviderConfigService();
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(createOperatorPrincipal()),
+			providerConfigService: service,
+		} as Parameters<typeof createApp>[1]);
+		const promptCreateResponse = await createPromptProfile(app, {
+			provider: "openai-compatible",
+			transport: "chat_completions",
+		});
+		const promptId = profileIdFromCreateResponse(await readJsonObject(promptCreateResponse));
+		await app.fetch(
+			new Request(
+				`https://app-api.internal/api/operator/provider-config/profiles/${promptId}/validate`,
+				{
+					method: "POST",
+				},
+			),
+		);
+		const activateResponse = await app.fetch(
+			new Request(
+				`https://app-api.internal/api/operator/provider-config/profiles/${promptId}/activate`,
+				{
+					method: "POST",
+				},
+			),
+		);
+		const activeResponse = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/internal/provider-config/active?role=primary_agent",
+				{
+					headers: { "x-app-internal-auth": "provider-config-internal-secret" },
+				},
+			),
+		);
+
+		expect(activateResponse.status).toBe(200);
+		expect(activeResponse.status).toBe(200);
+		await expect(activeResponse.json()).resolves.toMatchObject({
+			profile: {
+				model: "gpt-test",
+				profile_id: promptId,
+				provider: "openai-compatible",
+				role: "primary_agent",
+				transport: "chat_completions",
+			},
+		});
+	});
+
 	it("rejects retired personal memory provider roles", async () => {
 		const service = buildTestProviderConfigService();
 		const app = createApp(env, {
@@ -374,7 +423,10 @@ async function createPromptProfile(
 ) {
 	const connectionResponse = await createConnection(
 		app,
-		connectionPayload({ capabilities: ["prompt"] }),
+		connectionPayload({
+			capabilities: ["prompt"],
+			provider: typeof overrides.provider === "string" ? overrides.provider : "openai",
+		}),
 	);
 	return createProfile(
 		app,
@@ -382,9 +434,16 @@ async function createPromptProfile(
 			connectionId: connectionIdFromCreateResponse(
 				await readConnectionJsonObject(connectionResponse),
 			),
-			...overrides,
+			...omitProviderOverride(overrides),
 		}),
 	);
+}
+
+function omitProviderOverride(
+	record: Partial<Record<string, unknown>>,
+): Partial<Record<string, unknown>> {
+	const { provider: _provider, ...rest } = record;
+	return rest;
 }
 
 async function createEmbeddingProfile(

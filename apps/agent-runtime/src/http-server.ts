@@ -5,7 +5,7 @@ const providerConfigSchema = z.object({
 	profile_id: z.string().min(1).optional(),
 	revision: z.number().int().nonnegative().optional(),
 	provider: z.string().min(1),
-	transport: z.literal("responses"),
+	transport: z.enum(["responses", "chat_completions"]),
 	base_url: z.string().min(1).optional(),
 	model: z.string().min(1),
 	api_key: z.string().min(1),
