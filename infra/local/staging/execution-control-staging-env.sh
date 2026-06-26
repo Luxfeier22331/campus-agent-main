@@ -498,12 +498,12 @@ function projectHindsightProviderConfig() {
   requireProviderProfile(llm, {
     kind: "prompt",
     role: "hindsight_llm",
-    transport: "responses",
+    transports: ["responses", "chat_completions"],
   });
   requireProviderProfile(embedding, {
     kind: "embedding",
     role: "hindsight_embedding",
-    transport: "embeddings",
+    transports: ["embeddings"],
   });
   if (!Number.isInteger(embedding.dimensions) || embedding.dimensions <= 0) {
     throw new Error(
@@ -580,13 +580,14 @@ function requireProviderProfile(profile, expected) {
       throw new Error(`Hindsight provider-config projection requires ${expected.role} ${key}`);
     }
   }
+  const expectedTransports = expected.transports ?? [expected.transport];
   if (
     profile.kind !== expected.kind ||
     profile.role !== expected.role ||
-    profile.transport !== expected.transport
+    !expectedTransports.includes(profile.transport)
   ) {
     throw new Error(
-      `Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expected.transport}`,
+      `Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expectedTransports.join("|")}`,
     );
   }
 }

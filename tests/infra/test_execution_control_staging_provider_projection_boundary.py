@@ -74,7 +74,7 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
     def test_env_loader_refreshes_existing_provider_projection_from_active_profiles(
         self,
     ) -> None:
-        server = _ProviderConfigServer()
+        server = _ProviderConfigServer(prompt_transport="chat_completions")
         server.start()
         try:
             result = _run_env_loader_with_existing_stale_provider_projection(server.base_url)
@@ -267,8 +267,9 @@ def _run_env_loader_with_existing_stale_provider_projection(
 
 
 class _ProviderConfigServer:
-    def __init__(self) -> None:
+    def __init__(self, prompt_transport: str = "responses") -> None:
         self.auth_headers: list[str] = []
+        self.prompt_transport = prompt_transport
         self.roles: list[str] = []
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self._thread = threading.Thread(target=self._server.serve_forever)
@@ -295,7 +296,11 @@ class _ProviderConfigServer:
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"profile": _profile_for_role(role)}).encode("utf-8"))
+                self.wfile.write(
+                    json.dumps({"profile": _profile_for_role(role, owner.prompt_transport)}).encode(
+                        "utf-8"
+                    )
+                )
 
             def log_message(self, format: str, *args: object) -> None:
                 return
@@ -303,7 +308,7 @@ class _ProviderConfigServer:
         return Handler
 
 
-def _profile_for_role(role: str) -> dict[str, object]:
+def _profile_for_role(role: str, prompt_transport: str = "responses") -> dict[str, object]:
     kind = "embedding" if role.endswith("_embedding") else "prompt"
     profile: dict[str, object] = {
         "api_key": f"{role}-key",
@@ -315,7 +320,7 @@ def _profile_for_role(role: str) -> dict[str, object]:
         "revision": 3,
         "role": role,
         "timeout_ms": 30000,
-        "transport": "embeddings" if kind == "embedding" else "responses",
+        "transport": "embeddings" if kind == "embedding" else prompt_transport,
     }
     if kind == "embedding":
         profile["dimensions"] = 2560
