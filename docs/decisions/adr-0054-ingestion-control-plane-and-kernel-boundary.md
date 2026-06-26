@@ -59,8 +59,8 @@ artifact / handler boundary，再逐 collection 替换实现；不表示保留�
   `input_ref.kind=object_store` 与 `s3://...` URI。`inline` input 只允许表达小型
   control metadata 或测试 fixture，不得作为 collector run / source-truth materialization
   主输入。
-- 旧 Python CLI 不是长期 ingestion runtime source of truth。逐条处置规则见
-  `docs/reference/ingestion-python-cli-clean-target-triage.md`。
+- 旧 Python CLI 不是长期 ingestion runtime source of truth；已删除的旧 CLI
+  名称由 clean-target residue tests 固定防回流。
 
 第一批 accepted registry targets：
 

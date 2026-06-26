@@ -27,8 +27,6 @@ updated: 2026-05-04
 - `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与
   freshness gate 统一看
   `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
-- repo-level opening contract 与 artifact checklist 统一看
-  `docs/reference/official-web-news-surface-opening-checklist.md`
 
 ## Core Topology
 

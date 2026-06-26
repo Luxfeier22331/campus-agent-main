@@ -42,7 +42,6 @@ updated: 2026-05-02
   -history-query.md`
 - current-scope cleaning / chunking
   规则：`docs/policies/official-web-cleaning-and-chunking-policy.md`
-- 当前 handoff 真相：`docs/reference/official-web-fresh-news-surface-handoff.md`
 
 ## Current Merged-Truth Constraint
 
@@ -63,7 +62,12 @@ updated: 2026-05-02
   对应 qrels 与 live gate；不再从 mixed `muc_public_pages` inventory 推导
 - `muc_public_pages` 只保留 current truth / regression truth / audit truth，不是默认
   query-serving gate
-- 当前 `8` 条新闻页已显式转入 future `fresh_news` handoff，而不是当前 stable-reference gate 的延迟候选
+- 当前 `official_web/muc_public_pages` mixed inventory 固定为
+  `21 = 13 inventory-only + 8 future fresh_news seed`；这 `8` 条新闻页是
+  future `fresh_news` handoff input，不是当前 stable-reference gate 的延迟候选
+- handoff machine truth 由
+  `packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory.json`
+  与 `packages/evals/src/campus_evals/official_web_inventory.py` 承接
 
 ## 问题定义
 
@@ -114,6 +118,32 @@ updated: 2026-05-02
   truth。
 - 当前 `future_fresh_news_surface` seed set 只定义后续 news surface handoff，不改变上面的长期
   serving 原则。
+
+## Mixed Inventory Handoff
+
+`official_web/muc_public_pages` 不再持有当前默认 answer-quality gate。
+
+固定解释：
+
+- `retain_inventory_only = 13`
+  - 只服务 regression / audit / local validation
+  - 不属于 stable-reference gate
+  - 不属于 future fresh-news seed set
+- `future_fresh_news_surface = 8`
+  - 只服务 regression / local validation 和 future fresh-news handoff
+  - 不属于 stable-reference gate 的隐藏待升格页面
+  - opening 前仍必须补齐 freshness、serving、metadata、duplicate-collapse 与 eval gate
+
+只有已经出现在
+`configs/ingestion/official_web/stable_reference/split-manifest.v1.json` 的页面，
+才属于当前 `official_web/stable_reference` 默认可消费面。其他旧 mixed bridge 页面继续
+保留为 source-backed inventory truth，不因出现在旧 inventory 中自动进入文档站或 RAG。
+
+固定禁止：
+
+- 把 `future_fresh_news_surface` 重新塞回当前 default answer gate
+- 把 `retain_inventory_only` 页面误写成 future fresh-news seed set
+- 把 mixed `muc_public_pages` 直接包装成已具备新闻 query-serving 能力
 
 ## Agentic Retrieval Alignment
 
@@ -342,8 +372,8 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 - 旧新闻被默认当成当前事实
 - 命中历史内容后仅靠 `latest_url` 或措辞润色伪装成当前结果
 - 用 `listing_page` 的导航片段替代 detail 证据来回答时效问题
-- 把当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 中的 seed set
-  误读成“当前 mixed `muc_public_pages` 已经是 fresh-news serving surface”
+- 把 current `future_fresh_news_surface` seed set 误读成“当前 mixed
+  `muc_public_pages` 已经是 fresh-news serving surface”
 
 ## Query Routing Policy
 
@@ -478,9 +508,26 @@ repo 当前只冻结长期 policy truth 与 runtime-profile contract，不直接
 - recent / stale / historical / archive-no-backfill eval artifact
 - promote prerequisites
 
-统一口径见：
+任何一次 opening decision 都不能只凭 seed import、isolated qrels、单次本地回答、
+hot-lane crawl 频率或 listing-page 命中来判定成功。
 
-- `docs/reference/official-web-news-surface-opening-checklist.md`
+`fresh_news` opening 必须同时满足：
+
+- primary evidence 默认只允许 `article_detail`
+- `listing_page` 只承担 discovery / freshness trigger / navigation link
+- `published_at`、`crawled_at`、`last_seen_at` 可用于 routing、sorting 与 stale 判定
+- query routing 能区分稳定说明、近期新闻、显式历史新闻
+- `今天 / 最新 / 最近 / 刚刚` 先进入 freshness gate
+- local freshness 不足时执行 bounded live assist 或 fail-close
+- archive 不参与 recent-news 默认回填
+
+`news_archive` opening 必须同时满足：
+
+- `query_enabled_by_default=false`
+- 只在 explicit historical intent / operator / analysis / eval 场景命中
+- 不为 recent-news query 或 freshness failure 静默补 recall
+- answer 保留历史语义与时间锚点
+- primary evidence 默认只允许 `article_detail`
 
 ## 当前不做
 

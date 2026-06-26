@@ -35,20 +35,20 @@ class defined by `docs/documentation-architecture.md`.
 
 ## Snapshot
 
-- Current-worktree docs Markdown files: 277
-- Git tracked docs Markdown files: 277
-- Untracked docs Markdown files included: 0
-- Generated on: 2026-06-21
+- Current-worktree docs Markdown files: 264
+- Git tracked docs Markdown files: 261
+- Untracked docs Markdown files included: 3
+- Generated on: 2026-06-27
 
 ### By Directory Area
 
 - `decisions`: 58
 - `runbooks`: 48
-- `reference`: 43
-- `contracts`: 45
+- `reference`: 34
+- `contracts`: 38
 - `architecture`: 40
-- `data`: 21
-- `domains`: 8
+- `data`: 17
+- `domains`: 9
 - `environment`: 7
 - `product`: 6
 - `policies`: 5
@@ -58,12 +58,12 @@ class defined by `docs/documentation-architecture.md`.
 ### By `doc_type`
 
 - `decision`: 57
-- `contract`: 44
+- `contract`: 38
 - `runbook`: 43
-- `reference`: 40
+- `reference`: 31
 - `architecture`: 37
 - `index`: 31
-- `data`: 20
+- `data`: 16
 - `product_requirement`: 5
 - `policy`: 4
 - `documentation_architecture`: 1
@@ -71,23 +71,23 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By `truth_scope`
 
-- `ops`: 84
-- `repository`: 79
-- `data`: 41
-- `product`: 32
-- `capability`: 19
+- `ops`: 83
+- `repository`: 76
+- `data`: 35
+- `product`: 30
+- `capability`: 13
 - `execution`: 15
-- `eval`: 13
+- `eval`: 12
 
 ### By Owner Class
 
 - `decision_record`: 57
 - `operational_truth`: 48
-- `contract_truth`: 44
-- `reference`: 39
+- `contract_truth`: 38
+- `reference`: 31
 - `reference_index`: 31
 - `supporting_architecture`: 27
-- `data_truth`: 20
+- `data_truth`: 16
 - `domain_architecture`: 7
 - `product_requirement`: 5
 - `current_truth`: 1
@@ -98,11 +98,11 @@ class defined by `docs/documentation-architecture.md`.
 
 ### By Governance Action
 
-- `keep_executable_truth`: 63
+- `keep_executable_truth`: 57
 - `preserve_adr`: 57
 - `keep_ops_procedure`: 48
 - `keep_owner_truth`: 40
-- `keep_reference_truth`: 31
+- `keep_reference_truth`: 23
 - `keep_thin_index`: 24
 - `keep_archive_historical`: 7
 - `keep_thin_domain_hub`: 7
@@ -110,13 +110,13 @@ class defined by `docs/documentation-architecture.md`.
 
 ### Hotspot Clusters
 
-- `general`: 91
-- `runtime`: 24
-- `authenticated-notice`: 22
-- `official-web`: 22
+- `general`: 90
+- `runtime`: 23
+- `authenticated-notice`: 20
+- `official-web`: 19
 - `operator-observability`: 15
 - `app-api`: 10
-- `campus-services`: 12
+- `campus-services`: 7
 - `retrieval`: 9
 - `eval`: 8
 - `regulation`: 8
@@ -131,7 +131,7 @@ class defined by `docs/documentation-architecture.md`.
 - `operator-console`: 3
 - `frontend-design`: 3
 - `temporal`: 2
-- `ingestion`: 2
+- `ingestion`: 1
 - `execution`: 1
 - `agent-llm-io`: 1
 - `account`: 1
@@ -142,7 +142,7 @@ class defined by `docs/documentation-architecture.md`.
 
 ### Largest Documents
 
-- `docs/reference/documentation-inventory.md`: 2539 lines, action `keep_large_owner_truth`
+- `docs/reference/documentation-inventory.md`: 2500 lines, action `keep_large_owner_truth`
 - `docs/architecture/target-architecture.md`: 857 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/operator-observability-architecture.md`: 708 lines, action `keep_large_owner_truth`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`: 707 lines, action `keep_large_owner_truth`
@@ -465,14 +465,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=73`
   - Governance action: `keep_thin_index`
   - Drift signal: `index_must_stay_thin`
-- `docs/contracts/campus-services-tool-standard.md`
-  - Title: Campus Services Tool Standard
-  - Owner class: `contract_truth`
-  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
-  - Owner boundary: `domains/campus-services`
-  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=108`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
 - `docs/contracts/app-api-authenticated-notice-processing-http.md`
   - Title: App API Authenticated Notice Processing HTTP Contract
   - Owner class: `contract_truth`
@@ -721,30 +713,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=contracts`, `cluster=runtime`, `state=untracked`, `lines=75`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
-- `docs/contracts/transport-schedule-lookup-contract.md`
-  - Title: Transport Schedule Lookup Contract
-  - Owner class: `contract_truth`
-  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
-  - Owner boundary: `domains/campus-services`
-  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=424`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
-- `docs/contracts/transport-status.md`
-  - Title: Transport Status
-  - Owner class: `contract_truth`
-  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
-  - Owner boundary: `domains/campus-services`
-  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=139`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
-- `docs/contracts/transport-schedule-lookup-contract/examples.md`
-  - Title: Transport Schedule Lookup Examples
-  - Owner class: `contract_truth`
-  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
-  - Owner boundary: `domains/campus-services`
-  - Ledger: `area=contracts`, `cluster=general`, `state=untracked`, `lines=413`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
 
 ### `data`
 
@@ -818,14 +786,6 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
   - Owner boundary: `domains/campus-services`
   - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=171`
-  - Governance action: `keep_executable_truth`
-  - Drift signal: `ok`
-- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
-  - Title: Campus Services Transport Schedule Source-Truth Schema
-  - Owner class: `data_truth`
-  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
-  - Owner boundary: `domains/campus-services`
-  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=370`
   - Governance action: `keep_executable_truth`
   - Drift signal: `ok`
 - `docs/data/canonical-document-reader-model.md`
@@ -1333,6 +1293,14 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=domains`, `cluster=campus-services`, `state=tracked`, `lines=43`
   - Governance action: `keep_thin_domain_hub`
   - Drift signal: `hub_must_not_own_status`
+- `docs/domains/transport.md`
+  - Title: Transport
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=capability`, `status=active`
+  - Owner boundary: `domains/campus-services/transport`
+  - Ledger: `area=domains`, `cluster=campus-services`, `state=tracked`, `lines=136`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `single_narrow_capability_doc`
 - `docs/domains/identity-authz-memory.md`
   - Title: Identity / Authz / Memory Domain
   - Owner class: `reference_index`
@@ -1633,14 +1601,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=navigation`, `state=tracked`, `lines=223`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/campus-services-content-corpus-completion-audit.md`
-  - Title: Campus Services And Content Corpus Completion Audit
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
-  - Owner boundary: `docs/reference`
-  - Ledger: `area=reference`, `cluster=campus-services`, `state=tracked`, `lines=518`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
 - `docs/reference/curriculum-plan-eval-metrics.md`
   - Title: Curriculum Plan Eval Metrics
   - Owner class: `reference`
@@ -1681,14 +1641,6 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=155`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/ingestion-python-cli-clean-target-triage.md`
-  - Title: Ingestion Python CLI Clean-Target Triage
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
-  - Owner boundary: `packages/ingestion-core`
-  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=253`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
 - `docs/reference/institutional-regulations-offline-inventory.md`
   - Title: Institutional Regulations Offline Inventory
   - Owner class: `reference`
@@ -1703,22 +1655,6 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
   - Owner boundary: `packages/evals`
   - Ledger: `area=reference`, `cluster=regulation`, `state=tracked`, `lines=169`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
-  - Title: Internal Notice Manual-Review Collection Strategy
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
-  - Owner boundary: `domains/authenticated-notice`
-  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=83`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/internal-notice-manual-review-future-query-contract.md`
-  - Title: Internal Notice Manual-Review Future Query Contract
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
-  - Owner boundary: `domains/authenticated-notice`
-  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=244`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
 - `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
@@ -1737,44 +1673,20 @@ class defined by `docs/documentation-architecture.md`.
   - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=318`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/internal-notice-pdf-chunk-tuning-sample-set-contract.md`
-  - Title: Internal Notice PDF Chunk Tuning Sample-Set Contract
+- `docs/reference/internal-notice-pdf-chunks.md`
+  - Title: Internal Notice PDF Chunks
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
   - Owner boundary: `packages/evals`
-  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=367`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=untracked`, `lines=100`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
-- `docs/reference/official-web-fresh-news-eval-baseline.md`
-  - Title: Official Web Fresh News Eval Baseline
+- `docs/reference/official-web-eval.md`
+  - Title: Official Web Eval
   - Owner class: `reference`
   - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
   - Owner boundary: `packages/evals`
-  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=86`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/official-web-fresh-news-surface-handoff.md`
-  - Title: Official Web Fresh News Surface Handoff
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
-  - Owner boundary: `domains/official-web`
-  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=157`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/official-web-news-surface-opening-checklist.md`
-  - Title: Official Web News Surface Opening Checklist
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
-  - Owner boundary: `domains/official-web`
-  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=114`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/official-web-stable-reference-eval-baseline.md`
-  - Title: Official Web Stable Reference Eval Baseline
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
-  - Owner boundary: `packages/evals`
-  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=99`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=untracked`, `lines=91`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
 - `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
@@ -1791,14 +1703,6 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
   - Owner boundary: `apps/execution-control`
   - Ledger: `area=reference`, `cluster=runtime`, `state=tracked`, `lines=258`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/runtime-orchestration-full-audit.md`
-  - Title: Runtime Orchestration Full Audit
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
-  - Owner boundary: `docs/reference`
-  - Ledger: `area=reference`, `cluster=runtime`, `state=tracked`, `lines=317`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
 - `docs/reference/runtime-serving-and-index-terms.md`
@@ -2397,14 +2301,6 @@ class defined by `docs/documentation-architecture.md`.
   - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
   - Owner boundary: `apps/campus-web`
   - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=116`
-  - Governance action: `keep_reference_truth`
-  - Drift signal: `ok`
-- `docs/reference/ingestion-python-clean-target-full-audit.md`
-  - Title: Ingestion Python Clean-Target Full Audit
-  - Owner class: `reference`
-  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
-  - Owner boundary: `docs/reference`
-  - Ledger: `area=reference`, `cluster=ingestion`, `state=tracked`, `lines=402`
   - Governance action: `keep_reference_truth`
   - Drift signal: `ok`
 - `docs/runbooks/ingestion-control-clean-target-runbook.md`

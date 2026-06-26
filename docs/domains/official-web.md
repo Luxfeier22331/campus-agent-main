@@ -43,10 +43,7 @@ Documentation ownership rules remain in `../documentation-architecture.md`.
 
 ## Reference And Policy
 
-- `../reference/official-web-stable-reference-eval-baseline.md`
-- `../reference/official-web-fresh-news-eval-baseline.md`
-- `../reference/official-web-fresh-news-surface-handoff.md`
-- `../reference/official-web-news-surface-opening-checklist.md`
+- `../reference/official-web-eval.md`
 - `../policies/official-web-crawl-policy.md`
 - `../policies/official-web-cleaning-and-chunking-policy.md`
 

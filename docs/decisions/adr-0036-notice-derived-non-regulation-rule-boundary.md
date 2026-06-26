@@ -135,6 +135,6 @@ promotion` 这条线在 2026-04-11 已经冻结出一批明确不应进入 `regu
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `git history authenticated-notice regulation consumption workstream`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 - `git history manual-review evidence fragment
   view-adjudication.md`

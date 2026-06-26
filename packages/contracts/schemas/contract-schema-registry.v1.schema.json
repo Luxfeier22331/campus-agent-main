@@ -1,7 +1,7 @@
 {
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://muc.wiki/campus-agent/schemas/contract-schema-registry.v1.schema.json",
-	"title": "campus-agent contract schema registry",
+	"title": "Campus Contract Schema Registry",
 	"type": "object",
 	"additionalProperties": false,
 	"required": ["schema_version", "updated", "entries"],

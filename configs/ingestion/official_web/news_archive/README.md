@@ -35,4 +35,4 @@ Boundary notes:
 - declaring this profile does not mean archive routing, retention policy, or
   archive-specific retrieval behavior has already been implemented
 - opening acceptance and handoff now follow
-  `docs/reference/official-web-news-surface-opening-checklist.md`
+  `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`

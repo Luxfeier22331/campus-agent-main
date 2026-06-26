@@ -36,8 +36,6 @@ updated: 2026-04-14
 - control-plane ownership：`docs/architecture/domains/official-web/architecture.md`
 - serving / news retrieval
   策略：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
-- 当前 news handoff
-  truth：`docs/reference/official-web-fresh-news-surface-handoff.md`
 - app-api HTTP seam：`docs/contracts/app-api-official-web-http.md`
 - app-api run lifecycle：`docs/contracts/app-api-official-web-run-lifecycle.md`
 - 数据平面不变量：`docs/architecture/system/data-plane-architecture.md`
@@ -66,14 +64,13 @@ updated: 2026-04-14
   做覆盖性校验。
 - `hot lane` 的长期第一服务对象是 `fresh_news` serving surface；列表页变化优先服务“新闻 detail
   及时可检索”，而不是只刷新导航页本身。
-- 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条
-  `future_fresh_news_surface` 文档应被视为后续 hot-lane / fresh-news work 的 seed
-  set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
+- 当前 `future_fresh_news_surface` 的 `8` 条文档应被视为后续 hot-lane /
+  fresh-news work 的 seed set，而不是当前 `muc_public_pages` release gate 的继续治理对象。
 - `fetch_failed` 是 repair lane 的一等输入，但不是下游 ingestion 的变化触发条件。
 - 动态壳页应走独立 browser-capable provider lane；不得为了少量动态页面污染主 HTML/cheerio crawl 路径。
 - hot lane / metadata coverage readiness 只是 `fresh_news` opening 的必要条件，不是充分条件；真正
   opening 仍要同时满足 routing、detail-evidence、duplicate collapse 与独立 eval
-  artifact，统一看 `docs/reference/official-web-news-surface-opening-checklist.md`
+  artifact，统一看 serving / news retrieval strategy。
 
 ## 长期运行形态
 

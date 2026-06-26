@@ -56,10 +56,9 @@ updated: 2026-06-26
 
 ## Campus services contract
 
-- `campus-services-tool-standard.md`
-- `transport-status.md`
-- `transport-schedule-lookup-contract.md`
-  - `transport-schedule-lookup-contract/examples.md`
+- Human transport capability truth lives in `../domains/transport.md`.
+- Machine-readable transport tool/status schemas live in
+  `../../packages/contracts/schemas/`.
 
 ## Notice runtime contract
 

@@ -24,28 +24,17 @@ updated: 2026-06-13
 - `eval-benchmark-artifact-contract.md`
 - `golden-dataset-case-matrix.md`
 - `runtime-otel-telemetry-taxonomy.md`
-- `runtime-orchestration-full-audit.md`
-  - 当前 runtime / module / infra / script orchestration 审计；用于判断哪些
-    surface 保留、删除、留在本地 transitional 或需要重审，不替代架构 truth。
-- `campus-services-content-corpus-completion-audit.md`
-  - Campus Services 与进入主链路消费的内容语料资产 completion 审计；用于区分
-    campus-services 产品缺口、内容语料质量缺口与 release closeout / eval proof。
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 
-## Official Web 活动基线
+## Official Web 评测基线
 
-- `official-web-fresh-news-eval-baseline.md`
-- `official-web-fresh-news-surface-handoff.md`
-- `official-web-news-surface-opening-checklist.md`
-- `official-web-stable-reference-eval-baseline.md`
+- `official-web-eval.md`
 
 ## Authenticated Notice / Internal Notice 策略与口径
 
 - `authenticated-notice-file-release-export-contract.md`
-- `internal-notice-manual-review-collection-strategy.md`
-- `internal-notice-manual-review-future-query-contract.md`
-- `internal-notice-pdf-chunk-tuning-sample-set-contract.md`
+- `internal-notice-pdf-chunks.md`
 - `institutional-regulations-offline-inventory.md`
 
 ## Authenticated Notice / Internal Notice Quality Acceptance

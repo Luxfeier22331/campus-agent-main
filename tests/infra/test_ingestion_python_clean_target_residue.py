@@ -38,8 +38,6 @@ TEXT_SUFFIXES = {
 }
 
 ALLOWLISTED_PATHS = {
-    Path("docs/reference/ingestion-python-clean-target-full-audit.md"),
-    Path("docs/reference/ingestion-python-cli-clean-target-triage.md"),
     Path("tests/infra/test_ingestion_python_clean_target_residue.py"),
     Path("tests/ingestion/test_ingestion_clean_target_boundary.py"),
 }

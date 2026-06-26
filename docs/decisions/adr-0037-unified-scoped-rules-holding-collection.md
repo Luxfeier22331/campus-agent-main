@@ -124,6 +124,58 @@ future guidance 存在，但它们只在 future default-query admission 时生�
 - `campus_notices/internal_notice` 仍是 source-triage collection
 - wrapper notice 继续留在 `internal_notice`
 
+### 决策 6：manual-review residual 边界收口到 scoped rules
+
+`annual_cycle_rule` 与 `time_bound_operational_rule` 不再留在
+`regulations/institutional_rules`，也不继续停在 manual-review residual lane。
+它们仍需通过 applicability gate，但 target collection 固定为
+`regulations/scoped_rules`。
+
+固定边界：
+
+- duplicate hold 继续保留在 `internal_notice` source layer，只保留 source truth /
+  provenance，不生成第二份 regulation target
+- 语义正文去重优先于原始 `content_hash` 复制
+- parent notice body citation、body heading、`办法 / 意见 / 方案` 等引用词不构成
+  formal-regulation admission evidence
+- wrapper / operational notice 继续留在 `internal_notice`
+- residual frontier 只保留真正缺 owner body 或缺 target metadata 的样本
+
+### 决策 7：默认 query admission 继续后置
+
+`scoped_rules` 可以承接内部显式 retrieval-ready data-plane，但默认用户 query admission
+仍然关闭。未来如果要打开默认 query-serving，必须先同时冻结：
+
+- semantic owner 与 product entry
+- query policy 与 query-planning contract
+- retrieval pre-filter 所需的 metadata projection
+- 覆盖 year、site、transition、expired-window 歧义的 eval cases
+
+未来 surface 至少需要这些 filter projection 字段：
+
+- `document_nature`
+- `rule_family`
+- `published_at`
+- `effective_from`
+- `effective_to`
+- `force_status`
+- `school_unit_name`
+- `source_notice_ids`
+- `source_attachment_ref_id`
+- `visibility_level`
+- `visibility_scope`
+- `entitlement_groups`
+- `policy_projection_version`
+
+`annual_cycle_rule` 默认 query policy 是 `explicit_year_only`：用户未给出年份、
+届次、school unit 或 program 时，不能静默取“最新一版”。
+
+`time_bound_operational_rule` 默认 query policy 是 `include_with_warning`：命中时
+必须保留有效时间窗、site 与当前状态；过期、未生效或 transition/sunset 语义不得伪装成稳定长期规定。
+
+`current / historical / as_of / compare` 必须在 retrieval 前落成可比范围或 filter；
+query planner 做不到时，默认 query admission 继续关闭。
+
 ## 结果
 
 直接结果如下：
@@ -156,6 +208,4 @@ future guidance 存在，但它们只在 future default-query admission 时生�
 
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
-- `docs/reference/internal-notice-manual-review-future-query-contract.md`
 - `git history authenticated-notice regulation consumption workstream`

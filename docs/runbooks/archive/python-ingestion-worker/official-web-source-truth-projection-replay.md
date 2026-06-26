@@ -31,7 +31,7 @@ validator + chunk audit + import + release 之后，转到：
 - retrieval：`campus_evals.retrieval_live_benchmark`
 - answer path：`campus_evals.official_web_live_benchmark`
 - current truth / future news
-  handoff：`docs/reference/official-web-fresh-news-surface-handoff.md`
+  handoff：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 
 ## 适用边界
 
@@ -194,7 +194,9 @@ truth，也不写 Qdrant。
 - `future_fresh_news_surface`
   - 保留在 current truth，只服务 regression / local validation / future fresh-news
     handoff
-  - 具体 seed set 以 `docs/reference/official-web-fresh-news-surface-handoff.md` 为准
+  - 具体 seed set 以
+    `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+    为准
 
 1. 按批次类型完成收口。
 
@@ -232,8 +234,9 @@ uv run --all-packages python -m unittest \
 
 `official_web/muc_public_pages` 只做 import / replay / QC / audit inventory，不跑
 answer-bearing live gate。对应的
-`packages/evals/fixtures/rag/official_web_muc_public_pages/retrieval_qrels.json` 只保留
-inventory-not-query-enabled guard cases，不能写 expected / forbidden sources。
+`packages/evals/fixtures/rag/official_web_muc_public_pages/retrieval_qrels.json`
+只保留 inventory-not-query-enabled guard cases，不能写 expected / forbidden
+sources。
 
 1. 如果当前 batch 要继续做 `stable_reference` release 闭环，优先走 app-api release gate /
    worker executor，而不是手动执行整 scope refresh：
