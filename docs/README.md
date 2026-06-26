@@ -46,6 +46,8 @@ class owns a fact.
 - Tool or capability readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)
+- Campus shuttle timetable capability:
+  - [domains/transport.md](./domains/transport.md)
 - Data source truth, source-channel schema and read-model ownership:
   - [data/README.md](./data/README.md)
 - HTTP/runtime wire contracts, DTOs and tool contracts:

@@ -244,6 +244,10 @@ document center 旧设想已退役，不属于当前主问答产品目标。
 - 它们消费 source/data-plane truth，但不反向改写 source-channel truth
 - 不得把 wrapper notices、capture evidence 或 source holding
   直接冒充成 regulation canonical surface
+- `annual_cycle_rule` 与 `time_bound_operational_rule` 的 target collection 固定为
+  `regulations/scoped_rules`；默认 query admission、future metadata filter 与
+  scoped-rule reopen 条件统一看
+  `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 
 ## WeChat Official Account Placement
 

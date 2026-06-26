@@ -408,6 +408,19 @@ uv run --all-packages ruff format . --check
 uv run --all-packages python -m unittest discover -s tests -t .
 ```
 
+`pnpm repo:guard` 只验证仓库协作与治理规则，例如 docs structure、workspace
+layout、collaboration protocol 与 package script policy；它不是业务测试、覆盖率指标或
+E2E 证据，不得用来证明 runtime 行为正确。
+
+`apps/execution-control` / Temporal runtime 变更的默认局部验证命令：
+
+```bash
+cd apps/execution-control && go test ./...
+cd apps/execution-control && \
+  go test -tags temporal_e2e ./internal/temporalruntime \
+    -run TestTemporalDevServer -count=1
+```
+
 JS/TS surface 的默认验证命令：
 
 ```bash

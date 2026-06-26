@@ -215,7 +215,6 @@ ACTIVE_DOCKER_FIRST_SUBSTRATE_FORBIDDEN_SNIPPETS = (
 ACTIVE_DOCKER_FIRST_SUBSTRATE_ALLOWED_PATH_PARTS = (
     "/docs/decisions/adr-0043-execution-control-docker-first-runtime.md",
     "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
-    "/docs/reference/runtime-orchestration-full-audit.md",
     "/docs/runbooks/archive/",
     "/tests/infra/test_execution_control_architecture_residue.py",
 )

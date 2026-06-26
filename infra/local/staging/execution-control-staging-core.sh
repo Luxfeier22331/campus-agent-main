@@ -355,12 +355,24 @@ execution_control_staging_compose() {
   local compose_args=()
   local compose_file
   local compose_files=()
+  local compose_profile
+  local compose_profiles=()
   local docker_bin
   local worker_shared_secret
 
   IFS=':' read -r -a compose_files <<<"${execution_control_staging_compose_files}"
   for compose_file in "${compose_files[@]}"; do
+    if [[ -z "${compose_file}" ]]; then
+      continue
+    fi
     compose_args+=(-f "${compose_file}")
+  done
+  IFS=':' read -r -a compose_profiles <<<"${execution_control_staging_compose_profiles:-}"
+  for compose_profile in "${compose_profiles[@]}"; do
+    if [[ -z "${compose_profile}" ]]; then
+      continue
+    fi
+    compose_args+=(--profile "${compose_profile}")
   done
 
   docker_bin="$(execution_control_staging_require_command docker)"
@@ -431,10 +443,75 @@ execution_control_staging_compose_project_running() {
 	    [[ "${services}" == *"activity-worker-knowledge-plan"* ]] &&
 	    [[ "${services}" == *"activity-worker-knowledge-retrieval"* ]] &&
 	    [[ "${services}" == *"activity-worker-knowledge-synthesis"* ]] &&
-    [[ "${services}" == *"activity-worker-campus-services"* ]] &&
-    [[ "${services}" == *"activity-worker-notice"* ]] &&
-    [[ "${services}" == *"activity-worker-navigation"* ]] &&
     [[ "${services}" == *"activity-worker-finalization"* ]]
+}
+
+execution_control_staging_compose_langfuse_running() {
+  local services
+  services="$(execution_control_staging_compose_running_services 2>/dev/null || true)"
+  [[ "${services}" == *"langfuse-web"* ]] &&
+    [[ "${services}" == *"langfuse-worker"* ]] &&
+    [[ "${services}" == *"langfuse-postgres"* ]] &&
+    [[ "${services}" == *"langfuse-clickhouse"* ]] &&
+    [[ "${services}" == *"langfuse-redis"* ]] &&
+    [[ "${services}" == *"langfuse-minio"* ]]
+}
+
+execution_control_staging_enable_compose_profile() {
+  local profile="$1"
+
+  case ":${execution_control_staging_compose_profiles}:" in
+    *":${profile}:"*)
+      return 0
+      ;;
+  esac
+
+  if [[ -z "${execution_control_staging_compose_profiles}" ]]; then
+    execution_control_staging_compose_profiles="${profile}"
+  else
+    execution_control_staging_compose_profiles="${execution_control_staging_compose_profiles}:${profile}"
+  fi
+  export EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES="${execution_control_staging_compose_profiles}"
+}
+
+execution_control_staging_append_compose_file() {
+  local compose_file="$1"
+
+  case ":${execution_control_staging_compose_files}:" in
+    *":${compose_file}:"*)
+      return 0
+      ;;
+  esac
+
+  if [[ -z "${execution_control_staging_compose_files}" ]]; then
+    execution_control_staging_compose_files="${compose_file}"
+  else
+    execution_control_staging_compose_files="${execution_control_staging_compose_files}:${compose_file}"
+  fi
+  export EXECUTION_CONTROL_STAGING_COMPOSE_FILES="${execution_control_staging_compose_files}"
+}
+
+execution_control_staging_enable_langfuse_compose() {
+  execution_control_staging_append_compose_file "${execution_control_staging_langfuse_compose_file}"
+  execution_control_staging_append_compose_file "${execution_control_staging_langfuse_staging_compose_file}"
+}
+
+execution_control_staging_stop_langfuse_compose() {
+  execution_control_staging_enable_langfuse_compose
+  execution_control_staging_compose stop \
+    langfuse-web \
+    langfuse-worker \
+    langfuse-postgres \
+    langfuse-clickhouse \
+    langfuse-redis \
+    langfuse-minio || true
+  execution_control_staging_compose rm -f \
+    langfuse-web \
+    langfuse-worker \
+    langfuse-postgres \
+    langfuse-clickhouse \
+    langfuse-redis \
+    langfuse-minio || true
 }
 
 execution_control_staging_run_projection_schema_command() {

@@ -71,6 +71,26 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
         finally:
             server.close()
 
+    def test_env_loader_refreshes_existing_provider_projection_from_active_profiles(
+        self,
+    ) -> None:
+        server = _ProviderConfigServer(prompt_transport="chat_completions")
+        server.start()
+        try:
+            result = _run_env_loader_with_existing_stale_provider_projection(server.base_url)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            projected = json.loads(result.stdout)
+            self.assertEqual(
+                projected["CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH"], projected["expected"]
+            )
+            self.assertEqual(projected["hindsightModel"], "gpt-5.4")
+            self.assertEqual(projected["hindsightEmbeddingModel"], "Qwen3-Embedding-4B")
+            self.assertEqual(projected["profileRoles"], server.roles)
+            self.assertTrue(all(header == "internal-secret" for header in server.auth_headers))
+        finally:
+            server.close()
+
     def test_compose_runs_provider_projection_consumers_as_artifact_owner(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
@@ -195,9 +215,61 @@ def _run_env_loader_with_missing_provider_projection(
         )
 
 
+def _run_env_loader_with_existing_stale_provider_projection(
+    app_api_base_url: str,
+) -> subprocess.CompletedProcess[str]:
+    with TemporaryDirectory() as temp_dir:
+        root = Path(temp_dir)
+        common_path = copy_staging_modules_for_tests(root)
+        runtime_env = root / "ops" / "runtime.env"
+        runtime_dir = root / ".tmp" / "execution-control-staging"
+        projection_path = runtime_dir / "provider-config-projection.json"
+        write_provider_config_projection_for_tests(projection_path)
+        runtime_env.parent.mkdir(exist_ok=True)
+        runtime_env.write_text(
+            "\n".join(
+                (
+                    "APP_API_INTERNAL_SHARED_SECRET=internal-secret",
+                    "EXECUTION_CONTROL_SHARED_SECRET=worker-secret",
+                    f"EXECUTION_CONTROL_STAGING_APP_API_BASE_URL={app_api_base_url}",
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        command = f"""
+        set -euo pipefail
+        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env))}
+        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
+        source {shlex.quote(str(common_path))}
+        execution_control_staging_load_env
+        node - <<'NODE'
+        const fs = require("node:fs");
+        const projectionPath = process.env.CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH;
+        const projection = JSON.parse(fs.readFileSync(projectionPath, "utf8"));
+        console.log(JSON.stringify({{
+          expected: {json.dumps(str(projection_path))},
+          CAMPUS_PROVIDER_CONFIG_SNAPSHOT_HOST_PATH: projectionPath,
+          hindsightModel: process.env.HINDSIGHT_API_LLM_MODEL,
+          hindsightEmbeddingModel: process.env.HINDSIGHT_API_EMBEDDINGS_OPENAI_MODEL,
+          profileRoles: projection.source?.roles ?? [],
+        }}));
+        NODE
+        """
+        return subprocess.run(
+            ["bash", "-lc", textwrap.dedent(command)],
+            cwd=root,
+            env=os.environ.copy(),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+
+
 class _ProviderConfigServer:
-    def __init__(self) -> None:
+    def __init__(self, prompt_transport: str = "responses") -> None:
         self.auth_headers: list[str] = []
+        self.prompt_transport = prompt_transport
         self.roles: list[str] = []
         self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
         self._thread = threading.Thread(target=self._server.serve_forever)
@@ -224,7 +296,11 @@ class _ProviderConfigServer:
                 self.send_response(200)
                 self.send_header("content-type", "application/json")
                 self.end_headers()
-                self.wfile.write(json.dumps({"profile": _profile_for_role(role)}).encode("utf-8"))
+                self.wfile.write(
+                    json.dumps({"profile": _profile_for_role(role, owner.prompt_transport)}).encode(
+                        "utf-8"
+                    )
+                )
 
             def log_message(self, format: str, *args: object) -> None:
                 return
@@ -232,7 +308,7 @@ class _ProviderConfigServer:
         return Handler
 
 
-def _profile_for_role(role: str) -> dict[str, object]:
+def _profile_for_role(role: str, prompt_transport: str = "responses") -> dict[str, object]:
     kind = "embedding" if role.endswith("_embedding") else "prompt"
     profile: dict[str, object] = {
         "api_key": f"{role}-key",
@@ -244,7 +320,7 @@ def _profile_for_role(role: str) -> dict[str, object]:
         "revision": 3,
         "role": role,
         "timeout_ms": 30000,
-        "transport": "embeddings" if kind == "embedding" else "responses",
+        "transport": "embeddings" if kind == "embedding" else prompt_transport,
     }
     if kind == "embedding":
         profile["dimensions"] = 2560

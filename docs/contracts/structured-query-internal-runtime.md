@@ -52,7 +52,7 @@ tool result:
 - `GET /internal/projections/campus-services/transport-schedule/status`
 
 This endpoint returns the current transport status display projection described
-by `docs/contracts/transport-status.md`. It is not a tool endpoint, does not
+by `docs/domains/transport.md`. It is not a tool endpoint, does not
 accept arbitrary date query, does not return a structured tool result envelope
 and does not make `app-api` the owner of campus-services transport schedule
 truth.

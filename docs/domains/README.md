@@ -26,6 +26,9 @@ data、plan、runbook、reference、policy 聚到一页，减少在多个目录�
 - `campus-services.md`
   - campus services structured runtime、projection-owned service truth
     与 opening gate
+- `transport.md`
+  - campus shuttle timetable tool、status projection、source/update/storage
+    canonical truth
 - `dining.md`
   - dining operations、食堂地图 draft/release candidate/release/published projection
     与 ops workspace

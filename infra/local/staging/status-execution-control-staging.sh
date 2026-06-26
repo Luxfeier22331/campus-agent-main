@@ -7,18 +7,37 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 source "${script_dir}/execution-control-staging-common.sh"
 
 strict_mode=0
-if (( $# > 1 )); then
-  echo "Usage: $0 [--check]" >&2
-  exit 2
-fi
+require_langfuse=0
 
-if (( $# == 1 )); then
-  if [[ "$1" != "--check" ]]; then
-    echo "Usage: $0 [--check]" >&2
-    exit 2
-  fi
-  strict_mode=1
-fi
+usage() {
+  cat >&2 <<'EOF'
+Usage: status-execution-control-staging.sh [--check] [--require-langfuse]
+
+Default status checks the main answer serving runtime. Use --require-langfuse
+only for eval/trace sessions that explicitly started the self-host Langfuse stack.
+EOF
+}
+
+while (( $# > 0 )); do
+  case "$1" in
+    --check)
+      strict_mode=1
+      ;;
+    --require-langfuse)
+      require_langfuse=1
+      execution_control_staging_enable_langfuse_compose
+      ;;
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    *)
+      usage
+      exit 2
+      ;;
+  esac
+  shift
+done
 
 execution_control_staging_ensure_runtime_dirs
 execution_control_staging_acquire_lock 30
@@ -76,6 +95,9 @@ if ! execution_control_staging_compose_project_running; then
   failures+=("execution-control compose project is not fully running")
 elif ! execution_control_staging_require_container_qdrant_ready; then
   failures+=("Go RAG runtime cannot prove Qdrant/provider readiness through execution-control readyz")
+fi
+if (( require_langfuse == 1 )) && ! execution_control_staging_compose_langfuse_running; then
+  failures+=("Langfuse compose services are not fully running")
 fi
 
 local_healthz_status="$(
@@ -165,4 +187,7 @@ echo "  - local readyz: ${execution_control_staging_local_readyz_url}"
 echo "  - local metrics: ${execution_control_staging_local_metrics_url}"
 if [[ -n "${execution_control_staging_app_api_readyz_url}" ]]; then
   echo "  - app-api readyz: ${execution_control_staging_app_api_readyz_url}"
+fi
+if (( require_langfuse == 1 )); then
+  echo "  - langfuse self-host stack: running"
 fi

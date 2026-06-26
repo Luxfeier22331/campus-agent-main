@@ -55,9 +55,7 @@ updated: 2026-06-12
 - `../reference/authenticated-notice-file-release-export-contract.md`
 - `../reference/institutional-regulations-promotion-quality-acceptance.md`
 - `../reference/institutional-regulations-offline-inventory.md`
-- `../reference/internal-notice-manual-review-collection-strategy.md`
-- `../reference/internal-notice-manual-review-future-query-contract.md`
-- `../reference/internal-notice-pdf-chunk-tuning-sample-set-contract.md`
+- `../reference/internal-notice-pdf-chunks.md`
 
 ## Historical Ingestion References
 

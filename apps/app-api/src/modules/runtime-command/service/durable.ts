@@ -20,9 +20,14 @@ interface DurableRunEventContext {
 	traceId: string;
 }
 
+type DurableTerminalSourceEvent =
+	| "execution.cancelled"
+	| "execution.completed"
+	| "execution.failed";
+
 interface DurableTerminalRunOutcome {
 	response: CapabilityExecutionResponse;
-	sourceEvent: "execution.completed" | "execution.failed";
+	sourceEvent: DurableTerminalSourceEvent;
 	transportError: TransportErrorRecord | null;
 }
 
@@ -85,7 +90,7 @@ function chatStreamEventsForFinalized(input: {
 	finalized: ChatCommandResponse;
 	hasStreamedAnswerDelta?: boolean;
 	occurredAt: string;
-	sourceEvent?: "execution.completed" | "execution.failed";
+	sourceEvent?: DurableTerminalSourceEvent;
 	sequence?: number;
 }): ChatCommandStreamEvent[] {
 	const terminal = toTerminalChatStreamEvent({
@@ -264,6 +269,24 @@ export function durableTerminalOutcomeFromDurableRunEvent(
 	event: ExecutionControlRunEvent,
 ): DurableTerminalRunOutcome | null {
 	if (event.eventType !== "finalization.completed") {
+		if (event.eventType === "run.canceled") {
+			assertDurableEventRunMatches(
+				context,
+				event,
+				"Durable run canceled event run_id does not match the accepted run.",
+			);
+			return {
+				response: executionFinalizationErrorResponse({
+					code: "execution_cancelled",
+					message: "The request was cancelled.",
+					retryable: false,
+					status: "cancelled",
+					traceId: context.traceId,
+				}),
+				sourceEvent: "execution.cancelled",
+				transportError: null,
+			};
+		}
 		if (event.eventType !== "run.failed") {
 			return null;
 		}

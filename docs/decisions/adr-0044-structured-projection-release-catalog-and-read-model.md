@@ -140,6 +140,6 @@ build structured projection release
 
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/target-architecture.md`
-- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
+- `docs/domains/transport.md`
 - `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
 - `docs/decisions/adr-0048-temporal-execution-plane.md`

@@ -517,4 +517,112 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			},
 		});
 	});
+
+	it("streams durable run cancellation as a cancelled terminal event", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const supervisor: CapabilityExecutionClient = {
+			execute: vi.fn(),
+			executeStream: vi.fn(),
+		};
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue({
+				admittedAt: "",
+				completedAt: "",
+				conversationId: "conv_01HQ",
+				createdAt: "2026-06-04T01:02:03Z",
+				failCloseReason: "",
+				finalResponseRef: "",
+				lane: "rag",
+				ownerUserId: "user_01HQ",
+				requestId: "req_0001",
+				requestedCapability: "knowledge",
+				runId: "run_0001",
+				selectedCapability: "knowledge",
+				startedAt: "",
+				status: "queued",
+				streamingStartedAt: "",
+				surface: "campus_web",
+				terminalReason: "",
+				traceId: "trace_0001",
+				turnId: "turn_0001",
+				updatedAt: "2026-06-04T01:02:04Z",
+				workflowPlanRef: "",
+			}),
+			getRun: vi.fn(),
+			listRunEvents: vi
+				.fn()
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventId: "event-queued",
+						eventType: "run.queued",
+						occurredAt: "2026-06-04T01:02:04.000Z",
+						payload: { status: "queued" },
+						sequence: 1,
+						visibility: "browser",
+					}),
+				])
+				.mockResolvedValueOnce([
+					durableEvent({
+						eventId: "event-canceled",
+						eventType: "run.canceled",
+						occurredAt: "2026-06-04T01:02:05.000Z",
+						payload: {
+							request_id: "req_0001",
+							status: "canceled",
+							terminal_reason: "user_canceled",
+							trace_id: "trace_0001",
+						},
+						sequence: 2,
+						visibility: "browser",
+					}),
+				]),
+			listRunSteps: vi.fn().mockResolvedValue(emptyRunStepTrajectory()),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			durableEventPolling: {
+				maxAttempts: 2,
+				pollIntervalMs: 0,
+				sleep: vi.fn(async () => undefined),
+			},
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: Array<{ event: string; status: string }> = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				requestedCapability: "knowledge",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+		}) ?? []) {
+			events.push({
+				event: event.event,
+				status: event.data.status,
+			});
+		}
+
+		expect(supervisor.executeStream).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ event: "request.accepted", status: "accepted" },
+			{ event: "execution.queued", status: "queued" },
+			{ event: "request.cancelled", status: "cancelled" },
+		]);
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "execution_cancelled",
+				requestId: "req_0001",
+				runId: "run_0001",
+				status: "cancelled",
+			},
+		});
+	});
 });

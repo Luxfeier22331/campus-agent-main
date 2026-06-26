@@ -44,4 +44,4 @@ Boundary notes:
 - listing pages remain discovery/freshness-trigger/navigation-only hints; they
   are not primary news evidence
 - opening acceptance, recent-news eval matrix, and independent worktree handoff
-  now follow `docs/reference/official-web-news-surface-opening-checklist.md`
+  now follow `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`

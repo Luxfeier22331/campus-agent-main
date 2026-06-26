@@ -498,7 +498,7 @@ registry / control-plane database 与对象存储长期分层。
 - `configs/ingestion/*`
 - `docs/data/official-web-source-truth-schema.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
-- `docs/data/campus-services-transport-schedule-source-truth-schema.md`
+- `docs/domains/transport.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
 

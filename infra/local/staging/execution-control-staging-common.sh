@@ -16,8 +16,12 @@ execution_control_staging_otel_collector_recent_log_file="${execution_control_st
 execution_control_staging_host="${EXECUTION_CONTROL_STAGING_HOST:-127.0.0.1}"
 execution_control_staging_port="${EXECUTION_CONTROL_STAGING_PORT:-27051}"
 execution_control_staging_compose_file="${EXECUTION_CONTROL_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.yml}"
-execution_control_staging_default_compose_files="${execution_control_staging_compose_file}:${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.staging.yml:${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.yml"
+execution_control_staging_staging_compose_file="${EXECUTION_CONTROL_STAGING_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.staging.yml}"
+execution_control_staging_langfuse_compose_file="${EXECUTION_CONTROL_STAGING_LANGFUSE_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.yml}"
+execution_control_staging_langfuse_staging_compose_file="${EXECUTION_CONTROL_STAGING_LANGFUSE_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.staging.yml}"
+execution_control_staging_default_compose_files="${execution_control_staging_compose_file}:${execution_control_staging_staging_compose_file}"
 execution_control_staging_compose_files="${EXECUTION_CONTROL_STAGING_COMPOSE_FILES:-${execution_control_staging_default_compose_files}}"
+execution_control_staging_compose_profiles="${EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES:-}"
 execution_control_staging_compose_project_name="${EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME:-campus-execution-control-staging}"
 execution_control_staging_postgres_compose_file="${EXECUTION_CONTROL_STAGING_POSTGRES_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.postgres.yml}"
 execution_control_staging_postgres_compose_project_name="${EXECUTION_CONTROL_STAGING_POSTGRES_COMPOSE_PROJECT_NAME:-campus-agent-local}"
@@ -51,8 +55,12 @@ execution_control_staging_refresh_runtime_topology_from_env() {
   execution_control_staging_host="${EXECUTION_CONTROL_STAGING_HOST:-127.0.0.1}"
   execution_control_staging_port="${EXECUTION_CONTROL_STAGING_PORT:-27051}"
   execution_control_staging_compose_file="${EXECUTION_CONTROL_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.yml}"
-  execution_control_staging_default_compose_files="${execution_control_staging_compose_file}:${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.staging.yml:${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.yml"
+  execution_control_staging_staging_compose_file="${EXECUTION_CONTROL_STAGING_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.staging.yml}"
+  execution_control_staging_langfuse_compose_file="${EXECUTION_CONTROL_STAGING_LANGFUSE_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.yml}"
+  execution_control_staging_langfuse_staging_compose_file="${EXECUTION_CONTROL_STAGING_LANGFUSE_STAGING_COMPOSE_FILE:-${execution_control_staging_repo_root}/infra/local/docker-compose.execution-control-runtime.langfuse.staging.yml}"
+  execution_control_staging_default_compose_files="${execution_control_staging_compose_file}:${execution_control_staging_staging_compose_file}"
   execution_control_staging_compose_files="${EXECUTION_CONTROL_STAGING_COMPOSE_FILES:-${execution_control_staging_default_compose_files}}"
+  execution_control_staging_compose_profiles="${EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES:-}"
   execution_control_staging_compose_project_name="${EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME:-campus-execution-control-staging}"
   execution_control_staging_local_healthz_url="http://${execution_control_staging_host}:${execution_control_staging_port}/healthz"
   execution_control_staging_local_readyz_url="http://${execution_control_staging_host}:${execution_control_staging_port}/readyz"
@@ -71,8 +79,12 @@ execution_control_staging_runtime_globals_declared() {
     "${execution_control_staging_host}" \
     "${execution_control_staging_port}" \
     "${execution_control_staging_compose_file}" \
+    "${execution_control_staging_staging_compose_file}" \
+    "${execution_control_staging_langfuse_compose_file}" \
+    "${execution_control_staging_langfuse_staging_compose_file}" \
     "${execution_control_staging_default_compose_files}" \
     "${execution_control_staging_compose_files}" \
+    "${execution_control_staging_compose_profiles}" \
     "${execution_control_staging_compose_project_name}" \
     "${execution_control_staging_app_api_base_url}" \
     "${execution_control_staging_lock_wait_seconds}" \

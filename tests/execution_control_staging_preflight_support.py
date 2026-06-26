@@ -6,8 +6,11 @@ import shlex
 import stat
 import subprocess
 import textwrap
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parents[1]
 STAGING_DIR = ROOT / "infra/local/staging"
@@ -76,6 +79,8 @@ _PROJECTED_STAGING_KEYS = [
     "EXECUTION_CONTROL_STAGING_LOCAL_POSTGRES_PORT",
     "EXECUTION_CONTROL_STAGING_LOCAL_MINIO_ACCESS_KEY",
     "EXECUTION_CONTROL_STAGING_UV_BIN",
+    "EXECUTION_CONTROL_STAGING_COMPOSE_FILES",
+    "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES",
     "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
     "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
     "EXECUTION_CONTROL_STAGING_HOST",
@@ -278,6 +283,7 @@ def run_common_script_with_env(
             _with_valid_staging_fixture_env(
                 "\n".join(
                     [
+                        "APP_API_INTERNAL_BASE_URL={app_api_base_url}",
                         f"CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH={projection_path}",
                         staging_env,
                     ]
@@ -294,32 +300,43 @@ def run_common_script_with_env(
         fake_uv_bin = temp_root / "fake-uv"
         fake_uv_bin.write_text(_fake_uv_script(), encoding="utf-8")
         fake_uv_bin.chmod(0o755)
-        command = f"""
-        set -euo pipefail
-        export EXECUTION_CONTROL_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
-        export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env_path))}
-        export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
-        source {shlex.quote(str(common_path))}
-        execution_control_staging_load_env
-        execution_control_staging_require_runtime_env
-        execution_control_staging_require_data_plane_ready
-        node - <<'NODE'
-        const keys = {json.dumps(_PROJECTED_STAGING_KEYS)};
-        const projected = {{}};
-        for (const key of keys) {{
-          projected[key] = process.env[key] || "";
-        }}
-        console.log(JSON.stringify(projected));
-        NODE
-        """
-        return subprocess.run(
-            ["bash", "-lc", textwrap.dedent(command)],
-            cwd=temp_root,
-            env=os.environ.copy(),
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True,
-        )
+        server = ProviderConfigStubServer()
+        server.start()
+        try:
+            runtime_env_path.write_text(
+                runtime_env_path.read_text(encoding="utf-8").replace(
+                    "{app_api_base_url}", server.base_url
+                ),
+                encoding="utf-8",
+            )
+            command = f"""
+            set -euo pipefail
+            export EXECUTION_CONTROL_STAGING_UV_BIN={shlex.quote(str(fake_uv_bin))}
+            export EXECUTION_CONTROL_STAGING_ENV_FILE={shlex.quote(str(runtime_env_path))}
+            export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=test-sha
+            source {shlex.quote(str(common_path))}
+            execution_control_staging_load_env
+            execution_control_staging_require_runtime_env
+            execution_control_staging_require_data_plane_ready
+            node - <<'NODE'
+            const keys = {json.dumps(_PROJECTED_STAGING_KEYS)};
+            const projected = {{}};
+            for (const key of keys) {{
+              projected[key] = process.env[key] || "";
+            }}
+            console.log(JSON.stringify(projected));
+            NODE
+            """
+            return subprocess.run(
+                ["bash", "-lc", textwrap.dedent(command)],
+                cwd=temp_root,
+                env=os.environ.copy(),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        finally:
+            server.close()
 
 
 def _with_valid_observability_sink_env(staging_env: str) -> str:
@@ -478,6 +495,75 @@ def _embedding_profile(role: str) -> dict[str, object]:
         "timeout_ms": 30000,
         "transport": "embeddings",
     }
+
+
+class ProviderConfigStubServer:
+    def __init__(self, prompt_transport: str = "responses") -> None:
+        self.auth_headers: list[str] = []
+        self.prompt_transport = prompt_transport
+        self.roles: list[str] = []
+        self._server = ThreadingHTTPServer(("127.0.0.1", 0), self._handler())
+        self._thread = threading.Thread(target=self._server.serve_forever)
+        self._thread.daemon = True
+        self.base_url = f"http://127.0.0.1:{self._server.server_port}"
+
+    def start(self) -> None:
+        self._thread.start()
+
+    def close(self) -> None:
+        self._server.shutdown()
+        self._server.server_close()
+        self._thread.join(timeout=5)
+
+    def _handler(self) -> type[BaseHTTPRequestHandler]:
+        owner = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_GET(self) -> None:
+                parsed = urlparse(self.path)
+                role = parse_qs(parsed.query).get("role", [""])[0]
+                owner.auth_headers.append(self.headers.get("x-app-internal-auth", ""))
+                owner.roles.append(role)
+                self.send_response(200)
+                self.send_header("content-type", "application/json")
+                self.end_headers()
+                self.wfile.write(
+                    json.dumps(
+                        {
+                            "profile": provider_config_stub_profile_for_role(
+                                role, owner.prompt_transport
+                            )
+                        }
+                    ).encode("utf-8")
+                )
+
+            def log_message(self, format: str, *args: object) -> None:
+                return
+
+        return Handler
+
+
+def provider_config_stub_profile_for_role(
+    role: str, prompt_transport: str = "responses"
+) -> dict[str, object]:
+    kind = "embedding" if role.endswith("_embedding") else "prompt"
+    profile: dict[str, object] = {
+        "api_key": "embedding-key" if kind == "embedding" else "llm-key",
+        "base_url": (
+            "https://ai.gitee.com/v1" if kind == "embedding" else "https://llm.example.com/v1"
+        ),
+        "kind": kind,
+        "model": "Qwen3-Embedding-4B" if kind == "embedding" else "gpt-test",
+        "profile_id": f"provider_profile_{role}",
+        "provider": "openai",
+        "revision": 1,
+        "role": role,
+        "timeout_ms": 30000,
+        "transport": "embeddings" if kind == "embedding" else prompt_transport,
+    }
+    if kind == "embedding":
+        profile["dimensions"] = 2560
+    return profile
 
 
 def _fake_uv_script() -> str:

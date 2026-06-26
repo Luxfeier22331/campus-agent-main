@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0038
 status: accepted
 created: 2026-04-12
-updated: 2026-06-08
+updated: 2026-06-27
 ---
 # ADR-0038 Documentation Information Architecture And Lifecycle
 
@@ -14,6 +14,8 @@ updated: 2026-06-08
 Accepted on 2026-04-12. Updated on 2026-06-08 to remove tracked planning/archive
 trees from branch tip; historical planning material is now recovered through git
 history instead of a tracked `docs/plans` or `.planning/workstreams` archive.
+Updated on 2026-06-27 to add short-name and narrow-capability single-document
+governance.
 
 ## 背景
 
@@ -144,6 +146,20 @@ status as current execution state.
 
 这类协作信息只属于当轮执行产物，不属于 repo 的长期 source of truth。
 
+### 决策 7：短命名与窄能力单文档
+
+文档路径用目录表达上下文，文件名只表达对象本身。新增或重命名长期文档时，优先使用
+`transport.md`、`dining.md`、`status.md` 这类短名，避免在文件名中重复
+domain、source-truth、contract、schema 等目录语义。
+
+一个窄能力只能有一个 canonical human document。对于班车时刻表这类能力，tool
+contract、status projection、source/projection truth、config README 与 audit 结论不得再各自形成一份
+长期人类真相；它们应合并进同一能力文档，或降为 machine-readable schema、fixture、历史
+ADR / archive reference。
+
+JSON Schema、OpenAPI、fixture 与 registry 是 executable contract，可以单独存在。ADR
+保持历史 lifecycle，不为短命名治理而删除。
+
 ## 结果
 
 本 ADR 接受后，仓库应逐步完成以下收口：
@@ -153,6 +169,7 @@ status as current execution state.
 - tracked planning truth 收口为 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`
 - historical planning archives 退出 branch tip，通过 git history 恢复
 - 后续文档清理按 lifecycle 继续推进，而不是继续向入口页堆内容
+- 窄能力按一个 canonical human document 收口；机器 contract 单独保留，重复人类文档删除或并入
 
 ## 关联文档
 

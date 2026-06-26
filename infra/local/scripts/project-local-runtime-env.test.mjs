@@ -374,7 +374,7 @@ async function writeProviderConfigProjection(filePath) {
 						revision: 3,
 						role: "hindsight_llm",
 						timeout_ms: 30000,
-						transport: "responses",
+						transport: "chat_completions",
 					},
 					hindsight_embedding: {
 						api_key: "active-embedding-secret",

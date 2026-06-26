@@ -54,7 +54,7 @@ function promptValidationResponseLooksUsable(transport: string, payload: unknown
 	if (transport === "chat_completions") {
 		const choice = Array.isArray(record.choices) ? record.choices[0] : undefined;
 		const message = recordFromUnknown(recordFromUnknown(choice)?.message);
-		return typeof message?.content === "string" && message.content.trim() !== "";
+		return promptValidationStructuredContentLooksUsable(message?.content);
 	}
 	const outputItem = Array.isArray(record.output) ? record.output[0] : undefined;
 	const output = recordFromUnknown(outputItem);
@@ -64,6 +64,19 @@ function promptValidationResponseLooksUsable(transport: string, payload: unknown
 			output.status === "completed" ||
 			output.status === "incomplete")
 	);
+}
+
+function promptValidationStructuredContentLooksUsable(value: unknown): boolean {
+	if (typeof value !== "string" || value.trim() === "") {
+		return false;
+	}
+	try {
+		const payload = JSON.parse(value) as unknown;
+		const record = recordFromUnknown(payload);
+		return record?.status === "ok";
+	} catch {
+		return false;
+	}
 }
 
 function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
@@ -85,6 +98,19 @@ function promptValidationPayload(input: Parameters<ProviderConfigValidators["val
 			messages: [{ content: "provider config validation", role: "user" }],
 			max_tokens: 8,
 			model: input.model,
+			response_format: {
+				json_schema: {
+					name: "provider_config_validation",
+					schema: {
+						additionalProperties: false,
+						properties: { status: { const: "ok", type: "string" } },
+						required: ["status"],
+						type: "object",
+					},
+					strict: true,
+				},
+				type: "json_schema",
+			},
 		};
 	}
 	return {

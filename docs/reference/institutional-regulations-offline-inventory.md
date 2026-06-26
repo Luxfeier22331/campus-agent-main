@@ -27,7 +27,7 @@ updated: 2026-04-24
 相关文档：
 
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
 - `var/ingestion-evidence/authenticated-notice-regulation-consumption/README.md`
 - git history archived file-release owner recovery plan
 

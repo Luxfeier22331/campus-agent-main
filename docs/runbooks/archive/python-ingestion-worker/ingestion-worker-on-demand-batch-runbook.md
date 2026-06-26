@@ -29,9 +29,8 @@ updated: 2026-04-27
 - heavy ingestion dependencies 只在具体子命令进程中加载
 - on-demand runner 负责 orchestration 与 resource profile，不拥有 source truth 或
   serving policy
-- 后续 clean target 不继续扩大 Python on-demand runner；旧 CLI 逐条按
-  `docs/reference/ingestion-python-cli-clean-target-triage.md` 删除、归档或以 TS /
-  Rust / Python adapter 重新建模
+- 后续 clean target 不继续扩大 Python on-demand runner；旧 CLI 已按
+  clean-target boundary 删除、归档或以 TS / Rust / Python adapter 重新建模
 
 这适合当前低频 notice / handoff 规模。若后续变成高频队列消费、需要 lease/backpressure 或
 长时间并发协调，再重新评估 Go/Rust/TS runner。

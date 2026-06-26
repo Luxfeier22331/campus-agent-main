@@ -10,6 +10,7 @@ updated: 2026-04-27
 
 ## 先看什么
 
+- 班车时刻表能力：`transport.md`
 - 架构总边界：`../architecture/domains/campus-services/architecture.md`
 - 当前 merged truth：`../architecture/current-architecture.md`
 - 长期方向：`../architecture/target-architecture.md`
@@ -17,8 +18,8 @@ updated: 2026-04-27
 
 ## 长期边界与决策
 
+- `transport.md`
 - `../architecture/domains/campus-services/architecture.md`
-- `../contracts/transport-schedule-lookup-contract.md`
 - `../decisions/adr-0005-campus-services-taxonomy.md`
 - `../decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
   （historical title；当前术语为 Execution Agent Layer routing / surface policy）
@@ -27,7 +28,6 @@ updated: 2026-04-27
 ## Data / Reference
 
 - `../data/campus-services-ops-source-truth-schema.md`
-- `../data/campus-services-transport-schedule-source-truth-schema.md`
 - `../reference/student-handbook-normalization-strategy.md`
 - `../reference/runtime-serving-and-index-terms.md`
 - `../runbooks/ingestion-control-clean-target-runbook.md`

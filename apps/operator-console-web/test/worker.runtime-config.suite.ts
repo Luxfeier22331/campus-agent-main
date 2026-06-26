@@ -5,6 +5,7 @@ import {
 	localAccessSmokeServerSource,
 	packageManifest,
 	stagingAccessServiceTokenSmokeSource,
+	stagingBrowserE2ESource,
 	viteConfigSource,
 	wranglerConfig,
 	wranglerLocalSmokeConfig,
@@ -79,6 +80,21 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingAccessServiceTokenSmokeSource).not.toContain("loadRepoEnvFile");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("CF-Access-Client-Id");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("Invalid Access JWT.");
+		expect(stagingBrowserE2ESource).toContain('from "playwright"');
+		expect(stagingBrowserE2ESource).toContain("OPERATOR_CONSOLE_STORAGE_STATE");
+		expect(stagingBrowserE2ESource).toContain(
+			"service-token smoke does not prove human operator browser E2E",
+		);
+		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
+		expect(stagingBrowserE2ESource).toContain("operator-console-browser-e2e.json");
+		expect(stagingBrowserE2ESource).toContain("assertNoDirectRuntimeRequests");
+		expect(stagingBrowserE2ESource).toContain(
+			"temporal|execution-control|sentry|axiom|postgres|pg",
+		);
+		expect(stagingBrowserE2ESource).toContain("/observability/overview");
+		expect(packageManifest.devDependencies?.playwright).toBeTruthy();
+		expect(packageManifest.scripts?.["browser:e2e:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["browser:smoke:staging"]).toBeUndefined();
 		expect(viteConfigSource).toContain("auxiliaryWorkers");
 		expect(viteConfigSource).toContain("wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");

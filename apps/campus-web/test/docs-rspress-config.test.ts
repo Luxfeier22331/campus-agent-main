@@ -53,9 +53,18 @@ describe("campus docs Rspress build boundary", () => {
 		expect(buildDocsSource).toContain("mirrorPublishedReaderAssetsForRspressBuild");
 		expect(buildDocsSource).toContain('"_docs", "_gated-docs", "_gated-docs-search"');
 		expect(buildDocsSource).toContain('".generated/docs/public"');
-		expect(packageJson.scripts.build).toContain("build-published-reader-docs.mjs");
-		expect(packageJson.scripts["build:staging"]).toContain("build-published-reader-docs.mjs");
-		expect(packageJson.scripts["build:staging"]).toContain("--staging");
+		expect(packageJson.scripts["build:docs"]).toContain("build-published-reader-docs.mjs");
+		expect(packageJson.scripts["build:docs:staging"]).toContain(
+			"build-published-reader-docs.mjs --staging",
+		);
+		expect(packageJson.scripts["build:app"]).not.toContain("build-published-reader-docs.mjs");
+		expect(packageJson.scripts["build:app:staging"]).not.toContain(
+			"build-published-reader-docs.mjs",
+		);
+		expect(packageJson.scripts.build).toBe("pnpm run build:docs && pnpm run build:app");
+		expect(packageJson.scripts["build:staging"]).toBe(
+			"pnpm run build:docs:staging && pnpm run build:app:staging",
+		);
 		expect(packageJson.scripts.build).not.toContain("docs:scaffold");
 		expect(packageJson.scripts["build:staging"]).not.toContain("docs:scaffold");
 		expect(configSource).toContain('logoText: "中央民族大学校园问答"');

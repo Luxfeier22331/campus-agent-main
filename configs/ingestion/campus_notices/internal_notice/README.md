@@ -158,12 +158,11 @@ collection truth.
 
 ## Canonical references
 
-- `docs/reference/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/reference/internal-notice-manual-review-future-query-contract.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/runbooks/internal-notice-policy-regulation-promotion-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-policy-regulation-promotion-runbook.md`
 - git history archived internal-notice policy/regulation implementation plan

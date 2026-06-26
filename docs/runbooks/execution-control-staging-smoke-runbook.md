@@ -41,12 +41,12 @@ execution origin 为准。
   - `activity-worker-knowledge-plan`
   - `activity-worker-knowledge-retrieval`
   - `activity-worker-knowledge-synthesis`
-  - `activity-worker-campus-services`
-  - `activity-worker-notice`
-  - `activity-worker-navigation`
   - `activity-worker-finalization`
-  - `worker-autoscaler`
   - Temporal
+- `activity-worker-campus-services`、`activity-worker-notice`、
+  `activity-worker-navigation`、`worker-autoscaler`、`temporal-ui` 与
+  self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在对应 capability
+  opening、ops proof、UI 排障或 eval/trace UI 会话中显式 opt-in。
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
   `https://execution-control-staging.mucwiki-edge.link`
 - `app-api-staging` 必须配置 execution-control Access service-token credentials 与
@@ -79,6 +79,19 @@ infra/local/staging/status-execution-control-staging.sh --check
 最小通过标准：
 
 - `infra/local/staging/status-execution-control-staging.sh --check` 返回 `0`
+- 默认 `docker compose ps` 不包含 `langfuse-*`、`temporal-ui`、
+  `activity-worker-campus-services`、`activity-worker-notice`、
+  `activity-worker-navigation`。
+
+按需入口：
+
+```bash
+infra/local/staging/start-execution-control-staging.sh --with-ui
+infra/local/staging/start-execution-control-staging.sh --with-structured-capabilities
+infra/local/staging/start-execution-control-staging.sh --with-langfuse
+infra/local/staging/status-execution-control-staging.sh --check --require-langfuse
+infra/local/staging/stop-execution-control-langfuse.sh
+```
 
 如果需要重装 machine ingress reverse proxy 或 Cloudflare Access policy，按
 `execution-control-staging-operations.md` 的 `配置 machine ingress reverse proxy` 执行。

@@ -34,12 +34,15 @@ updated: 2026-06-09
   - `activity-worker-knowledge-plan`
   - `activity-worker-knowledge-retrieval`
   - `activity-worker-knowledge-synthesis`
+  - `activity-worker-finalization`
+  - `temporal`
+- opt-in services:
   - `activity-worker-campus-services`
   - `activity-worker-notice`
   - `activity-worker-navigation`
-  - `activity-worker-finalization`
   - `worker-autoscaler`
-  - `temporal`
+  - `temporal-ui`
+  - self-hosted Langfuse stack
 - ingress:
   - machine-local reverse proxy 指向 `execution-control:8000`
 - upstream contract:

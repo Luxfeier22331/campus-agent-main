@@ -220,6 +220,7 @@ const keys = [
   "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET",
   "EXECUTION_CONTROL_STAGING_UV_BIN",
   "EXECUTION_CONTROL_STAGING_COMPOSE_FILES",
+  "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES",
   "EXECUTION_CONTROL_STAGING_COMPOSE_PROJECT_NAME",
   "EXECUTION_CONTROL_STAGING_RUNTIME_DIR",
   "EXECUTION_CONTROL_STAGING_HOST",
@@ -498,12 +499,12 @@ function projectHindsightProviderConfig() {
   requireProviderProfile(llm, {
     kind: "prompt",
     role: "hindsight_llm",
-    transport: "responses",
+    transports: ["responses", "chat_completions"],
   });
   requireProviderProfile(embedding, {
     kind: "embedding",
     role: "hindsight_embedding",
-    transport: "embeddings",
+    transports: ["embeddings"],
   });
   if (!Number.isInteger(embedding.dimensions) || embedding.dimensions <= 0) {
     throw new Error(
@@ -580,13 +581,14 @@ function requireProviderProfile(profile, expected) {
       throw new Error(`Hindsight provider-config projection requires ${expected.role} ${key}`);
     }
   }
+  const expectedTransports = expected.transports ?? [expected.transport];
   if (
     profile.kind !== expected.kind ||
     profile.role !== expected.role ||
-    profile.transport !== expected.transport
+    !expectedTransports.includes(profile.transport)
   ) {
     throw new Error(
-      `Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expected.transport}`,
+      `Hindsight provider-config projection expected ${expected.role} ${expected.kind}/${expectedTransports.join("|")}`,
     );
   }
 }
@@ -1224,9 +1226,6 @@ const output =
   fileEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   fileEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   path.join(runtimeDir, "provider-config-projection.json");
-if (fs.existsSync(output)) {
-  process.exit(0);
-}
 
 const appApiBaseUrl = (
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
@@ -1239,6 +1238,9 @@ const sharedSecret =
   sourceEnvValue("APP_API_INTERNAL_SHARED_SECRET") ||
   sourceEnvValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
 if (!sharedSecret) {
+  if (fs.existsSync(output)) {
+    process.exit(0);
+  }
   throw new Error(
     "provider-config projection sync requires APP_API_INTERNAL_SHARED_SECRET or EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
   );

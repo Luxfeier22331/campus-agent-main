@@ -185,8 +185,21 @@ const APP_PREFLIGHTS = {
 					"staging",
 				],
 			],
-			["pnpm", ["--dir", "apps/campus-web", "build:staging"]],
 			["node", ["apps/campus-web/scripts/verify-staging-config.mjs"]],
+			[
+				"node",
+				[
+					"scripts/verify-worker-deploy-config.mjs",
+					"apps/campus-web/dist/campus_web/wrangler.json",
+					"SERVICE:APP_API=app-api-staging",
+					"VAR:APP_API_BASE_URL=https://app-api.internal",
+					"VAR:CAMPUS_WEB_HOSTNAME=campus-staging.mucwiki-edge.link",
+					"VAR:SENTRY_ENVIRONMENT=staging",
+					"VAR_ABSENT:AUTH_TURNSTILE_SITE_KEY",
+					"VAR_ABSENT:SENTRY_RELEASE",
+					"ROUTE:campus-staging.mucwiki-edge.link",
+				],
+			],
 		],
 	},
 	"apps/operator-console-web": {
@@ -206,7 +219,6 @@ const APP_PREFLIGHTS = {
 					"staging",
 				],
 			],
-			["pnpm", ["--dir", "apps/operator-console-web", "build:staging"]],
 			[
 				"node",
 				[

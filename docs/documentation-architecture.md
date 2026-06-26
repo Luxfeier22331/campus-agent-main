@@ -42,6 +42,21 @@ The primary failure mode this architecture prevents is mixing product chain
 truth, capability readiness, operator/eval diagnostics, release evidence,
 staging proof and active planning into the same paragraph.
 
+Human documentation must also stay small enough to keep that ownership
+observable:
+
+- Use directories for context and short filenames for the object itself.
+  Prefer `domains/transport.md` over repeating the full path context in the
+  filename.
+- A narrow capability has one canonical human document. Architecture, contract,
+  data, config README and audit notes may link to it, but they must not each
+  restate the same capability truth.
+- Machine-readable JSON Schema, OpenAPI and fixtures may remain separate
+  executable contracts. They do not justify parallel human prose documents for
+  the same narrow capability.
+- ADRs keep their historical lifecycle. Do not delete or rename ADRs only to
+  satisfy short-name cleanup; supersede them when the decision changes.
+
 ## Truth Classes
 
 ### `product_truth`

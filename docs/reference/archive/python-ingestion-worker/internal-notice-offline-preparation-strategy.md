@@ -315,4 +315,4 @@ notice id 不得通过重新扫描 source-truth inventory 扩张 downstream scop
 
 - `docs/reference/internal-notice-offline-preparation-quality-acceptance.md`
 - `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`

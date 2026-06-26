@@ -351,6 +351,69 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		});
 	});
 
+	it("cancels the durable run after accepted when stop is clicked before run identity arrives", async () => {
+		let observedSignal: AbortSignal | undefined;
+		let releaseAccepted: () => void = () => {
+			throw new Error("accepted release was not initialized");
+		};
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* (input: {
+			signal?: AbortSignal;
+		}) {
+			observedSignal = input.signal;
+			await new Promise<void>((resolve) => {
+				releaseAccepted = resolve;
+			});
+			yield {
+				data: {
+					occurredAt: "2026-06-24T01:00:00.000Z",
+					requestId: "req_01",
+					runId: "run_01",
+					sequence: 1,
+					status: "accepted",
+					traceId: "trace_01",
+				},
+				event: "request.accepted",
+			} satisfies ChatRequestStreamEvent;
+			throw new Error("stream should stop after pending cancellation consumes accepted run id");
+		});
+		conversationApiMock.cancelRun.mockResolvedValue(undefined);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		let submitPromise: Promise<void> | undefined;
+		await act(async () => {
+			submitPromise = assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "hi 你是谁", type: "text" }],
+			});
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(true);
+		expect(observedSignal?.aborted).toBe(false);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onCancel();
+		});
+
+		expect(observedSignal?.aborted).toBe(false);
+		expect(conversationApiMock.cancelRun).not.toHaveBeenCalled();
+
+		await act(async () => {
+			releaseAccepted();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+
+		expect(conversationApiMock.cancelRun).toHaveBeenCalledWith("run_01");
+		expect(observedSignal?.aborted).toBe(true);
+		expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false);
+
+		await act(async () => {
+			await submitPromise;
+		});
+	});
+
 	it("keeps local streaming messages when assistant-ui publishes the newly initialized remote thread", async () => {
 		vi.useFakeTimers();
 		const finalAnswer = "我是中央民族大学校园问答助手。";
