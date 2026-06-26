@@ -265,6 +265,29 @@ agent-as-tool。
    retrieval、selection、ranking 或 grounding stage 是 CPU 热点后，才允许把该 stage
    迁入 Rust 或单独高性能 service。
 
+### 决策 10：当前 Temporal SDK posture 保持 Go SDK
+
+当前 production execution plane 继续使用 Temporal Go SDK。原因不是 Rust 语言或
+Temporal Rust SDK 被长期排除，而是当前 `execution-control`、workflow worker、activity
+worker、RAG runtime、projection writer、OpenTelemetry interceptor 与 cancel / timeout
+evidence spine 已经是 Go-owned implementation boundary；把 canonical execution plane
+迁到 Rust SDK 会同时改变 runtime owner、worker implementation boundary 与 observability
+integration。
+
+截至 2026-06-26，Temporal Rust SDK / Rust Client 官方仓库仍标注为 Public Preview。它不得作为
+`campus-agent` online durable orchestration 的默认替代方案。
+
+未来只有同时满足以下条件，才应重新评估 Rust SDK 迁移：
+
+1. Temporal Rust SDK / Rust Client 已进入官方稳定 / GA posture，而不是 Public Preview。
+1. 基于 `campus-agent` 真实 workflow / activity workload 的 profile 证明 Rust SDK worker 在
+   CPU、内存、tail latency 或 pod density 上有明确、可重复的资源消耗优势。
+1. 迁移方案能保持 existing Temporal workflow semantics、sanitized projection、
+   OpenTelemetry / Langfuse trace、activity cancel / timeout outcome 与 operator read model
+   不回退。
+1. 迁移以整条 worker pool 或清晰 stage boundary 为单位进行，不新增双 SDK
+   compatibility path、serving fallback 或长期混合 owner。
+
 #### Step Contract Skeleton
 
 本 ADR 只冻结 boundary 不变量，不冻结最终 package 路径或字段全集。后续实现计划必须把
@@ -331,7 +354,7 @@ agent-as-tool。
 
 - 立即重命名 `apps/execution-control` 目录
 - Temporal Cloud 还是 self-hosted Temporal
-- Temporal SDK 语言最终选择
+- Temporal SDK 的永久最终选择；当前 posture 是 Go SDK，Rust SDK 迁移条件见“决策 10”
 - worker image 拆分数量
 - 具体 autoscaling 阈值
 - 具体 migration 顺序
@@ -343,3 +366,5 @@ agent-as-tool。
 - [Temporal Task Queues](https://docs.temporal.io/task-queue)
 - [Temporal Workers](https://docs.temporal.io/workers)
 - [Temporal Visibility](https://docs.temporal.io/visibility)
+- [Temporal Go SDK](https://github.com/temporalio/sdk-go)
+- [Temporal Rust SDK](https://github.com/temporalio/sdk-rust)
