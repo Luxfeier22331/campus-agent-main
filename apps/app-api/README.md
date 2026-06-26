@@ -174,13 +174,13 @@ Database baseline:
 - Better Auth runtime now uses the shared Drizzle/runtime DB seam with explicit
   `app_auth.*` schema metadata instead of a dedicated auth-only `pg.Pool`
 - when `APP_API_DB_FRESH` is provisioned, Better Auth plus the explicitly
-  whitelisted dining operations, provider configuration write paths, and chat
-  conversation detail read-after-write verification path use the no-cache
-  Hyperdrive lane. Chat request admission/writes, runtime projection, operator
-  observability, profile memory, official-web command projection, wechat command
-  projection, campus-services ops, and identity platform projection use the
-  default `APP_API_DB` lane unless they are deliberately reclassified with a
-  contract test.
+  whitelisted dining operations, provider configuration write paths, chat
+  command conversation-context admission, and chat conversation detail
+  read-after-write verification path use the no-cache Hyperdrive lane. Chat
+  request writes, runtime projection, operator observability, profile memory,
+  official-web command projection, wechat command projection, campus-services
+  ops, and identity platform projection use the default `APP_API_DB` lane unless
+  they are deliberately reclassified with a contract test.
 - `APP_API_DB_FRESH` is not a second database. It points at the same shared
   Postgres through a caching-disabled Hyperdrive config so `sign-up ->
   immediate sign-in` and other explicitly admitted read-after-write flows do

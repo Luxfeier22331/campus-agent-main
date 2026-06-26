@@ -156,7 +156,6 @@ describe("app-api shared product bootstrap contracts", () => {
 			"resolveAuthenticatedNoticeProcessingCommandService",
 			"resolveAuthenticatedNoticeRunProcessingCommandService",
 			"resolveCampusServicesOpsService",
-			"resolveChatCommandService",
 			"resolveIdentityPlatformService",
 			"resolveOfficialWebCommandService",
 			"resolveOfficialWebReleaseTaskProcessingCommandService",
@@ -189,6 +188,18 @@ describe("app-api shared product bootstrap contracts", () => {
 		);
 		expect(chatConversationResolver).toContain(
 			"store: createPgChatConversationStore(input.env, { getDb: runtime.getDb })",
+		);
+
+		const chatCommandResolver = extractRequestScopeResolver(
+			requestScopeSource,
+			"resolveChatCommandService",
+		);
+		expect(chatCommandResolver).toContain("conversationStore: chatConversationStore");
+		expect(chatCommandResolver).toContain(
+			"createPgChatConversationStore(input.env, {\n\t\t\t\t\tgetDb: runtime.getFreshDb,",
+		);
+		expect(chatCommandResolver).toContain(
+			"store: createPgChatCommandStore(input.env, { getDb: runtime.getDb })",
 		);
 	});
 

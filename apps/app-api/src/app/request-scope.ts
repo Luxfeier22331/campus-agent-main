@@ -238,7 +238,7 @@ export function createRequestScopeFactory(input: {
 				}
 
 				const chatConversationStore = createPgChatConversationStore(input.env, {
-					getDb: runtime.getDb,
+					getDb: runtime.getFreshDb,
 				});
 				chatCommandService = buildChatCommandService({
 					conversationStore: chatConversationStore,
