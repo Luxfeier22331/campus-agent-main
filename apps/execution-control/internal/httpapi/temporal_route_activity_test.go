@@ -11,7 +11,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestPlanRouteActivityPlansCampusServicesTransportNoticeOverride(t *testing.T) {
+func TestPlanRouteActivityKeepsTransportNoticeOverrideOnScheduleLookup(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -77,10 +77,10 @@ func TestPlanRouteActivityPlansCampusServicesTransportNoticeOverride(t *testing.
 	if err != nil {
 		t.Fatalf("PlanRouteActivity failed: %v", err)
 	}
-	if route.WorkflowMode != "multi_step" ||
+	if route.WorkflowMode != "single_step" ||
 		route.Capability != "campus_services" ||
-		len(route.Steps) != 3 {
-		t.Fatalf("route = %#v, want campus_services multi_step with three steps", route)
+		len(route.Steps) != 1 {
+		t.Fatalf("route = %#v, want campus_services single_step schedule lookup", route)
 	}
 	first := route.Steps[0]
 	if first.Capability != "campus_services" ||

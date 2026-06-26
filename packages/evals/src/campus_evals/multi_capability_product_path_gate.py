@@ -105,7 +105,7 @@ def run_multi_capability_product_path_gate(
             check_id="domain_capability_adapter_tests",
             command=_domain_capability_adapter_command(),
             command_runner=command,
-            cwd=REPO_ROOT,
+            cwd=EXECUTION_CONTROL_DIR,
         ),
         _run_command_check(
             check_id="app_api_multi_capability_observability_tests",
@@ -225,13 +225,10 @@ def _capability_execution_runtime_command() -> tuple[str, ...]:
 
 def _domain_capability_adapter_command() -> tuple[str, ...]:
     return (
-        "uv",
-        "run",
-        "--all-packages",
-        "python",
-        "-m",
-        "unittest",
-        "tests.agent.test_notice_capability",
+        "go",
+        "test",
+        "./internal/structuredquery",
+        "./internal/runtimepolicy",
     )
 
 

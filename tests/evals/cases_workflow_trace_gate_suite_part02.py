@@ -435,7 +435,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             ("transport_schedule_lookup",),
         )
 
-    def test_transport_notice_override_fixture_declares_notice_change_set_answer_artifacts(
+    def test_transport_notice_override_fixture_stays_on_transport_schedule_lookup(
         self,
     ) -> None:
         case_set = load_workflow_trace_cases()
@@ -445,42 +445,26 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             if item.case_id == "workflow-transport-notice-override-multistep"
         )
 
-        self.assertEqual(case.expectation.direct_vs_delegate_branch, "multi_step")
-        self.assertEqual(case.expectation.workflow_mode, "multi_step")
-        self.assertEqual(case.expectation.selected_capability, "knowledge")
+        self.assertEqual(case.expectation.direct_vs_delegate_branch, "delegate")
+        self.assertEqual(case.expectation.workflow_mode, "single_step")
+        self.assertEqual(case.expectation.selected_capability, "campus_services")
         self.assertEqual(
             case.expectation.selected_tools,
-            (
-                "transport_schedule_lookup",
-                "campus_notice_change_set_lookup",
-                "retrieval.query",
-            ),
+            ("transport_schedule_lookup",),
         )
         self.assertEqual(
             case.expectation.expected_tool_order,
-            (
-                "transport_schedule_lookup",
-                "campus_notice_change_set_lookup",
-                "retrieval.query",
-            ),
+            ("transport_schedule_lookup",),
         )
         self.assertEqual(
             case.expectation.expected_context_projection_kinds,
-            (
-                "schedule_baseline",
-                "notice_change_set",
-                "evidence_bundle",
-                "grounding_verdict",
-            ),
+            ("schedule_baseline",),
         )
         self.assertEqual(
             case.expectation.expected_answer_artifact_kinds,
-            (
-                "schedule_baseline",
-                "notice_change_set",
-                "evidence_bundle",
-            ),
+            ("schedule_baseline",),
         )
+        self.assertIn("notice:353903", case.expectation.expected_source_ids)
 
     def test_fails_trace_projection_completeness_when_steps_lack_timeline_fields(
         self,

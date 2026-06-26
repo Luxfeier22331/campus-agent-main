@@ -204,38 +204,6 @@ func TestPlanWithPolicyDoesNotAttachCapabilityPlanForIneligibleSelectedNotice(t 
 	}
 }
 
-func TestTransportNoticeOverrideCapabilityPlanFreezesThreeStepArtifactIntent(t *testing.T) {
-	plan := transportNoticeOverrideCapabilityPlan(Request{
-		EffectiveCapability: "campus_services",
-		UserGoal:            "今天丰台到海淀通勤车乘车点有没有调整",
-		SelectedNoticeRef: SelectedNoticeRef{
-			NoticeID:      "353903",
-			SourceFamily:  "internal_notice_restricted",
-			Title:         "关于通勤班车丰台校区乘车点调整的通知",
-			TargetSurface: "campus_services/service_status_candidate",
-		},
-	})
-
-	if plan.SchemaVersion != CapabilityPlanSchemaVersion {
-		t.Fatalf("schema_version = %q", plan.SchemaVersion)
-	}
-	if plan.Capability != "campus_services" {
-		t.Fatalf("capability = %q", plan.Capability)
-	}
-	if !sameCapabilityArtifacts(
-		plan.RequiredArtifacts,
-		[]string{"schedule_baseline", "notice_change_set", "evidence_bundle", "grounding_verdict"},
-	) {
-		t.Fatalf("required artifacts = %#v", plan.RequiredArtifacts)
-	}
-	if plan.Budget.MaxSteps != 3 {
-		t.Fatalf("max steps = %d, want 3", plan.Budget.MaxSteps)
-	}
-	if !plan.GroundingPolicy.Required {
-		t.Fatal("grounding policy must be required for transport notice override synthesis")
-	}
-}
-
 func sameCapabilityArtifacts(got []string, want []string) bool {
 	if len(got) != len(want) {
 		return false

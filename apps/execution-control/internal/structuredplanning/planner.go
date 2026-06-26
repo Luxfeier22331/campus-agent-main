@@ -54,12 +54,6 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
-		if isTransportNoticeOverrideQuestion(normalizedGoal, request, policy) {
-			return MultiStepCapabilityPreplan(
-				"plan:capability_preplan:campus_services:transport_notice_override",
-				transportNoticeOverrideCapabilityPlan(request),
-			)
-		}
 		if runtimepolicy.IsTransportScheduleLookupQueryForPlanning(normalizedGoal, policy) {
 			return SingleStepPlan(Handoff{
 				Capability:   "campus_services",

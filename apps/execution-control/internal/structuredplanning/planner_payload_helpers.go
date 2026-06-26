@@ -2,11 +2,8 @@ package structuredplanning
 
 import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
-	"regexp"
 	"strings"
 )
-
-var isoDatePattern = regexp.MustCompile(`20\d{2}-\d{2}-\d{2}`)
 
 func isNoticeKnowledgeFollowthrough(
 	normalizedGoal string,
@@ -208,81 +205,6 @@ func temporalQueryPayload(
 		}
 	}
 	return map[string]any{"mode": "current"}
-}
-
-func isTransportNoticeOverrideQuestion(
-	normalizedGoal string,
-	request Request,
-	policy runtimepolicy.IntentPolicyArtifact,
-) bool {
-	return request.MultiStepWorkflowEnabled &&
-		request.SelectedNoticeRef.NoticeID != "" &&
-		request.SelectedNoticeRef.TargetSurface == "campus_services/service_status_candidate" &&
-		containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
-		(containsAny(normalizedGoal, []string{"调整", "变更", "临时", "通知"}) ||
-			containsAny(normalizedGoal, policy.Signals("structured_transport_boarding_status")))
-}
-
-func transportRouteLabelsForCapabilityPlan(request Request) []string {
-	title := strings.TrimSpace(request.SelectedNoticeRef.Title)
-	if title == "" {
-		return nil
-	}
-	for _, candidate := range []string{
-		"两校区学生通勤班车",
-		"两校区教师通勤班车",
-		"地铁接驳车",
-		"丰台到海淀通勤车",
-		"海淀到丰台通勤车",
-	} {
-		if strings.Contains(title, candidate) || strings.Contains(request.UserGoal, candidate) {
-			return []string{candidate}
-		}
-	}
-	return nil
-}
-
-func transportDirectionLabelsForCapabilityPlan(request Request) []string {
-	goal := request.UserGoal
-	switch {
-	case strings.Contains(goal, "丰台到海淀"):
-		return []string{"丰台到海淀"}
-	case strings.Contains(goal, "海淀到丰台"):
-		return []string{"海淀到丰台"}
-	default:
-		return nil
-	}
-}
-
-func transportStopLabelsForCapabilityPlan(request Request) []string {
-	labels := []string{}
-	for _, candidate := range []string{"乘车点", "南门", "北门", "东门", "西门"} {
-		if strings.Contains(request.UserGoal, candidate) || strings.Contains(request.SelectedNoticeRef.Title, candidate) {
-			labels = append(labels, candidate)
-		}
-	}
-	if len(labels) == 0 {
-		return nil
-	}
-	return labels
-}
-
-func transportServiceDateForCapabilityPlan(request Request) string {
-	date := isoDatePattern.FindString(request.UserGoal)
-	if date != "" {
-		return date
-	}
-	return ""
-}
-
-func transportQueryTimeAnchorForCapabilityPlan(request Request) string {
-	if strings.Contains(request.UserGoal, "今天") {
-		return "today"
-	}
-	if strings.Contains(request.UserGoal, "明天") {
-		return "tomorrow"
-	}
-	return ""
 }
 
 func containsAny(value string, signals []string) bool {

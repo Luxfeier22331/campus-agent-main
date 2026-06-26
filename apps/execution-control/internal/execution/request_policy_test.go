@@ -278,7 +278,7 @@ func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowP
 	}
 }
 
-func TestParseAnswerRequestPreplansTransportNoticeOverrideWorkflow(t *testing.T) {
+func TestParseAnswerRequestKeepsTransportNoticeOverrideOnScheduleLookup(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"今天丰台到海淀通勤车乘车点有没有调整",
@@ -304,12 +304,12 @@ func TestParseAnswerRequestPreplansTransportNoticeOverrideWorkflow(t *testing.T)
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if request.WorkflowMode != WorkflowModeMultiStep ||
+	if request.WorkflowMode != WorkflowModeSingleStep ||
 		request.StructuredHandoff == nil ||
 		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" ||
-		len(request.PlannedHandoffs) != 3 {
+		len(request.PlannedHandoffs) != 1 {
 		t.Fatalf(
-			"request handoff/workflow/planned = %#v/%q/%#v, want resolved transport notice override plan",
+			"request handoff/workflow/planned = %#v/%q/%#v, want single-step transport schedule lookup",
 			request.StructuredHandoff,
 			request.WorkflowMode,
 			request.PlannedHandoffs,
@@ -318,7 +318,7 @@ func TestParseAnswerRequestPreplansTransportNoticeOverrideWorkflow(t *testing.T)
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
 	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
-	if workflowPlan["workflow_mode"] != "multi_step" {
-		t.Fatalf("workflow_plan.workflow_mode = %v, want multi_step", workflowPlan["workflow_mode"])
+	if workflowPlan["workflow_mode"] != "single_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want single_step", workflowPlan["workflow_mode"])
 	}
 }

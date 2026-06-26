@@ -28,7 +28,6 @@ members = [
     "campus-ingestion-worker",
     "campus-legacy-office-conversion-service",
     "campus-navigation-capability",
-    "campus-notice-capability",
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-regulation-semantics",
@@ -414,23 +413,6 @@ dependencies = [
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
-name = "campus-notice-capability"
-version = "0.1.0"
-source = { editable = "packages/notice-capability" }
-dependencies = [
-    { name = "boto3" },
-    { name = "campus-contracts" },
-    { name = "psycopg", extra = ["binary"] },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "boto3", specifier = ">=1.35.0" },
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "psycopg", extras = ["binary"], specifier = ">=3.2.0" },
-]
-
-[[package]]
 name = "campus-official-web-collector"
 version = "0.1.0"
 source = { virtual = "apps/official-web-collector" }
@@ -444,7 +426,6 @@ source = { virtual = "packages/official-web-core" }
 name = "campus-regulation-semantics"
 version = "0.1.0"
 source = { editable = "packages/regulation-semantics" }
-
 
 [[package]]
 name = "campus-shared"

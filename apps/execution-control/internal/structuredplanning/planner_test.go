@@ -151,7 +151,7 @@ func TestPlanWithPolicyBuildsCapabilityOnlyNoticeKnowledgeFollowthroughPreplan(t
 	}
 }
 
-func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
+func TestPlanWithPolicyKeepsTransportNoticeOverrideOnScheduleLookup(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -170,10 +170,17 @@ func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing
 	}, policy)
 
 	if plan == nil {
-		t.Fatal("expected transport notice override capability preplan")
+		t.Fatal("expected transport schedule plan")
+		return
 	}
-	if plan.WorkflowMode != WorkflowModeMultiStep || plan.CapabilityPlan() == nil {
-		t.Fatalf("plan = %#v, want multi_step capability preplan", plan)
+	if plan.WorkflowMode != WorkflowModeSingleStep || plan.CapabilityPlan() != nil {
+		t.Fatalf("plan = %#v, want single_step schedule lookup without notice change-set preplan", plan)
+	}
+	handoff := plan.SelectedHandoff()
+	if handoff == nil ||
+		handoff.Capability != "campus_services" ||
+		handoff.PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("handoff = %#v, want campus_services transport_schedule_lookup", handoff)
 	}
 }
 

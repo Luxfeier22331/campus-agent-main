@@ -209,221 +209,20 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
             "fail_close_reason": "",
         }
     if profile == "transport_notice_override_multistep":
-        return {
-            **base,
-            "routing_frame": {"routing_next_action": "multi_step"},
-            "context_resolution": {"state": "resolved"},
-            "direct_vs_delegate_branch": "multi_step",
-            "workflow_mode": "multi_step",
-            "handoff": {
-                "target": "campus_services",
+        return _tool_workflow_trace_summary(
+            capability="campus_services",
+            tool="transport_schedule_lookup",
+            branch="delegate",
+            mode="single_step",
+            argument_summary={
                 "payload_kind": "transport_schedule_lookup",
-                "allowed_tools": [],
-            },
-            "handoff_chain": [
-                {
-                    "target": "campus_services",
-                    "payload_kind": "transport_schedule_lookup",
-                    "selected_tool": "transport_schedule_lookup",
-                },
-                {
-                    "target": "notice",
-                    "payload_kind": "campus_notice_change_set_lookup",
-                    "selected_tool": "campus_notice_change_set_lookup",
-                },
-                {
-                    "target": "knowledge",
-                    "payload_kind": "rag_request",
-                    "selected_tool": "retrieval.query",
-                },
-            ],
-            "selected_capability": "knowledge",
-            "selected_tools": [
-                "transport_schedule_lookup",
-                "campus_notice_change_set_lookup",
-                "retrieval.query",
-            ],
-            "tool_argument_summary": {
-                "payload_kind": "campus_notice_change_set_lookup",
-                "selected_tool": "retrieval.query",
+                "selected_tool": "transport_schedule_lookup",
                 "service_date": "2026-05-07",
                 "route_labels": ["丰台到海淀通勤车"],
             },
-            "context_projections": [
-                {
-                    "projection_id": "projection:schedule_baseline:test",
-                    "source_step_id": "handoff:campus_services:transport_schedule_lookup",
-                    "projection_kind": "schedule_baseline",
-                    "content_hash": "sha256:schedule",
-                    "safety": {
-                        "truncated": False,
-                        "redacted": False,
-                        "max_chars": 1600,
-                        "fields_present": ["route_id", "route_label", "service_date"],
-                    },
-                },
-                {
-                    "projection_id": "projection:notice_change_set:test",
-                    "source_step_id": "handoff:campus_services:campus_notice_change_set_lookup",
-                    "projection_kind": "notice_change_set",
-                    "content_hash": "sha256:change-set",
-                    "safety": {
-                        "truncated": False,
-                        "redacted": False,
-                        "max_chars": 1600,
-                        "fields_present": ["change_kind", "facts", "source_refs"],
-                    },
-                },
-                {
-                    "projection_id": "projection:evidence_bundle:test",
-                    "source_step_id": "handoff:knowledge:rag_request",
-                    "projection_kind": "evidence_bundle",
-                    "content_hash": "sha256:evidence",
-                    "safety": {
-                        "truncated": False,
-                        "redacted": False,
-                        "max_chars": 1600,
-                        "fields_present": ["query_text", "source_refs"],
-                    },
-                },
-                {
-                    "projection_id": "projection:grounding_verdict:test",
-                    "source_step_id": "handoff:knowledge:rag_request",
-                    "projection_kind": "grounding_verdict",
-                    "content_hash": "sha256:grounding",
-                    "safety": {
-                        "truncated": False,
-                        "redacted": False,
-                        "max_chars": 1600,
-                        "fields_present": ["grounding_verdict", "semantic_outcome"],
-                    },
-                },
-            ],
-            "trace_steps": [
-                {
-                    "step_id": "handoff:campus_services:transport_schedule_lookup",
-                    "span_kind": "handoff",
-                    "parent_step_id": "runtime_policy",
-                    "target": "campus_services",
-                    "tool_name": "transport_schedule_lookup",
-                    "outcome": "completed",
-                    "result_status": "completed",
-                    "started_at": "2026-05-07T12:00:00+08:00",
-                    "ended_at": "2026-05-07T12:00:01+08:00",
-                },
-                {
-                    "step_id": "handoff:notice:campus_notice_change_set_lookup",
-                    "span_kind": "handoff",
-                    "parent_step_id": "handoff:campus_services:transport_schedule_lookup",
-                    "target": "notice",
-                    "tool_name": "campus_notice_change_set_lookup",
-                    "outcome": "completed",
-                    "result_status": "completed",
-                    "started_at": "2026-05-07T12:00:01+08:00",
-                    "ended_at": "2026-05-07T12:00:02+08:00",
-                },
-                {
-                    "step_id": "handoff:knowledge:rag_request",
-                    "span_kind": "handoff",
-                    "parent_step_id": "handoff:notice:campus_notice_change_set_lookup",
-                    "target": "knowledge",
-                    "tool_name": "retrieval.query",
-                    "outcome": "completed",
-                    "result_status": "completed",
-                    "started_at": "2026-05-07T12:00:02+08:00",
-                    "ended_at": "2026-05-07T12:00:03+08:00",
-                },
-            ],
-            "capability_invocations": [
-                {
-                    "invocation_id": "agent-invocation:campus_services:transport-schedule",
-                    "workflow_run_ref": "multi_step:campus_services:transport_schedule_lookup",
-                    "step_id": "handoff:campus_services:transport_schedule_lookup",
-                    "capability_id": "campus_services",
-                    "status": "completed",
-                },
-                {
-                    "invocation_id": "agent-invocation:notice:notice-change-set",
-                    "parent_invocation_id": "agent-invocation:campus_services:transport-schedule",
-                    "workflow_run_ref": "multi_step:notice:campus_notice_change_set_lookup",
-                    "step_id": "handoff:notice:campus_notice_change_set_lookup",
-                    "capability_id": "notice",
-                    "status": "completed",
-                    "projection_ids": ["projection:schedule_baseline:test"],
-                },
-                {
-                    "invocation_id": "agent-invocation:knowledge:rag_request",
-                    "parent_invocation_id": "agent-invocation:notice:notice-change-set",
-                    "workflow_run_ref": "multi_step:knowledge:rag_request",
-                    "step_id": "handoff:knowledge:rag_request",
-                    "capability_id": "knowledge",
-                    "status": "completed",
-                    "projection_ids": [
-                        "projection:schedule_baseline:test",
-                        "projection:notice_change_set:test",
-                    ],
-                },
-            ],
-            "tool_call_summaries": [
-                {
-                    "result_projection": "bounded_summary",
-                    "raw_result_included": False,
-                    "tool_name": "transport_schedule_lookup",
-                    "result_status": "completed",
-                    "business_outcome": "resolved_current",
-                    "argument_summary": {
-                        "payload_kind": "transport_schedule_lookup",
-                        "selected_tool": "transport_schedule_lookup",
-                        "snapshot_query_mode": "current",
-                    },
-                    "source_ids": ["smoke:transport-schedule"],
-                },
-                {
-                    "result_projection": "bounded_summary",
-                    "raw_result_included": False,
-                    "tool_name": "campus_notice_change_set_lookup",
-                    "result_status": "completed",
-                    "business_outcome": "resolved_current",
-                    "argument_summary": {
-                        "payload_kind": "campus_notice_change_set_lookup",
-                        "selected_tool": "campus_notice_change_set_lookup",
-                        "service_date": "2026-05-07",
-                        "route_labels": ["丰台到海淀通勤车"],
-                    },
-                    "source_ids": ["notice:353903"],
-                },
-                {
-                    "result_projection": "bounded_summary",
-                    "raw_result_included": False,
-                    "tool_name": "retrieval.query",
-                    "result_status": "completed",
-                    "business_outcome": "resolved_current",
-                    "argument_summary": {
-                        "payload_kind": "campus_notice_change_set_lookup",
-                        "selected_tool": "retrieval.query",
-                        "service_date": "2026-05-07",
-                        "route_labels": ["丰台到海淀通勤车"],
-                    },
-                    "source_ids": ["notice:353903", "transport_schedule:commute"],
-                },
-            ],
-            "answer_artifact_projection_ids": [
-                "projection:schedule_baseline:test",
-                "projection:notice_change_set:test",
-                "projection:evidence_bundle:test",
-            ],
-            "answer_artifact_kinds": [
-                "schedule_baseline",
-                "notice_change_set",
-                "evidence_bundle",
-            ],
-            "guardrail_outcomes": {
-                "context_preflight": "resolved",
-                "policy_gate": "delegate",
-                "scope_gate": "in_scope",
-            },
-            "fail_close_reason": "",
-        }
+            guardrail_scope="in_scope",
+            source_ids=("transport_schedule:commute", "notice:353903"),
+        )
     if profile == "selected_notice_knowledge_followthrough_ineligible":
         return {
             **base,
@@ -538,6 +337,7 @@ def _tool_workflow_trace_summary(
     mode: str,
     argument_summary: dict[str, object],
     guardrail_scope: str,
+    source_ids: tuple[str, ...] | None = None,
 ) -> dict[str, object]:
     return {
         "routing_frame": {"routing_next_action": "delegate"},
@@ -579,7 +379,7 @@ def _tool_workflow_trace_summary(
                 if mode == "single_step"
                 else "resolved_current",
                 "argument_summary": argument_summary,
-                "source_ids": [f"smoke:{tool}"],
+                "source_ids": list(source_ids or (f"smoke:{tool}",)),
             }
         ],
         "capability_invocations": [

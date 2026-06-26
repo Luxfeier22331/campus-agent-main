@@ -94,45 +94,25 @@
 		{
 			"case_id": "workflow-transport-notice-override-multistep",
 			"family": "workflow_trace",
-			"description": "transport baseline plus admitted notice change-set multi-step override workflow",
+			"description": "transport schedule lookup carries notice-derived operational source refs without a standalone notice change-set tool",
 			"expectation": {
-				"direct_vs_delegate_branch": "multi_step",
-				"workflow_mode": "multi_step",
-				"selected_capability": "knowledge",
-				"selected_tools": [
-					"transport_schedule_lookup",
-					"campus_notice_change_set_lookup",
-					"retrieval.query"
-				],
-				"expected_answer_artifact_kinds": [
-					"schedule_baseline",
-					"notice_change_set",
-					"evidence_bundle"
-				],
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_step",
+				"selected_capability": "campus_services",
+				"selected_tools": ["transport_schedule_lookup"],
+				"expected_answer_artifact_kinds": ["schedule_baseline"],
 				"handoff": {
-					"target": "campus_services",
-					"payload_kind": "transport_schedule_lookup"
+					"target": "campus_services"
 				},
 				"handoff_chain": [
 					{
 						"target": "campus_services",
-						"payload_kind": "transport_schedule_lookup",
 						"selected_tool": "transport_schedule_lookup"
-					},
-					{
-						"target": "notice",
-						"payload_kind": "campus_notice_change_set_lookup",
-						"selected_tool": "campus_notice_change_set_lookup"
-					},
-					{
-						"target": "knowledge",
-						"payload_kind": "rag_request",
-						"selected_tool": "retrieval.query"
 					}
 				],
 				"tool_argument_summary": {
-					"payload_kind": "campus_notice_change_set_lookup",
-					"selected_tool": "retrieval.query",
+					"payload_kind": "transport_schedule_lookup",
+					"selected_tool": "transport_schedule_lookup",
 					"service_date": "2026-05-07",
 					"route_labels": ["丰台到海淀通勤车"]
 				},
@@ -148,54 +128,15 @@
 							"selected_tool": "transport_schedule_lookup",
 							"snapshot_query_mode": "current"
 						},
-						"source_ids": ["smoke:transport-schedule"]
-					},
-					{
-						"result_projection": "bounded_summary",
-						"raw_result_included": false,
-						"tool_name": "campus_notice_change_set_lookup",
-						"result_status": "completed",
-						"business_outcome": "resolved_current",
-						"argument_summary": {
-							"payload_kind": "campus_notice_change_set_lookup",
-							"selected_tool": "campus_notice_change_set_lookup",
-							"service_date": "2026-05-07",
-							"route_labels": ["丰台到海淀通勤车"]
-						},
-						"source_ids": ["notice:353903"]
-					},
-					{
-						"result_projection": "bounded_summary",
-						"raw_result_included": false,
-						"tool_name": "retrieval.query",
-						"result_status": "completed",
-						"business_outcome": "resolved_current",
-						"argument_summary": {
-							"payload_kind": "campus_notice_change_set_lookup",
-							"selected_tool": "retrieval.query",
-							"service_date": "2026-05-07",
-							"route_labels": ["丰台到海淀通勤车"]
-						},
 						"source_ids": ["notice:353903", "transport_schedule:commute"]
 					}
 				],
-				"expected_tool_order": [
-					"transport_schedule_lookup",
-					"campus_notice_change_set_lookup",
-					"retrieval.query"
-				],
+				"expected_tool_order": ["transport_schedule_lookup"],
 				"expected_tool_result_statuses": {
-					"transport_schedule_lookup": "completed",
-					"campus_notice_change_set_lookup": "completed",
-					"retrieval.query": "completed"
+					"transport_schedule_lookup": "completed"
 				},
-				"expected_context_projection_kinds": [
-					"schedule_baseline",
-					"notice_change_set",
-					"evidence_bundle",
-					"grounding_verdict"
-				],
-				"expected_source_ids": ["smoke:transport-schedule", "notice:353903"],
+				"expected_context_projection_kinds": ["schedule_baseline"],
+				"expected_source_ids": ["transport_schedule:commute", "notice:353903"],
 				"guardrail_outcomes": {
 					"scope_gate": "in_scope"
 				},

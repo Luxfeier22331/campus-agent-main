@@ -22,9 +22,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
         self.assertTrue(
             {
                 "transport_schedule_lookup",
-                "campus_notice_change_set_lookup",
                 "campus_notice_discover",
-                "campus_notice_period_summary",
                 "campus_notice_get",
                 "retrieval.query",
             }.issubset(tools)
@@ -55,9 +53,7 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
         required_splits = {"smoke", "release_gate", "regression_locked", "exploratory"}
         priority_tools = {
             "transport_schedule_lookup",
-            "campus_notice_change_set_lookup",
             "campus_notice_discover",
-            "campus_notice_period_summary",
             "campus_notice_get",
             "retrieval.query",
         }
@@ -87,30 +83,6 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                     case.expected_result_status,
                     {"source_card", "bounded_summary", "authorization_denied"},
                 )
-
-    def test_notice_change_set_denominator_is_transport_override_only(self) -> None:
-        fixture = load_tool_family_denominator()
-        change_set_cases = [
-            case for case in fixture.cases if case.tool_name == "campus_notice_change_set_lookup"
-        ]
-
-        self.assertEqual(len(change_set_cases), 4)
-        for case in change_set_cases:
-            with self.subTest(case_id=case.case_id):
-                self.assertIn(
-                    case.expected_result_status,
-                    {
-                        "completed",
-                        "not_found",
-                        "clarification_required",
-                        "temporarily_unverifiable",
-                    },
-                )
-                self.assertIn("query_kind", case.expected_arguments)
-                self.assertEqual(case.expected_arguments["query_kind"], "transport_override")
-                if case.expected_result_status == "completed":
-                    self.assertTrue(case.expected_arguments.get("service_date"))
-                    self.assertTrue(case.expected_arguments.get("route_label"))
 
     def test_evaluate_tool_family_denominator_distinguishes_failure_classes(self) -> None:
         fixture = load_tool_family_denominator()

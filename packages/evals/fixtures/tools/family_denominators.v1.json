@@ -8,17 +8,7 @@
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
-			"tool_name": "campus_notice_change_set_lookup",
-			"capability_family": "notice",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
 			"tool_name": "campus_notice_discover",
-			"capability_family": "notice",
-			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
-		},
-		{
-			"tool_name": "campus_notice_period_summary",
 			"capability_family": "notice",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
@@ -75,50 +65,6 @@
 			}
 		},
 		{
-			"case_id": "tool-notice-change-set-smoke-current-override",
-			"tool_name": "campus_notice_change_set_lookup",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "transport_override",
-				"route_label": "丰台到海淀通勤车",
-				"service_date": "2026-05-07"
-			}
-		},
-		{
-			"case_id": "tool-notice-change-set-release-current-override",
-			"tool_name": "campus_notice_change_set_lookup",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "transport_override",
-				"route_label": "丰台到海淀通勤车",
-				"service_date": "2026-05-07"
-			}
-		},
-		{
-			"case_id": "tool-notice-change-set-regression-no-current-override",
-			"tool_name": "campus_notice_change_set_lookup",
-			"split": "regression_locked",
-			"expected_result_status": "not_found",
-			"expected_arguments": {
-				"query_kind": "transport_override",
-				"route_label": "不存在的班车线路",
-				"service_date": "2026-05-07"
-			}
-		},
-		{
-			"case_id": "tool-notice-change-set-exploratory-service-date-required",
-			"tool_name": "campus_notice_change_set_lookup",
-			"split": "exploratory",
-			"expected_result_status": "clarification_required",
-			"expected_arguments": {
-				"query_kind": "transport_override",
-				"route_label": "丰台到海淀通勤车",
-				"service_date": ""
-			}
-		},
-		{
 			"case_id": "tool-notice-discover-smoke-title-url",
 			"tool_name": "campus_notice_discover",
 			"split": "smoke",
@@ -152,54 +98,6 @@
 			"expected_result_status": "argument_ambiguity",
 			"expected_arguments": {
 				"query_kind": "ambiguous_date_range"
-			}
-		},
-		{
-			"case_id": "tool-notice-period-summary-smoke-date-range",
-			"tool_name": "campus_notice_period_summary",
-			"split": "smoke",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "date_range_summary",
-				"start_date": "2026-04-01",
-				"end_date": "2026-04-10",
-				"group_by": "topic"
-			}
-		},
-		{
-			"case_id": "tool-notice-period-summary-release-date-range",
-			"tool_name": "campus_notice_period_summary",
-			"split": "release_gate",
-			"expected_result_status": "completed",
-			"expected_arguments": {
-				"query_kind": "date_range_summary",
-				"start_date": "2026-04-01",
-				"end_date": "2026-04-10",
-				"group_by": "topic"
-			}
-		},
-		{
-			"case_id": "tool-notice-period-summary-regression-not-found",
-			"tool_name": "campus_notice_period_summary",
-			"split": "regression_locked",
-			"expected_result_status": "not_found",
-			"expected_arguments": {
-				"query_kind": "date_range_summary",
-				"start_date": "2026-01-01",
-				"end_date": "2026-01-02",
-				"group_by": "topic"
-			}
-		},
-		{
-			"case_id": "tool-notice-period-summary-exploratory-date-required",
-			"tool_name": "campus_notice_period_summary",
-			"split": "exploratory",
-			"expected_result_status": "argument_ambiguity",
-			"expected_arguments": {
-				"query_kind": "date_range_summary",
-				"start_date": "",
-				"end_date": "",
-				"group_by": "topic"
 			}
 		},
 		{

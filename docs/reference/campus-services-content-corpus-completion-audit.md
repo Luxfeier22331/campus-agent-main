@@ -54,10 +54,10 @@ proof loops:
 | --- | --- | --- | --- | --- |
 | `knowledge_query` | `knowledge` | model-visible | workflow signal / Go RAG graph | Open main knowledge path |
 | `transport_schedule_lookup` | `campus_services` | model-visible | execution-control internal query | Open, transport only |
-| `campus_notice_change_set_lookup` | `notice` | model-visible | execution-control internal query | Open notice support |
 | `campus_notice_discover` | `notice` | model-visible | execution-control internal query | Open notice support |
-| `campus_notice_period_summary` | `notice` | model-visible | execution-control internal query | Open notice support |
 | `campus_notice_get` | `notice` | internal-only | execution-control internal query | Not model-facing |
+| `campus_notice_change_set_lookup` | `notice` | closed | execution-control internal query | Not model-facing |
+| `campus_notice_period_summary` | `notice` | closed | execution-control internal query | Not model-facing |
 | `retrieval.query` | `knowledge` | closed | execution-control internal query | RAG internal only |
 
 `campus_services` currently allows only `transport_schedule_lookup` in
@@ -380,12 +380,13 @@ Required action:
 
 Status: `watch`
 
-Notice tools are model-visible, but `campus_notices/internal_notice` remains an
-offline-preparation source/data area rather than a default generic RAG corpus.
+Only `campus_notice_discover` is model-visible for notice. `campus_notices/internal_notice`
+remains an offline-preparation source/data area rather than a default generic
+RAG corpus.
 
 Required action:
 
-- Keep notice discovery/change-set as typed notice tools.
+- Keep notice discovery as the typed notice tool.
 - Do not use notice content maturity as a blocker for the four default content
   corpora.
 - When a notice-derived item becomes a regulation, service override or schedule

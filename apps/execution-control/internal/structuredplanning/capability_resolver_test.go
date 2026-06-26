@@ -56,39 +56,6 @@ func TestResolveCapabilityPlanBuildsNoticeKnowledgeWorkflowPlan(t *testing.T) {
 	}
 }
 
-func TestResolveCapabilityPlanBuildsTransportNoticeOverrideWorkflowPlan(t *testing.T) {
-	capabilities, tools, artifacts := loadResolverRegistries(t)
-
-	plan, err := ResolveCapabilityPlan(
-		transportNoticeOverrideCapabilityPlan(Request{
-			EffectiveCapability: "campus_services",
-			UserGoal:            "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
-			SelectedNoticeRef: SelectedNoticeRef{
-				NoticeID:      "353903",
-				SourceFamily:  "internal_notice_restricted",
-				TargetSurface: "campus_services/service_status_candidate",
-			},
-		}),
-		capabilities,
-		tools,
-		artifacts,
-	)
-	if err != nil {
-		t.Fatalf("ResolveCapabilityPlan failed: %v", err)
-	}
-	if plan.WorkflowMode != WorkflowModeMultiStep {
-		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
-	}
-	handoffs := plan.Handoffs()
-	if len(handoffs) != 3 {
-		t.Fatalf("handoff count = %d, want 3", len(handoffs))
-	}
-	if handoffs[0].Capability != "campus_services" ||
-		handoffs[0].PayloadKind != "transport_schedule_lookup" {
-		t.Fatalf("first handoff = %#v", handoffs[0])
-	}
-}
-
 func TestResolveCapabilityPlanFailsClosedWhenArtifactOwnerIsMissing(t *testing.T) {
 	capabilities, tools, artifacts := loadResolverRegistries(t)
 	deleteArtifactBindingsForKinds(&artifacts, "notice_context")

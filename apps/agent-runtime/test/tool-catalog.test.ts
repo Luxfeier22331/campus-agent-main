@@ -147,9 +147,7 @@ describe("tool catalog", () => {
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
 			"knowledge_query",
 			"transport_schedule_lookup",
-			"campus_notice_change_set_lookup",
 			"campus_notice_discover",
-			"campus_notice_period_summary",
 		]);
 	});
 

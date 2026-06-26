@@ -37,12 +37,13 @@ func TestLoadCapabilitySpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if notice.WorkerRole != "activity-worker-notice" {
 		t.Fatalf("notice worker_role = %q, want activity-worker-notice", notice.WorkerRole)
 	}
-	if len(notice.AllowedStructuredTools) != 3 ||
-		notice.AllowedStructuredTools[0] != "campus_notice_discover" ||
-		notice.AllowedStructuredTools[1] != "campus_notice_period_summary" ||
-		notice.AllowedStructuredTools[2] != "campus_notice_change_set_lookup" {
+	if notice.OwnerPackage != "apps/execution-control" {
+		t.Fatalf("notice owner_package = %q, want apps/execution-control", notice.OwnerPackage)
+	}
+	if len(notice.AllowedStructuredTools) != 1 ||
+		notice.AllowedStructuredTools[0] != "campus_notice_discover" {
 		t.Fatalf(
-			"notice structured tools = %#v, want campus_notice_discover, campus_notice_period_summary, and campus_notice_change_set_lookup",
+			"notice structured tools = %#v, want campus_notice_discover",
 			notice.AllowedStructuredTools,
 		)
 	}

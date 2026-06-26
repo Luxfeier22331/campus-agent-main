@@ -47,13 +47,13 @@
 			"producer_tools": ["campus_notice_period_summary"],
 			"source_truth_owner": "internal_notice_read_model",
 			"visibility": "capability_private",
-			"current_projection_support": "supported_go_runtime",
+			"current_projection_support": "planned_contract_gap",
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "bounded_date_range",
 			"allowed_consumers": ["knowledge", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
-			"notes": "Bounded date-range notice summary produced from structured notice read model cards and excerpts."
+			"notes": "Closed contract residue. Model-facing notice runtime only exposes campus_notice_discover."
 		},
 		{
 			"kind": "notice_change_set",
@@ -62,13 +62,13 @@
 			"producer_tools": ["campus_notice_change_set_lookup"],
 			"source_truth_owner": "notice_consumption_projection",
 			"visibility": "capability_private",
-			"current_projection_support": "supported_go_runtime",
+			"current_projection_support": "planned_contract_gap",
 			"answer_eligible": true,
 			"requires_grounding": true,
 			"freshness_policy": "effective_notice_window",
 			"allowed_consumers": ["campus_services", "knowledge", "execution-control-finalizer"],
 			"forbidden_raw_payload_keys": ["raw_html", "raw_ocr_dump", "object_locator"],
-			"notes": "Bounded transport notice override artifact produced from admitted notice/runtime truth."
+			"notes": "Closed contract residue. Transport schedule lookup must own notice-derived operational facts before reopening."
 		},
 		{
 			"kind": "schedule_baseline",
@@ -153,10 +153,10 @@
 			"consumes": [],
 			"required_inputs": ["request:user_query", "request:date_range"],
 			"state_changing": false,
-			"opening_gate": "open",
+			"opening_gate": "closed",
 			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
 			"priority": 1,
-			"notes": "Date-range notice summary producer over the structured notice read model."
+			"notes": "Closed until a product surface needs period summaries as a distinct notice runtime tool."
 		},
 		{
 			"binding_id": "notice.notice_change_set.transport_override_lookup",
@@ -166,10 +166,10 @@
 			"consumes": ["schedule_baseline"],
 			"required_inputs": ["request:user_query", "artifact:schedule_baseline"],
 			"state_changing": false,
-			"opening_gate": "open",
+			"opening_gate": "closed",
 			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
 			"priority": 1,
-			"notes": "Transport temporary override producer over admitted notice/runtime truth."
+			"notes": "Closed as a standalone notice tool; campus_services owns transport operational lookup."
 		},
 		{
 			"binding_id": "campus_services.schedule_baseline.transport_schedule_lookup",

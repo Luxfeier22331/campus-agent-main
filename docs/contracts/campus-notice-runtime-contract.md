@@ -4,7 +4,7 @@ truth_scope: capability
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
-updated: 2026-06-15
+updated: 2026-06-26
 ---
 # Campus Notice Runtime Contract
 
@@ -28,8 +28,8 @@ retention or downstream materialization ownership.
 
 Notice user-facing output is card-first and source-link-first.
 
-- `campus_notice_discover` and `campus_notice_period_summary` are the
-  capability-facing notice tools.
+- `campus_notice_discover` is the only capability-facing/model-visible notice
+  tool.
 - `campus_notice_get` is not a capability-facing/provider/SDK tool.
 - `campus_notice_get` remains only as an internal selected notice
   resolve/context function.
@@ -37,7 +37,13 @@ Notice user-facing output is card-first and source-link-first.
 - Agents SDK and provider-loop notice-get pilots are closed.
 - Agents SDK may only expose repo-owned ToolSpec-admitted read-only tools.
   `campus_notice_get` remains closed; current notice-family SDK exposure is
-  limited to `campus_notice_discover` and `campus_notice_period_summary`.
+  limited to `campus_notice_discover`.
+- `campus_notice_period_summary` and `campus_notice_change_set_lookup` are
+  closed ToolSpec / workflow-artifact contract residues, not model-visible
+  runtime tools.
+- Transport notice-derived operational facts belong in
+  `transport_schedule_lookup` output (`related_notice_refs` /
+  `operational_notices`), not a standalone notice change-set tool.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.
@@ -65,33 +71,6 @@ CampusNoticeDiscoverResult
 - historical_downgrade_reason
 - fail_close_reason
 
-CampusNoticePeriodSummaryPayload
-- query_text
-- date_range
-  - start_date
-  - end_date
-  - timezone
-- source_families[]
-- target_surfaces[]
-- group_by
-- max_items
-
-CampusNoticePeriodSummaryResult
-- outcome
-- date_range
-- notice_cards[]
-- groups[]
-  - group_key
-  - title
-  - notice_count
-  - summary
-  - notice_ids[]
-- bounded_summary
-- source_ref_count
-- queried_time_anchor
-- display_policy
-- historical_downgrade_reason
-- fail_close_reason
 ```
 
 Internal query function:
@@ -153,26 +132,20 @@ Go `apps/execution-control` owns:
 - ToolSpec posture and `allowed_tools`
 - selected notice planning
 - internal notice query endpoints
-- structured read-model-backed notice discover and period summaries
+- structured read-model-backed notice discovery
 - structured direct answer rendering
 - finalizer/workflow projection leak guards
 - runtime observability labels
 
-Python `notice` owns:
-
-- DTO-level defensive parsing
-- calling Go internal query service
-- card/source URL and bounded summary answer text
-- bounded result observability
-
-Python must not infer or admit `campus_notice_get` as a provider/SDK tool.
+Python owns no query-time notice capability runtime. The retired
+`packages/notice-capability` implementation must not be reintroduced as a
+serving shortcut, SDK adapter or provider-loop tool path.
 
 ## Internal Query HTTP Packet
 
-Python calls Go through private internal routes:
+Repo-owned runtime code calls Go through private internal routes:
 
 - `POST /internal/query/notices/discover`
-- `POST /internal/query/notices/period-summary`
 - `POST /internal/query/notices/get`
 
 Required header:
@@ -221,20 +194,11 @@ NoticeContextProjection / StepOutputProjection
   - body_excerpt
   - bounded_summary / extracted facts when available
   - source_url
-
-NoticePeriodSummaryProjection / StepOutputProjection
-- projection_id
-- source_step_id
-- projection_kind=notice_period_summary
-- content_hash
-- safety summary
-- payload only inside private runtime context
-  - start_date
-  - end_date
-  - summary
-  - group_summaries[]
-  - source_refs[]
 ```
+
+`notice_period_summary` and `notice_change_set` projection kinds remain closed
+registry entries only. They must not appear as open producer artifacts in
+current workflow traces.
 
 Operator/eval-visible workflow trace summaries expose projection id, source
 step, kind, content hash and safety metadata only. They must not expose the
@@ -247,8 +211,7 @@ body.
 
 Notice observability may include:
 
-- selected tool for `campus_notice_discover` and
-  `campus_notice_period_summary`
+- selected tool for `campus_notice_discover`
 - empty selected tool for internal selected notice resolve
 - business outcome
 - fail-close reason

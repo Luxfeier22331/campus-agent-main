@@ -53,8 +53,6 @@ func ResolveCapabilityPlan(
 	switch capabilityPlan.Capability {
 	case "knowledge":
 		return buildResolvedKnowledgeWorkflowPlan(capabilityPlan, steps)
-	case "campus_services":
-		return buildResolvedTransportNoticeOverrideWorkflowPlan(capabilityPlan, steps)
 	default:
 		return nil, resolverError(
 			"artifact_owner_missing",
@@ -218,57 +216,6 @@ func buildResolvedKnowledgeWorkflowPlan(
 	), nil
 }
 
-func buildResolvedTransportNoticeOverrideWorkflowPlan(
-	capabilityPlan CapabilityPlan,
-	steps map[string]runtimepolicy.WorkflowCapabilityBinding,
-) (*WorkflowPlan, error) {
-	scheduleStep, ok := steps["capability:campus_services:transport_schedule_lookup"]
-	if !ok {
-		return nil, resolverError(
-			"artifact_owner_missing",
-			"resolved transport override capability is missing schedule baseline step",
-		)
-	}
-	changeSetStep, ok := steps["capability:notice:campus_notice_change_set_lookup"]
-	if !ok {
-		return nil, resolverError(
-			"artifact_owner_missing",
-			"resolved transport override capability is missing notice change-set step",
-		)
-	}
-	ragStep, ok := steps["capability:knowledge:rag_request"]
-	if !ok {
-		return nil, resolverError(
-			"artifact_owner_missing",
-			"resolved transport override capability is missing grounding step",
-		)
-	}
-	scheduleHandoff := capabilityBindingToHandoff(scheduleStep, capabilityPlan)
-	changeSetHandoff := capabilityBindingToHandoff(changeSetStep, capabilityPlan)
-	ragHandoff := capabilityBindingToHandoff(ragStep, capabilityPlan)
-	return MultiStepWorkflowPlanFromHandoffs(
-		"plan:resolver:campus_services:notice:knowledge:transport_notice_override",
-		[]Handoff{scheduleHandoff, changeSetHandoff, ragHandoff},
-		[]WorkflowPlanEdge{
-			{
-				FromStepID:             workflowPlanStepForHandoff(scheduleHandoff).StepID,
-				ToStepID:               workflowPlanStepForHandoff(changeSetHandoff).StepID,
-				Condition:              "completed",
-				RequiredProjectionKind: "schedule_baseline",
-			},
-			{
-				FromStepID:             workflowPlanStepForHandoff(changeSetHandoff).StepID,
-				ToStepID:               workflowPlanStepForHandoff(ragHandoff).StepID,
-				Condition:              "completed",
-				RequiredProjectionKind: "notice_change_set",
-			},
-		},
-		capabilityPlan.Budget.MaxReplans,
-		true,
-		capabilityPlan,
-	), nil
-}
-
 func capabilityBindingToHandoff(
 	binding runtimepolicy.WorkflowCapabilityBinding,
 	capabilityPlan CapabilityPlan,
@@ -346,33 +293,6 @@ func capabilityBindingToHandoff(
 			Payload:      payload,
 			AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind(binding.OwnerCapability, "transport_schedule_lookup"),
 		}
-	case "notice.notice_change_set.transport_override_lookup":
-		payload := map[string]any{
-			"query_text": capabilityPlan.UserGoalSummary,
-		}
-		if constraint := capabilityPlan.Constraints.TransportQuery; constraint != nil {
-			if len(constraint.RouteLabels) > 0 {
-				payload["route_labels"] = append([]string{}, constraint.RouteLabels...)
-			}
-			if len(constraint.DirectionLabels) > 0 {
-				payload["direction_labels"] = append([]string{}, constraint.DirectionLabels...)
-			}
-			if len(constraint.StopLabels) > 0 {
-				payload["stop_labels"] = append([]string{}, constraint.StopLabels...)
-			}
-			if constraint.ServiceDate != "" {
-				payload["service_date"] = constraint.ServiceDate
-			}
-			if constraint.QueryTimeAnchor != "" {
-				payload["query_time_anchor"] = constraint.QueryTimeAnchor
-			}
-		}
-		return Handoff{
-			Capability:   binding.OwnerCapability,
-			PayloadKind:  "campus_notice_change_set_lookup",
-			Payload:      payload,
-			AllowedTools: runtimepolicy.AllowedToolsForCapabilityPayloadKind(binding.OwnerCapability, "campus_notice_change_set_lookup"),
-		}
 	default:
 		return Handoff{}
 	}
@@ -382,8 +302,6 @@ func stepIdentityForBinding(binding runtimepolicy.WorkflowCapabilityBinding) str
 	switch binding.BindingID {
 	case "notice.notice_context.selected_notice_get":
 		return "capability:notice:campus_notice_get"
-	case "notice.notice_change_set.transport_override_lookup":
-		return "capability:notice:campus_notice_change_set_lookup"
 	case "campus_services.schedule_baseline.transport_schedule_lookup":
 		return "capability:campus_services:transport_schedule_lookup"
 	case "rag.evidence_bundle.retrieval_query", "rag.grounding_verdict.retrieval_query":

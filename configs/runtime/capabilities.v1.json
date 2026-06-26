@@ -37,17 +37,13 @@
 		},
 		{
 			"id": "notice",
-			"owner_package": "packages/notice-capability",
+			"owner_package": "apps/execution-control",
 			"worker_role": "activity-worker-notice",
 			"runtime_adapter": "temporal_activity_worker",
 			"active": true,
 			"opening_gate": "open",
-			"allowed_structured_tools": [
-				"campus_notice_discover",
-				"campus_notice_period_summary",
-				"campus_notice_change_set_lookup"
-			],
-			"context_projection_kinds": ["notice_context", "notice_change_set", "notice_period_summary"],
+			"allowed_structured_tools": ["campus_notice_discover"],
+			"context_projection_kinds": ["notice_context"],
 			"description": "Notice discovery and internal selected notice resolution capability."
 		}
 	]

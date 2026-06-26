@@ -2,7 +2,6 @@ package httpapi
 
 import (
 	"context"
-	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -270,23 +269,7 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 	}
 }
 
-func TestExecuteStructuredRuntimeSupportsNoticeChangeSetTypedTool(t *testing.T) {
-	server := newServerForTest()
-	response := server.executeStructuredRuntime(
-		context.Background(),
-		"campus_notice_change_set_lookup",
-		[]byte(`{"payload":{"query_text":"丰台到海淀通勤车今天乘车点有没有变","route_labels":["丰台到海淀通勤车"],"service_date":"2026-01-02"}}`),
-	)
-
-	if response.StatusCode == http.StatusBadRequest {
-		t.Fatalf("notice change-set typed tool must be routed to structured runtime, got body %#v", response.Body)
-	}
-	if response.Outcome != "temporarily_unverifiable" {
-		t.Fatalf("outcome = %q, want fail-closed temporarily_unverifiable", response.Outcome)
-	}
-}
-
-func TestExecuteTypedToolActivityFailureProjectsTypedCapability(t *testing.T) {
+func TestExecuteTypedToolActivityRejectsClosedNoticeChangeSetTool(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -323,7 +306,10 @@ func TestExecuteTypedToolActivityFailureProjectsTypedCapability(t *testing.T) {
 		},
 	)
 	if err == nil {
-		t.Fatal("expected invalid notice change-set payload to fail closed")
+		t.Fatal("expected closed notice change-set tool to fail admission")
+	}
+	if !strings.Contains(err.Error(), "tool campus_notice_change_set_lookup is not admitted") {
+		t.Fatalf("error = %q, want closed tool admission failure", err.Error())
 	}
 	steps, listErr := store.ListRunSteps(context.Background(), "run-typed-tool-failure-capability")
 	if listErr != nil {

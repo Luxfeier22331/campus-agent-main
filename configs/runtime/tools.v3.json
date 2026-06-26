@@ -21,24 +21,6 @@
 			"description": "Lookup campus shuttle schedule snapshots, departures, and service windows."
 		},
 		{
-			"name": "campus_notice_change_set_lookup",
-			"owner_capability": "notice",
-			"capability": "notice",
-			"payload_kind": "campus_notice_change_set_lookup",
-			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupPayload",
-			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupResult",
-			"backend": "internal_structured_query_service",
-			"surface": "structured_handoff",
-			"read_only": true,
-			"active": true,
-			"function_schema": {
-				"available": true,
-				"strict": true
-			},
-			"runtime_posture": "typed_activity_admitted",
-			"description": "Lookup admitted transport notice change-set overrides from bounded notice/runtime truth."
-		},
-		{
 			"name": "campus_notice_discover",
 			"owner_capability": "notice",
 			"capability": "notice",
@@ -66,13 +48,31 @@
 			"backend": "internal_structured_query_service",
 			"surface": "structured_handoff",
 			"read_only": true,
-			"active": true,
+			"active": false,
 			"function_schema": {
-				"available": true,
-				"strict": true
+				"available": false,
+				"strict": false
 			},
-			"runtime_posture": "typed_activity_admitted",
-			"description": "Summarize governed campus notices over a bounded date range from the notice read model."
+			"runtime_posture": "closed",
+			"description": "Closed date-range notice summary contract; not exposed to the model-facing runtime."
+		},
+		{
+			"name": "campus_notice_change_set_lookup",
+			"owner_capability": "notice",
+			"capability": "notice",
+			"payload_kind": "campus_notice_change_set_lookup",
+			"payload_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupPayload",
+			"result_schema_ref": "https://muc.wiki/campus-agent/schemas/notice-tool-contracts.v1.schema.json#/$defs/CampusNoticeChangeSetLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": false,
+			"function_schema": {
+				"available": false,
+				"strict": false
+			},
+			"runtime_posture": "closed",
+			"description": "Closed standalone notice change-set contract; transport lookup owns notice-derived operational facts."
 		},
 		{
 			"name": "campus_notice_get",

@@ -27,12 +27,14 @@ OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/capability-execution.open
 
 
 class ContractModelsNoticeChangeSetSuite(unittest.TestCase):
-    def test_contract_names_match_artifact_registry_runtime_binding(self) -> None:
+    def test_contract_names_match_closed_artifact_registry_binding(self) -> None:
         import json
 
         registry = json.loads(ARTIFACT_REGISTRY_PATH.read_text(encoding="utf-8"))
         artifacts = {item["kind"]: item for item in registry["artifacts"]}
+        bindings = {item["binding_id"]: item for item in registry["bindings"]}
         notice_change_set = artifacts[NOTICE_CHANGE_SET_ARTIFACT_KIND]
+        notice_change_set_binding = bindings[NOTICE_CHANGE_SET_PRODUCER_BINDING_ID]
 
         self.assertEqual(notice_change_set["display_name"], NOTICE_CHANGE_SET_DISPLAY_NAME)
         self.assertEqual(notice_change_set["owner_capability"], "notice")
@@ -41,13 +43,14 @@ class ContractModelsNoticeChangeSetSuite(unittest.TestCase):
             [NOTICE_CHANGE_SET_PRODUCER_TOOL_NAME],
         )
         self.assertEqual(notice_change_set["source_truth_owner"], "notice_consumption_projection")
-        self.assertEqual(notice_change_set["current_projection_support"], "supported_go_runtime")
-        self.assertIn(
-            NOTICE_CHANGE_SET_PRODUCER_BINDING_ID,
-            {binding["binding_id"] for binding in registry["bindings"]},
+        self.assertEqual(notice_change_set["current_projection_support"], "planned_contract_gap")
+        self.assertEqual(notice_change_set_binding["opening_gate"], "closed")
+        self.assertEqual(
+            notice_change_set_binding["tool_name"], NOTICE_CHANGE_SET_PRODUCER_TOOL_NAME
         )
+        self.assertEqual(notice_change_set_binding["produces"], [NOTICE_CHANGE_SET_ARTIFACT_KIND])
 
-    def test_notice_change_set_is_runtime_projection_after_phase_3_promotion(self) -> None:
+    def test_notice_change_set_projection_contract_remains_registered(self) -> None:
         go_projection_text = GO_EXECUTION_PROJECTION_PATH.read_text(encoding="utf-8")
         openapi_text = OPENAPI_CONTRACT_PATH.read_text(encoding="utf-8")
 

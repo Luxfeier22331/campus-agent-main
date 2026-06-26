@@ -228,6 +228,7 @@ func TestLookupTransportScheduleIncludesCampusServicesResultEnvelope(t *testing.
 	envelope := result.ResultEnvelope
 	if envelope == nil {
 		t.Fatal("result_envelope is nil")
+		return
 	}
 	if envelope.SchemaVersion != "campus_services_tool_result.v1" ||
 		envelope.Capability != "campus_services" ||

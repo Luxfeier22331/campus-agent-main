@@ -28,9 +28,7 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 		t.Fatalf("campus services tools = %#v, want %#v", got, want)
 	}
 	wantNotice := []string{
-		"campus_notice_change_set_lookup",
 		"campus_notice_discover",
-		"campus_notice_period_summary",
 	}
 	if got := registry.AllowedToolsForCapability("notice"); !sameStrings(got, wantNotice) {
 		t.Fatalf("notice tools = %#v, want %#v", got, wantNotice)
@@ -100,12 +98,28 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if !ok {
 		t.Fatal("campus_notice_period_summary missing from ToolSpec")
 	}
-	if !noticePeriodSummary.FunctionSchema.Available ||
-		noticePeriodSummary.RuntimePosture != "typed_activity_admitted" {
+	if noticePeriodSummary.Active ||
+		noticePeriodSummary.FunctionSchema.Available ||
+		noticePeriodSummary.RuntimePosture != "closed" {
 		t.Fatalf(
-			"campus_notice_period_summary function/runtime posture = %#v/%q, want available typed_activity_admitted",
+			"campus_notice_period_summary active/function/runtime posture = %v/%#v/%q, want inactive unavailable closed",
+			noticePeriodSummary.Active,
 			noticePeriodSummary.FunctionSchema,
 			noticePeriodSummary.RuntimePosture,
+		)
+	}
+	noticeChangeSet, ok := registry.ToolByName("campus_notice_change_set_lookup")
+	if !ok {
+		t.Fatal("campus_notice_change_set_lookup missing from ToolSpec")
+	}
+	if noticeChangeSet.Active ||
+		noticeChangeSet.FunctionSchema.Available ||
+		noticeChangeSet.RuntimePosture != "closed" {
+		t.Fatalf(
+			"campus_notice_change_set_lookup active/function/runtime posture = %v/%#v/%q, want inactive unavailable closed",
+			noticeChangeSet.Active,
+			noticeChangeSet.FunctionSchema,
+			noticeChangeSet.RuntimePosture,
 		)
 	}
 }

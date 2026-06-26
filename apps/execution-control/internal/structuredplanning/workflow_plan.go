@@ -397,8 +397,6 @@ func expectedArtifactsForHandoff(handoff Handoff) []string {
 	switch {
 	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_get":
 		return []string{"notice_context"}
-	case handoff.Capability == "notice" && handoff.PayloadKind == "campus_notice_change_set_lookup":
-		return []string{"notice_change_set"}
 	case handoff.Capability == "campus_services" && handoff.PayloadKind == "transport_schedule_lookup":
 		return []string{"schedule_baseline"}
 	case handoff.Capability == "knowledge" && handoff.PayloadKind == "rag_request":
