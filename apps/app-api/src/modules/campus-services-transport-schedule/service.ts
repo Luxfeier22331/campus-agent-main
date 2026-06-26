@@ -129,9 +129,7 @@ async function requestExecutionControlTransport(
 				);
 			}, timeoutMs);
 
-			Promise.resolve(
-				fetchImplementation(new Request(request, { signal: controller.signal })),
-			)
+			Promise.resolve(fetchImplementation(new Request(request, { signal: controller.signal })))
 				.then(resolve)
 				.catch((error: unknown) => {
 					if (error instanceof Error && error.name === "AbortError") {
@@ -221,7 +219,7 @@ function parseTransportStatusDeparture(value: unknown): CampusServicesTransportS
 	const record = requireRecord(value, "departure");
 	const departureTime = readString(record.departureTime);
 	const sourceRefs = readStringArray(record.sourceRefs);
-	if (!LOCAL_WALL_TIME_FORMAT.test(departureTime) || !hasOnlyHttpUrls(sourceRefs)) {
+	if (!(LOCAL_WALL_TIME_FORMAT.test(departureTime) && hasOnlyHttpUrls(sourceRefs))) {
 		throw invalidTransportStatusProjection("departure");
 	}
 	const note = readString(record.note);

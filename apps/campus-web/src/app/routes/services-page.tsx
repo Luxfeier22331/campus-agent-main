@@ -52,7 +52,9 @@ const scheduleTableColumns: readonly ScheduleTableColumn[] = [
 ] as const;
 
 export function ServicesPage() {
-	const [schedulePayload, setSchedulePayload] = useState<CampusTransportStatusResponse | null>(null);
+	const [schedulePayload, setSchedulePayload] = useState<CampusTransportStatusResponse | null>(
+		null,
+	);
 	const [isScheduleLoading, setIsScheduleLoading] = useState(true);
 	const [scheduleError, setScheduleError] = useState<string | null>(null);
 

@@ -16,9 +16,7 @@ export interface PublicCacheableAppApiProxyInput {
 	withNoStore: (response: Response) => Promise<Response>;
 }
 
-const PUBLIC_CACHEABLE_APP_API_PATHS = new Set([
-	"/api/campus-services/transport-schedule/status",
-]);
+const PUBLIC_CACHEABLE_APP_API_PATHS = new Set(["/api/campus-services/transport-schedule/status"]);
 
 export function isPublicCacheableAppApiRequest(request: Request): boolean {
 	if (request.method !== "GET" && request.method !== "HEAD") {

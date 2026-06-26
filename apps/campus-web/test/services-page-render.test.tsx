@@ -68,14 +68,12 @@ describe("campus services page", () => {
 		expect(screen.getByText("学生班次")).toBeInTheDocument();
 		expect(screen.getByText("加开")).toBeInTheDocument();
 		expect(screen.getByText("新增班次")).toBeInTheDocument();
-		expect(screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/123" })).toHaveAttribute(
-			"href",
-			"https://portal.muc.edu.cn/notice/123",
-		);
-		expect(screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/456" })).toHaveAttribute(
-			"href",
-			"https://portal.muc.edu.cn/notice/456",
-		);
+		expect(
+			screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/123" }),
+		).toHaveAttribute("href", "https://portal.muc.edu.cn/notice/123");
+		expect(
+			screen.getByRole("link", { name: "https://portal.muc.edu.cn/notice/456" }),
+		).toHaveAttribute("href", "https://portal.muc.edu.cn/notice/456");
 		expect(screen.queryByText("医保窗口")).toBeNull();
 		expect(screen.queryByText("operator")).toBeNull();
 		expect(campusServicesApiMock.getCampusTransportStatus).toHaveBeenCalledWith();
