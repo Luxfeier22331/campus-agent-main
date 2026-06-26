@@ -89,6 +89,32 @@ browser surfaces
 当前实现名仍是 `apps/execution-control`。长期概念名收口为 `execution-control`；代码目录是否重命名是后续
 implementation work，不改变本 ADR 的架构边界。
 
+### 决策 1A：当前 Temporal SDK owner 使用 Go SDK
+
+当前 `execution-control` Temporal integration 使用 Temporal Go SDK。
+
+原因：
+
+- `apps/execution-control` 已是 Go-owned runtime boundary，Go SDK 与当前
+  workflow / activity worker、HTTP command seam、projection activity 和 Go RAG
+  runtime 同语言收口
+- Temporal Go SDK 是当前可用于生产级 workflow / activity / worker / test-suite
+  的稳定 SDK surface
+- Temporal Rust SDK 当前仍不作为本仓库的默认 production SDK 选择；在 Rust SDK
+  正式 release 前，不把 execution plane 切到 Rust
+
+未来只有同时满足以下条件，才重新评估切换 Rust SDK：
+
+- Temporal Rust SDK 已正式 release，且官方能力覆盖本仓库需要的 workflow /
+  activity worker、client start / cancel、interceptor / telemetry 与 testing
+  surface
+- 针对本仓库真实 workload 的 profiling 证明 Rust SDK 在 CPU、memory 或 tail latency
+  上有明确资源收益
+- 切换不会破坏 `execution-control` 对 repo-owned DTO、sanitized projection、
+  OpenTelemetry redaction 与 operator-safe evidence 的 owner boundary
+
+没有上述证据时，不因为“Rust 可能更省资源”提前迁移 SDK。
+
 ### 决策 2：Temporal 拥有 execution truth
 
 Temporal owns：

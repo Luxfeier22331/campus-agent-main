@@ -31,7 +31,8 @@ pnpm repo:guard
 
 - 这是 repo collaboration / docs structure / workspace layout 的快速 guard
 - CI 中通过 `pnpm ci:repo-guard` 调用同一入口
-- 它不替代静态 lint、typecheck、test 或 build
+- 它不替代静态 lint、typecheck、test、build、coverage 或 E2E
+- 它不能作为 runtime 行为、业务正确性、测试覆盖率或上线验收证据
 
 ### Repo Lint Lane
 
@@ -185,6 +186,70 @@ pnpm web:test:integration
 - 当前 repo 的 repair 入口是 `node apps/app-api/scripts/run-with-local-env.mjs node
   ./scripts/reconcile-shared-db-drift.mjs --json`
 
+### Execution-Control Temporal Lane
+
+Temporal 官方 Go SDK testing guidance 把 E2E 定义为：运行 Temporal Server 和
+Worker，再由 Client 启动并交互 Workflow；同时建议多数测试保持在 integration
+层，并使用 test server 覆盖 Worker 场景。
+
+默认 Go lane：
+
+```bash
+cd apps/execution-control && go test ./...
+```
+
+语义：
+
+- 覆盖 Go package 的默认 unit / integration tests
+- 包含 `testsuite.TestWorkflowEnvironment` 下的 workflow logic tests、
+  Activity failure / retry / non-retryable failure tests、HTTP handler tests 与
+  projection tests
+- 不启动真实 Temporal Server，因此不等价于 Temporal E2E
+
+Tagged Temporal E2E lane：
+
+```bash
+cd apps/execution-control && \
+  go test -tags temporal_e2e ./internal/temporalruntime \
+    -run TestTemporalDevServer -count=1
+
+cd apps/execution-control && \
+  go test -tags temporal_e2e ./internal/httpapi \
+    -run TestExecutionRunHTTP -count=1
+```
+
+语义：
+
+- 使用 Temporal Go SDK test server / dev server 启动真实 Temporal service
+- 启动 repo-owned workflow worker 与 split activity workers
+- 从 Temporal Client 或真实 HTTP handler 启动 / 取消
+  `CapabilityExecutionWorkflow`
+- 检查 Temporal history 中的 completed / canceled event，以及 knowledge branch 的
+  RAG activity completion
+- HTTP lane 同时检查 `execution-control` run projection 中的 completed / canceled
+  terminal state、run events 与 `finalization.write` step projection
+
+该 lane 当前覆盖：
+
+- direct primary-agent happy path：memory recall -> primary agent ->
+  finalization -> memory append
+- knowledge branch happy path：primary agent selects `knowledge_query` 后进入
+  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
+  evidence.selection -> synthesis -> grounding.verify -> finalization.write`
+- workflow cancel：agent activity running 时由 starter cancel，Temporal history 进入
+  canceled
+- HTTP command seam：`POST /internal/execution/runs` 经真实 handler start Temporal
+  workflow，并投影 completed run
+- HTTP cancel seam：`POST /internal/execution/runs/:runId/cancel` 取消 Temporal
+  workflow，并投影 canceled run
+
+该 lane 当前不覆盖：
+
+- typed capability branch 的 full E2E；当前 top-level workflow 不把 ordinary chat
+  默认改写为 typed capability，也不应假装已覆盖
+- 真实 provider、真实 Qdrant、真实 Postgres、真实 object store 或真实 staging ingress
+- Operator Console / eval 读取路径；这些仍由 staging release lane 和 projection tests 证明
+
 ### E2E QA Release Lane
 
 入口：
@@ -206,6 +271,8 @@ docs/runbooks/e2e-qa-release-runbook.md
 - 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`
 - 它不能使用 fallback、兜底、best-effort、silent recovery、`--expect-result-kind any` 或跳过
   Access / auth / readyz 的方式标绿
+- Browser QA 可以由 repo-owned Playwright runner 生成 evidence，但仍必须使用真实
+  staging deployment、真实 session / Access state 与真实 network path
 - Sentry closure 默认查询 Explore `spans`；issue-list endpoint 权限不足不是 staging
   observability blocker
 
@@ -213,6 +280,27 @@ docs/runbooks/e2e-qa-release-runbook.md
 
 - `docs/runbooks/e2e-qa-release-runbook.md`
 - `docs/runbooks/templates/e2e-qa-release-artifact-template.md`
+
+Browser runner 入口：
+
+```bash
+node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
+  --cwd apps/campus-web \
+  pnpm exec tsx ./scripts/staging-browser-e2e.ts \
+    --evidence-dir "$E2E_QA_EVIDENCE_DIR"
+
+node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
+  --storage-state "$OPERATOR_CONSOLE_STORAGE_STATE" \
+  --evidence-dir "$E2E_QA_EVIDENCE_DIR"
+```
+
+语义：
+
+- campus runner 通过 app-api staging smoke endpoint 铸造真实 session，打开 campus
+  shell、chat 和 docs reader，并落盘 screenshots 与 `campus-browser-e2e.json`
+- operator runner 使用已登录 human operator 的 Playwright storage state，打开
+  panel domain matrix，并拒绝直接访问 execution-control、Temporal、PG、Sentry 或 Axiom
+- 这些 runner 是真实 staging browser E2E，不属于默认 `pnpm web:test`
 
 ## app-api lane 语义
 

@@ -273,6 +273,24 @@ browser check. Dining and eval coverage checks must use real published/seeded
 state when the release claims those domains are ready; otherwise the accepted
 evidence is the governed diagnostic state above, not synthesized frontend data.
 
+使用已登录 human operator 的 Playwright storage state 后，可以运行 repo-owned
+browser E2E runner 生成 panel matrix evidence：
+
+```bash
+node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
+  --storage-state "$OPERATOR_CONSOLE_STORAGE_STATE" \
+  --evidence-dir "$E2E_QA_EVIDENCE_DIR" \
+  | tee "$E2E_QA_EVIDENCE_DIR/operator-console-browser-e2e.stdout.json"
+```
+
+通过标准：
+
+- `operator-console-browser-e2e.json` 输出 `passed=true`
+- screenshots 覆盖 shell、Overview、Eval Coverage、Requests、Provider Config、
+  Official Web、Authenticated Notices 与 Dining Operations
+- network summary 中不出现 direct execution-control、Temporal、PG、Sentry 或 Axiom URL
+- console / network blocker 为 `0`
+
 ## 7. Browser QA
 
 人工或浏览器自动化至少检查：
@@ -295,6 +313,26 @@ evidence is the governed diagnostic state above, not synthesized frontend data.
     Official Web、Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字证据。console / network 明显错误必须记录。
+
+campus-web browser runner：
+
+```bash
+node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
+  --cwd apps/campus-web \
+  pnpm exec tsx ./scripts/staging-browser-e2e.ts \
+    --evidence-dir "$E2E_QA_EVIDENCE_DIR" \
+  | tee "$E2E_QA_EVIDENCE_DIR/campus-browser-e2e.stdout.json"
+```
+
+通过标准：
+
+- 使用 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
+  `STAGING_APP_API_SMOKE_AUTH_SECRET` 铸造真实 staging smoke session
+- `campus-browser-e2e.json` 输出 `passed=true`
+- screenshots 覆盖 campus home、chat 与 docs reader
+- chat runner 访问 `/chat` 并向真实 staging 链路提交问题
+- docs runner 访问 `/docs/` 与 `/docs/regulations/student_rules/`
+- console / network blocker 为 `0`
 
 ## 8. Sentry And Axiom Verification
 
