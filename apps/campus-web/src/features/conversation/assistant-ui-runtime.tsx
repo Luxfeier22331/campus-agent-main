@@ -56,6 +56,7 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 	const [activeRun, setActiveRun] = useState<ActiveRun | null>(null);
 	const abortControllerRef = useRef<AbortController | null>(null);
 	const locallyInitializedRunConversationIdRef = useRef<string | null>(null);
+	const pendingCancelBeforeRunRef = useRef(false);
 	const typewriterRef = useRef<TypewriterState | null>(null);
 
 	const fetchConversationMessages = useCallback(async (conversationId: string) => {
@@ -160,6 +161,7 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 
 		abortControllerRef.current?.abort();
 		clearTypewriter();
+		pendingCancelBeforeRunRef.current = false;
 		setActiveRun(null);
 		setIsRunning(false);
 		if (!remoteId) {
@@ -261,13 +263,24 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 		async (events: AsyncIterable<ChatRequestStreamEvent>, conversationId?: string) => {
 			for await (const event of events) {
 				if (event.event === "request.accepted" && event.data.runId) {
-					setActiveRun({
+					const acceptedRun = {
 						conversationId,
 						requestId: event.data.requestId,
 						runId: event.data.runId,
 						sequence: event.data.sequence,
 						traceId: event.data.traceId,
-					});
+					};
+					setActiveRun(acceptedRun);
+					if (pendingCancelBeforeRunRef.current) {
+						pendingCancelBeforeRunRef.current = false;
+						await cancelRun(acceptedRun.runId);
+						abortControllerRef.current?.abort();
+						clearTypewriter();
+						locallyInitializedRunConversationIdRef.current = null;
+						setIsRunning(false);
+						setActiveRun(null);
+						return;
+					}
 					continue;
 				}
 				if (event.data.runId) {
@@ -293,7 +306,7 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 				}
 			}
 		},
-		[applyAnswerDelta, applyTerminalEvent],
+		[applyAnswerDelta, applyTerminalEvent, clearTypewriter],
 	);
 
 	const onNew = useCallback(
@@ -311,6 +324,7 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 			abortControllerRef.current?.abort();
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
+			pendingCancelBeforeRunRef.current = false;
 			setMessages((current) => [
 				...current,
 				{
@@ -347,15 +361,24 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 	);
 
 	const onCancel = useCallback(async () => {
-		abortControllerRef.current?.abort();
 		clearTypewriter();
 		locallyInitializedRunConversationIdRef.current = null;
 		if (activeRun?.runId) {
+			abortControllerRef.current?.abort();
+			pendingCancelBeforeRunRef.current = false;
 			await cancelRun(activeRun.runId);
+			setIsRunning(false);
+			setActiveRun(null);
+			return;
 		}
+		if (isRunning && abortControllerRef.current) {
+			pendingCancelBeforeRunRef.current = true;
+			return;
+		}
+		pendingCancelBeforeRunRef.current = false;
 		setIsRunning(false);
 		setActiveRun(null);
-	}, [activeRun?.runId, clearTypewriter]);
+	}, [activeRun?.runId, clearTypewriter, isRunning]);
 
 	const onResume = useCallback(async () => {
 		if (!activeRun?.runId) {
