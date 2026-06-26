@@ -73,9 +73,14 @@ describe("chat e2e package scripts", () => {
 			resolve(__dirname, "../scripts/chat-e2e-local-real-provider.ts"),
 			"utf8",
 		);
-		const retiredPythonSdkRuntimeFlag = ["SUPER", "VISOR", "AGENTS", "SDK", "RUNTIME", "ENABLED"].join(
-			"_",
-		);
+		const retiredPythonSdkRuntimeFlag = [
+			"SUPER",
+			"VISOR",
+			"AGENTS",
+			"SDK",
+			"RUNTIME",
+			"ENABLED",
+		].join("_");
 		const retiredRestartFlag = ["--restart", "super", "visor", "runtime"].join("-");
 
 		expect(scriptSource).toContain("chat-e2e-local-dev.ts");

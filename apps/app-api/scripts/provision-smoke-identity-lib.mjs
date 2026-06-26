@@ -150,7 +150,8 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 		password,
 		passwordEnvKey,
 		authShellOrigin,
-		executionControlBaseUrl: env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_EXECUTION_CONTROL_BASE_URL,
+		executionControlBaseUrl:
+			env.EXECUTION_CONTROL_BASE_URL?.trim() || DEFAULT_EXECUTION_CONTROL_BASE_URL,
 		executionControlSharedSecret:
 			env.EXECUTION_CONTROL_SHARED_SECRET?.trim() || DEFAULT_EXECUTION_CONTROL_SHARED_SECRET,
 	};

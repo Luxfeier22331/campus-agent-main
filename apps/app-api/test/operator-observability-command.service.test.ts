@@ -207,7 +207,7 @@ describe("operator observability command service", () => {
 				payload: {
 					events: [
 						{
-														decision: null,
+							decision: null,
 							duration_ms: 35012,
 							event_id: "execution-control:req_01HQ:execution.runtime_failed",
 							event_type: "execution.runtime_failed",
@@ -233,7 +233,8 @@ describe("operator observability command service", () => {
 					eventId: "execution-control:req_01HQ:execution.runtime_failed",
 					eventType: "execution.runtime_failed",
 					occurredAt: "2026-04-24T10:00:00.000Z",
-					payload: {						decision: null,
+					payload: {
+						decision: null,
 						durationMs: 35012,
 						failureKind: "timeout",
 						httpStatus: 504,

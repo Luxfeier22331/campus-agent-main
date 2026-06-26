@@ -51,7 +51,7 @@ pnpm auth:check
 pnpm collector:run
 pnpm bootstrap:export
 pnpm file-release:export
-pnpm visual-ref:audit
+pnpm exec tsx src/visual-ref-audit.ts
 ```
 
 Docker package:
@@ -71,8 +71,9 @@ docker run --rm --env-file .env campus-authenticated-notice-collector:local
 - `file-release-export`
 - `visual-ref-audit`
 
-The container entrypoint only routes to the existing package scripts. External
-cron / systemd / Kubernetes Job owns scheduling.
+The container entrypoint routes to package scripts for collector jobs and
+invokes the read-only visual reference audit directly. External cron / systemd
+/ Kubernetes Job owns scheduling.
 
 Auth note:
 
@@ -140,7 +141,7 @@ Attachment note:
 
 Visual reference audit note:
 
-- `visual-ref:audit` is read-only: it scans notice detail HTML and writes a
+- `src/visual-ref-audit.ts` is read-only: it scans notice detail HTML and writes a
   candidate report, but it does not download image bytes, upload objects, write
   run ledger rows, or import source truth
 - default output path is

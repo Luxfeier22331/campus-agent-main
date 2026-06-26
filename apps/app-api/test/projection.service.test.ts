@@ -642,7 +642,8 @@ describe("request projection projector", () => {
 				createPendingEvent({
 					eventId: "execution-control:req_01HQ:execution.runtime_failed",
 					eventType: "execution.runtime_failed",
-					payload: {						decision: null,
+					payload: {
+						decision: null,
 						durationMs: 35012,
 						failureKind: "timeout",
 						httpStatus: 504,
@@ -673,7 +674,8 @@ describe("request projection projector", () => {
 			expect.objectContaining({
 				auditEventId: "execution-control:req_01HQ:execution.runtime_failed",
 				diagnostics: {
-					aclAnomalyCode: null,					decision: null,
+					aclAnomalyCode: null,
+					decision: null,
 					durationMs: 35012,
 					failClosed: false,
 					failureKind: "timeout",

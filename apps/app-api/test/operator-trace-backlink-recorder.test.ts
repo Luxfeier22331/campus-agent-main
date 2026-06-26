@@ -37,7 +37,8 @@ describe("operator trace backlink recorder", () => {
 				backlinks: [
 					{
 						issueFingerprint: "execution_control_timeout:knowledge",
-						issueLink: "https://axiom.example/query?request=req_01HQ&error=execution_control_timeout",
+						issueLink:
+							"https://axiom.example/query?request=req_01HQ&error=execution_control_timeout",
 						requestId: "req_01HQ",
 						traceId: "trace_01HQ",
 						traceLink: "https://sentry.example/traces/trace_01HQ",

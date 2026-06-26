@@ -20,7 +20,14 @@ describe("authenticated notice collector entrypoint", () => {
 		],
 		[
 			"visual-ref-audit",
-			["pnpm", "--dir", "apps/authenticated-notice-collector", "visual-ref:audit"],
+			[
+				"pnpm",
+				"--dir",
+				"apps/authenticated-notice-collector",
+				"exec",
+				"tsx",
+				"src/visual-ref-audit.ts",
+			],
 		],
 	];
 

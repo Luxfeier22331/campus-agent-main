@@ -71,7 +71,7 @@ describe("runtime event sanitizer", () => {
 		expect(
 			sanitizeRuntimeEventPayload({
 				answer: "raw answer must not pass",
-								decision: "queue_full",
+				decision: "queue_full",
 				duration_ms: 35012,
 				environment: "staging",
 				event_type: "execution.runtime_failed",
@@ -90,7 +90,7 @@ describe("runtime event sanitizer", () => {
 				trace_id: "trace_01HQ",
 			}),
 		).toEqual({
-						decision: "queue_full",
+			decision: "queue_full",
 			duration_ms: 35012,
 			environment: "staging",
 			event_type: "execution.runtime_failed",

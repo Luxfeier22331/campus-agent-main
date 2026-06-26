@@ -1,5 +1,5 @@
 ---
-doc_type: contract
+doc_type: index
 truth_scope: capability
 owner_boundary: domains/campus-services/transport
 status: active

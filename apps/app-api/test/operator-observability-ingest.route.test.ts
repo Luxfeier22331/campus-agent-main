@@ -182,7 +182,7 @@ describe("operator observability internal ingest routes", () => {
 				body: JSON.stringify({
 					events: [
 						{
-														decision: null,
+							decision: null,
 							duration_ms: 35012,
 							event_id: "execution-control:req_01HQ:execution.runtime_failed",
 							event_type: "execution.runtime_failed",
@@ -212,7 +212,7 @@ describe("operator observability internal ingest routes", () => {
 			payload: {
 				events: [
 					{
-												decision: null,
+						decision: null,
 						duration_ms: 35012,
 						event_id: "execution-control:req_01HQ:execution.runtime_failed",
 						event_type: "execution.runtime_failed",

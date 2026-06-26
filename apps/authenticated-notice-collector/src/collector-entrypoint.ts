@@ -37,7 +37,14 @@ export function buildCollectorModeCommand(mode: CollectorEntrypointMode): string
 		case "file-release-export":
 			return ["pnpm", "--dir", "apps/authenticated-notice-collector", "file-release:export"];
 		case "visual-ref-audit":
-			return ["pnpm", "--dir", "apps/authenticated-notice-collector", "visual-ref:audit"];
+			return [
+				"pnpm",
+				"--dir",
+				"apps/authenticated-notice-collector",
+				"exec",
+				"tsx",
+				"src/visual-ref-audit.ts",
+			];
 		default: {
 			const exhaustiveCheck: never = mode;
 			throw new Error(`unsupported collector mode: ${exhaustiveCheck}`);
