@@ -1224,9 +1224,6 @@ const output =
   fileEnvValue("CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   fileEnvValue("EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH") ||
   path.join(runtimeDir, "provider-config-projection.json");
-if (fs.existsSync(output)) {
-  process.exit(0);
-}
 
 const appApiBaseUrl = (
   sourceEnvValue("EXECUTION_CONTROL_STAGING_APP_API_BASE_URL") ||
@@ -1239,6 +1236,9 @@ const sharedSecret =
   sourceEnvValue("APP_API_INTERNAL_SHARED_SECRET") ||
   sourceEnvValue("EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET");
 if (!sharedSecret) {
+  if (fs.existsSync(output)) {
+    process.exit(0);
+  }
   throw new Error(
     "provider-config projection sync requires APP_API_INTERNAL_SHARED_SECRET or EXECUTION_CONTROL_APP_API_INTERNAL_SHARED_SECRET",
   );
