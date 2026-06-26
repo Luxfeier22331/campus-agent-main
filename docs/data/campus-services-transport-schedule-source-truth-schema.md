@@ -43,8 +43,11 @@ ready transport candidates。
 - `campus_services/transport_schedule` 是下游 structured projection owner，不是
   generic retrieval collection
 - public transport status page consumes a materialized status projection from
-  the same published transport schedule release/read model. Its contract is
-  `docs/contracts/transport-status.md`; it is not a model-visible tool.
+  the same published transport schedule release/read model through the self-host
+  internal projection endpoint. Its contract is
+  `docs/contracts/transport-status.md`; it is not a model-visible tool, and
+  `apps/app-api` must not maintain a second transport schedule database or
+  current pointer.
 - 班次时间、停运、临时调整必须有 notice provenance
 - route / stop canonical seed 由 repo config/code 持有；具体班次事实不得无来源手写
 - builder 离线展开 baseline 的 90 天服务日；bounded temporary overlay 按显式服务日期范围展开，
@@ -323,6 +326,12 @@ compatibility current artifact 只允许 `promote` 写入：
 local / smoke runtime 与 production runtime 都通过 PostgreSQL
 `structured_projection_current` current pointer 和 typed read model 消费当前 release；
 mounted readonly current projection file runtime 已下线。
+
+The browser-facing transport status projection is a release-time materialized
+derivative of the same current release. It must share `release_id`,
+`published_at` and source provenance with the typed read model, and it must be
+served through the self-host internal projection endpoint before `app-api`
+exposes a public cacheable facade.
 
 长期 production publication 必须同时写入 PostgreSQL：
 

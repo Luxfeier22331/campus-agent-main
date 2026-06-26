@@ -16,10 +16,14 @@ status page. Current scope is the campus shuttle timetable only.
 Transport status is a product projection, not a model-visible tool.
 
 - `campus-web` reads transport status to render the status page.
+- `app-api` exposes the browser-facing public endpoint as a facade/cache only.
+  It does not own transport schedule truth, rebuild the timetable, or maintain a
+  second current pointer.
 - `transport_schedule_lookup` remains the typed model-facing tool for intent
   questions such as next departure, service window and timetable lookup.
-- Both surfaces consume the same published transport schedule release/read
-  model.
+- Both surfaces consume the same `campus_services/transport_schedule` published
+  release/read model through self-host execution-control/internal runtime
+  endpoints.
 - The status page must not call `transport_schedule_lookup`.
 
 The first version does not support arbitrary date lookup. It shows the current
@@ -32,7 +36,22 @@ GET /api/campus-services/transport-schedule/status
 ```
 
 The endpoint returns the current published status projection as cacheable JSON.
-It reads backend projection state and is not tied to a frontend deployment.
+It reads the self-host internal projection endpoint and is not tied to a
+frontend deployment:
+
+```text
+GET /internal/projections/campus-services/transport-schedule/status
+```
+
+The fixed consumption shape is:
+
+```text
+published transport schedule release/read model
+  -> POST /internal/query/campus-services/transport-schedule
+     -> transport_schedule_lookup
+  -> GET /internal/projections/campus-services/transport-schedule/status
+     -> app-api public status endpoint -> campus-web
+```
 
 If the current projection is missing, invalid or unverifiable, the endpoint
 fails closed instead of generating a best-effort table at request time.
@@ -109,8 +128,13 @@ No group-level or route-level `sourceRefs` are defined in this version.
 
 The status projection is materialized during transport schedule publish/release.
 The first storage shape may be a current JSON blob associated with the published
-transport schedule release. It should not be split into group/route/departure
-tables unless a real query requirement appears.
+transport schedule release inside the self-host execution-control/internal
+runtime boundary. It should not be split into group/route/departure tables unless
+a real query requirement appears.
+
+The status projection and the typed transport schedule read model must share
+`releaseId`, `publishedAt` and source references. They must not become separate
+truths with separate current pointers.
 
 The projection JSON is a contract and must be schema-validated at publish/read
 boundaries. The machine-readable schema owner is:
@@ -126,8 +150,9 @@ schema validator.
 
 The endpoint is cache-first because transport status changes through publish
 events, not per request. Cache keys and ETags should include the current
-`releaseId`. Publishing a new projection updates the backend current state and
-causes clients to observe the new version without a frontend redeploy.
+`releaseId`. Publishing a new projection updates the self-host current
+projection/read model and causes clients to observe the new version without a
+frontend redeploy.
 
 ## Non-Goals
 
@@ -135,5 +160,6 @@ causes clients to observe the new version without a frontend redeploy.
 - `service_status_lookup` or any generic status tool.
 - Arbitrary date query for the status page.
 - Query-time route fan-out through `transport_schedule_lookup`.
+- App-api-owned transport schedule database, rebuild job or current pointer.
 - Query-time raw notice, object storage or HTML scans.
 - Operator editing of the final status projection JSON.

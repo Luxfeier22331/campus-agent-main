@@ -185,6 +185,7 @@ Identity Platform detailed object families are frozen separately in
 
 - `GET /api/campus-map/places`
 - `GET /api/campus-map/places/:placeId`
+- `GET /api/campus-services/transport-schedule/status`
 - `GET /api/campus-services/transport-schedule?serviceDate=YYYY-MM-DD`
 - `GET /api/dining/halls`
 - `GET /api/dining/halls/:hallId/floors/:floorId`
@@ -200,12 +201,16 @@ place and rendered campus map objects; browser interaction must not infer a
 place from base-map `name`, label text, `sourceRefs`, or nearest-geometry
 matching.
 
-Campus services status returns latest published service / transport status
-projection. Campus services transport schedule returns a public, cacheable
-schedule projection for one `serviceDate`; it reads execution-control structured
-query results through app-api, exposes route-grouped timetable rows, route-level
+Campus services transport status returns the latest published transport status
+projection as a public, cacheable facade over the self-host internal projection
+endpoint. `apps/app-api` does not own the campus-services transport schedule
+database, rebuild the timetable, or maintain a second current pointer.
+
+Campus services transport schedule returns a public, cacheable schedule
+projection for one `serviceDate`; it reads execution-control structured query
+results through app-api, exposes route-grouped timetable rows, route-level
 operational notes, row-level departure `status` / `note`, and only clickable
-source URLs already present as `http(s)` refs. It must not expose
+source URLs already present as `http(s)` refs. Neither endpoint may expose
 execution-control `result_envelope`, raw notice body, internal object locators or
 non-URL provenance refs.
 

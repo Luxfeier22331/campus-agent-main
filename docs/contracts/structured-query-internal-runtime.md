@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-26
 ---
 # Structured Query Internal Runtime Contract
 
@@ -42,6 +42,20 @@ Contract rules:
 - response body 对齐对应 tool result contract 的 safe typed summary
 - runtime 只读 configured projection / normalized truth；不得 query-time 回扫 raw
   source bundle、notice HTML 或 generic retrieval chunk
+
+## Internal Projection Endpoints
+
+Go `apps/execution-control` also owns internal read-model projection endpoints
+when a browser-facing surface needs a stable display projection instead of a
+tool result:
+
+- `GET /internal/projections/campus-services/transport-schedule/status`
+
+This endpoint returns the current transport status display projection described
+by `docs/contracts/transport-status.md`. It is not a tool endpoint, does not
+accept arbitrary date query, does not return a structured tool result envelope
+and does not make `app-api` the owner of campus-services transport schedule
+truth.
 
 ## Contracted Read-Model Backing
 

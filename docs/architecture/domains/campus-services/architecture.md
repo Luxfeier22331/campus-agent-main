@@ -4,7 +4,7 @@ truth_scope: capability
 owner_boundary: domains/campus-services
 status: active
 created: 2026-04-23
-updated: 2026-06-24
+updated: 2026-06-26
 ---
 # Campus Services Runtime Architecture
 
@@ -29,10 +29,20 @@ Out of repo runtime scope:
 
 ## Runtime Shape
 
+Model-visible tool path:
+
 ```text
 app-api -> execution-control -> Temporal activity
 -> admitted typed tool -> internal query service
 -> projection-backed structured truth
+```
+
+Browser status path:
+
+```text
+campus-web -> app-api facade/cache
+-> execution-control internal projection endpoint
+-> same projection-backed structured truth
 ```
 
 Fixed constraints:
@@ -40,6 +50,8 @@ Fixed constraints:
 - query time never scans raw source bundles, notice HTML, object storage prefixes
   or generic retrieval chunks
 - tool output is bounded JSON, not raw read-model rows
+- `app-api` does not own campus-services transport schedule truth, rebuild the
+  timetable, or maintain a second current pointer
 - missing currentness, missing source truth, ambiguous route/date, or conflicting
   sources fail closed
 - `navigation` may consume stop/place refs but does not own timetable truth
@@ -64,6 +76,11 @@ The data plane is:
 - `campus_services_projection_bundle.v1`
 - PostgreSQL release catalog, current pointer and typed read model
 - Go `apps/execution-control` internal query runtime
+
+The status page consumes a materialized transport status projection from the
+same current release through
+`GET /internal/projections/campus-services/transport-schedule/status`; it must
+not call `transport_schedule_lookup`.
 
 ## Opening Rule
 
