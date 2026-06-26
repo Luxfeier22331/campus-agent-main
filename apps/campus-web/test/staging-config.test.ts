@@ -7,6 +7,8 @@ import stagingBrowserE2ESource from "../scripts/staging-browser-e2e.ts?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
+const packageScripts = packageManifest.scripts as Record<string, string | undefined>;
+
 describe("campus web staging config", () => {
 	it("keeps campus staging host and injects Turnstile sitekey only at deploy time", () => {
 		expect(wranglerConfig).toContain('pattern = "campus-staging.mucwiki-edge.link"');
@@ -24,15 +26,11 @@ describe("campus web staging config", () => {
 	});
 
 	it("keeps app-only staging deploy separate from docs reader builds", () => {
-		expect(packageManifest.scripts?.["build:app:staging"]).toContain("vite build");
-		expect(packageManifest.scripts?.["build:app:staging"]).not.toContain("rspress");
-		expect(packageManifest.scripts?.["build:app:staging"]).not.toContain(
-			"build-published-reader-docs.mjs",
-		);
-		expect(packageManifest.scripts?.["build:docs:staging"]).toContain(
-			"build-published-reader-docs.mjs --staging",
-		);
-		expect(packageManifest.scripts?.["build:staging"]).toBe(
+		expect(packageScripts["build:app:staging"]).toContain("vite build");
+		expect(packageScripts["build:app:staging"]).not.toContain("rspress");
+		expect(packageScripts["build:app:staging"]).not.toContain("build-published-reader-docs.mjs");
+		expect(packageScripts["build:docs:staging"]).toContain("build-published-reader-docs.mjs --staging");
+		expect(packageScripts["build:staging"]).toBe(
 			"pnpm run build:docs:staging && pnpm run build:app:staging",
 		);
 		expect(stagingPreflightSource).not.toContain('"build:staging"');
@@ -50,7 +48,7 @@ describe("campus web staging config", () => {
 		expect(stagingBrowserE2ESource).toContain("campus-browser-e2e.json");
 		expect(stagingBrowserE2ESource).toContain("/api/chat/runs/");
 		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
-		expect(packageManifest.scripts?.["browser:e2e:staging"]).toBeUndefined();
-		expect(packageManifest.scripts?.["browser:smoke:staging"]).toBeUndefined();
+		expect(packageScripts["browser:e2e:staging"]).toBeUndefined();
+		expect(packageScripts["browser:smoke:staging"]).toBeUndefined();
 	});
 });

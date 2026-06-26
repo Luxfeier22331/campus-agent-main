@@ -44,6 +44,7 @@ export function createOperatorQueryServiceMock(
 		getCostTimeseries: vi.fn(),
 		listAutoscalerActuations: vi.fn(),
 		listAutoscalerDecisions: vi.fn(),
+		listAutoscalerPostures: vi.fn(),
 		list: vi.fn().mockResolvedValue({
 			page: {
 				nextCursor: null,
