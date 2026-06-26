@@ -24,7 +24,10 @@ function parseArgs(argv, env = process.env) {
 		evidenceDir: optionalValue(env.E2E_QA_EVIDENCE_DIR) ?? DEFAULT_EVIDENCE_DIR,
 		headed: false,
 		storageState: optionalValue(env.OPERATOR_CONSOLE_STORAGE_STATE) ?? "",
-		timeoutMs: Number.parseInt(optionalValue(env.OPERATOR_CONSOLE_BROWSER_E2E_TIMEOUT_MS) ?? "120000", 10),
+		timeoutMs: Number.parseInt(
+			optionalValue(env.OPERATOR_CONSOLE_BROWSER_E2E_TIMEOUT_MS) ?? "120000",
+			10,
+		),
 	};
 	for (let index = 0; index < argv.length; index += 1) {
 		const token = argv[index];
@@ -63,14 +66,18 @@ function assertNoDirectRuntimeRequests(records) {
 		/temporal|execution-control|sentry|axiom|postgres|pg\b/i.test(record.url),
 	);
 	if (forbidden.length > 0) {
-		throw new Error(`Operator browser directly reached forbidden runtime URLs: ${JSON.stringify(forbidden)}`);
+		throw new Error(
+			`Operator browser directly reached forbidden runtime URLs: ${JSON.stringify(forbidden)}`,
+		);
 	}
 }
 
 function assertNoBrokenNetwork(records) {
 	const broken = records.filter((record) => record.status === null || record.status >= 500);
 	if (broken.length > 0) {
-		throw new Error(`Operator browser E2E saw broken network records: ${JSON.stringify(broken.slice(0, 8))}`);
+		throw new Error(
+			`Operator browser E2E saw broken network records: ${JSON.stringify(broken.slice(0, 8))}`,
+		);
 	}
 }
 
@@ -130,15 +137,19 @@ async function main() {
 		const result = {
 			checks: {
 				consoleErrorCount: consoleErrors.length,
-				networkFailureCount: network.filter((record) => record.status === null || record.status >= 500)
-					.length,
+				networkFailureCount: network.filter(
+					(record) => record.status === null || record.status >= 500,
+				).length,
 				routesVisited: routes.map(([path]) => path),
 			},
 			evidenceDir: args.evidenceDir,
 			passed: consoleErrors.length === 0,
 			surface: "operator-console-web",
 		};
-		await writeFile(resolve(args.evidenceDir, "operator-console-browser-e2e.json"), JSON.stringify(result, null, 2));
+		await writeFile(
+			resolve(args.evidenceDir, "operator-console-browser-e2e.json"),
+			JSON.stringify(result, null, 2),
+		);
 		console.log(JSON.stringify(result, null, 2));
 		if (!result.passed) {
 			process.exitCode = 1;

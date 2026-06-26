@@ -2,7 +2,7 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { chromium, type BrowserContext, type Page } from "playwright";
+import { type BrowserContext, chromium, type Page } from "playwright";
 
 const DEFAULT_CAMPUS_BASE_URL = "https://campus-staging.mucwiki-edge.link";
 const DEFAULT_APP_API_BASE_URL = "https://api-staging.mucwiki-edge.link";
@@ -94,7 +94,9 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): Args {
 		throw new Error(`Unknown or incomplete argument: ${token}`);
 	}
 	if (!args.smokeAuthSecret) {
-		throw new Error("APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.");
+		throw new Error(
+			"APP_API_STAGING_SMOKE_AUTH_SECRET or STAGING_APP_API_SMOKE_AUTH_SECRET is required.",
+		);
 	}
 	return args;
 }
@@ -113,32 +115,41 @@ async function readJson(response: Response): Promise<unknown> {
 
 async function mintSmokeCookie(args: Args): Promise<string> {
 	const password = `BrowserE2E!${Date.now().toString(36)}`;
-	const response = await fetch(new URL("/api/internal/staging-smoke/auth/session", args.appApiBaseUrl), {
-		body: JSON.stringify({
-			email: args.email,
-			name: args.name,
-			password,
-			resetIdentity: true,
-		}),
-		headers: {
-			accept: "application/json",
-			"content-type": "application/json",
-			"x-app-staging-smoke-auth": args.smokeAuthSecret,
+	const response = await fetch(
+		new URL("/api/internal/staging-smoke/auth/session", args.appApiBaseUrl),
+		{
+			body: JSON.stringify({
+				email: args.email,
+				name: args.name,
+				password,
+				resetIdentity: true,
+			}),
+			headers: {
+				accept: "application/json",
+				"content-type": "application/json",
+				"x-app-staging-smoke-auth": args.smokeAuthSecret,
+			},
+			method: "POST",
+			signal: AbortSignal.timeout(30_000),
 		},
-		method: "POST",
-		signal: AbortSignal.timeout(30_000),
-	});
+	);
 	if (!response.ok) {
-		throw new Error(`Smoke session mint failed (${response.status}): ${JSON.stringify(await readJson(response))}`);
+		throw new Error(
+			`Smoke session mint failed (${response.status}): ${JSON.stringify(await readJson(response))}`,
+		);
 	}
 	return response.headers.get("set-cookie") ?? "";
 }
 
-async function seedBrowserSession(context: BrowserContext, campusBaseUrl: string, cookieHeader: string) {
+async function seedBrowserSession(
+	context: BrowserContext,
+	campusBaseUrl: string,
+	cookieHeader: string,
+) {
 	const hostname = new URL(campusBaseUrl).hostname;
 	const cookies = cookieHeader
 		.split(/,(?=\s*[^;,]+=)/)
-		.flatMap((part) => part.split(";")[0] ? [part.split(";")[0]] : [])
+		.flatMap((part) => (part.split(";")[0] ? [part.split(";")[0]] : []))
 		.map((pair) => {
 			const separator = pair.indexOf("=");
 			return {
@@ -162,7 +173,9 @@ async function expectNoBrokenNetwork(records: NetworkRecord[]) {
 		return record.status >= 500;
 	});
 	if (blocked.length > 0) {
-		throw new Error(`Browser E2E saw blocked network records: ${JSON.stringify(blocked.slice(0, 8))}`);
+		throw new Error(
+			`Browser E2E saw blocked network records: ${JSON.stringify(blocked.slice(0, 8))}`,
+		);
 	}
 }
 
@@ -173,13 +186,15 @@ async function sendChatPrompt(page: Page, prompt: string, timeoutMs: number) {
 	await textbox.fill(prompt);
 	await textbox.press("Enter");
 	await page.getByText(prompt, { exact: false }).waitFor({ timeout: timeoutMs });
-	await page.waitForResponse(
-		(response) =>
-			response.url().includes("/api/chat/runs/") &&
-			response.url().includes("/events") &&
-			response.status() < 500,
-		{ timeout: timeoutMs },
-	).catch(() => undefined);
+	await page
+		.waitForResponse(
+			(response) =>
+				response.url().includes("/api/chat/runs/") &&
+				response.url().includes("/events") &&
+				response.status() < 500,
+			{ timeout: timeoutMs },
+		)
+		.catch(() => undefined);
 	await page.waitForLoadState("networkidle", { timeout: timeoutMs }).catch(() => undefined);
 }
 
@@ -237,13 +252,18 @@ async function main() {
 				chatPromptSubmitted: true,
 				consoleErrorCount: consoleErrors.length,
 				docsOpened: true,
-				networkFailureCount: network.filter((record) => record.status === null || record.status >= 500).length,
+				networkFailureCount: network.filter(
+					(record) => record.status === null || record.status >= 500,
+				).length,
 			},
 			evidenceDir: args.evidenceDir,
 			passed: consoleErrors.length === 0,
 			surface: "campus-web",
 		};
-		await writeFile(resolve(args.evidenceDir, "campus-browser-e2e.json"), JSON.stringify(result, null, 2));
+		await writeFile(
+			resolve(args.evidenceDir, "campus-browser-e2e.json"),
+			JSON.stringify(result, null, 2),
+		);
 		console.log(JSON.stringify(result, null, 2));
 		if (!result.passed) {
 			process.exitCode = 1;

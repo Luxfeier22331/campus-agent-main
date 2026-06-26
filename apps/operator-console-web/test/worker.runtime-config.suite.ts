@@ -82,11 +82,15 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingAccessServiceTokenSmokeSource).toContain("Invalid Access JWT.");
 		expect(stagingBrowserE2ESource).toContain('from "playwright"');
 		expect(stagingBrowserE2ESource).toContain("OPERATOR_CONSOLE_STORAGE_STATE");
-		expect(stagingBrowserE2ESource).toContain("service-token smoke does not prove human operator browser E2E");
+		expect(stagingBrowserE2ESource).toContain(
+			"service-token smoke does not prove human operator browser E2E",
+		);
 		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
 		expect(stagingBrowserE2ESource).toContain("operator-console-browser-e2e.json");
 		expect(stagingBrowserE2ESource).toContain("assertNoDirectRuntimeRequests");
-		expect(stagingBrowserE2ESource).toContain("temporal|execution-control|sentry|axiom|postgres|pg");
+		expect(stagingBrowserE2ESource).toContain(
+			"temporal|execution-control|sentry|axiom|postgres|pg",
+		);
 		expect(stagingBrowserE2ESource).toContain("/observability/overview");
 		expect(packageManifest.devDependencies?.playwright).toBeTruthy();
 		expect(packageManifest.scripts?.["browser:e2e:staging"]).toBeUndefined();

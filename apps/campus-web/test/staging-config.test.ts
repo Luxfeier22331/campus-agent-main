@@ -29,7 +29,9 @@ describe("campus web staging config", () => {
 		expect(packageScripts["build:app:staging"]).toContain("vite build");
 		expect(packageScripts["build:app:staging"]).not.toContain("rspress");
 		expect(packageScripts["build:app:staging"]).not.toContain("build-published-reader-docs.mjs");
-		expect(packageScripts["build:docs:staging"]).toContain("build-published-reader-docs.mjs --staging");
+		expect(packageScripts["build:docs:staging"]).toContain(
+			"build-published-reader-docs.mjs --staging",
+		);
 		expect(packageScripts["build:staging"]).toBe(
 			"pnpm run build:docs:staging && pnpm run build:app:staging",
 		);
