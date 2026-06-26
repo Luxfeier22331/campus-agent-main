@@ -327,30 +327,34 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(observedSignal).toBe(controller.signal);
 	});
 
-	it("streams text deltas before yielding the final structured SDK result", async () => {
+	it("streams terminal-envelope visible text before yielding the final structured SDK result", async () => {
+		let observedOutputType: unknown;
 		const runner = createStreamingOpenAIAgentsRunner({
-			runSdkStream: async () => ({
-				completed: Promise.resolve(),
-				finalOutput: {
-					kind: "answer",
-					answerText: "国家奖学金每学年评审一次。",
-				},
-				lastResponseId: "resp-sdk-stream",
-				newItems: [],
-				toTextStream: () =>
-					new ReadableStream<string>({
-						start(controller) {
-							controller.enqueue('{"kind":"answer","answerText":"国家奖学金');
-							controller.enqueue("每学年评审一次。");
-							controller.enqueue('"}');
-							controller.close();
-						},
-					}),
-				usage: {
-					inputTokens: 21,
-					outputTokens: 13,
-				},
-			}),
+			runSdkStream: async (agent) => {
+				observedOutputType = (agent as { outputType?: unknown }).outputType;
+				return {
+					completed: Promise.resolve(),
+					finalOutput: {
+						kind: "answer",
+						answerText: "国家奖学金每学年评审一次。",
+					},
+					lastResponseId: "resp-sdk-stream",
+					newItems: [],
+					toTextStream: () =>
+						new ReadableStream<string>({
+							start(controller) {
+								controller.enqueue('{"kind":"answer","answerText":"国家奖学金');
+								controller.enqueue("每学年评审一次。");
+								controller.enqueue('"}');
+								controller.close();
+							},
+						}),
+					usage: {
+						inputTokens: 21,
+						outputTokens: 13,
+					},
+				};
+			},
 		});
 
 		const events: unknown[] = [];
@@ -365,6 +369,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 			events.push(event);
 		}
 
+		expect(observedOutputType).toBeDefined();
 		expect(events).toEqual([
 			{
 				accumulatedText: "国家奖学金",
@@ -384,6 +389,52 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					answerText: "国家奖学金每学年评审一次。",
 				},
 			}),
+		]);
+	});
+
+	it("fails closed when streamed visible text drifts from the final structured output", async () => {
+		const runner = createStreamingOpenAIAgentsRunner({
+			runSdkStream: async () => ({
+				completed: Promise.resolve(),
+				finalOutput: {
+					kind: "answer",
+					answerText: "最终答案。",
+				},
+				lastResponseId: "resp-sdk-stream-drift",
+				newItems: [],
+				toTextStream: () =>
+					new ReadableStream<string>({
+						start(controller) {
+							controller.enqueue('{"kind":"answer","answerText":"错误答案。"}');
+							controller.close();
+						},
+					}),
+				usage: {
+					inputTokens: 21,
+					outputTokens: 13,
+				},
+			}),
+		});
+
+		const events: unknown[] = [];
+		await expect(async () => {
+			for await (const event of runner({
+				input: "国家奖学金多久评审一次？",
+				instructions: "Answer directly.",
+				tools: [],
+				runId: "run-sdk-stream-drift",
+				traceId: "trace-run-sdk-stream-drift",
+				providerConfig,
+			})) {
+				events.push(event);
+			}
+		}).rejects.toThrow("streamed answer text drifted from final output");
+		expect(events).toEqual([
+			{
+				accumulatedText: "错误答案。",
+				chunkIndex: 1,
+				delta: "错误答案。",
+			},
 		]);
 	});
 });
