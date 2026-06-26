@@ -92,7 +92,7 @@ describe("campus worker boundary", () => {
 			"/api/docs/collections/regulations/student_rules/navigation",
 			"/api/docs/collections/regulations/student_rules/documents/index/resolve",
 			"/api/docs/collections/regulations/student_rules/documents/index/admission",
-			"/api/campus-services/transport-schedule",
+			"/api/campus-services/transport-schedule/status",
 			"/api/campus-map/places",
 			"/api/campus-map/places/library",
 			"/api/dining/halls",

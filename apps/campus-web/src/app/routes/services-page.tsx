@@ -1,19 +1,18 @@
 import { Table } from "@heroui/react";
-import { CalendarDays } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { getCampusTransportSchedule } from "@/features/campus-services/api";
+import { getCampusTransportStatus } from "@/features/campus-services/api";
 import type {
 	CampusTransportDeparture,
+	CampusTransportDepartureKind,
 	CampusTransportDepartureStatus,
 	CampusTransportRoute,
-	CampusTransportScheduleResponse,
+	CampusTransportStatusGroup,
+	CampusTransportStatusResponse,
 } from "@/features/campus-services/model";
 
 const departureStatusLabels: Record<CampusTransportDepartureStatus, string> = {
@@ -24,20 +23,17 @@ const departureStatusLabels: Record<CampusTransportDepartureStatus, string> = {
 	normal: "正常",
 };
 
-const routeStatusLabels: Record<CampusTransportRoute["status"], string> = {
-	limited_service: "部分运行",
-	not_running: "停运",
-	running: "运行中",
-	temporarily_suspended: "临时停运",
-	unknown: "待确认",
+const departureKindLabels: Record<CampusTransportDepartureKind, string> = {
+	other: "其他",
+	student: "学生班次",
+	teacher: "教师班次",
 };
 
-const serviceDayKindLabels: Record<CampusTransportScheduleResponse["serviceDayKind"], string> = {
-	holiday: "节假日",
+const groupKindLabels: Record<CampusTransportStatusGroup["kind"], string> = {
+	daily: "每日运行",
 	temporary: "临时安排",
-	unknown: "以发布时刻表为准",
-	weekend: "周末",
-	workday: "工作日",
+	weekday: "工作日运行",
+	weekend_holiday: "周末/节假日运行",
 };
 
 type ScheduleTableColumnId = "departureTime" | "note" | "status" | "type";
@@ -56,17 +52,14 @@ const scheduleTableColumns: readonly ScheduleTableColumn[] = [
 ] as const;
 
 export function ServicesPage() {
-	const [serviceDate, setServiceDate] = useState(() => formatLocalDate(new Date()));
-	const [schedulePayload, setSchedulePayload] = useState<CampusTransportScheduleResponse | null>(
-		null,
-	);
+	const [schedulePayload, setSchedulePayload] = useState<CampusTransportStatusResponse | null>(null);
 	const [isScheduleLoading, setIsScheduleLoading] = useState(true);
 	const [scheduleError, setScheduleError] = useState<string | null>(null);
 
 	useEffect(() => {
 		let isMounted = true;
 		setIsScheduleLoading(true);
-		getCampusTransportSchedule({ serviceDate })
+		getCampusTransportStatus()
 			.then((nextPayload) => {
 				if (!isMounted) {
 					return;
@@ -88,7 +81,7 @@ export function ServicesPage() {
 		return () => {
 			isMounted = false;
 		};
-	}, [serviceDate]);
+	}, []);
 
 	return (
 		<section className="mx-auto max-w-[1440px] px-5 py-6 pb-24 lg:px-6">
@@ -107,9 +100,7 @@ export function ServicesPage() {
 				<TransportScheduleSection
 					error={scheduleError}
 					isLoading={isScheduleLoading}
-					onServiceDateChange={setServiceDate}
 					payload={schedulePayload}
-					serviceDate={serviceDate}
 				/>
 			</div>
 		</section>
@@ -119,114 +110,103 @@ export function ServicesPage() {
 function TransportScheduleSection({
 	error,
 	isLoading,
-	onServiceDateChange,
 	payload,
-	serviceDate,
 }: {
 	error: string | null;
 	isLoading: boolean;
-	onServiceDateChange: (serviceDate: string) => void;
-	payload: CampusTransportScheduleResponse | null;
-	serviceDate: string;
+	payload: CampusTransportStatusResponse | null;
 }) {
-	const adjustmentSummary = payload?.hasAdjustments
-		? `今日含 ${payload.adjustmentCount} 条调整`
-		: "今日暂无调整";
-	const notices = useMemo(() => dedupeSourceNotices(payload?.notices ?? []), [payload]);
+	const adjustmentCount = countDepartureAdjustments(payload);
+	const adjustmentSummary = adjustmentCount > 0 ? `含 ${adjustmentCount} 条变更` : "暂无变更";
+	const sourceRefs = useMemo(() => collectSourceRefs(payload), [payload]);
 	return (
 		<section aria-labelledby="transport-schedule-heading" className="grid gap-4">
 			<div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
 				<div>
-					<div className="flex items-center gap-2 text-sm text-[var(--sys-text-muted)]">
-						<CalendarDays aria-hidden="true" className="size-4" />
-						<span>{serviceDayLabel(payload)}</span>
-					</div>
 					<h2
-						className="mt-1 text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]"
+						className="text-xl font-semibold tracking-normal text-[var(--sys-text-strong)]"
 						id="transport-schedule-heading"
 					>
 						班车时刻表
 					</h2>
-					{payload?.release ? (
+					{payload ? (
 						<p className="mt-1 text-xs leading-5 text-[var(--sys-text-muted)]">
 							发布于 {formatDisplayDateTime(payload.release.publishedAt)} ·{" "}
 							{payload.release.releaseId}
 						</p>
 					) : null}
 				</div>
-				<div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-					<div className="grid gap-1.5">
-						<Label htmlFor="transport-schedule-date">服务日期</Label>
-						<Input
-							className="w-[180px]"
-							id="transport-schedule-date"
-							onChange={(event) => {
-								if (event.target.value) {
-									onServiceDateChange(event.target.value);
-								}
-							}}
-							type="date"
-							value={serviceDate}
-						/>
-					</div>
-					<Badge className="h-9 px-3" variant={payload?.hasAdjustments ? "default" : "secondary"}>
-						{adjustmentSummary}
-					</Badge>
-				</div>
+				<Badge className="h-9 px-3" variant={adjustmentCount > 0 ? "default" : "secondary"}>
+					{adjustmentSummary}
+				</Badge>
 			</div>
 
 			{error ? <Alert variant="destructive">{error}</Alert> : null}
 			{isLoading ? <TransportScheduleSkeleton /> : null}
-			{!(isLoading || error) && payload?.status === "unavailable" ? (
-				<Alert>班车时刻表暂时无法读取。</Alert>
+			{!(isLoading || error) && payload && payload.groups.length === 0 ? (
+				<Alert>当前暂无可展示班次。</Alert>
 			) : null}
-			{!(isLoading || error) && payload?.status === "available" && payload.routes.length === 0 ? (
-				<Alert>当前日期暂无可展示班次。</Alert>
-			) : null}
-			{!(isLoading || error) && payload?.status === "available" && payload.routes.length > 0 ? (
+			{!(isLoading || error) && payload && payload.groups.length > 0 ? (
 				<div className="grid gap-5">
-					{payload.routes.map((route) => (
-						<TransportRouteTable key={route.routeId} route={route} />
+					{payload.groups.map((group) => (
+						<TransportScheduleGroupSection group={group} key={group.kind} />
 					))}
 				</div>
 			) : null}
-			{notices.length > 0 ? (
-				<div className="flex flex-wrap gap-x-4 gap-y-2 text-sm">
-					{notices.map((notice) => (
-						<a
-							className="font-medium text-[var(--sys-text-link)] underline-offset-4 hover:underline"
-							href={notice.url}
-							key={notice.url}
-							rel="noreferrer"
-							target="_blank"
-						>
-							{notice.title || "班车时刻表来源"}
-						</a>
-					))}
+			{sourceRefs.length > 0 ? (
+				<div className="grid gap-2 text-sm">
+					<p className="font-medium text-[var(--sys-text-strong)]">来源</p>
+					<div className="flex flex-wrap gap-x-4 gap-y-2">
+						{sourceRefs.map((url) => (
+							<a
+								className="font-medium text-[var(--sys-text-link)] underline-offset-4 hover:underline"
+								href={url}
+								key={url}
+								rel="noreferrer"
+								target="_blank"
+							>
+								{url}
+							</a>
+						))}
+					</div>
 				</div>
 			) : null}
 		</section>
 	);
 }
 
+function TransportScheduleGroupSection({ group }: { group: CampusTransportStatusGroup }) {
+	return (
+		<section aria-labelledby={`transport-group-${group.kind}`} className="grid gap-4">
+			<h3
+				className="text-base font-semibold tracking-normal text-[var(--sys-text-strong)]"
+				id={`transport-group-${group.kind}`}
+			>
+				{groupKindLabels[group.kind]}
+			</h3>
+			<div className="grid gap-5">
+				{group.routes.map((route) => (
+					<TransportRouteTable key={route.routeId} route={route} />
+				))}
+			</div>
+		</section>
+	);
+}
+
 function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
+	const rows = route.departures.map((departure, index) => ({
+		...departure,
+		rowId: `${route.routeId}:${index}:${departure.departureTime}`,
+	}));
 	return (
 		<section aria-labelledby={`transport-route-${route.routeId}`} className="grid gap-3">
-			<div className="flex flex-wrap items-center gap-2">
-				<h3
-					className="text-base font-semibold tracking-normal text-[var(--sys-text-strong)]"
-					id={`transport-route-${route.routeId}`}
-				>
-					{route.displayName}
-				</h3>
-				<Badge variant={route.status === "running" ? "secondary" : "outline"}>
-					{routeStatusLabels[route.status]}
-				</Badge>
-			</div>
-			{route.note ? (
-				<p className="max-w-3xl text-sm leading-6 text-[var(--sys-text-muted)]">{route.note}</p>
-			) : null}
-			{route.departures.length > 0 ? (
+			<h4
+				className="text-sm font-semibold tracking-normal text-[var(--sys-text-strong)]"
+				id={`transport-route-${route.routeId}`}
+			>
+				{route.displayName}
+			</h4>
+			{rows.length > 0 ? (
 				<Table className="rounded-lg border border-border bg-white shadow-none" variant="secondary">
 					<Table.ScrollContainer>
 						<Table.Content aria-label={`${route.displayName}班车时刻表`}>
@@ -237,9 +217,9 @@ function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
 									</Table.Column>
 								)}
 							</Table.Header>
-							<Table.Body items={route.departures}>
+							<Table.Body items={rows}>
 								{(departure) => (
-									<TransportDepartureRow departure={departure} routeId={route.routeId} />
+									<TransportDepartureRow departure={departure} rowId={departure.rowId} />
 								)}
 							</Table.Body>
 						</Table.Content>
@@ -254,13 +234,13 @@ function TransportRouteTable({ route }: { route: CampusTransportRoute }) {
 
 function TransportDepartureRow({
 	departure,
-	routeId,
+	rowId,
 }: {
 	departure: CampusTransportDeparture;
-	routeId: string;
+	rowId: string;
 }) {
 	return (
-		<Table.Row columns={scheduleTableColumns} id={`${routeId}:${departure.id}`}>
+		<Table.Row columns={scheduleTableColumns} id={rowId}>
 			{(column) => (
 				<Table.Cell textValue={getDepartureCellText(departure, column.id)}>
 					{renderDepartureCell(departure, column.id)}
@@ -279,7 +259,11 @@ function renderDepartureCell(departure: CampusTransportDeparture, columnId: Sche
 		);
 	}
 	if (columnId === "type") {
-		return <p className="min-w-[88px] text-sm text-[var(--sys-text-muted)]">{departure.type}</p>;
+		return (
+			<p className="min-w-[88px] text-sm text-[var(--sys-text-muted)]">
+				{departureKindLabels[departure.kind]}
+			</p>
+		);
 	}
 	if (columnId === "status") {
 		return (
@@ -303,7 +287,7 @@ function getDepartureCellText(
 		return departure.departureTime;
 	}
 	if (columnId === "type") {
-		return departure.type;
+		return departureKindLabels[departure.kind];
 	}
 	if (columnId === "status") {
 		return departureStatusLabels[departure.status];
@@ -320,26 +304,42 @@ function TransportScheduleSkeleton() {
 	);
 }
 
-function dedupeSourceNotices(notices: CampusTransportScheduleResponse["notices"]) {
-	const seen = new Set<string>();
-	return notices.filter((notice) => {
-		if (!notice.url || seen.has(notice.url)) {
-			return false;
-		}
-		seen.add(notice.url);
-		return true;
-	});
+function countDepartureAdjustments(payload: CampusTransportStatusResponse | null): number {
+	if (!payload) {
+		return 0;
+	}
+	return payload.groups.reduce(
+		(total, group) =>
+			total +
+			group.routes.reduce(
+				(routeTotal, route) =>
+					routeTotal + route.departures.filter((departure) => departure.status !== "normal").length,
+				0,
+			),
+		0,
+	);
 }
 
-function serviceDayLabel(payload: CampusTransportScheduleResponse | null): string {
+function collectSourceRefs(payload: CampusTransportStatusResponse | null): string[] {
 	if (!payload) {
-		return "以发布时刻表为准";
+		return [];
 	}
-	const dayKindLabel = serviceDayKindLabels[payload.serviceDayKind];
-	if (payload.serviceDayKind === "unknown") {
-		return payload.calendarLabel || dayKindLabel;
-	}
-	return dayKindLabel;
+	const refs = [
+		...payload.release.sourceRefs,
+		...payload.groups.flatMap((group) =>
+			group.routes.flatMap((route) =>
+				route.departures.flatMap((departure) => departure.sourceRefs),
+			),
+		),
+	];
+	const seen = new Set<string>();
+	return refs.filter((url) => {
+		if (!/^https?:\/\//i.test(url) || seen.has(url)) {
+			return false;
+		}
+		seen.add(url);
+		return true;
+	});
 }
 
 function formatDisplayDateTime(value: string): string {
@@ -356,15 +356,4 @@ function formatDisplayDateTime(value: string): string {
 		timeZone: "Asia/Shanghai",
 		year: "numeric",
 	}).format(date);
-}
-
-function formatLocalDate(value: Date): string {
-	const parts = new Intl.DateTimeFormat("en-CA", {
-		day: "2-digit",
-		month: "2-digit",
-		timeZone: "Asia/Shanghai",
-		year: "numeric",
-	}).formatToParts(value);
-	const readPart = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
-	return `${readPart("year")}-${readPart("month")}-${readPart("day")}`;
 }

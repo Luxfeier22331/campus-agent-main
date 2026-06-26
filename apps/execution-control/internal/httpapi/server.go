@@ -494,6 +494,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolTransportScheduleLookup)
+	case request.Method == http.MethodGet && path == "/internal/projections/campus-services/transport-schedule/status":
+		s.handleTransportStatusProjection(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/period-summary":

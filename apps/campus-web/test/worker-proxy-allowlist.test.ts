@@ -22,6 +22,8 @@ describe("campus worker app-api proxy allowlist", () => {
 	});
 
 	it("allows the public campus services transport schedule projection", () => {
-		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule")).toBe(true);
+		expect(isAllowedCampusAppApiRequest("/api/campus-services/transport-schedule/status")).toBe(
+			true,
+		);
 	});
 });

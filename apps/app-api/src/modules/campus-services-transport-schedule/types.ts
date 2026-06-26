@@ -1,10 +1,3 @@
-export type CampusTransportRouteStatus =
-	| "limited_service"
-	| "not_running"
-	| "running"
-	| "temporarily_suspended"
-	| "unknown";
-
 export type CampusTransportDepartureStatus =
 	| "added"
 	| "cancelled"
@@ -12,52 +5,40 @@ export type CampusTransportDepartureStatus =
 	| "delayed"
 	| "normal";
 
-export interface CampusServicesTransportDeparture {
+export type TransportStatusGroupKind = "daily" | "temporary" | "weekday" | "weekend_holiday";
+export type TransportStatusDepartureKind = "other" | "student" | "teacher";
+
+export interface CampusServicesTransportStatusDeparture {
 	departureTime: string;
-	id: string;
-	note: string | null;
-	sequence: number;
-	sourceNoticeRefs: string[];
+	kind: TransportStatusDepartureKind;
+	note?: string;
+	sourceRefs: string[];
 	status: CampusTransportDepartureStatus;
-	type: "教师班次" | "学生班次" | "其他";
 }
 
-export interface CampusServicesTransportRoute {
-	departures: CampusServicesTransportDeparture[];
-	destination: string | null;
+export interface CampusServicesTransportStatusRoute {
+	departures: CampusServicesTransportStatusDeparture[];
 	displayName: string;
-	note: string | null;
-	origin: string | null;
 	routeId: string;
-	status: CampusTransportRouteStatus;
 }
 
-export interface CampusServicesTransportSourceNotice {
-	publishedAt: string | null;
-	title: string;
-	url: string;
+export interface CampusServicesTransportStatusGroup {
+	kind: TransportStatusGroupKind;
+	routes: CampusServicesTransportStatusRoute[];
 }
 
-export interface CampusServicesTransportScheduleResponse {
-	adjustmentCount: number;
-	calendarLabel: string;
-	generatedAt: string;
-	hasAdjustments: boolean;
-	notices: CampusServicesTransportSourceNotice[];
-	publishedAt: string | null;
+export interface CampusServicesTransportStatusResponse {
+	groups: CampusServicesTransportStatusGroup[];
 	release: {
 		publishedAt: string;
 		releaseId: string;
-	} | null;
-	releaseId: string | null;
-	routes: CampusServicesTransportRoute[];
-	serviceDate: string;
-	serviceDayKind: "holiday" | "temporary" | "unknown" | "weekend" | "workday";
-	status: "available" | "unavailable";
+		sourceRefs: string[];
+	};
 }
 
 export interface CampusServicesTransportScheduleService {
-	getPublicSchedule(input: {
-		serviceDate?: string | null;
-	}): Promise<CampusServicesTransportScheduleResponse>;
+	getPublicStatus(): Promise<{
+		etag: string | null;
+		projection: CampusServicesTransportStatusResponse;
+	}>;
 }

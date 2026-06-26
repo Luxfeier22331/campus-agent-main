@@ -102,45 +102,40 @@ Required action:
 
 ### CS-02: Status Page Exists, But Completion Is Source-Data Limited
 
-Status: `partially_closed`
+Status: `closed_for_current_transport_status_scope`
 
 Current implementation:
 
-- `campus-web` exposes a `/services` page with a date picker and HeroUI table.
-- The page renders route sections, route status badges, departures and source
-  links.
-- The page renders release id / published time when app-api exposes release
-  metadata.
-- `app-api` exposes `GET /api/campus-services/transport-schedule`.
-- The endpoint calls execution-control
-  `/internal/query/campus-services/transport-schedule`.
-- Tool lookup and public status page both consume the same execution-control
-  structured runtime.
-- Public departure rows preserve structured `departure_status`,
-  `departure_kind`, `operational_note` and `related_notice_refs` when
-  execution-control returns them.
-- `adjustmentCount` includes non-normal departure rows, route-level non-running
-  status and route operational notes.
+- `campus-web` exposes a `/services` page that renders the current effective
+  transport status projection with HeroUI table components.
+- The page renders status groups, route sections, departure rows, release id /
+  published time and de-duplicated source URLs.
+- `app-api` exposes only
+  `GET /api/campus-services/transport-schedule/status` for the browser-facing
+  status page.
+- The status endpoint calls execution-control
+  `/internal/projections/campus-services/transport-schedule/status`.
+- The status page does not call the model-facing `transport_schedule_lookup`
+  tool and does not fan out per route at request time.
+- Public departure rows preserve structured `departureTime`, `kind`, `status`,
+  optional `note` and row-level `sourceRefs` from the projection.
+- The status page does not support arbitrary date lookup in the current scope.
 
 Remaining gaps:
 
-- `calendarLabel` is fixed to `以发布时刻表为准`; workday / holiday / special-day
-  semantics still need upstream source-data support.
 - Concrete `added` / `changed` / `cancelled` departure rows require upstream
-  projection facts. app-api and campus-web preserve these fields but do not
-  infer them from prose comments.
-- Source link title is generic (`班车时刻表来源`) even when upstream notice title
-  could be more useful.
+  projection facts. app-api and campus-web preserve these fields but do not infer
+  them from prose comments.
 
 Required action:
 
-- Extend the upstream transport projection to emit reliable service-day kind,
-  source title and concrete added/cancelled/changed departure rows when the
-  source notice contains row-level changes.
-- Keep temporary changes inside the timetable semantics: cancelled or added
+- Extend the upstream transport projection to emit concrete
+  added/cancelled/changed departure rows when the source notice contains
+  row-level changes.
+- Keep temporary changes inside timetable semantics: cancelled or added
   departures should appear in the route table when they affect concrete
-  departures; route-level suspension should appear as the route status and
-  operational note.
+  departures; temporary rows without a stable baseline route should appear under
+  the `temporary` group.
 
 ### CS-03: Edge Cache Is Present And Correctly Scoped
 
@@ -149,20 +144,17 @@ Status: `mostly_closed`
 Current implementation:
 
 - app-api returns `cache-control: public, max-age=60, s-maxage=300`.
-- app-api returns an ETag derived from `serviceDate`, `releaseId` and
-  `publishedAt`.
+- app-api passes through the execution-control transport status ETag.
 - campus-web Worker cache only handles `GET` / `HEAD`
-  `/api/campus-services/transport-schedule` with exactly one valid
-  `serviceDate` query parameter.
+  `/api/campus-services/transport-schedule/status` without query parameters.
 - Cache hits/misses are surfaced through `x-campus-edge-cache`.
 
 Remaining gap:
 
-- The cache key is currently service-date scoped. A new release changes the
-  response ETag/body but does not make an already cached service-date key miss.
-  Emergency changes may therefore take up to the configured edge freshness
-  window to appear unless the release path purges cache or the browser API
-  adopts a versioned query key.
+- A new release changes the response ETag/body but does not make an already
+  cached path key miss. Emergency changes may therefore take up to the
+  configured edge freshness window to appear unless the release path purges the
+  status cache key.
 
 Required action:
 
@@ -172,24 +164,28 @@ Required action:
 - If immediate emergency invalidation becomes required, add a targeted purge or
   versioned query key; do not disable edge cache globally.
 
-### CS-04: Query Fan-Out Is Acceptable For Cached Public Reads, But Not Final
+### CS-04: Public Query Fan-Out Has Been Removed
 
-Status: `watch`
+Status: `closed_for_public_status_path`
 
-Current app-api behavior:
+Current implementation:
 
-- First calls `timetable` without route selector to discover route candidates.
-- Then calls one `timetable` query per candidate route.
+- The browser-facing status path reads one execution-control status projection:
+  `/internal/projections/campus-services/transport-schedule/status`.
+- The public status page does not call `transport_schedule_lookup`.
+- The internal model-facing `transport_schedule_lookup` endpoint remains
+  available at `/internal/query/campus-services/transport-schedule`.
 
-This is acceptable behind edge cache and small route counts, but it makes a cold
-cache miss cost proportional to route count.
+Remaining gap:
+
+- None for the current public status path. Future arbitrary-date or route lookup
+  product surfaces must be designed as explicit product projections instead of
+  reviving browser-time route fan-out.
 
 Required action:
 
-- Keep current fan-out for now.
-- If route count or cold miss traffic grows, add one aggregate structured query
-  mode for full public timetable projection rather than letting the browser or
-  page layer call multiple tools.
+- Keep the public status path projection-based.
+- Keep model-facing timetable lookup inside execution-control/internal runtime.
 
 ### CS-05: Operator Release Overlay Fails Closed
 

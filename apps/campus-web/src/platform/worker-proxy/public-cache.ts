@@ -16,8 +16,9 @@ export interface PublicCacheableAppApiProxyInput {
 	withNoStore: (response: Response) => Promise<Response>;
 }
 
-const PUBLIC_CACHEABLE_APP_API_PATHS = new Set(["/api/campus-services/transport-schedule"]);
-const LOCAL_DATE_FORMAT = /^\d{4}-\d{2}-\d{2}$/;
+const PUBLIC_CACHEABLE_APP_API_PATHS = new Set([
+	"/api/campus-services/transport-schedule/status",
+]);
 
 export function isPublicCacheableAppApiRequest(request: Request): boolean {
 	if (request.method !== "GET" && request.method !== "HEAD") {
@@ -90,15 +91,13 @@ function buildPublicAppApiRequest(request: Request, appApiBaseUrl: string): Requ
 }
 
 function getPublicCacheSearch(url: URL): string | null {
-	if (url.pathname !== "/api/campus-services/transport-schedule") {
+	if (
+		url.pathname !== "/api/campus-services/transport-schedule/status" ||
+		url.searchParams.size > 0
+	) {
 		return null;
 	}
-	const keys = [...url.searchParams.keys()];
-	const serviceDates = url.searchParams.getAll("serviceDate");
-	if (keys.length !== 1 || serviceDates.length !== 1 || !LOCAL_DATE_FORMAT.test(serviceDates[0])) {
-		return null;
-	}
-	return `?${new URLSearchParams({ serviceDate: serviceDates[0] }).toString()}`;
+	return "";
 }
 
 function isCacheablePublicAppApiResponse(response: Response): boolean {

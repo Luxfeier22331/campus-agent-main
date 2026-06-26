@@ -1,11 +1,8 @@
 import { requestJson } from "@/platform/api/client";
-import type { CampusTransportScheduleResponse } from "./model";
+import type { CampusTransportStatusResponse } from "./model";
 
-export async function getCampusTransportSchedule(input: {
-	serviceDate: string;
-}): Promise<CampusTransportScheduleResponse> {
-	const params = new URLSearchParams({ serviceDate: input.serviceDate });
-	return requestJson<CampusTransportScheduleResponse>({
-		path: `/api/campus-services/transport-schedule?${params.toString()}`,
+export async function getCampusTransportStatus(): Promise<CampusTransportStatusResponse> {
+	return requestJson<CampusTransportStatusResponse>({
+		path: "/api/campus-services/transport-schedule/status",
 	});
 }

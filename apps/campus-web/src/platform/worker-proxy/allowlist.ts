@@ -29,7 +29,7 @@ export const CAMPUS_ALLOWED_APP_API_PATHS = [
 	"/api/chat/requests",
 	"/api/chat/requests/stream",
 	"/api/docs/readyz",
-	"/api/campus-services/transport-schedule",
+	"/api/campus-services/transport-schedule/status",
 	"/api/campus-map/places",
 	"/api/dining/halls",
 	"/api/feedback",

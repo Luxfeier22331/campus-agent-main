@@ -58,6 +58,21 @@
 			"notes": "Canonical JSON Schema for currently opened campus_services typed tool payload/result packets. Current active scope is transport_schedule_lookup only."
 		},
 		{
+			"id": "transport-schedule-status.v1",
+			"kind": "json_artifact",
+			"path": "packages/contracts/schemas/transport-schedule-status.v1.schema.json",
+			"owner": "packages/contracts",
+			"status": "active",
+			"fixture_groups": [
+				{
+					"path": "tests/fixtures/transport_status",
+					"valid_glob": "*.valid.json",
+					"invalid_glob": "*.invalid.json"
+				}
+			],
+			"notes": "Browser-facing current effective transport status projection consumed by campus-web through app-api facade."
+		},
+		{
 			"id": "notice-tool-contracts.v1",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/notice-tool-contracts.v1.schema.json",

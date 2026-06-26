@@ -35,22 +35,27 @@ describe("campus worker public app-api cache", () => {
 		vi.unstubAllGlobals();
 	});
 
-	it("caches public transport schedules by service date at the edge", async () => {
+	it("caches the public transport status projection at the edge", async () => {
 		installFakeEdgeCache();
 		const appApiFetch = vi.fn((request: Request) => {
-			const serviceDate = new URL(request.url).searchParams.get("serviceDate");
+			const url = new URL(request.url);
 			return Promise.resolve(
 				new Response(
 					JSON.stringify({
-						serviceDate,
-						status: "available",
-						routes: [],
+						groups: [],
+						release: {
+							publishedAt: "2026-03-20T00:00:00+08:00",
+							releaseId: "snapshot:bus:2026-03-20",
+							sourceRefs: ["https://portal.muc.edu.cn/notice/123"],
+						},
+						pathname: url.pathname,
+						search: url.search,
 					}),
 					{
 						headers: {
 							"cache-control": "public, max-age=60, s-maxage=300",
 							"content-type": "application/json; charset=utf-8",
-							etag: `"campus-services-transport-schedule:${serviceDate}:release:published"`,
+							etag: '"campus-services-transport-schedule-status:snapshot:bus:2026-03-20"',
 						},
 					},
 				),
@@ -59,29 +64,27 @@ describe("campus worker public app-api cache", () => {
 		const env = createEnv({ fetch: appApiFetch });
 
 		const first = await worker.fetch(
-			new Request(
-				"https://campus.muc.wiki/api/campus-services/transport-schedule?serviceDate=2026-06-24",
-			),
+			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status"),
 			env,
 		);
 		const second = await worker.fetch(
-			new Request(
-				"https://campus.muc.wiki/api/campus-services/transport-schedule?serviceDate=2026-06-24",
-			),
+			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status"),
 			env,
 		);
-		const third = await worker.fetch(
-			new Request(
-				"https://campus.muc.wiki/api/campus-services/transport-schedule?serviceDate=2026-06-25",
-			),
+		const withQuery = await worker.fetch(
+			new Request("https://campus.muc.wiki/api/campus-services/transport-schedule/status?x=1"),
 			env,
 		);
 
 		expect(first.headers.get("x-campus-edge-cache")).toBe("miss");
 		expect(second.headers.get("x-campus-edge-cache")).toBe("hit");
-		expect(third.headers.get("x-campus-edge-cache")).toBe("miss");
+		expect(withQuery.headers.get("x-campus-edge-cache")).not.toBe("hit");
+		expect(withQuery.headers.get("x-campus-edge-cache")).not.toBe("miss");
 		expect(appApiFetch).toHaveBeenCalledTimes(2);
-		await expect(second.json()).resolves.toMatchObject({ serviceDate: "2026-06-24" });
-		await expect(third.json()).resolves.toMatchObject({ serviceDate: "2026-06-25" });
+		await expect(second.json()).resolves.toMatchObject({
+			pathname: "/api/campus-services/transport-schedule/status",
+			search: "",
+		});
+		await expect(withQuery.json()).resolves.toMatchObject({ search: "?x=1" });
 	});
 });

@@ -117,9 +117,9 @@ export const APP_API_BROWSER_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/campus-services/transport-schedule",
+		path: "/api/campus-services/transport-schedule/status",
 		callerClass: "browser-surface",
-		admission: "public campus services transport schedule projection read",
+		admission: "public campus services transport status projection read",
 	},
 	{
 		method: "GET",

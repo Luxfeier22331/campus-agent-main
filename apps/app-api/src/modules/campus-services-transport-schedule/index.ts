@@ -3,9 +3,6 @@ export {
 	type CampusServicesTransportScheduleFetch,
 } from "./service";
 export type {
-	CampusServicesTransportDeparture,
-	CampusServicesTransportRoute,
-	CampusServicesTransportScheduleResponse,
 	CampusServicesTransportScheduleService,
-	CampusServicesTransportSourceNotice,
+	CampusServicesTransportStatusResponse,
 } from "./types";

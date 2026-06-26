@@ -32,19 +32,24 @@ export function registerCampusExperienceRoutes(input: {
 		}
 	});
 
-	input.app.get("/api/campus-services/transport-schedule", async (c) => {
+	input.app.get("/api/campus-services/transport-schedule/status", async () => {
 		const scope = input.createRequestScope();
-		const projection = await scope
-			.resolveCampusServicesTransportScheduleService()
-			.getPublicSchedule({
-				serviceDate: c.req.query("serviceDate") ?? null,
+		try {
+			const result = await scope
+				.resolveCampusServicesTransportScheduleService()
+				.getPublicStatus();
+			return jsonResponse(result.projection, {
+				headers: {
+					"cache-control": "public, max-age=60, s-maxage=300",
+					...(result.etag ? { etag: result.etag } : {}),
+				},
 			});
-		return jsonResponse(projection, {
-			headers: {
-				"cache-control": "public, max-age=60, s-maxage=300",
-				etag: buildCampusServicesTransportScheduleEtag(projection),
-			},
-		});
+		} catch (error) {
+			if (error instanceof AppApiRouteError) {
+				return routeErrorResponse(error);
+			}
+			throw error;
+		}
 	});
 
 	input.app.get("/api/dining/halls", async () => {
@@ -129,12 +134,4 @@ function requireString(value: unknown, field: string): string {
 
 function optionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
-}
-
-function buildCampusServicesTransportScheduleEtag(projection: {
-	publishedAt: string | null;
-	releaseId: string | null;
-	serviceDate: string;
-}): string {
-	return `"campus-services-transport-schedule:${projection.serviceDate}:${projection.releaseId ?? "none"}:${projection.publishedAt ?? "none"}"`;
 }
