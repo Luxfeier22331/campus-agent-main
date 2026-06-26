@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import stagingPreflightSource from "../../../scripts/run-worker-staging-preflight.mjs?raw";
 import packageManifest from "../package.json";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
+import stagingBrowserE2ESource from "../scripts/staging-browser-e2e.ts?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
@@ -38,5 +39,18 @@ describe("campus web staging config", () => {
 		expect(stagingPreflightSource).not.toContain('"build:app:staging"');
 		expect(stagingPreflightSource).toContain("apps/campus-web/scripts/verify-staging-config.mjs");
 		expect(stagingPreflightSource).toContain("apps/campus-web/dist/campus_web/wrangler.json");
+	});
+
+	it("keeps staging browser e2e credentialed and evidence-producing", () => {
+		expect(stagingBrowserE2ESource).toContain('from "playwright"');
+		expect(stagingBrowserE2ESource).toContain("APP_API_STAGING_SMOKE_AUTH_SECRET");
+		expect(stagingBrowserE2ESource).toContain("STAGING_APP_API_SMOKE_AUTH_SECRET");
+		expect(stagingBrowserE2ESource).toContain("/api/internal/staging-smoke/auth/session");
+		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
+		expect(stagingBrowserE2ESource).toContain("campus-browser-e2e.json");
+		expect(stagingBrowserE2ESource).toContain("/api/chat/runs/");
+		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
+		expect(packageManifest.scripts?.["browser:e2e:staging"]).toBeUndefined();
+		expect(packageManifest.scripts?.["browser:smoke:staging"]).toBeUndefined();
 	});
 });
