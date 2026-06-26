@@ -233,6 +233,127 @@ describe("chat structured parts", () => {
 		});
 	});
 
+	it("preserves disabled canonical source actions with proof metadata", async () => {
+		const conversationLimit = vi.fn().mockResolvedValue([
+			{
+				createdAt: new Date("2026-04-27T09:00:00.000Z"),
+				id: "conv_disabled_source",
+				ownerUserId: "user_01",
+				title: "学生手册依据",
+				updatedAt: new Date("2026-04-27T09:00:02.000Z"),
+			},
+		]);
+		const conversationWhere = vi.fn(() => ({
+			limit: conversationLimit,
+		}));
+		const messageOrderBy = vi.fn().mockResolvedValue([
+			{
+				conversationId: "conv_disabled_source",
+				createdAt: new Date("2026-04-27T09:00:02.000Z"),
+				id: "msg_assistant",
+				kind: "answer",
+				requestId: "req_disabled_source",
+				retryable: false,
+				role: "assistant",
+				structuredPartsJson: [
+					{
+						sourceItems: [
+							{
+								accessScope: "public",
+								collection: "regulations/student_rules",
+								contentHash: "sha256:student-handbook:chunk-001",
+								documentId: "student-handbook",
+								evidenceId: "student-handbook:chunk-001",
+								primaryAction: {
+									disabledReason: "该来源暂未生成可打开的整理版文档。",
+									external: false,
+									href: null,
+									label: "查看文档",
+								},
+								sectionTitle: "学生手册",
+								snippet: "学生应遵守校园网络使用规定。",
+								sourceId: "campus-agent://regulations/student_rules/docs/student-handbook",
+								sourceKind: "regulation",
+								targetKind: "canonical_reader",
+								title: "中央民族大学学生手册",
+								versionId: "span://student-handbook/student-handbook:chunk-001",
+							},
+						],
+						type: "source_items",
+					},
+				],
+				text: "学生手册中包含校园网络相关规定。",
+			},
+		]);
+		const messageWhere = vi.fn(() => ({
+			orderBy: messageOrderBy,
+		}));
+		const sessionSlotOrderBy = vi.fn().mockResolvedValue([]);
+		const sessionSlotWhere = vi.fn(() => ({
+			orderBy: sessionSlotOrderBy,
+		}));
+		const select = vi
+			.fn()
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: conversationWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: messageWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: sessionSlotWhere,
+				})),
+			})
+			.mockReturnValueOnce({
+				from: vi.fn(() => ({
+					where: vi.fn().mockResolvedValue([]),
+				})),
+			});
+
+		createRuntimeDatabase.mockResolvedValue({
+			select,
+		});
+
+		const store = createPgChatConversationStore({} as never);
+		const conversation = await store.getConversationDetailByOwner(
+			"user_01",
+			"conv_disabled_source",
+		);
+
+		expect(conversation?.messages[0]).toMatchObject({
+			id: "msg_assistant",
+			structuredParts: [
+				{
+					sourceItems: [
+						{
+							accessScope: "public",
+							collection: "regulations/student_rules",
+							contentHash: "sha256:student-handbook:chunk-001",
+							documentId: "student-handbook",
+							evidenceId: "student-handbook:chunk-001",
+							primaryAction: {
+								disabledReason: "该来源暂未生成可打开的整理版文档。",
+								external: false,
+								href: null,
+								label: "查看文档",
+							},
+							sourceId: "campus-agent://regulations/student_rules/docs/student-handbook",
+							targetKind: "canonical_reader",
+							title: "中央民族大学学生手册",
+							versionId: "span://student-handbook/student-handbook:chunk-001",
+						},
+					],
+					type: "source_items",
+				},
+			],
+		});
+	});
+
 	it("derives previous-evidence proof metadata from safe RAG source fields", () => {
 		const parts = normalizeSourceItemsPart({
 			result: {
