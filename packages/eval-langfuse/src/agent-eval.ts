@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { matchedExpectedFacts } from "./agent-eval-answer-facts";
-import { sourceTitlesFromProjection } from "./agent-eval-projection-sources";
+import { sourceTitleMatches, sourceTitlesFromProjection } from "./agent-eval-projection-sources";
 import { buildScoreReportFromAgentEvalCaseResults } from "./score-report";
 import {
 	isRecord,
@@ -345,7 +345,9 @@ function evaluateRagAnswer(
 	const requiredSourceTitles = stringList(expected.required_source_titles);
 	const projectedRequiredFacts = stringList(observation.required_facts);
 	const matchedFacts = requiredFacts.filter((fact) => projectedRequiredFacts.includes(fact)).length;
-	const sourceMatches = requiredSourceTitles.filter((title) => sourceTitles.includes(title)).length;
+	const sourceMatches = requiredSourceTitles.filter((title) =>
+		sourceTitles.some((observedTitle) => sourceTitleMatches(observedTitle, title)),
+	).length;
 	return resultFromScores(caseItem, observation, {
 		"rag.required_facts.projected":
 			requiredFacts.length === 0 ? 1 : matchedFacts / requiredFacts.length,

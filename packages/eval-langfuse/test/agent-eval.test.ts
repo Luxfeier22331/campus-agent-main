@@ -114,8 +114,8 @@ describe("agent eval TS runner", () => {
 				observations: [
 					{
 						case_id: "agent-rag-student-scholarship-condition",
-						required_facts: ["学习成绩", "综合测评", "奖励标准"],
-						source_titles: ["本科生国家奖学金评审办法"],
+						required_facts: ["学习成绩", "综合测评"],
+						source_titles: ["中央民族大学本科学生国家奖学金评审办法"],
 						terminal_outcome: "completed",
 						trace_id: "trace-rag-001",
 					},
@@ -352,13 +352,13 @@ describe("agent eval TS runner", () => {
 					rag: {
 						source_refs: [
 							{
-								title: "本科生国家奖学金评审办法",
+								title: "中央民族大学本科学生国家奖学金评审办法",
 							},
 						],
 					},
 				},
 				conversation: {
-					assistantAnswerText: "申请时需要看学习成绩、综合测评排名，并按规定确认奖励标准。",
+					assistantAnswerText: "申请时需要看学习成绩、综合测评排名。",
 					id: "conv_01",
 				},
 				runtimeStepResults: [
@@ -414,8 +414,8 @@ describe("agent eval TS runner", () => {
 			expect.objectContaining({ cwd: resolve(repoRoot, "apps/app-api"), encoding: "utf8" }),
 		);
 		expect(observations.observations[0]).toMatchObject({
-			required_facts: ["学习成绩", "综合测评", "奖励标准"],
-			source_titles: ["本科生国家奖学金评审办法"],
+			required_facts: ["学习成绩", "综合测评"],
+			source_titles: ["中央民族大学本科学生国家奖学金评审办法"],
 		});
 		expect(observations.observations[0]?.final_status).toBe("completed");
 	});

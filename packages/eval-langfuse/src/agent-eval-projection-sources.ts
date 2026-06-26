@@ -16,3 +16,17 @@ export function sourceTitlesFromProjection(rag: JsonObject): string[] {
 	}
 	return direct;
 }
+
+export function sourceTitleMatches(observed: string, expected: string): boolean {
+	const normalizedObserved = normalizeSourceTitle(observed);
+	const normalizedExpected = normalizeSourceTitle(expected);
+	return (
+		normalizedObserved === normalizedExpected ||
+		normalizedObserved.includes(normalizedExpected) ||
+		normalizedExpected.includes(normalizedObserved)
+	);
+}
+
+function normalizeSourceTitle(value: string): string {
+	return value.replace(/\s+/gu, "").trim();
+}

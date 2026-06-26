@@ -10,14 +10,14 @@
 			"context_refs": [
 				{
 					"context_id": "student_rules:national_scholarship:current",
-					"source_title": "本科生国家奖学金评审办法",
+					"source_title": "中央民族大学本科学生国家奖学金评审办法",
 					"source_url_hash": "sha256:student-national-scholarship-current"
 				}
 			],
 			"expected": {
 				"status": "completed",
-				"required_facts": ["学习成绩", "综合测评", "奖励标准"],
-				"required_source_titles": ["本科生国家奖学金评审办法"]
+				"required_facts": ["学习成绩", "综合测评"],
+				"required_source_titles": ["中央民族大学本科学生国家奖学金评审办法"]
 			}
 		},
 		{

@@ -96,6 +96,34 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		t.Fatalf("upsert rag plan result: %v", err)
 	}
 	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "retrieval.indexed_lookup:result:1",
+		StepID:               "retrieval.indexed_lookup",
+		RunID:                run.RunID,
+		AttemptID:            "retrieval.indexed_lookup:attempt:1",
+		Status:               "completed",
+		ResultKind:           "retrieval_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/retrieval/indexed-lookup",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload:     map[string]any{},
+	}); err != nil {
+		t.Fatalf("upsert indexed lookup result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "evidence.selection:result:1",
+		StepID:               "evidence.selection",
+		RunID:                run.RunID,
+		AttemptID:            "evidence.selection:attempt:1",
+		Status:               "completed",
+		ResultKind:           "evidence_selection",
+		ProjectionRef:        "projection://runs/run-temporal-derived-eval/evidence/selection",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload:     map[string]any{},
+	}); err != nil {
+		t.Fatalf("upsert evidence selection result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
 		ResultID:             "finalization.write:result:1",
 		StepID:               "finalization.write",
 		RunID:                run.RunID,
@@ -219,13 +247,37 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 			"version_query": map[string]any{
 				"as_of": "2024-09",
 			},
-			"steps": []any{
-				map[string]any{"step_type": "historical_version_lookup"},
-				map[string]any{"stage": "supporting_evidence_selection"},
-			},
 		},
 	}); err != nil {
 		t.Fatalf("upsert rag plan result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "retrieval.indexed_lookup:result:1",
+		StepID:               "retrieval.indexed_lookup",
+		RunID:                run.RunID,
+		AttemptID:            "retrieval.indexed_lookup:attempt:1",
+		Status:               "completed",
+		ResultKind:           "retrieval_result",
+		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/retrieval/indexed-lookup",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload:     map[string]any{},
+	}); err != nil {
+		t.Fatalf("upsert indexed lookup result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "evidence.selection:result:1",
+		StepID:               "evidence.selection",
+		RunID:                run.RunID,
+		AttemptID:            "evidence.selection:attempt:1",
+		Status:               "completed",
+		ResultKind:           "evidence_selection",
+		ProjectionRef:        "projection://runs/run-temporal-derived-as-of-eval/evidence/selection",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload:     map[string]any{},
+	}); err != nil {
+		t.Fatalf("upsert evidence selection result: %v", err)
 	}
 
 	response := httptest.NewRecorder()
@@ -257,7 +309,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 		}
 	}
 	steps, _ := planning["planned_steps"].([]any)
-	if len(steps) != 2 || steps[0] != "historical_version_lookup" || steps[1] != "supporting_evidence_selection" {
+	if len(steps) != 2 || steps[0] != "indexed_lookup" || steps[1] != "supporting_evidence_selection" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
 	}
 }

@@ -32,6 +32,9 @@ func projectedPlanningForEval(results []execution.StepResultProjection) map[stri
 				step["step_id"],
 			))
 		}
+		if len(plannedSteps) == 0 {
+			plannedSteps = projectedPlanningStepsFromRuntimeResults(results)
+		}
 		if len(plannedSteps) > 0 {
 			planning["planned_steps"] = stringsToAny(plannedSteps)
 		}
@@ -64,6 +67,26 @@ func projectedPlanningDecomposition(collection string, queryMode string, payload
 		decomposition = append(decomposition, "live_assisted")
 	}
 	return decomposition
+}
+
+func projectedPlanningStepsFromRuntimeResults(results []execution.StepResultProjection) []string {
+	steps := []string{}
+	if hasStepResult(results, "retrieval.indexed_lookup") {
+		appendUniqueProjectionString(&steps, "indexed_lookup")
+	}
+	if hasStepResult(results, "evidence.selection") {
+		appendUniqueProjectionString(&steps, "supporting_evidence_selection")
+	}
+	return steps
+}
+
+func hasStepResult(results []execution.StepResultProjection, stepID string) bool {
+	for _, result := range results {
+		if result.StepID == stepID {
+			return true
+		}
+	}
+	return false
 }
 
 func projectedRAGForEval(results []execution.StepResultProjection) map[string]any {
@@ -147,6 +170,9 @@ func projectedMemoryForEval(results []execution.StepResultProjection) map[string
 	for _, result := range results {
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		contextUsage := optionalMapFromMap(payload, "context_usage")
+		if len(contextUsage) == 0 && result.StepID == "agent.primary" {
+			contextUsage = payload
+		}
 		if len(contextUsage) == 0 {
 			continue
 		}
