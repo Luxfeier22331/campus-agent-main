@@ -83,6 +83,7 @@ function answerDeltaEvent(input: {
 function chatStreamEventsForFinalized(input: {
 	context: DurableRunEventContext;
 	finalized: ChatCommandResponse;
+	hasStreamedAnswerDelta?: boolean;
 	occurredAt: string;
 	sourceEvent?: "execution.completed" | "execution.failed";
 	sequence?: number;
@@ -92,6 +93,9 @@ function chatStreamEventsForFinalized(input: {
 		response: input.finalized,
 		sourceEvent: input.sourceEvent,
 	});
+	if (input.hasStreamedAnswerDelta) {
+		return [terminal];
+	}
 	const delta = answerDeltaEvent({
 		context: input.context,
 		finalized: input.finalized,
@@ -99,6 +103,73 @@ function chatStreamEventsForFinalized(input: {
 		sequence: input.sequence,
 	});
 	return delta ? [delta, terminal] : [terminal];
+}
+
+function answerDeltaEventFromDurableRunEvent(
+	context: DurableRunEventContext,
+	event: ExecutionControlRunEvent,
+): ChatCommandStreamEvent | null {
+	if (event.eventType !== "run.answer_delta") {
+		return null;
+	}
+	assertDurableEventRunMatches(
+		context,
+		event,
+		"Durable answer delta event run_id does not match the accepted run.",
+	);
+	const requestId =
+		typeof event.payload.request_id === "string" && event.payload.request_id.trim()
+			? event.payload.request_id.trim()
+			: context.requestId;
+	const traceId =
+		typeof event.payload.trace_id === "string" && event.payload.trace_id.trim()
+			? event.payload.trace_id.trim()
+			: context.traceId;
+	if (requestId !== context.requestId) {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message: "Durable answer delta event request_id does not match the accepted request.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	if (traceId !== context.traceId) {
+		throw new ExecutionControlTransportError({
+			code: "execution_control_invalid_response",
+			message: "Durable answer delta event trace_id does not match the accepted request.",
+			retryable: true,
+			status: 502,
+		});
+	}
+	const messageId = getRequiredString(
+		event.payload,
+		"message_id",
+		"Durable answer delta event message_id is required.",
+	);
+	const delta = getRequiredString(
+		event.payload,
+		"delta",
+		"Durable answer delta event delta is required.",
+	);
+	const accumulatedText = getRequiredString(
+		event.payload,
+		"accumulated_text",
+		"Durable answer delta event accumulated_text is required.",
+	);
+	return {
+		data: {
+			accumulatedText,
+			delta,
+			messageId,
+			occurredAt: event.occurredAt,
+			requestId: context.requestId,
+			runId: context.runId,
+			sequence: event.sequence,
+			status: "streaming",
+			traceId: context.traceId,
+		},
+		event: "answer.delta",
+	};
 }
 
 function getRequiredString(record: Record<string, unknown>, key: string, message: string): string {
@@ -445,6 +516,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	const polling = validatePollingPolicy(input.polling);
 	let lastSequence = 0;
 	let emptyPollAttempts = 0;
+	let hasStreamedAnswerDelta = false;
 	try {
 		while (emptyPollAttempts < polling.maxAttempts) {
 			const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
@@ -460,6 +532,12 @@ export async function* streamDurableRunEventsUntilTerminal<
 					yield lifecycleEvent;
 					continue;
 				}
+				const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
+				if (answerDelta) {
+					hasStreamedAnswerDelta = true;
+					yield answerDelta;
+					continue;
+				}
 				const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
 				if (!terminalOutcome) {
 					continue;
@@ -472,6 +550,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 				for (const event of chatStreamEventsForFinalized({
 					context,
 					finalized,
+					hasStreamedAnswerDelta,
 					occurredAt: runEvent.occurredAt,
 					sequence: runEvent.sequence,
 					sourceEvent: terminalOutcome.sourceEvent,
@@ -497,6 +576,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 		for (const event of chatStreamEventsForFinalized({
 			context,
 			finalized,
+			hasStreamedAnswerDelta,
 			occurredAt: now().toISOString(),
 		})) {
 			yield event;
@@ -514,6 +594,7 @@ export async function* streamDurableRunEventsUntilTerminal<
 	for (const event of chatStreamEventsForFinalized({
 		context,
 		finalized,
+		hasStreamedAnswerDelta,
 		occurredAt: now().toISOString(),
 	})) {
 		yield event;
@@ -580,6 +661,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 	const completion = (async () => {
 		let lastSequence = 0;
 		let emptyPollAttempts = 0;
+		let hasStreamedAnswerDelta = false;
 		try {
 			while (emptyPollAttempts < polling.maxAttempts) {
 				const runEvents = await input.listRunEvents(lastSequence, polling.waitMs);
@@ -595,6 +677,12 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 						queue.push({ event: lifecycleEvent, kind: "event" });
 						continue;
 					}
+					const answerDelta = answerDeltaEventFromDurableRunEvent(context, runEvent);
+					if (answerDelta) {
+						hasStreamedAnswerDelta = true;
+						queue.push({ event: answerDelta, kind: "event" });
+						continue;
+					}
 					const terminalOutcome = durableTerminalOutcomeFromDurableRunEvent(context, runEvent);
 					if (!terminalOutcome) {
 						continue;
@@ -607,6 +695,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 					for (const event of chatStreamEventsForFinalized({
 						context,
 						finalized,
+						hasStreamedAnswerDelta,
 						occurredAt: runEvent.occurredAt,
 						sequence: runEvent.sequence,
 						sourceEvent: terminalOutcome.sourceEvent,
@@ -633,6 +722,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 			for (const event of chatStreamEventsForFinalized({
 				context,
 				finalized,
+				hasStreamedAnswerDelta,
 				occurredAt: now().toISOString(),
 			})) {
 				queue.push({ event, kind: "event" });
@@ -652,6 +742,7 @@ export function startDurableFinalizationCloseout<Context extends DurableRunEvent
 		for (const event of chatStreamEventsForFinalized({
 			context,
 			finalized,
+			hasStreamedAnswerDelta,
 			occurredAt: now().toISOString(),
 		})) {
 			queue.push({ event, kind: "event" });

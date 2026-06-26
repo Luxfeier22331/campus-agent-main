@@ -91,6 +91,12 @@ export interface UsageSummary {
 	estimatedCostMicroUsd?: number;
 }
 
+export interface AgentRunnerAnswerDelta {
+	accumulatedText: string;
+	chunkIndex: number;
+	delta: string;
+}
+
 export interface ToolExecutionRequest {
 	tool: ToolCatalogEntry;
 	argumentsJson: Record<string, unknown>;
@@ -157,6 +163,9 @@ export interface AgentRunnerResult {
 }
 
 export type AgentRunner = (input: AgentRunnerInput) => Promise<AgentRunnerResult>;
+export type StreamingAgentRunner = (
+	input: AgentRunnerInput,
+) => AsyncIterable<AgentRunnerAnswerDelta | AgentRunnerResult>;
 export type ToolExecutor = (request: ToolExecutionRequest) => Promise<ToolExecutionResult>;
 
 export interface PrimaryAgentRunResult {
@@ -183,14 +192,26 @@ export interface PrimaryAgentRunResult {
 
 export interface PrimaryAgentRuntime {
 	run(input: PrimaryAgentRunInput): Promise<PrimaryAgentRunResult>;
+	stream(input: PrimaryAgentRunInput): AsyncIterable<PrimaryAgentStreamEvent>;
 }
 
 export interface CreatePrimaryAgentRuntimeOptions {
 	catalog: ToolCatalog;
 	runner: AgentRunner;
+	streamingRunner?: StreamingAgentRunner;
 	toolExecutor?: ToolExecutor;
 	instructions?: string;
 }
+
+export type PrimaryAgentStreamEvent =
+	| {
+			event: "answer_delta";
+			data: AgentRunnerAnswerDelta;
+	  }
+	| {
+			event: "completed";
+			data: PrimaryAgentRunResult;
+	  };
 
 const defaultInstructions = [
 	"You are the campus-agent primary assistant.",
@@ -204,101 +225,156 @@ export function createPrimaryAgentRuntime(
 ): PrimaryAgentRuntime {
 	const instructions = options.instructions?.trim() || defaultInstructions;
 	const executor = options.toolExecutor ?? defaultToolExecutor;
+	const runWithAgentRunner = async (
+		input: PrimaryAgentRunInput,
+		runner: AgentRunner,
+	): Promise<PrimaryAgentRunResult> => {
+		const runnerInput = primaryAgentRunnerInput(input, options.catalog, executor, instructions);
+		const result = await runner(runnerInput);
+		return primaryAgentRunResultFromRunnerResult(input, result);
+	};
 	return {
 		async run(input) {
-			const visibleTools = buildVisibleToolDefinitions(options.catalog)
-				.filter((tool) => input.visibleCapabilities.includes(tool.capability))
-				.map((tool): SdkToolRuntime => {
-					const catalogEntry = requireCatalogEntry(options.catalog, tool.name);
-					return {
-						name: tool.name,
-						description: tool.description,
-						parameters: tool.parameterSchema,
-						execute(argumentsJson) {
-							const request: ToolExecutionRequest = {
-								tool: catalogEntry,
-								argumentsJson,
-								runId: input.runId,
-								traceId: input.traceId,
-								signal: input.signal,
-							};
-							if (catalogEntry.handler.type === "workflow_signal") {
-								return defaultToolExecutor(request);
-							}
-							return executor(request).then((result) => ({
-								...result,
-								argumentsJson: result.argumentsJson ?? argumentsJson,
-							}));
-						},
+			return runWithAgentRunner(input, options.runner);
+		},
+		async *stream(input) {
+			const streamingRunner = options.streamingRunner;
+			if (!streamingRunner) {
+				throw new Error("streaming agent runner is required");
+			}
+			let completed = false;
+			for await (const item of streamingRunner(
+				primaryAgentRunnerInput(input, options.catalog, executor, instructions),
+			)) {
+				if (isAgentRunnerResult(item)) {
+					completed = true;
+					yield {
+						event: "completed",
+						data: primaryAgentRunResultFromRunnerResult(input, item),
 					};
-				});
-			const result = await options.runner({
-				input: input.input,
-				instructions: instructionsWithModelContext(instructions, input),
-				tools: visibleTools,
-				runId: input.runId,
-				traceId: input.traceId,
-				providerConfig: input.providerConfig,
-				signal: input.signal,
-			});
-			const toolResults = result.toolCalls
-				.map((call) => call.result)
-				.filter((value): value is ToolExecutionResult => value !== undefined);
-			const failedToolResult = toolResults.find((toolResult) => toolResult.status === "failed");
-			if (failedToolResult !== undefined) {
-				return {
-					status: "failed",
-					runId: input.runId,
-					finalOutput: "",
-					modelName: input.providerConfig.model,
-					modelProvider: input.providerConfig.provider,
-					providerResponseId: result.providerResponseId,
-					sdkTraceRef: result.traceRef,
-					selectedTools: result.toolCalls.map((call) => call.name),
-					toolResults,
-					terminalReason: "agent_runtime_failed",
-					usage: result.usage,
+					continue;
+				}
+				yield {
+					event: "answer_delta",
+					data: item,
 				};
 			}
-			const terminalReason = toolResults.some(
-				(toolResult) => toolResult.result.workflow_signal === toolResult.toolName,
-			)
-				? "tool_selected"
-				: terminalReasonFromEnvelope(result.terminalEnvelope);
-			if (terminalReason !== "tool_selected" && result.terminalEnvelope === undefined) {
-				return {
-					status: "failed",
-					runId: input.runId,
-					finalOutput: "",
-					modelName: input.providerConfig.model,
-					modelProvider: input.providerConfig.provider,
-					providerResponseId: result.providerResponseId,
-					sdkTraceRef: result.traceRef,
-					selectedTools: result.toolCalls.map((call) => call.name),
-					toolResults,
-					terminalReason: "agent_runtime_failed",
-					usage: result.usage,
-				};
+			if (!completed) {
+				throw new Error("streaming agent runner completed without final result");
 			}
-			return {
-				status: "completed",
-				runId: input.runId,
-				finalOutput:
-					result.terminalEnvelope === undefined
-						? result.finalOutput
-						: finalOutputFromTerminalEnvelope(result.terminalEnvelope),
-				modelName: input.providerConfig.model,
-				modelProvider: input.providerConfig.provider,
-				providerResponseId: result.providerResponseId,
-				sdkTraceRef: result.traceRef,
-				selectedTools: result.toolCalls.map((call) => call.name),
-				terminalEnvelope: result.terminalEnvelope,
-				toolResults,
-				terminalReason,
-				usage: result.usage,
-			};
 		},
 	};
+}
+
+function primaryAgentRunnerInput(
+	input: PrimaryAgentRunInput,
+	catalog: ToolCatalog,
+	executor: ToolExecutor,
+	instructions: string,
+): AgentRunnerInput {
+	const visibleTools = buildVisibleToolDefinitions(catalog)
+		.filter((tool) => input.visibleCapabilities.includes(tool.capability))
+		.map((tool): SdkToolRuntime => {
+			const catalogEntry = requireCatalogEntry(catalog, tool.name);
+			return {
+				name: tool.name,
+				description: tool.description,
+				parameters: tool.parameterSchema,
+				execute(argumentsJson) {
+					const request: ToolExecutionRequest = {
+						tool: catalogEntry,
+						argumentsJson,
+						runId: input.runId,
+						traceId: input.traceId,
+						signal: input.signal,
+					};
+					if (catalogEntry.handler.type === "workflow_signal") {
+						return defaultToolExecutor(request);
+					}
+					return executor(request).then((result) => ({
+						...result,
+						argumentsJson: result.argumentsJson ?? argumentsJson,
+					}));
+				},
+			};
+		});
+	return {
+		input: input.input,
+		instructions: instructionsWithModelContext(instructions, input),
+		tools: visibleTools,
+		runId: input.runId,
+		traceId: input.traceId,
+		providerConfig: input.providerConfig,
+		signal: input.signal,
+	};
+}
+
+function primaryAgentRunResultFromRunnerResult(
+	input: PrimaryAgentRunInput,
+	result: AgentRunnerResult,
+): PrimaryAgentRunResult {
+	const toolResults = result.toolCalls
+		.map((call) => call.result)
+		.filter((value): value is ToolExecutionResult => value !== undefined);
+	const failedToolResult = toolResults.find((toolResult) => toolResult.status === "failed");
+	if (failedToolResult !== undefined) {
+		return {
+			status: "failed",
+			runId: input.runId,
+			finalOutput: "",
+			modelName: input.providerConfig.model,
+			modelProvider: input.providerConfig.provider,
+			providerResponseId: result.providerResponseId,
+			sdkTraceRef: result.traceRef,
+			selectedTools: result.toolCalls.map((call) => call.name),
+			toolResults,
+			terminalReason: "agent_runtime_failed",
+			usage: result.usage,
+		};
+	}
+	const terminalReason = toolResults.some(
+		(toolResult) => toolResult.result.workflow_signal === toolResult.toolName,
+	)
+		? "tool_selected"
+		: terminalReasonFromEnvelope(result.terminalEnvelope);
+	if (terminalReason !== "tool_selected" && result.terminalEnvelope === undefined) {
+		return {
+			status: "failed",
+			runId: input.runId,
+			finalOutput: "",
+			modelName: input.providerConfig.model,
+			modelProvider: input.providerConfig.provider,
+			providerResponseId: result.providerResponseId,
+			sdkTraceRef: result.traceRef,
+			selectedTools: result.toolCalls.map((call) => call.name),
+			toolResults,
+			terminalReason: "agent_runtime_failed",
+			usage: result.usage,
+		};
+	}
+	return {
+		status: "completed",
+		runId: input.runId,
+		finalOutput:
+			result.terminalEnvelope === undefined
+				? result.finalOutput
+				: finalOutputFromTerminalEnvelope(result.terminalEnvelope),
+		modelName: input.providerConfig.model,
+		modelProvider: input.providerConfig.provider,
+		providerResponseId: result.providerResponseId,
+		sdkTraceRef: result.traceRef,
+		selectedTools: result.toolCalls.map((call) => call.name),
+		terminalEnvelope: result.terminalEnvelope,
+		toolResults,
+		terminalReason,
+		usage: result.usage,
+	};
+}
+
+function isAgentRunnerResult(
+	value: AgentRunnerAnswerDelta | AgentRunnerResult,
+): value is AgentRunnerResult {
+	return "finalOutput" in value;
 }
 
 function instructionsWithModelContext(instructions: string, input: PrimaryAgentRunInput): string {

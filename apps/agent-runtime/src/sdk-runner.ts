@@ -2,8 +2,10 @@ import { Agent, type AgentOutputType, type ModelProvider, Runner, tool } from "@
 import { z } from "zod";
 import type {
 	AgentRunner,
+	AgentRunnerAnswerDelta,
 	PromptProviderRuntimeConfig,
 	RunnerToolCall,
+	StreamingAgentRunner,
 	ToolExecutionResult,
 } from "./primary-agent.ts";
 import { finalOutputFromTerminalEnvelope, terminalEnvelopeFromUnknown } from "./primary-agent.ts";
@@ -30,6 +32,7 @@ const primaryAgentTerminalOutputSchema = z.object({
 
 export interface OpenAIAgentsRunnerOptions {
 	runSdk?: OpenAIAgentsRunFunction;
+	runSdkStream?: OpenAIAgentsStreamRunFunction;
 	maxTurns?: number;
 	model?: string;
 	modelProvider?: ModelProvider;
@@ -51,6 +54,19 @@ export type OpenAIAgentsRunFunction = <TOutput extends AgentOutputType>(
 	},
 ) => Promise<OpenAIAgentsRunResultLike>;
 
+export type OpenAIAgentsStreamRunFunction = <TOutput extends AgentOutputType>(
+	agent: Agent<unknown, TOutput>,
+	input: string,
+	options: {
+		maxTurns: number;
+		modelProvider?: ModelProvider;
+		traceId: string;
+		workflowName: string;
+		traceIncludeSensitiveData: boolean;
+		signal?: AbortSignal;
+	},
+) => Promise<OpenAIAgentsStreamRunResultLike>;
+
 interface OpenAIAgentsRunResultLike {
 	finalOutput?: unknown;
 	lastResponseId?: string;
@@ -64,6 +80,11 @@ interface OpenAIAgentsRunResultLike {
 	};
 	trace?: { traceId?: string };
 	usage?: UsageLike;
+}
+
+interface OpenAIAgentsStreamRunResultLike extends OpenAIAgentsRunResultLike {
+	completed: Promise<void>;
+	toTextStream(): ReadableStream<string>;
 }
 
 interface UsageLike {
@@ -124,6 +145,88 @@ export function createOpenAIAgentsRunner(options: OpenAIAgentsRunnerOptions = {}
 	};
 }
 
+export function createStreamingOpenAIAgentsRunner(
+	options: OpenAIAgentsRunnerOptions = {},
+): StreamingAgentRunner {
+	const runSdkStream = options.runSdkStream ?? defaultRunSdkStream;
+	const maxTurns = options.maxTurns ?? 4;
+	return async function* (input) {
+		const requestOptions =
+			options.resolveRuntimeOptions?.(input.providerConfig) ??
+			({
+				model: options.model,
+				modelProvider: options.modelProvider,
+			} satisfies Pick<OpenAIAgentsRunnerOptions, "model" | "modelProvider">);
+		const sdkTools = input.tools.map((runtimeTool) =>
+			tool({
+				name: runtimeTool.name,
+				description: runtimeTool.description,
+				parameters: runtimeTool.parameters ?? emptyParametersSchema,
+				strict: true,
+				async execute(argumentsJson) {
+					return runtimeTool.execute(recordFromToolArguments(argumentsJson));
+				},
+			}),
+		);
+		const agent = new Agent({
+			name: "Campus primary assistant",
+			instructions: input.instructions,
+			model: requestOptions.model?.trim() || undefined,
+			outputType: primaryAgentTerminalOutputSchema,
+			tools: sdkTools,
+		});
+		const result = await runSdkStream(agent, input.input, {
+			maxTurns,
+			modelProvider: requestOptions.modelProvider,
+			traceId: input.traceId,
+			workflowName: "campus-agent.primary-agent",
+			traceIncludeSensitiveData: false,
+			signal: input.signal,
+		});
+		let rawOutputText = "";
+		let accumulatedVisibleText = "";
+		let chunkIndex = 0;
+		for await (const delta of result.toTextStream()) {
+			if (delta === "") {
+				continue;
+			}
+			rawOutputText += delta;
+			const nextVisibleText = visibleTextFromPartialTerminalOutput(rawOutputText);
+			if (nextVisibleText === accumulatedVisibleText) {
+				continue;
+			}
+			if (!nextVisibleText.startsWith(accumulatedVisibleText)) {
+				throw new Error("streamed terminal output visible text drifted");
+			}
+			const visibleDelta = nextVisibleText.slice(accumulatedVisibleText.length);
+			accumulatedVisibleText = nextVisibleText;
+			chunkIndex += 1;
+			yield {
+				accumulatedText: accumulatedVisibleText,
+				chunkIndex,
+				delta: visibleDelta,
+			} satisfies AgentRunnerAnswerDelta;
+		}
+		await result.completed;
+		const finalResult = agentRunnerResultFromSDKResult(result);
+		if (accumulatedVisibleText !== "") {
+			if (!finalResult.finalOutput.startsWith(accumulatedVisibleText)) {
+				throw new Error("streamed answer text drifted from final output");
+			}
+			const tail = finalResult.finalOutput.slice(accumulatedVisibleText.length);
+			if (tail !== "") {
+				chunkIndex += 1;
+				yield {
+					accumulatedText: finalResult.finalOutput,
+					chunkIndex,
+					delta: tail,
+				} satisfies AgentRunnerAnswerDelta;
+			}
+		}
+		yield finalResult;
+	};
+}
+
 function recordFromToolArguments(value: unknown): Record<string, unknown> {
 	const record = recordFromUnknown(value);
 	return record ?? {};
@@ -141,6 +244,144 @@ const defaultRunSdk: OpenAIAgentsRunFunction = async (agent, input, options) => 
 		signal: options.signal,
 	}) as Promise<OpenAIAgentsRunResultLike>;
 };
+
+const defaultRunSdkStream: OpenAIAgentsStreamRunFunction = async (agent, input, options) => {
+	const runner = new Runner({
+		modelProvider: options.modelProvider,
+		traceId: options.traceId,
+		workflowName: options.workflowName,
+		traceIncludeSensitiveData: options.traceIncludeSensitiveData,
+	});
+	return runner.run(agent, input, {
+		maxTurns: options.maxTurns,
+		signal: options.signal,
+		stream: true,
+	}) as unknown as Promise<OpenAIAgentsStreamRunResultLike>;
+};
+
+function agentRunnerResultFromSDKResult(result: OpenAIAgentsRunResultLike) {
+	const terminalEnvelope = terminalEnvelopeFromUnknown(result.finalOutput);
+	return {
+		finalOutput:
+			terminalEnvelope === undefined
+				? String(result.finalOutput ?? "")
+				: finalOutputFromTerminalEnvelope(terminalEnvelope),
+		providerResponseId: providerResponseIDFromResult(result),
+		terminalEnvelope,
+		toolCalls: toolCallsFromItems(result.newItems ?? []),
+		traceRef: traceRefFromResult(result),
+		usage: usageFromResult(result),
+	};
+}
+
+function visibleTextFromPartialTerminalOutput(value: string): string {
+	try {
+		const envelope = terminalEnvelopeFromUnknown(JSON.parse(value));
+		return envelope === undefined ? "" : finalOutputFromTerminalEnvelope(envelope);
+	} catch {
+		// Continue with bounded partial extraction below.
+	}
+	const kind = extractJsonStringFieldPrefix(value, ["kind"]).value;
+	if (kind === undefined) {
+		return "";
+	}
+	switch (kind) {
+		case "answer":
+			return extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value ?? "";
+		case "clarification_required":
+			return (
+				extractJsonStringFieldPrefix(value, ["followUpQuestion", "follow_up_question"]).value ?? ""
+			);
+		case "out_of_scope":
+		case "policy_refusal":
+		case "unsupported_by_evidence":
+			return extractJsonStringFieldPrefix(value, ["answerText", "answer_text"]).value ?? "";
+		default:
+			return "";
+	}
+}
+
+function extractJsonStringFieldPrefix(
+	value: string,
+	fieldNames: string[],
+): { complete: boolean; value?: string } {
+	for (const fieldName of fieldNames) {
+		const match = new RegExp(`"${fieldName}"\\s*:`).exec(value);
+		if (!match) {
+			continue;
+		}
+		let index = match.index + match[0].length;
+		while (index < value.length && /\s/.test(value[index] ?? "")) {
+			index += 1;
+		}
+		if (value[index] !== '"') {
+			continue;
+		}
+		return extractJsonStringPrefix(value, index + 1);
+	}
+	return { complete: false };
+}
+
+function extractJsonStringPrefix(
+	value: string,
+	startIndex: number,
+): { complete: boolean; value: string } {
+	let decoded = "";
+	for (let index = startIndex; index < value.length; index += 1) {
+		const char = value[index];
+		if (char === '"') {
+			return { complete: true, value: decoded };
+		}
+		if (char !== "\\") {
+			decoded += char;
+			continue;
+		}
+		const escaped = value[index + 1];
+		if (escaped === undefined) {
+			break;
+		}
+		switch (escaped) {
+			case '"':
+			case "\\":
+			case "/":
+				decoded += escaped;
+				index += 1;
+				continue;
+			case "b":
+				decoded += "\b";
+				index += 1;
+				continue;
+			case "f":
+				decoded += "\f";
+				index += 1;
+				continue;
+			case "n":
+				decoded += "\n";
+				index += 1;
+				continue;
+			case "r":
+				decoded += "\r";
+				index += 1;
+				continue;
+			case "t":
+				decoded += "\t";
+				index += 1;
+				continue;
+			case "u": {
+				const hex = value.slice(index + 2, index + 6);
+				if (!/^[0-9a-fA-F]{4}$/.test(hex)) {
+					return { complete: false, value: decoded };
+				}
+				decoded += String.fromCharCode(Number.parseInt(hex, 16));
+				index += 5;
+				continue;
+			}
+			default:
+				return { complete: false, value: decoded };
+		}
+	}
+	return { complete: false, value: decoded };
+}
 
 function providerResponseIDFromResult(result: OpenAIAgentsRunResultLike): string {
 	const responseID = result.lastResponseId ?? lastStringID(result.rawResponses ?? []);

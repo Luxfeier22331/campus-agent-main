@@ -3,8 +3,10 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -28,13 +30,13 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	var seenBody map[string]any
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		seenAuthorization = request.Header.Get("authorization")
-		if request.URL.Path != "/internal/agent-runs" {
+		if request.URL.Path != "/internal/agent-runs/stream" {
 			t.Fatalf("agent runtime path = %q", request.URL.Path)
 		}
 		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-001",
 			"final_output":         "你好，我是校园问答助手。",
@@ -153,6 +155,243 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 	})
 }
 
+func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 31, 0, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-streaming",
+		"conv-primary-agent-streaming",
+		now,
+		ragHandoffForDurableWorkerTest("hi 你是谁"),
+	)
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/internal/agent-runs/stream" {
+			t.Fatalf("agent runtime path = %q", request.URL.Path)
+		}
+		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
+			"schema_version":   "agent_runtime_answer_delta.v1",
+			"accumulated_text": "你好",
+			"chunk_index":      1,
+			"delta":            "你好",
+		})
+		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
+			"schema_version":   "agent_runtime_answer_delta.v1",
+			"accumulated_text": "你好，我是校园问答助手。",
+			"chunk_index":      2,
+			"delta":            "，我是校园问答助手。",
+		})
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
+			"status":               "completed",
+			"run_id":               "run-primary-agent-streaming",
+			"final_output":         "你好，我是校园问答助手。",
+			"model_name":           "gpt-test",
+			"model_provider":       "openai",
+			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好，我是校园问答助手。"},
+			"provider_response_id": "resp-primary-agent-streaming",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-streaming",
+			"selected_tools":       []string{},
+			"tool_results":         []any{},
+			"terminal_reason":      "answer_completed",
+			"usage": map[string]any{
+				"input_tokens":             12,
+				"output_tokens":            8,
+				"cached_input_tokens":      0,
+				"estimated_cost_micro_usd": 42,
+			},
+		})
+	}))
+	defer agentRuntime.Close()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:streaming",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+		ConversationID:      "conv-primary-agent-streaming",
+		RequestID:           "req-primary-agent-streaming",
+		RunID:               "run-primary-agent-streaming",
+		TraceID:             "trace-executor-001",
+		TurnID:              "turn-primary-agent-streaming",
+		VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+	})
+	if err != nil {
+		t.Fatalf("execute primary agent: %v", err)
+	}
+	if output.FinalOutput != "你好，我是校园问答助手。" {
+		t.Fatalf("final output = %q", output.FinalOutput)
+	}
+	run, err := store.GetRun(context.Background(), "run-primary-agent-streaming")
+	if err != nil {
+		t.Fatalf("get run: %v", err)
+	}
+	if run.Status != execution.DurableRunStatusStreaming {
+		t.Fatalf("run status = %q, want streaming", run.Status)
+	}
+	if run.StreamingStartedAt.IsZero() {
+		t.Fatalf("streaming_started_at was not projected: %#v", run)
+	}
+	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-streaming")
+	if err != nil {
+		t.Fatalf("list run events: %v", err)
+	}
+	assertHTTPAPIDurableEventTypes(t, events, []execution.DurableRunEventType{
+		execution.DurableRunEventTypeRunAdmitted,
+		execution.DurableRunEventTypeRunStarted,
+		execution.DurableRunEventTypeRunAnswerStarted,
+		execution.DurableRunEventTypeRunAnswerDelta,
+		execution.DurableRunEventTypeRunAnswerDelta,
+		execution.DurableRunEventTypeRunAnswerCompleted,
+		execution.DurableRunEventTypeAgentCompleted,
+	})
+	startedEvent := events[2]
+	if startedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
+		startedEvent.Payload["request_id"] != "req-executor-001" ||
+		startedEvent.Payload["trace_id"] != "trace-executor-001" ||
+		startedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {
+		t.Fatalf("answer_started event = %#v", startedEvent)
+	}
+	firstDelta := events[3]
+	if firstDelta.Visibility != execution.DurableRunEventVisibilityBrowser ||
+		firstDelta.Payload["delta"] != "你好" ||
+		firstDelta.Payload["accumulated_text"] != "你好" ||
+		firstDelta.Payload["chunk_index"] != 1 ||
+		firstDelta.Payload["message_id"] != "run-primary-agent-streaming:answer" {
+		t.Fatalf("first answer_delta event = %#v", firstDelta)
+	}
+	completedEvent := events[5]
+	if completedEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
+		completedEvent.Payload["accumulated_text"] != "你好，我是校园问答助手。" ||
+		completedEvent.Payload["message_id"] != "run-primary-agent-streaming:answer" {
+		t.Fatalf("answer_completed event = %#v", completedEvent)
+	}
+}
+
+func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 12, 10, 31, 30, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-primary-agent-live-streaming",
+		"conv-primary-agent-live-streaming",
+		now,
+		ragHandoffForDurableWorkerTest("hi 你是谁"),
+	)
+	deltaFlushed := make(chan struct{})
+	completeRuntime := make(chan struct{})
+	var releaseRuntimeOnce sync.Once
+	releaseRuntime := func() {
+		releaseRuntimeOnce.Do(func() {
+			close(completeRuntime)
+		})
+	}
+	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/internal/agent-runs/stream" {
+			t.Fatalf("agent runtime path = %q", request.URL.Path)
+		}
+		writeAgentRuntimeSSEEvent(t, response, "answer_delta", map[string]any{
+			"schema_version":   "agent_runtime_answer_delta.v1",
+			"accumulated_text": "你好",
+			"chunk_index":      1,
+			"delta":            "你好",
+		})
+		close(deltaFlushed)
+		<-completeRuntime
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
+			"status":               "completed",
+			"run_id":               "run-primary-agent-live-streaming",
+			"final_output":         "你好",
+			"model_name":           "gpt-test",
+			"model_provider":       "openai",
+			"terminal_envelope":    map[string]any{"kind": "answer", "answer_text": "你好"},
+			"provider_response_id": "resp-primary-agent-live-streaming",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-live-streaming",
+			"selected_tools":       []string{},
+			"tool_results":         []any{},
+			"terminal_reason":      "answer_completed",
+			"usage": map[string]any{
+				"input_tokens":             12,
+				"output_tokens":            1,
+				"cached_input_tokens":      0,
+				"estimated_cost_micro_usd": 42,
+			},
+		})
+	}))
+	defer agentRuntime.Close()
+	defer releaseRuntime()
+	server := NewServer(config.Config{
+		AgentRuntimeBaseURL:      agentRuntime.URL,
+		AgentRuntimeSharedSecret: "agent-secret",
+		AgentRuntimeTimeoutMS:    1000,
+		TemporalWorkerIdentity:   "test:agent:live-streaming",
+	})
+	attachPrimaryAgentProviderConfigForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	done := make(chan error, 1)
+	go func() {
+		_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
+			ConversationID:      "conv-primary-agent-live-streaming",
+			RequestID:           "req-primary-agent-live-streaming",
+			RunID:               "run-primary-agent-live-streaming",
+			TraceID:             "trace-executor-001",
+			TurnID:              "turn-primary-agent-live-streaming",
+			VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+		})
+		done <- err
+	}()
+	select {
+	case <-deltaFlushed:
+	case err := <-done:
+		t.Fatalf("activity returned before runtime completed: %v", err)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for agent runtime delta")
+	}
+	var deltaEvent *execution.DurableRunEvent
+	deadline := time.Now().Add(time.Second)
+	for time.Now().Before(deadline) {
+		events, err := store.ListRunEvents(context.Background(), "run-primary-agent-live-streaming")
+		if err != nil {
+			t.Fatalf("list run events: %v", err)
+		}
+		for index := range events {
+			if events[index].EventType == execution.DurableRunEventTypeRunAnswerDelta {
+				deltaEvent = &events[index]
+				break
+			}
+		}
+		if deltaEvent != nil {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	if deltaEvent == nil {
+		events, err := store.ListRunEvents(context.Background(), "run-primary-agent-live-streaming")
+		if err != nil {
+			t.Fatalf("list run events: %v", err)
+		}
+		t.Fatalf("answer delta was not projected before completed event: %#v", events)
+	}
+	if deltaEvent.Visibility != execution.DurableRunEventVisibilityBrowser ||
+		deltaEvent.Payload["delta"] != "你好" {
+		t.Fatalf("answer delta event = %#v", deltaEvent)
+	}
+	releaseRuntime()
+	select {
+	case err := <-done:
+		if err != nil {
+			t.Fatalf("execute primary agent: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for primary agent activity to complete")
+	}
+}
+
 func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 32, 0, 0, time.UTC)
@@ -169,7 +408,7 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-empty-memory",
 			"final_output":         "你好，我是校园问答助手。",
@@ -428,7 +667,7 @@ func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *t
 		ragHandoffForDurableWorkerTest("学籍管理规定是什么"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-knowledge-signal",
 			"final_output":         "",
@@ -748,5 +987,25 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentClarification(t *testing.
 	traceSummary, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
 	if !ok || traceSummary["direct_vs_delegate_branch"] != "clarification" {
 		t.Fatalf("workflow trace summary = %#v", finalizationResponse["workflow_trace_summary"])
+	}
+}
+
+func writeAgentRuntimeSSEEvent(
+	t *testing.T,
+	response http.ResponseWriter,
+	event string,
+	payload map[string]any,
+) {
+	t.Helper()
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("encode agent runtime SSE payload: %v", err)
+	}
+	response.Header().Set("content-type", "text/event-stream; charset=utf-8")
+	if _, err := fmt.Fprintf(response, "event: %s\ndata: %s\n\n", event, encoded); err != nil {
+		t.Fatalf("write agent runtime SSE event: %v", err)
+	}
+	if flusher, ok := response.(http.Flusher); ok {
+		flusher.Flush()
 	}
 }

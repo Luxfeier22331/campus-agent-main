@@ -240,6 +240,7 @@ fail-close checks。
 - `request.accepted`
 - `execution.queued`
 - `execution.running`
+- `answer.delta`
 - `request.completed`
 - `request.failed`
 - `request.cancelled`
@@ -249,6 +250,9 @@ fail-close checks。
 - `request.accepted` 只能在第一次 durable request commit 完成后发送
 - `execution.queued` / `execution.running` 来自 internal execution lifecycle
   event 的 product-level projection
+- `answer.delta` 来自 browser-visible durable `run.answer_delta` projection，只承载
+  用户可见 answer writer 文本增量；它不是 provider raw token stream，也不是最终
+  answer truth
 - terminal event 只能在 `app-api` 完成第二次 finalize commit 之后发送
 - terminal event 的 `data.answer` 与同步 `POST /api/chat/requests` 成功 body 的
   `{ answer }` shape 保持一致

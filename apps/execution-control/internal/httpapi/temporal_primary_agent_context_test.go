@@ -100,7 +100,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-context",
 			"final_output":         "大一是否可申请需要看转专业办法的年级条件。",

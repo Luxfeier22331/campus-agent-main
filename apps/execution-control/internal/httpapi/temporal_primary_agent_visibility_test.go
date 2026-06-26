@@ -29,7 +29,7 @@ func TestExecutePrimaryAgentActivityNarrowsInstitutionalAccountQuestionToKnowled
 		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-institutional-account",
 			"final_output":         "",
@@ -86,7 +86,7 @@ func TestExecutePrimaryAgentActivityPreservesExplicitCampusServicesCapability(t 
 		if err := json.NewDecoder(request.Body).Decode(&seenBody); err != nil {
 			t.Fatalf("decode agent runtime request: %v", err)
 		}
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-explicit-services",
 			"final_output":         "服务能力显式请求已保留。",

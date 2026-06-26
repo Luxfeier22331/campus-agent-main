@@ -238,12 +238,193 @@ export function createAgentRuntimeHandler(
 				},
 			});
 		}
+		if (request.method === "POST" && url.pathname === "/internal/agent-runs/stream") {
+			if (!authorized(request, options.sharedSecret)) {
+				return jsonResponse(401, {
+					error: {
+						code: "unauthorized",
+						message: "Internal worker authorization failed.",
+					},
+				});
+			}
+			let parsed: z.infer<typeof runRequestSchema>;
+			try {
+				parsed = runRequestSchema.parse(await request.json());
+			} catch (error) {
+				return jsonResponse(400, {
+					error: {
+						code: "invalid_request",
+						message: error instanceof Error ? error.message : "Invalid request body.",
+					},
+				});
+			}
+			return agentRunStreamResponse(
+				options.runtime.stream(runtimeInputFromParsedRunRequest(parsed, request.signal)),
+			);
+		}
 		return jsonResponse(404, {
 			error: {
 				code: "not_found",
 				message: "Route not found.",
 			},
 		});
+	};
+}
+
+function runtimeInputFromParsedRunRequest(
+	parsed: z.infer<typeof runRequestSchema>,
+	signal: AbortSignal,
+): Parameters<PrimaryAgentRuntime["run"]>[0] {
+	return {
+		runId: parsed.run_id,
+		conversationId: parsed.conversation_id,
+		turnId: parsed.turn_id,
+		traceId: parsed.trace_id,
+		input: parsed.input,
+		visibleCapabilities: parsed.visible_capabilities,
+		providerConfig: {
+			profileId: parsed.provider_config.profile_id,
+			revision: parsed.provider_config.revision,
+			provider: parsed.provider_config.provider,
+			transport: parsed.provider_config.transport,
+			baseUrl: parsed.provider_config.base_url,
+			model: parsed.provider_config.model,
+			apiKey: parsed.provider_config.api_key,
+			timeoutMs: parsed.provider_config.timeout_ms,
+		},
+		finalModelContext: parsed.final_model_context
+			? {
+					schemaVersion: parsed.final_model_context.schema_version,
+					currentUserMessage: parsed.final_model_context.current_user_message,
+					recentTurns: parsed.final_model_context.recent_turns.map((turn) => ({
+						messageId: turn.message_id,
+						role: turn.role,
+						content: turn.content,
+						summary: turn.summary,
+					})),
+					previousAnswerSummary: parsed.final_model_context.previous_answer_summary,
+					previousEvidence: parsed.final_model_context.previous_evidence.map((evidence) => ({
+						accessScope: evidence.access_scope,
+						contentHash: evidence.content_hash,
+						documentId: evidence.document_id,
+						evidenceId: evidence.evidence_id,
+						sectionTitle: evidence.section_title,
+						snapshotId: evidence.snapshot_id,
+						snippet: evidence.snippet,
+						sourceId: evidence.source_id,
+						title: evidence.title,
+						versionId: evidence.version_id,
+					})),
+					previousCapabilityResults: parsed.final_model_context.previous_capability_results.map(
+						(result) => ({
+							capability: result.capability,
+							contentHash: result.content_hash,
+							projectionRef: result.projection_ref,
+							requestId: result.request_id,
+							resultKind: result.result_kind,
+							runId: result.run_id,
+							status: result.status,
+							summary: result.summary,
+						}),
+					),
+					usageSummary: {
+						memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
+						modelVisibleItemCount:
+							parsed.final_model_context.usage_summary.model_visible_item_count,
+						runtimeOnlyItemCount: parsed.final_model_context.usage_summary.runtime_only_item_count,
+						tokenEstimate: parsed.final_model_context.usage_summary.token_estimate,
+						truncationReason: parsed.final_model_context.usage_summary.truncation_reason,
+					},
+				}
+			: undefined,
+		memoryContext: parsed.memory_context
+			? {
+					contextBlock: parsed.memory_context.context_block,
+					memoryRef: parsed.memory_context.memory_ref,
+					provider: parsed.memory_context.provider,
+					retrievalMode: parsed.memory_context.retrieval_mode,
+					schemaVersion: parsed.memory_context.schema_version,
+					selectedMemoryChars: parsed.memory_context.selected_memory_chars,
+					selectedMemoryCount: parsed.memory_context.selected_memory_count,
+				}
+			: undefined,
+		memoryProjectionRefs: parsed.memory_projection_refs,
+		signal,
+	};
+}
+
+function encodeSseEvent(event: string, data: unknown): Uint8Array {
+	return new TextEncoder().encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+}
+
+function agentRunStreamResponse(events: ReturnType<PrimaryAgentRuntime["stream"]>): Response {
+	const stream = new ReadableStream<Uint8Array>({
+		async start(controller) {
+			try {
+				for await (const event of events) {
+					if (event.event === "answer_delta") {
+						controller.enqueue(
+							encodeSseEvent("answer_delta", {
+								schema_version: "agent_runtime_answer_delta.v1",
+								accumulated_text: event.data.accumulatedText,
+								chunk_index: event.data.chunkIndex,
+								delta: event.data.delta,
+							}),
+						);
+						continue;
+					}
+					controller.enqueue(encodeSseEvent("completed", agentRunResultWire(event.data)));
+				}
+			} catch (error) {
+				controller.enqueue(
+					encodeSseEvent("error", {
+						code: "agent_runtime_failed",
+						message: errorMessage(error),
+					}),
+				);
+			} finally {
+				controller.close();
+			}
+		},
+	});
+	return new Response(stream, {
+		headers: {
+			"cache-control": "no-store",
+			"content-type": "text/event-stream; charset=utf-8",
+			"x-accel-buffering": "no",
+		},
+		status: 200,
+	});
+}
+
+function agentRunResultWire(result: PrimaryAgentRunResult) {
+	return {
+		status: result.status,
+		run_id: result.runId,
+		final_output: result.finalOutput,
+		model_name: result.modelName,
+		model_provider: result.modelProvider,
+		terminal_envelope: terminalEnvelopeWire(result.terminalEnvelope),
+		provider_response_id: result.providerResponseId,
+		sdk_trace_ref: result.sdkTraceRef,
+		selected_tools: result.selectedTools,
+		tool_results: result.toolResults.map((toolResult) => ({
+			status: toolResult.status,
+			tool_name: toolResult.toolName,
+			capability: toolResult.capability,
+			payload_kind: toolResult.payloadKind,
+			arguments_json: toolResult.argumentsJson ?? {},
+			result: toolResult.result,
+			result_ref: toolResult.resultRef,
+			fail_close_reason: toolResult.failCloseReason,
+		})),
+		terminal_reason: result.terminalReason,
+		usage: {
+			input_tokens: result.usage.inputTokens,
+			output_tokens: result.usage.outputTokens,
+			cached_input_tokens: result.usage.cachedInputTokens ?? 0,
+			estimated_cost_micro_usd: result.usage.estimatedCostMicroUsd ?? 0,
+		},
 	};
 }
 

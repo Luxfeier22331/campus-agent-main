@@ -143,6 +143,37 @@ describe("primary agent runtime", () => {
 		expect(result.finalOutput).toBe("");
 	});
 
+	it("fails closed when the streaming runtime has no streaming runner", async () => {
+		const runtime = createPrimaryAgentRuntime({
+			catalog,
+			runner: async () => ({
+				finalOutput: "blocking result must not be used for stream",
+				providerResponseId: "resp_blocking",
+				terminalEnvelope: {
+					answerText: "blocking result must not be used for stream",
+					kind: "answer",
+				},
+				toolCalls: [],
+				traceRef: "trace_blocking",
+				usage: { inputTokens: 1, outputTokens: 1 },
+			}),
+		});
+
+		const events = runtime.stream({
+			runId: "run-stream-missing-runner",
+			conversationId: "conversation-1",
+			turnId: "turn-1",
+			traceId: "trace-1",
+			input: "hi",
+			providerConfig,
+			visibleCapabilities: ["campus_services"],
+		});
+
+		await expect(events[Symbol.asyncIterator]().next()).rejects.toThrow(
+			"streaming agent runner is required",
+		);
+	});
+
 	it("injects bounded personal memory context into runner instructions", async () => {
 		let observedInstructions = "";
 		const runner: AgentRunner = async ({ instructions }) => {

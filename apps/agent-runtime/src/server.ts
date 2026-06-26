@@ -2,7 +2,10 @@ import { createServer } from "node:http";
 import { createAgentRuntimeHandler } from "./http-server.ts";
 import { nodeClientDisconnectSignal } from "./node-http.ts";
 import { createPrimaryAgentRuntime } from "./primary-agent.ts";
-import { createRequestScopedOpenAIAgentsRunner } from "./provider-config.ts";
+import {
+	createRequestScopedOpenAIAgentsRunner,
+	createRequestScopedStreamingOpenAIAgentsRunner,
+} from "./provider-config.ts";
 import { loadToolCatalog } from "./tool-catalog.ts";
 import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 
@@ -20,6 +23,7 @@ const catalog = loadToolCatalog(catalogPath);
 const runtime = createPrimaryAgentRuntime({
 	catalog,
 	runner: createRequestScopedOpenAIAgentsRunner(),
+	streamingRunner: createRequestScopedStreamingOpenAIAgentsRunner(),
 	toolExecutor: createExecutionControlToolExecutor({
 		baseUrl: executionControlBaseUrl,
 		sharedSecret: executionControlSharedSecret,
@@ -41,7 +45,25 @@ const server = createServer(async (request, response) => {
 	});
 	const webResponse = await handler(webRequest);
 	response.writeHead(webResponse.status, Object.fromEntries(webResponse.headers.entries()));
-	response.end(Buffer.from(await webResponse.arrayBuffer()));
+	if (!webResponse.body) {
+		response.end();
+		return;
+	}
+	const reader = webResponse.body.getReader();
+	try {
+		for (;;) {
+			const chunk = await reader.read();
+			if (chunk.done) {
+				break;
+			}
+			response.write(Buffer.from(chunk.value));
+		}
+		response.end();
+	} catch (error) {
+		response.destroy(error instanceof Error ? error : new Error(String(error)));
+	} finally {
+		reader.releaseLock();
+	}
 });
 
 server.listen(port, host, () => {

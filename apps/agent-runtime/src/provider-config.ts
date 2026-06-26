@@ -1,6 +1,14 @@
 import { type ModelProvider, OpenAIProvider } from "@openai/agents";
-import type { AgentRunner, PromptProviderRuntimeConfig } from "./primary-agent.ts";
-import { createOpenAIAgentsRunner, type OpenAIAgentsRunnerOptions } from "./sdk-runner.ts";
+import type {
+	AgentRunner,
+	PromptProviderRuntimeConfig,
+	StreamingAgentRunner,
+} from "./primary-agent.ts";
+import {
+	createOpenAIAgentsRunner,
+	createStreamingOpenAIAgentsRunner,
+	type OpenAIAgentsRunnerOptions,
+} from "./sdk-runner.ts";
 
 interface OpenAIProviderConfig {
 	apiKey: string;
@@ -11,6 +19,7 @@ interface OpenAIProviderConfig {
 interface ProviderConfigDependencies {
 	createProvider?: (config: OpenAIProviderConfig) => ModelProvider;
 	createRunner?: (options: OpenAIAgentsRunnerOptions) => AgentRunner;
+	createStreamingRunner?: (options: OpenAIAgentsRunnerOptions) => StreamingAgentRunner;
 }
 
 export function createRequestScopedOpenAIAgentsRunner(
@@ -18,6 +27,17 @@ export function createRequestScopedOpenAIAgentsRunner(
 ): AgentRunner {
 	const createRunner = dependencies.createRunner ?? createOpenAIAgentsRunner;
 	return createRunner({
+		resolveRuntimeOptions: (providerConfig) =>
+			openAIAgentsRunnerOptionsFromProviderConfig(providerConfig, dependencies),
+	});
+}
+
+export function createRequestScopedStreamingOpenAIAgentsRunner(
+	dependencies: ProviderConfigDependencies = {},
+): StreamingAgentRunner {
+	const createStreamingRunner =
+		dependencies.createStreamingRunner ?? createStreamingOpenAIAgentsRunner;
+	return createStreamingRunner({
 		resolveRuntimeOptions: (providerConfig) =>
 			openAIAgentsRunnerOptionsFromProviderConfig(providerConfig, dependencies),
 	});

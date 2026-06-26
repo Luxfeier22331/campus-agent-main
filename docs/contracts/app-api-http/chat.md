@@ -270,9 +270,10 @@ icy.md`。
 
 ### `POST /api/chat/requests/stream`
 
-这是 online answer 的产品默认 lifecycle streaming 命令入口。它不提供 token delta，
-不暴露 `execution-control` raw event；browser 只消费 `app-api` 产品级 SSE
-contract。release / staging chat smoke 默认使用该入口。
+这是 online answer 的产品默认 lifecycle streaming 命令入口。它不暴露 provider
+raw token stream，也不暴露 `execution-control` raw event；browser 只消费
+`app-api` 产品级 SSE contract。answer writer 产生可见文本增量时，app-api 可输出
+产品级 `answer.delta`。release / staging chat smoke 默认使用该入口。
 
 请求 headers 与 body 复用 `POST /api/chat/requests`。
 
@@ -289,6 +290,7 @@ contract。release / staging chat smoke 默认使用该入口。
 - `request.accepted`
 - `execution.queued`
 - `execution.running`
+- `answer.delta`
 - `request.completed`
 - `request.failed`
 - `request.cancelled`
@@ -327,12 +329,28 @@ terminal event 额外携带：
 }
 ```
 
+`answer.delta` 额外携带：
+
+```json
+{
+  "messageId": "msg_01HQ...",
+  "delta": "图书馆开放到",
+  "accumulatedText": "图书馆开放到",
+  "status": "streaming"
+}
+```
+
 规则：
 
 - run projection 启用时，`request.accepted` 在 app-api accept commit 与
   execution durable run create 均成功后发送；其 data 必须包含 `runId`
 - terminal event 在 finalization commit 后发送；因此 terminal `answer` 是
   app-owned DB/projection truth 的产物
+- `answer.delta` 只能来自 browser-visible durable `run.answer_delta` projection；
+  它是产品展示增量，不是 final truth。最终事实仍以 terminal `request.completed`
+  的 app-owned answer projection 为准
+- 如果本次 stream 已消费过 `answer.delta`，terminal closeout 不再合成整段
+  `answer.delta`，避免浏览器重复刷全文
 - terminal answer 可以来自 first Execution Agent decision 的 direct/no-tool branch；
   这类结果不要求 `selectedCapability` 非空，但必须携带 request/run correlation、
   trace/runtime provenance 与 terminal intent summary
@@ -376,7 +394,8 @@ terminal event，也会关闭，client 必须用最后已消费 sequence 重新�
 - `X-Trace-Id: <trace-id>`
 
 每个 SSE event 的 event name 等于 durable `eventType`，data 是 app-api
-browser-visible run event projection：
+browser-visible run event projection。对于 chat runtime，app-api 会把
+`run.answer_delta` 映射成产品级 `answer.delta`：
 
 ```json
 {

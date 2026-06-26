@@ -317,6 +317,9 @@ Run event schema family 固定为：
 - `run.started`
 - `run.streaming_started`
 - `run.output_delta`
+- `run.answer_started`
+- `run.answer_delta`
+- `run.answer_completed`
 - `run.completed`
 - `run.failed`
 - `run.canceled`

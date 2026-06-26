@@ -25,7 +25,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool",
 			"final_output":         "今晚六点的丰台到海淀班车暂时无法用结构化来源确认，请人工校对。",
@@ -199,7 +199,7 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool-replan",
 			"final_output":         "重试后确认当前投影可用。",
@@ -292,7 +292,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 		ragHandoffForDurableWorkerTest("最近有什么通知"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "failed",
 			"run_id":               "run-primary-agent-sdk-tool-failed",
 			"final_output":         "",
@@ -390,7 +390,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool-bad-args",
 			"final_output":         "不应在非法参数后完成。",
@@ -469,7 +469,7 @@ func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnv
 		ragHandoffForDurableWorkerTest("今晚六点还有丰台去海淀的班车吗"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool-missing-envelope",
 			"final_output":         "不应在缺少标准结果 envelope 后完成。",
@@ -547,7 +547,7 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 		ragHandoffForDurableWorkerTest("查看通知正文"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool-unadmitted",
 			"final_output":         "不应使用 internal-only 工具回答。",
@@ -618,7 +618,7 @@ func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleCapabilities(t *
 		ragHandoffForDurableWorkerTest("最近有什么通知"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-sdk-tool-hidden-capability",
 			"final_output":         "不应使用本轮不可见能力回答。",

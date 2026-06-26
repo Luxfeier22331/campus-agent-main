@@ -7,6 +7,7 @@ import type {
 	ExecutionControlRunEvent,
 	ExecutionControlRuntimeClient,
 } from "../src/modules/integration/execution-control";
+import type { ChatCommandStreamEvent } from "../src/modules/runtime-command";
 import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-command/service/durable";
 import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
@@ -277,6 +278,120 @@ describe("chat command durable stream closeout", () => {
 		expect(executionRuntime.listRunEvents).toHaveBeenCalledTimes(1);
 		expect(supervisor.execute).not.toHaveBeenCalled();
 		expect(supervisor.executeStream).not.toHaveBeenCalled();
+	});
+
+	it("streams durable answer delta events before terminal finalization without duplicating the final text", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const waitUntilPromises: Promise<unknown>[] = [];
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn().mockResolvedValue(durableRun()),
+			getRun: vi.fn(),
+			listRunEvents: vi.fn().mockResolvedValue([
+				durableEvent({
+					eventId: "event-answer-1",
+					eventType: "run.answer_delta",
+					occurredAt: "2026-06-04T01:02:04.100Z",
+					payload: {
+						accumulated_text: "国家奖学金",
+						chunk_index: 1,
+						delta: "国家奖学金",
+						message_id: "msg_answer_stream",
+						model_name: "gpt-5.5",
+						model_provider: "openai",
+						provider_request_ref: "provider://requests/run_0001/answer-writer",
+						request_id: "req_0001",
+						schema_version: "run_answer_delta.v1",
+						trace_id: "trace_0001",
+					},
+					payloadSchemaVersion: "run_answer_delta.v1",
+					sequence: 1,
+				}),
+				durableEvent({
+					eventId: "event-answer-2",
+					eventType: "run.answer_delta",
+					occurredAt: "2026-06-04T01:02:04.200Z",
+					payload: {
+						accumulated_text: "国家奖学金每学年评审一次。",
+						chunk_index: 2,
+						delta: "每学年评审一次。",
+						message_id: "msg_answer_stream",
+						model_name: "gpt-5.5",
+						model_provider: "openai",
+						provider_request_ref: "provider://requests/run_0001/answer-writer",
+						request_id: "req_0001",
+						schema_version: "run_answer_delta.v1",
+						trace_id: "trace_0001",
+					},
+					payloadSchemaVersion: "run_answer_delta.v1",
+					sequence: 2,
+				}),
+				durableEvent({
+					eventId: "event-final",
+					eventType: "finalization.completed",
+					occurredAt: "2026-06-04T01:02:06.000Z",
+					payload: {
+						request_id: "req_0001",
+						response: answerResponsePayload(),
+						trace_id: "trace_0001",
+					},
+					sequence: 3,
+				}),
+			]),
+			listRunSteps: vi.fn().mockResolvedValue({ attempts: [], results: [], steps: [] }),
+		};
+		const service = buildChatCommandService({
+			deriveSafetyIdentifier: () => "safety_0001",
+			executionRuntime,
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-06-04T01:02:03.000Z"),
+			conversationStore,
+			store,
+		});
+
+		const events: ChatCommandStreamEvent[] = [];
+		for await (const event of service.submitStream?.({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "中央民族大学本科学生国家奖学金评审办法",
+				requestedCapability: "knowledge",
+			},
+			principal: createPrincipal(),
+			surface: "campus_web",
+			waitUntil: (promise) => {
+				waitUntilPromises.push(promise);
+			},
+		}) ?? []) {
+			events.push(event);
+		}
+
+		await Promise.all(waitUntilPromises);
+		expect(events.map((event) => event.event)).toEqual([
+			"request.accepted",
+			"answer.delta",
+			"answer.delta",
+			"request.completed",
+		]);
+		expect(events.filter((event) => event.event === "answer.delta")).toEqual([
+			expect.objectContaining({
+				data: expect.objectContaining({
+					accumulatedText: "国家奖学金",
+					delta: "国家奖学金",
+					messageId: "msg_answer_stream",
+					sequence: 1,
+				}),
+			}),
+			expect.objectContaining({
+				data: expect.objectContaining({
+					accumulatedText: "国家奖学金每学年评审一次。",
+					delta: "每学年评审一次。",
+					messageId: "msg_answer_stream",
+					sequence: 2,
+				}),
+			}),
+		]);
+		expect(finalWrites).toHaveLength(1);
 	});
 
 	it("does not consume the empty-poll budget while durable progress events keep advancing", async () => {

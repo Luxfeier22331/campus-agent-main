@@ -82,6 +82,9 @@ describe("agent runtime HTTP handler", () => {
 					observedFinalModelContext = input.finalModelContext;
 					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).run(input);
 				},
+				stream(input) {
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).stream(input);
+				},
 			},
 		});
 
@@ -193,6 +196,90 @@ describe("agent runtime HTTP handler", () => {
 		});
 	});
 
+	it("streams primary agent answer deltas before the terminal result", async () => {
+		const handler = createAgentRuntimeHandler({
+			sharedSecret: "secret",
+			runtime: {
+				async run() {
+					throw new Error("blocking run should not be used by the streaming endpoint");
+				},
+				async *stream(input) {
+					yield {
+						event: "answer_delta",
+						data: {
+							accumulatedText: "国家奖学金",
+							chunkIndex: 1,
+							delta: "国家奖学金",
+						},
+					};
+					yield {
+						event: "answer_delta",
+						data: {
+							accumulatedText: "国家奖学金每学年评审一次。",
+							chunkIndex: 2,
+							delta: "每学年评审一次。",
+						},
+					};
+					yield {
+						event: "completed",
+						data: {
+							status: "completed",
+							runId: input.runId,
+							finalOutput: "国家奖学金每学年评审一次。",
+							modelName: input.providerConfig.model,
+							modelProvider: input.providerConfig.provider,
+							terminalEnvelope: {
+								kind: "answer",
+								answerText: "国家奖学金每学年评审一次。",
+							},
+							providerResponseId: "resp_stream",
+							sdkTraceRef: "trace_stream",
+							selectedTools: [],
+							toolResults: [],
+							terminalReason: "answer_completed",
+							usage: { inputTokens: 11, outputTokens: 7 },
+						},
+					};
+				},
+			},
+		});
+
+		const response = await handler(
+			new Request("http://agent-runtime/internal/agent-runs/stream", {
+				method: "POST",
+				headers: { authorization: "Bearer secret" },
+				body: JSON.stringify({
+					...validRunBody(),
+					provider_config: validPromptProviderConfig(),
+				}),
+			}),
+		);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("content-type")).toContain("text/event-stream");
+		const events = parseSseEvents(await response.text());
+		expect(events.map((event) => event.event)).toEqual([
+			"answer_delta",
+			"answer_delta",
+			"completed",
+		]);
+		expect(events[0]?.data).toMatchObject({
+			accumulated_text: "国家奖学金",
+			chunk_index: 1,
+			delta: "国家奖学金",
+			schema_version: "agent_runtime_answer_delta.v1",
+		});
+		expect(events[2]?.data).toMatchObject({
+			final_output: "国家奖学金每学年评审一次。",
+			provider_response_id: "resp_stream",
+			status: "completed",
+			terminal_envelope: {
+				answer_text: "国家奖学金每学年评审一次。",
+				kind: "answer",
+			},
+		});
+	});
+
 	it("fails closed when provider config is missing from an agent run request", async () => {
 		const handler = createAgentRuntimeHandler({
 			sharedSecret: "secret",
@@ -235,6 +322,9 @@ describe("agent runtime HTTP handler", () => {
 						terminalReason: "answer_completed",
 						usage: { inputTokens: 1, outputTokens: 1 },
 					};
+				},
+				stream(input) {
+					return createPrimaryAgentRuntime({ catalog, runner: noToolRunner }).stream(input);
 				},
 			},
 		});
@@ -326,6 +416,7 @@ describe("agent runtime HTTP handler", () => {
 				async run() {
 					throw new Error("provider request aborted");
 				},
+				stream: throwingAgentRuntimeStream,
 			},
 		});
 
@@ -383,6 +474,18 @@ const noToolRunner: AgentRunner = async () =>
 		usage: { inputTokens: 1, outputTokens: 1 },
 	}) as never;
 
+function throwingAgentRuntimeStream(): AsyncIterable<never> {
+	return {
+		[Symbol.asyncIterator]() {
+			return {
+				async next(): Promise<IteratorResult<never>> {
+					throw new Error("provider request aborted");
+				},
+			};
+		},
+	};
+}
+
 function validRunBody(): Record<string, unknown> {
 	return {
 		run_id: "run-1",
@@ -418,4 +521,22 @@ function validRuntimePromptProviderConfig(): Record<string, unknown> {
 		apiKey: "provider-key",
 		timeoutMs: 30000,
 	};
+}
+
+function parseSseEvents(body: string): Array<{ event: string; data: Record<string, unknown> }> {
+	return body
+		.split("\n\n")
+		.map((block) => block.trim())
+		.filter((block) => block && !block.startsWith(":"))
+		.map((block) => {
+			const eventLine = block.split("\n").find((line) => line.startsWith("event: "));
+			const dataLine = block.split("\n").find((line) => line.startsWith("data: "));
+			if (!(eventLine && dataLine)) {
+				throw new Error(`Invalid SSE block: ${block}`);
+			}
+			return {
+				event: eventLine.slice("event: ".length),
+				data: JSON.parse(dataLine.slice("data: ".length)) as Record<string, unknown>,
+			};
+		});
 }

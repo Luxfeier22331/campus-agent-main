@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ToolExecutionResult } from "../src/primary-agent.ts";
-import { createOpenAIAgentsRunner } from "../src/sdk-runner.ts";
+import { createOpenAIAgentsRunner, createStreamingOpenAIAgentsRunner } from "../src/sdk-runner.ts";
 
 const providerConfig = {
 	apiKey: "test-provider-key",
@@ -325,5 +325,65 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		});
 
 		expect(observedSignal).toBe(controller.signal);
+	});
+
+	it("streams text deltas before yielding the final structured SDK result", async () => {
+		const runner = createStreamingOpenAIAgentsRunner({
+			runSdkStream: async () => ({
+				completed: Promise.resolve(),
+				finalOutput: {
+					kind: "answer",
+					answerText: "国家奖学金每学年评审一次。",
+				},
+				lastResponseId: "resp-sdk-stream",
+				newItems: [],
+				toTextStream: () =>
+					new ReadableStream<string>({
+						start(controller) {
+							controller.enqueue('{"kind":"answer","answerText":"国家奖学金');
+							controller.enqueue("每学年评审一次。");
+							controller.enqueue('"}');
+							controller.close();
+						},
+					}),
+				usage: {
+					inputTokens: 21,
+					outputTokens: 13,
+				},
+			}),
+		});
+
+		const events: unknown[] = [];
+		for await (const event of runner({
+			input: "国家奖学金多久评审一次？",
+			instructions: "Answer directly.",
+			tools: [],
+			runId: "run-sdk-stream",
+			traceId: "trace-run-sdk-stream",
+			providerConfig,
+		})) {
+			events.push(event);
+		}
+
+		expect(events).toEqual([
+			{
+				accumulatedText: "国家奖学金",
+				chunkIndex: 1,
+				delta: "国家奖学金",
+			},
+			{
+				accumulatedText: "国家奖学金每学年评审一次。",
+				chunkIndex: 2,
+				delta: "每学年评审一次。",
+			},
+			expect.objectContaining({
+				finalOutput: "国家奖学金每学年评审一次。",
+				providerResponseId: "resp-sdk-stream",
+				terminalEnvelope: {
+					kind: "answer",
+					answerText: "国家奖学金每学年评审一次。",
+				},
+			}),
+		]);
 	});
 });

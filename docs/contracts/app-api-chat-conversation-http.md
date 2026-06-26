@@ -22,8 +22,10 @@ the wire contract is app-api-owned durable lifecycle SSE:
 Conversation list/detail/search, feedback, run events and cancel remain
 explicit app-api routes; they are not a second browser-side conversation truth.
 
-This contract does not define token delta streaming, share/export, file upload,
-batch management, or local browser-only conversation truth.
+This contract does not define provider raw token streaming, share/export, file
+upload, batch management, or local browser-only conversation truth. It does
+define app-api product-level `answer.delta` events derived from durable
+browser-visible run projections.
 
 ## Authorization Rules
 
@@ -222,8 +224,11 @@ Creates or continues a conversation and streams lifecycle events.
 
 Rules:
 
-- This route streams lifecycle events, not token deltas.
+- This route streams product lifecycle events and may stream product-level
+  `answer.delta` text increments; it does not expose provider raw token events.
 - `request.accepted` contains `runId` when the durable run has been created.
+- `answer.delta` is display-only. The final answer truth remains the terminal
+  app-owned answer projection.
 - `request.completed` may contain the app-owned answer projection on the
   original request stream.
 - Browser disconnect does not cancel finalization.
@@ -273,8 +278,9 @@ Rules:
 - This route does not create a new request.
 - This route does not re-run execution or finalization.
 - The browser resumes from the latest consumed event sequence.
-- Resume stream events are browser-facing chat lifecycle events. Terminal
-  `request.completed` events notify completion only; the browser must refresh
+- Resume stream events are browser-facing chat lifecycle events plus
+  product-level `answer.delta` when durable `run.answer_delta` exists. Terminal
+  `request.completed` events notify completion only; the browser may refresh
   `GET /api/chat/conversations/:conversationId` to render the app-owned answer
   projection.
 

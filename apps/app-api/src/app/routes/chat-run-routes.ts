@@ -191,6 +191,24 @@ function toChatRunResumeStreamEvent(input: {
 			event: "execution.running",
 		};
 	}
+	if (input.event.eventType === "run.answer_delta") {
+		const messageId = getStringPayloadValue(input.event.payload, "message_id");
+		const delta = getStringPayloadValue(input.event.payload, "delta");
+		const accumulatedText = getStringPayloadValue(input.event.payload, "accumulated_text");
+		if (!messageId || delta === null || accumulatedText === null) {
+			return null;
+		}
+		return {
+			data: {
+				...baseData,
+				accumulatedText,
+				delta,
+				messageId,
+				status: "streaming",
+			},
+			event: "answer.delta",
+		};
+	}
 	if (
 		input.event.eventType === "finalization.completed" ||
 		input.event.eventType === "run.completed"

@@ -24,7 +24,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 		ragHandoffForDurableWorkerTest("hi 你是谁"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		writeJSON(response, http.StatusOK, map[string]any{
+		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
 			"run_id":               "run-primary-agent-missing-envelope",
 			"final_output":         "你好，我是校园问答助手。",

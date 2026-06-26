@@ -80,7 +80,7 @@ implementation surfaces 暴露的 browser-facing HTTP contract。
 - Identity Platform forward product projection shape
 - future OIDC/OAuth provider endpoint shape
 - Operator Console UI layout
-- token streaming 或异步后台回答产品形态
+- provider raw token streaming 或异步后台回答产品形态
 - `official_web` collector command endpoints
 
 ## 适用范围
@@ -270,7 +270,7 @@ expanded observability / quality / safety / cost / audit query surfaces 另见
 
 - operator 写操作 API
 - chat delete / archive API
-- token streaming chat API
+- provider raw token streaming chat API
 - `official_web` collector command endpoints
 
 ## Response Shapes
