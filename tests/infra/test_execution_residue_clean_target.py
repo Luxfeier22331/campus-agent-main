@@ -114,8 +114,7 @@ class ExecutionResidueCleanTargetTest(unittest.TestCase):
 
         self.assertFalse(
             offenders,
-            "active runtime must not reference the retired Python bridge:\n"
-            + "\n".join(offenders),
+            "active runtime must not reference the retired Python bridge:\n" + "\n".join(offenders),
         )
 
     def test_active_truth_does_not_describe_retired_python_packages_as_current_owners(

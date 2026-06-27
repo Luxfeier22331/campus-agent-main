@@ -23,7 +23,9 @@ class IntentReleaseGateScriptTest(unittest.TestCase):
         self.assertTrue(any("scripts.intent_gate" in item for item in command_text))
         self.assertTrue(any("--runner execution-control-go" in item for item in command_text))
         self.assertTrue(any("go test ./..." in item for item in command_text))
-        self.assertTrue(any("execution-control-durable-adapter.test.ts" in item for item in command_text))
+        self.assertTrue(
+            any("execution-control-durable-adapter.test.ts" in item for item in command_text)
+        )
         self.assertTrue(any("tests.evals.eval_admission_suite" in item for item in command_text))
 
     def test_release_gate_writes_json_report(self) -> None:

@@ -112,9 +112,9 @@ READYZ_ALLOWED_PATH_PARTS = (
 )
 
 ONLINE_PYTHON_BRIDGE_FORBIDDEN_PATTERNS = (
-    'env:"' + "SUPER" + 'VISOR_AGENT_WORKER_',
+    'env:"' + "SUPER" + "VISOR_AGENT_WORKER_",
     'env:"EXECUTION_CONTROL_BRIDGE_',
-    'resolved.set("' + "SUPER" + 'VISOR_AGENT_WORKER_',
+    'resolved.set("' + "SUPER" + "VISOR_AGENT_WORKER_",
     "export " + "SUPER" + "VISOR_AGENT_WORKER_",
     "SUPER" + "VISOR_AGENT_WORKER_SHARED_SECRET is missing",
     "super" + "visor-agent-worker:27052",
@@ -182,7 +182,9 @@ ACTIVE_EXECUTION_TRUTH_FORBIDDEN_SNIPPETS = (
     "当前 private semantic bridge",
     "当前 online answer path 仍",
     "当前在线 RAG 路径仍",
-    "当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker\n  -> " + "super" + "visor-agent-worker",
+    "当前在线回答主路径是 `app-api -> execution-control -> Temporal -> activity worker\n  -> "
+    + "super"
+    + "visor-agent-worker",
     "super" + "visor-agent-worker + Temporal workers",
     "execution-control + " + "super" + "visor-agent-worker",
     "SUPER" + "VISOR_AGENT_WORKER_SHARED_SECRET=<bridge secret>",
