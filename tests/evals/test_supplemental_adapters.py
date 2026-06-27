@@ -7,12 +7,12 @@ from threading import Lock
 
 from campus_contracts import (
     ActorContext,
-    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     ExecutionResponse,
     KnowledgeScope,
     RagResultPayload,
+    ToolResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -59,9 +59,9 @@ def _response(
     corpus: str = "regulations",
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
-) -> CapabilityResponse:
-    return CapabilityResponse(
-        capability="knowledge",
+) -> ToolResponse:
+    return ToolResponse(
+        tool="knowledge_query",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -280,7 +280,7 @@ class RagasProjectionTest(unittest.TestCase):
         )
         execution = ExecutionResult(
             response=ExecutionResponse(
-                selected_capability="knowledge",
+                selected_tool="knowledge_query",
                 status="completed",
                 answer_text="Library hours are 08:00 to 22:00.",
                 confidence="high",

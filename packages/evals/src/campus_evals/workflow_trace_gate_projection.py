@@ -23,10 +23,10 @@ def _trace_projection_completeness(
         missing.append("workflow_mode")
     elif summary.workflow_mode not in SUPPORTED_WORKFLOW_MODES:
         missing.append("workflow_mode.supported")
-    if not summary.selected_capability:
-        missing.append("selected_capability")
-    if summary.workflow_mode == "terminal" and summary.selected_capability != "none":
-        missing.append("selected_capability.none_sentinel")
+    if not summary.selected_tool:
+        missing.append("selected_tool")
+    if summary.workflow_mode == "terminal" and summary.selected_tool != "none":
+        missing.append("selected_tool.none_sentinel")
     if (
         summary.workflow_mode == "single_step"
         and summary.direct_vs_delegate_branch == "delegate"
@@ -58,13 +58,13 @@ def _trace_projection_completeness(
         missing.append("answer_artifact_kinds.expected")
     missing.extend(_context_projection_summary_gaps(summary))
     missing.extend(_answer_artifact_usage_gaps(summary))
-    requires_capability_invocations = (
+    requires_tool_invocations = (
         summary.workflow_mode == "single_step"
         and summary.direct_vs_delegate_branch == "delegate"
-        and not summary.capability_invocations
-    ) or (summary.workflow_mode == "multi_step" and not summary.capability_invocations)
-    if requires_capability_invocations:
-        missing.append("capability_invocations")
+        and not summary.tool_invocations
+    ) or (summary.workflow_mode == "multi_step" and not summary.tool_invocations)
+    if requires_tool_invocations:
+        missing.append("tool_invocations")
     elif summary.workflow_mode in {"single_step", "multi_step"}:
         missing.extend(_agent_invocation_graph_gaps(summary))
     if (
@@ -194,12 +194,12 @@ def _source_ids_from_tool_summary(item: dict[str, object]) -> set[str]:
 def _agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> list[str]:
     expected_targets = _expected_invocation_targets(summary)
     observed_targets = tuple(
-        str(item.get("capability_id") or item.get("agentId") or "").strip()
-        for item in summary.capability_invocations
+        str(item.get("tool_id") or item.get("agentId") or "").strip()
+        for item in summary.tool_invocations
     )
     gaps: list[str] = []
     if expected_targets and observed_targets[: len(expected_targets)] != expected_targets:
-        gaps.append("capability_invocations.target_alignment")
+        gaps.append("tool_invocations.target_alignment")
     if summary.workflow_mode == "multi_step":
         gaps.extend(_multi_step_agent_invocation_graph_gaps(summary))
     return gaps
@@ -208,16 +208,12 @@ def _agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> list[str]:
 def _expected_invocation_targets(summary: WorkflowTraceSummary) -> tuple[str, ...]:
     if summary.handoff_chain:
         return tuple(
-            str(
-                item.get("target") or item.get("capability_id") or item.get("agentId") or ""
-            ).strip()
+            str(item.get("target") or item.get("tool_id") or item.get("agentId") or "").strip()
             for item in summary.handoff_chain
-            if str(
-                item.get("target") or item.get("capability_id") or item.get("agentId") or ""
-            ).strip()
+            if str(item.get("target") or item.get("tool_id") or item.get("agentId") or "").strip()
         )
-    if summary.selected_capability and summary.selected_capability != "none":
-        return (summary.selected_capability,)
+    if summary.selected_tool and summary.selected_tool != "none":
+        return (summary.selected_tool,)
     return ()
 
 
@@ -225,32 +221,32 @@ def _multi_step_agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> li
     gaps: list[str] = []
     invocation_ids = tuple(
         str(item.get("invocation_id") or item.get("invocationId") or "").strip()
-        for item in summary.capability_invocations
+        for item in summary.tool_invocations
     )
     if len(invocation_ids) < 2 or not all(invocation_ids):
-        gaps.append("capability_invocations.multi_step_nodes")
+        gaps.append("tool_invocations.multi_step_nodes")
     else:
-        for index, invocation in enumerate(summary.capability_invocations[1:], start=1):
+        for index, invocation in enumerate(summary.tool_invocations[1:], start=1):
             parent_id = str(
                 invocation.get("parent_invocation_id") or invocation.get("parentInvocationId") or ""
             ).strip()
             if parent_id != invocation_ids[index - 1]:
-                gaps.append("capability_invocations.parent_edge")
+                gaps.append("tool_invocations.parent_edge")
                 break
     projection_ids = {
         str(item.get("projection_id") or item.get("projectionId") or "").strip()
         for item in summary.context_projections
         if str(item.get("projection_id") or item.get("projectionId") or "").strip()
     }
-    if projection_ids and not _capability_invocations_reference_projection_ids(
-        summary.capability_invocations,
+    if projection_ids and not _tool_invocations_reference_projection_ids(
+        summary.tool_invocations,
         projection_ids,
     ):
-        gaps.append("capability_invocations.projection_refs")
+        gaps.append("tool_invocations.projection_refs")
     return gaps
 
 
-def _capability_invocations_reference_projection_ids(
+def _tool_invocations_reference_projection_ids(
     invocations: tuple[dict[str, object], ...],
     projection_ids: set[str],
 ) -> bool:

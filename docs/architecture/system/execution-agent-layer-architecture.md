@@ -12,14 +12,14 @@ updated: 2026-06-13
 
 This document owns the supporting architecture for the Execution Agent Layer.
 It explains the repo-owned execution governance layer that sits between
-`app-api`, Temporal and model-facing / capability runtimes.
+`app-api`, Temporal and model-facing tool runtimes.
 
 It does not own:
 
 - product surfaces or browser runtime ownership
 - Temporal object schema, task queues or cancel/resume mechanics
 - model-facing SDK internals
-- typed tool / CapabilitySpec / ToolSpec details
+- typed tool / ToolSpec details
 - RAG-family retrieval planning internals
 - prompt template wording
 
@@ -30,7 +30,7 @@ The main answer chain is:
 ```text
 app-api
 -> execution-control durable run admission
--> CapabilityExecutionWorkflow
+-> ToolExecutionWorkflow
 -> optional context.memory_recall
 -> agent.primary first model-facing decision
 -> direct/no-tool terminal or admitted tool / workflow signal
@@ -48,11 +48,11 @@ run under explicit policy, budget, projection and fail-close rules.
 Execution Agent Layer owns:
 
 - durable run admission after product-surface admission
-- visible capability / tool set trimming before model-facing execution
+- visible tool set trimming before model-facing execution
 - first-decision framing for `agent.primary`
 - direct/no-tool terminal semantics for product identity, greetings,
   clarification, rejection, unsupported and fail-close outcomes
-- selected tool / workflow-signal projection when a campus capability is needed
+- selected tool / workflow-signal projection when a campus tool is needed
 - deterministic workflow planning and typed step admission after first decision
 - handoff shaping, bounded context projection and finalization ownership
 - fail-close terminal semantics for policy, contract, admission and runtime
@@ -63,21 +63,21 @@ Execution Agent Layer does not own:
 - product auth, session, account, conversation or browser route truth
 - source truth, ingestion, index build, raw object storage or collection release
 - provider raw trace, SDK-native graph state or SDK session memory
-- capability-local source-channel readiness
+- tool-local source-channel readiness
 - Operator Console query ownership
 
 ## Boundary With Runtime Components
 
 - `apps/app-api` owns product ingress, session, request ledger and surface
-  capability policy.
+  tool policy.
 - `apps/execution-control` owns durable execution admission, Temporal command /
   query / cancel, visible set trimming, step admission, finalization and
   sanitized projection.
-- `CapabilityExecutionWorkflow` owns deterministic execution lifetime and step
+- `ToolExecutionWorkflow` owns deterministic execution lifetime and step
   ordering, but it is not an agent identity.
 - `apps/agent-runtime` owns the model-facing primary agent loop inside an
   admitted Temporal activity, not durable run truth.
-- Capability workers own typed tool or bounded agent-as-tool activity execution
+- Tool activity workers own typed tool or bounded agent-as-tool activity execution
   after workflow admission.
 
 ## First Decision
@@ -85,13 +85,13 @@ Execution Agent Layer does not own:
 The first model-facing decision is performed by `agent.primary` over a
 workflow-trimmed visible tool set.
 
-Missing `requested_capability` must remain capability-neutral. It must not be
-silently rewritten to `knowledge`. The model may answer directly without tools
-when the request is product identity, ordinary chat, clarification, rejection or
-out-of-scope handling.
+Missing `requested_tool` is treated only as an absent compatibility hint.
+It must not be silently rewritten to `knowledge`. The model may answer directly
+without tools when the request is product identity, ordinary chat,
+clarification, rejection or out-of-scope handling.
 
 Synthetic branches such as `assistant_intro`, `product_meta`, `product persona`
-or `surface prompt profile` are not separate capabilities.
+or `surface prompt profile` are not separate runtime surfaces or tools.
 
 ## Finalization
 
@@ -116,7 +116,7 @@ eval denominator.
 ## Related Documents
 
 - `durable-agent-runtime-architecture.md`
-- `capability-routing-and-admission-architecture.md`
-- `tool-and-capability-runtime-architecture.md`
-- `agent-framework-boundary-architecture.md`
-- `operator-observability-architecture.md`
+- `tool-routing.md`
+- `tool-runtime.md`
+- `agent-framework.md`
+- `ops-observability.md`

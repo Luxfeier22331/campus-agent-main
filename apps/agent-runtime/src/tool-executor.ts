@@ -55,7 +55,6 @@ export function createExecutionControlToolExecutor(options: ExecutionControlTool
 		return {
 			status: "completed",
 			toolName: request.tool.name,
-			capability: request.tool.capability,
 			payloadKind: request.tool.name,
 			argumentsJson: request.argumentsJson,
 			result,
@@ -72,7 +71,6 @@ function failedToolResult(
 	return {
 		status: "failed",
 		toolName: request.tool.name,
-		capability: request.tool.capability,
 		payloadKind: request.tool.name,
 		argumentsJson: request.argumentsJson,
 		result,

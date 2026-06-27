@@ -20,7 +20,7 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 			env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
 				? "configured"
 				: "not_configured",
-		operatorBridge: "configured",
+		operatorSurface: "configured",
 		executionControl: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};

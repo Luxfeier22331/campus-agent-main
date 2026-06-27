@@ -183,7 +183,7 @@ canonical doc 正文交付长期采用：
   - restricted / gated docs search index admission 与 manifest resolution
   - restricted / gated citation/source-card permalink resolve
   - restricted admission
-  - future `historical / as_of / compare` capability routing
+  - future `historical / as_of / compare` tool routing
 
 当前 campus-web implementation posture：
 
@@ -310,7 +310,7 @@ admission truth。
 - restricted reader 可以与 public reader 共用同一 reader asset format，但 delivery mode
   不得伪装成匿名 public static path
 - 受限文档阅读只承诺当前已冻结的 gated reader/static index delivery；不得从本文推导出
-  学生 / 教职工差异化 capability 权限、内部文件库或 legacy ACL rollout
+  学生 / 教职工差异化 tool 权限、内部文件库或 legacy ACL rollout
 
 ## Retired Surface Posture
 
@@ -352,7 +352,7 @@ admission truth。
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`

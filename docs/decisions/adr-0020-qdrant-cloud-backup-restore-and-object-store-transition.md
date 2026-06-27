@@ -21,7 +21,7 @@ snapshot-to-object-storage backup path. The active decision is:
 
 The active staging data-plane runbook is:
 
-- `docs/runbooks/execution-control-staging-operations.md`
+- `docs/runbooks/execution-ops.md`
 
 ## Historical Summary
 

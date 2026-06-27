@@ -78,9 +78,9 @@ export interface LangfuseCloseoutIdentity {
 }
 
 export interface WorkflowTraceSummary {
-	selected_capability: string;
+	selected_tool: string;
 	trace_steps: Array<{
-		selected_capability?: string;
+		selected_tool?: string;
 		status: string;
 		step_id: string;
 	}>;

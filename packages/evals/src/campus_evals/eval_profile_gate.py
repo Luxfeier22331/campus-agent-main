@@ -68,10 +68,10 @@ from campus_evals.online_answer_path_eval import (
     filter_online_answer_path_cases,
     load_online_answer_path_cases,
 )
-from campus_evals.tool_family_denominator import (
+from campus_evals.tool_denominator import (
     ToolObservation,
-    evaluate_tool_family_denominator,
-    load_tool_family_denominator,
+    evaluate_tool_denominator,
+    load_tool_denominator,
 )
 
 
@@ -115,7 +115,7 @@ def run_online_answer_path_profile_gate(
     )
 
 
-def run_tool_family_denominator_profile_gate(
+def run_tool_denominator_profile_gate(
     *,
     output_dir: Path,
     cases_path: Path | None = None,
@@ -123,31 +123,31 @@ def run_tool_family_denominator_profile_gate(
     collect_runtime: bool = False,
     git_head_resolver: Callable[[], str | None] | None = None,
 ) -> EvalProfileGateReport:
-    fixture = load_tool_family_denominator(cases_path)
+    fixture = load_tool_denominator(cases_path)
     runtime_metrics = None
     if collect_runtime:
         observations, runtime_metrics = _collect_with_runtime_metrics(
-            profile_id="tool_family_denominator",
+            profile_id="tool_denominator",
             case_count=len(fixture.cases),
-            collector=lambda: collect_tool_family_denominator_runtime_observations(fixture),
+            collector=lambda: collect_tool_denominator_runtime_observations(fixture),
         )
     else:
         observations = _load_tool_observations(observations_path)
-    report = evaluate_tool_family_denominator(
+    report = evaluate_tool_denominator(
         fixture,
         observations,
     )
     return _write_profile_report(
         output_dir=output_dir,
-        profile_id="tool_family_denominator",
-        case_family="tool_family_denominators.v1",
+        profile_id="tool_denominator",
+        case_family="tool_denominators.v1",
         report_passed=report.passed,
         total=report.total,
         passed_count=report.passed_count,
         failed_count=report.failed_count,
         results=tuple(asdict(result) for result in report.results),
         version_summary=_version_summary(
-            case_set_version="tool_family_denominators.v1",
+            case_set_version="tool_denominators.v1",
             git_head_resolver=git_head_resolver,
         ),
         runtime_metrics=runtime_metrics,
@@ -343,7 +343,7 @@ def collect_online_answer_path_runtime_observations(
     return observations
 
 
-def collect_tool_family_denominator_runtime_observations(
+def collect_tool_denominator_runtime_observations(
     fixture,
     *,
     settings: AppApiEvalClientSettings | None = None,
@@ -357,7 +357,7 @@ def collect_tool_family_denominator_runtime_observations(
         execution = api_client.execute_chat_request(
             case_id=case.case_id,
             prompt=_tool_case_prompt(case),
-            requested_capability=_requested_capability_for_tool(case.tool_name),
+            requested_tool=_requested_tool_for_tool(case.tool_name),
         )
         response = execution.response
         observability = response.observability
@@ -392,7 +392,7 @@ def collect_authz_privacy_runtime_observations(
         execution = api_client.execute_chat_request(
             case_id=case.case_id,
             prompt=_authz_case_prompt(case),
-            requested_capability="notice",
+            requested_tool="campus_notice_discover",
         )
         response = execution.response
         observability = response.observability
@@ -435,7 +435,7 @@ def collect_agentic_retrieval_plan_runtime_observations(
         execution = api_client.execute_chat_request(
             case_id=case.case_id,
             prompt=case.user_goal,
-            requested_capability="knowledge",
+            requested_tool="knowledge_query",
         )
         summary = execution.response.workflow_trace_summary
         routing_frame = summary.routing_frame if summary is not None else {}
@@ -514,7 +514,7 @@ def _online_answer_observation_from_execution(
         case_id=case_id,
         request_id=execution.request_correlation.request_id,
         trace_id=execution.request_correlation.trace_id,
-        selected_capability=response.selected_capability or "none",
+        selected_tool=response.selected_tool or "none",
         terminal_status=response.status,
         semantic_outcome=_semantic_outcome_from_status(
             terminal_status=response.status,
@@ -595,7 +595,7 @@ def _online_answer_case_preflight_blocked(case, blocked_reason: dict[str, object
     if "executionRuntime" in blocked_reason:
         return True
     return (
-        case.expected.selected_capability == "campus_services"
+        case.expected.selected_tool == "transport_schedule_lookup"
         and "campusServicesProductPath" in blocked_reason
     )
 
@@ -610,7 +610,7 @@ def _blocked_online_answer_observation(
         case_id=case.case_id,
         request_id="blocked:runtime_preflight",
         trace_id="blocked:runtime_preflight",
-        selected_capability=case.expected.selected_capability,
+        selected_tool=case.expected.selected_tool,
         terminal_status="error",
         semantic_outcome="blocked",
         fail_close_reason="runtime_preflight_blocked",
@@ -638,7 +638,7 @@ def _blocked_online_answer_observation(
             "direct_vs_delegate_branch": "blocked",
             "fail_close_reason": "runtime_preflight_blocked",
             "preflight": _readiness_preflight(readiness),
-            "selected_capability": case.expected.selected_capability,
+            "selected_tool": case.expected.selected_tool,
         },
     )
 
@@ -668,10 +668,10 @@ def _tool_case_prompt(case) -> str:
     )
 
 
-def _requested_capability_for_tool(tool_name: str) -> str:
+def _requested_tool_for_tool(tool_name: str) -> str:
     if tool_name.startswith("campus_notice"):
         return "notice"
-    if tool_name == "retrieval.query":
+    if tool_name == "knowledge_query":
         return "knowledge"
     return "campus_services"
 
@@ -744,8 +744,8 @@ def online_answer_path_main(argv: Sequence[str] | None = None) -> int:
     return main(argv)
 
 
-def tool_family_denominator_main(argv: Sequence[str] | None = None) -> int:
-    from campus_evals.eval_profile_gate_cli import tool_family_denominator_main as main
+def tool_denominator_main(argv: Sequence[str] | None = None) -> int:
+    from campus_evals.eval_profile_gate_cli import tool_denominator_main as main
 
     return main(argv)
 
@@ -785,7 +785,7 @@ __all__ = [
     "collect_authz_privacy_runtime_observations",
     "collect_document_quality_runtime_observations",
     "collect_online_answer_path_runtime_observations",
-    "collect_tool_family_denominator_runtime_observations",
+    "collect_tool_denominator_runtime_observations",
     "derive_eval_operations_observations_from_artifacts",
     "document_quality_main",
     "eval_operations_governance_main",
@@ -795,6 +795,6 @@ __all__ = [
     "run_document_quality_profile_gate",
     "run_eval_operations_governance_profile_gate",
     "run_online_answer_path_profile_gate",
-    "run_tool_family_denominator_profile_gate",
-    "tool_family_denominator_main",
+    "run_tool_denominator_profile_gate",
+    "tool_denominator_main",
 ]

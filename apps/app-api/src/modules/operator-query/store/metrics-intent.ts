@@ -17,7 +17,7 @@ import {
 function hasIntentSignal(row: {
 	intentAmbiguityReason?: string | null;
 	intentAmbiguitySignal?: string | null;
-	intentCapability?: string | null;
+	intentTool?: string | null;
 	intentClassifierVersion?: string | null;
 	intentContextResolutionState?: string | null;
 	intentLaunchState?: string | null;
@@ -28,7 +28,7 @@ function hasIntentSignal(row: {
 	intentTaskKind?: string | null;
 }) {
 	return Boolean(
-		row.intentCapability ||
+		row.intentTool ||
 			row.intentTaskKind ||
 			row.intentLaunchState ||
 			row.intentNextAction ||
@@ -123,7 +123,7 @@ export function createIntentMetricHandlers(runtime: OperatorQueryRuntime) {
 						intentRows.length,
 					),
 					distributions: {
-						capability: buildDistribution(intentRows, (row) => row.intentCapability),
+						tool: buildDistribution(intentRows, (row) => row.intentTool),
 						classifierVersion: buildDistribution(intentRows, (row) => row.intentClassifierVersion),
 						launchState: buildDistribution(intentRows, (row) => row.intentLaunchState),
 						nextAction: buildDistribution(intentRows, (row) => row.intentNextAction),

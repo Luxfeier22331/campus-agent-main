@@ -9,7 +9,7 @@ from campus_contracts import (
     KnowledgeScope,
     ProfileMemoryItem,
     ProfileMemorySummary,
-    RequestedCapability,
+    RequestedTool,
     SelectedNoticeRef,
     SessionSlot,
     SessionSummary,
@@ -154,9 +154,9 @@ def _intent_case_from_payload(
     generator_version: str,
     axis: dict[str, Any],
 ) -> IntentCase:
-    expected_capability = _required_string(
-        payload.get("expected_capability"),
-        "intent_case.expected_capability",
+    expected_tool = _required_string(
+        payload.get("expected_tool"),
+        "intent_case.expected_tool",
     )
     tags = _synthetic_tags(
         _string_tuple(payload.get("tags")),
@@ -168,14 +168,14 @@ def _intent_case_from_payload(
     return IntentCase(
         case_id=case_id,
         user_goal=_required_string(payload.get("user_goal"), "intent_case.user_goal"),
-        requested_capability=_requested_capability_from_payload(
-            payload.get("requested_capability"),
-            expected_capability,
+        requested_tool=_requested_tool_from_payload(
+            payload.get("requested_tool"),
+            expected_tool,
         ),
         requested_scope=_knowledge_scope_from_payload(payload.get("requested_scope")),
         version_query=_version_query_from_payload(payload.get("version_query")),
         context=_context_from_payload(payload.get("context")),
-        expected_capability=expected_capability,
+        expected_tool=expected_tool,
         expected_task_kind=_required_string(
             payload.get("expected_task_kind"),
             "intent_case.expected_task_kind",
@@ -211,14 +211,14 @@ def _intent_case_from_payload(
     )
 
 
-def _requested_capability_from_payload(
+def _requested_tool_from_payload(
     value: object,
-    expected_capability: str,
-) -> RequestedCapability | None:
+    expected_tool: str,
+) -> RequestedTool | None:
     normalized = _optional_string(value)
     if normalized:
         return normalized  # type: ignore[return-value]
-    return expected_capability  # type: ignore[return-value]
+    return expected_tool  # type: ignore[return-value]
 
 
 def _synthetic_tags(

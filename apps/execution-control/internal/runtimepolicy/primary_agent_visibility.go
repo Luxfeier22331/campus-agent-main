@@ -2,20 +2,20 @@ package runtimepolicy
 
 import "strings"
 
-func PrimaryAgentVisibleCapabilities(
-	visibleCapabilities []string,
-	requestedCapability string,
+func PrimaryAgentVisibleToolNames(
+	visibleToolNames []string,
+	requestedTool string,
 	userGoal string,
 	policy IntentPolicyArtifact,
 ) []string {
-	visible := normalizedCapabilities(visibleCapabilities)
+	visible := normalizedToolNames(visibleToolNames)
 	if len(visible) == 0 {
 		return nil
 	}
-	if strings.TrimSpace(requestedCapability) != "" {
+	if strings.TrimSpace(requestedTool) != "" {
 		return visible
 	}
-	if !hasCapability(visible, "knowledge") {
+	if !hasToolName(visible, "knowledge_query") {
 		return visible
 	}
 	normalizedGoal := NormalizeGoal(userGoal)
@@ -25,10 +25,10 @@ func PrimaryAgentVisibleCapabilities(
 	if firstMatch(normalizedGoal, policy.Signals("institutional_account_knowledge")) == "" {
 		return visible
 	}
-	return []string{"knowledge"}
+	return []string{"knowledge_query"}
 }
 
-func normalizedCapabilities(values []string) []string {
+func normalizedToolNames(values []string) []string {
 	result := make([]string, 0, len(values))
 	seen := map[string]struct{}{}
 	for _, value := range values {
@@ -45,9 +45,9 @@ func normalizedCapabilities(values []string) []string {
 	return result
 }
 
-func hasCapability(values []string, capability string) bool {
+func hasToolName(values []string, toolName string) bool {
 	for _, value := range values {
-		if value == capability {
+		if value == toolName {
 			return true
 		}
 	}

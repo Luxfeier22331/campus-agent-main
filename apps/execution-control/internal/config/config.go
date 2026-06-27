@@ -20,15 +20,21 @@ type Config struct {
 	WorkerSharedSecret                  string
 	DefaultActorID                      string
 	DefaultActorRoles                   []string
+	ExecutionResponseLimitBytes         int64
+	ExecutionBreakerFailureThreshold    int
+	ExecutionBreakerOpenMS              int
+	ExecutionRetryMaxAttempts           int
+	ExecutionRetryBaseMS                int
 	MaxConcurrentAnswers                int
 	QueueCapacity                       int
 	QueueTimeoutMS                      int
 	RequestTimeoutMS                    int
 	RequestBodyLimitBytes               int64
+	ExecutionTimeoutMS                  int
+	ExecutionCancelTimeoutMS            int
 	ShutdownGraceMS                     int
 	MetricsBearerToken                  string
 	IntentPolicyPath                    string
-	LaneBudgets                         map[string]LaneBudget
 	OTelEnabled                         bool
 	OTelEndpoint                        string
 	OTelMetricsEnabled                  bool
@@ -44,7 +50,7 @@ type Config struct {
 	ExecutionAuditURL                   string
 	ExecutionAuditSharedSecret          string
 	ExecutionAuditTimeoutMS             int
-	OpenCapabilities                    []string
+	OpenTools                           []string
 	MultiStepWorkflowEnabled            bool
 	WorkflowRunDatabaseURL              string
 	WorkflowRunAutoMigrate              bool
@@ -65,8 +71,8 @@ type Config struct {
 	ProviderConfigSnapshotPath          string
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string
-	StructuredQueryTrustedTimeRFC3339   string
-	StructuredQueryTimeoutMS            int
+	ToolReadModelTrustedTimeRFC3339     string
+	ToolReadModelTimeoutMS              int
 	StructuredProjectionDatabaseURL     string
 	ProviderPricingPath                 string
 	NoticeReadModelDatabaseURL          string
@@ -107,12 +113,6 @@ type Config struct {
 	EmbeddingDimensions                 int
 }
 
-type LaneBudget struct {
-	MaxConcurrent  int
-	QueueCapacity  int
-	QueueTimeoutMS int
-}
-
 type WorkerProfile struct {
 	ActivitySlots                int
 	ActivityTaskPollers          int
@@ -121,8 +121,6 @@ type WorkerProfile struct {
 	WorkflowTaskSlots            int
 	WorkflowTaskPollers          int
 }
-
-var laneNames = []string{"rag", "navigation", "campus_services", "notice", "default"}
 
 type envValues struct {
 	AppName                             string `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
@@ -172,8 +170,8 @@ type envValues struct {
 	ProviderConfigSnapshotPath          string `env:"EXECUTION_CONTROL_PROVIDER_CONFIG_SNAPSHOT_PATH"`
 	QueryServingScopesPath              string
 	InternalQuerySharedSecret           string `env:"EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET"`
-	StructuredQueryTrustedTimeRFC3339   string `env:"EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
-	StructuredQueryTimeoutMS            int
+	ToolReadModelTrustedTimeRFC3339     string `env:"EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"`
+	ToolReadModelTimeoutMS              int
 	ProviderPricingPath                 string
 	NoticeReadModelTable                string  `env:"INTERNAL_NOTICE_READ_MODEL_TABLE" envDefault:"ingestion_projection.internal_notice_read_model"`
 	NoticeBodyObjectStoreEndpoint       string  `env:"EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT"`
@@ -222,6 +220,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := rejectRetiredPromptRuntimeSettings(); err != nil {
 		return Config{}, err
 	}
+	if err := rejectRetiredPythonBridgeSettings(); err != nil {
+		return Config{}, err
+	}
 	values, err := parseEnvValues()
 	if err != nil {
 		return Config{}, err
@@ -253,11 +254,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err := validateEnvValues(values, runtimeProfile, otelEnabled); err != nil {
 		return Config{}, err
 	}
-	laneBudgets := defaultLaneBudgets(values.MaxConcurrentAnswers, values.QueueCapacity, values.QueueTimeoutMS)
-	laneBudgets, err = applyRuntimeConfigProfileLaneBudgets(laneBudgets, runtimeConfigProfile)
-	if err != nil {
-		return Config{}, err
-	}
 	workerProfiles, err := readWorkerProfilesStrict(values)
 	if err != nil {
 		return Config{}, err
@@ -266,9 +262,9 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	var openCapabilities []string
-	if runtimeConfigProfile.OpenCapabilities != nil {
-		openCapabilities, err = validateOpenCapabilities(runtimeConfigProfile.OpenCapabilities)
+	var openTools []string
+	if runtimeConfigProfile.OpenTools != nil {
+		openTools, err = validateOpenTools(runtimeConfigProfile.OpenTools)
 		if err != nil {
 			return Config{}, err
 		}
@@ -334,7 +330,6 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ShutdownGraceMS:                     values.ShutdownGraceMS,
 		MetricsBearerToken:                  strings.TrimSpace(values.MetricsBearerToken),
 		IntentPolicyPath:                    strings.TrimSpace(values.IntentPolicyPath),
-		LaneBudgets:                         laneBudgets,
 		OTelEnabled:                         otelEnabled,
 		OTelEndpoint:                        strings.TrimSpace(values.OTelEndpoint),
 		OTelMetricsEnabled:                  otelMetricsEnabled,
@@ -350,7 +345,7 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ExecutionAuditURL:                   strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:          strings.TrimSpace(values.ExecutionAuditSharedSecret),
 		ExecutionAuditTimeoutMS:             values.ExecutionAuditTimeoutMS,
-		OpenCapabilities:                    openCapabilities,
+		OpenTools:                           openTools,
 		MultiStepWorkflowEnabled:            multiStepWorkflowEnabled,
 		WorkflowRunDatabaseURL:              readWorkflowRunDatabaseURL(values),
 		WorkflowRunAutoMigrate:              workflowRunAutoMigrate,
@@ -371,8 +366,8 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		ProviderConfigSnapshotPath:          strings.TrimSpace(values.ProviderConfigSnapshotPath),
 		QueryServingScopesPath:              strings.TrimSpace(values.QueryServingScopesPath),
 		InternalQuerySharedSecret:           strings.TrimSpace(values.InternalQuerySharedSecret),
-		StructuredQueryTrustedTimeRFC3339:   strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
-		StructuredQueryTimeoutMS:            values.StructuredQueryTimeoutMS,
+		ToolReadModelTrustedTimeRFC3339:     strings.TrimSpace(values.ToolReadModelTrustedTimeRFC3339),
+		ToolReadModelTimeoutMS:              values.ToolReadModelTimeoutMS,
 		StructuredProjectionDatabaseURL:     readStructuredProjectionDatabaseURL(),
 		ProviderPricingPath:                 strings.TrimSpace(values.ProviderPricingPath),
 		NoticeReadModelDatabaseURL:          readNoticeReadModelDatabaseURL(),
@@ -435,7 +430,7 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 		{"runtime profile otel.export_timeout_ms", values.OTelExportTimeoutMS},
 		{"runtime profile otel.export_interval_ms", values.OTelExportIntervalMS},
 		{"runtime profile execution_audit.timeout_ms", values.ExecutionAuditTimeoutMS},
-		{"runtime profile structured_query_timeout_ms", values.StructuredQueryTimeoutMS},
+		{"runtime profile tool_read_model_timeout_ms", values.ToolReadModelTimeoutMS},
 		{"EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS", values.TemporalStartTimeoutMS},
 		{"EXECUTION_CONTROL_AGENT_RUNTIME_TIMEOUT_MS", values.AgentRuntimeTimeoutMS},
 		{"runtime profile rag.top_k_max", values.RAGTopKMax},
@@ -534,21 +529,13 @@ func validatePersonalMemorySettings(
 	runtimeRole string,
 ) error {
 	role := normalizeRuntimeRole(runtimeRole)
-	if role == "activity-knowledge" {
-		return fmt.Errorf("activity-knowledge is retired; use activity-knowledge-plan, activity-knowledge-retrieval, or activity-knowledge-synthesis")
-	}
 	if runtimeProfile == "local" {
 		return nil
 	}
 	switch role {
 	case "workflow",
 		"activity-agent",
-		"activity-finalization",
-		"activity-campus-services",
-		"activity-notice",
-		"activity-navigation",
-		"activity-knowledge-plan",
-		"activity-knowledge-synthesis":
+		"activity-knowledge":
 		return nil
 	}
 	if strings.TrimSpace(values.PersonalMemoryRuntime) != "" &&
@@ -573,29 +560,15 @@ func validatePersonalMemorySettings(
 
 func normalizeRuntimeRole(value string) string {
 	switch strings.TrimSpace(value) {
-	case "activity-context", "activity-worker-context", "context":
-		return "activity-context"
-	case "activity-agent", "activity-worker-agent", "agent":
+	case "activity-agent":
 		return "activity-agent"
-	case "activity-knowledge", "activity-worker-knowledge", "knowledge":
+	case "activity-core":
+		return "activity-core"
+	case "activity-knowledge":
 		return "activity-knowledge"
-	case "activity-knowledge-plan", "activity-worker-knowledge-plan", "knowledge-plan":
-		return "activity-knowledge-plan"
-	case "activity-knowledge-retrieval", "activity-worker-knowledge-retrieval", "knowledge-retrieval":
-		return "activity-knowledge-retrieval"
-	case "activity-knowledge-synthesis", "activity-worker-knowledge-synthesis", "knowledge-synthesis":
-		return "activity-knowledge-synthesis"
-	case "activity-campus-services", "activity-worker-campus-services", "campus_services":
-		return "activity-campus-services"
-	case "activity-notice", "activity-worker-notice", "notice":
-		return "activity-notice"
-	case "activity-navigation", "activity-worker-navigation", "navigation":
-		return "activity-navigation"
-	case "activity-finalization", "activity-worker-finalization", "finalization":
-		return "activity-finalization"
-	case "workflow", "workflow-worker":
+	case "workflow":
 		return "workflow"
-	case "execution-control", "http", "api":
+	case "execution-control":
 		return "execution-control"
 	default:
 		return strings.TrimSpace(value)

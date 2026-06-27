@@ -6,8 +6,8 @@
 
 当前产品方向不是通用聊天机器人，而是一个 `institution-scoped`、`campus-web first`、
 Execution Agent Layer-led 的校园助理系统：`campus-web` 学生侧主体验、账号浏览器 shell 与文档阅读面、
-受保护运营面、共享 `app-api`、内部 `execution-control`，以及按能力边界拆分的 capability /
-retrieval / ingestion packages。
+受保护运营面、共享 `app-api`、内部 `execution-control`，以及按 tool / retrieval /
+ingestion boundary 拆分的 packages。
 
 当前 merged truth 的主路径为：
 
@@ -17,14 +17,11 @@ browser -> campus-web -> student experience / account shell
 campus-web same-origin allowlisted /api/* -> app-api
 
 browser -> campus-web Q&A -> app-api assistant-ui chat routes
--> execution-control -> Temporal -> workflow-worker / activity-worker-context /
-activity-worker-agent / activity-worker-knowledge-plan /
-activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
-capability workers /
-activity-worker-finalization
--> memory recall / OpenAI Agents SDK primary agent loop / typed capability
+-> execution-control -> Temporal -> workflow-worker / activity-worker-core /
+activity-worker-agent / activity-worker-knowledge
+-> memory recall / OpenAI Agents SDK primary agent loop / typed tool
 branch / Go RAG DTO/runtime
--> Qdrant / provider / structured read models -> sanitized projection
+-> Qdrant / provider / tool read models -> sanitized projection
 
 browser -> campus-web /docs/* -> Rspress-powered canonical reader
 
@@ -68,21 +65,22 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
 
 当前接受的产品定位、merged truth 与长期架构分别见：
 
-- [产品定位](./docs/architecture/product-positioning.md)
-- [当前架构](./docs/architecture/current-architecture.md)
-- [目标架构](./docs/architecture/target-architecture.md)
+- [产品定位](./docs/architecture/product.md)
+- [当前架构](./docs/architecture/current.md)
+- [目标架构](./docs/architecture/target.md)
 
 ## Repository Layout
 
-仓库按 runtime boundary 与 capability boundary 组织：
+仓库按 runtime boundary 与 tool boundary 组织：
 
 - [`apps/`](./apps/)
   - runtime shell 与 transport boundary，例如 `campus-web`、
     `operator-console-web`、`app-api`、`execution-control`、
     `ingestion-worker`
 - [`packages/`](./packages/)
-  - 稳定能力边界，例如
-    `ingestion-core`、`contracts`、`regulation-semantics`、`campus-services-capability`
+  - 稳定边界，例如
+    `ingestion-core`、`contracts`、`regulation-semantics`、`notice-tool`、
+    `navigation-tool`
 - [`configs/`](./configs/)
   - collection/runtime profile、ingestion 配置与 source config
 - [`docs/`](./docs/)
@@ -119,7 +117,7 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   - 长期有效、应被反复引用的 source-of-truth 文档
 - `docs/documentation-architecture.md`
   - 文档 truth class、冲突裁决顺序与入口路由规则
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
   - 当前 accepted merged truth
 - `.planning/PROJECT.md`
   - compact project work map；不覆盖 architecture / contract / data truth

@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-truth_scope: capability
+truth_scope: execution
 owner_boundary: domains/campus-services
 status: active
 created: 2026-04-23
@@ -10,7 +10,7 @@ updated: 2026-06-26
 
 ## Boundary
 
-`campus_services` is the projection-backed structured runtime for repo-owned
+`campus_services` is the projection-backed tool read model for repo-owned
 campus service facts. It is not a generic retrieval alias and does not own wiki
 content.
 
@@ -86,10 +86,9 @@ not call `transport_schedule_lookup`.
 
 A campus-services tool is open only when all registries agree:
 
-- `configs/runtime/tools.v3.json` has `active: true`
+- `configs/runtime/tools.v4.json` has `exposure: "model_visible"`
 - `configs/runtime/tool-function-schemas.v1.json` has an available strict schema
-- `configs/runtime/capabilities.v1.json` lists it in `allowed_structured_tools`
-- workflow artifacts bind it to supported Go runtime output
+- execution-control runtime profile `open_tools` includes the tool
 - Go readyz/runtime tests and product-path gates pass
 
 As of this document, only `transport_schedule_lookup` satisfies this rule.

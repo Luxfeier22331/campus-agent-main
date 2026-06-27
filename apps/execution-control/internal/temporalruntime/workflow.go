@@ -9,27 +9,27 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func CapabilityExecutionWorkflow(
+func ToolExecutionWorkflow(
 	ctx workflow.Context,
-	input CapabilityExecutionWorkflowInput,
-) (CapabilityExecutionWorkflowResult, error) {
+	input ToolExecutionWorkflowInput,
+) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
 	contextOptions := activityOptions
-	contextOptions.TaskQueue = ActivityTaskQueueContext
+	contextOptions.TaskQueue = ActivityTaskQueueCore
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	var memory MemoryRecallActivityOutput
-	requestedCapability := input.RequestedCapability
+	requestedTool := input.RequestedTool
 	if err := workflow.ExecuteActivity(contextCtx, MemoryRecallActivityName, MemoryRecallActivityInput{
-		RequestID:           input.RequestID,
-		RequestedCapability: requestedCapability,
-		RunID:               input.RunID,
-		TraceID:             input.TraceID,
+		RequestID:     input.RequestID,
+		RequestedTool: requestedTool,
+		RunID:         input.RunID,
+		TraceID:       input.TraceID,
 	}).Get(ctx, &memory); err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return ToolExecutionWorkflowResult{}, err
 	}
-	agent, err := executePrimaryAgentWithBoundedReplan(ctx, activityOptions, input, memory, requestedCapability)
+	agent, err := executePrimaryAgentWithBoundedReplan(ctx, activityOptions, input, memory, requestedTool)
 	if err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return ToolExecutionWorkflowResult{}, err
 	}
 	if primaryAgentSelectedKnowledge(agent) {
 		synthesis, grounding, err := executeKnowledgeBranch(
@@ -40,7 +40,7 @@ func CapabilityExecutionWorkflow(
 			[]string{agent.AgentResultRef},
 		)
 		if err != nil {
-			return CapabilityExecutionWorkflowResult{}, err
+			return ToolExecutionWorkflowResult{}, err
 		}
 		finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
 			GroundingRef: grounding.GroundingRef,
@@ -49,9 +49,9 @@ func CapabilityExecutionWorkflow(
 			TraceID:      input.TraceID,
 		})
 		if err != nil {
-			return CapabilityExecutionWorkflowResult{}, err
+			return ToolExecutionWorkflowResult{}, err
 		}
-		executeMemoryAppend(ctx, activityOptions, input, requestedCapability)
+		executeMemoryAppend(ctx, activityOptions, input, requestedTool)
 		return workflowResultFromFinalization(finalization), nil
 	}
 	finalization, err := executeFinalization(ctx, activityOptions, WriteFinalizationActivityInput{
@@ -60,9 +60,9 @@ func CapabilityExecutionWorkflow(
 		TraceID:        input.TraceID,
 	})
 	if err != nil {
-		return CapabilityExecutionWorkflowResult{}, err
+		return ToolExecutionWorkflowResult{}, err
 	}
-	executeMemoryAppend(ctx, activityOptions, input, requestedCapability)
+	executeMemoryAppend(ctx, activityOptions, input, requestedTool)
 	return workflowResultFromFinalization(finalization), nil
 }
 
@@ -81,17 +81,17 @@ func defaultActivityOptions() workflow.ActivityOptions {
 func executeMemoryAppend(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
-	input CapabilityExecutionWorkflowInput,
-	requestedCapability string,
+	input ToolExecutionWorkflowInput,
+	requestedTool string,
 ) {
 	contextOptions := activityOptions
-	contextOptions.TaskQueue = ActivityTaskQueueContext
+	contextOptions.TaskQueue = ActivityTaskQueueCore
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	appendInput := AppendConversationMemoryActivityInput{
-		RequestID:           input.RequestID,
-		RequestedCapability: requestedCapability,
-		RunID:               input.RunID,
-		TraceID:             input.TraceID,
+		RequestID:     input.RequestID,
+		RequestedTool: requestedTool,
+		RunID:         input.RunID,
+		TraceID:       input.TraceID,
 	}
 	var appendResult AppendConversationMemoryActivityOutput
 	_ = workflow.ExecuteActivity(
@@ -104,9 +104,9 @@ func executeMemoryAppend(
 func executePrimaryAgentWithBoundedReplan(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
-	input CapabilityExecutionWorkflowInput,
+	input ToolExecutionWorkflowInput,
 	memory MemoryRecallActivityOutput,
-	requestedCapability string,
+	requestedTool string,
 ) (ExecutePrimaryAgentActivityOutput, error) {
 	agentOptions := primaryAgentActivityOptions(activityOptions)
 	agentCtx := workflow.WithActivityOptions(ctx, agentOptions)
@@ -115,11 +115,11 @@ func executePrimaryAgentWithBoundedReplan(
 		MemoryContext:        memoryContext(memory),
 		MemoryProjectionRefs: memoryProjectionRefs(memory),
 		RequestID:            input.RequestID,
-		RequestedCapability:  requestedCapability,
+		RequestedTool:        requestedTool,
 		RunID:                input.RunID,
 		TraceID:              input.TraceID,
 		TurnID:               input.TurnID,
-		VisibleCapabilities:  append([]string{}, input.VisibleCapabilities...),
+		VisibleToolNames:     append([]string{}, input.VisibleToolNames...),
 	}
 	var agent ExecutePrimaryAgentActivityOutput
 	if err := workflow.ExecuteActivity(agentCtx, ExecutePrimaryAgentActivityName, agentInput).Get(ctx, &agent); err != nil {
@@ -186,42 +186,40 @@ func memoryContext(memory MemoryRecallActivityOutput) *MemoryContext {
 	}
 }
 
-type capabilityBranchExecutionResult struct {
-	GroundingRef       string
-	SelectedCapability string
-	SelectedTool       string
-	SynthesisRef       string
-	ToolResultRef      string
-	RunID              string
+type toolBranchExecutionResult struct {
+	GroundingRef  string
+	SelectedTool  string
+	SynthesisRef  string
+	ToolResultRef string
+	RunID         string
 }
 
-func (r capabilityBranchExecutionResult) FinalizationInput(traceID string) WriteFinalizationActivityInput {
+func (r toolBranchExecutionResult) FinalizationInput(traceID string) WriteFinalizationActivityInput {
 	return WriteFinalizationActivityInput{
-		GroundingRef:       r.GroundingRef,
-		RunID:              r.RunID,
-		SelectedCapability: r.SelectedCapability,
-		SelectedTool:       r.SelectedTool,
-		SynthesisRef:       r.SynthesisRef,
-		ToolResultRef:      r.ToolResultRef,
-		TraceID:            traceID,
+		GroundingRef:  r.GroundingRef,
+		RunID:         r.RunID,
+		SelectedTool:  r.SelectedTool,
+		SynthesisRef:  r.SynthesisRef,
+		ToolResultRef: r.ToolResultRef,
+		TraceID:       traceID,
 	}
 }
 
-func executeCapabilityBranchWithReplan(
+func executeToolBranchWithReplan(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
-	input CapabilityExecutionWorkflowInput,
+	input ToolExecutionWorkflowInput,
 	plan PlanRouteActivityOutput,
-) (capabilityBranchExecutionResult, error) {
+) (toolBranchExecutionResult, error) {
 	currentSteps := plan.BranchSteps()
 	currentPlanRef := plan.PlanRef
 	replanCount := 0
 	for {
-		result, failedStep, err := executeCapabilityBranchOnce(
+		result, failedStep, err := executeToolBranchOnce(
 			ctx,
 			activityOptions,
 			input,
-			plan.Capability,
+			plan.ToolTarget,
 			plan.ToolName,
 			currentPlanRef,
 			currentSteps,
@@ -230,47 +228,47 @@ func executeCapabilityBranchWithReplan(
 			return result, nil
 		}
 		if !workflowFailureAllowsReplan(failedStep, err) {
-			return capabilityBranchExecutionResult{}, err
+			return toolBranchExecutionResult{}, err
 		}
 		if replanCount >= plan.MaxReplans {
-			return capabilityBranchExecutionResult{}, err
+			return toolBranchExecutionResult{}, err
 		}
 		replanCount++
 		replan, replanErr := executePlanReplan(ctx, activityOptions, PlanReplanActivityInput{
-			AllowedCapabilities: allowedCapabilitiesForReplan(plan),
-			AllowedTools:        allowedToolsForReplan(plan, currentSteps),
-			FailureSummary:      sanitizeWorkflowFailure(err),
-			PreviousPlanRef:     currentPlanRef,
-			PreviousStepID:      failedStep.StepID,
-			Reason:              reasonForReplanFailure(failedStep, err),
-			ReplanCount:         replanCount,
-			RunID:               input.RunID,
-			TraceID:             input.TraceID,
+			AllowedToolTargets: allowedToolTargetsForReplan(plan),
+			AllowedTools:       allowedToolsForReplan(plan, currentSteps),
+			FailureSummary:     sanitizeWorkflowFailure(err),
+			PreviousPlanRef:    currentPlanRef,
+			PreviousStepID:     failedStep.StepID,
+			Reason:             reasonForReplanFailure(failedStep, err),
+			ReplanCount:        replanCount,
+			RunID:              input.RunID,
+			TraceID:            input.TraceID,
 		})
 		if replanErr != nil {
-			return capabilityBranchExecutionResult{}, replanErr
+			return toolBranchExecutionResult{}, replanErr
 		}
 		if err := validateReplanWithinBounds(plan, currentSteps, replan); err != nil {
-			return capabilityBranchExecutionResult{}, err
+			return toolBranchExecutionResult{}, err
 		}
 		currentSteps = replan.Steps
 		currentPlanRef = replan.NewPlanRef
 	}
 }
 
-func executeCapabilityBranchOnce(
+func executeToolBranchOnce(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
-	input CapabilityExecutionWorkflowInput,
-	selectedCapability string,
+	input ToolExecutionWorkflowInput,
+	selectedToolTarget string,
 	selectedTool string,
 	planRef string,
-	branchSteps []CapabilityBranchStep,
-) (capabilityBranchExecutionResult, CapabilityBranchStep, error) {
+	branchSteps []ToolBranchStep,
+) (toolBranchExecutionResult, ToolBranchStep, error) {
 	dependencyResultRefs := []string{}
 	var lastToolResult ExecuteTypedToolActivityOutput
 	for _, step := range branchSteps {
-		if step.Capability == "knowledge" {
+		if step.ToolTarget == "knowledge_query" {
 			synthesis, grounding, err := executeKnowledgeBranch(
 				ctx,
 				activityOptions,
@@ -279,32 +277,31 @@ func executeCapabilityBranchOnce(
 				dependencyResultRefs,
 			)
 			if err != nil {
-				return capabilityBranchExecutionResult{}, step, err
+				return toolBranchExecutionResult{}, step, err
 			}
-			return capabilityBranchExecutionResult{
-				GroundingRef:       grounding.GroundingRef,
-				RunID:              input.RunID,
-				SelectedCapability: firstNonEmpty(selectedCapability, step.Capability),
-				SelectedTool:       firstNonEmpty(step.ToolName, selectedTool),
-				SynthesisRef:       synthesis.SynthesisRef,
-			}, CapabilityBranchStep{}, nil
+			return toolBranchExecutionResult{
+				GroundingRef: grounding.GroundingRef,
+				RunID:        input.RunID,
+				SelectedTool: firstNonEmpty(step.ToolName, selectedTool),
+				SynthesisRef: synthesis.SynthesisRef,
+			}, ToolBranchStep{}, nil
 		}
 		branchOptions := activityOptions
-		branchOptions.TaskQueue = ActivityTaskQueueForCapability(step.Capability)
+		branchOptions.TaskQueue = ActivityTaskQueueForToolTarget(step.ToolTarget)
 		branchCtx := workflow.WithActivityOptions(ctx, branchOptions)
 		var toolResult ExecuteTypedToolActivityOutput
 		if err := workflow.ExecuteActivity(branchCtx, ExecuteTypedToolActivityName, ExecuteTypedToolActivityInput{
 			AllowedTools: step.AllowedTools,
-			Capability:   step.Capability,
 			Payload:      step.Payload,
 			PayloadKind:  step.PayloadKind,
 			RoutePlanRef: planRef,
 			RunID:        input.RunID,
 			ToolName:     step.ToolName,
+			ToolTarget:   step.ToolTarget,
 			TraceID:      input.TraceID,
-			WorkerRole:   step.WorkerRole,
+			TaskQueue:    step.TaskQueue,
 		}).Get(ctx, &toolResult); err != nil {
-			return capabilityBranchExecutionResult{}, step, err
+			return toolBranchExecutionResult{}, step, err
 		}
 		lastToolResult = toolResult
 		if toolResult.ResultRef != "" {
@@ -312,18 +309,17 @@ func executeCapabilityBranchOnce(
 		}
 	}
 	if lastToolResult.ResultRef == "" {
-		return capabilityBranchExecutionResult{}, CapabilityBranchStep{}, temporal.NewNonRetryableApplicationError(
-			"capability branch did not produce a finalizable result",
-			"capability_branch_empty",
+		return toolBranchExecutionResult{}, ToolBranchStep{}, temporal.NewNonRetryableApplicationError(
+			"tool branch did not produce a finalizable result",
+			"tool_branch_empty",
 			nil,
 		)
 	}
-	return capabilityBranchExecutionResult{
-		RunID:              input.RunID,
-		SelectedCapability: lastToolResult.Capability,
-		SelectedTool:       lastToolResult.ToolName,
-		ToolResultRef:      lastToolResult.ResultRef,
-	}, CapabilityBranchStep{}, nil
+	return toolBranchExecutionResult{
+		RunID:         input.RunID,
+		SelectedTool:  lastToolResult.ToolName,
+		ToolResultRef: lastToolResult.ResultRef,
+	}, ToolBranchStep{}, nil
 }
 
 func executePlanReplan(
@@ -332,32 +328,32 @@ func executePlanReplan(
 	input PlanReplanActivityInput,
 ) (PlanReplanActivityOutput, error) {
 	replanOptions := activityOptions
-	replanOptions.TaskQueue = ActivityTaskQueueContext
+	replanOptions.TaskQueue = ActivityTaskQueueCore
 	replanCtx := workflow.WithActivityOptions(ctx, replanOptions)
 	var output PlanReplanActivityOutput
 	err := workflow.ExecuteActivity(replanCtx, PlanReplanActivityName, input).Get(ctx, &output)
 	return output, err
 }
 
-func allowedCapabilitiesForReplan(plan PlanRouteActivityOutput) []string {
-	if len(plan.AllowedCapabilities) > 0 {
-		return append([]string{}, plan.AllowedCapabilities...)
+func allowedToolTargetsForReplan(plan PlanRouteActivityOutput) []string {
+	if len(plan.AllowedToolTargets) > 0 {
+		return append([]string{}, plan.AllowedToolTargets...)
 	}
-	capabilities := []string{}
+	targets := []string{}
 	seen := map[string]bool{}
 	for _, step := range plan.BranchSteps() {
-		if step.Capability != "" && !seen[step.Capability] {
-			seen[step.Capability] = true
-			capabilities = append(capabilities, step.Capability)
+		if step.ToolTarget != "" && !seen[step.ToolTarget] {
+			seen[step.ToolTarget] = true
+			targets = append(targets, step.ToolTarget)
 		}
 	}
-	if len(capabilities) == 0 && plan.Capability != "" {
-		capabilities = append(capabilities, plan.Capability)
+	if len(targets) == 0 && plan.ToolTarget != "" {
+		targets = append(targets, plan.ToolTarget)
 	}
-	return capabilities
+	return targets
 }
 
-func allowedToolsForReplan(plan PlanRouteActivityOutput, steps []CapabilityBranchStep) []string {
+func allowedToolsForReplan(plan PlanRouteActivityOutput, steps []ToolBranchStep) []string {
 	tools := []string{}
 	seen := map[string]bool{}
 	appendTool := func(tool string) {
@@ -381,19 +377,19 @@ func allowedToolsForReplan(plan PlanRouteActivityOutput, steps []CapabilityBranc
 
 func validateReplanWithinBounds(
 	original PlanRouteActivityOutput,
-	currentSteps []CapabilityBranchStep,
+	currentSteps []ToolBranchStep,
 	replan PlanReplanActivityOutput,
 ) error {
-	allowedCapabilities := setFromStrings(allowedCapabilitiesForReplan(original))
+	allowedToolTargets := setFromStrings(allowedToolTargetsForReplan(original))
 	allowedTools := setFromStrings(allowedToolsForReplan(original, currentSteps))
-	for _, capability := range replan.AllowedCapabilities {
-		if strings.TrimSpace(capability) != "" && !allowedCapabilities[capability] {
-			return fmt.Errorf("replan expanded capability: %s", capability)
+	for _, target := range replan.AllowedToolTargets {
+		if strings.TrimSpace(target) != "" && !allowedToolTargets[target] {
+			return fmt.Errorf("replan expanded tool target: %s", target)
 		}
 	}
 	for _, step := range replan.Steps {
-		if strings.TrimSpace(step.Capability) != "" && !allowedCapabilities[step.Capability] {
-			return fmt.Errorf("replan expanded capability: %s", step.Capability)
+		if strings.TrimSpace(step.ToolTarget) != "" && !allowedToolTargets[step.ToolTarget] {
+			return fmt.Errorf("replan expanded tool target: %s", step.ToolTarget)
 		}
 		for _, tool := range step.AllowedTools {
 			if strings.TrimSpace(tool) != "" && !allowedTools[tool] {
@@ -437,7 +433,7 @@ func sanitizeWorkflowFailure(err error) string {
 func executeKnowledgeBranch(
 	ctx workflow.Context,
 	activityOptions workflow.ActivityOptions,
-	input CapabilityExecutionWorkflowInput,
+	input ToolExecutionWorkflowInput,
 	workflowPlanRef string,
 	dependencyResultRefs []string,
 ) (SynthesizeRAGAnswerActivityOutput, VerifyGroundingActivityOutput, error) {
@@ -525,13 +521,13 @@ func knowledgeActivityOptions(base workflow.ActivityOptions, activityName string
 func KnowledgeActivityTaskQueueForActivity(activityName string) string {
 	switch activityName {
 	case PlanRAGActivityName, SelectEvidenceActivityName, VerifyGroundingActivityName:
-		return ActivityTaskQueueKnowledgePlan
+		return ActivityTaskQueueKnowledge
 	case RetrieveIndexedLookupActivityName, ExpandOrRescueRetrievalActivityName:
-		return ActivityTaskQueueKnowledgeRetrieval
+		return ActivityTaskQueueKnowledge
 	case SynthesizeRAGAnswerActivityName:
-		return ActivityTaskQueueKnowledgeSynthesis
+		return ActivityTaskQueueKnowledge
 	default:
-		return ActivityTaskQueueStructured
+		return ActivityTaskQueueCore
 	}
 }
 
@@ -542,59 +538,59 @@ func executeFinalization(
 ) (WriteFinalizationActivityOutput, error) {
 	finalizationOptions := activityOptions
 	finalizationOptions.StartToCloseTimeout = 30 * time.Second
-	finalizationOptions.TaskQueue = ActivityTaskQueueFinalization
+	finalizationOptions.TaskQueue = ActivityTaskQueueCore
 	finalizationCtx := workflow.WithActivityOptions(ctx, finalizationOptions)
 	var finalization WriteFinalizationActivityOutput
 	err := workflow.ExecuteActivity(finalizationCtx, WriteFinalizationActivityName, input).Get(ctx, &finalization)
 	return finalization, err
 }
 
-func workflowResultFromFinalization(finalization WriteFinalizationActivityOutput) CapabilityExecutionWorkflowResult {
-	return CapabilityExecutionWorkflowResult(finalization)
+func workflowResultFromFinalization(finalization WriteFinalizationActivityOutput) ToolExecutionWorkflowResult {
+	return ToolExecutionWorkflowResult(finalization)
 }
 
-func ActivityTaskQueueForCapability(capability string) string {
-	switch capability {
-	case "campus_services":
-		return ActivityTaskQueueCampusService
-	case "notice":
-		return ActivityTaskQueueNotice
-	case "navigation", "place_lookup":
-		return ActivityTaskQueueNavigation
-	case "knowledge", "":
-		return ActivityTaskQueueKnowledgePlan
+func ActivityTaskQueueForToolTarget(toolTarget string) string {
+	switch toolTarget {
+	case "transport_schedule_lookup":
+		return ActivityTaskQueueCore
+	case "campus_notice_discover", "campus_notice_change_set_lookup", "campus_notice_period_summary", "campus_notice_get":
+		return ActivityTaskQueueCore
+	case "place_lookup":
+		return ActivityTaskQueueCore
+	case "knowledge_query", "":
+		return ActivityTaskQueueKnowledge
 	default:
-		return ActivityTaskQueueStructured
+		return ActivityTaskQueueCore
 	}
 }
 
-func (p PlanRouteActivityOutput) BranchSteps() []CapabilityBranchStep {
+func (p PlanRouteActivityOutput) BranchSteps() []ToolBranchStep {
 	if len(p.Steps) > 0 {
-		steps := make([]CapabilityBranchStep, 0, len(p.Steps))
+		steps := make([]ToolBranchStep, 0, len(p.Steps))
 		for _, step := range p.Steps {
 			steps = append(steps, step.Clone())
 		}
 		return steps
 	}
-	return []CapabilityBranchStep{{
+	return []ToolBranchStep{{
 		AllowedTools: append([]string{}, p.AllowedTools...),
-		Capability:   p.Capability,
 		Payload:      cloneMap(p.Payload),
 		PayloadKind:  p.PayloadKind,
 		ToolName:     p.ToolName,
-		WorkerRole:   p.WorkerRole,
+		ToolTarget:   p.ToolTarget,
+		TaskQueue:    p.TaskQueue,
 	}}
 }
 
-func (s CapabilityBranchStep) Clone() CapabilityBranchStep {
-	return CapabilityBranchStep{
+func (s ToolBranchStep) Clone() ToolBranchStep {
+	return ToolBranchStep{
 		AllowedTools: append([]string{}, s.AllowedTools...),
-		Capability:   s.Capability,
 		Payload:      cloneMap(s.Payload),
 		PayloadKind:  s.PayloadKind,
 		StepID:       s.StepID,
 		ToolName:     s.ToolName,
-		WorkerRole:   s.WorkerRole,
+		ToolTarget:   s.ToolTarget,
+		TaskQueue:    s.TaskQueue,
 	}
 }
 

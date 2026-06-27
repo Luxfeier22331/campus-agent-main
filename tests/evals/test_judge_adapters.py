@@ -5,11 +5,11 @@ from unittest.mock import patch
 
 from campus_contracts import (
     ActorContext,
-    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
+    ToolResponse,
 )
 from campus_evals import ExecutionResult, GoldenCase, ObservedTrace, TraceExpectation
 from campus_evals.judge_adapters import (
@@ -54,9 +54,9 @@ def _response(
     answer_text: str = "",
     follow_up_question: str = "",
     sources: tuple[EvidenceSource, ...] = (),
-) -> CapabilityResponse:
-    return CapabilityResponse(
-        capability="knowledge",
+) -> ToolResponse:
+    return ToolResponse(
+        tool="knowledge_query",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",

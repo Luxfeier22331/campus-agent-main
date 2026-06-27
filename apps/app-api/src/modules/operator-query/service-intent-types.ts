@@ -12,7 +12,7 @@ export interface OperatorIntentSummaryResult {
 		ambiguityRate: MetricRatio;
 		contextUnresolvedRate: MetricRatio;
 		distributions: {
-			capability: OperatorDistributionBucket[];
+			tool: OperatorDistributionBucket[];
 			taskKind: OperatorDistributionBucket[];
 			launchState: OperatorDistributionBucket[];
 			nextAction: OperatorDistributionBucket[];

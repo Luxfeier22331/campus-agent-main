@@ -15,9 +15,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             description="student handbook delegate branch",
             expectation=WorkflowTraceExpectation(
                 direct_vs_delegate_branch="delegate",
-                selected_capability="knowledge",
-                selected_tools=("retrieval.query",),
-                handoff={"target": "knowledge"},
+                selected_tool="knowledge_query",
+                selected_tools=("knowledge_query",),
+                handoff={"target": "knowledge_query"},
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"scope_gate": "pass"},
                 fail_close_expected=False,
@@ -40,9 +40,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
                     context_resolution={"resolved_scope": "regulations/student_rules"},
                     planning_outcome="delegate",
                     direct_vs_delegate_branch="delegate",
-                    handoff={"target": "knowledge"},
-                    selected_capability="knowledge",
-                    selected_tools=("retrieval.query",),
+                    handoff={"target": "knowledge_query"},
+                    selected_tool="knowledge_query",
+                    selected_tools=("knowledge_query",),
                     tool_argument_summary={"collection": "student_rules"},
                     guardrail_outcomes={"scope_gate": "pass"},
                 ),
@@ -67,7 +67,7 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             )
 
         result = payload["results"][0]
-        self.assertEqual(result["workflow_trace_summary"]["selected_capability"], "knowledge")
+        self.assertEqual(result["workflow_trace_summary"]["selected_tool"], "knowledge_query")
         self.assertTrue(
             result["orchestration_case_results"]["direct_vs_delegate_branch_correctness"]["passed"]
         )
@@ -84,9 +84,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
             description="student handbook delegate branch",
             expectation=WorkflowTraceExpectation(
                 direct_vs_delegate_branch="delegate",
-                selected_capability="knowledge",
-                selected_tools=("retrieval.query",),
-                handoff={"target": "knowledge"},
+                selected_tool="knowledge_query",
+                selected_tools=("knowledge_query",),
+                handoff={"target": "knowledge_query"},
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"scope_gate": "pass"},
                 fail_close_expected=False,
@@ -109,9 +109,9 @@ class WorkflowTraceGateFormalBenchmarkTestPart03(unittest.TestCase):
                     context_resolution={"resolved_scope": "regulations/student_rules"},
                     planning_outcome="delegate",
                     direct_vs_delegate_branch="delegate",
-                    handoff={"target": "knowledge"},
-                    selected_capability="knowledge",
-                    selected_tools=("retrieval.query",),
+                    handoff={"target": "knowledge_query"},
+                    selected_tool="knowledge_query",
+                    selected_tools=("knowledge_query",),
                     tool_argument_summary={"collection": "curriculum_plan"},
                     guardrail_outcomes={"scope_gate": "pass"},
                 ),

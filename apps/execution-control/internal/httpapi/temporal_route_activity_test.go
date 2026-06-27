@@ -11,26 +11,26 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestPlanRouteActivityKeepsTransportNoticeOverrideOnScheduleLookup(t *testing.T) {
+func TestPlanRouteActivityPlansCampusServicesTransportTool(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 9, 1, 2, 3, 0, time.UTC)
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
-		RunID:               "run-route-campus-services",
-		ConversationID:      "conv-route-campus-services",
-		TurnID:              "turn-route-campus-services",
-		RequestID:           "req-route-campus-services",
-		TraceID:             "trace-route-campus-services",
-		OwnerUserID:         "user-route-campus-services",
-		Surface:             "campus-web",
-		RequestedCapability: "campus_services",
-		SelectedCapability:  "campus_services",
-		Lane:                execution.DurableLaneCampusServices,
-		Status:              execution.DurableRunStatusQueued,
-		CreatedAt:           now,
-		QueuedAt:            now,
-		UpdatedAt:           now,
+		RunID:          "run-route-campus-services",
+		ConversationID: "conv-route-campus-services",
+		TurnID:         "turn-route-campus-services",
+		RequestID:      "req-route-campus-services",
+		TraceID:        "trace-route-campus-services",
+		OwnerUserID:    "user-route-campus-services",
+		Surface:        "campus-web",
+		RequestedTool:  "transport_schedule_lookup",
+		SelectedTool:   "transport_schedule_lookup",
+		TaskQueue:      "campus-agent.workflow",
+		Status:         execution.DurableRunStatusQueued,
+		CreatedAt:      now,
+		QueuedAt:       now,
+		UpdatedAt:      now,
 		Metadata: map[string]any{
 			"execution_payload": map[string]any{
 				"context": map[string]any{
@@ -48,15 +48,15 @@ func TestPlanRouteActivityKeepsTransportNoticeOverrideOnScheduleLookup(t *testin
 						"turn_count": 1,
 					},
 				},
-				"conversation_id":      "conv-route-campus-services",
-				"effective_capability": "campus_services",
-				"lane":                 "campus_services",
-				"request_id":           "req-route-campus-services",
-				"requested_capability": "campus_services",
-				"requested_scope":      nil,
-				"trace":                map[string]any{"trace_id": "trace-route-campus-services"},
-				"user_goal":            "今天丰台到海淀通勤车乘车点有没有调整",
-				"version_query":        map[string]any{"mode": "current"},
+				"conversation_id": "conv-route-campus-services",
+				"effective_tool":  "transport_schedule_lookup",
+				"task_queue":      "campus-agent.workflow",
+				"request_id":      "req-route-campus-services",
+				"requested_tool":  "transport_schedule_lookup",
+				"requested_scope": nil,
+				"trace":           map[string]any{"trace_id": "trace-route-campus-services"},
+				"user_goal":       "今天丰台到海淀通勤车乘车点有没有调整",
+				"version_query":   map[string]any{"mode": "current"},
 			},
 		},
 	}); err != nil {
@@ -64,26 +64,29 @@ func TestPlanRouteActivityKeepsTransportNoticeOverrideOnScheduleLookup(t *testin
 	}
 
 	route, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
-		ConversationID:      "conv-route-campus-services",
-		Namespace:           "campus-agent-test",
-		PayloadSHA256:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RequestID:           "req-route-campus-services",
-		RequestedCapability: "campus_services",
-		RunID:               "run-route-campus-services",
-		TraceID:             "trace-route-campus-services",
-		TurnID:              "turn-route-campus-services",
-		WorkflowID:          "campus-agent.chat.run-route-campus-services",
+		ConversationID: "conv-route-campus-services",
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RequestID:      "req-route-campus-services",
+		RequestedTool:  "transport_schedule_lookup",
+		RunID:          "run-route-campus-services",
+		TraceID:        "trace-route-campus-services",
+		TurnID:         "turn-route-campus-services",
+		WorkflowID:     "campus-agent.chat.run-route-campus-services",
 	})
 	if err != nil {
 		t.Fatalf("PlanRouteActivity failed: %v", err)
 	}
 	if route.WorkflowMode != "single_step" ||
-		route.Capability != "campus_services" ||
-		len(route.Steps) != 1 {
-		t.Fatalf("route = %#v, want campus_services single_step schedule lookup", route)
+		route.ToolTarget != "transport_schedule_lookup" ||
+		len(route.Steps) != 1 ||
+		route.ToolName != "transport_schedule_lookup" ||
+		len(route.AllowedTools) != 1 ||
+		route.AllowedTools[0] != "transport_schedule_lookup" {
+		t.Fatalf("route = %#v, want campus_services single transport tool step", route)
 	}
 	first := route.Steps[0]
-	if first.Capability != "campus_services" ||
+	if first.ToolTarget != "transport_schedule_lookup" ||
 		first.PayloadKind != "transport_schedule_lookup" ||
 		first.ToolName != "transport_schedule_lookup" {
 		t.Fatalf("first route step = %#v", first)
@@ -96,24 +99,24 @@ func TestPlanRouteActivityRejectsLegacyHandoffOnlyMetadata(t *testing.T) {
 	attachRunProjectionStoreForHandlerTest(server, store)
 	now := time.Date(2026, 6, 9, 1, 2, 3, 0, time.UTC)
 	if _, err := store.CreateRun(context.Background(), execution.DurableRun{
-		RunID:               "run-route-legacy-handoff-only",
-		ConversationID:      "conv-route-legacy-handoff-only",
-		TurnID:              "turn-route-legacy-handoff-only",
-		RequestID:           "req-route-legacy-handoff-only",
-		TraceID:             "trace-route-legacy-handoff-only",
-		OwnerUserID:         "user-route-legacy-handoff-only",
-		Surface:             "campus-web",
-		RequestedCapability: "knowledge",
-		SelectedCapability:  "knowledge",
-		Lane:                execution.DurableLaneRAG,
-		Status:              execution.DurableRunStatusQueued,
-		CreatedAt:           now,
-		QueuedAt:            now,
-		UpdatedAt:           now,
+		RunID:          "run-route-legacy-handoff-only",
+		ConversationID: "conv-route-legacy-handoff-only",
+		TurnID:         "turn-route-legacy-handoff-only",
+		RequestID:      "req-route-legacy-handoff-only",
+		TraceID:        "trace-route-legacy-handoff-only",
+		OwnerUserID:    "user-route-legacy-handoff-only",
+		Surface:        "campus-web",
+		RequestedTool:  "knowledge_query",
+		SelectedTool:   "knowledge_query",
+		TaskQueue:      "campus-agent.workflow",
+		Status:         execution.DurableRunStatusQueued,
+		CreatedAt:      now,
+		QueuedAt:       now,
+		UpdatedAt:      now,
 		Metadata: map[string]any{
 			"handoff": map[string]any{
-				"allowed_tools": []any{"retrieval.query"},
-				"capability":    "knowledge",
+				"allowed_tools": []any{"knowledge_query"},
+				"tool":          "knowledge_query",
 				"payload":       map[string]any{"query_text": "学生请假手续"},
 				"payload_kind":  "rag_request",
 			},
@@ -123,15 +126,15 @@ func TestPlanRouteActivityRejectsLegacyHandoffOnlyMetadata(t *testing.T) {
 	}
 
 	_, err := server.PlanRouteActivity(context.Background(), temporalruntime.PlanRouteActivityInput{
-		ConversationID:      "conv-route-legacy-handoff-only",
-		Namespace:           "campus-agent-test",
-		PayloadSHA256:       "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-		RequestID:           "req-route-legacy-handoff-only",
-		RequestedCapability: "knowledge",
-		RunID:               "run-route-legacy-handoff-only",
-		TraceID:             "trace-route-legacy-handoff-only",
-		TurnID:              "turn-route-legacy-handoff-only",
-		WorkflowID:          "campus-agent.chat.run-route-legacy-handoff-only",
+		ConversationID: "conv-route-legacy-handoff-only",
+		Namespace:      "campus-agent-test",
+		PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+		RequestID:      "req-route-legacy-handoff-only",
+		RequestedTool:  "knowledge_query",
+		RunID:          "run-route-legacy-handoff-only",
+		TraceID:        "trace-route-legacy-handoff-only",
+		TurnID:         "turn-route-legacy-handoff-only",
+		WorkflowID:     "campus-agent.chat.run-route-legacy-handoff-only",
 	})
 	if err == nil {
 		t.Fatal("legacy handoff-only metadata must not be accepted by plan.route")
@@ -229,7 +232,7 @@ func TestPlanRAGActivityRewritesFollowupFromConversationEvidence(t *testing.T) {
 				"version_id":    "student_rules:v-current",
 			},
 		},
-		"previous_capability_results": []any{},
+		"previous_tool_results": []any{},
 		"recent_turns": []any{
 			map[string]any{
 				"message_id": "msg-prev-user",
@@ -328,8 +331,8 @@ func TestRAGSynthesisPacketCarriesPreviousEvidenceContextFromRewrite(t *testing.
 				"version_id":    "student_rules:v-current",
 			},
 		},
-		"previous_capability_results": []any{},
-		"recent_turns":                []any{},
+		"previous_tool_results": []any{},
+		"recent_turns":          []any{},
 	})
 	workflowPlan, err := server.PlanRouteActivity(
 		context.Background(),

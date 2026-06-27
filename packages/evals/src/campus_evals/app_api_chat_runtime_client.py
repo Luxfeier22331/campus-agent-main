@@ -136,7 +136,7 @@ class AppApiEvalClient:
         for prompt in turns:
             body: dict[str, object] = {
                 "prompt": prompt,
-                "requestedCapability": "knowledge",
+                "requestedTool": "knowledge_query",
                 "requestedScope": {
                     "corpus": case.scope.corpus,
                     "collection": case.scope.collection,
@@ -169,7 +169,7 @@ class AppApiEvalClient:
         *,
         case_id: str,
         prompt: str,
-        requested_capability: str | None = None,
+        requested_tool: str | None = None,
         requested_scope: dict[str, str] | None = None,
         body: dict[str, object] | None = None,
         conversation_key: str | None = None,
@@ -183,8 +183,8 @@ class AppApiEvalClient:
 
         request_body = dict(body or {})
         request_body.setdefault("prompt", normalized_prompt)
-        if requested_capability:
-            request_body.setdefault("requestedCapability", requested_capability)
+        if requested_tool:
+            request_body.setdefault("requestedTool", requested_tool)
         if requested_scope is not None:
             request_body.setdefault("requestedScope", dict(requested_scope))
 
@@ -355,7 +355,7 @@ class AppApiEvalClient:
             "conversation_id": conversation_id or "",
             "corpus": scope.get("corpus") or "",
             "request_id": request_id,
-            "selected_capability": execution_response.selected_capability or "",
+            "selected_tool": execution_response.selected_tool or "",
             "status": execution_response.status,
             "trace_id": trace_id,
         }

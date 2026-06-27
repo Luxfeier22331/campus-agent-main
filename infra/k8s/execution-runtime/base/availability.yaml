@@ -29,16 +29,16 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: activity-worker-context
+  name: activity-worker-core
   namespace: campus-agent-staging
   labels:
-    app.kubernetes.io/name: activity-worker-context
+    app.kubernetes.io/name: activity-worker-core
     app.kubernetes.io/part-of: campus-agent
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: activity-worker-context
+      app.kubernetes.io/name: activity-worker-core
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
@@ -57,97 +57,13 @@ spec:
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: activity-worker-knowledge-plan
+  name: activity-worker-knowledge
   namespace: campus-agent-staging
   labels:
-    app.kubernetes.io/name: activity-worker-knowledge-plan
+    app.kubernetes.io/name: activity-worker-knowledge
     app.kubernetes.io/part-of: campus-agent
 spec:
   minAvailable: 1
   selector:
     matchLabels:
-      app.kubernetes.io/name: activity-worker-knowledge-plan
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-knowledge-retrieval
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-knowledge-retrieval
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-knowledge-retrieval
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-knowledge-synthesis
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-knowledge-synthesis
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-knowledge-synthesis
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-campus-services
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-campus-services
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-campus-services
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-notice
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-notice
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-notice
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-navigation
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-navigation
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-navigation
----
-apiVersion: policy/v1
-kind: PodDisruptionBudget
-metadata:
-  name: activity-worker-finalization
-  namespace: campus-agent-staging
-  labels:
-    app.kubernetes.io/name: activity-worker-finalization
-    app.kubernetes.io/part-of: campus-agent
-spec:
-  minAvailable: 1
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: activity-worker-finalization
+      app.kubernetes.io/name: activity-worker-knowledge

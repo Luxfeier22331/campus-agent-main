@@ -28,14 +28,14 @@ describe("operator provider config routes", () => {
 		} as Parameters<typeof createApp>[1]);
 		const promptConnectionResponse = await createConnection(
 			app,
-			connectionPayload({ apiKey: "sk-prompt-secret-1234", capabilities: ["prompt"] }),
+			connectionPayload({ apiKey: "sk-prompt-secret-1234", features: ["prompt"] }),
 		);
 		const embeddingConnectionResponse = await createConnection(
 			app,
 			connectionPayload({
 				apiKey: "emb-secret-5678",
 				baseUrl: "https://embedding.example/v1",
-				capabilities: ["embedding"],
+				features: ["embedding"],
 			}),
 		);
 
@@ -309,7 +309,7 @@ describe("operator provider config routes", () => {
 		for (const role of ["personal_memory_extraction", "memory_graph_llm"]) {
 			const connectionResponse = await createConnection(
 				app,
-				connectionPayload({ capabilities: ["prompt"] }),
+				connectionPayload({ features: ["prompt"] }),
 			);
 			const createResponse = await app.fetch(
 				new Request("https://app-api.internal/api/operator/provider-config/profiles", {
@@ -424,7 +424,7 @@ async function createPromptProfile(
 	const connectionResponse = await createConnection(
 		app,
 		connectionPayload({
-			capabilities: ["prompt"],
+			features: ["prompt"],
 			provider: typeof overrides.provider === "string" ? overrides.provider : "openai",
 		}),
 	);
@@ -454,7 +454,7 @@ async function createEmbeddingProfile(
 		app,
 		connectionPayload({
 			baseUrl: "https://embedding.example/v1",
-			capabilities: ["embedding"],
+			features: ["embedding"],
 		}),
 	);
 	return createProfile(
@@ -568,8 +568,8 @@ function connectionPayload(overrides: Partial<Record<string, unknown>> = {}) {
 	return {
 		apiKey: "sk-test-provider-key",
 		baseUrl: "https://provider.example/v1",
-		capabilities: ["prompt"],
-		capabilityConfig: {},
+		features: ["prompt"],
+		featureConfig: {},
 		provider: "openai",
 		...overrides,
 	};

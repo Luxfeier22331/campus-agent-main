@@ -13,7 +13,7 @@ import {
 function completedChatResult(input: {
 	requestId: string;
 	runId: string;
-	selectedCapability: string;
+	selectedTool: string;
 	traceId: string;
 }): ChatDurableE2eResult {
 	return {
@@ -25,7 +25,7 @@ function completedChatResult(input: {
 			trajectory: {
 				direct_answer: false,
 				requires_clarification: false,
-				selected_capability: input.selectedCapability,
+				selected_tool: input.selectedTool,
 			},
 		},
 		conversation: {
@@ -106,11 +106,11 @@ function completedChatResult(input: {
 			workflowId: "workflow_01",
 		},
 		workflowTraceSummary: {
-			selected_capability: "campus_services",
+			selected_tool: "transport_schedule_lookup",
 			trace_steps: [
 				{ status: "completed", step_id: "memory.recall" },
 				{
-					selected_capability: "campus_services",
+					selected_tool: "transport_schedule_lookup",
 					status: "completed",
 					step_id: "agent.primary",
 				},
@@ -131,7 +131,7 @@ function caseFile(): OnlineAnswerPathCaseFile {
 						answer_text_present: true,
 						citations_present: true,
 					},
-					selected_capability: "knowledge",
+					selected_tool: "knowledge_query",
 					source_truth: {
 						evidence_required: true,
 						expected_collections: ["regulations/institutional_rules"],
@@ -153,7 +153,7 @@ function caseFile(): OnlineAnswerPathCaseFile {
 						answer_text_present: true,
 						must_explain_missing_evidence: true,
 					},
-					selected_capability: "knowledge",
+					selected_tool: "knowledge_query",
 					source_truth: {
 						evidence_required: false,
 						expected_collections: ["official_web/fresh_news"],
@@ -189,7 +189,7 @@ describe("online answer path staging collector", () => {
 					return completedChatResult({
 						requestId: prompt.includes("校园网") ? "req_network" : "req_no_source",
 						runId: prompt.includes("校园网") ? "run_network" : "run_no_source",
-						selectedCapability: "knowledge",
+						selectedTool: "knowledge_query",
 						traceId: prompt.includes("校园网") ? "trace_network" : "trace_no_source",
 					});
 				},
@@ -205,7 +205,7 @@ describe("online answer path staging collector", () => {
 			expect(payload.observations[0]).toMatchObject({
 				case_id: "main-institutional-campus-network-password",
 				request_id: "req_network",
-				selected_capability: "knowledge",
+				selected_tool: "knowledge_query",
 				semantic_outcome: "answered",
 				terminal_status: "completed",
 				trace_id: "trace_network",
@@ -213,7 +213,7 @@ describe("online answer path staging collector", () => {
 			expect(payload.observations[0].workflow_trace_summary.trace_steps).toEqual([
 				{ status: "completed", step_id: "memory.recall" },
 				{
-					selected_capability: "campus_services",
+					selected_tool: "transport_schedule_lookup",
 					status: "completed",
 					step_id: "agent.primary",
 				},

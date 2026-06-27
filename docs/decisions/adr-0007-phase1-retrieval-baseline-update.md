@@ -19,8 +19,8 @@ updated: 2026-06-15
   `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
 - retrieval runtime truth 以
   `docs/architecture/system/retrieval-serving-architecture.md` 为准
-- 本文早期对 Python `knowledge-capability` / `retrieval-core` package owner 的表述已由
-  `docs/architecture/system/python-capability-boundaries.md` 局部 supersede；当前 online
+- 本文早期对 Python knowledge / retrieval package owner 的表述已由
+  `docs/architecture/system/python-boundaries.md` 局部 supersede；当前 online
   retrieval runtime 收口为 Go-owned execution-control / repo-owned DTO + Qdrant native
   adapter seam
 - serving alias / physical collection / index release 运行真相以
@@ -76,10 +76,11 @@ updated: 2026-06-15
 
 ## 边界
 
-- `packages/knowledge-capability` 负责 retrieval strategy selection、
-  clarification / no-answer / error 映射、answer / confidence 组装
-- `packages/retrieval-core` 负责 query preprocessing、candidate
-  retrieval、fusion、evidence normalization
+- Go-owned `apps/execution-control` retrieval seam 负责 retrieval strategy selection、
+  query framing、candidate retrieval、fusion、evidence normalization 与 answer-ready
+  evidence projection
+- RAG synthesis / clarification / no-answer / error 映射继续通过 execution-control 的
+  Temporal-visible typed steps 与 repo-owned DTO 承接
 - `packages/contracts` 继续只冻结 `EvidenceBundle` / `EvidenceSource` 等共享
   contract，不泄漏 retrieval backend 类型
 

@@ -78,9 +78,9 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "start_date must be <= end_date"):
             NoticeDateRange(start_date="2026-04-10", end_date="2026-04-01")
 
-    def test_capability_request_serializes_forward_allowed_tools(self) -> None:
-        request = CapabilityRequest(
-            capability="campus_services",
+    def test_tool_request_serializes_forward_allowed_tools(self) -> None:
+        request = ToolRequest(
+            tool="transport_schedule_lookup",
             user_goal="校车下一班几点",
             payload=TransportScheduleLookupPayload(
                 query_text="校车下一班几点",
@@ -91,15 +91,15 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
 
         payload = asdict(request)
 
-        self.assertEqual(payload["capability"], "campus_services")
+        self.assertEqual(payload["tool"], "campus_services")
         self.assertEqual(tuple(payload["allowed_tools"]), ("transport_schedule_lookup",))
 
     def test_agent_request_rejects_unknown_allowed_tool(self) -> None:
         with self.assertRaisesRegex(
             ValueError, "unsupported allowed_tool: transport_notice_latest"
         ):
-            CapabilityRequest(
-                capability="campus_services",
+            ToolRequest(
+                tool="transport_schedule_lookup",
                 user_goal="校车现在开吗",
                 payload=TransportScheduleLookupPayload(
                     query_text="校车现在开吗",
@@ -150,7 +150,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         payload = asdict(result)
 
         self.assertEqual(payload["schema_version"], "campus_services_tool_result.v1")
-        self.assertEqual(payload["capability"], "campus_services")
+        self.assertEqual(payload["tool"], "campus_services")
         self.assertEqual(payload["facts"]["kind"], "schedule_facts")
         self.assertEqual(
             payload["facts"]["result"]["resolved_route"]["route_id"],

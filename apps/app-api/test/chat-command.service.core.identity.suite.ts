@@ -2,15 +2,15 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createHmac,
 	createPrincipal,
 	createTelemetryMock,
 	deriveSafetyIdentifier,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreIdentitySuite(): void {
@@ -57,7 +57,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		const expectedSafetyIdentifier = createHmac("sha256", safetySecret)
 			.update("principal:user_01HQ")
 			.digest("hex");
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -67,7 +67,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 						sources: [{ doc_id: "handbook:library-hours" }],
 					},
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -79,7 +79,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 
@@ -88,7 +88,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: " 图书馆开放到几点？ ",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: {
 					collection: "student_rules",
 					corpus: "regulations",
@@ -109,7 +109,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				},
 			},
 			requestId: "req_0001",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -127,7 +127,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				safetyIdentifier: expectedSafetyIdentifier,
 				traceId: "trace_0001",
 			}),
@@ -186,7 +186,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 				entitlementSnapshotId: "entitlements-2026-03-29",
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 				visibilityScope: "main",
@@ -254,7 +254,7 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			expect.objectContaining({
 				requestId: "req_0001",
 				safetyIdentifier: expectedSafetyIdentifier,
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				sourceDocIds: ["handbook:library-hours"],
 				status: "completed",
 			}),
@@ -265,13 +265,13 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 	it("does not project PG profile memory during chat submit because execution-control owns memory recall", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "可以，先看培养方案和学院通知。",
 				error: null,
 				followUpQuestion: "",
 				result: {},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -282,14 +282,14 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我接下来该看什么？",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",

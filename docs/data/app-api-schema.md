@@ -47,7 +47,7 @@ details live in split data documents.
 - identity platform logical schema：`docs/data/identity-platform-schema.md`
 - dining operations logical schema：`docs/data/dining-operations-schema.md`
 - authenticated notice processing operator
-  contract：`docs/contracts/app-api-authenticated-notice-processing-http.md`
+  contract：`docs/contracts/app-api-notice.md`
 
 这份文档不冻结：
 

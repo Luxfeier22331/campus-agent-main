@@ -30,7 +30,7 @@ updated: 2026-06-12
 当前 architecture owner：
 
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0048-temporal.md`
 
 逻辑 schema owner：
 
@@ -187,7 +187,7 @@ Run step status enum 固定为：
 - `skipped`
   - step 因 upstream terminal decision 不再需要执行，必须记录 skip reason；典型来源是
     first Execution Agent decision 已产生 direct/no-tool terminal outcome，后续
-    capability branch 不应被排队
+    tool branch 不应被排队
 - `canceled`
   - step 随 run explicit cancel 或 step-local cancel 终止
 - `expired`
@@ -197,7 +197,8 @@ Run step status enum 固定为：
 
 - terminal step statuses 是 `succeeded`、`failed`、`blocked`、`skipped`、`canceled`、
   `expired`
-- 每个非 terminal step 必须可被 workflow/projection 查询并与 lane budget 对齐
+- 每个非 terminal step 必须可被 workflow/projection 查询并与 Temporal task queue /
+  downstream budget 对齐
 - required dependency 未完成时不得执行 step
 - worker 不得直接把 step 从 `queued` 改成 terminal；必须由 Temporal
   activity dispatch 授权
@@ -272,7 +273,7 @@ Run step status enum 固定为：
 - `clarification_required`
 - `no_answer_grounded`
 - `policy_rejected`
-- `capability_closed`
+- `tool_closed`
 - `conversation_active_run`
 - `quota_exceeded`
 - `queue_timeout`
@@ -378,7 +379,7 @@ Historical PG baseline 使用 execution lease projection，状态 enum 固定为
 - `lease_id`
 - `run_id`
 - `step_id`
-- `lane`
+- `execution_group`
 - `worker_id`
 - `attempt`
 - `status`
@@ -421,26 +422,18 @@ serving truth：
 消费规则：
 
 - historical scheduler 使用 `FOR UPDATE SKIP LOCKED` 选择候选 queued rows
-- historical scheduler 在同一事务内检查 lane budget、worker readiness、dependency
+- historical scheduler 在同一事务内检查 execution-group budget、worker readiness、dependency
   state 与 downstream budget
 - historical scheduler 创建 execution lease 并写 admission event 后，worker 才能执行
 - 当前 online serving 不得直接扫描 queued rows 或重启 lease path
 - process-local queue 只能作为本进程 protection，不是 canonical queue
 - Redis 不得作为 canonical queue；只能作为非权威 wakeup、fanout、cache 或 derived counter
 
-## Lane Budget Contract
+## Historical PG Budget Artifact
 
-Lane enum 第一版固定为：
+historical PG baseline 每个 execution-group budget 至少包含：
 
-- `rag`
-- `notice`
-- `navigation`
-- `campus_services`
-- `default`
-
-historical PG baseline 每个 lane budget 至少包含：
-
-- `lane`
+- `execution_group`
 - `max_active_leases`
 - `max_queued_runs`
 - `queue_timeout_ms`
@@ -451,8 +444,8 @@ historical PG baseline 每个 lane budget 至少包含：
 固定规则：
 
 - global budget、Temporal worker scaling policy 与 downstream budget 必须同时满足
-- historical lane budget 不参与当前 online serving scheduler
-- per-user / per-org / per-conversation budget 不得由 lane budget 代替
+- historical execution-group budget 不参与当前 online serving scheduler
+- per-user / per-org / per-conversation budget 不得由 execution-group budget 代替
 - downstream resource budget 可以收敛到 worker-autoscaler / execution policy input，
   但不得被 worker 私自绕过
 
@@ -522,7 +515,7 @@ Execution durable run create command 固定要求：
 - 如果外层 `trace_id` 非空，`metadata.execution_payload.trace_id` 必须等于外层
   `trace_id`
 - `metadata.execution_payload.user_goal` 必须存在且非空
-- app-api 不得在 durable run create metadata 中写 `handoff`；RAG lane 的 handoff
+- app-api 不得在 durable run create metadata 中写 `handoff`；RAG tool branch 的 handoff
   planning 由 Execution Agent Layer 根据 `execution_payload` 派生
 
 ### Worker Pool
@@ -560,7 +553,7 @@ contract:
 `GET /internal/execution/runs/:runId/steps` returns the sanitized step
 trajectory for app-api materialization. It must include the available
 `RunStep`、`StepAttempt` 与 `StepResult` projection needed to build operator
-`runtimeRun.operatorStepTrajectory`: step identity、capability、status、Temporal
+`runtimeRun.operatorStepTrajectory`: step identity、tool、status、Temporal
 task-queue / worker metadata、attempt/result count、queue wait、duration、
 provider/model usage、token/cost、cancel / timeout outcome、fail-close reason、
 replan reason、late-completion outcome 与 result refs. It is an internal
@@ -570,7 +563,7 @@ Implementation may bridge request execution into durable run records, but it mus
 not add fallback behavior or silently synthesize missing run / step fields.
 Missing required run projection state must fail closed.
 
-新增 capability lane 或 opening gate 不得只证明 typed tool / worker 函数可执行；它必须证明
+新增 tool opening gate 不得只证明 typed tool / worker 函数可执行；它必须证明
 normal、fail-close、cancel、timeout、late completion 与 replan outcome 可以进入
 step/attempt/result projection，并能被 app-api operator read model 消费。
 
@@ -597,7 +590,7 @@ release-evidence-shaped fixture 的 canonical source。
 
 - `step_id`
 - `step_kind`
-- `capability`
+- `tool`
 - `tool_name`
 - `status`
 - `attempt_count`

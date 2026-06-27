@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const DefaultLane = "default"
+const DefaultGroup = "default"
 
 type Decision string
 
@@ -17,8 +17,8 @@ const (
 	DecisionAdmittedQueued    Decision = "admitted_queued"
 	DecisionQueueFull         Decision = "queue_full"
 	DecisionQueueTimeout      Decision = "queue_timeout"
-	DecisionLaneQueueFull     Decision = "lane_queue_full"
-	DecisionLaneQueueTimeout  Decision = "lane_queue_timeout"
+	DecisionGroupQueueFull    Decision = "group_queue_full"
+	DecisionGroupQueueTimeout Decision = "group_queue_timeout"
 	DecisionClientCanceled    Decision = "client_canceled"
 	DecisionDraining          Decision = "draining"
 )
@@ -27,32 +27,32 @@ type Config struct {
 	MaxConcurrent int
 	QueueCapacity int
 	QueueTimeout  time.Duration
-	Lanes         map[string]LaneConfig
+	Groups        map[string]GroupConfig
 }
 
-type LaneConfig struct {
+type GroupConfig struct {
 	MaxConcurrent int
 	QueueCapacity int
 	QueueTimeout  time.Duration
 }
 
 type Status struct {
-	Healthy             bool                  `json:"healthy"`
-	Accepting           bool                  `json:"accepting"`
-	Draining            bool                  `json:"draining"`
-	MaxConcurrent       int                   `json:"max_concurrent_answers"`
-	Active              int                   `json:"active_answers"`
-	QueueCapacity       int                   `json:"queue_capacity"`
-	Queued              int                   `json:"queued_answers"`
-	QueueFullCount      int                   `json:"queue_full_count"`
-	QueueTimeoutCount   int                   `json:"queue_timeout_count"`
-	ClientCanceledCount int                   `json:"client_canceled_count"`
-	DrainingCount       int                   `json:"draining_count"`
-	SaturatedCount      int                   `json:"saturated_count"`
-	Lanes               map[string]LaneStatus `json:"lanes,omitempty"`
+	Healthy             bool                   `json:"healthy"`
+	Accepting           bool                   `json:"accepting"`
+	Draining            bool                   `json:"draining"`
+	MaxConcurrent       int                    `json:"max_concurrent_answers"`
+	Active              int                    `json:"active_answers"`
+	QueueCapacity       int                    `json:"queue_capacity"`
+	Queued              int                    `json:"queued_answers"`
+	QueueFullCount      int                    `json:"queue_full_count"`
+	QueueTimeoutCount   int                    `json:"queue_timeout_count"`
+	ClientCanceledCount int                    `json:"client_canceled_count"`
+	DrainingCount       int                    `json:"draining_count"`
+	SaturatedCount      int                    `json:"saturated_count"`
+	Groups              map[string]GroupStatus `json:"groups,omitempty"`
 }
 
-type LaneStatus struct {
+type GroupStatus struct {
 	Healthy             bool `json:"healthy"`
 	Accepting           bool `json:"accepting"`
 	MaxConcurrent       int  `json:"max_concurrent_answers"`
@@ -68,7 +68,7 @@ type LaneStatus struct {
 
 type Lease struct {
 	controller   *Controller
-	lane         string
+	group        string
 	decision     Decision
 	waitDuration time.Duration
 	once         sync.Once
@@ -79,7 +79,7 @@ func (l *Lease) Release() {
 		return
 	}
 	l.once.Do(func() {
-		l.controller.release(l.lane)
+		l.controller.release(l.group)
 	})
 }
 
@@ -90,11 +90,11 @@ func (l *Lease) Decision() Decision {
 	return l.decision
 }
 
-func (l *Lease) Lane() string {
+func (l *Lease) Group() string {
 	if l == nil {
 		return ""
 	}
-	return l.lane
+	return l.group
 }
 
 func (l *Lease) WaitDuration() time.Duration {
@@ -113,8 +113,8 @@ type Controller struct {
 	active        int
 	draining      bool
 
-	laneOrder         []string
-	lanes             map[string]*laneState
+	groupOrder        []string
+	groups            map[string]*groupState
 	nextDispatchIndex int
 
 	queueFullCount      int
@@ -123,7 +123,7 @@ type Controller struct {
 	drainingCount       int
 }
 
-type laneState struct {
+type groupState struct {
 	name          string
 	maxConcurrent int
 	queueCapacity int
@@ -138,7 +138,7 @@ type laneState struct {
 }
 
 type waiter struct {
-	lane       string
+	group      string
 	ready      chan struct{}
 	enqueuedAt time.Time
 	decision   Decision
@@ -159,83 +159,83 @@ func NewController(cfg Config) *Controller {
 		maxConcurrent: cfg.MaxConcurrent,
 		queueCapacity: cfg.QueueCapacity,
 		queueTimeout:  cfg.QueueTimeout,
-		lanes:         make(map[string]*laneState),
+		groups:        make(map[string]*groupState),
 	}
-	defaultLaneConfig := LaneConfig{
+	defaultGroupConfig := GroupConfig{
 		MaxConcurrent: cfg.MaxConcurrent,
 		QueueCapacity: cfg.QueueCapacity,
 		QueueTimeout:  cfg.QueueTimeout,
 	}
-	if laneCfg, ok := cfg.Lanes[DefaultLane]; ok {
-		defaultLaneConfig = laneCfg
+	if groupCfg, ok := cfg.Groups[DefaultGroup]; ok {
+		defaultGroupConfig = groupCfg
 	}
-	controller.ensureLaneLocked(DefaultLane, defaultLaneConfig)
-	for lane, laneCfg := range cfg.Lanes {
-		if normalizeLane(lane) == DefaultLane {
+	controller.ensureGroupLocked(DefaultGroup, defaultGroupConfig)
+	for group, groupCfg := range cfg.Groups {
+		if normalizeGroup(group) == DefaultGroup {
 			continue
 		}
-		controller.ensureLaneLocked(lane, laneCfg)
+		controller.ensureGroupLocked(group, groupCfg)
 	}
-	controller.sortLaneOrderLocked()
+	controller.sortGroupOrderLocked()
 	return controller
 }
 
 func (c *Controller) Acquire(ctx context.Context) (*Lease, Decision) {
-	return c.AcquireLane(ctx, DefaultLane)
+	return c.AcquireGroup(ctx, DefaultGroup)
 }
 
-func (c *Controller) AcquireLane(ctx context.Context, lane string) (*Lease, Decision) {
-	lane = normalizeLane(lane)
+func (c *Controller) AcquireGroup(ctx context.Context, group string) (*Lease, Decision) {
+	group = normalizeGroup(group)
 	if ctx == nil {
 		ctx = context.Background()
 	}
 	if ctx.Err() != nil {
-		c.recordClientCanceled(lane)
+		c.recordClientCanceled(group)
 		return nil, DecisionClientCanceled
 	}
 
 	c.mu.Lock()
-	laneState := c.ensureLaneLocked(lane, LaneConfig{})
+	groupState := c.ensureGroupLocked(group, GroupConfig{})
 	if c.draining {
 		c.drainingCount++
-		laneState.drainingCount++
+		groupState.drainingCount++
 		c.mu.Unlock()
 		return nil, DecisionDraining
 	}
-	if c.canAdmitLocked(laneState) {
+	if c.canAdmitLocked(groupState) {
 		c.active++
-		laneState.active++
+		groupState.active++
 		c.mu.Unlock()
-		return c.newLease(lane, DecisionAdmittedImmediate, 0), DecisionAdmittedImmediate
+		return c.newLease(group, DecisionAdmittedImmediate, 0), DecisionAdmittedImmediate
 	}
 	if c.queuedLocked() >= c.queueCapacity {
 		c.queueFullCount++
-		laneState.queueFullCount++
+		groupState.queueFullCount++
 		c.mu.Unlock()
 		return nil, DecisionQueueFull
 	}
-	if len(laneState.queue) >= laneState.queueCapacity {
-		laneState.queueFullCount++
+	if len(groupState.queue) >= groupState.queueCapacity {
+		groupState.queueFullCount++
 		c.mu.Unlock()
-		return nil, laneQueueFullDecision(lane)
+		return nil, groupQueueFullDecision(group)
 	}
 
 	waiter := &waiter{
-		lane:       lane,
+		group:      group,
 		ready:      make(chan struct{}),
 		enqueuedAt: time.Now(),
 	}
-	laneState.queue = append(laneState.queue, waiter)
+	groupState.queue = append(groupState.queue, waiter)
 	c.mu.Unlock()
 
-	timer := time.NewTimer(laneState.queueTimeout)
+	timer := time.NewTimer(groupState.queueTimeout)
 	defer timer.Stop()
 
 	select {
 	case <-waiter.ready:
 		return c.leaseFromWaiter(waiter)
 	case <-timer.C:
-		return c.removeWaiter(waiter, laneQueueTimeoutDecision(lane))
+		return c.removeWaiter(waiter, groupQueueTimeoutDecision(group))
 	case <-ctx.Done():
 		return c.removeWaiter(waiter, DecisionClientCanceled)
 	}
@@ -249,12 +249,12 @@ func (c *Controller) StartDraining() {
 		return
 	}
 	c.draining = true
-	for _, lane := range c.lanes {
-		for _, waiter := range lane.queue {
+	for _, group := range c.groups {
+		for _, waiter := range group.queue {
 			waiter.decision = DecisionDraining
 			close(waiter.ready)
 		}
-		lane.queue = nil
+		group.queue = nil
 	}
 }
 
@@ -262,31 +262,31 @@ func (c *Controller) Status() Status {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	lanes := make(map[string]LaneStatus, len(c.lanes))
-	acceptingLane := false
-	for _, name := range c.laneOrder {
-		lane := c.lanes[name]
+	groups := make(map[string]GroupStatus, len(c.groups))
+	acceptingGroup := false
+	for _, name := range c.groupOrder {
+		group := c.groups[name]
 		accepting := !c.draining &&
 			(c.active < c.maxConcurrent || c.queuedLocked() < c.queueCapacity) &&
-			(lane.active < lane.maxConcurrent || len(lane.queue) < lane.queueCapacity)
+			(group.active < group.maxConcurrent || len(group.queue) < group.queueCapacity)
 		if accepting {
-			acceptingLane = true
+			acceptingGroup = true
 		}
-		lanes[name] = LaneStatus{
+		groups[name] = GroupStatus{
 			Healthy:             accepting,
 			Accepting:           accepting,
-			MaxConcurrent:       lane.maxConcurrent,
-			Active:              lane.active,
-			QueueCapacity:       lane.queueCapacity,
-			Queued:              len(lane.queue),
-			QueueFullCount:      lane.queueFullCount,
-			QueueTimeoutCount:   lane.queueTimeoutCount,
-			ClientCanceledCount: lane.clientCanceledCount,
-			DrainingCount:       lane.drainingCount,
-			SaturatedCount:      lane.queueFullCount,
+			MaxConcurrent:       group.maxConcurrent,
+			Active:              group.active,
+			QueueCapacity:       group.queueCapacity,
+			Queued:              len(group.queue),
+			QueueFullCount:      group.queueFullCount,
+			QueueTimeoutCount:   group.queueTimeoutCount,
+			ClientCanceledCount: group.clientCanceledCount,
+			DrainingCount:       group.drainingCount,
+			SaturatedCount:      group.queueFullCount,
 		}
 	}
-	accepting := !c.draining && acceptingLane
+	accepting := !c.draining && acceptingGroup
 	queued := c.queuedLocked()
 	return Status{
 		Healthy:             accepting,
@@ -301,20 +301,20 @@ func (c *Controller) Status() Status {
 		ClientCanceledCount: c.clientCanceledCount,
 		DrainingCount:       c.drainingCount,
 		SaturatedCount:      c.queueFullCount,
-		Lanes:               lanes,
+		Groups:              groups,
 	}
 }
 
-func (c *Controller) release(lane string) {
+func (c *Controller) release(group string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	laneState := c.ensureLaneLocked(lane, LaneConfig{})
+	groupState := c.ensureGroupLocked(group, GroupConfig{})
 	if c.active > 0 {
 		c.active--
 	}
-	if laneState.active > 0 {
-		laneState.active--
+	if groupState.active > 0 {
+		groupState.active--
 	}
 	c.dispatchLocked()
 }
@@ -322,29 +322,29 @@ func (c *Controller) release(lane string) {
 func (c *Controller) dispatchLocked() {
 	for !c.draining && c.active < c.maxConcurrent {
 		dispatched := false
-		if len(c.laneOrder) == 0 {
+		if len(c.groupOrder) == 0 {
 			return
 		}
-		if c.nextDispatchIndex >= len(c.laneOrder) {
+		if c.nextDispatchIndex >= len(c.groupOrder) {
 			c.nextDispatchIndex = 0
 		}
-		for offset := range c.laneOrder {
-			index := (c.nextDispatchIndex + offset) % len(c.laneOrder)
-			name := c.laneOrder[index]
-			lane := c.lanes[name]
+		for offset := range c.groupOrder {
+			index := (c.nextDispatchIndex + offset) % len(c.groupOrder)
+			name := c.groupOrder[index]
+			group := c.groups[name]
 			if c.active >= c.maxConcurrent {
 				break
 			}
-			if lane.active >= lane.maxConcurrent || len(lane.queue) == 0 {
+			if group.active >= group.maxConcurrent || len(group.queue) == 0 {
 				continue
 			}
-			next := lane.queue[0]
-			lane.queue = lane.queue[1:]
+			next := group.queue[0]
+			group.queue = group.queue[1:]
 			c.active++
-			lane.active++
+			group.active++
 			next.decision = DecisionAdmittedQueued
 			close(next.ready)
-			c.nextDispatchIndex = (index + 1) % len(c.laneOrder)
+			c.nextDispatchIndex = (index + 1) % len(c.groupOrder)
 			dispatched = true
 			break
 		}
@@ -363,12 +363,12 @@ func (c *Controller) leaseFromWaiter(waiter *waiter) (*Lease, Decision) {
 		decision = DecisionClientCanceled
 	}
 	if decision == DecisionAdmittedQueued {
-		return c.newLease(waiter.lane, decision, time.Since(waiter.enqueuedAt)), decision
+		return c.newLease(waiter.group, decision, time.Since(waiter.enqueuedAt)), decision
 	}
 	if decision == DecisionDraining {
 		c.drainingCount++
-		lane := c.ensureLaneLocked(waiter.lane, LaneConfig{})
-		lane.drainingCount++
+		group := c.ensureGroupLocked(waiter.group, GroupConfig{})
+		group.drainingCount++
 	}
 	return nil, decision
 }
@@ -378,18 +378,18 @@ func (c *Controller) removeWaiter(waiter *waiter, decision Decision) (*Lease, De
 	defer c.mu.Unlock()
 
 	if waiter.decision == DecisionAdmittedQueued {
-		return c.newLease(waiter.lane, DecisionAdmittedQueued, time.Since(waiter.enqueuedAt)), DecisionAdmittedQueued
+		return c.newLease(waiter.group, DecisionAdmittedQueued, time.Since(waiter.enqueuedAt)), DecisionAdmittedQueued
 	}
-	lane := c.ensureLaneLocked(waiter.lane, LaneConfig{})
+	group := c.ensureGroupLocked(waiter.group, GroupConfig{})
 	if waiter.decision == DecisionDraining {
 		c.drainingCount++
-		lane.drainingCount++
+		group.drainingCount++
 		return nil, DecisionDraining
 	}
 
-	for index, item := range lane.queue {
+	for index, item := range group.queue {
 		if item == waiter {
-			lane.queue = append(lane.queue[:index], lane.queue[index+1:]...)
+			group.queue = append(group.queue[:index], group.queue[index+1:]...)
 			break
 		}
 	}
@@ -397,54 +397,54 @@ func (c *Controller) removeWaiter(waiter *waiter, decision Decision) (*Lease, De
 	switch decision {
 	case DecisionQueueTimeout:
 		c.queueTimeoutCount++
-		lane.queueTimeoutCount++
-	case DecisionLaneQueueTimeout:
-		lane.queueTimeoutCount++
+		group.queueTimeoutCount++
+	case DecisionGroupQueueTimeout:
+		group.queueTimeoutCount++
 	case DecisionClientCanceled:
 		c.clientCanceledCount++
-		lane.clientCanceledCount++
+		group.clientCanceledCount++
 	case DecisionDraining:
 		c.drainingCount++
-		lane.drainingCount++
+		group.drainingCount++
 	}
 	return nil, decision
 }
 
-func (c *Controller) recordClientCanceled(lane string) {
+func (c *Controller) recordClientCanceled(group string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.clientCanceledCount++
-	laneState := c.ensureLaneLocked(lane, LaneConfig{})
-	laneState.clientCanceledCount++
+	groupState := c.ensureGroupLocked(group, GroupConfig{})
+	groupState.clientCanceledCount++
 }
 
-func (c *Controller) newLease(lane string, decision Decision, waitDuration time.Duration) *Lease {
+func (c *Controller) newLease(group string, decision Decision, waitDuration time.Duration) *Lease {
 	return &Lease{
 		controller:   c,
-		lane:         lane,
+		group:        group,
 		decision:     decision,
 		waitDuration: waitDuration,
 	}
 }
 
-func (c *Controller) canAdmitLocked(lane *laneState) bool {
-	return !c.draining && c.active < c.maxConcurrent && lane.active < lane.maxConcurrent
+func (c *Controller) canAdmitLocked(group *groupState) bool {
+	return !c.draining && c.active < c.maxConcurrent && group.active < group.maxConcurrent
 }
 
 func (c *Controller) queuedLocked() int {
 	queued := 0
-	for _, lane := range c.lanes {
-		queued += len(lane.queue)
+	for _, group := range c.groups {
+		queued += len(group.queue)
 	}
 	return queued
 }
 
-func (c *Controller) ensureLaneLocked(name string, cfg LaneConfig) *laneState {
-	name = normalizeLane(name)
-	lane := c.lanes[name]
-	if lane != nil {
-		return lane
+func (c *Controller) ensureGroupLocked(name string, cfg GroupConfig) *groupState {
+	name = normalizeGroup(name)
+	group := c.groups[name]
+	if group != nil {
+		return group
 	}
 	emptyConfig := cfg.MaxConcurrent == 0 && cfg.QueueCapacity == 0 && cfg.QueueTimeout == 0
 	if cfg.MaxConcurrent <= 0 {
@@ -458,43 +458,43 @@ func (c *Controller) ensureLaneLocked(name string, cfg LaneConfig) *laneState {
 	if cfg.QueueTimeout <= 0 {
 		cfg.QueueTimeout = c.queueTimeout
 	}
-	lane = &laneState{
+	group = &groupState{
 		name:          name,
 		maxConcurrent: cfg.MaxConcurrent,
 		queueCapacity: cfg.QueueCapacity,
 		queueTimeout:  cfg.QueueTimeout,
 	}
-	c.lanes[name] = lane
-	c.laneOrder = append(c.laneOrder, name)
-	c.sortLaneOrderLocked()
-	return lane
+	c.groups[name] = group
+	c.groupOrder = append(c.groupOrder, name)
+	c.sortGroupOrderLocked()
+	return group
 }
 
-func (c *Controller) sortLaneOrderLocked() {
-	sort.Strings(c.laneOrder)
-	if c.nextDispatchIndex >= len(c.laneOrder) {
+func (c *Controller) sortGroupOrderLocked() {
+	sort.Strings(c.groupOrder)
+	if c.nextDispatchIndex >= len(c.groupOrder) {
 		c.nextDispatchIndex = 0
 	}
 }
 
-func normalizeLane(lane string) string {
-	normalized := strings.TrimSpace(strings.ToLower(lane))
+func normalizeGroup(group string) string {
+	normalized := strings.TrimSpace(strings.ToLower(group))
 	if normalized == "" {
-		return DefaultLane
+		return DefaultGroup
 	}
 	return normalized
 }
 
-func laneQueueFullDecision(lane string) Decision {
-	if lane == DefaultLane {
+func groupQueueFullDecision(group string) Decision {
+	if group == DefaultGroup {
 		return DecisionQueueFull
 	}
-	return DecisionLaneQueueFull
+	return DecisionGroupQueueFull
 }
 
-func laneQueueTimeoutDecision(lane string) Decision {
-	if lane == DefaultLane {
+func groupQueueTimeoutDecision(group string) Decision {
+	if group == DefaultGroup {
 		return DecisionQueueTimeout
 	}
-	return DecisionLaneQueueTimeout
+	return DecisionGroupQueueTimeout
 }

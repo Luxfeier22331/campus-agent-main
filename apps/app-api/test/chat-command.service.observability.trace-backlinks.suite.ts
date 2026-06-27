@@ -5,7 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	createTelemetryMock,
 } from "./chat-command.service.test-support";
@@ -26,17 +26,17 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "",
 					error: {
-						code: "execution_control_timeout",
-						message: "execution control timed out",
+						code: "execution_timeout",
+						message: "execution timed out",
 						retryable: true,
 					},
 					followUpQuestion: "",
 					result: null,
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "error",
 					traceId: "trace_0002",
 				}),
@@ -54,16 +54,16 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 		});
 
 		expect(response.answer.result).toMatchObject({
-			errorCode: "execution_control_timeout",
+			errorCode: "execution_timeout",
 			kind: "error",
 			requestId: "req_0001",
 			traceId: "trace_0002",
 		});
 		expect(traceBacklinkRecorder.record).toHaveBeenCalledTimes(1);
 		expect(traceBacklinkRecorder.record).toHaveBeenCalledWith({
-			errorCode: "execution_control_timeout",
+			errorCode: "execution_timeout",
 			requestId: "req_0001",
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "error",
 			surface: "campus_web",
 			traceId: "trace_0002",
@@ -90,13 +90,13 @@ export function registerChatCommandServiceObservabilityTraceBacklinksSuite(): vo
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
 					followUpQuestion: "",
 					result: null,
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0002",
 				}),

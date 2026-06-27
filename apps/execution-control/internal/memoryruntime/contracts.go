@@ -14,17 +14,17 @@ var ErrInvalidMemoryProjection = errors.New("invalid memory runtime projection")
 const MaxCompactTextBytes = 1200
 
 type RecallRequest struct {
-	RequestedCapability string            `json:"requested_capability"`
-	RunID               string            `json:"run_id"`
-	SessionSlots        map[string]string `json:"session_slots,omitempty"`
-	TenantID            string            `json:"tenant_id"`
-	ThreadID            string            `json:"thread_id"`
-	UserGoal            string            `json:"user_goal"`
-	UserID              string            `json:"user_id"`
+	RequestedTool string            `json:"requested_tool"`
+	RunID         string            `json:"run_id"`
+	SessionSlots  map[string]string `json:"session_slots,omitempty"`
+	TenantID      string            `json:"tenant_id"`
+	ThreadID      string            `json:"thread_id"`
+	UserGoal      string            `json:"user_goal"`
+	UserID        string            `json:"user_id"`
 }
 
 type ContextItem struct {
-	Capability  string  `json:"capability"`
+	Tool        string  `json:"tool"`
 	CompactText string  `json:"compact_text"`
 	MemoryID    string  `json:"memory_id"`
 	MemoryType  string  `json:"memory_type"`
@@ -130,8 +130,8 @@ func ValidateRecallRequest(request RecallRequest) error {
 	if strings.TrimSpace(request.UserGoal) == "" {
 		return fmt.Errorf("%w: user_goal is required", ErrInvalidMemoryProjection)
 	}
-	if strings.TrimSpace(request.RequestedCapability) == "" {
-		return fmt.Errorf("%w: requested_capability is required", ErrInvalidMemoryProjection)
+	if strings.TrimSpace(request.RequestedTool) == "" {
+		return fmt.Errorf("%w: requested_tool is required", ErrInvalidMemoryProjection)
 	}
 	return nil
 }
@@ -321,7 +321,7 @@ func validateContextItem(index int, item ContextItem) error {
 	required := map[string]string{
 		"memory_id":    item.MemoryID,
 		"memory_type":  item.MemoryType,
-		"capability":   item.Capability,
+		"tool":         item.Tool,
 		"compact_text": item.CompactText,
 		"updated_at":   item.UpdatedAt,
 	}

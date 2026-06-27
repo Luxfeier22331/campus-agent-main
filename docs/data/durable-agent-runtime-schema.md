@@ -16,7 +16,7 @@ updated: 2026-06-11
 
 - 哪些 logical tables / records 拥有 product runtime projection truth
 - conversation、run、step、attempt、result、event 如何关联
-- historical PG lease / lane budget / worker heartbeat artifact 如何被隔离
+- historical PG lease / execution-group budget / worker heartbeat artifact 如何被隔离
 - 哪些字段是 canonical truth，哪些只是 projection / correlation
 
 它不负责：
@@ -58,7 +58,7 @@ active product projection tables：
 historical PG lease artifact tables：
 
 - retired execution lease table
-- retired lane budget table
+- retired execution-group budget table
 - retired worker heartbeat table
 
 现有表关系：
@@ -98,8 +98,8 @@ execution-control：
 retired baseline 消费规则：
 
 - scheduler 使用 `FOR UPDATE SKIP LOCKED` 读取候选 queued rows
-- scheduler 在同一事务中检查 lane budget、worker readiness、dependency state 与 downstream
-  budget，并写入 retired execution lease table
+- scheduler 在同一事务中检查 execution-group budget、worker readiness、
+  dependency state 与 downstream budget，并写入 retired execution lease table
 - worker 只消费 active lease，不直接扫描 queued rows 自行执行
 - process-local queue 只能作为本进程 protection，不是 canonical execution queue
 - Redis 只能用于非权威 wakeup、live fanout、cache 或 derived counter；不拥有 run、step、
@@ -120,9 +120,9 @@ retired baseline 消费规则：
 - `trace_id`
 - `owner_user_id`
 - `surface`
-- `requested_capability`
-- `selected_capability`
-- `lane`
+- `requested_tool`
+- `selected_tool`
+- `task_queue`
 - `status`
 - `terminal_reason`
 - `fail_close_reason`
@@ -145,7 +145,7 @@ retired baseline 消费规则：
 - `(conversation_id, created_at desc)`
 - `(request_id)`
 - `(trace_id)`
-- `(status, lane, created_at)`
+- `(status, task_queue, created_at)`
 - partial unique active primary run by `conversation_id`
 
 `status` enum：
@@ -171,7 +171,7 @@ retired baseline 消费规则：
 - `metadata_json.execution_payload` 是 app-api 提供给 execution-control 的执行投影；它必须
   与外层 `request_id`、`conversation_id` 和非空 `trace_id` 对齐，且必须包含非空
   `user_goal`
-- `metadata_json` 不允许由 app-api 写入 capability `handoff`；routing /
+- `metadata_json` 不允许由 app-api 写入 tool `handoff`；routing /
   branch planning 属于 execution-control Execution Agent Layer
 
 ## `runtime.agent_run_events`
@@ -240,8 +240,8 @@ projection spine。
 - `run_id`
 - `parent_step_id`
 - `dependency_step_ids_json`
-- `lane`
-- `capability_family`
+- `task_queue`
+- `tool_surface`
 - `step_kind`
 - `target_id`
 - `target_kind`
@@ -263,7 +263,7 @@ projection spine。
 
 - primary key `(run_id, step_id)`
 - `(run_id, status, created_at)`
-- `(lane, status, created_at)`
+- `(task_queue, status, created_at)`
 - `(target_kind, target_id, status)`
 - `(status, queued_at)`
 
@@ -363,7 +363,7 @@ forward-required projection fields：
 - `not_requested`
 - `requested_before_start`
 - `activity_context_canceled`
-- `runtime_cancel_delivered`
+- `cancel_delivered`
 - `provider_connection_aborted`
 - `provider_background_cancelled`
 - `completed_before_cancel`
@@ -373,7 +373,7 @@ forward-required projection fields：
 
 - `not_timed_out`
 - `activity_timeout`
-- `runtime_timeout`
+- `activity_timeout`
 - `provider_timeout`
 - `workflow_timeout`
 
@@ -472,7 +472,7 @@ online serving。
 - `lease_id`
 - `run_id`
 - `step_id`
-- `lane`
+- `execution_group`
 - `worker_id`
 - `attempt`
 - `status`
@@ -488,7 +488,7 @@ online serving。
 
 - primary key `(lease_id)`
 - `(run_id, step_id, attempt)`
-- `(lane, status, expires_at)`
+- `(execution_group, status, expires_at)`
 - `(worker_id, status)`
 - partial unique active lease by `(run_id, step_id)`
 
@@ -511,11 +511,11 @@ online serving。
 - run-level single-step execution 也必须使用 canonical root `step_id`，不能让
   `execution_leases.step_id` 永久为空
 
-## `runtime.lane_budgets`
+## Retired PG Budget Artifact
 
 用途：
 
-- historical PG baseline lane-level budget artifact
+- historical PG baseline execution-group budget artifact
 
 target architecture 中 worker budget 与扩缩容决策来自 Temporal task queue metrics、
 downstream budget projection 与 operations-plane policy。本表不参与 online serving
@@ -523,7 +523,7 @@ scheduler，不拥有当前 execution truth。
 
 最小列：
 
-- `lane`
+- `execution_group`
 - `max_active_leases`
 - `max_queued_runs`
 - `queue_timeout_ms`
@@ -535,13 +535,13 @@ scheduler，不拥有当前 execution truth。
 
 最小索引：
 
-- primary key `(lane)`
+- primary key `(execution_group)`
 
 规则：
 
-- lane enum 第一版固定为 `rag`、`notice`、`navigation`、`campus_services`、`default`
-- disabled historical lane 不允许创建新 execution lease
-- lane budget 不替代 user / org / conversation budget
+- execution group enum 是 historical artifact，不参与 current online routing
+- disabled historical execution group 不允许创建新 execution lease
+- execution-group budget 不替代 user / org / conversation budget
 
 ## `runtime.worker_heartbeats`
 
@@ -610,14 +610,14 @@ operator-facing read model 不直接读取 scheduler internals。
 允许投影：
 
 - run status
-- lane
+- task queue
 - queue wait duration
 - Temporal task queue
 - worker identity safe id
 - terminal reason
 - fail-close reason
 - workflow mode
-- selected capability
+- selected tool
 - source / evidence safe summary
 - trace id / request id backlink
 - step trajectory summary

@@ -15,7 +15,7 @@ const REQUIRED_OBSERVATION_ATTRIBUTES = [
 	"fail_close_reason",
 	"projection_ref",
 	"schedule_to_start_ms",
-	"selected_capability",
+	"selected_tool",
 	"selected_tool",
 	"status",
 	"step_id",

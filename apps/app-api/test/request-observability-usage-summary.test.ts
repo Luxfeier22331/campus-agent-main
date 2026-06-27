@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import type { CapabilityExecutionResponse } from "../src/modules/integration";
+import type { ToolExecutionResponse } from "../src/modules/integration";
 import { buildFinalizedRequestObservabilityFact } from "../src/modules/request-observability";
 
 function createPrincipal(): ResolvedAppPrincipal {
@@ -45,16 +45,14 @@ function createPrincipal(): ResolvedAppPrincipal {
 	};
 }
 
-function createResponse(
-	overrides: Partial<CapabilityExecutionResponse> = {},
-): CapabilityExecutionResponse {
+function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExecutionResponse {
 	return {
 		answerText: "国家奖学金按学校现行评审办法执行。",
 		error: null,
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedCapability: "knowledge",
+		selectedTool: "knowledge_query",
 		status: "completed",
 		traceId: "trace_usage_01HQ",
 		...overrides,
@@ -71,7 +69,7 @@ describe("request observability usage summary", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_usage_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",

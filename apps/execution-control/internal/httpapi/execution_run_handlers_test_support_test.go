@@ -27,9 +27,9 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 		"trace_id":"trace-%s",
 		"owner_user_id":"user-executor",
 		"surface":"campus-web",
-		"requested_capability":"knowledge",
-		"selected_capability":"knowledge",
-		"lane":"rag",
+		"requested_tool":"knowledge_query",
+		"selected_tool":"knowledge_query",
+		"task_queue":"campus-agent.workflow",
 		"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 		"metadata":{
 			"execution_payload":{
@@ -50,9 +50,9 @@ func durableRunCreateBodyForTest(runID string, conversationID string) string {
 				"runtime_decisions":{"runtime_decision_summary":{}}
 			},
 			"handoff":{
-				"capability":"rag-tool",
+				"tool":"rag-tool",
 				"payload_kind":"rag_request",
-				"allowed_tools":["retrieval.query"],
+				"allowed_tools":["knowledge_query"],
 				"payload":{"query_text":"hello"}
 			}
 		}
@@ -103,7 +103,9 @@ func createHTTPAPIQueuedDurableRunForTest(
 		TraceID:        "trace-executor-001",
 		OwnerUserID:    "user-executor",
 		Surface:        "campus-web",
-		Lane:           execution.DurableLaneRAG,
+		RequestedTool:  handoffToolForDurableWorkerTest(handoff),
+		SelectedTool:   handoffSelectedToolForDurableWorkerTest(handoff),
+		TaskQueue:      "campus-agent.workflow",
 		Status:         execution.DurableRunStatusCreated,
 		CreatedAt:      now,
 		Metadata:       metadata,
@@ -123,11 +125,29 @@ func createHTTPAPIQueuedDurableRunForTest(
 
 func ragHandoffForDurableWorkerTest(queryText string) map[string]any {
 	return map[string]any{
-		"capability":    "knowledge",
+		"tool":          "knowledge_query",
 		"payload_kind":  "rag_request",
-		"allowed_tools": []any{"retrieval.query"},
+		"allowed_tools": []any{"knowledge_query"},
 		"payload":       map[string]any{"query_text": queryText},
 	}
+}
+
+func handoffToolForDurableWorkerTest(handoff map[string]any) string {
+	if handoff == nil {
+		return ""
+	}
+	return firstNonEmptyText(handoff["tool"], "")
+}
+
+func handoffSelectedToolForDurableWorkerTest(handoff map[string]any) string {
+	if handoff == nil {
+		return ""
+	}
+	allowed, _ := handoff["allowed_tools"].([]any)
+	if len(allowed) == 1 {
+		return firstNonEmptyText(allowed[0], "")
+	}
+	return firstNonEmptyText(handoff["tool"], "")
 }
 
 func assertHTTPAPIDurableEventTypes(
@@ -149,9 +169,9 @@ func assertHTTPAPIDurableEventTypes(
 	}
 }
 
-func durableCapabilityResponseBodyForTest(answerText string) json.RawMessage {
+func durableToolResponseBodyForTest(answerText string) json.RawMessage {
 	body, err := json.Marshal(map[string]any{
-		"capability":         "knowledge",
+		"tool":               "knowledge_query",
 		"status":             "completed",
 		"answer_text":        answerText,
 		"follow_up_question": "",

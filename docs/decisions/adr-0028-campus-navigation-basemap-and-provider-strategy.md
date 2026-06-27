@@ -17,7 +17,7 @@ Accepted on 2026-04-05.
 
 `ADR-0027` 已经冻结了以下长期边界：
 
-- 导航是独立 capability family
+- 导航是独立 tool domain
 - 校园空间真相属于 repo-owned institutional knowledge 子域
 - 瓦片地图只是 runtime presentation concern
 - 外部地图 provider 只允许作为 adapter 参与
@@ -82,7 +82,7 @@ Accepted on 2026-04-05.
 - 高德不再作为当前长期方案里的默认主链路前提
 - 如后续保留高德，只允许作为可替换 adapter 参与 geocode、POI search 或校外 secondary
   route candidate
-- 去掉高德不会使 campus navigation capability 失效
+- 去掉高德不会使 campus navigation tool 失效
 
 ### 决策 4：不使用 OSM Foundation 公共瓦片或公共 Nominatim 作为生产主链路
 
@@ -205,6 +205,6 @@ renderer 选型。
 ## Related Docs
 
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`

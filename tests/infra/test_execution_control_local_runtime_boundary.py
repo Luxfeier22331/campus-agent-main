@@ -123,11 +123,11 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
         self.assertIn("condition: service_healthy", block)
         self.assertIn("condition: service_completed_successfully", block)
 
-    def test_knowledge_retrieval_worker_receives_personal_memory_runtime_env(self) -> None:
+    def test_core_worker_receives_personal_memory_runtime_env(self) -> None:
         compose = (ROOT / "infra/local/docker-compose.execution-control-runtime.yml").read_text(
             encoding="utf-8"
         )
-        block = _compose_service_block(compose, "activity-worker-knowledge-retrieval")
+        block = _compose_service_block(compose, "activity-worker-core")
 
         self.assertIn(
             "PERSONAL_MEMORY_BASE_URL: ${PERSONAL_MEMORY_BASE_URL:-http://hindsight-api:8888}",
@@ -141,7 +141,7 @@ class ExecutionControlLocalRuntimeBoundaryTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        for service in ("execution-control", "activity-worker-knowledge-retrieval"):
+        for service in ("execution-control", "activity-worker-core", "activity-worker-knowledge"):
             with self.subTest(service=service):
                 block = _compose_service_block(compose, service)
                 self.assertIn(

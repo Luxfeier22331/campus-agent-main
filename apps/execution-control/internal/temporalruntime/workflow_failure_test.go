@@ -15,7 +15,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
-func TestCapabilityExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(t *testing.T) {
+func TestToolExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(t *testing.T) {
 	cases := []struct {
 		name      string
 		failStep  string
@@ -89,7 +89,7 @@ func TestCapabilityExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(
 			flow.primarySelectsKnowledge()
 			tc.configure(flow)
 
-			env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+			env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 			if !env.IsWorkflowCompleted() {
 				t.Fatal("workflow did not complete")
@@ -108,7 +108,7 @@ func TestCapabilityExecutionWorkflowFailsClosedWhenKnowledgeBranchActivityFails(
 	}
 }
 
-func TestCapabilityExecutionWorkflowHonorsActivityRetryPolicy(t *testing.T) {
+func TestToolExecutionWorkflowHonorsActivityRetryPolicy(t *testing.T) {
 	env := newWorkflowTestEnvironment()
 	runID := "run-memory-retry-policy"
 	var attempts int32
@@ -148,7 +148,7 @@ func TestCapabilityExecutionWorkflowHonorsActivityRetryPolicy(t *testing.T) {
 		nil,
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if err := expectWorkflowCompletedWithoutError(env); err != nil {
 		t.Fatalf("workflow error: %v", err)
@@ -159,7 +159,7 @@ func TestCapabilityExecutionWorkflowHonorsActivityRetryPolicy(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowDoesNotRetryNonRetryableActivityError(t *testing.T) {
+func TestToolExecutionWorkflowDoesNotRetryNonRetryableActivityError(t *testing.T) {
 	env := newWorkflowTestEnvironment()
 	runID := "run-memory-non-retryable"
 	var attempts int32
@@ -177,7 +177,7 @@ func TestCapabilityExecutionWorkflowDoesNotRetryNonRetryableActivityError(t *tes
 		)
 	})
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -193,7 +193,7 @@ func TestCapabilityExecutionWorkflowDoesNotRetryNonRetryableActivityError(t *tes
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowPropagatesFinalizationFailureWithoutMemoryAppend(t *testing.T) {
+func TestToolExecutionWorkflowPropagatesFinalizationFailureWithoutMemoryAppend(t *testing.T) {
 	env := newWorkflowTestEnvironment()
 	runID := "run-finalization-fails"
 
@@ -217,7 +217,7 @@ func TestCapabilityExecutionWorkflowPropagatesFinalizationFailureWithoutMemoryAp
 		errors.New("forced finalization failure"),
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -230,7 +230,7 @@ func TestCapabilityExecutionWorkflowPropagatesFinalizationFailureWithoutMemoryAp
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowIgnoresMemoryAppendFailureAfterFinalization(t *testing.T) {
+func TestToolExecutionWorkflowIgnoresMemoryAppendFailureAfterFinalization(t *testing.T) {
 	env := newWorkflowTestEnvironment()
 	runID := "run-memory-append-fails"
 	completedAt := time.Date(2026, 6, 20, 2, 3, 4, 0, time.UTC)
@@ -264,12 +264,12 @@ func TestCapabilityExecutionWorkflowIgnoresMemoryAppendFailureAfterFinalization(
 		errors.New("forced memory append failure"),
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if err := expectWorkflowCompletedWithoutError(env); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	var result CapabilityExecutionWorkflowResult
+	var result ToolExecutionWorkflowResult
 	if err := env.GetWorkflowResult(&result); err != nil {
 		t.Fatalf("workflow result: %v", err)
 	}
@@ -279,7 +279,7 @@ func TestCapabilityExecutionWorkflowIgnoresMemoryAppendFailureAfterFinalization(
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowCancelBeforeFinalizationStopsMemoryAppend(t *testing.T) {
+func TestToolExecutionWorkflowCancelBeforeFinalizationStopsMemoryAppend(t *testing.T) {
 	env := newWorkflowTestEnvironment()
 	runID := "run-cancel-before-finalization"
 
@@ -307,7 +307,7 @@ func TestCapabilityExecutionWorkflowCancelBeforeFinalizationStopsMemoryAppend(t 
 		env.CancelWorkflow()
 	}, 10*time.Millisecond)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if !env.IsWorkflowCompleted() {
 		t.Fatal("workflow did not complete")
@@ -503,21 +503,21 @@ func TestDefaultActivityTaskQueueRoutingForWorkflowActivities(t *testing.T) {
 		nil,
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, workflowTestInput(runID))
+	env.ExecuteWorkflow(ToolExecutionWorkflow, workflowTestInput(runID))
 
 	if err := expectWorkflowCompletedWithoutError(env); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
 	want := map[string]string{
-		MemoryRecallActivityName:            ActivityTaskQueueContext,
+		MemoryRecallActivityName:            ActivityTaskQueueCore,
 		ExecutePrimaryAgentActivityName:     ActivityTaskQueueAgent,
-		PlanRAGActivityName:                 ActivityTaskQueueKnowledgePlan,
-		RetrieveIndexedLookupActivityName:   ActivityTaskQueueKnowledgeRetrieval,
-		ExpandOrRescueRetrievalActivityName: ActivityTaskQueueKnowledgeRetrieval,
-		SelectEvidenceActivityName:          ActivityTaskQueueKnowledgePlan,
-		SynthesizeRAGAnswerActivityName:     ActivityTaskQueueKnowledgeSynthesis,
-		VerifyGroundingActivityName:         ActivityTaskQueueKnowledgePlan,
-		WriteFinalizationActivityName:       ActivityTaskQueueFinalization,
+		PlanRAGActivityName:                 ActivityTaskQueueKnowledge,
+		RetrieveIndexedLookupActivityName:   ActivityTaskQueueKnowledge,
+		ExpandOrRescueRetrievalActivityName: ActivityTaskQueueKnowledge,
+		SelectEvidenceActivityName:          ActivityTaskQueueKnowledge,
+		SynthesizeRAGAnswerActivityName:     ActivityTaskQueueKnowledge,
+		VerifyGroundingActivityName:         ActivityTaskQueueKnowledge,
+		WriteFinalizationActivityName:       ActivityTaskQueueCore,
 	}
 	for activityName, taskQueue := range want {
 		if seenQueues[activityName] != taskQueue {

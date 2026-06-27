@@ -8,7 +8,7 @@ CREATE TABLE "operator"."request_audit_projection" (
     "principal_type" text NOT NULL,
     "entitlement_snapshot_id" text,
     "policy_projection_version" text,
-    "requested_capability" text,
+    "requested_tool" text,
     "selected_target" text,
     "status" text NOT NULL,
     "terminal_code" text,

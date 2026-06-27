@@ -224,15 +224,9 @@ func defaultServicePolicies(workflowTaskQueue string, input ...commandOptions) m
 		}
 	}
 	return map[string]autoscaler.ServicePolicy{
-		"workflow-worker":                     common(3, workflowQueue),
-		"activity-worker-context":             common(3, temporalruntime.ActivityTaskQueueContext),
-		"activity-worker-agent":               common(3, temporalruntime.ActivityTaskQueueAgent),
-		"activity-worker-knowledge-plan":      common(3, temporalruntime.ActivityTaskQueueKnowledgePlan),
-		"activity-worker-knowledge-retrieval": common(5, temporalruntime.ActivityTaskQueueKnowledgeRetrieval),
-		"activity-worker-knowledge-synthesis": common(5, temporalruntime.ActivityTaskQueueKnowledgeSynthesis),
-		"activity-worker-campus-services":     common(3, temporalruntime.ActivityTaskQueueCampusService),
-		"activity-worker-notice":              common(3, temporalruntime.ActivityTaskQueueNotice),
-		"activity-worker-navigation":          common(3, temporalruntime.ActivityTaskQueueNavigation),
-		"activity-worker-finalization":        common(3, temporalruntime.ActivityTaskQueueFinalization),
+		"workflow-worker":           common(3, workflowQueue),
+		"activity-worker-core":      common(3, temporalruntime.ActivityTaskQueueCore),
+		"activity-worker-agent":     common(3, temporalruntime.ActivityTaskQueueAgent),
+		"activity-worker-knowledge": common(5, temporalruntime.ActivityTaskQueueKnowledge),
 	}
 }

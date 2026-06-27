@@ -145,7 +145,7 @@ export const worker = {
 					appApiBinding: "configured",
 					appApiRuntime: "ready",
 					assets: "configured",
-					operatorBridge: "configured",
+					operatorSurface: "configured",
 				},
 				runtime_api_base_url: env.OPERATOR_CONSOLE_APP_API_BASE_URL || "",
 				protected_hostname: protectedHostname,

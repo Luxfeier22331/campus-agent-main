@@ -195,7 +195,7 @@ func (e hindsightExecutor) Recall(
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
-	items := hindsightContextItems(response.Results, request.RequestedCapability)
+	items := hindsightContextItems(response.Results, request.RequestedTool)
 	result := memoryruntime.RecallResult{
 		ContextBlock:  hindsightContextBlock(items, e.recallMaxLen),
 		Items:         items,
@@ -535,7 +535,7 @@ func encodeHindsightConversationTurn(request memoryruntime.AppendConversationTur
 
 func hindsightContextItems(
 	results []hindsightRecallResult,
-	capability string,
+	tool string,
 ) []memoryruntime.ContextItem {
 	items := make([]memoryruntime.ContextItem, 0, len(results))
 	for _, result := range results {
@@ -548,7 +548,7 @@ func hindsightContextItems(
 		}
 		memoryType := defaultString(strings.TrimSpace(result.Type), "experience")
 		items = append(items, memoryruntime.ContextItem{
-			Capability:  capability,
+			Tool:        tool,
 			CompactText: strings.TrimSpace(result.Text),
 			MemoryID:    strings.TrimSpace(result.ID),
 			MemoryType:  memoryType,

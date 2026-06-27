@@ -13,7 +13,7 @@ import (
 
 func memoryRecallRequestForRun(
 	run execution.DurableRun,
-	requestedCapability string,
+	requestedTool string,
 ) (memoryruntime.RecallRequest, error) {
 	payload, ok := run.Metadata["execution_payload"].(map[string]any)
 	if !ok {
@@ -23,12 +23,12 @@ func memoryRecallRequestForRun(
 	if userGoal == "" {
 		return memoryruntime.RecallRequest{}, errors.New("memory recall user_goal is required")
 	}
-	capability := strings.TrimSpace(requestedCapability)
-	if capability == "" {
-		capability = firstNonEmptyText(payload["requested_capability"], run.RequestedCapability)
+	tool := strings.TrimSpace(requestedTool)
+	if tool == "" {
+		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
 	}
-	if capability == "" {
-		capability = "any"
+	if tool == "" {
+		tool = "any"
 	}
 	userID := firstNonEmptyText(
 		nestedAny(payload, "actor", "user_id"),
@@ -36,13 +36,13 @@ func memoryRecallRequestForRun(
 		run.OwnerUserID,
 	)
 	request := memoryruntime.RecallRequest{
-		RequestedCapability: capability,
-		RunID:               run.RunID,
-		SessionSlots:        memorySessionSlotsFromPayload(payload),
-		TenantID:            firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
-		ThreadID:            run.ConversationID,
-		UserGoal:            userGoal,
-		UserID:              userID,
+		RequestedTool: tool,
+		RunID:         run.RunID,
+		SessionSlots:  memorySessionSlotsFromPayload(payload),
+		TenantID:      firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
+		ThreadID:      run.ConversationID,
+		UserGoal:      userGoal,
+		UserID:        userID,
 	}
 	if err := memoryruntime.ValidateRecallRequest(request); err != nil {
 		return memoryruntime.RecallRequest{}, err
@@ -50,16 +50,16 @@ func memoryRecallRequestForRun(
 	return request, nil
 }
 
-func memoryRecallCapabilityForRun(run execution.DurableRun, requestedCapability string) string {
+func memoryRecallToolForRun(run execution.DurableRun, requestedTool string) string {
 	payload, _ := run.Metadata["execution_payload"].(map[string]any)
-	capability := strings.TrimSpace(requestedCapability)
-	if capability == "" {
-		capability = firstNonEmptyText(payload["requested_capability"], run.RequestedCapability)
+	tool := strings.TrimSpace(requestedTool)
+	if tool == "" {
+		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
 	}
-	if capability == "" {
-		capability = "any"
+	if tool == "" {
+		tool = "any"
 	}
-	return capability
+	return tool
 }
 
 func memorySessionSlotsFromPayload(payload map[string]any) map[string]string {
@@ -139,13 +139,13 @@ func (s *Server) failMemoryRecallActivity(
 	cause error,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "memory",
+		Tool:          "memory",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
 		ResultKind:    "activity_failure",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -162,7 +162,7 @@ func memoryContextForRAG(run execution.DurableRun) ([]ragruntime.MemoryContextIt
 	items := make([]ragruntime.MemoryContextItem, 0, len(result.Items))
 	for _, item := range result.Items {
 		items = append(items, ragruntime.MemoryContextItem{
-			Capability:  item.Capability,
+			Tool:        item.Tool,
 			CompactText: item.CompactText,
 			MemoryID:    item.MemoryID,
 			MemoryType:  item.MemoryType,

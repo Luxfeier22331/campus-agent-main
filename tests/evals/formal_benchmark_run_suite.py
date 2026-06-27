@@ -106,13 +106,13 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
                         retrieval_called=True,
                     ),
                     workflow_trace_summary=workflow_trace_summary_cls(
-                        routing_frame={"requested_capability": "knowledge"},
+                        routing_frame={"requested_tool": "knowledge_query"},
                         context_resolution={"resolved_scope": "regulations/student_rules"},
                         planning_outcome="delegate",
                         direct_vs_delegate_branch="delegate",
-                        handoff={"target": "knowledge"},
-                        selected_capability="knowledge",
-                        selected_tools=("retrieval.query",),
+                        handoff={"target": "knowledge_query"},
+                        selected_tool="knowledge_query",
+                        selected_tools=("knowledge_query",),
                         tool_argument_summary={"collection": "student_rules"},
                         guardrail_outcomes={"scope_gate": "pass"},
                         runtime_versions={"execution-control": "test"},
@@ -137,8 +137,8 @@ class HandbookBenchmarkRunTest(unittest.TestCase):
             )
 
         result = payload["results"][0]
-        self.assertEqual(result["workflow_trace_summary"]["selected_capability"], "knowledge")
-        self.assertEqual(result["workflow_trace_summary"]["selected_tools"], ["retrieval.query"])
+        self.assertEqual(result["workflow_trace_summary"]["selected_tool"], "knowledge_query")
+        self.assertEqual(result["workflow_trace_summary"]["selected_tools"], ["knowledge_query"])
         self.assertTrue(
             result["orchestration_case_results"]["trace_projection_completeness"]["passed"]
         )

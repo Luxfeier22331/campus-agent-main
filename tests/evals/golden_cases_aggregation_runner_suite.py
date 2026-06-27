@@ -4,7 +4,6 @@ from tests.evals.golden_cases_test_support import (
     CURRICULUM_SCOPE,
     HANDBOOK_SCOPE,
     ActorContext,
-    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     ExecutionResponse,
@@ -14,6 +13,7 @@ from tests.evals.golden_cases_test_support import (
     ObservedTrace,
     RagResultDiagnostics,
     RagResultPayload,
+    ToolResponse,
     TraceExpectation,
     _response,
     _source,
@@ -300,7 +300,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             (case,),
             executor=lambda _: ExecutionResult(
                 response=ExecutionResponse(
-                    selected_capability=None,
+                    selected_tool=None,
                     status="needs_clarification",
                     follow_up_question="请先说明你想查询的知识范围或资料集合。",
                     confidence="low",
@@ -317,7 +317,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
         self.assertTrue(result.retrieval_result.passed)
         self.assertEqual(report.by_metric["clarification_accuracy"].passed, 1)
 
-    def test_runner_supports_execution_terminal_statuses(self) -> None:
+    def test_runner_supports_execution_only_terminal_statuses(self) -> None:
         approval_case = GoldenCase(
             case_id="approval-required-1",
             split="release_gate",
@@ -341,7 +341,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
             if case.case_id == "approval-required-1":
                 return ExecutionResult(
                     response=ExecutionResponse(
-                        selected_capability=None,
+                        selected_tool=None,
                         status="approval_required",
                         answer_text="该请求涉及需要人工确认的操作，必须先经过审批。",
                         confidence="low",
@@ -349,7 +349,7 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
                 )
             return ExecutionResult(
                 response=ExecutionResponse(
-                    selected_capability=None,
+                    selected_tool=None,
                     status="rejected",
                     confidence="low",
                     error=ErrorInfo(
@@ -372,8 +372,8 @@ class RunCasesAggregationRunnerTest(unittest.TestCase):
 
         def executor(case: GoldenCase) -> ExecutionResult:
             return ExecutionResult(
-                response=CapabilityResponse(
-                    capability="knowledge",
+                response=ToolResponse(
+                    tool="knowledge_query",
                     status="error",
                     confidence="low",
                     answer_text="",

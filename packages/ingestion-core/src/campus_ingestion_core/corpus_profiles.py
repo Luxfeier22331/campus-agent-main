@@ -18,7 +18,7 @@ from campus_ingestion_core.scope_catalog import (
 
 ALLOWED_SERVING_STAGES = (
     "query_serving",
-    "structured_query_serving",
+    "tool_read_model_serving",
     "offline_preparation",
 )
 ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
@@ -95,8 +95,8 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
-    structured_query_enabled: bool = False
-    structured_query_tools: tuple[str, ...] = ()
+    tool_read_model_enabled: bool = False
+    tool_read_model_tools: tuple[str, ...] = ()
     source_ocr_provider: str | None = None
     source_ocr_model: str | None = None
     source_parser_version: str | None = None
@@ -142,13 +142,13 @@ class CollectionRuntimeProfile:
             raise ValueError("collection is required")
         if self.serving_stage not in ALLOWED_SERVING_STAGES:
             raise ValueError(f"unsupported serving_stage: {self.serving_stage}")
-        if self.serving_stage == "structured_query_serving":
+        if self.serving_stage == "tool_read_model_serving":
             if self.retrieval_enabled:
-                raise ValueError("structured_query_serving requires retrieval_enabled=false")
+                raise ValueError("tool_read_model_serving requires retrieval_enabled=false")
             if self.query_enabled_by_default:
-                raise ValueError("structured_query_serving requires query_enabled_by_default=false")
-            if not self.structured_query_enabled:
-                raise ValueError("structured_query_serving requires structured_query_enabled=true")
+                raise ValueError("tool_read_model_serving requires query_enabled_by_default=false")
+            if not self.tool_read_model_enabled:
+                raise ValueError("tool_read_model_serving requires tool_read_model_enabled=true")
         if (
             self.serving_surface is not None
             and self.serving_surface not in ALLOWED_SERVING_SURFACES
@@ -223,13 +223,13 @@ class CollectionRuntimeProfile:
             raise ValueError("no_hit_min_score_gap must be between zero and one")
         if not self.embedding_query_instruction.strip():
             raise ValueError("embedding_query_instruction is required")
-        if self.structured_query_enabled and not self.structured_query_tools:
+        if self.tool_read_model_enabled and not self.tool_read_model_tools:
             raise ValueError(
-                "structured_query_tools must not be empty when structured_query_enabled is true"
+                "tool_read_model_tools must not be empty when tool_read_model_enabled is true"
             )
-        for tool_name in self.structured_query_tools:
+        for tool_name in self.tool_read_model_tools:
             if not tool_name.strip():
-                raise ValueError("structured_query_tools must not contain empty values")
+                raise ValueError("tool_read_model_tools must not contain empty values")
         if self.retrieval_enabled:
             if self.embedding_profile is None:
                 raise ValueError("embedding_profile is required when retrieval is enabled")
@@ -341,9 +341,9 @@ def load_runtime_profile(
         ),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
-        structured_query_enabled=bool(payload.get("structured_query_enabled", False)),
-        structured_query_tools=tuple(
-            str(item) for item in list(payload.get("structured_query_tools") or [])
+        tool_read_model_enabled=bool(payload.get("tool_read_model_enabled", False)),
+        tool_read_model_tools=tuple(
+            str(item) for item in list(payload.get("tool_read_model_tools") or [])
         ),
         supports_freshness_sensitive_queries=bool(
             payload.get("supports_freshness_sensitive_queries", False)

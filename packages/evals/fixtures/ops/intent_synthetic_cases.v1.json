@@ -9,21 +9,21 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "campus_services",
+				"tool": "transport_schedule_lookup",
 				"context_mode": "none",
 				"next_action": "delegate",
 				"service_subtype": "transport_schedule"
 			},
 			"intent_case": {
-				"expected_allowed_tools": ["transport_schedule_lookup"],
-				"expected_capability": "campus_services",
-				"expected_launch_state": "open",
+				"expected_allowed_tools": [],
+				"expected_tool": "knowledge_query",
+				"expected_launch_state": "candidate_only",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "campus_services",
-				"expected_task_kind": "campus_services_lookup",
-				"requested_capability": "knowledge",
+				"expected_scope_reason": "tool_read_model_candidate_signal",
+				"expected_target": "none",
+				"expected_task_kind": "knowledge_lookup",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "campus_services", "transport_schedule"]
 			},
 			"variants": [
@@ -139,21 +139,21 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "delegate",
 				"service_subtype": "non_transport_service_status"
 			},
 			"intent_case": {
 				"expected_allowed_tools": [],
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
 				"expected_scope_reason": "campus_scope_signal",
-				"expected_target": "knowledge",
+				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "knowledge", "non_transport_service_status"]
 			},
 			"variants": [
@@ -303,20 +303,20 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "notice",
+				"tool": "campus_notice_discover",
 				"context_mode": "none",
 				"next_action": "delegate"
 			},
 			"intent_case": {
-				"expected_allowed_tools": ["campus_notice_discover"],
-				"expected_capability": "notice",
-				"expected_launch_state": "open",
+				"expected_allowed_tools": [],
+				"expected_tool": "knowledge_query",
+				"expected_launch_state": "candidate_only",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "notice",
-				"expected_task_kind": "notice_lookup",
-				"requested_capability": "knowledge",
+				"expected_scope_reason": "tool_read_model_candidate_signal",
+				"expected_target": "none",
+				"expected_task_kind": "knowledge_lookup",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "notice", "discover"]
 			},
 			"variants": [
@@ -432,7 +432,7 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "notice",
+				"tool": "campus_notice_discover",
 				"context_mode": "selected_notice",
 				"next_action": "delegate"
 			},
@@ -447,16 +447,16 @@
 					}
 				},
 				"expected_allowed_tools": [],
-				"expected_capability": "notice",
+				"expected_tool": "knowledge_query",
 				"expected_context_reference_type": "selected_notice",
 				"expected_context_resolution_state": "resolved",
-				"expected_launch_state": "open",
+				"expected_launch_state": "candidate_only",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_scope_reason": "structured_runtime_candidate_signal",
-				"expected_target": "notice",
-				"expected_task_kind": "notice_lookup",
-				"requested_capability": "knowledge",
+				"expected_scope_reason": "tool_read_model_candidate_signal",
+				"expected_target": "none",
+				"expected_task_kind": "knowledge_lookup",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "notice", "selected_notice"]
 			},
 			"variants": [
@@ -495,19 +495,19 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "place_lookup",
+				"tool": "place_lookup",
 				"context_mode": "none",
 				"next_action": "out_of_scope"
 			},
 			"intent_case": {
-				"expected_capability": "place_lookup",
+				"expected_tool": "place_lookup",
 				"expected_launch_state": "closed",
 				"expected_next_action": "out_of_scope",
 				"expected_policy_reason": "navigation_temporarily_unsupported",
 				"expected_scope_class": "out_of_scope",
 				"expected_target": "none",
 				"expected_task_kind": "place_lookup",
-				"requested_capability": "place_lookup",
+				"requested_tool": "place_lookup",
 				"tags": ["synthetic", "place_lookup", "closed"]
 			},
 			"variants": [
@@ -623,19 +623,19 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "out_of_scope"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "closed",
 				"expected_next_action": "out_of_scope",
 				"expected_policy_reason": "product_scope_boundary",
 				"expected_scope_class": "out_of_scope",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "out_of_scope"]
 			},
 			"variants": [
@@ -751,12 +751,12 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "approval_required"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "closed",
 				"expected_next_action": "approval_required",
 				"expected_policy_reason": "approval_required",
@@ -764,7 +764,7 @@
 				"expected_scope_reason": "transaction_guardrail",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "approval_required"]
 			},
 			"variants": [
@@ -831,12 +831,12 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "approval_required"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "closed",
 				"expected_next_action": "approval_required",
 				"expected_policy_reason": "approval_required",
@@ -844,7 +844,7 @@
 				"expected_scope_reason": "transaction_guardrail",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "approval_required", "knowledge"]
 			},
 			"variants": [
@@ -904,12 +904,12 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "rejected"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "closed",
 				"expected_next_action": "rejected",
 				"expected_policy_reason": "political_persuasion",
@@ -917,7 +917,7 @@
 				"expected_scope_reason": "policy_guardrail",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "policy_refusal"]
 			},
 			"variants": [
@@ -998,12 +998,12 @@
 			"review_status": "accepted_regression",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "missing_previous_goal",
 				"next_action": "clarify"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_context_reference_type": "previous_goal",
 				"expected_context_resolution_state": "missing_context",
 				"expected_launch_state": "candidate_only",
@@ -1013,7 +1013,7 @@
 				"expected_scope_reason": "context_missing",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "context_follow_up", "missing_context"]
 			},
 			"variants": [
@@ -1080,20 +1080,20 @@
 			"review_status": "exploratory_candidate",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "campus_services",
+				"tool": "transport_schedule_lookup",
 				"context_mode": "none",
 				"next_action": "delegate",
 				"service_subtype": "transport_schedule"
 			},
 			"intent_case": {
 				"expected_allowed_tools": ["transport_schedule_lookup"],
-				"expected_capability": "campus_services",
+				"expected_tool": "transport_schedule_lookup",
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "campus_services",
+				"expected_target": "transport_schedule_lookup",
 				"expected_task_kind": "campus_services_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "exploratory", "transport_schedule"]
 			},
 			"variants": [
@@ -1146,19 +1146,19 @@
 			"review_status": "exploratory_candidate",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "notice",
+				"tool": "campus_notice_discover",
 				"context_mode": "none",
 				"next_action": "delegate"
 			},
 			"intent_case": {
 				"expected_allowed_tools": ["campus_notice_discover"],
-				"expected_capability": "notice",
+				"expected_tool": "campus_notice_discover",
 				"expected_launch_state": "open",
 				"expected_next_action": "delegate",
 				"expected_scope_class": "in_scope",
-				"expected_target": "notice",
+				"expected_target": "campus_notice_discover",
 				"expected_task_kind": "notice_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "exploratory", "notice"]
 			},
 			"variants": [
@@ -1211,19 +1211,19 @@
 			"review_status": "exploratory_candidate",
 			"label_source": "human_policy_matrix",
 			"axis": {
-				"capability": "knowledge",
+				"tool": "knowledge_query",
 				"context_mode": "none",
 				"next_action": "out_of_scope"
 			},
 			"intent_case": {
-				"expected_capability": "knowledge",
+				"expected_tool": "knowledge_query",
 				"expected_launch_state": "closed",
 				"expected_next_action": "out_of_scope",
 				"expected_policy_reason": "product_scope_boundary",
 				"expected_scope_class": "out_of_scope",
 				"expected_target": "none",
 				"expected_task_kind": "knowledge_lookup",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"tags": ["synthetic", "exploratory", "out_of_scope"]
 			},
 			"variants": [

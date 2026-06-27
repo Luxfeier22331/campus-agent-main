@@ -4743,14 +4743,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -4868,8 +4868,8 @@
           "method": "btree",
           "with": {}
         },
-        "operator_metric_rollup_domain_capability_bucket_idx": {
-          "name": "operator_metric_rollup_domain_capability_bucket_idx",
+        "operator_metric_rollup_domain_tool_bucket_idx": {
+          "name": "operator_metric_rollup_domain_tool_bucket_idx",
           "columns": [
             {
               "expression": "domain",
@@ -4878,7 +4878,7 @@
               "nulls": "last"
             },
             {
-              "expression": "selected_capability",
+              "expression": "selected_tool",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -7425,14 +7425,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "capabilities_json": {
-          "name": "capabilities_json",
+        "features_json": {
+          "name": "features_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
         },
-        "capability_config_json": {
-          "name": "capability_config_json",
+        "feature_config_json": {
+          "name": "feature_config_json",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true
@@ -7730,8 +7730,8 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -7906,14 +7906,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8136,14 +8136,14 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8404,8 +8404,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8428,8 +8428,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8694,8 +8694,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8730,8 +8730,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -8888,8 +8888,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "intent_capability": {
-          "name": "intent_capability",
+        "intent_tool": {
+          "name": "intent_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -9176,11 +9176,11 @@
           "method": "btree",
           "with": {}
         },
-        "runtime_request_observability_selected_capability_started_at_idx": {
-          "name": "runtime_request_observability_selected_capability_started_at_idx",
+        "runtime_request_observability_selected_tool_started_at_idx": {
+          "name": "runtime_request_observability_selected_tool_started_at_idx",
           "columns": [
             {
-              "expression": "selected_capability",
+              "expression": "selected_tool",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -9360,8 +9360,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -9384,8 +9384,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "selected_capability": {
-          "name": "selected_capability",
+        "selected_tool": {
+          "name": "selected_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false

@@ -259,7 +259,7 @@ class OperatorObservabilityClientTest(unittest.TestCase):
                             "steps": [
                                 {
                                     "attemptCount": 1,
-                                    "capability": "knowledge",
+                                    "tool": "knowledge_query",
                                     "resultCount": 1,
                                     "status": "completed",
                                     "stepId": "retrieval.indexed_lookup",
@@ -341,7 +341,7 @@ class OperatorObservabilityClientTest(unittest.TestCase):
                             "steps": [
                                 {
                                     "attemptCount": 1,
-                                    "capability": "knowledge",
+                                    "tool": "knowledge_query",
                                     "resultCount": 1,
                                     "status": "completed",
                                     "stepId": "retrieval.indexed_lookup",

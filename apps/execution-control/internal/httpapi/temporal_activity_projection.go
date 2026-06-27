@@ -155,13 +155,13 @@ func (s *Server) failTemporalPlanning(
 	cause error,
 ) (temporalruntime.PlanRouteActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "plan/route"),
 		ResultKind:    "activity_failure",
 		StepID:        "plan.route",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -177,7 +177,7 @@ func (s *Server) failRAGPlanActivity(
 	cause error,
 ) (temporalruntime.PlanRAGActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "rag/plan"),
 		ResultKind:    "activity_failure",
@@ -199,7 +199,7 @@ func (s *Server) failRetrieveIndexedLookupActivity(
 	cause error,
 ) (temporalruntime.RetrieveIndexedLookupActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/indexed-lookup"),
 		ResultKind:    "activity_failure",
@@ -221,7 +221,7 @@ func (s *Server) failExpandOrRescueRetrievalActivity(
 	cause error,
 ) (temporalruntime.ExpandOrRescueRetrievalActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "retrieval/expand-or-rescue"),
 		ResultKind:    "activity_failure",
@@ -243,7 +243,7 @@ func (s *Server) failSelectEvidenceActivity(
 	cause error,
 ) (temporalruntime.SelectEvidenceActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "evidence/selection"),
 		ResultKind:    "activity_failure",
@@ -265,7 +265,7 @@ func (s *Server) failVerifyGroundingActivity(
 	cause error,
 ) (temporalruntime.VerifyGroundingActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "grounding/verify"),
 		ResultKind:    "activity_failure",
@@ -283,18 +283,18 @@ func (s *Server) failVerifyGroundingActivity(
 func (s *Server) failFinalizationActivity(
 	ctx context.Context,
 	run execution.DurableRun,
-	capability string,
+	tool string,
 	failureKind string,
 	cause error,
 ) (temporalruntime.WriteFinalizationActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    capability,
+		Tool:          tool,
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "finalization/write"),
 		ResultKind:    "activity_failure",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -304,7 +304,7 @@ func (s *Server) failFinalizationActivity(
 }
 
 type temporalStepFailureProjection struct {
-	Capability      string
+	Tool            string
 	FailureKind     string
 	CancelOutcome   execution.CancelOutcome
 	FailCloseReason string
@@ -334,7 +334,7 @@ func (s *Server) failTemporalRunStep(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:         1,
-		Capability:      temporalFailureCapability(projection),
+		Tool:            temporalFailureTool(projection),
 		CancelOutcome:   temporalFailureCancelOutcome(ctx, projection.CancelOutcome),
 		FailCloseReason: temporalFailureFailCloseReason(projection),
 		Run:             run,
@@ -357,11 +357,11 @@ func (s *Server) failTemporalRunStep(
 	return s.failTemporalRun(ctx, run, projection, cause)
 }
 
-func temporalFailureCapability(projection temporalStepFailureProjection) string {
-	if capability := strings.TrimSpace(projection.Capability); capability != "" {
-		return capability
+func temporalFailureTool(projection temporalStepFailureProjection) string {
+	if tool := strings.TrimSpace(projection.Tool); tool != "" {
+		return tool
 	}
-	return "knowledge"
+	return ""
 }
 
 func temporalFailureFailCloseReason(projection temporalStepFailureProjection) string {
@@ -441,10 +441,10 @@ func (s *Server) failTemporalRun(
 	failedRun, transitionErr := s.runProjectionStore.FailRunProjection(
 		ctx,
 		execution.DurableRunFailRequest{
-			Now:                failedAt,
-			RunID:              run.RunID,
-			SelectedCapability: temporalFailureCapability(projection),
-			TerminalReason:     terminalReason,
+			Now:            failedAt,
+			RunID:          run.RunID,
+			SelectedTool:   temporalFailureTool(projection),
+			TerminalReason: terminalReason,
 		},
 	)
 	if transitionErr != nil {

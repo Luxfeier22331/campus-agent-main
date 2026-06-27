@@ -24,19 +24,19 @@ def _synthetic_payload() -> dict[str, object]:
                 "review_status": "accepted_regression",
                 "label_source": "human_policy_matrix",
                 "axis": {
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "context_mode": "none",
                     "next_action": "delegate",
                     "query_style": "colloquial",
                 },
                 "intent_case": {
-                    "expected_capability": "knowledge",
+                    "expected_tool": "knowledge_query",
                     "expected_launch_state": "open",
                     "expected_next_action": "delegate",
                     "expected_scope_class": "in_scope",
-                    "expected_target": "knowledge",
+                    "expected_target": "knowledge_query",
                     "expected_task_kind": "knowledge_lookup",
-                    "requested_capability": "knowledge",
+                    "requested_tool": "knowledge_query",
                     "tags": ["synthetic", "knowledge", "accepted_regression"],
                     "user_goal": "国奖条件是啥",
                 },
@@ -46,20 +46,20 @@ def _synthetic_payload() -> dict[str, object]:
                 "review_status": "exploratory_candidate",
                 "label_source": "human_policy_matrix",
                 "axis": {
-                    "capability": "notice",
+                    "tool": "campus_notice_discover",
                     "context_mode": "none",
                     "next_action": "delegate",
                     "query_style": "abbreviated",
                 },
                 "intent_case": {
-                    "expected_capability": "notice",
+                    "expected_tool": "campus_notice_discover",
                     "expected_launch_state": "open",
                     "expected_next_action": "delegate",
                     "expected_scope_class": "in_scope",
-                    "expected_scope_reason": "structured_runtime_candidate_signal",
-                    "expected_target": "notice",
+                    "expected_scope_reason": "tool_read_model_candidate_signal",
+                    "expected_target": "campus_notice_discover",
                     "expected_task_kind": "notice_lookup",
-                    "requested_capability": "knowledge",
+                    "requested_tool": "knowledge_query",
                     "tags": ["synthetic", "notice", "exploratory_candidate"],
                     "user_goal": "春假公告",
                 },
@@ -80,7 +80,7 @@ class IntentSyntheticTest(unittest.TestCase):
         self.assertEqual(cases[0].case_id, "synthetic-knowledge-scholarship-001")
         self.assertIn("synthetic_regression", cases[0].tags)
         self.assertIn("query_style:colloquial", cases[0].tags)
-        self.assertEqual(cases[0].expected_target, "knowledge")
+        self.assertEqual(cases[0].expected_target, "knowledge_query")
 
     def test_load_intent_synthetic_exploratory_cases_reads_only_exploratory_cases(self) -> None:
         with TemporaryDirectory() as tmpdir:
@@ -92,7 +92,7 @@ class IntentSyntheticTest(unittest.TestCase):
         self.assertEqual(len(cases), 1)
         self.assertEqual(cases[0].case_id, "synthetic-notice-exploratory-001")
         self.assertIn("synthetic_exploratory", cases[0].tags)
-        self.assertIn("axis_capability:notice", cases[0].tags)
+        self.assertIn("axis_tool:campus_notice_discover", cases[0].tags)
 
     def test_load_intent_synthetic_cases_rejects_classifier_derived_labels(self) -> None:
         payload = _synthetic_payload()
@@ -128,18 +128,18 @@ class IntentSyntheticTest(unittest.TestCase):
                     "review_status": "accepted_regression",
                     "label_source": "human_policy_matrix",
                     "axis": {
-                        "capability": "knowledge",
+                        "tool": "knowledge_query",
                         "context_mode": "none",
                         "next_action": "delegate",
                     },
                     "intent_case": {
-                        "expected_capability": "knowledge",
+                        "expected_tool": "knowledge_query",
                         "expected_launch_state": "open",
                         "expected_next_action": "delegate",
                         "expected_scope_class": "in_scope",
-                        "expected_target": "knowledge",
+                        "expected_target": "knowledge_query",
                         "expected_task_kind": "knowledge_lookup",
-                        "requested_capability": "knowledge",
+                        "requested_tool": "knowledge_query",
                         "tags": ["synthetic", "knowledge"],
                     },
                     "variants": [
@@ -216,15 +216,18 @@ class IntentSyntheticTest(unittest.TestCase):
                 all(case.expected_allowed_tools == () for case in cases_by_goal[user_goal])
             )
             self.assertTrue(
-                all(case.expected_target != "campus_services" for case in cases_by_goal[user_goal])
+                all(
+                    case.expected_target != "transport_schedule_lookup"
+                    for case in cases_by_goal[user_goal]
+                )
             )
 
         transport_goal = "丰台校区通勤班车在哪里上车"
         self.assertIn(transport_goal, cases_by_goal)
         self.assertTrue(
             any(
-                case.expected_capability == "campus_services"
-                and case.expected_target == "campus_services"
+                case.expected_tool == "transport_schedule_lookup"
+                and case.expected_target == "transport_schedule_lookup"
                 and case.expected_allowed_tools == ("transport_schedule_lookup",)
                 for case in cases_by_goal[transport_goal]
             )

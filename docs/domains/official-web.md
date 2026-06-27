@@ -14,7 +14,7 @@ This domain hub is a cross-document navigation entry for `official_web`.
 It does not own current status, historical evidence, source schema, HTTP
 contract, runbook procedure or release proof.
 
-Current merged truth remains in `../architecture/current-architecture.md`.
+Current merged truth remains in `../architecture/current.md`.
 Documentation ownership rules remain in `../documentation-architecture.md`.
 
 ## Architecture

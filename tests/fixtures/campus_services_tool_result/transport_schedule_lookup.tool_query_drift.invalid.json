@@ -1,6 +1,6 @@
 {
 	"schema_version": "campus_services_tool_result.v1",
-	"capability": "campus_services",
+	"tool": "transport_schedule_lookup",
 	"tool_name": "transport_schedule_lookup",
 	"query_kind": "unexpected_query",
 	"outcome": "resolved_current",

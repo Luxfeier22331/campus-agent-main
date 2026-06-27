@@ -254,21 +254,21 @@ func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.Du
 		return execution.DurableRun{}, errors.New("metadata is required")
 	}
 	run := execution.DurableRun{
-		RunID:               requiredStringFromMap(payload, "run_id"),
-		ConversationID:      requiredStringFromMap(payload, "conversation_id"),
-		TurnID:              requiredStringFromMap(payload, "turn_id"),
-		RequestID:           requiredStringFromMap(payload, "request_id"),
-		TraceID:             optionalStringFromMap(payload, "trace_id"),
-		OwnerUserID:         requiredStringFromMap(payload, "owner_user_id"),
-		Surface:             requiredStringFromMap(payload, "surface"),
-		RequestedCapability: optionalStringFromMap(payload, "requested_capability"),
-		SelectedCapability:  optionalStringFromMap(payload, "selected_capability"),
-		Lane:                execution.DurableLane(requiredStringFromMap(payload, "lane")),
-		Status:              execution.DurableRunStatusCreated,
-		CreatedAt:           now,
-		UpdatedAt:           now,
-		RuntimeVersions:     optionalMapFromMap(payload, "runtime_versions"),
-		Metadata:            metadata,
+		RunID:           requiredStringFromMap(payload, "run_id"),
+		ConversationID:  requiredStringFromMap(payload, "conversation_id"),
+		TurnID:          requiredStringFromMap(payload, "turn_id"),
+		RequestID:       requiredStringFromMap(payload, "request_id"),
+		TraceID:         optionalStringFromMap(payload, "trace_id"),
+		OwnerUserID:     requiredStringFromMap(payload, "owner_user_id"),
+		Surface:         requiredStringFromMap(payload, "surface"),
+		RequestedTool:   optionalStringFromMap(payload, "requested_tool"),
+		SelectedTool:    optionalStringFromMap(payload, "selected_tool"),
+		Status:          execution.DurableRunStatusCreated,
+		TaskQueue:       requiredStringFromMap(payload, "task_queue"),
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		RuntimeVersions: optionalMapFromMap(payload, "runtime_versions"),
+		Metadata:        metadata,
 	}
 	if run.RunID == "" {
 		return execution.DurableRun{}, errors.New("run_id is required")
@@ -288,8 +288,8 @@ func durableRunFromCreateBody(body json.RawMessage, now time.Time) (execution.Du
 	if run.Surface == "" {
 		return execution.DurableRun{}, errors.New("surface is required")
 	}
-	if run.Lane == "" {
-		return execution.DurableRun{}, errors.New("lane is required")
+	if run.TaskQueue == "" {
+		return execution.DurableRun{}, errors.New("task_queue is required")
 	}
 	if err := validateDurableRunExecutionPayload(run); err != nil {
 		return execution.DurableRun{}, err
@@ -338,10 +338,10 @@ func durableRunResponse(run execution.DurableRun) map[string]any {
 		"trace_id":             run.TraceID,
 		"owner_user_id":        run.OwnerUserID,
 		"surface":              run.Surface,
-		"requested_capability": run.RequestedCapability,
-		"selected_capability":  run.SelectedCapability,
-		"lane":                 string(run.Lane),
+		"requested_tool":       run.RequestedTool,
+		"selected_tool":        run.SelectedTool,
 		"status":               string(run.Status),
+		"task_queue":           run.TaskQueue,
 		"terminal_reason":      string(run.TerminalReason),
 		"fail_close_reason":    run.FailCloseReason,
 		"created_at":           formatOptionalTime(run.CreatedAt),
@@ -376,7 +376,7 @@ func runStepProjectionResponse(step execution.RunStepProjection) map[string]any 
 		"run_id":                 step.RunID,
 		"conversation_id":        step.ConversationID,
 		"step_kind":              step.StepKind,
-		"capability":             step.Capability,
+		"tool":                   step.Tool,
 		"parent_step_id":         step.ParentStepID,
 		"status":                 step.Status,
 		"task_queue":             step.TaskQueue,
@@ -449,12 +449,11 @@ func buildAgentRuntimeEvalProjection(
 	steps []execution.RunStepProjection,
 	results []execution.StepResultProjection,
 ) map[string]any {
-	selectedCapability := firstNonEmptyText(
-		run.SelectedCapability,
-		firstStepCapability(steps),
-		firstProjectedStringFromResults(results, "selected_capability"),
+	selectedTool := firstNonEmptyText(
+		run.SelectedTool,
+		firstStepTool(steps),
+		firstProjectedStringFromResults(results, "selected_tool"),
 	)
-	selectedTool := firstProjectedStringFromResults(results, "selected_tool")
 	return map[string]any{
 		"schema_version": "agent_runtime_eval_projection.v1",
 		"run": map[string]any{
@@ -466,7 +465,6 @@ func buildAgentRuntimeEvalProjection(
 			"fail_close_reason": run.FailCloseReason,
 		},
 		"trajectory": map[string]any{
-			"selected_capability":    selectedCapability,
 			"selected_tool":          selectedTool,
 			"tool_calls":             projectedToolCalls(results),
 			"direct_answer":          projectedBoolFromResults(results, "direct_answer"),
@@ -478,10 +476,10 @@ func buildAgentRuntimeEvalProjection(
 	}
 }
 
-func firstStepCapability(steps []execution.RunStepProjection) string {
+func firstStepTool(steps []execution.RunStepProjection) string {
 	for _, step := range steps {
-		if capability := strings.TrimSpace(step.Capability); capability != "" {
-			return capability
+		if tool := strings.TrimSpace(step.Tool); tool != "" {
+			return tool
 		}
 	}
 	return ""

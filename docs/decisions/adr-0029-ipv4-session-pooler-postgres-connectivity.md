@@ -70,7 +70,7 @@ canonical chain。
 - 现存 `*_MANAGEMENT_*` env 名称不再作为 runtime env path，也不代表 repo-level
   direct/default posture
 - 在当前 IPv4-only 姿态下，它应指向 session pooler，而不是 `db.<project-ref>.supabase.co`
-- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 capability /
+- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 tool /
   决策收口，而不是继续复用默认 operator env
 
 ## 决策 4：所有长驻 runtime 必须使用 application-side pooling

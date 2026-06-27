@@ -21,15 +21,15 @@ export type JsonRecord = Record<string, unknown>;
 
 export interface ExecutionControlRunCreateInput {
 	conversationId: string;
-	lane: string;
 	metadata: JsonRecord;
 	ownerUserId: string;
 	requestId: string;
-	requestedCapability?: string | null;
+	requestedTool?: string | null;
 	runId: string;
 	runtimeVersions?: JsonRecord | null;
-	selectedCapability?: string | null;
+	selectedTool?: string | null;
 	surface: string;
+	taskQueue: string;
 	traceHeaders?: TracePropagationHeaders;
 	traceId?: string | null;
 	turnId: string;
@@ -100,16 +100,16 @@ export interface ExecutionControlRun {
 	createdAt: string;
 	failCloseReason: string;
 	finalResponseRef: string;
-	lane: string;
 	ownerUserId: string;
 	requestId: string;
-	requestedCapability: string;
+	requestedTool: string;
 	runId: string;
-	selectedCapability: string;
+	selectedTool: string;
 	startedAt: string;
 	status: string;
 	streamingStartedAt: string;
 	surface: string;
+	taskQueue: string;
 	terminalReason: string;
 	traceId: string;
 	turnId: string;
@@ -130,7 +130,7 @@ export interface ExecutionControlRunEvent {
 }
 
 export interface ExecutionControlRunStep {
-	capability: string;
+	tool: string;
 	completedAt: string;
 	conversationId: string;
 	parentStepId: string;
@@ -546,15 +546,15 @@ function durableRunEventsPath(query: ExecutionControlRunEventQuery): string {
 function toDurableRunCreateBody(input: ExecutionControlRunCreateInput): JsonRecord {
 	return {
 		conversation_id: input.conversationId,
-		lane: input.lane,
 		metadata: input.metadata,
 		owner_user_id: input.ownerUserId,
 		request_id: input.requestId,
-		requested_capability: input.requestedCapability ?? "",
+		requested_tool: input.requestedTool ?? "",
 		run_id: input.runId,
 		runtime_versions: input.runtimeVersions ?? {},
-		selected_capability: input.selectedCapability ?? "",
+		selected_tool: input.selectedTool ?? "",
 		surface: input.surface,
+		task_queue: input.taskQueue,
 		trace_id: input.traceId ?? "",
 		turn_id: input.turnId,
 	};
@@ -568,16 +568,16 @@ function parseDurableRun(payload: JsonRecord): ExecutionControlRun {
 		createdAt: readRequiredString(payload, "created_at"),
 		failCloseReason: readRequiredString(payload, "fail_close_reason"),
 		finalResponseRef: readRequiredString(payload, "final_response_ref"),
-		lane: readRequiredString(payload, "lane"),
 		ownerUserId: readRequiredString(payload, "owner_user_id"),
 		requestId: readRequiredString(payload, "request_id"),
-		requestedCapability: readRequiredString(payload, "requested_capability"),
+		requestedTool: readRequiredString(payload, "requested_tool"),
 		runId: readRequiredString(payload, "run_id"),
-		selectedCapability: readRequiredString(payload, "selected_capability"),
+		selectedTool: readRequiredString(payload, "selected_tool"),
 		startedAt: readRequiredString(payload, "started_at"),
 		status: readRequiredString(payload, "status"),
 		streamingStartedAt: readRequiredString(payload, "streaming_started_at"),
 		surface: readRequiredString(payload, "surface"),
+		taskQueue: readRequiredString(payload, "task_queue"),
 		terminalReason: readRequiredString(payload, "terminal_reason"),
 		traceId: readRequiredString(payload, "trace_id"),
 		turnId: readRequiredString(payload, "turn_id"),
@@ -636,7 +636,7 @@ function parsePersonalMemoryResult(payload: JsonRecord): ExecutionControlPersona
 function parseRunStep(value: unknown, index: number): ExecutionControlRunStep {
 	const record = readArrayRecord(value, `steps[${index}]`);
 	return {
-		capability: readRequiredString(record, "capability"),
+		tool: readRequiredString(record, "tool"),
 		completedAt: readRequiredString(record, "completed_at"),
 		conversationId: readRequiredString(record, "conversation_id"),
 		parentStepId: readRequiredString(record, "parent_step_id"),

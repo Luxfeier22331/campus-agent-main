@@ -34,20 +34,9 @@ class GoldenCaseSchemaTest(unittest.TestCase):
                 expected_status="completed",
             )
 
-    def test_trace_expectation_rejects_unknown_capability(self) -> None:
-        with self.assertRaisesRegex(ValueError, "expected_capability"):
-            TraceExpectation(expected_capability="execution-direct")
-
-    def test_trace_expectation_rejects_unknown_capability_family(self) -> None:
-        with self.assertRaisesRegex(ValueError, "expected_capability_family"):
-            TraceExpectation(expected_capability_family="execution")
-
-    def test_trace_expectation_rejects_capability_family_mismatch(self) -> None:
-        with self.assertRaisesRegex(ValueError, "same lane"):
-            TraceExpectation(
-                expected_capability="knowledge",
-                expected_capability_family="navigation",
-            )
+    def test_trace_expectation_rejects_unknown_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "expected_tool"):
+            TraceExpectation(expected_tool="execution-direct")
 
     def test_case_accepts_reference_context_truth_and_metric_overrides(self) -> None:
         case = GoldenCase(

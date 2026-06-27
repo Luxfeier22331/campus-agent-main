@@ -22,7 +22,7 @@ class EvalAdmissionTest(unittest.TestCase):
                 {
                     "case_id": "mined-req-001",
                     "critical": True,
-                    "expected_capability": "place_lookup",
+                    "expected_tool": "place_lookup",
                     "expected_launch_state": "closed",
                     "expected_next_action": "out_of_scope",
                     "expected_policy_reason": "navigation_temporarily_unsupported",
@@ -73,7 +73,7 @@ class EvalAdmissionTest(unittest.TestCase):
                         "citationPosture": "citation_missing",
                         "conversationId": "conv_01",
                         "intent": {
-                            "capability": "knowledge",
+                            "tool": "knowledge_query",
                             "taskKind": "knowledge_lookup",
                         },
                     },
@@ -96,7 +96,7 @@ class EvalAdmissionTest(unittest.TestCase):
                     },
                     "requestId": "req_feedback_01",
                     "review": {"suggestedLabels": ["wrong_intent"]},
-                    "selectedCapability": "knowledge",
+                    "selectedTool": "knowledge_query",
                     "summary": "Negative answer feedback for answer: wrong_intent.",
                     "surface": "campus_web",
                     "traceId": "trace_feedback_01",
@@ -151,7 +151,7 @@ class EvalAdmissionTest(unittest.TestCase):
                         "suggestedEvalFamily": "grounding",
                     },
                     "requestId": None,
-                    "selectedCapability": None,
+                    "selectedTool": None,
                     "summary": "RAGAS faithfulness=0.31 below 0.80 at evidence_selection.",
                     "surface": "regulations/student_rules",
                     "traceId": None,
@@ -176,7 +176,7 @@ class EvalAdmissionTest(unittest.TestCase):
     ) -> None:
         candidate = {
             "case_id": "mined-req-001",
-            "expected_capability": "place_lookup",
+            "expected_tool": "place_lookup",
             "expected_launch_state": "closed",
             "expected_next_action": "out_of_scope",
             "expected_scope_class": "out_of_scope",
@@ -197,7 +197,7 @@ class EvalAdmissionTest(unittest.TestCase):
         candidate = {
             "case_id": "mined-req-001",
             "critical": True,
-            "expected_capability": "place_lookup",
+            "expected_tool": "place_lookup",
             "expected_launch_state": "closed",
             "expected_next_action": "out_of_scope",
             "expected_policy_reason": "navigation_temporarily_unsupported",
@@ -261,7 +261,7 @@ class EvalAdmissionTest(unittest.TestCase):
                 "traceLink": "https://sentry.example/traces/trace_01HQ",
             },
             "requestId": "req_01HQ",
-            "selectedCapability": "knowledge",
+            "selectedTool": "knowledge_query",
             "summary": "semanticOutcome=unsupported_by_evidence",
             "surface": "campus_web",
             "traceId": "trace_01HQ",

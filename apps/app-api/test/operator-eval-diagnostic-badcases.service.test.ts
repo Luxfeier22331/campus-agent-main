@@ -8,7 +8,7 @@ const trajectoryAttribution = {
 	status: "attributed",
 	stepId: "evidence.selection",
 	stepKind: "selection",
-	capability: "knowledge",
+	tool: "knowledge_query",
 	toolName: null,
 	stepStatus: "completed",
 	outcome: {
@@ -123,7 +123,7 @@ describe("operator eval diagnostic badcases command service", () => {
 			status: "attributed",
 			stepId: "plan.replan.1",
 			stepKind: "replan",
-			capability: "campus_services",
+			tool: "transport_schedule_lookup",
 			toolName: "transport_schedule_lookup",
 			stepStatus: "completed",
 			outcome: {
@@ -183,7 +183,7 @@ describe("operator eval diagnostic badcases command service", () => {
 			status: "attributed",
 			stepId: "finalization.write",
 			stepKind: "finalization",
-			capability: "primary_agent",
+			tool: null,
 			toolName: null,
 			stepStatus: "completed",
 			outcome: {

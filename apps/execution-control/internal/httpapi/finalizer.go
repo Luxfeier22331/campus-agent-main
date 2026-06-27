@@ -8,7 +8,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-var errInvalidCapabilityResponse = errors.New("invalid agent response")
+var errInvalidToolResponse = errors.New("invalid agent response")
 var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
 	execution.ProjectionKindNoticeContext:       {},
 	execution.ProjectionKindNoticeChangeSet:     {},
@@ -18,15 +18,15 @@ var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
 }
 
 type executionFinalizerContext struct {
-	SelectedTool        string
-	RuntimeDecisions    execution.RuntimeDecisionSummary
-	Handoff             *execution.RuntimeHandoff
-	Branch              string
-	RuntimeVersions     map[string]any
-	PolicyVersions      map[string]any
-	RuntimeAttemptCount int
-	RuntimeRetryCount   int
-	WorkflowRun         *execution.WorkflowRun
+	SelectedTool          string
+	RuntimeDecisions      execution.RuntimeDecisionSummary
+	Handoff               *execution.RuntimeHandoff
+	Branch                string
+	RuntimeVersions       map[string]any
+	PolicyVersions        map[string]any
+	ExecutionAttemptCount int
+	ExecutionRetryCount   int
+	WorkflowRun           *execution.WorkflowRun
 }
 
 type executionAttemptState struct {
@@ -50,14 +50,14 @@ func finalizerContextFromExecutionRequest(
 		runState.RetryCount = 0
 	}
 	return executionFinalizerContext{
-		SelectedTool:        request.RuntimeDecisions.SelectedTool,
-		RuntimeDecisions:    request.RuntimeDecisions,
-		Handoff:             request.StructuredHandoff,
-		Branch:              branch,
-		RuntimeVersions:     request.RuntimeDecisions.RuntimeVersions,
-		PolicyVersions:      request.RuntimeDecisions.PolicyArtifactVersions,
-		RuntimeAttemptCount: runState.AttemptCount,
-		RuntimeRetryCount:   runState.RetryCount,
+		SelectedTool:          request.RuntimeDecisions.SelectedTool,
+		RuntimeDecisions:      request.RuntimeDecisions,
+		Handoff:               request.ToolHandoff,
+		Branch:                branch,
+		RuntimeVersions:       request.RuntimeDecisions.RuntimeVersions,
+		PolicyVersions:        request.RuntimeDecisions.PolicyArtifactVersions,
+		ExecutionAttemptCount: runState.AttemptCount,
+		ExecutionRetryCount:   runState.RetryCount,
 	}
 }
 
@@ -92,7 +92,7 @@ func terminalExecutionResponse(
 		response["error"] = nil
 	}
 	if _, exists := response["workflow_trace_summary"]; !exists {
-		target, _ := response["selected_capability"].(string)
+		target, _ := response["selected_tool"].(string)
 		status, _ := response["status"].(string)
 		result, _ := response["result"].(map[string]any)
 		response["workflow_trace_summary"] = buildWorkflowTraceSummary(
@@ -114,56 +114,56 @@ func workflowBranchForRequest(request execution.AnswerExecutionRequest) string {
 	return "delegate"
 }
 
-func finalizeCapabilityResponse(
+func finalizeAgentToolResponse(
 	agentResponse map[string]any,
 	traceID string,
 	context executionFinalizerContext,
 ) (map[string]any, error) {
-	target, err := requiredCapabilityResponseString(agentResponse, "capability")
+	target, err := requiredToolResponseString(agentResponse, "tool")
 	if err != nil {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	status, err := optionalCapabilityResponseString(agentResponse, "status")
+	status, err := optionalToolResponseString(agentResponse, "status")
 	if err != nil {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	confidence, err := requiredCapabilityResponseString(agentResponse, "confidence")
+	confidence, err := requiredToolResponseString(agentResponse, "confidence")
 	if err != nil {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	if !allowedCapabilityID(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
-		return nil, errInvalidCapabilityResponse
+	if !allowedToolID(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
+		return nil, errInvalidToolResponse
 	}
 	if !validFinalizerHandoffInvariant(target, context) {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	answerText, err := requiredCapabilityResponseString(agentResponse, "answer_text")
+	answerText, err := requiredToolResponseString(agentResponse, "answer_text")
 	if err != nil {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	followUpQuestion, err := requiredCapabilityResponseString(agentResponse, "follow_up_question")
+	followUpQuestion, err := requiredToolResponseString(agentResponse, "follow_up_question")
 	if err != nil {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	result, err := optionalCapabilityResponseObject(agentResponse, "result")
+	result, err := optionalToolResponseObject(agentResponse, "result")
 	if err != nil || hasForbiddenWorkflowTraceKey(result) {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	errorBody, err := optionalCapabilityResponseObject(agentResponse, "error")
+	errorBody, err := optionalToolResponseObject(agentResponse, "error")
 	if err != nil || hasForbiddenWorkflowTraceKey(errorBody) {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
-	if !validCapabilityResponseErrorBody(errorBody) {
-		return nil, errInvalidCapabilityResponse
+	if !validToolResponseErrorBody(errorBody) {
+		return nil, errInvalidToolResponse
 	}
-	agentObservability, err := optionalCapabilityResponseObject(agentResponse, "capability_observability")
+	agentObservability, err := optionalToolResponseObject(agentResponse, "tool_observability")
 	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
 	selectedTool := finalizerSelectedTool(agentObservability, context)
 	context.SelectedTool = selectedTool
 	response := map[string]any{
-		"selected_capability":    target,
+		"selected_tool":          target,
 		"status":                 status,
 		"answer_text":            answerText,
 		"follow_up_question":     followUpQuestion,
@@ -187,43 +187,43 @@ func finalizerSelectedTool(
 	)
 }
 
-func optionalCapabilityResponseString(agentResponse map[string]any, field string) (string, error) {
+func optionalToolResponseString(agentResponse map[string]any, field string) (string, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
 		return "", nil
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", errInvalidCapabilityResponse
+		return "", errInvalidToolResponse
 	}
 	return strings.TrimSpace(text), nil
 }
 
-func requiredCapabilityResponseString(agentResponse map[string]any, field string) (string, error) {
+func requiredToolResponseString(agentResponse map[string]any, field string) (string, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
-		return "", errInvalidCapabilityResponse
+		return "", errInvalidToolResponse
 	}
 	text, ok := value.(string)
 	if !ok {
-		return "", errInvalidCapabilityResponse
+		return "", errInvalidToolResponse
 	}
 	return strings.TrimSpace(text), nil
 }
 
-func optionalCapabilityResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
+func optionalToolResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
 		return nil, nil
 	}
 	object, ok := value.(map[string]any)
 	if !ok {
-		return nil, errInvalidCapabilityResponse
+		return nil, errInvalidToolResponse
 	}
 	return object, nil
 }
 
-func validCapabilityResponseErrorBody(errorBody map[string]any) bool {
+func validToolResponseErrorBody(errorBody map[string]any) bool {
 	if errorBody == nil {
 		return true
 	}
@@ -260,6 +260,7 @@ func buildWorkflowTraceSummaryWire(
 ) contractsv1.WorkflowTraceSummaryWire {
 	decisions := context.RuntimeDecisions
 	selectedTool := finalizerSelectedTool(agentObservability, context)
+	traceSelectedTool := selectedTool
 	branch := context.Branch
 	if branch == "" {
 		branch = branchFromRuntimeDecision(decisions)
@@ -268,7 +269,13 @@ func buildWorkflowTraceSummaryWire(
 	if context.WorkflowRun != nil && context.WorkflowRun.Mode != "" {
 		workflowMode = string(context.WorkflowRun.Mode)
 	}
-	traceTarget := workflowTraceSelectedCapability(workflowMode, target)
+	if strings.TrimSpace(traceSelectedTool) == "" {
+		traceSelectedTool = workflowTraceSelectedTool(workflowMode, target)
+	}
+	if strings.TrimSpace(traceSelectedTool) == "" {
+		traceSelectedTool = "none"
+	}
+	traceTarget := workflowTraceSelectedTool(workflowMode, target)
 	handoff := workflowHandoffSummary(context.Handoff, target, selectedTool)
 	selectedTools := workflowSelectedTools(context.Handoff, selectedTool)
 	failCloseReason := defaultString(
@@ -285,8 +292,8 @@ func buildWorkflowTraceSummaryWire(
 		status,
 		decisions,
 		failCloseReason,
-		context.RuntimeAttemptCount,
-		context.RuntimeRetryCount,
+		context.ExecutionAttemptCount,
+		context.ExecutionRetryCount,
 	)
 	if context.WorkflowRun != nil {
 		run = *context.WorkflowRun
@@ -295,7 +302,7 @@ func buildWorkflowTraceSummaryWire(
 		}
 		selectedTools = workflowTraceSelectedTools(run, context.Handoff, selectedTool)
 		if traceTarget == "" && len(run.HandoffChain) > 0 {
-			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].Capability
+			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].ToolTarget
 		}
 		if len(handoff) == 0 && len(run.HandoffChain) > 0 {
 			handoff = run.HandoffChain[0].Map()
@@ -315,7 +322,6 @@ func buildWorkflowTraceSummaryWire(
 	if len(policyVersions) == 0 {
 		policyVersions = decisions.PolicyArtifactVersions
 	}
-	selectedCapability := traceTarget
 	return contractsv1.WorkflowTraceSummaryWire{
 		RoutingFrame: map[string]any{
 			"scope_gate_decision":     decisions.ScopeGateDecision,
@@ -331,8 +337,8 @@ func buildWorkflowTraceSummaryWire(
 		WorkflowMode:                contractsv1.WorkflowMode(workflowMode),
 		Handoff:                     handoff,
 		HandoffChain:                run.HandoffChainMaps(),
-		CapabilityInvocations:       workflowCapabilityInvocationWire(run.CapabilityInvocations),
-		SelectedCapability:          &selectedCapability,
+		ToolInvocations:             workflowToolInvocationWire(run.ToolInvocations),
+		SelectedTool:                &traceSelectedTool,
 		SelectedTools:               selectedTools,
 		ContextProjections:          workflowContextProjectionWire(run.ContextProjections),
 		AnswerArtifactProjectionIDs: workflowAnswerArtifactProjectionIDs(run.ContextProjections),

@@ -2,19 +2,19 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 	it("persists navigation place cards even when point geometry is absent", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "民族博物馆在海淀校区西侧，靠近图书馆。",
 				error: null,
@@ -45,7 +45,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 						place_id: "muc.haidian.museum",
 					},
 				},
-				selectedCapability: "navigation",
+				selectedTool: "place_lookup",
 				status: "completed",
 				traceId: "trace_0003",
 			}),
@@ -56,7 +56,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-04-11T10:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
@@ -91,7 +91,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "图书馆开放到 22:00。",
 					error: null,
@@ -101,7 +101,7 @@ export function registerChatCommandServiceCoreStructuredPart04Suite(): void {
 							sources: [{ doc_id: "handbook:library-hours" }],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "",
 				}),

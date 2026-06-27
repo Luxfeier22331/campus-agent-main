@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
+TOOL_READ_MODEL_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME = "2026-05-07T08:00:00+08:00"
-SDK_STRUCTURED_OPENED_PROFILES = {
+SDK_TOOL_READ_MODEL_OPENED_PROFILES = {
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
     "notice_discover_sdk_opened",
@@ -39,7 +39,7 @@ def profile_requires_object_store(profile: str) -> bool:
     return profile in MULTI_STEP_WORKFLOW_PROFILES
 
 
-def profile_requires_structured_projection(profile: str) -> bool:
+def profile_requires_tool_read_model_projection(profile: str) -> bool:
     return profile in campus_services_sdk_profiles() or profile == (
         "transport_notice_override_multistep"
     )
@@ -104,8 +104,8 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
         return (
             {
                 "user_goal": "campus shuttle schedule",
-                "request_id": "process-smoke-structured-runtime-closed",
-                "requested_capability": "campus_services",
+                "request_id": "process-smoke-tool-read-model-closed",
+                "requested_tool": "transport_schedule_lookup",
                 "context": context,
             },
             (200,),
@@ -115,7 +115,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "解释一下 AI",
                 "request_id": "process-smoke-terminal-fail-close",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "context": context,
             },
             (200,),
@@ -125,7 +125,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "公费医疗报销",
                 "request_id": "process-smoke-rag-delegate",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -139,7 +139,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "公费医疗报销",
                 "request_id": "process-smoke-rag-delegate-sdk-candidate",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -164,7 +164,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "研究生助教助研助管工作应该依据哪份管理办法？",
                 "request_id": "process-smoke-rag-delegate-institutional-rules",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "institutional_rules",
@@ -178,7 +178,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
                 "request_id": "process-smoke-transport-schedule-sdk-opened",
-                "requested_capability": "campus_services",
+                "requested_tool": "transport_schedule_lookup",
                 "context": context,
             },
             (200,),
@@ -188,7 +188,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
                 "request_id": "process-smoke-transport-schedule-sdk-opened-stream",
-                "requested_capability": "campus_services",
+                "requested_tool": "transport_schedule_lookup",
                 "context": context,
             },
             (200,),
@@ -198,7 +198,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "烟雾测试通知",
                 "request_id": "process-smoke-notice-discover-sdk-opened",
-                "requested_capability": "notice",
+                "requested_tool": "campus_notice_discover",
                 "context": context,
             },
             (200,),
@@ -220,7 +220,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "这条通知依据学生手册哪条规定？",
                 "request_id": "process-smoke-multi-step-notice-knowledge",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -254,7 +254,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "这条班车通知依据学生手册哪条规定？",
                 "request_id": "process-smoke-selected-notice-knowledge-ineligible",
-                "requested_capability": "campus_services",
+                "requested_tool": "transport_schedule_lookup",
                 "requested_scope": {
                     "corpus": "regulations",
                     "collection": "student_rules",
@@ -288,7 +288,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
                 "request_id": "process-smoke-transport-notice-override-multistep",
-                "requested_capability": "campus_services",
+                "requested_tool": "transport_schedule_lookup",
                 "context": notice_context,
             },
             (200, 503),
@@ -298,7 +298,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
             {
                 "user_goal": "帮我提交公费医疗报销申请",
                 "request_id": "process-smoke-transactional-approval-required",
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "context": context,
             },
             (200,),
@@ -308,7 +308,7 @@ def _profile_request(profile: str) -> tuple[dict[str, object], tuple[int, ...]]:
 
 def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str, object]:
     request_id = str(request["request_id"])
-    capability = str(request.get("requested_capability") or "knowledge")
+    tool_target = str(request.get("requested_tool") or "knowledge_query")
     run_id = request_id
     conversation_id = f"conversation-{profile.replace('_', '-')}"
     trace_id = f"trace-{request_id}"
@@ -320,7 +320,7 @@ def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str
         "trace": {"trace_id": trace_id},
         "runtime_decisions": {"runtime_decision_summary": {}},
         "context": context,
-        "requested_capability": capability,
+        "requested_tool": tool_target,
     }
     if "requested_scope" in request:
         execution_payload["requested_scope"] = request["requested_scope"]
@@ -332,12 +332,12 @@ def _execution_run_payload(profile: str, request: dict[str, object]) -> dict[str
         "trace_id": trace_id,
         "owner_user_id": _owner_user_id(context),
         "surface": "local-process-smoke",
-        "selected_capability": capability,
-        "lane": _lane_for_capability(capability),
+        "selected_tool": tool_target,
+        "execution_group": _execution_group_for_tool_target(tool_target),
         "runtime_versions": {"contract": "temporal-execution-control-v1"},
         "metadata": {
             "execution_payload": execution_payload,
-            "handoff": _handoff_for_request(capability, request),
+            "handoff": _handoff_for_tool_request(tool_target, request),
         },
     }
 
@@ -352,37 +352,39 @@ def _owner_user_id(context: object) -> str:
     return "smoke-student"
 
 
-def _lane_for_capability(capability: str) -> str:
-    if capability == "knowledge":
+def _execution_group_for_tool_target(tool_target: str) -> str:
+    if tool_target == "knowledge_query":
         return "rag"
-    if capability in {"campus_services", "notice"}:
-        return capability
+    if tool_target == "transport_schedule_lookup":
+        return "transport_schedule"
+    if tool_target.startswith("campus_notice_"):
+        return "notice"
     return "default"
 
 
-def _handoff_for_request(capability: str, request: dict[str, object]) -> dict[str, object]:
+def _handoff_for_tool_request(tool_target: str, request: dict[str, object]) -> dict[str, object]:
     user_goal = str(request["user_goal"])
-    if capability == "knowledge":
+    if tool_target == "knowledge_query":
         return {
-            "target": "rag-tool",
+            "target": "knowledge_query",
             "payload_kind": "rag_request",
-            "allowed_tools": ["retrieval.query"],
+            "allowed_tools": ["knowledge_query"],
             "payload": {
                 "query_text": user_goal,
                 "requested_scope": request.get("requested_scope", {}),
             },
         }
-    if capability == "notice":
+    if tool_target == "campus_notice_discover":
         return {
-            "target": "notice-tool",
-            "payload_kind": "notice_request",
+            "target": "campus_notice_discover",
+            "payload_kind": "campus_notice_discover",
             "allowed_tools": ["campus_notice_discover"],
             "payload": {"query_text": user_goal},
         }
-    if capability == "campus_services":
+    if tool_target == "transport_schedule_lookup":
         return {
-            "target": "campus-services-tool",
-            "payload_kind": "campus_services_request",
+            "target": "transport_schedule_lookup",
+            "payload_kind": "transport_schedule_lookup",
             "allowed_tools": [
                 "transport_schedule_lookup",
             ],
@@ -401,15 +403,15 @@ __all__ = [
     "MULTI_STEP_WORKFLOW_PROFILES",
     "RAG_RETRIEVAL_PROFILES",
     "RAG_SDK_PROFILES",
-    "SDK_STRUCTURED_OPENED_PROFILES",
+    "SDK_TOOL_READ_MODEL_OPENED_PROFILES",
     "SELECTED_NOTICE_GUARDRAIL_PROFILES",
-    "STRUCTURED_DIRECT_OPENED_TRUSTED_TIME",
+    "TOOL_READ_MODEL_OPENED_TRUSTED_TIME",
     "TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME",
     "campus_services_sdk_profiles",
     "profile_execution_run_expectation",
     "profile_requires_notice_read_model",
     "profile_requires_object_store",
-    "profile_requires_structured_projection",
     "profile_requires_temporary_postgres",
+    "profile_requires_tool_read_model_projection",
     "profile_requires_workflow_run_store",
 ]

@@ -31,7 +31,7 @@ updated: 2026-04-14
 - seed：`configs/ingestion/campus_navigation/place_catalog/seed.v1.json`
 - runtime profile：`configs/ingestion/campus_navigation/place_catalog/runtime-pro
   file.json`
-- consumption owner：`packages/navigation-capability`
+- consumption owner：`packages/navigation-tool`
 - authoritative source
   inventory：`docs/reference/campus-navigation-authoritative-source-inventory.md`
 
@@ -205,5 +205,5 @@ updated: 2026-04-14
 - `docs/domains/navigation.md`
 - `docs/reference/campus-navigation-authoritative-source-inventory.md`
 - `docs/architecture/domains/navigation/architecture.md`
-- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`

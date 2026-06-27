@@ -1,6 +1,6 @@
 ---
 doc_type: index
-truth_scope: capability
+truth_scope: execution
 owner_boundary: domains/campus-services/transport
 status: active
 created: 2026-06-27
@@ -9,7 +9,7 @@ updated: 2026-06-27
 # Transport
 
 This is the canonical human document for the campus shuttle timetable
-capability. It replaces separate human docs for transport lookup, transport
+tool/domain. It replaces separate human docs for transport lookup, transport
 status display and transport schedule source-truth prose.
 
 ## Boundary
@@ -110,7 +110,7 @@ The source channel is authenticated notice. Transport schedule materialization
 consumes admitted notice-derived transport candidates and keeps source URLs for
 the published version and row-level changes.
 
-The capability stores normalized change/projection facts, not raw notice
+The transport domain stores normalized change/projection facts, not raw notice
 content. Original notice content remains owned by the notice source channel.
 
 Runtime consumption is DB/current-projection first:

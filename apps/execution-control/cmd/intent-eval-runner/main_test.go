@@ -12,7 +12,7 @@ func TestRunBuildsTrustedWorkerContextAcceptedByExecutionParser(t *testing.T) {
 			{
 				"case_id": "intent-runner-knowledge-001",
 				"user_goal": "奖学金怎么申请？",
-				"requested_capability": "knowledge",
+				"requested_tool": "knowledge_query",
 				"context": {
 					"actor": {
 						"user_id": "",
@@ -56,10 +56,10 @@ func TestRunBuildsTrustedWorkerContextAcceptedByExecutionParser(t *testing.T) {
 	if observed.ErrorCode != "" {
 		t.Fatalf("error_code = %q, want empty", observed.ErrorCode)
 	}
-	if observed.Capability != "knowledge" {
-		t.Fatalf("capability = %q, want knowledge", observed.Capability)
+	if observed.Tool != "knowledge_query" {
+		t.Fatalf("tool = %q, want knowledge_query", observed.Tool)
 	}
-	if observed.SelectedCapability != "knowledge" {
-		t.Fatalf("selected_capability = %q, want knowledge", observed.SelectedCapability)
+	if observed.SelectedTool != "none" {
+		t.Fatalf("selected_tool = %q, want none before agent tool selection", observed.SelectedTool)
 	}
 }

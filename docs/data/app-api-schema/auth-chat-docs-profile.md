@@ -189,12 +189,12 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 它属于 `chat.*` 的当前会话状态，不属于 `runtime.request_execution`
-- 第一版只承载可回灌到 execution input 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
+- 第一版只承载可回灌到 execution request context 的 typed confirmed slots；不承载 raw transcript、模型摘要或未确认草稿
 - 当前已冻结的 curriculum slot contract：
   - `curriculum_program_family`
   - `curriculum_program`
   - `curriculum_semester`
-- 这些 slot 只有在 `app-api` 从 finalized execution / RAG diagnostics 中拿到 resolved
+- 这些 slot 只有在 `app-api` 从 finalized execution/rag diagnostics 中拿到 resolved
   curriculum follow-up truth 时才写入
 - `needs_clarification`、generic alias conflict、soft preference 或无 typed
   follow-up truth 的请求不得写入这些 slot

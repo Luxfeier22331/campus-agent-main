@@ -109,7 +109,7 @@ export interface AppRuntimeReadinessResult {
 		database: "ready" | "not_ready";
 		executionRuntime: "ready" | "not_ready" | "not_required";
 		officialWebHandoff: "configured" | "not_configured";
-		operatorBridge: "configured";
+		operatorSurface: "configured";
 		executionControl: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;

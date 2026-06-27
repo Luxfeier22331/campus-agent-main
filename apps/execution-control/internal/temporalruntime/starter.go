@@ -16,9 +16,9 @@ import (
 var ErrTemporalStarterNotConfigured = errors.New("temporal starter not configured")
 
 type ChatWorkflowStarter interface {
-	CancelCapabilityExecutionWorkflow(context.Context, CapabilityExecutionWorkflowCancelInput) error
+	CancelToolExecutionWorkflow(context.Context, ToolExecutionWorkflowCancelInput) error
 	CheckReadiness(context.Context) RuntimeReadiness
-	StartCapabilityExecutionWorkflow(context.Context, CapabilityExecutionWorkflowInput) error
+	StartToolExecutionWorkflow(context.Context, ToolExecutionWorkflowInput) error
 }
 
 const (
@@ -94,9 +94,9 @@ func NewStarter(ctx context.Context, options StarterOptions) (*Starter, error) {
 	}, nil
 }
 
-func (s *Starter) StartCapabilityExecutionWorkflow(
+func (s *Starter) StartToolExecutionWorkflow(
 	ctx context.Context,
-	input CapabilityExecutionWorkflowInput,
+	input ToolExecutionWorkflowInput,
 ) error {
 	if s == nil || s.client == nil {
 		return ErrTemporalStarterNotConfigured
@@ -117,15 +117,15 @@ func (s *Starter) StartCapabilityExecutionWorkflow(
 			ID:        workflowID,
 			TaskQueue: taskQueue,
 		},
-		CapabilityExecutionWorkflow,
+		ToolExecutionWorkflow,
 		input,
 	)
 	return err
 }
 
-func (s *Starter) CancelCapabilityExecutionWorkflow(
+func (s *Starter) CancelToolExecutionWorkflow(
 	ctx context.Context,
-	input CapabilityExecutionWorkflowCancelInput,
+	input ToolExecutionWorkflowCancelInput,
 ) error {
 	if s == nil || s.client == nil {
 		return ErrTemporalStarterNotConfigured
@@ -169,12 +169,9 @@ func (s *Starter) CheckReadiness(ctx context.Context) RuntimeReadiness {
 
 func normalizeActivityTaskQueues(values []string) []string {
 	queues := []string{
-		ActivityTaskQueueContext,
+		ActivityTaskQueueCore,
 		ActivityTaskQueueAgent,
-		ActivityTaskQueueKnowledgePlan,
-		ActivityTaskQueueKnowledgeRetrieval,
-		ActivityTaskQueueKnowledgeSynthesis,
-		ActivityTaskQueueFinalization,
+		ActivityTaskQueueKnowledge,
 	}
 	for _, value := range values {
 		normalized := strings.TrimSpace(value)
@@ -228,20 +225,18 @@ type WorkerRuntime struct {
 }
 
 type WorkerOptions struct {
-	Address                 string
-	Namespace               string
-	WorkflowQueue           string
-	ContextQueue            string
-	KnowledgePlanQueue      string
-	KnowledgeRetrievalQueue string
-	KnowledgeSynthesisQueue string
-	FinalizationQueue       string
-	Tracing                 TracingOptions
-	WorkerID                string
-	ContextActivities       ContextActivities
-	AgentActivities         AgentActivities
-	KnowledgeActivities     KnowledgeActivities
-	FinalizationActivities  FinalizationActivities
+	Address                string
+	Namespace              string
+	WorkflowQueue          string
+	CoreQueue              string
+	KnowledgeQueue         string
+	Tracing                TracingOptions
+	WorkerID               string
+	ContextActivities      ContextActivities
+	AgentActivities        AgentActivities
+	KnowledgeActivities    KnowledgeActivities
+	TypedToolActivities    TypedToolActivities
+	FinalizationActivities FinalizationActivities
 }
 
 type WorkerProfile struct {
@@ -330,6 +325,9 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if options.KnowledgeActivities == nil {
 		return nil, errors.New("temporal knowledge activities are required")
 	}
+	if options.TypedToolActivities == nil {
+		return nil, errors.New("temporal typed tool activities are required")
+	}
 	if options.FinalizationActivities == nil {
 		return nil, errors.New("temporal finalization activities are required")
 	}
@@ -350,32 +348,22 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 	if workflowQueue == "" {
 		workflowQueue = WorkflowTaskQueue
 	}
-	contextQueue := strings.TrimSpace(options.ContextQueue)
-	if contextQueue == "" {
-		contextQueue = ActivityTaskQueueContext
+	coreQueue := strings.TrimSpace(options.CoreQueue)
+	if coreQueue == "" {
+		coreQueue = ActivityTaskQueueCore
 	}
-	knowledgePlanQueue := strings.TrimSpace(options.KnowledgePlanQueue)
-	if knowledgePlanQueue == "" {
-		knowledgePlanQueue = ActivityTaskQueueKnowledgePlan
-	}
-	knowledgeRetrievalQueue := strings.TrimSpace(options.KnowledgeRetrievalQueue)
-	if knowledgeRetrievalQueue == "" {
-		knowledgeRetrievalQueue = ActivityTaskQueueKnowledgeRetrieval
-	}
-	knowledgeSynthesisQueue := strings.TrimSpace(options.KnowledgeSynthesisQueue)
-	if knowledgeSynthesisQueue == "" {
-		knowledgeSynthesisQueue = ActivityTaskQueueKnowledgeSynthesis
-	}
-	finalizationQueue := strings.TrimSpace(options.FinalizationQueue)
-	if finalizationQueue == "" {
-		finalizationQueue = ActivityTaskQueueFinalization
+	knowledgeQueue := strings.TrimSpace(options.KnowledgeQueue)
+	if knowledgeQueue == "" {
+		knowledgeQueue = ActivityTaskQueueKnowledge
 	}
 	tracingWorkerOptions := ApplyTracingToWorkerOptions(worker.Options{}, tracing)
 	workflowWorker := NewWorkflowWorkerWithOptions(temporalClient, workflowQueue, tracingWorkerOptions)
-	contextWorker := NewContextActivityWorkerWithOptions(
+	coreWorker := NewCoreActivityWorkerWithOptions(
 		temporalClient,
-		contextQueue,
+		coreQueue,
 		options.ContextActivities,
+		options.TypedToolActivities,
+		options.FinalizationActivities,
 		tracingWorkerOptions,
 	)
 	agentWorker := NewAgentActivityWorkerWithOptions(
@@ -384,40 +372,19 @@ func NewWorkerRuntime(ctx context.Context, options WorkerOptions) (*WorkerRuntim
 		options.AgentActivities,
 		tracingWorkerOptions,
 	)
-	knowledgePlanWorker := NewKnowledgePlanActivityWorker(
+	knowledgeWorker := NewKnowledgeActivityWorkerWithOptions(
 		temporalClient,
-		knowledgePlanQueue,
+		knowledgeQueue,
 		options.KnowledgeActivities,
-		tracingWorkerOptions,
-	)
-	knowledgeRetrievalWorker := NewKnowledgeRetrievalActivityWorker(
-		temporalClient,
-		knowledgeRetrievalQueue,
-		options.KnowledgeActivities,
-		tracingWorkerOptions,
-	)
-	knowledgeSynthesisWorker := NewKnowledgeSynthesisActivityWorker(
-		temporalClient,
-		knowledgeSynthesisQueue,
-		options.KnowledgeActivities,
-		tracingWorkerOptions,
-	)
-	finalizationWorker := NewFinalizationActivityWorker(
-		temporalClient,
-		finalizationQueue,
-		options.FinalizationActivities,
 		tracingWorkerOptions,
 	)
 	return &WorkerRuntime{
 		client: temporalClient,
 		workers: []worker.Worker{
 			workflowWorker,
-			contextWorker,
+			coreWorker,
 			agentWorker,
-			knowledgePlanWorker,
-			knowledgeRetrievalWorker,
-			knowledgeSynthesisWorker,
-			finalizationWorker,
+			knowledgeWorker,
 		},
 	}, nil
 }
@@ -489,44 +456,54 @@ func NewWorkflowWorkerWithOptions(
 		workflowQueue = WorkflowTaskQueue
 	}
 	workflowWorker := worker.New(temporalClient, workflowQueue, options)
-	workflowWorker.RegisterWorkflowWithOptions(CapabilityExecutionWorkflow, workflow.RegisterOptions{
-		Name: CapabilityExecutionWorkflowType,
+	workflowWorker.RegisterWorkflowWithOptions(ToolExecutionWorkflow, workflow.RegisterOptions{
+		Name: ToolExecutionWorkflowType,
 	})
 	return workflowWorker
 }
 
-func NewContextActivityWorker(temporalClient client.Client, queue string, activities ContextActivities) worker.Worker {
-	return NewContextActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
-}
-
-func NewContextActivityWorkerWithOptions(
+func NewCoreActivityWorkerWithOptions(
 	temporalClient client.Client,
 	queue string,
-	activities ContextActivities,
+	contextActivities ContextActivities,
+	typedToolActivities TypedToolActivities,
+	finalizationActivities FinalizationActivities,
 	options worker.Options,
 ) worker.Worker {
-	contextQueue := strings.TrimSpace(queue)
-	if contextQueue == "" {
-		contextQueue = ActivityTaskQueueContext
+	coreQueue := strings.TrimSpace(queue)
+	if coreQueue == "" {
+		coreQueue = ActivityTaskQueueCore
 	}
-	contextWorker := worker.New(temporalClient, contextQueue, options)
-	contextWorker.RegisterActivityWithOptions(
-		activities.MemoryRecallActivity,
+	coreWorker := worker.New(temporalClient, coreQueue, options)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.MemoryRecallActivity,
 		activityRegisterOptions(MemoryRecallActivityName),
 	)
-	contextWorker.RegisterActivityWithOptions(
-		activities.AppendConversationMemoryActivity,
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.AppendConversationMemoryActivity,
 		activityRegisterOptions(AppendConversationMemoryActivityName),
 	)
-	contextWorker.RegisterActivityWithOptions(
-		activities.PlanRouteActivity,
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.PlanRouteActivity,
 		activityRegisterOptions(PlanRouteActivityName),
 	)
-	contextWorker.RegisterActivityWithOptions(
-		activities.PlanReplanActivity,
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.PlanReplanActivity,
 		activityRegisterOptions(PlanReplanActivityName),
 	)
-	return contextWorker
+	coreWorker.RegisterActivityWithOptions(
+		typedToolActivities.ExecuteTypedToolActivity,
+		activityRegisterOptions(ExecuteTypedToolActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		typedToolActivities.ExecuteAgentAsToolActivity,
+		activityRegisterOptions(ExecuteAgentAsToolActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		finalizationActivities.WriteFinalizationActivity,
+		activityRegisterOptions(WriteFinalizationActivityName),
+	)
+	return coreWorker
 }
 
 func NewAgentActivityWorker(temporalClient client.Client, queue string, activities AgentActivities) worker.Worker {
@@ -551,7 +528,7 @@ func NewAgentActivityWorkerWithOptions(
 	return agentWorker
 }
 
-func NewKnowledgePlanActivityWorker(
+func NewKnowledgeActivityWorkerWithOptions(
 	temporalClient client.Client,
 	queue string,
 	activities KnowledgeActivities,
@@ -559,35 +536,13 @@ func NewKnowledgePlanActivityWorker(
 ) worker.Worker {
 	knowledgeQueue := strings.TrimSpace(queue)
 	if knowledgeQueue == "" {
-		knowledgeQueue = ActivityTaskQueueKnowledgePlan
+		knowledgeQueue = ActivityTaskQueueKnowledge
 	}
 	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.PlanRAGActivity,
 		activityRegisterOptions(PlanRAGActivityName),
 	)
-	knowledgeWorker.RegisterActivityWithOptions(
-		activities.SelectEvidenceActivity,
-		activityRegisterOptions(SelectEvidenceActivityName),
-	)
-	knowledgeWorker.RegisterActivityWithOptions(
-		activities.VerifyGroundingActivity,
-		activityRegisterOptions(VerifyGroundingActivityName),
-	)
-	return knowledgeWorker
-}
-
-func NewKnowledgeRetrievalActivityWorker(
-	temporalClient client.Client,
-	queue string,
-	activities KnowledgeActivities,
-	options worker.Options,
-) worker.Worker {
-	knowledgeQueue := strings.TrimSpace(queue)
-	if knowledgeQueue == "" {
-		knowledgeQueue = ActivityTaskQueueKnowledgeRetrieval
-	}
-	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.RetrieveIndexedLookupActivity,
 		activityRegisterOptions(RetrieveIndexedLookupActivityName),
@@ -596,77 +551,19 @@ func NewKnowledgeRetrievalActivityWorker(
 		activities.ExpandOrRescueRetrievalActivity,
 		activityRegisterOptions(ExpandOrRescueRetrievalActivityName),
 	)
-	return knowledgeWorker
-}
-
-func NewKnowledgeSynthesisActivityWorker(
-	temporalClient client.Client,
-	queue string,
-	activities KnowledgeActivities,
-	options worker.Options,
-) worker.Worker {
-	knowledgeQueue := strings.TrimSpace(queue)
-	if knowledgeQueue == "" {
-		knowledgeQueue = ActivityTaskQueueKnowledgeSynthesis
-	}
-	knowledgeWorker := worker.New(temporalClient, knowledgeQueue, options)
+	knowledgeWorker.RegisterActivityWithOptions(
+		activities.SelectEvidenceActivity,
+		activityRegisterOptions(SelectEvidenceActivityName),
+	)
 	knowledgeWorker.RegisterActivityWithOptions(
 		activities.SynthesizeRAGAnswerActivity,
 		activityRegisterOptions(SynthesizeRAGAnswerActivityName),
 	)
+	knowledgeWorker.RegisterActivityWithOptions(
+		activities.VerifyGroundingActivity,
+		activityRegisterOptions(VerifyGroundingActivityName),
+	)
 	return knowledgeWorker
-}
-
-func NewTypedToolActivityWorker(
-	temporalClient client.Client,
-	queue string,
-	activities TypedToolActivities,
-) worker.Worker {
-	return NewTypedToolActivityWorkerWithOptions(temporalClient, queue, activities, worker.Options{})
-}
-
-func NewTypedToolActivityWorkerWithOptions(
-	temporalClient client.Client,
-	queue string,
-	activities TypedToolActivities,
-	options worker.Options,
-) worker.Worker {
-	typedToolQueue := strings.TrimSpace(queue)
-	if typedToolQueue == "" {
-		typedToolQueue = ActivityTaskQueueStructured
-	}
-	typedToolWorker := worker.New(temporalClient, typedToolQueue, options)
-	typedToolWorker.RegisterActivityWithOptions(
-		activities.ExecuteTypedToolActivity,
-		activityRegisterOptions(ExecuteTypedToolActivityName),
-	)
-	typedToolWorker.RegisterActivityWithOptions(
-		activities.ExecuteAgentAsToolActivity,
-		activityRegisterOptions(ExecuteAgentAsToolActivityName),
-	)
-	return typedToolWorker
-}
-
-func NewFinalizationActivityWorker(
-	temporalClient client.Client,
-	queue string,
-	activities FinalizationActivities,
-	options ...worker.Options,
-) worker.Worker {
-	finalizationQueue := strings.TrimSpace(queue)
-	if finalizationQueue == "" {
-		finalizationQueue = ActivityTaskQueueFinalization
-	}
-	workerOptions := worker.Options{}
-	if len(options) > 0 {
-		workerOptions = options[0]
-	}
-	finalizationWorker := worker.New(temporalClient, finalizationQueue, workerOptions)
-	finalizationWorker.RegisterActivityWithOptions(
-		activities.WriteFinalizationActivity,
-		activityRegisterOptions(WriteFinalizationActivityName),
-	)
-	return finalizationWorker
 }
 
 func activityRegisterOptions(name string) activity.RegisterOptions {

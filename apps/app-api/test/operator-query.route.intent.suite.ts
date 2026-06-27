@@ -18,7 +18,7 @@ export function registerOperatorQueryIntentSuite(): void {
 						ambiguityRate: { count: 2, eligibleCount: 10, value: 0.2 },
 						contextUnresolvedRate: { count: 1, eligibleCount: 10, value: 0.1 },
 						distributions: {
-							capability: [{ count: 6, value: "knowledge" }],
+							tool: [{ count: 6, value: "knowledge" }],
 							classifierVersion: [{ count: 10, value: "intent-classifier@2026-04-20" }],
 							launchState: [{ count: 8, value: "open" }],
 							nextAction: [{ count: 7, value: "delegate" }],
@@ -47,7 +47,7 @@ export function registerOperatorQueryIntentSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=campus_web&selectedCapability=navigation",
+					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=campus_web&selectedTool=place_lookup",
 				),
 			);
 
@@ -67,8 +67,8 @@ export function registerOperatorQueryIntentSuite(): void {
 					granularity: null,
 					modelName: null,
 					principalType: null,
-					requestedCapability: null,
-					selectedCapability: "navigation",
+					requestedTool: null,
+					selectedTool: "place_lookup",
 					surface: "campus_web",
 					window: "24h",
 				},

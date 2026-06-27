@@ -40,7 +40,7 @@ const diagnosticPayload = {
 				status: "attributed",
 				stepId: "evidence.selection",
 				stepKind: "selection",
-				capability: "knowledge",
+				tool: "knowledge_query",
 				toolName: null,
 				stepStatus: "completed",
 				outcome: {

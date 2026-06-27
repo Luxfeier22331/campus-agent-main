@@ -18,7 +18,7 @@ func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
 	return subtle.ConstantTimeCompare([]byte(presented), []byte(secret)) == 1
 }
 
-func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
+func (s *Server) toolReadModelAuthorized(request *http.Request) bool {
 	secret := strings.TrimSpace(s.config.InternalQuerySharedSecret)
 	if secret == "" {
 		return false

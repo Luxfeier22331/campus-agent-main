@@ -57,8 +57,8 @@ truth 已全部实现”的状态板。
 
 如果需要判断当前实现进度，应转到：
 
-- `../architecture/current-architecture.md`
-- `../architecture/product-positioning.md`
+- `../architecture/current.md`
+- `../architecture/product.md`
 - `../architecture/system/identity-and-authorization-architecture.md`
 - `../architecture/system/memory-plane-architecture.md`
 - `../../.planning/PROJECT.md`
@@ -481,7 +481,7 @@ document-center permission model。
 
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization
   .md`

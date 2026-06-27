@@ -7,13 +7,13 @@ import type {
 	EmbeddingProviderRole,
 	PromptProviderRole,
 	ProviderConfigActor,
-	ProviderConfigCapability,
-	ProviderConfigCapabilityConfig,
 	ProviderConfigConnection,
 	ProviderConfigConnectionCreatePayload,
 	ProviderConfigConnectionSummary,
 	ProviderConfigConnectionUpdatePayload,
 	ProviderConfigCreatePayload,
+	ProviderConfigFeature,
+	ProviderConfigFeatureConfig,
 	ProviderConfigKind,
 	ProviderConfigProfile,
 	ProviderConfigProfileSummary,
@@ -58,7 +58,7 @@ const EMBEDDING_ROLES = new Set<EmbeddingProviderRole>([
 	"rag_query_embedding",
 ]);
 const RERANK_ROLES = new Set<RerankProviderRole>(["rag_reranker"]);
-const CAPABILITIES = new Set<ProviderConfigCapability>(["embedding", "prompt", "rerank"]);
+const FEATURES = new Set<ProviderConfigFeature>(["embedding", "prompt", "rerank"]);
 const DEFAULT_TIMEOUT_MS = 30_000;
 
 export function buildProviderConfigService(
@@ -90,8 +90,8 @@ export function buildProviderConfigService(
 			const connection: ProviderConfigConnection = {
 				apiKeySecret: await secretRefFromPlaintext(normalized.apiKey, encryptSecret),
 				baseUrl: normalized.baseUrl,
-				capabilities: normalized.capabilities,
-				capabilityConfig: normalized.capabilityConfig,
+				features: normalized.features,
+				featureConfig: normalized.featureConfig,
 				connectionId: generateId("provider_connection"),
 				createdAt,
 				createdBy: actor,
@@ -119,7 +119,7 @@ export function buildProviderConfigService(
 				const compatibility = await validators.checkEmbeddingCompatibility({
 					apiKey: rawApiKey,
 					baseUrl: connection.baseUrl,
-					capabilityConfig: connection.capabilityConfig,
+					featureConfig: connection.featureConfig,
 					dimensions: profile.dimensions,
 					model: profile.model,
 					provider: connection.provider,
@@ -152,7 +152,7 @@ export function buildProviderConfigService(
 			const actor = ensureOperatorPrincipal(input.principal);
 			const normalized = normalizeCreatePayload(input.payload);
 			const connection = await requireConnection(dependencies.store, normalized.connectionId);
-			requireConnectionCapability(connection, normalized.kind);
+			requireConnectionTool(connection, normalized.kind);
 			const createdAt = now().toISOString();
 			const profile: ProviderConfigProfile = {
 				active: false,
@@ -220,7 +220,7 @@ export function buildProviderConfigService(
 			let connection = await requireConnection(dependencies.store, current.connectionId);
 			if (normalized.connectionId) {
 				connection = await requireConnection(dependencies.store, normalized.connectionId);
-				requireConnectionCapability(connection, current.kind);
+				requireConnectionTool(connection, current.kind);
 			}
 			const updated: ProviderConfigProfile = {
 				...current,
@@ -256,12 +256,12 @@ export function buildProviderConfigService(
 			const actor = ensureOperatorPrincipal(input.principal);
 			const current = await requireProfile(dependencies.store, input.profileId);
 			const connection = await requireConnection(dependencies.store, current.connectionId);
-			requireConnectionCapability(connection, current.kind);
+			requireConnectionTool(connection, current.kind);
 			const apiKey = await decryptSecret(connection.apiKeySecret.ciphertext);
 			const validatorInput = {
 				apiKey,
 				baseUrl: connection.baseUrl,
-				capabilityConfig: connection.capabilityConfig,
+				featureConfig: connection.featureConfig,
 				dimensions: current.dimensions,
 				model: current.model,
 				provider: connection.provider,
@@ -369,8 +369,8 @@ function summarizeConnection(
 ): ProviderConfigConnectionSummary {
 	return {
 		baseUrl: connection.baseUrl,
-		capabilities: [...connection.capabilities],
-		capabilityConfig: structuredClone(connection.capabilityConfig),
+		features: [...connection.features],
+		featureConfig: structuredClone(connection.featureConfig),
 		connectionId: connection.connectionId,
 		createdAt: connection.createdAt,
 		provider: connection.provider,
@@ -428,7 +428,7 @@ function runtimeSnapshotFromProfile(
 	const snapshot: ProviderConfigRuntimeSnapshot = {
 		api_key: apiKey,
 		base_url: connection.baseUrl,
-		capability_config: structuredClone(connection.capabilityConfig),
+		feature_config: structuredClone(connection.featureConfig),
 		kind: profile.kind,
 		model: profile.model,
 		profile_id: profile.profileId,
@@ -562,15 +562,15 @@ function normalizeDimensions(value: unknown, kind: ProviderConfigKind): number |
 function normalizeConnectionCreatePayload(payload: ProviderConfigConnectionCreatePayload): {
 	apiKey: string;
 	baseUrl: string;
-	capabilities: ProviderConfigCapability[];
-	capabilityConfig: ProviderConfigCapabilityConfig;
+	features: ProviderConfigFeature[];
+	featureConfig: ProviderConfigFeatureConfig;
 	provider: string;
 } {
 	return {
 		apiKey: normalizeRequiredString(payload.apiKey, "apiKey"),
 		baseUrl: normalizeBaseUrl(payload.baseUrl),
-		capabilities: normalizeCapabilities(payload.capabilities),
-		capabilityConfig: normalizeCapabilityConfig(payload.capabilityConfig),
+		features: normalizeTools(payload.features),
+		featureConfig: normalizeToolConfig(payload.featureConfig),
 		provider: normalizeProvider(payload.provider),
 	};
 }
@@ -590,20 +590,20 @@ async function normalizeConnectionUpdatePayload(
 	if ("baseUrl" in payload) {
 		updated.baseUrl = normalizeBaseUrl(payload.baseUrl);
 	}
-	if ("capabilities" in payload) {
-		updated.capabilities = normalizeCapabilities(payload.capabilities);
+	if ("features" in payload) {
+		updated.features = normalizeTools(payload.features);
 	}
-	if ("capabilityConfig" in payload) {
-		updated.capabilityConfig = normalizeCapabilityConfig(payload.capabilityConfig);
+	if ("featureConfig" in payload) {
+		updated.featureConfig = normalizeToolConfig(payload.featureConfig);
 	}
 	if ("provider" in payload) {
 		updated.provider = normalizeProvider(payload.provider);
 	}
-	if (updated.capabilities) {
-		for (const capability of current.capabilities) {
-			if (!updated.capabilities.includes(capability)) {
-				throw validationError("connection capabilities cannot be removed in place.", {
-					field: "capabilities",
+	if (updated.features) {
+		for (const feature of current.features) {
+			if (!updated.features.includes(feature)) {
+				throw validationError("connection features cannot be removed in place.", {
+					field: "features",
 				});
 			}
 		}
@@ -611,40 +611,40 @@ async function normalizeConnectionUpdatePayload(
 	return updated;
 }
 
-function normalizeCapabilities(value: unknown): ProviderConfigCapability[] {
+function normalizeTools(value: unknown): ProviderConfigFeature[] {
 	if (!Array.isArray(value) || value.length === 0) {
-		throw validationError("capabilities must be a non-empty array.", { field: "capabilities" });
+		throw validationError("features must be a non-empty array.", { field: "features" });
 	}
-	const normalized: ProviderConfigCapability[] = [];
-	for (const capability of value) {
-		const capabilitySlug = normalizeRequiredString(capability, "capabilities");
-		if (!CAPABILITIES.has(capabilitySlug as ProviderConfigCapability)) {
-			throw validationError("capability is not supported.", { field: "capabilities" });
+	const normalized: ProviderConfigFeature[] = [];
+	for (const feature of value) {
+		const toolSlug = normalizeRequiredString(feature, "features");
+		if (!FEATURES.has(toolSlug as ProviderConfigFeature)) {
+			throw validationError("feature is not supported.", { field: "features" });
 		}
-		if (!normalized.includes(capabilitySlug as ProviderConfigCapability)) {
-			normalized.push(capabilitySlug as ProviderConfigCapability);
+		if (!normalized.includes(toolSlug as ProviderConfigFeature)) {
+			normalized.push(toolSlug as ProviderConfigFeature);
 		}
 	}
 	return normalized;
 }
 
-function normalizeCapabilityConfig(value: unknown): ProviderConfigCapabilityConfig {
+function normalizeToolConfig(value: unknown): ProviderConfigFeatureConfig {
 	if (value === undefined || value === null) {
 		return {};
 	}
 	if (typeof value !== "object" || Array.isArray(value)) {
-		throw validationError("capabilityConfig must be a JSON object.", {
-			field: "capabilityConfig",
+		throw validationError("featureConfig must be a JSON object.", {
+			field: "featureConfig",
 		});
 	}
-	return structuredClone(value as ProviderConfigCapabilityConfig);
+	return structuredClone(value as ProviderConfigFeatureConfig);
 }
 
-function requireConnectionCapability(
+function requireConnectionTool(
 	connection: ProviderConfigConnection,
 	kind: ProviderConfigKind,
 ): void {
-	if (!connection.capabilities.includes(kind)) {
+	if (!connection.features.includes(kind)) {
 		throw validationError("connection does not support provider profile kind.", {
 			connectionId: connection.connectionId,
 			kind,

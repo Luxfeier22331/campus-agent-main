@@ -54,7 +54,7 @@ Qdrant collection，比引入外部 memory SDK 或继续全量 PG 注入更符�
 ```text
 must user_id = actor.user_id
 must status = active
-should capability in [requested_capability, any]
+should tool in [requested_tool, any]
 dense query from user_goal + session slots
 top_k default 5
 compact_text budget default 1200 chars
@@ -67,7 +67,7 @@ memory_id
 user_id
 tenant_id
 memory_type
-capability
+tool
 canonical_key
 canonical_subject
 status
@@ -142,4 +142,4 @@ ADR-0015 仍保留 identity / authorization / raw-state minimization 决策。
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0048-temporal.md`

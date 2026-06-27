@@ -1,58 +1,64 @@
-import type { CapabilityExecutionInput } from "../../integration";
+import type { ToolExecutionInput } from "../../integration";
+import { TOOL_EXECUTION_CONTRACT } from "../../integration/generated/tool-execution-contract";
 import {
-	toCapabilityExecutionActor,
-	toCapabilityExecutionContext,
-} from "../../integration/capability-execution-payload";
-import { CAPABILITY_EXECUTION_CONTRACT } from "../../integration/generated/capability-execution-contract";
+	toToolExecutionActor,
+	toToolExecutionContext,
+} from "../../integration/tool-execution-payload";
 import { DEFAULT_PERSONAL_MEMORY_TENANT_ID } from "../../personalization/tenant";
-import { toCapabilityExecutionVersionQuery } from "../../version-query";
+import { toToolExecutionVersionQuery } from "../../version-query";
 
 type JsonRecord = Record<string, unknown>;
 
-const DURABLE_CAPABILITY_DEFAULTS = {
-	campus_services: {
-		lane: "campus_services",
-	},
+const DURABLE_TOOL_DEFAULTS = {
 	default: {
-		lane: "default",
+		taskQueue: "campus-agent.workflow",
 	},
-	knowledge: {
-		lane: "rag",
+	knowledge_query: {
+		taskQueue: "campus-agent.workflow",
 	},
-	navigation: {
-		lane: "navigation",
+	place_lookup: {
+		taskQueue: "campus-agent.workflow",
 	},
-	notice: {
-		lane: "notice",
+	transport_schedule_lookup: {
+		taskQueue: "campus-agent.workflow",
+	},
+	campus_notice_discover: {
+		taskQueue: "campus-agent.workflow",
+	},
+	campus_notice_change_set_lookup: {
+		taskQueue: "campus-agent.workflow",
+	},
+	campus_notice_period_summary: {
+		taskQueue: "campus-agent.workflow",
 	},
 } as const;
 
-type DurableCapability = keyof typeof DURABLE_CAPABILITY_DEFAULTS;
+type DurableTool = keyof typeof DURABLE_TOOL_DEFAULTS;
 
-export function buildCapabilityExecutionRunMetadata(
-	executionInput: CapabilityExecutionInput,
+export function buildToolExecutionRunMetadata(
+	executionInput: ToolExecutionInput,
 ): Record<string, unknown> {
 	const queryText = executionInput.userGoal.trim();
 	if (!queryText) {
 		throw new Error("Durable execution run metadata requires a non-empty user goal.");
 	}
-	const requestedCapability = durableCapability(executionInput.requestedCapability);
-	const capabilityDefaults = DURABLE_CAPABILITY_DEFAULTS[requestedCapability];
+	const requestedTool = durableTool(executionInput.requestedTool);
+	const toolDefaults = DURABLE_TOOL_DEFAULTS[requestedTool];
 
-	const actor = toCapabilityExecutionActor(executionInput.context.actor);
-	const context = toCapabilityExecutionContext(executionInput.context);
+	const actor = toToolExecutionActor(executionInput.context.actor);
+	const context = toToolExecutionContext(executionInput.context);
 	const requestedScope = durableRequestedScope(executionInput);
 	const versionQuery = durableVersionQuery(executionInput);
 	const executionPayload = {
 		actor,
-		execution_contract_version: CAPABILITY_EXECUTION_CONTRACT.executionContractVersion,
+		execution_contract_version: TOOL_EXECUTION_CONTRACT.executionContractVersion,
 		context,
 		conversation_id: executionInput.conversationId,
-		lane: capabilityDefaults.lane,
 		request_id: executionInput.requestId,
 		requested_scope: requestedScope,
-		response_contract: CAPABILITY_EXECUTION_CONTRACT.responseContract,
+		response_contract: TOOL_EXECUTION_CONTRACT.responseContract,
 		safety_identifier: executionInput.safetyIdentifier ?? null,
+		task_queue: toolDefaults.taskQueue,
 		tenant_id: executionInput.tenantId ?? DEFAULT_PERSONAL_MEMORY_TENANT_ID,
 		trace: {
 			trace_id: executionInput.traceId,
@@ -60,10 +66,10 @@ export function buildCapabilityExecutionRunMetadata(
 		user_goal: queryText,
 		version_query: versionQuery,
 	};
-	if (requestedCapability !== "default") {
+	if (requestedTool !== "default") {
 		Object.assign(executionPayload, {
-			effective_capability: requestedCapability,
-			requested_capability: requestedCapability,
+			effective_tool: requestedTool,
+			requested_tool: requestedTool,
 		});
 	}
 
@@ -72,21 +78,23 @@ export function buildCapabilityExecutionRunMetadata(
 	};
 }
 
-function durableCapability(requestedCapability: string | null | undefined): DurableCapability {
-	const normalized = requestedCapability?.trim() || "default";
+function durableTool(requestedTool: string | null | undefined): DurableTool {
+	const normalized = requestedTool?.trim() || "default";
 	if (
 		normalized === "default" ||
-		normalized === "knowledge" ||
-		normalized === "campus_services" ||
-		normalized === "navigation" ||
-		normalized === "notice"
+		normalized === "knowledge_query" ||
+		normalized === "place_lookup" ||
+		normalized === "transport_schedule_lookup" ||
+		normalized === "campus_notice_discover" ||
+		normalized === "campus_notice_change_set_lookup" ||
+		normalized === "campus_notice_period_summary"
 	) {
 		return normalized;
 	}
-	throw new Error(`Durable execution metadata does not admit capability: ${normalized}`);
+	throw new Error(`Durable execution metadata does not admit tool: ${normalized}`);
 }
 
-function durableRequestedScope(executionInput: CapabilityExecutionInput): JsonRecord | null {
+function durableRequestedScope(executionInput: ToolExecutionInput): JsonRecord | null {
 	if (!executionInput.requestedScope) {
 		return null;
 	}
@@ -96,9 +104,9 @@ function durableRequestedScope(executionInput: CapabilityExecutionInput): JsonRe
 	};
 }
 
-function durableVersionQuery(executionInput: CapabilityExecutionInput): JsonRecord {
+function durableVersionQuery(executionInput: ToolExecutionInput): JsonRecord {
 	if (executionInput.versionQuery) {
-		return toCapabilityExecutionVersionQuery(executionInput.versionQuery);
+		return toToolExecutionVersionQuery(executionInput.versionQuery);
 	}
 	return {
 		mode: "current",

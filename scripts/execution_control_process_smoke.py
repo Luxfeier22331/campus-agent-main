@@ -20,7 +20,7 @@ from scripts.execution_control_process_smoke_profiles import (
     MULTI_STEP_WORKFLOW_PROFILES,
     RAG_RETRIEVAL_PROFILES,
     SELECTED_NOTICE_GUARDRAIL_PROFILES,
-    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     campus_services_sdk_profiles,
     profile_execution_run_expectation,
@@ -36,7 +36,7 @@ _process_smoke_base_postgres_url = _runtime._process_smoke_base_postgres_url
 _processes_with_env_overlay = _runtime._processes_with_env_overlay
 _sanitize_postgres_database_name = _runtime._sanitize_postgres_database_name
 _seed_notice_read_model_smoke = _runtime._seed_notice_read_model_smoke
-_seed_structured_projection_smoke = _runtime._seed_structured_projection_smoke
+_seed_tool_read_model_projection_smoke = _runtime._seed_tool_read_model_projection_smoke
 process_spec_to_artifact = _runtime.process_spec_to_artifact
 
 
@@ -49,7 +49,7 @@ def _prepare_process_smoke_runtime(
     _runtime._postgres_url_with_database = _postgres_url_with_database
     _runtime._process_smoke_base_postgres_url = _process_smoke_base_postgres_url
     _runtime._seed_notice_read_model_smoke = _seed_notice_read_model_smoke
-    _runtime._seed_structured_projection_smoke = _seed_structured_projection_smoke
+    _runtime._seed_tool_read_model_projection_smoke = _seed_tool_read_model_projection_smoke
     return _runtime._prepare_process_smoke_runtime(plan, timeout_seconds=timeout_seconds)
 
 
@@ -64,9 +64,9 @@ def build_process_smoke_plan(
     object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
     api_secret = os.getenv("API_WORKER_SHARED_SECRET", "execution-control-local-placeholder")
-    structured_query_secret = _env_or_default(
+    internal_query_secret = _env_or_default(
         "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET",
-        "execution-control-structured-query-local-placeholder",
+        "execution-control-internal-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
     object_store_base_url = f"http://{object_store_host}:{object_store_port}"
@@ -79,7 +79,7 @@ def build_process_smoke_plan(
     profile_api_env = _profile_resource_env(
         profile,
         object_store_base_url=object_store_base_url,
-        structured_query_secret=structured_query_secret,
+        internal_query_secret=internal_query_secret,
     )
     api_env = {
         "API_AUTH_MODE": "trusted-worker",
@@ -164,8 +164,8 @@ def _write_process_smoke_runtime_profile(
         "query_serving_scopes_path": str(
             repo_root / "configs/runtime/query-serving-scopes.v1.json"
         ),
-        "structured_query_timeout_ms": 1000,
-        "open_capabilities": _profile_open_capabilities(profile),
+        "tool_read_model_timeout_ms": 1000,
+        "open_tools": _profile_open_tools(profile),
         "multi_step_workflow_enabled": profile in MULTI_STEP_WORKFLOW_PROFILES,
         "otel": {
             "enabled": False,
@@ -181,13 +181,6 @@ def _write_process_smoke_runtime_profile(
         "execution_audit": {
             "enabled": False,
             "timeout_ms": 500,
-        },
-        "lane_budgets": {
-            "rag": {"max_concurrent": 6, "queue_capacity": 12, "queue_timeout_ms": 3000},
-            "navigation": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
-            "campus_services": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
-            "notice": {"max_concurrent": 2, "queue_capacity": 4, "queue_timeout_ms": 1500},
-            "default": {"max_concurrent": 1, "queue_capacity": 2, "queue_timeout_ms": 1500},
         },
         "rag": {
             "top_k_max": 8,
@@ -212,13 +205,13 @@ def _write_process_smoke_runtime_profile(
     return path
 
 
-def _profile_open_capabilities(profile: str) -> list[str]:
+def _profile_open_tools(profile: str) -> list[str]:
     if profile in campus_services_sdk_profiles() or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
-        return ["campus_services"]
+        return ["transport_schedule_lookup"]
     if profile == "notice_discover_sdk_opened":
-        return ["notice"]
+        return ["campus_notice_discover"]
     if profile == "transport_notice_override_multistep":
-        return ["campus_services"]
+        return ["transport_schedule_lookup"]
     return []
 
 
@@ -226,18 +219,18 @@ def _profile_resource_env(
     profile: str,
     *,
     object_store_base_url: str,
-    structured_query_secret: str,
+    internal_query_secret: str,
 ) -> dict[str, str]:
     if profile in campus_services_sdk_profiles():
         return {
-            "EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+            "EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339": (
+                TOOL_READ_MODEL_OPENED_TRUSTED_TIME
             ),
-            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
         }
     if profile == "notice_discover_sdk_opened":
         env = {
-            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
         }
         if profile_requires_object_store(profile):
             env.update(
@@ -252,20 +245,20 @@ def _profile_resource_env(
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
         env = {
             "EXECUTION_CONTROL_WORKFLOW_RUN_AUTO_MIGRATE": "true",
-            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT": object_store_base_url,
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
             "EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET": "notice-body-smoke",
         }
         if profile == "transport_notice_override_multistep":
-            env["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+            env["EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"] = (
                 TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
     if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
         return {
-            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+            "EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET": internal_query_secret,
         }
     return {}
 

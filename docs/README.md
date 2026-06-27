@@ -18,7 +18,7 @@ class owns a fact.
 ## Question Routing
 
 - Product boundary, users and non-promises:
-  - [architecture/product-positioning.md](./architecture/product-positioning.md)
+  - [architecture/product.md](./architecture/product.md)
 - Feature-level product requirements:
   - [product/README.md](./product/README.md)
   - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
@@ -26,24 +26,24 @@ class owns a fact.
   - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
   - [product/multi-turn-context-and-rag-followup-prd.md](./product/multi-turn-context-and-rag-followup-prd.md)
 - Current accepted merged truth:
-  - [architecture/current-architecture.md](./architecture/current-architecture.md)
+  - [architecture/current.md](./architecture/current.md)
 - Long-term architecture invariants:
-  - [architecture/target-architecture.md](./architecture/target-architecture.md)
+  - [architecture/target.md](./architecture/target.md)
 - Documentation truth classes and conflict resolution:
   - [documentation-architecture.md](./documentation-architecture.md)
 - Main question-answer chain semantics:
   - [architecture/system/execution-agent-layer-architecture.md](./architecture/system/execution-agent-layer-architecture.md)
-  - [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
-  - [architecture/current-architecture.md](./architecture/current-architecture.md)
+  - [architecture/system/tool-routing.md](./architecture/system/tool-routing.md)
+  - [architecture/current.md](./architecture/current.md)
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
   - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
 - Langfuse LLM observability and eval platform:
   - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
   - [architecture/system/langfuse-observability-and-eval-architecture.md](./architecture/system/langfuse-observability-and-eval-architecture.md)
-  - [contracts/langfuse-runtime-observability-contract.md](./contracts/langfuse-runtime-observability-contract.md)
+  - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
-  - [architecture/system/kubernetes-execution-runtime-architecture.md](./architecture/system/kubernetes-execution-runtime-architecture.md)
-- Tool or capability readiness:
+  - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
+- Tool or domain readiness:
   - [architecture/domains/README.md](./architecture/domains/README.md)
   - [contracts/README.md](./contracts/README.md)
 - Campus shuttle timetable capability:
@@ -92,11 +92,11 @@ class owns a fact.
 - [architecture/system/README.md](./architecture/system/README.md)
   - cross-domain runtime, execution, retrieval, data and observability boundaries
 - [architecture/domains/README.md](./architecture/domains/README.md)
-  - domain/capability architecture boundaries
+  - domain / tool architecture boundaries
 - [domains/README.md](./domains/README.md)
   - cross-document domain hub
 - [contracts/README.md](./contracts/README.md)
-  - contract truth for HTTP, runtime and capability seams
+  - contract truth for HTTP, runtime and tool seams
 - [data/README.md](./data/README.md)
   - data truth, source truth schemas and read-model ownership
 - [decisions/README.md](./decisions/README.md)
@@ -116,11 +116,11 @@ class owns a fact.
   contract, data or ADR truth.
 - `runbooks/` define operational procedures and release evidence. They do not
   define whether the main answer chain is architecturally complete.
-- Capability/domain docs define capability-local readiness. They do not
+- Domain/tool docs define local readiness. They do not
   redefine main-chain completion.
-- `current-architecture.md` describes accepted merged truth. It does not carry
+- `current.md` describes accepted merged truth. It does not carry
   feature-branch progress or release closeout.
-- `target-architecture.md` describes long-term invariants. It does not carry
+- `target.md` describes long-term invariants. It does not carry
   P0/P1/P2 status or current implementation progress.
 - Reference material can support a discussion, but contracts, data schemas and
   architecture docs own current product/runtime/data truth.

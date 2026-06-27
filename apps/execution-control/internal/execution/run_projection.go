@@ -23,7 +23,7 @@ const (
 	DurableTerminalReasonClarificationRequired DurableTerminalReason = "clarification_required"
 	DurableTerminalReasonNoAnswerGrounded      DurableTerminalReason = "no_answer_grounded"
 	DurableTerminalReasonPolicyRejected        DurableTerminalReason = "policy_rejected"
-	DurableTerminalReasonCapabilityClosed      DurableTerminalReason = "capability_closed"
+	DurableTerminalReasonToolClosed            DurableTerminalReason = "tool_closed"
 	DurableTerminalReasonConversationActiveRun DurableTerminalReason = "conversation_active_run"
 	DurableTerminalReasonQuotaExceeded         DurableTerminalReason = "quota_exceeded"
 	DurableTerminalReasonQueueTimeout          DurableTerminalReason = "queue_timeout"
@@ -34,16 +34,6 @@ const (
 	DurableTerminalReasonUserCanceled          DurableTerminalReason = "user_canceled"
 	DurableTerminalReasonSystemDraining        DurableTerminalReason = "system_draining"
 	DurableTerminalReasonRunTimeout            DurableTerminalReason = "run_timeout"
-)
-
-type DurableLane string
-
-const (
-	DurableLaneRAG            DurableLane = "rag"
-	DurableLaneNotice         DurableLane = "notice"
-	DurableLaneNavigation     DurableLane = "navigation"
-	DurableLaneCampusServices DurableLane = "campus_services"
-	DurableLaneDefault        DurableLane = "default"
 )
 
 type DurableRunEventType string
@@ -88,31 +78,31 @@ const (
 )
 
 type DurableRun struct {
-	RunID               string
-	ConversationID      string
-	TurnID              string
-	RequestID           string
-	TraceID             string
-	OwnerUserID         string
-	Surface             string
-	RequestedCapability string
-	SelectedCapability  string
-	Lane                DurableLane
-	Status              DurableRunStatus
-	TerminalReason      DurableTerminalReason
-	FailCloseReason     string
-	Retryable           bool
-	CreatedAt           time.Time
-	QueuedAt            time.Time
-	AdmittedAt          time.Time
-	StartedAt           time.Time
-	StreamingStartedAt  time.Time
-	CompletedAt         time.Time
-	UpdatedAt           time.Time
-	RuntimeVersions     map[string]any
-	WorkflowPlanRef     string
-	FinalResponseRef    string
-	Metadata            map[string]any
+	RunID              string
+	ConversationID     string
+	TurnID             string
+	RequestID          string
+	TraceID            string
+	OwnerUserID        string
+	Surface            string
+	RequestedTool      string
+	SelectedTool       string
+	TaskQueue          string
+	Status             DurableRunStatus
+	TerminalReason     DurableTerminalReason
+	FailCloseReason    string
+	Retryable          bool
+	CreatedAt          time.Time
+	QueuedAt           time.Time
+	AdmittedAt         time.Time
+	StartedAt          time.Time
+	StreamingStartedAt time.Time
+	CompletedAt        time.Time
+	UpdatedAt          time.Time
+	RuntimeVersions    map[string]any
+	WorkflowPlanRef    string
+	FinalResponseRef   string
+	Metadata           map[string]any
 }
 
 type DurableRunEvent struct {
@@ -132,7 +122,7 @@ type RunStepProjection struct {
 	RunID                string
 	ConversationID       string
 	StepKind             string
-	Capability           string
+	Tool                 string
 	ParentStepID         string
 	Status               string
 	TaskQueue            string
@@ -202,18 +192,18 @@ type DurableRunCancelRequest struct {
 }
 
 type DurableRunCompleteRequest struct {
-	RunID              string
-	TerminalReason     DurableTerminalReason
-	FinalResponseRef   string
-	SelectedCapability string
-	Now                time.Time
+	RunID            string
+	TerminalReason   DurableTerminalReason
+	FinalResponseRef string
+	SelectedTool     string
+	Now              time.Time
 }
 
 type DurableRunFailRequest struct {
-	RunID              string
-	TerminalReason     DurableTerminalReason
-	SelectedCapability string
-	Now                time.Time
+	RunID          string
+	TerminalReason DurableTerminalReason
+	SelectedTool   string
+	Now            time.Time
 }
 
 type CancelOutcome string
@@ -222,7 +212,7 @@ const (
 	CancelOutcomeNotRequested                CancelOutcome = "not_requested"
 	CancelOutcomeRequestedBeforeStart        CancelOutcome = "requested_before_start"
 	CancelOutcomeActivityContextCanceled     CancelOutcome = "activity_context_canceled"
-	CancelOutcomeRuntimeCancelDelivered      CancelOutcome = "runtime_cancel_delivered"
+	CancelOutcomeDelivered                   CancelOutcome = "cancel_delivered"
 	CancelOutcomeProviderConnectionAborted   CancelOutcome = "provider_connection_aborted"
 	CancelOutcomeProviderBackgroundCancelled CancelOutcome = "provider_background_cancelled"
 	CancelOutcomeCompletedBeforeCancel       CancelOutcome = "completed_before_cancel"
@@ -234,7 +224,6 @@ type TimeoutOutcome string
 const (
 	TimeoutOutcomeNotTimedOut     TimeoutOutcome = "not_timed_out"
 	TimeoutOutcomeActivityTimeout TimeoutOutcome = "activity_timeout"
-	TimeoutOutcomeRuntimeTimeout  TimeoutOutcome = "runtime_timeout"
 	TimeoutOutcomeProviderTimeout TimeoutOutcome = "provider_timeout"
 	TimeoutOutcomeWorkflowTimeout TimeoutOutcome = "workflow_timeout"
 )

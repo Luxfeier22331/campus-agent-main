@@ -32,7 +32,7 @@ const snapshot = {
 	scheduleToStartLatency: { ms: null, state: "unsupported_by_source" as const },
 	snapshotId: "temporal-snapshot-20260615T100000Z",
 	source: "execution-control.temporal-task-queue-sampler",
-	taskQueue: "campus-agent.activity.knowledge.retrieval",
+	taskQueue: "campus-agent.activity.knowledge",
 	taskQueueKind: "activity" as const,
 };
 
@@ -51,8 +51,8 @@ const decision = {
 	projectedAt: "2026-06-15T10:00:02.000Z",
 	reason: "replica target already satisfied",
 	sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-	targetService: "activity-worker-knowledge-retrieval",
-	taskQueue: "campus-agent.activity.knowledge.retrieval",
+	targetService: "activity-worker-knowledge",
+	taskQueue: "campus-agent.activity.knowledge",
 	taskQueueKind: "activity" as const,
 };
 
@@ -103,11 +103,11 @@ describe("operator runtime projection store", () => {
 		expect(dbMock.valuesPayloads).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					currentId: "default:activity:campus-agent.activity.knowledge.retrieval",
+					currentId: "default:activity:campus-agent.activity.knowledge",
 					snapshotId: "temporal-snapshot-20260615T100000Z",
 				}),
 				expect.objectContaining({
-					currentId: "activity-worker-knowledge-retrieval",
+					currentId: "activity-worker-knowledge",
 					decisionId: "decision-20260615T100005Z",
 				}),
 			]),
@@ -137,7 +137,7 @@ describe("operator runtime projection store", () => {
 	it("lists Temporal task queues from the bounded current projection", async () => {
 		const row = {
 			backlogJson: snapshot.backlog,
-			currentId: "default:activity:campus-agent.activity.knowledge.retrieval",
+			currentId: "default:activity:campus-agent.activity.knowledge",
 			namespace: snapshot.namespace,
 			oldestTaskAgeJson: snapshot.oldestTaskAge,
 			pollerCount: snapshot.pollerCount,
@@ -178,7 +178,7 @@ describe("operator runtime projection store", () => {
 	it("lists autoscaler decisions from the bounded current projection", async () => {
 		const row = {
 			...decision,
-			currentId: "activity-worker-knowledge-retrieval",
+			currentId: "activity-worker-knowledge",
 			decidedAt: new Date(decision.decidedAt),
 			evidenceJson: decision.evidence,
 			projectedAt: new Date(decision.projectedAt),

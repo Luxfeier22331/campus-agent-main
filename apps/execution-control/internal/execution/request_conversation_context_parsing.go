@@ -24,7 +24,7 @@ func parseConversationContext(raw json.RawMessage) (map[string]any, error) {
 			"recent_turns",
 			"previous_answer_summary",
 			"previous_evidence_refs",
-			"previous_capability_results",
+			"previous_tool_results",
 			"session_state",
 			"visibility",
 			"memory_recall",
@@ -69,7 +69,7 @@ func parseConversationContext(raw json.RawMessage) (map[string]any, error) {
 	if err := parsePreviousEvidenceRefs(rawConversation["previous_evidence_refs"]); err != nil {
 		return nil, err
 	}
-	if err := parsePreviousCapabilityResults(rawConversation["previous_capability_results"]); err != nil {
+	if err := parsePreviousToolResults(rawConversation["previous_tool_results"]); err != nil {
 		return nil, err
 	}
 	if err := parseConversationVisibility(rawConversation["visibility"]); err != nil {
@@ -214,13 +214,13 @@ func parsePreviousEvidenceRefs(raw json.RawMessage) error {
 	return nil
 }
 
-func parsePreviousCapabilityResults(raw json.RawMessage) error {
-	refs, err := parseArray(raw, "context.conversation.previous_capability_results")
+func parsePreviousToolResults(raw json.RawMessage) error {
+	refs, err := parseArray(raw, "context.conversation.previous_tool_results")
 	if err != nil {
 		return err
 	}
 	for index, rawRef := range refs {
-		fieldPrefix := fmt.Sprintf("context.conversation.previous_capability_results[%d]", index)
+		fieldPrefix := fmt.Sprintf("context.conversation.previous_tool_results[%d]", index)
 		ref, err := parseObject(rawRef, fieldPrefix)
 		if err != nil {
 			return fmt.Errorf("%s must be an object", fieldPrefix)
@@ -230,7 +230,7 @@ func parsePreviousCapabilityResults(raw json.RawMessage) error {
 			[]string{
 				"request_id",
 				"run_id",
-				"capability",
+				"tool",
 				"result_kind",
 				"projection_ref",
 				"content_hash",
@@ -238,14 +238,14 @@ func parsePreviousCapabilityResults(raw json.RawMessage) error {
 				"summary",
 			},
 			fieldPrefix,
-			"unsupported previous capability result fields are not allowed: %s",
+			"unsupported previous tool result fields are not allowed: %s",
 		); err != nil {
 			return err
 		}
 		for _, field := range []string{
 			"request_id",
 			"run_id",
-			"capability",
+			"tool",
 			"result_kind",
 			"projection_ref",
 			"content_hash",

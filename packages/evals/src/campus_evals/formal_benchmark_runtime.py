@@ -261,7 +261,7 @@ def repair_formal_benchmark(
                 "supplemental_preflight_path": str(supplemental_preflight_path),
                 "supplemental_preflight": supplemental_preflight["summary"],
                 "runtime_events_path": str(resolved_runtime_events_path),
-                "selected_capability_count": len(targets),
+                "selected_tool_count": len(targets),
             },
         )
         _write_json(
@@ -413,7 +413,7 @@ def repair_formal_benchmark(
             "source_benchmark_type": original_config.get("benchmark_type"),
         },
         repair={
-            "selected_capability_count": len(targets),
+            "selected_tool_count": len(targets),
             "applied_target_count": applied_target_count,
             "plan_path": str(resolved_output_dir / "repair-plan.json"),
         },

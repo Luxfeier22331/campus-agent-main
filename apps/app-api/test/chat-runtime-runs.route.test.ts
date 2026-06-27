@@ -438,7 +438,7 @@ describe("chat durable run routes", () => {
 				},
 				steps: [
 					{
-						capability: "any",
+						tool: "any",
 						completedAt: "2026-06-04T01:02:05.000Z",
 						conversationId: "conv_01HQ",
 						parentStepId: "",
@@ -501,7 +501,7 @@ describe("chat durable run routes", () => {
 			},
 			steps: [
 				{
-					capability: "any",
+					tool: "any",
 					completedAt: "2026-06-04T01:02:05.000Z",
 					conversationId: "conv_01HQ",
 					parentStepId: "",

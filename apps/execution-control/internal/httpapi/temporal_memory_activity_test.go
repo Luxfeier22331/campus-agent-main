@@ -9,7 +9,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestMemoryRecallActivityUsesAnyCapabilityForNeutralPrimaryAgentRun(t *testing.T) {
+func TestMemoryRecallActivityUsesAnyToolForNeutralPrimaryAgentRun(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newWorkerAuthServerForTest()
 	attachRunProjectionStoreForHandlerTest(server, store)
@@ -42,10 +42,10 @@ func TestMemoryRecallActivityUsesAnyCapabilityForNeutralPrimaryAgentRun(t *testi
 	if output.Status != "completed" {
 		t.Fatalf("memory recall status = %q, want completed", output.Status)
 	}
-	if executor.seenRequest.RequestedCapability != "any" {
+	if executor.seenRequest.RequestedTool != "any" {
 		t.Fatalf(
-			"recall requested capability = %q, want any for neutral primary-agent run",
-			executor.seenRequest.RequestedCapability,
+			"recall requested tool = %q, want any for neutral primary-agent run",
+			executor.seenRequest.RequestedTool,
 		)
 	}
 
@@ -56,8 +56,8 @@ func TestMemoryRecallActivityUsesAnyCapabilityForNeutralPrimaryAgentRun(t *testi
 	if len(steps) != 1 {
 		t.Fatalf("step count = %d, want 1: %#v", len(steps), steps)
 	}
-	if steps[0].Capability != "any" {
-		t.Fatalf("memory step capability = %q, want any", steps[0].Capability)
+	if steps[0].Tool != "any" {
+		t.Fatalf("memory step tool = %q, want any", steps[0].Tool)
 	}
 }
 

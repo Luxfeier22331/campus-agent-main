@@ -7,8 +7,8 @@ import (
 )
 
 func TestInternalTransportStatusProjectionEndpoint(t *testing.T) {
-	server := newStructuredQueryAuthServerForTest()
-	useStructuredQueryRuntimeFixture(
+	server := newToolReadModelAuthServerForTest()
+	useToolReadModelRuntimeFixture(
 		t,
 		server,
 		transportProjectionFixtureForHTTPStatusTest(),
@@ -43,7 +43,7 @@ func TestInternalTransportStatusProjectionEndpoint(t *testing.T) {
 }
 
 func TestInternalTransportStatusProjectionEndpointRequiresAuth(t *testing.T) {
-	server := newStructuredQueryAuthServerForTest()
+	server := newToolReadModelAuthServerForTest()
 	request := newTestRequest(
 		http.MethodGet,
 		"/internal/projections/campus-services/transport-schedule/status",

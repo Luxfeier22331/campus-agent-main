@@ -21,7 +21,7 @@ func TestTemporalClientOptionsApplyTracingInterceptors(t *testing.T) {
 		config.Config{
 			TemporalAddress:        "temporal:7233",
 			TemporalNamespace:      "campus-agent-staging",
-			TemporalWorkerIdentity: "staging:activity-context:001",
+			TemporalWorkerIdentity: "staging:activity-core:001",
 		},
 		tracing,
 	)
@@ -32,8 +32,8 @@ func TestTemporalClientOptionsApplyTracingInterceptors(t *testing.T) {
 	if options.Namespace != "campus-agent-staging" {
 		t.Fatalf("namespace = %q, want campus-agent-staging", options.Namespace)
 	}
-	if options.Identity != "staging:activity-context:001" {
-		t.Fatalf("identity = %q, want staging:activity-context:001", options.Identity)
+	if options.Identity != "staging:activity-core:001" {
+		t.Fatalf("identity = %q, want staging:activity-core:001", options.Identity)
 	}
 	if len(options.Interceptors) != 1 {
 		t.Fatalf("client interceptors = %d, want 1", len(options.Interceptors))
@@ -46,13 +46,13 @@ func TestWorkerOptionsForRolePreservesProfileAndAppliesTracing(t *testing.T) {
 	options, err := workerOptionsForRole(
 		config.Config{
 			WorkerProfiles: map[string]config.WorkerProfile{
-				string(RoleKnowledgeRetrieval): {
+				string(RoleKnowledge): {
 					ActivitySlots:       3,
 					ActivityTaskPollers: 2,
 				},
 			},
 		},
-		RoleKnowledgeRetrieval,
+		RoleKnowledge,
 		tracing,
 	)
 	if err != nil {
@@ -73,7 +73,7 @@ func TestWorkerOptionsForRolePreservesProfileAndAppliesTracing(t *testing.T) {
 func TestWorkerOptionsForRoleAppliesTracingToUnprofiledWorkers(t *testing.T) {
 	tracing := mustTracingInterceptors(t)
 
-	options, err := workerOptionsForRole(config.Config{}, RoleContext, tracing)
+	options, err := workerOptionsForRole(config.Config{}, RoleCore, tracing)
 	if err != nil {
 		t.Fatalf("workerOptionsForRole returned error: %v", err)
 	}
@@ -86,7 +86,7 @@ func TestWorkerOptionsForRoleAppliesTracingToUnprofiledWorkers(t *testing.T) {
 func TestCheckRuntimeValidatesRoleConfiguration(t *testing.T) {
 	setWorkerRuntimeEnv(t)
 
-	if err := CheckRuntime(RoleKnowledgeRetrieval); err != nil {
+	if err := CheckRuntime(RoleKnowledge); err != nil {
 		t.Fatalf("CheckRuntime returned error: %v", err)
 	}
 }
@@ -95,7 +95,7 @@ func TestCheckRuntimeRejectsInvalidTemporalConfiguration(t *testing.T) {
 	setWorkerRuntimeEnv(t)
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "")
 
-	err := CheckRuntime(RoleKnowledgeRetrieval)
+	err := CheckRuntime(RoleKnowledge)
 	if err == nil {
 		t.Fatal("expected CheckRuntime to reject missing Temporal address")
 	}
@@ -171,7 +171,7 @@ func setWorkerRuntimeEnv(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_ADDRESS", "temporal:7233")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_NAMESPACE", "campus-agent-staging")
-	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:activity-knowledge-retrieval:001")
+	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "staging:activity-knowledge:001")
 	t.Setenv("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT", "workflow-salt")
 	t.Setenv("PERSONAL_MEMORY_BASE_URL", "http://hindsight-api:8888")
 	t.Setenv("PERSONAL_MEMORY_API_SECRET", "hindsight-secret")

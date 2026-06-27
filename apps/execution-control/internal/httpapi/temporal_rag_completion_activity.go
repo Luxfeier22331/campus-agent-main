@@ -35,7 +35,7 @@ func (s *Server) SynthesizeRAGAnswerActivity(
 	packet, err := temporalRAGSynthesisPacketForRun(run, input.RAGPlanRef, input.EvidenceRef)
 	if err != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-			Capability:    "knowledge",
+			Tool:          "knowledge_query",
 			FailureKind:   "rag_synthesis_packet_missing",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -59,7 +59,7 @@ func (s *Server) completeRAGSynthesisActivity(
 ) (temporalruntime.SynthesizeRAGAnswerActivityOutput, error) {
 	if s.ragSynthesisErr != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-			Capability:    "knowledge",
+			Tool:          "knowledge_query",
 			FailureKind:   "rag_synthesis_provider_not_configured",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -76,7 +76,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	if s.ragSynthesisExecutor == nil {
 		cause := errors.New("rag synthesis executor is not configured")
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-			Capability:    "knowledge",
+			Tool:          "knowledge_query",
 			FailureKind:   "rag_synthesis_provider_not_configured",
 			ProjectionRef: temporalProjectionRef(run.RunID, "synthesis"),
 			ResultKind:    "activity_failure",
@@ -93,7 +93,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	synthesisStartedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "started",
 		StepID:        "synthesis",
@@ -117,7 +117,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	synthesisCompletedAt := time.Now().UTC()
 	if err != nil {
 		_, failureErr := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-			Capability:      "knowledge",
+			Tool:            "knowledge_query",
 			CancelOutcome:   execution.CancelOutcome(synthesisResult.ProviderSummary.CancelOutcome),
 			FailureKind:     "rag_synthesis_provider_failed",
 			ProjectionRef:   temporalProjectionRef(run.RunID, "synthesis/provider"),
@@ -140,7 +140,7 @@ func (s *Server) completeRAGSynthesisActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:         1,
-		Capability:      "knowledge",
+		Tool:            "knowledge_query",
 		Run:             run,
 		Status:          "completed",
 		StepID:          "synthesis",
@@ -211,7 +211,7 @@ func (s *Server) VerifyGroundingActivity(
 	startedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "grounding.verify",
@@ -275,30 +275,29 @@ func (s *Server) WriteFinalizationActivity(
 	}
 	finalizedResponse, err := temporalFinalizedResponseFromRun(run, input.SynthesisRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "knowledge", "finalization_packet_missing", err)
+		return s.failFinalizationActivity(ctx, run, "knowledge_query", "finalization_packet_missing", err)
 	}
 	if err := requireSupportedGroundingForFinalization(run, input.GroundingRef, input.SynthesisRef); err != nil {
-		return s.failFinalizationActivity(ctx, run, "knowledge", "grounding_verification_failed", err)
+		return s.failFinalizationActivity(ctx, run, "knowledge_query", "grounding_verification_failed", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "started",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		UpdatedAt:     finalizationStartedAt,
 		ProjectionRef: finalizationRef,
 		Payload: map[string]any{
-			"grounding_ref":       input.GroundingRef,
-			"selected_capability": input.SelectedCapability,
-			"selected_tool":       input.SelectedTool,
-			"synthesis_ref":       input.SynthesisRef,
+			"grounding_ref": input.GroundingRef,
+			"selected_tool": "knowledge_query",
+			"synthesis_ref": input.SynthesisRef,
 		},
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -329,11 +328,11 @@ func (s *Server) WriteFinalizationActivity(
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
-			FinalResponseRef:   finalizationRef,
-			Now:                completedAt,
-			RunID:              run.RunID,
-			SelectedCapability: "knowledge",
-			TerminalReason:     execution.DurableTerminalReasonAnswerCompleted,
+			FinalResponseRef: finalizationRef,
+			Now:              completedAt,
+			RunID:            run.RunID,
+			SelectedTool:     "knowledge_query",
+			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 		},
 	)
 	if err != nil {
@@ -357,12 +356,12 @@ func (s *Server) WriteFinalizationActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		CompletedAt:   completedAt,

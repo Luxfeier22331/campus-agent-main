@@ -1,17 +1,17 @@
 import { DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS, type Env, parsePositiveInteger } from "../../config";
 import { applyTracePropagationHeaders, resolveTracePropagationHeaders } from "../telemetry/trace";
 
-import type { CapabilityExecutionInput } from "./capability-execution-types";
+import type { ToolExecutionInput } from "./tool-execution-types";
 
 type ExecutionControlReadyzRecord = Record<string, unknown>;
 type ExecutionControlReadinessCheckStatus = "ready" | "not_ready" | "not_reported";
 
 export interface ExecutionControlCampusServicesProductPathPreflight {
 	status: "ready" | "blocked" | "not_reported";
-	capabilityGate: "open" | "closed" | "not_reported";
+	toolGate: "open" | "closed" | "not_reported";
 	projectionSource: string;
 	checks: {
-		structuredQueryRuntime: ExecutionControlReadinessCheckStatus;
+		toolReadModelRuntime: ExecutionControlReadinessCheckStatus;
 		transportSchedule: ExecutionControlReadinessCheckStatus;
 		transportScheduleReadModel: ExecutionControlReadinessCheckStatus;
 	};
@@ -229,21 +229,21 @@ async function parseExecutionControlReadyzPayload(
 function buildCampusServicesProductPathPreflight(
 	payload: ExecutionControlReadyzRecord | null,
 ): ExecutionControlCampusServicesProductPathPreflight {
-	const capabilityGate = resolveCampusServicesCapabilityGate(payload);
-	const structuredRuntime = readRecord(payload?.structured_query_runtime);
-	const projectionSource = readString(structuredRuntime?.projection_source);
+	const toolGate = resolveCampusServicesToolGate(payload);
+	const toolReadModelRuntime = readRecord(payload?.tool_read_model_runtime);
+	const projectionSource = readString(toolReadModelRuntime?.projection_source);
 	const checks: ExecutionControlCampusServicesProductPathPreflight["checks"] = {
-		structuredQueryRuntime: readinessFromBoolean(structuredRuntime?.configured),
-		transportSchedule: readinessFromBoolean(structuredRuntime?.transport_schedule_implemented),
+		toolReadModelRuntime: readinessFromBoolean(toolReadModelRuntime?.configured),
+		transportSchedule: readinessFromBoolean(toolReadModelRuntime?.transport_schedule_implemented),
 		transportScheduleReadModel: readinessFromConfiguredAndHealthy(
-			structuredRuntime?.transport_schedule_read_model_configured,
-			structuredRuntime?.transport_schedule_read_model_healthy,
+			toolReadModelRuntime?.transport_schedule_read_model_configured,
+			toolReadModelRuntime?.transport_schedule_read_model_healthy,
 		),
 	};
-	const blockers = collectCampusServicesProductPathBlockers(capabilityGate, checks);
+	const blockers = collectCampusServicesProductPathBlockers(toolGate, checks);
 	const hasReportedCheck = Object.values(checks).some((status) => status !== "not_reported");
 	const status =
-		capabilityGate === "not_reported" && !hasReportedCheck
+		toolGate === "not_reported" && !hasReportedCheck
 			? "not_reported"
 			: Object.keys(blockers).length === 0
 				? "ready"
@@ -251,7 +251,7 @@ function buildCampusServicesProductPathPreflight(
 
 	return {
 		status,
-		capabilityGate,
+		toolGate,
 		projectionSource,
 		checks,
 		blockers,
@@ -259,15 +259,15 @@ function buildCampusServicesProductPathPreflight(
 }
 
 function collectCampusServicesProductPathBlockers(
-	capabilityGate: ExecutionControlCampusServicesProductPathPreflight["capabilityGate"],
+	toolGate: ExecutionControlCampusServicesProductPathPreflight["toolGate"],
 	checks: ExecutionControlCampusServicesProductPathPreflight["checks"],
 ): Record<string, string> {
 	const blockers: Record<string, string> = {};
-	if (capabilityGate === "closed") {
-		blockers.capabilityGate = "campus_services capability gate is closed";
+	if (toolGate === "closed") {
+		blockers.toolGate = "transport_schedule_lookup tool gate is closed";
 	}
-	if (checks.structuredQueryRuntime === "not_ready") {
-		blockers.structuredQueryRuntime = "structured_query_runtime.configured is false";
+	if (checks.toolReadModelRuntime === "not_ready") {
+		blockers.toolReadModelRuntime = "tool_read_model_runtime.configured is false";
 	}
 	const requiredChecks: readonly [
 		keyof ExecutionControlCampusServicesProductPathPreflight["checks"],
@@ -392,15 +392,15 @@ function readTaskQueuePollers(value: unknown): ExecutionControlTemporalTaskQueue
 	});
 }
 
-function resolveCampusServicesCapabilityGate(
+function resolveCampusServicesToolGate(
 	payload: ExecutionControlReadyzRecord | null,
-): ExecutionControlCampusServicesProductPathPreflight["capabilityGate"] {
-	const capabilityGates = readRecord(payload?.capability_gates);
-	const campusServices = readRecord(capabilityGates?.campus_services);
-	if (campusServices?.open === true) {
+): ExecutionControlCampusServicesProductPathPreflight["toolGate"] {
+	const toolGates = readRecord(payload?.tool_gates);
+	const transportSchedule = readRecord(toolGates?.transport_schedule_lookup);
+	if (transportSchedule?.open === true) {
 		return "open";
 	}
-	if (campusServices?.open === false) {
+	if (transportSchedule?.open === false) {
 		return "closed";
 	}
 	return "not_reported";
@@ -536,7 +536,7 @@ export function mapStatusCodeToErrorCode(status: number): string {
 
 export function createExecutionControlRequestHeaders(input: {
 	env: Pick<Env, "EXECUTION_CONTROL_ACCESS_CLIENT_ID" | "EXECUTION_CONTROL_ACCESS_CLIENT_SECRET">;
-	payload: Pick<CapabilityExecutionInput, "traceHeaders" | "traceId">;
+	payload: Pick<ToolExecutionInput, "traceHeaders" | "traceId">;
 	sharedSecret: string;
 	traceDataProvider: () => Record<string, unknown>;
 	accept?: string;

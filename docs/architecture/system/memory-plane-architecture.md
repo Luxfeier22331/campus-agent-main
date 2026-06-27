@@ -15,7 +15,7 @@ profile 或 provider-backed memory extraction eval；Qdrant 只承载 institutio
 ## Positioning
 
 Personal memory 是 per-user advisory context，用于 follow-up、偏好、常用地点 / 服务、
-别名消歧、query framing 与回答措辞。它不是身份、授权、source truth、capability opening
+别名消歧、query framing 与回答措辞。它不是身份、授权、source truth、tool opening
 或 fail-close truth，不能决定用户能使用哪些工具、能读取哪些 source，不能放宽 evidence
 requirement，也不能授予 operator surface 权限。
 
@@ -119,7 +119,7 @@ personal_memory_embedding
 ```text
 user request
 -> app-api creates execution run without PG memory full injection
--> execution-control starts CapabilityExecutionWorkflow
+-> execution-control starts ToolExecutionWorkflow
 -> first Execution Agent decision determines whether memory/tool context is needed
 -> Temporal context.memory_recall activity
 -> Hindsight recall scoped to actor bank
@@ -128,7 +128,7 @@ user request
 -> sanitized run step projection
 ```
 
-`memory.recall` 是 capability-neutral execution step，不属于 RAG worker 的私有前置逻辑；
+`memory.recall` 是 neutral execution step，不属于 RAG worker 的私有前置逻辑；
 目标态也不要求每个 product identity / no-tool direct answer 都先做 memory recall。
 
 `context.memory.enabled` 是 recall gate。gate 缺失或为 false 时
@@ -143,7 +143,7 @@ run_id
 tenant_id
 user_id
 user_goal
-requested_capability
+requested_tool
 session_slots
 ```
 
@@ -163,14 +163,14 @@ payload_sha256
 ```text
 memory_id
 memory_type
-capability
+tool
 compact_text
 score
 updated_at
 ```
 
 RAG / synthesis 可以消费 bounded memory context 来影响 follow-up、applicability、query
-framing、answer defaults 和 wording。它不得用 memory 打开未开放 capability / collection、
+framing、answer defaults 和 wording。它不得用 memory 打开未开放 tool / collection、
 放宽 source trust、覆盖 fail-close、伪造 account / session truth，或替代 institutional
 evidence。
 
@@ -293,7 +293,7 @@ Hindsight posture：
 - staging / local compose 默认使用内网 `http://hindsight-api:8888`；只有外接
   Hindsight endpoint 时才需要覆盖 URL，外部 endpoint 必须使用 HTTPS。
 - `PERSONAL_MEMORY_API_SECRET` 只注入需要 personal memory 的 execution-control
-  runtime role：`execution-control` 与 `activity-context`。local / staging lifecycle
+  runtime role：`execution-control` 与 `activity-core`。local / staging lifecycle
   负责生成并持久化该值。
 - `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
   `PERSONAL_MEMORY_OWNER_SALT` 是 deployment projection，不是开发者手工配置项；
@@ -301,10 +301,8 @@ Hindsight posture：
 - Hindsight LLM / embedding provider env 来自本地 provider projection artifact 中的
   `hindsight_llm` 与 `hindsight_embedding`；不得从 root `LLM_*` / `EMBEDDING_*`
   serving fallback 隐式继承，也不得在热路径回读 app-api。
-- `activity-knowledge-plan` / `activity-knowledge-synthesis` 不要求 Hindsight 配置；
-  `activity-knowledge-retrieval` 只在需要 query-side recall runtime 时加载 Hindsight
-  connectivity；knowledge worker 消费的是 bounded memory context，不拥有 memory
-  substrate。
+- `activity-agent` / `activity-knowledge` 不要求 Hindsight 配置；它们消费的是
+  bounded memory context，不拥有 memory substrate。
 
 Qdrant posture：
 
@@ -332,6 +330,6 @@ Memory Plane 不是：
 - Do not let RAG / provider adapters write long-term memory inline during answer
   synthesis.
 - Do not store raw transcript as personal memory compact text.
-- Do not use memory as authorization truth, capability-opening truth, source truth,
+- Do not use memory as authorization truth, tool-opening truth, source truth,
   or fail-close override.
 - Do not require panel/eval memory influence tracing as v1 acceptance.

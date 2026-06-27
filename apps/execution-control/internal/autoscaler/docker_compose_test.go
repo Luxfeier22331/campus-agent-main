@@ -20,9 +20,9 @@ func (r *recordingComposeRunner) Run(ctx context.Context, name string, args ...s
 
 func TestDockerComposeActuatorReadsAllowlistedReplicaState(t *testing.T) {
 	runner := &recordingComposeRunner{output: `[
-		{"Service":"activity-worker-knowledge-retrieval","Publishers":null},
-		{"Service":"activity-worker-knowledge-retrieval","Publishers":null},
-		{"Service":"activity-worker-finalization","Publishers":null}
+		{"Service":"activity-worker-knowledge","Publishers":null},
+		{"Service":"activity-worker-knowledge","Publishers":null},
+		{"Service":"activity-worker-core","Publishers":null}
 	]`}
 	actuator := DockerComposeActuator{
 		ProjectDirectory: "/srv/campus-agent",
@@ -31,13 +31,13 @@ func TestDockerComposeActuatorReadsAllowlistedReplicaState(t *testing.T) {
 	}
 
 	replicas, err := actuator.ReplicaCounts(t.Context(), []string{
-		"activity-worker-knowledge-retrieval",
-		"activity-worker-finalization",
+		"activity-worker-knowledge",
+		"activity-worker-core",
 	})
 	if err != nil {
 		t.Fatalf("ReplicaCounts returned error: %v", err)
 	}
-	if replicas["activity-worker-knowledge-retrieval"] != 2 || replicas["activity-worker-finalization"] != 1 {
+	if replicas["activity-worker-knowledge"] != 2 || replicas["activity-worker-core"] != 1 {
 		t.Fatalf("replicas = %#v", replicas)
 	}
 	if !strings.Contains(
@@ -73,16 +73,16 @@ func TestDockerComposeActuatorAppliesScaleForChangedDecisionOnly(t *testing.T) {
 		{
 			CurrentReplicas: 1,
 			Decision:        DecisionScaleUp,
-			DecisionID:      "decision-knowledge-retrieval",
+			DecisionID:      "decision-knowledge",
 			DesiredReplicas: 2,
-			TargetService:   "activity-worker-knowledge-retrieval",
+			TargetService:   "activity-worker-knowledge",
 		},
 		{
 			CurrentReplicas: 1,
 			Decision:        DecisionHold,
-			DecisionID:      "decision-finalization",
+			DecisionID:      "decision-core",
 			DesiredReplicas: 1,
-			TargetService:   "activity-worker-finalization",
+			TargetService:   "activity-worker-core",
 		},
 	})
 	if err != nil {
@@ -94,7 +94,7 @@ func TestDockerComposeActuatorAppliesScaleForChangedDecisionOnly(t *testing.T) {
 	}
 	if !strings.Contains(
 		runner.calls[0],
-		"compose --project-name campus-agent-staging --project-directory /srv/campus-agent up -d --scale activity-worker-knowledge-retrieval=2 activity-worker-knowledge-retrieval",
+		"compose --project-name campus-agent-staging --project-directory /srv/campus-agent up -d --scale activity-worker-knowledge=2 activity-worker-knowledge",
 	) {
 		t.Fatalf("compose call = %#v", runner.calls)
 	}
@@ -121,9 +121,9 @@ func TestDockerComposeActuatorReturnsFailedActuationWhenScaleFails(t *testing.T)
 	actuations, err := actuator.Apply(t.Context(), []WorkerAutoscalerDecision{{
 		CurrentReplicas: 1,
 		Decision:        DecisionScaleUp,
-		DecisionID:      "decision-knowledge-retrieval",
+		DecisionID:      "decision-knowledge",
 		DesiredReplicas: 2,
-		TargetService:   "activity-worker-knowledge-retrieval",
+		TargetService:   "activity-worker-knowledge",
 	}})
 	if err == nil {
 		t.Fatal("Apply must return the compose failure")

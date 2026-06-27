@@ -172,7 +172,7 @@ class DocsStructureTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("adr-0048-temporal-execution-plane.md", architecture)
+        self.assertIn("adr-0048-temporal.md", architecture)
         self.assertIn("durable-agent-runtime-contract.md", architecture)
         self.assertIn("durable-agent-runtime-schema.md", architecture)
         self.assertIn("durable-agent-runtime-contract-v1", contract)
@@ -189,8 +189,9 @@ class DocsStructureTest(unittest.TestCase):
             "Temporal-backed run command/query",
             "repo-owned projection",
             "`conversation_active_run`",
-            "`rag`",
-            "`campus_services`",
+            "`tool.started`",
+            "`tool.completed`",
+            "`tool.failed`",
         ):
             self.assertIn(token, contract)
 

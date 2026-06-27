@@ -18,7 +18,7 @@ type WorkflowRunStore interface {
 	Get(context.Context, string) (WorkflowRun, error)
 	AppendHandoff(context.Context, string, HandoffStep) (WorkflowRun, error)
 	AppendStep(context.Context, string, WorkflowStep) (WorkflowRun, error)
-	AppendCapabilityInvocation(context.Context, string, CapabilityInvocation) (WorkflowRun, error)
+	AppendToolInvocation(context.Context, string, ToolInvocation) (WorkflowRun, error)
 	AppendStepOutputProjection(context.Context, string, StepOutputProjection) (WorkflowRun, error)
 	AppendToolCallSummary(context.Context, string, ToolCallSummary) (WorkflowRun, error)
 	Complete(context.Context, string, WorkflowState) (WorkflowRun, error)
@@ -102,10 +102,10 @@ func (s *InMemoryWorkflowRunStore) AppendStep(
 	return cloneWorkflowRun(run), nil
 }
 
-func (s *InMemoryWorkflowRunStore) AppendCapabilityInvocation(
+func (s *InMemoryWorkflowRunStore) AppendToolInvocation(
 	_ context.Context,
 	runID string,
-	invocation CapabilityInvocation,
+	invocation ToolInvocation,
 ) (WorkflowRun, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -113,7 +113,7 @@ func (s *InMemoryWorkflowRunStore) AppendCapabilityInvocation(
 	if !exists {
 		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
 	}
-	run.CapabilityInvocations = append(run.CapabilityInvocations, cloneCapabilityInvocation(invocation))
+	run.ToolInvocations = append(run.ToolInvocations, cloneToolInvocation(invocation))
 	if err := validateWorkflowRun(run); err != nil {
 		return WorkflowRun{}, err
 	}
@@ -200,12 +200,12 @@ func validateWorkflowRun(run WorkflowRun) error {
 			ErrInvalidWorkflowRun,
 		)
 	}
-	for _, invocation := range run.CapabilityInvocations {
+	for _, invocation := range run.ToolInvocations {
 		if invocation.InvocationID == "" {
 			return fmt.Errorf("%w: agent invocation_id is required", ErrInvalidWorkflowRun)
 		}
-		if invocation.CapabilityID == "" {
-			return fmt.Errorf("%w: agent capability_id is required", ErrInvalidWorkflowRun)
+		if invocation.ToolTarget == "" {
+			return fmt.Errorf("%w: agent tool_id is required", ErrInvalidWorkflowRun)
 		}
 		if invocation.Status == "" {
 			return fmt.Errorf("%w: agent status is required", ErrInvalidWorkflowRun)
@@ -221,9 +221,9 @@ func cloneWorkflowRun(run WorkflowRun) WorkflowRun {
 		clone.HandoffChain = append(clone.HandoffChain, cloneHandoffStep(handoff))
 	}
 	clone.Steps = append([]WorkflowStep{}, run.Steps...)
-	clone.CapabilityInvocations = make([]CapabilityInvocation, 0, len(run.CapabilityInvocations))
-	for _, invocation := range run.CapabilityInvocations {
-		clone.CapabilityInvocations = append(clone.CapabilityInvocations, cloneCapabilityInvocation(invocation))
+	clone.ToolInvocations = make([]ToolInvocation, 0, len(run.ToolInvocations))
+	for _, invocation := range run.ToolInvocations {
+		clone.ToolInvocations = append(clone.ToolInvocations, cloneToolInvocation(invocation))
 	}
 	clone.ContextProjections = make([]StepOutputProjection, 0, len(run.ContextProjections))
 	for _, projection := range run.ContextProjections {
@@ -245,7 +245,7 @@ func cloneHandoffStep(handoff HandoffStep) HandoffStep {
 	return clone
 }
 
-func cloneCapabilityInvocation(invocation CapabilityInvocation) CapabilityInvocation {
+func cloneToolInvocation(invocation ToolInvocation) ToolInvocation {
 	clone := invocation
 	clone.AllowedTools = append([]string{}, invocation.AllowedTools...)
 	clone.UsedTools = append([]string{}, invocation.UsedTools...)

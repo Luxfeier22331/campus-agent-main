@@ -9,10 +9,10 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 		State:  WorkflowStateCompleted,
 		HandoffChain: []HandoffStep{
 			{
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				PayloadKind:  "rag_request",
-				AllowedTools: []string{"retrieval.query"},
-				SelectedTool: "retrieval.query",
+				AllowedTools: []string{"knowledge_query"},
+				SelectedTool: "knowledge_query",
 			},
 		},
 		Steps: []WorkflowStep{
@@ -26,8 +26,8 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 				StepID:       "tool_call",
 				SpanKind:     "tool_call",
 				ParentStepID: "handoff",
-				Capability:   "knowledge",
-				ToolName:     "retrieval.query",
+				ToolTarget:   "knowledge_query",
+				ToolName:     "knowledge_query",
 				Outcome:      "completed",
 				ResultStatus: "completed",
 				RetryCount:   0,
@@ -42,15 +42,15 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 				RuntimeRetryCount: 1,
 			},
 		},
-		CapabilityInvocations: []CapabilityInvocation{
+		ToolInvocations: []ToolInvocation{
 			{
-				InvocationID:   "capability-invocation:knowledge:1",
+				InvocationID:   "tool-invocation:knowledge:1",
 				WorkflowRunRef: "run-001",
-				StepID:         "capability:knowledge:rag_request",
-				CapabilityID:   "knowledge",
+				StepID:         "tool:knowledge:rag_request",
+				ToolTarget:     "knowledge_query",
 				Status:         "completed",
-				AllowedTools:   []string{"retrieval.query"},
-				UsedTools:      []string{"retrieval.query"},
+				AllowedTools:   []string{"knowledge_query"},
+				UsedTools:      []string{"knowledge_query"},
 			},
 		},
 	}
@@ -59,8 +59,8 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 	if len(handoffChain) != 1 {
 		t.Fatalf("handoff chain length = %d, want 1", len(handoffChain))
 	}
-	if handoffChain[0]["capability"] != "knowledge" ||
-		handoffChain[0]["selected_tool"] != "retrieval.query" {
+	if handoffChain[0]["tool"] != "knowledge_query" ||
+		handoffChain[0]["selected_tool"] != "knowledge_query" {
 		t.Fatalf("handoff chain = %#v, want selected rag handoff", handoffChain)
 	}
 	steps := run.StepMaps()
@@ -71,20 +71,20 @@ func TestWorkflowRunProjectsSingleStepTrace(t *testing.T) {
 		t.Fatalf("tool retry_count = %#v, want explicit zero", steps[1])
 	}
 	if steps[2]["attempt_count"] != 2 || steps[2]["runtime_retry_count"] != 1 {
-		t.Fatalf("finalization step = %#v, want runtime run state", steps[2])
+		t.Fatalf("finalization step = %#v, want execution run state", steps[2])
 	}
-	agentInvocations := run.CapabilityInvocationMaps()
+	agentInvocations := run.ToolInvocationMaps()
 	if len(agentInvocations) != 1 {
 		t.Fatalf("agent invocations = %#v, want one projected invocation", agentInvocations)
 	}
-	if agentInvocations[0]["capability_id"] != "knowledge" {
-		t.Fatalf("agent invocation = %#v, want knowledge", agentInvocations[0])
+	if agentInvocations[0]["tool_id"] != "knowledge_query" {
+		t.Fatalf("agent invocation = %#v, want knowledge_query", agentInvocations[0])
 	}
 }
 
 func TestHandoffStepProjectsNilAllowedToolsAsEmptyArray(t *testing.T) {
 	item := HandoffStep{
-		Capability:  "knowledge",
+		ToolTarget:  "knowledge_query",
 		PayloadKind: "rag_request",
 	}.Map()
 
@@ -107,13 +107,13 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 		State:  WorkflowStateRunning,
 		HandoffChain: []HandoffStep{
 			{
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				PayloadKind:  "rag_request",
-				AllowedTools: []string{"retrieval.query"},
-				SelectedTool: "retrieval.query",
+				AllowedTools: []string{"knowledge_query"},
+				SelectedTool: "knowledge_query",
 			},
 			{
-				Capability:   "notice",
+				ToolTarget:   "campus_notice_get",
 				PayloadKind:  "campus_notice_get",
 				AllowedTools: []string{},
 				SelectedTool: "",
@@ -126,8 +126,8 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 	if len(handoffChain) != 2 {
 		t.Fatalf("handoff chain length = %d, want 2", len(handoffChain))
 	}
-	if handoffChain[0]["capability"] != "knowledge" ||
-		handoffChain[1]["capability"] != "notice" {
+	if handoffChain[0]["tool"] != "knowledge_query" ||
+		handoffChain[1]["tool"] != "campus_notice_get" {
 		t.Fatalf("handoff chain = %#v, want ordered multi-step chain", handoffChain)
 	}
 }

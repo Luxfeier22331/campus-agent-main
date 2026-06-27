@@ -67,20 +67,18 @@ def _intent_case_from_payload(*, case_id: str, payload: dict[str, Any]) -> Inten
     tags = _string_tuple(payload.get("tags"))
     if "observed_regression" not in tags:
         tags = (*tags, "observed_regression")
-    expected_capability = _required_string(
-        payload.get("expected_capability"),
-        "intent_case.expected_capability",
+    expected_tool = _required_string(
+        payload.get("expected_tool"),
+        "intent_case.expected_tool",
     )
     return IntentCase(
         case_id=case_id,
         user_goal=_required_string(payload.get("user_goal"), "intent_case.user_goal"),
-        requested_capability=_optional_string(payload.get("requested_capability"))
-        or expected_capability
-        or None,
+        requested_tool=_optional_string(payload.get("requested_tool")) or expected_tool or None,
         requested_scope=_knowledge_scope_from_payload(payload.get("requested_scope")),
         version_query=_version_query_from_payload(payload.get("version_query")),
         context=_context_from_payload(payload.get("context")),
-        expected_capability=expected_capability,
+        expected_tool=expected_tool,
         expected_task_kind=_required_string(
             payload.get("expected_task_kind"),
             "intent_case.expected_task_kind",

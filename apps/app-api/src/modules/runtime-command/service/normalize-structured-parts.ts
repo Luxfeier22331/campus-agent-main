@@ -4,7 +4,7 @@ import type {
 	ChatPlaceCard,
 	ChatSourceItem,
 } from "../../chat";
-import type { CapabilityExecutionResponse } from "../../integration";
+import type { ToolExecutionResponse } from "../../integration";
 import {
 	dedupeStable,
 	isRecord,
@@ -57,11 +57,11 @@ function normalizePlaceRef(
 }
 
 export function normalizePlaceCardPart(input: {
-	selectedCapability: string | null;
-	status: CapabilityExecutionResponse["status"];
+	selectedTool: string | null;
+	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedCapability !== "navigation" || input.status !== "completed") {
+	if (input.selectedTool !== "place_lookup" || input.status !== "completed") {
 		return [];
 	}
 
@@ -545,11 +545,11 @@ export function resultEvidenceSources(result: unknown): unknown[] {
 }
 
 export function normalizeSourceItemsPart(input: {
-	selectedCapability: string | null;
-	status: CapabilityExecutionResponse["status"];
+	selectedTool: string | null;
+	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedCapability !== "knowledge" || input.status !== "completed") {
+	if (input.selectedTool !== "knowledge_query" || input.status !== "completed") {
 		return [];
 	}
 
@@ -724,11 +724,11 @@ function buildCampusServiceTraceCards(input: {
 }
 
 export function normalizeCampusServiceTracePart(input: {
-	selectedCapability: string | null;
-	status: CapabilityExecutionResponse["status"];
+	selectedTool: string | null;
+	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
-	if (input.selectedCapability !== "campus_services" || input.status !== "completed") {
+	if (input.selectedTool !== "transport_schedule_lookup" || input.status !== "completed") {
 		return [];
 	}
 
@@ -761,8 +761,8 @@ export function normalizeCampusServiceTracePart(input: {
 }
 
 export function normalizeChatResponseStructuredParts(input: {
-	selectedCapability: string | null;
-	status: CapabilityExecutionResponse["status"];
+	selectedTool: string | null;
+	status: ToolExecutionResponse["status"];
 	result: unknown;
 }): ChatMessageStructuredPart[] {
 	return [

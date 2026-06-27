@@ -12,7 +12,7 @@ _ALLOWED_CORRELATION_TEMPLATE_FIELDS = frozenset(
         "conversation_id",
         "corpus",
         "request_id",
-        "selected_capability",
+        "selected_tool",
         "status",
         "trace_id",
     }

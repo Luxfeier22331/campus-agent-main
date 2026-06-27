@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-27
 ---
 
 # Documentation Architecture
@@ -39,7 +39,7 @@ may link to that fact, summarize it briefly, or explain how to consume it, but
 they must not redefine it.
 
 The primary failure mode this architecture prevents is mixing product chain
-truth, capability readiness, operator/eval diagnostics, release evidence,
+truth, tool readiness, operator/eval diagnostics, release evidence,
 staging proof and active planning into the same paragraph.
 
 Human documentation must also stay small enough to keep that ownership
@@ -70,8 +70,8 @@ observable:
 
 - Owns: product boundary, target users, product promises and explicit
   non-promises.
-- Default location: `docs/architecture/product-positioning.md`.
-- Must not own: runtime progress, release evidence or capability implementation
+- Default location: `docs/architecture/product.md`.
+- Must not own: runtime progress, release evidence or tool implementation
   status.
 
 ### `product_requirement`
@@ -85,7 +85,7 @@ observable:
 ### `current_truth`
 
 - Owns: current accepted merged topology and serving surfaces.
-- Default locations: `docs/architecture/current-architecture.md` and the compact
+- Default locations: `docs/architecture/current.md` and the compact
   repo state in `.planning/PROJECT.md`.
 - Must not own: backlog, target-state design, feature-branch state or staging
   closeout.
@@ -93,7 +93,7 @@ observable:
 ### `target_invariant`
 
 - Owns: long-term architecture constraints and non-regression boundaries.
-- Default location: `docs/architecture/target-architecture.md`.
+- Default location: `docs/architecture/target.md`.
 - Must not own: current completion, P0/P1/P2 status, staging evidence or
   one-off implementation order.
 
@@ -106,7 +106,7 @@ observable:
 
 ### `domain_architecture`
 
-- Owns: capability/domain boundary and source-channel architecture.
+- Owns: tool/domain boundary and source-channel architecture.
 - Default location: `docs/architecture/domains/`.
 - Must not own: main-chain completion status, operator/release evidence or
   cross-domain runtime ownership.
@@ -168,7 +168,7 @@ implementing a plan:
 3. `target_invariant` defines long-term boundaries that must not regress.
 4. `current_truth` defines what is already accepted at the branch tip.
 5. `supporting_architecture` defines cross-domain system ownership.
-6. `domain_architecture` defines capability-local boundaries.
+6. `domain_architecture` defines tool-local boundaries.
 7. `contract_truth` and `data_truth` define executable wire/schema truth.
 8. `decision_record` explains why a decision was accepted and how it was
    superseded.
@@ -185,26 +185,26 @@ new ADR.
 
 - What is this product and what does it not promise?
   - Owning class: `product_truth`
-  - First place: `docs/architecture/product-positioning.md`
+  - First place: `docs/architecture/product.md`
 - What should a feature deliver for users?
   - Owning class: `product_requirement`
   - First place: `docs/product/`
 - What is currently merged and accepted?
   - Owning class: `current_truth`
-  - First place: `docs/architecture/current-architecture.md`
+  - First place: `docs/architecture/current.md`
 - What must the architecture converge to?
   - Owning class: `target_invariant`
-  - First place: `docs/architecture/target-architecture.md`
+  - First place: `docs/architecture/target.md`
 - Is the main question-answer chain closed?
   - Owning classes: `supporting_architecture` and `current_truth`
   - First places: primary-agent / execution-chain architecture and
-    `current-architecture.md`
-- Is a specific tool or capability product-ready?
+    `current.md`
+- Is a specific tool product-ready?
   - Owning classes: `domain_architecture` and `contract_truth`
-  - First places: the capability domain doc and matching contract
+  - First places: the tool domain doc and matching contract
 - Is answer grounding sufficient?
   - Owning class: `contract_truth` or a domain-specific answer contract
-  - First place: capability answer/evidence contracts
+  - First place: tool answer/evidence contracts
 - Is release or staging evidence sufficient?
   - Owning class: `operational_truth`
   - First place: release and staging runbooks
@@ -224,20 +224,20 @@ Main question-answer chain completion is judged only by the generic online
 execution skeleton:
 
 `app-api -> execution-control -> Temporal -> memory recall -> primary agent
-decision -> direct/no-tool finalization or admitted capability branch ->
+decision -> direct/no-tool finalization or admitted tool branch ->
 sanitized finalization projection`
 
 The following must not be counted as main-chain blockers unless they break that
 generic execution skeleton:
 
-- maturity of individual tools or capability content
+- maturity of individual tools or tool content
 - notice, campus-services, navigation or RAG answer quality
 - Operator Console, eval, badcase or release evidence consumption
 - staging closeout, production smoke or release proof
 - future multi-step workflow coverage
 - replay or repair features beyond existing event-stream resume
 
-Capability readiness, operator diagnostics and release evidence remain
+Tool readiness, operator diagnostics and release evidence remain
 important, but they live in their own truth classes.
 
 ## Evidence Terminology
@@ -310,7 +310,7 @@ They must not carry:
 
 `supporting_architecture` documents may define boundaries, ownership and runtime
 semantics. They must not become mega-documents that own every related domain.
-When a section becomes capability-specific, move it to `domain_architecture`.
+When a section becomes tool-specific, move it to `domain_architecture`.
 When a section becomes an executable schema or wire contract, move it to
 `contract_truth` or `data_truth`.
 
@@ -344,6 +344,32 @@ Markdown paths must not be split across lines. If a path is too long for normal
 prose, use a shorter relative path or a Markdown link label instead of breaking
 the `.md` suffix.
 
+## Naming Rules
+
+Active source-of-truth documents use semantic short names. Directory placement
+already carries document class, so filenames should name the owned object, not
+repeat the class.
+
+Rules:
+
+- Top-level architecture documents use compact owner names, for example
+  `product.md`, `current.md` and `target.md`.
+- Supporting system architecture documents use `<topic>.md`. Do not require the
+  suffix `-architecture` when the parent directory already says
+  `architecture/system`.
+- Contract, data and runbook documents use their parent directory for class.
+  Their filenames should name the API, schema, runtime or procedure object.
+- ADR filenames use `adr-XXXX-<short-topic>.md`. Keep the number and make the
+  topic concise enough to scan in indexes.
+- Split-document directories follow the same short-name rule as their index
+  document. Do not keep a long directory name after shortening the index file.
+- Historical archive documents may keep old long names when renaming would
+  create churn without improving the active reading path.
+
+Do not add compatibility placeholder documents for renamed internal docs.
+Migrate references to the current owner path and let missing stale links fail
+the documentation checks.
+
 ## Frontmatter Target
 
 New durable docs should use:
@@ -351,7 +377,7 @@ New durable docs should use:
 ```yaml
 ---
 doc_type: <truth class or existing doc type>
-truth_scope: <product | execution | capability | data | ops | eval | repository>
+truth_scope: <product | execution | data | ops | eval | repository>
 owner_boundary: <owning app/package/domain/docs boundary>
 status: <active | historical | proposed | accepted | superseded | deprecated>
 created: YYYY-MM-DD

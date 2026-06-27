@@ -100,9 +100,9 @@ describe("chat command context envelope assembly", () => {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
-					lane: "rag",
-					requestedCapability: "knowledge",
-					selectedCapability: "knowledge",
+					taskQueue: "campus-agent.workflow",
+					requestedTool: "knowledge_query",
+					selectedTool: "knowledge_query",
 				}),
 			),
 			getRun: vi.fn(),
@@ -133,7 +133,7 @@ describe("chat command context envelope assembly", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "那大一能不能申请？",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -185,7 +185,7 @@ describe("chat command context envelope assembly", () => {
 					"recent_turns",
 					"previous_answer_summary",
 					"previous_evidence_refs",
-					"previous_capability_results",
+					"previous_tool_results",
 					"session_state",
 				],
 				runtime_only: expect.arrayContaining(["budget", "truncation", "memory_recall"]),
@@ -198,7 +198,7 @@ describe("chat command context envelope assembly", () => {
 		});
 	});
 
-	it("adds sanitized previous capability result refs from runtime projection truth", async () => {
+	it("adds sanitized previous tool result refs from runtime projection truth", async () => {
 		const conversation: ChatConversation = {
 			id: "conv_services",
 			ownerUserId: "user_01HQ",
@@ -243,9 +243,9 @@ describe("chat command context envelope assembly", () => {
 			],
 		};
 		const { acceptedWrites, store } = createCommandStore({ conversation });
-		store.listPreviousCapabilityResultRefs = vi.fn(async () => [
+		store.listPreviousToolResultRefs = vi.fn(async () => [
 			{
-				capability: "campus_services",
+				tool: "transport_schedule_lookup",
 				contentHash: "sha256:previous-service-result",
 				projectionRef: "projection://runs/run_previous/finalization",
 				requestId: "req_previous",
@@ -260,9 +260,9 @@ describe("chat command context envelope assembly", () => {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
-					lane: "campus_services",
-					requestedCapability: "campus_services",
-					selectedCapability: "campus_services",
+					taskQueue: "campus-agent.workflow",
+					requestedTool: "transport_schedule_lookup",
+					selectedTool: "transport_schedule_lookup",
 				}),
 			),
 			getRun: vi.fn(),
@@ -293,13 +293,13 @@ describe("chat command context envelope assembly", () => {
 			payload: {
 				conversationId: "conv_services",
 				prompt: "那闭馆前多久不能进？",
-				requestedCapability: "campus_services",
+				requestedTool: "transport_schedule_lookup",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
 		});
 
-		expect(store.listPreviousCapabilityResultRefs).toHaveBeenCalledWith({
+		expect(store.listPreviousToolResultRefs).toHaveBeenCalledWith({
 			conversationId: "conv_services",
 			limit: 3,
 			ownerUserId: "user_01HQ",
@@ -311,9 +311,9 @@ describe("chat command context envelope assembly", () => {
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
 		const context = executionPayload.context as Record<string, unknown>;
 		expect(context.conversation).toMatchObject({
-			previous_capability_results: [
+			previous_tool_results: [
 				{
-					capability: "campus_services",
+					tool: "transport_schedule_lookup",
 					content_hash: "sha256:previous-service-result",
 					projection_ref: "projection://runs/run_previous/finalization",
 					request_id: "req_previous",
@@ -324,7 +324,7 @@ describe("chat command context envelope assembly", () => {
 				},
 			],
 			visibility: {
-				model_visible: expect.arrayContaining(["previous_capability_results"]),
+				model_visible: expect.arrayContaining(["previous_tool_results"]),
 			},
 		});
 		expect(acceptedWrites[0]).toMatchObject({

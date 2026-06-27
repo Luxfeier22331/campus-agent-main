@@ -35,7 +35,7 @@ func (s *Server) callAgentRuntime(
 		"turn_id":                input.TurnID,
 		"trace_id":               input.TraceID,
 		"input":                  primaryAgentInputText(run),
-		"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
+		"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
 		"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 		"provider_config":        providerConfig,
 	}
@@ -332,7 +332,6 @@ func (response agentRuntimeResponse) toTemporalOutput() temporalruntime.ExecuteP
 	for _, result := range response.ToolResults {
 		toolResults = append(toolResults, temporalruntime.AgentToolResult{
 			ArgumentsJSON:   cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			Capability:      result.Capability,
 			FailCloseReason: result.FailCloseReason,
 			PayloadKind:     result.PayloadKind,
 			Result:          result.Result,

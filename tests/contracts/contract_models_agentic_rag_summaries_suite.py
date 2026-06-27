@@ -4,7 +4,7 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsAgenticRagSummariesSuite(unittest.TestCase):
-    def test_knowledge_capabilityic_depth_summaries_are_safe_public_contracts(self) -> None:
+    def test_knowledge_tool_depth_summaries_are_safe_public_contracts(self) -> None:
         diagnostics = RagResultDiagnostics(
             planner_information_needs=(
                 RagPlannerInformationNeed(

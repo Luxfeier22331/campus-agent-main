@@ -18,7 +18,7 @@ import {
 
 const mockedGetAppAuth = vi.mocked(getAppAuth);
 
-describe("operator bridge principal resolution", () => {
+describe("operator surface principal resolution", () => {
 	it("does not trust operator headers without a matching internal shared secret", () => {
 		const request = new Request("https://app-api.internal/api/operator/requests", {
 			headers: {

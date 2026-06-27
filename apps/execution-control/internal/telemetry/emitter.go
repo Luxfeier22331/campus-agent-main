@@ -23,6 +23,8 @@ import (
 )
 
 type Event struct {
+	ActivityDuration       time.Duration
+	CancelDeliveryStatus   string
 	CanonicalIndexTruth    string
 	CandidateCount         int
 	Collection             string
@@ -41,8 +43,7 @@ type Event struct {
 	UserID                 string
 	Release                string
 	DeploymentEnvironment  string
-	Lane                   string
-	RequestedCapability    string
+	RequestedTool          string
 	Outcome                string
 	Decision               string
 	FailureCode            string
@@ -66,7 +67,6 @@ type Event struct {
 	ReferenceCount         int
 	RetrievalMode          string
 	RunID                  string
-	SelectedCapability     string
 	SelectedTool           string
 	StepID                 string
 	TerminalOutcome        string
@@ -105,13 +105,14 @@ type Emitter struct {
 	sampleRatio        float64
 	allowedVersion     string
 
-	tracerProvider *sdktrace.TracerProvider
-	tracer         trace.Tracer
-	meterProvider  *sdkmetric.MeterProvider
-	meter          metric.Meter
-	requestCounter metric.Int64Counter
-	errorCounter   metric.Int64Counter
-	logger         *slog.Logger
+	tracerProvider   *sdktrace.TracerProvider
+	tracer           trace.Tracer
+	meterProvider    *sdkmetric.MeterProvider
+	meter            metric.Meter
+	requestCounter   metric.Int64Counter
+	errorCounter     metric.Int64Counter
+	activityDuration metric.Float64Histogram
+	logger           *slog.Logger
 }
 
 var ErrTelemetryUnavailable = errors.New("telemetry unavailable")
@@ -235,13 +236,14 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.String("langfuse.release", event.Release),
 		attribute.String("langfuse.trace.tags", langfuseTraceTags(event)),
 		attribute.String("deployment.environment", event.DeploymentEnvironment),
+		attribute.Int64("activity_duration_ms", event.ActivityDuration.Milliseconds()),
+		attribute.String("cancel_delivery_status", event.CancelDeliveryStatus),
 		attribute.String("canonical_index_truth", event.CanonicalIndexTruth),
 		attribute.Int("candidate_count", event.CandidateCount),
 		attribute.String("context_preflight_state", event.ContextPreflightState),
 		attribute.String("request_id", event.RequestID),
 		attribute.String("trace_id", event.TraceID),
-		attribute.String("lane", event.Lane),
-		attribute.String("requested_capability", event.RequestedCapability),
+		attribute.String("requested_tool", event.RequestedTool),
 		attribute.String("outcome", event.Outcome),
 		attribute.String("plan_id", event.PlanID),
 		attribute.String("planning_outcome", event.PlanningOutcome),
@@ -264,7 +266,6 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.Int64("queue_wait_ms", event.QueueWait.Milliseconds()),
 		attribute.Int64("schedule_to_start_ms", event.ScheduleToStart.Milliseconds()),
 		attribute.String("routing_next_action", event.RoutingNextAction),
-		attribute.String("selected_capability", event.SelectedCapability),
 		attribute.String("selected_tool", event.SelectedTool),
 		attribute.String("scope_gate_decision", event.ScopeGateDecision),
 		attribute.String("step_id", event.StepID),
@@ -359,6 +360,10 @@ func (e *Emitter) configureMetrics() {
 	if err == nil {
 		e.errorCounter = errorCounter
 	}
+	activityDuration, err := e.meter.Float64Histogram("campus.execution_control.activity_duration_ms")
+	if err == nil {
+		e.activityDuration = activityDuration
+	}
 }
 
 func (e *Emitter) recordMetric(event Event) {
@@ -367,8 +372,8 @@ func (e *Emitter) recordMetric(event Event) {
 	}
 	attrs := []attribute.KeyValue{
 		attribute.String("event_name", normalizeEventName(event.Name)),
-		attribute.String("lane", defaultString(event.Lane, "unknown")),
-		attribute.String("requested_capability", defaultString(event.RequestedCapability, "unknown")),
+		attribute.String("task_queue", defaultString(event.TaskQueue, "unknown")),
+		attribute.String("requested_tool", defaultString(event.RequestedTool, "unknown")),
 		attribute.String("outcome", defaultString(event.Outcome, "unknown")),
 		attribute.String("failure_code", defaultString(event.FailureCode, "none")),
 	}
@@ -377,6 +382,13 @@ func (e *Emitter) recordMetric(event Event) {
 	}
 	if e.errorCounter != nil && strings.TrimSpace(event.FailureCode) != "" {
 		e.errorCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
+	}
+	if e.activityDuration != nil && event.ActivityDuration > 0 {
+		e.activityDuration.Record(
+			context.Background(),
+			float64(event.ActivityDuration)/float64(time.Millisecond),
+			metric.WithAttributes(attrs...),
+		)
 	}
 }
 
@@ -442,8 +454,8 @@ func (e *Emitter) shouldSample(event Event) bool {
 
 func langfuseTraceTags(event Event) string {
 	tags := []string{"surface:execution-control"}
-	if capability := strings.TrimSpace(event.SelectedCapability); capability != "" {
-		tags = append(tags, "capability:"+capability)
+	if target := strings.TrimSpace(event.SelectedTool); target != "" {
+		tags = append(tags, "target:"+target)
 	}
 	if environment := strings.TrimSpace(event.DeploymentEnvironment); environment != "" {
 		tags = append(tags, "env:"+environment)

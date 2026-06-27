@@ -111,7 +111,7 @@ doctor/env readiness contract。
   主要 env keys: root `.env` 的 `RERANK_BASE_URL` `RERANK_API_KEY` `RERANK_PATH`
   `RERANK_MODEL` 仅作为 optional local seed 输入
   放置位置: online retrieval 不以 root `.env` 为 truth；provider path 放在 connection
-  `capabilityConfig.rerank.path`，由 seed 显式写入
+  `toolConfig.rerank.path`，由 seed 显式写入
   何时必需: 只有对应 runtime profile 开启 reranker 时必需；缺 profile、缺 path、provider
   失败或 score 不完整都 fail closed，不回退到 baseline hybrid/RRF 顺序
 

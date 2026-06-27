@@ -30,12 +30,12 @@ func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *test
 			},
 			ReferenceCount: 2,
 			Run: execution.DurableRun{
-				ConversationID:     "conv-observation",
-				OwnerUserID:        "user-observation",
-				RequestID:          "req-observation",
-				RunID:              "run-observation",
-				SelectedCapability: "knowledge",
-				TraceID:            "trace-run",
+				ConversationID: "conv-observation",
+				OwnerUserID:    "user-observation",
+				RequestID:      "req-observation",
+				RunID:          "run-observation",
+				SelectedTool:   "knowledge_query",
+				TraceID:        "trace-run",
 			},
 			TerminalState: "completed",
 			TraceID:       "trace-activity",
@@ -61,8 +61,8 @@ func TestRetrievalRuntimeObservationEventIncludesPlanIDAndSanitizedQuery(t *test
 	if event.ConversationID != "conv-observation" || event.UserID != "user-observation" {
 		t.Fatalf("langfuse identity = conversation %q user %q", event.ConversationID, event.UserID)
 	}
-	if event.SelectedCapability != "knowledge" {
-		t.Fatalf("selected capability = %q, want knowledge", event.SelectedCapability)
+	if event.SelectedTool != "knowledge_query" {
+		t.Fatalf("selected tool = %q, want knowledge_query", event.SelectedTool)
 	}
 }
 
@@ -87,12 +87,12 @@ func TestEmitRetrievalRuntimeObservationFailsClosedWhenTelemetryUnavailable(t *t
 				QueryText:  "学生请假手续",
 			},
 			Run: execution.DurableRun{
-				ConversationID:     "conv-observation",
-				OwnerUserID:        "user-observation",
-				RequestID:          "req-observation",
-				RunID:              "run-observation",
-				SelectedCapability: "knowledge",
-				TraceID:            "trace-run",
+				ConversationID: "conv-observation",
+				OwnerUserID:    "user-observation",
+				RequestID:      "req-observation",
+				RunID:          "run-observation",
+				SelectedTool:   "knowledge_query",
+				TraceID:        "trace-run",
 			},
 			StartedAt:     time.Now().UTC(),
 			TerminalState: "completed",

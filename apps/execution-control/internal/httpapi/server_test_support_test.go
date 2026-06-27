@@ -15,8 +15,8 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type failingReadCloser struct{}
@@ -50,16 +50,16 @@ func newWorkerAuthServerForTest() *Server {
 	return server
 }
 
-func newStructuredQueryAuthServerForTest() *Server {
+func newToolReadModelAuthServerForTest() *Server {
 	return NewServer(config.Config{
-		InternalQuerySharedSecret:         "query-secret",
-		RAGSelectedEvidenceMax:            8,
-		RAGSynthesisMaxOutputTokens:       900,
-		RAGSynthesisReasoningEffort:       "low",
-		RAGSynthesisStoreProviderOutput:   false,
-		RAGSynthesisTextVerbosity:         "low",
-		RAGTopKMax:                        8,
-		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
+		InternalQuerySharedSecret:       "query-secret",
+		RAGSelectedEvidenceMax:          8,
+		RAGSynthesisMaxOutputTokens:     900,
+		RAGSynthesisReasoningEffort:     "low",
+		RAGSynthesisStoreProviderOutput: false,
+		RAGSynthesisTextVerbosity:       "low",
+		RAGTopKMax:                      8,
+		ToolReadModelTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	})
 }
 
@@ -171,16 +171,16 @@ func (readyRAGSynthesisExecutor) ExecuteRAGSynthesis(
 	return ragSynthesisResult{}, nil
 }
 
-func (readyTemporalStarter) StartCapabilityExecutionWorkflow(
+func (readyTemporalStarter) StartToolExecutionWorkflow(
 	context.Context,
-	temporalruntime.CapabilityExecutionWorkflowInput,
+	temporalruntime.ToolExecutionWorkflowInput,
 ) error {
 	return nil
 }
 
-func (readyTemporalStarter) CancelCapabilityExecutionWorkflow(
+func (readyTemporalStarter) CancelToolExecutionWorkflow(
 	context.Context,
-	temporalruntime.CapabilityExecutionWorkflowCancelInput,
+	temporalruntime.ToolExecutionWorkflowCancelInput,
 ) error {
 	return nil
 }
@@ -199,7 +199,7 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueContext,
+				Name:    temporalruntime.ActivityTaskQueueCore,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -211,31 +211,31 @@ func (starter readyTemporalStarter) CheckReadiness(context.Context) temporalrunt
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueFinalization,
+				Name:    temporalruntime.ActivityTaskQueueCore,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueCampusService,
+				Name:    temporalruntime.ActivityTaskQueueCore,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -307,7 +307,7 @@ func newReadyServerForTest(t *testing.T, mutators ...func(*config.Config)) *Serv
 	return server
 }
 
-func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {
+func writeToolReadModelProjectionFixture(t *testing.T, body string) string {
 	t.Helper()
 	path := t.TempDir() + "/campus-services-projection.json"
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
@@ -316,7 +316,7 @@ func writeStructuredQueryProjectionFixture(t *testing.T, body string) string {
 	return path
 }
 
-func useStructuredQueryRuntimeFixture(
+func useToolReadModelRuntimeFixture(
 	t *testing.T,
 	server *Server,
 	body string,
@@ -324,7 +324,7 @@ func useStructuredQueryRuntimeFixture(
 ) {
 	t.Helper()
 	bundle := decodeProjectionBundleFixture(t, body)
-	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
+	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
 		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
 			bundle: bundle,
 		},
@@ -332,14 +332,14 @@ func useStructuredQueryRuntimeFixture(
 	})
 }
 
-func useStructuredQueryRuntimeFixtures(
+func useToolReadModelRuntimeFixtures(
 	t *testing.T,
 	server *Server,
 	transportScheduleBody string,
 	trustedTime string,
 ) {
 	t.Helper()
-	server.structuredQuery = structuredquery.NewRuntime(structuredquery.Options{
+	server.toolReadModel = toolreadmodel.NewRuntime(toolreadmodel.Options{
 		TransportScheduleReadModelStore: &fakeStructuredReadModelStore{
 			bundle: decodeProjectionBundleFixture(t, transportScheduleBody),
 		},
@@ -347,9 +347,9 @@ func useStructuredQueryRuntimeFixtures(
 	})
 }
 
-func decodeProjectionBundleFixture(t *testing.T, body string) structuredquery.ProjectionBundle {
+func decodeProjectionBundleFixture(t *testing.T, body string) toolreadmodel.ProjectionBundle {
 	t.Helper()
-	var bundle structuredquery.ProjectionBundle
+	var bundle toolreadmodel.ProjectionBundle
 	if err := json.Unmarshal([]byte(body), &bundle); err != nil {
 		t.Fatalf("decode projection fixture: %v", err)
 	}
@@ -357,7 +357,7 @@ func decodeProjectionBundleFixture(t *testing.T, body string) structuredquery.Pr
 }
 
 type fakeStructuredReadModelStore struct {
-	bundle             structuredquery.ProjectionBundle
+	bundle             toolreadmodel.ProjectionBundle
 	loadCount          int
 	projectionReady    bool
 	projectionReadySet bool
@@ -385,7 +385,7 @@ func (s *fakeStructuredReadModelStore) ProjectionReady(context.Context) (bool, e
 func (s *fakeStructuredReadModelStore) LoadBundleForRelease(
 	context.Context,
 	string,
-) (structuredquery.ProjectionBundle, error) {
+) (toolreadmodel.ProjectionBundle, error) {
 	s.loadCount++
 	return s.bundle, nil
 }

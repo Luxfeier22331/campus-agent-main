@@ -40,7 +40,7 @@ export interface OperatorQualityBadcaseListFilters {
 	cursor?: string | null;
 	window?: string | null;
 	surface?: string | null;
-	selectedCapability?: string | null;
+	selectedTool?: string | null;
 	status?: string | null;
 	causeClass?: string | null;
 	detectedBy?: string | null;
@@ -51,7 +51,7 @@ export interface NormalizedOperatorQualityBadcaseListFilters {
 	cursor: string | null;
 	window: OperatorOverviewWindow | null;
 	surface: string | null;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	status: string | null;
 	causeClass: string | null;
 	detectedBy: string | null;
@@ -64,7 +64,7 @@ export interface OperatorQualityBadcaseListResult {
 		runId: string | null;
 		traceId: string;
 		surface: string;
-		selectedCapability: string | null;
+		selectedTool: string | null;
 		status: string;
 		causeClass: string;
 		diagnosisStage: StepDiagnosisStage;
@@ -94,7 +94,7 @@ export interface OperatorQualityEvalCandidateListResult {
 		runId: string | null;
 		traceId: string | null;
 		surface: string;
-		selectedCapability: string | null;
+		selectedTool: string | null;
 		causeClass: string;
 		diagnosisStage: StepDiagnosisStage;
 		summary: string;
@@ -109,7 +109,7 @@ export interface OperatorQualityEvalCandidateListResult {
 			answerKind: string;
 			citationPosture: string;
 			intent: {
-				capability?: string | null;
+				tool?: string | null;
 				taskKind?: string | null;
 				launchState?: string | null;
 				nextAction?: string | null;
@@ -184,7 +184,7 @@ export interface OperatorQualitySummaryResult {
 			distributions: {
 				surface: OperatorDistributionBucket[];
 				answerKind: OperatorDistributionBucket[];
-				capability: OperatorDistributionBucket[];
+				tool: OperatorDistributionBucket[];
 				citationPosture: OperatorDistributionBucket[];
 				reasonCode: OperatorDistributionBucket[];
 				vote: OperatorDistributionBucket[];

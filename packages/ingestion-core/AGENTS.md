@@ -9,8 +9,7 @@
 - 负责 source truth、projection、document artifacts、chunking、index preparation
 - 负责 authenticated notice、official web、curriculum、handbook 等 source-channel data-plane
   logic
-- 不负责 online Execution Agent Layer routing、agent answer shaping 或 Go
-  structured runtime
+- 不负责 online supervisor routing、agent answer shaping 或 Go tool read model
 
 ## Module Rules
 

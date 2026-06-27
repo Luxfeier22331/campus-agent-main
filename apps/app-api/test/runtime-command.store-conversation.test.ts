@@ -23,7 +23,7 @@ function createConversation(): ChatConversation {
 
 function executionRow(overrides: Partial<ExecutionRow> = {}): ExecutionRow {
 	return {
-		answerPreview: "Execution control failed.",
+		answerPreview: "Execution failed.",
 		errorCode: "execution_timeout",
 		requestFingerprintSha256: "fingerprint:图书馆开放到几点？",
 		requestId: "req_prev",
@@ -43,7 +43,7 @@ function assistantMessageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 		retryable: false,
 		role: "assistant",
 		structuredPartsJson: [],
-		text: "Execution control failed.",
+		text: "Execution failed.",
 		...overrides,
 	} as MessageRow;
 }

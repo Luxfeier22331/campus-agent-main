@@ -110,7 +110,7 @@ generic infra console、sink explorer 或直接数据源浏览器。
 ## 相关文档
 
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/ops-observability.md`
 - `docs/architecture/system/operator-console-operations-architecture.md`
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-operator-ops-http.md`

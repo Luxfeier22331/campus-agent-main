@@ -24,12 +24,12 @@ type evalInput struct {
 }
 
 type evalCaseInput struct {
-	CaseID              string          `json:"case_id"`
-	UserGoal            string          `json:"user_goal"`
-	RequestedCapability string          `json:"requested_capability"`
-	RequestedScope      json.RawMessage `json:"requested_scope"`
-	VersionQuery        json.RawMessage `json:"version_query"`
-	Context             map[string]any  `json:"context"`
+	CaseID         string          `json:"case_id"`
+	UserGoal       string          `json:"user_goal"`
+	RequestedTool  string          `json:"requested_tool"`
+	RequestedScope json.RawMessage `json:"requested_scope"`
+	VersionQuery   json.RawMessage `json:"version_query"`
+	Context        map[string]any  `json:"context"`
 }
 
 type evalOutput struct {
@@ -99,11 +99,11 @@ func run(input io.Reader, output io.Writer) error {
 
 func (c evalCaseInput) requestBody(caseID string) (json.RawMessage, error) {
 	payload := map[string]any{
-		"user_goal":            strings.TrimSpace(c.UserGoal),
-		"request_id":           safeRequestID(caseID),
-		"conversation_id":      "intent-eval",
-		"requested_capability": strings.TrimSpace(c.RequestedCapability),
-		"context":              normalizedContext(c.Context),
+		"user_goal":       strings.TrimSpace(c.UserGoal),
+		"request_id":      safeRequestID(caseID),
+		"conversation_id": "intent-eval",
+		"requested_tool":  strings.TrimSpace(c.RequestedTool),
+		"context":         normalizedContext(c.Context),
 	}
 	if len(c.RequestedScope) > 0 && string(c.RequestedScope) != "null" {
 		value, err := rawJSONValue(c.RequestedScope, "requested_scope")

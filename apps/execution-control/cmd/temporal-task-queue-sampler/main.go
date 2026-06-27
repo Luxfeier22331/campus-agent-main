@@ -52,15 +52,9 @@ func run(args []string) error {
 		Namespace: opts.namespace,
 		TaskQueues: []temporalmetrics.TaskQueueTarget{
 			{Name: opts.workflowTaskQueue, Kind: temporalmetrics.TaskQueueKindWorkflow},
-			{Name: temporalruntime.ActivityTaskQueueContext, Kind: temporalmetrics.TaskQueueKindActivity},
+			{Name: temporalruntime.ActivityTaskQueueCore, Kind: temporalmetrics.TaskQueueKindActivity},
 			{Name: temporalruntime.ActivityTaskQueueAgent, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueKnowledgePlan, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueKnowledgeRetrieval, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueKnowledgeSynthesis, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueCampusService, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueNotice, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueNavigation, Kind: temporalmetrics.TaskQueueKindActivity},
-			{Name: temporalruntime.ActivityTaskQueueFinalization, Kind: temporalmetrics.TaskQueueKindActivity},
+			{Name: temporalruntime.ActivityTaskQueueKnowledge, Kind: temporalmetrics.TaskQueueKindActivity},
 		},
 	}
 	payload, err := sampler.Sample(ctx)

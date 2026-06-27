@@ -8,29 +8,29 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 func (s *Server) handleTransportStatusProjection(
 	response http.ResponseWriter,
 	request *http.Request,
 ) {
-	if !s.structuredQueryAuthorized(request) {
+	if !s.toolReadModelAuthorized(request) {
 		setOutcome(response, "unauthorized")
-		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid structured query auth.", false)
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid tool read model auth.", false)
 		return
 	}
-	ctx, cancel := contextWithStructuredQueryTimeout(request, s.config.StructuredQueryTimeoutMS)
+	ctx, cancel := contextWithToolReadModelTimeout(request, s.config.ToolReadModelTimeoutMS)
 	defer cancel()
-	result := s.structuredQuery.TransportStatusProjection(ctx)
+	result := s.toolReadModel.TransportStatusProjection(ctx)
 	setOutcome(response, result.Outcome)
-	if projection, ok := result.Body.(structuredquery.TransportStatusProjection); ok {
+	if projection, ok := result.Body.(toolreadmodel.TransportStatusProjection); ok {
 		response.Header().Set("etag", transportStatusProjectionETag(projection))
 	}
 	writeJSON(response, result.StatusCode, result.Body)
 }
 
-func contextWithStructuredQueryTimeout(
+func contextWithToolReadModelTimeout(
 	request *http.Request,
 	timeoutMS int,
 ) (context.Context, context.CancelFunc) {
@@ -42,7 +42,7 @@ func contextWithStructuredQueryTimeout(
 }
 
 func transportStatusProjectionETag(
-	projection structuredquery.TransportStatusProjection,
+	projection toolreadmodel.TransportStatusProjection,
 ) string {
 	payload, err := json.Marshal(projection)
 	if err != nil {

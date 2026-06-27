@@ -9,22 +9,22 @@ func TestPlanFromTemporalSnapshotsScalesMissingPollersAndRespectsBudget(t *testi
 	plan, err := PlanFromTemporalRuntime(TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 0, 5, 0, time.UTC),
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{
 			{
-				SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-				TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+				SnapshotID:    "temporal-snapshot-knowledge",
+				TaskQueue:     "campus-agent.activity.knowledge",
 				TaskQueueKind: TaskQueueKindActivity,
 				PollerCount:   0,
 			},
 		},
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge-retrieval": 1,
+			"activity-worker-knowledge": 1,
 		},
 	})
 	if err != nil {
@@ -43,7 +43,7 @@ func TestPlanFromTemporalSnapshotsScalesMissingPollersAndRespectsBudget(t *testi
 	if decision.BudgetState != BudgetWithin {
 		t.Fatalf("budget = %q", decision.BudgetState)
 	}
-	if decision.SourceSnapshotID != "temporal-snapshot-knowledge-retrieval" {
+	if decision.SourceSnapshotID != "temporal-snapshot-knowledge" {
 		t.Fatalf("source snapshot = %q", decision.SourceSnapshotID)
 	}
 	if decision.Evidence["backlog"].(SourceMetric).State != SourceMetricUnsupported {
@@ -55,15 +55,15 @@ func TestPlanFromTemporalSnapshotsFailsClosedOnMissingReplicaState(t *testing.T)
 	_, err := PlanFromTemporalRuntime(TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 0, 5, 0, time.UTC),
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{{
-			SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			SnapshotID:    "temporal-snapshot-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TaskQueueKind: TaskQueueKindActivity,
 			PollerCount:   0,
 		}},
@@ -79,15 +79,15 @@ func TestPlanFromTemporalRuntimeUsesLatestSnapshotPerTaskQueue(t *testing.T) {
 	plan, err := PlanFromTemporalRuntime(TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 1, 0, 0, time.UTC),
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge-retrieval": 1,
+			"activity-worker-knowledge": 1,
 		},
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas:               3,
 				MinReplicas:               1,
 				ScaleUpBacklogThreshold:   5,
 				ScaleUpConsecutiveWindows: 1,
-				TaskQueue:                 "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:                 "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{
@@ -95,14 +95,14 @@ func TestPlanFromTemporalRuntimeUsesLatestSnapshotPerTaskQueue(t *testing.T) {
 				Backlog:     SourceMetric{Count: &latestBacklog, State: SourceMetricObserved},
 				SampledAt:   "2026-06-15T10:00:30Z",
 				SnapshotID:  "snapshot-latest",
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 				PollerCount: 1,
 			},
 			{
 				Backlog:     SourceMetric{Count: &olderBacklog, State: SourceMetricObserved},
 				SampledAt:   "2026-06-15T10:00:00Z",
 				SnapshotID:  "snapshot-older",
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 				PollerCount: 1,
 			},
 		},
@@ -125,14 +125,14 @@ func TestPlanFromTemporalRuntimeScalesDownAfterStableIdleWindow(t *testing.T) {
 	plan, err := PlanFromTemporalRuntime(TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 6, 0, 0, time.UTC),
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge-retrieval": 3,
+			"activity-worker-knowledge": 3,
 		},
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MinReplicas:                 1,
 				MaxReplicas:                 5,
 				ScaleDownConsecutiveWindows: 2,
-				TaskQueue:                   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:                   "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{
@@ -142,7 +142,7 @@ func TestPlanFromTemporalRuntimeScalesDownAfterStableIdleWindow(t *testing.T) {
 				PollerCount:   2,
 				SampledAt:     "2026-06-15T10:05:30Z",
 				SnapshotID:    "snapshot-new",
-				TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:     "campus-agent.activity.knowledge",
 			},
 			{
 				Backlog:       SourceMetric{Count: &backlog, State: SourceMetricObserved},
@@ -150,7 +150,7 @@ func TestPlanFromTemporalRuntimeScalesDownAfterStableIdleWindow(t *testing.T) {
 				PollerCount:   2,
 				SampledAt:     "2026-06-15T10:05:00Z",
 				SnapshotID:    "snapshot-old",
-				TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:     "campus-agent.activity.knowledge",
 			},
 		},
 	})
@@ -168,15 +168,15 @@ func TestPlanFromTemporalRuntimeDoesNotLoadScaleOnUnsupportedMetrics(t *testing.
 	plan, err := PlanFromTemporalRuntime(TemporalRuntimeInput{
 		Now: time.Date(2026, 6, 15, 10, 0, 5, 0, time.UTC),
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge-retrieval": 2,
+			"activity-worker-knowledge": 2,
 		},
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas:               5,
 				MinReplicas:               1,
 				ScaleUpBacklogThreshold:   5,
 				ScaleUpConsecutiveWindows: 1,
-				TaskQueue:                 "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:                 "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{{
@@ -185,7 +185,7 @@ func TestPlanFromTemporalRuntimeDoesNotLoadScaleOnUnsupportedMetrics(t *testing.
 			PollerCount:   2,
 			SampledAt:     "2026-06-15T10:00:00Z",
 			SnapshotID:    "snapshot-unsupported",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			TaskQueue:     "campus-agent.activity.knowledge",
 		}},
 	})
 	if err != nil {
@@ -203,23 +203,23 @@ func TestPlanFromTemporalRuntimeHoldsDuringCooldown(t *testing.T) {
 		Actuations: []Actuation{{
 			ActedAt:       "2026-06-15T10:00:30Z",
 			Action:        "scale",
-			ActuationID:   "actuation-knowledge-retrieval",
+			ActuationID:   "actuation-knowledge",
 			Status:        ActuationStatusApplied,
-			TargetService: "activity-worker-knowledge-retrieval",
+			TargetService: "activity-worker-knowledge",
 			ToReplicas:    2,
 		}},
 		Now: time.Date(2026, 6, 15, 10, 1, 0, 0, time.UTC),
 		ReplicaCounts: map[string]int{
-			"activity-worker-knowledge-retrieval": 1,
+			"activity-worker-knowledge": 1,
 		},
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				CooldownSeconds:           180,
 				MaxReplicas:               3,
 				MinReplicas:               1,
 				ScaleUpBacklogThreshold:   5,
 				ScaleUpConsecutiveWindows: 1,
-				TaskQueue:                 "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:                 "campus-agent.activity.knowledge",
 			},
 		},
 		Snapshots: []TemporalTaskQueueSnapshot{{
@@ -227,7 +227,7 @@ func TestPlanFromTemporalRuntimeHoldsDuringCooldown(t *testing.T) {
 			PollerCount: 1,
 			SampledAt:   "2026-06-15T10:00:50Z",
 			SnapshotID:  "snapshot-hot",
-			TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+			TaskQueue:   "campus-agent.activity.knowledge",
 		}},
 	})
 	if err != nil {
@@ -239,7 +239,7 @@ func TestPlanFromTemporalRuntimeHoldsDuringCooldown(t *testing.T) {
 		decision.Reason != "cooldown_active" {
 		t.Fatalf("decision = %#v, want cooldown hold", decision)
 	}
-	if decision.Evidence["lastActuationId"] != "actuation-knowledge-retrieval" ||
+	if decision.Evidence["lastActuationId"] != "actuation-knowledge" ||
 		decision.Evidence["cooldownUntil"] != "2026-06-15T10:03:30Z" {
 		t.Fatalf("evidence = %#v, want cooldown evidence", decision.Evidence)
 	}

@@ -23,7 +23,7 @@ WORKFLOW_TRACE_GATE_CASES_PATH = fixture_path("e2e.workflow_trace.gate")
 @dataclass(frozen=True, slots=True)
 class WorkflowTraceExpectation:
     direct_vs_delegate_branch: str
-    selected_capability: str
+    selected_tool: str
     workflow_mode: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     expected_answer_artifact_kinds: tuple[str, ...] = field(default_factory=tuple)
@@ -105,9 +105,7 @@ def evaluate_workflow_trace_case(
             _equals("workflow_mode", summary.workflow_mode, expectation.workflow_mode)
             if expectation.workflow_mode
             else DimensionResult(True, "not_applicable"),
-            _equals(
-                "selected_capability", summary.selected_capability, expectation.selected_capability
-            ),
+            _equals("selected_tool", summary.selected_tool, expectation.selected_tool),
             _mapping_contains("handoff", summary.handoff, expectation.handoff),
             _handoff_chain_contains(summary.handoff_chain, expectation.handoff_chain),
         ),
@@ -256,7 +254,7 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
         expectation=WorkflowTraceExpectation(
             direct_vs_delegate_branch=str(expectation.get("direct_vs_delegate_branch") or ""),
             workflow_mode=str(expectation.get("workflow_mode") or ""),
-            selected_capability=str(expectation.get("selected_capability") or ""),
+            selected_tool=str(expectation.get("selected_tool") or ""),
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
             expected_answer_artifact_kinds=tuple(
                 str(kind) for kind in expectation.get("expected_answer_artifact_kinds") or ()
@@ -306,7 +304,7 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
     selected_tools = _list_value(record, "selected_tools", "selectedTools")
     handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
     context_projections = _list_value(record, "context_projections", "contextProjections")
-    capability_invocations = _list_value(record, "capability_invocations", "agentInvocations")
+    tool_invocations = _list_value(record, "tool_invocations", "agentInvocations")
     answer_artifact_projection_ids = _list_value(
         record,
         "answer_artifact_projection_ids",
@@ -329,10 +327,8 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         workflow_mode=_string_value(record, "workflow_mode", "workflowMode"),
         handoff=_dict_value(record, "handoff"),
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        capability_invocations=tuple(
-            dict(item) for item in capability_invocations if isinstance(item, dict)
-        ),
-        selected_capability=_string_value(record, "selected_capability", "selectedCapability"),
+        tool_invocations=tuple(dict(item) for item in tool_invocations if isinstance(item, dict)),
+        selected_tool=_string_value(record, "selected_tool", "selectedTool"),
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(
             dict(item) for item in context_projections if isinstance(item, dict)

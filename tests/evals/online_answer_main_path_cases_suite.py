@@ -43,7 +43,7 @@ class OnlineAnswerMainPathCasesTest(unittest.TestCase):
         for case in case_set.cases:
             with self.subTest(case_id=case.case_id):
                 self.assertTrue(case.user_utterance.strip())
-                self.assertTrue(case.expected.selected_capability.strip())
+                self.assertTrue(case.expected.selected_tool.strip())
                 self.assertTrue(case.expected.answer_contract)
                 self.assertTrue(case.expected.trace_contract.required_stages)
                 self.assertTrue(case.expected.source_truth.expected_collections)

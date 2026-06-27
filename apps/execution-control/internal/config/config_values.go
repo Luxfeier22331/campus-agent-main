@@ -139,30 +139,6 @@ func parseBoolStrict(name string, value string) (bool, error) {
 	}
 }
 
-func readLaneBudgetsStrict(
-	globalMaxConcurrent int,
-	globalQueueCapacity int,
-	globalQueueTimeoutMS int,
-) (map[string]LaneBudget, error) {
-	return defaultLaneBudgets(globalMaxConcurrent, globalQueueCapacity, globalQueueTimeoutMS), nil
-}
-
-func defaultLaneBudgets(
-	globalMaxConcurrent int,
-	globalQueueCapacity int,
-	globalQueueTimeoutMS int,
-) map[string]LaneBudget {
-	budgets := make(map[string]LaneBudget, len(laneNames))
-	for _, lane := range laneNames {
-		budgets[lane] = LaneBudget{
-			MaxConcurrent:  globalMaxConcurrent,
-			QueueCapacity:  globalQueueCapacity,
-			QueueTimeoutMS: globalQueueTimeoutMS,
-		}
-	}
-	return budgets
-}
-
 func readStringList(name string) []string {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
@@ -180,14 +156,18 @@ func readStringList(name string) []string {
 	return values
 }
 
-func validateOpenCapabilities(values []string) ([]string, error) {
+func validateOpenTools(values []string) ([]string, error) {
 	for _, value := range values {
 		switch strings.TrimSpace(value) {
-		case "campus_services", "navigation", "notice":
+		case "knowledge_query",
+			"transport_schedule_lookup",
+			"campus_notice_change_set_lookup",
+			"campus_notice_discover",
+			"campus_notice_period_summary":
 		case "*", "all":
-			return nil, fmt.Errorf("runtime profile open_capabilities does not support wildcard value %q", value)
+			return nil, fmt.Errorf("runtime profile open_tools does not support wildcard value %q", value)
 		default:
-			return nil, fmt.Errorf("runtime profile open_capabilities contains unsupported capability %q", value)
+			return nil, fmt.Errorf("runtime profile open_tools contains unsupported tool %q", value)
 		}
 	}
 	return values, nil

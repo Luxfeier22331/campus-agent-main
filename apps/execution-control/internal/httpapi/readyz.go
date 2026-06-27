@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/config"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type providerConfigGate struct {
@@ -27,24 +27,24 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	transportStatus := s.admission.Status()
 	telemetryStatus := s.telemetry.Status()
 	executionAuditStatus := s.executionAudit.Status()
-	structuredQueryCtx, structuredQueryCancel := context.WithTimeout(
+	toolReadModelCtx, toolReadModelCancel := context.WithTimeout(
 		request.Context(),
-		time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond,
+		time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond,
 	)
-	defer structuredQueryCancel()
-	structuredQueryStatus := s.structuredQuery.Status(structuredQueryCtx)
+	defer toolReadModelCancel()
+	toolReadModelStatus := s.toolReadModel.Status(toolReadModelCtx)
 	temporalRuntimeStatus := s.temporalRuntimeStatus(request.Context())
 	providerConfigGate := s.evaluateProviderConfigGate()
 	personalMemoryStatus := s.personalMemoryRuntimeStatus(request.Context())
 	ragRuntimeStatus := s.ragRuntimeStatus(request.Context())
 	telemetryHealthy := !telemetryStatus.Enabled || telemetryStatus.ExporterConfigured
 	executionAuditHealthy := !executionAuditStatus.Enabled || executionAuditStatus.Configured
-	structuredRuntimeHealthy := s.openStructuredRuntimeHealthy(structuredQueryStatus)
+	toolReadModelRuntimeHealthy := s.openToolReadModelRuntimeHealthy(toolReadModelStatus)
 	runProjectionStoreStatus := s.runProjectionStoreStatus(request.Context())
 	ready := transportStatus.Healthy &&
 		telemetryHealthy &&
 		executionAuditHealthy &&
-		structuredRuntimeHealthy &&
+		toolReadModelRuntimeHealthy &&
 		runProjectionStoreStatus["healthy"] == true &&
 		temporalRuntimeStatus["healthy"] == true &&
 		personalMemoryStatus["healthy"] == true &&
@@ -58,18 +58,18 @@ func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Reques
 	}
 
 	responseBody := map[string]any{
-		"status":                   statusText,
-		"transport_runtime":        transportStatus,
-		"lifecycle_runtime":        s.lifecycle.Snapshot(),
-		"telemetry_runtime":        telemetryStatus,
-		"execution_audit_runtime":  executionAuditStatus,
-		"structured_query_runtime": structuredQueryStatus,
-		"run_projection_store":     runProjectionStoreStatus,
-		"temporal_runtime":         temporalRuntimeStatus,
-		"personal_memory_runtime":  personalMemoryStatus,
-		"rag_runtime":              ragRuntimeStatus,
-		"capability_gates":         s.capabilityGateStatus(),
-		"provider_config_gate":     providerConfigGate,
+		"status":                  statusText,
+		"transport_runtime":       transportStatus,
+		"lifecycle_runtime":       s.lifecycle.Snapshot(),
+		"telemetry_runtime":       telemetryStatus,
+		"execution_audit_runtime": executionAuditStatus,
+		"tool_read_model_runtime": toolReadModelStatus,
+		"run_projection_store":    runProjectionStoreStatus,
+		"temporal_runtime":        temporalRuntimeStatus,
+		"personal_memory_runtime": personalMemoryStatus,
+		"rag_runtime":             ragRuntimeStatus,
+		"tool_gates":              s.toolGateStatus(),
+		"provider_config_gate":    providerConfigGate,
 	}
 
 	writeJSON(response, statusCode, responseBody)
@@ -133,7 +133,7 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 	} else if s.ragLookupExecutor == nil {
 		status["lookup_last_error"] = "rag lookup executor is not configured"
 	} else {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 		defer cancel()
 		if err := s.ragLookupExecutor.HealthCheck(checkCtx); err != nil {
 			status["lookup_last_error"] = "rag lookup health check failed: " + err.Error()
@@ -146,7 +146,7 @@ func (s *Server) ragRuntimeStatus(ctx context.Context) map[string]any {
 	} else if s.ragSynthesisExecutor == nil {
 		status["synthesis_last_error"] = "rag synthesis executor is not configured"
 	} else {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+		checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 		defer cancel()
 		if err := s.ragSynthesisExecutor.HealthCheck(checkCtx); err != nil {
 			status["synthesis_last_error"] = "rag synthesis health check failed"
@@ -180,7 +180,7 @@ func (s *Server) personalMemoryRuntimeStatus(ctx context.Context) map[string]any
 		status["last_error"] = "personal memory executor is not configured"
 		return status
 	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
 	if err := s.personalMemoryExecutor.HealthCheck(checkCtx); err != nil {
 		status["last_error"] = "personal memory health check failed"
@@ -198,19 +198,18 @@ func requiredTemporalTaskQueueNames(cfg config.Config) []string {
 
 func requiredTemporalActivityTaskQueueNames(cfg config.Config) []string {
 	required := []string{
-		temporalruntime.ActivityTaskQueueContext,
-		temporalruntime.ActivityTaskQueueKnowledgePlan,
-		temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
-		temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
-		temporalruntime.ActivityTaskQueueFinalization,
+		temporalruntime.ActivityTaskQueueCore,
+		temporalruntime.ActivityTaskQueueAgent,
+		temporalruntime.ActivityTaskQueueKnowledge,
 	}
-	capabilityQueues := map[string]string{
-		"campus_services": temporalruntime.ActivityTaskQueueCampusService,
-		"navigation":      temporalruntime.ActivityTaskQueueNavigation,
-		"notice":          temporalruntime.ActivityTaskQueueNotice,
+	toolQueues := map[string]string{
+		"transport_schedule_lookup":       temporalruntime.ActivityTaskQueueCore,
+		"campus_notice_change_set_lookup": temporalruntime.ActivityTaskQueueCore,
+		"campus_notice_discover":          temporalruntime.ActivityTaskQueueCore,
+		"campus_notice_period_summary":    temporalruntime.ActivityTaskQueueCore,
 	}
-	for _, capability := range cfg.OpenCapabilities {
-		queue := capabilityQueues[strings.TrimSpace(capability)]
+	for _, toolName := range cfg.OpenTools {
+		queue := toolQueues[strings.TrimSpace(toolName)]
 		if queue != "" {
 			required = appendUniqueString(required, queue)
 		}
@@ -294,7 +293,7 @@ func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
 		status["healthy"] = true
 		return status
 	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
 	if err := checker.HealthCheck(checkCtx); err != nil {
 		status["last_error"] = "workflow run store health check failed"
@@ -323,7 +322,7 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	if !ok {
 		return status
 	}
-	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.StructuredQueryTimeoutMS)*time.Millisecond)
+	checkCtx, cancel := context.WithTimeout(ctx, time.Duration(s.config.ToolReadModelTimeoutMS)*time.Millisecond)
 	defer cancel()
 	if err := checker.HealthCheck(checkCtx); err != nil {
 		status["healthy"] = false
@@ -333,13 +332,9 @@ func (s *Server) runProjectionStoreStatus(ctx context.Context) map[string]any {
 	return status
 }
 
-func (s *Server) structuredRuntimeGateApplies(capability string) bool {
-	return capability == "campus_services" || capability == "notice"
-}
-
-func (s *Server) capabilityGateStatus() map[string]any {
+func (s *Server) toolGateStatus() map[string]any {
 	return map[string]any{
-		"knowledge": map[string]any{
+		"knowledge_query": map[string]any{
 			"open": true,
 			"gate": "always_open",
 		},
@@ -347,30 +342,36 @@ func (s *Server) capabilityGateStatus() map[string]any {
 			"open": false,
 			"gate": "deferred_until_map_rollout",
 		},
-		"campus_services": map[string]any{
-			"open": s.config.CapabilityOpen("campus_services"),
-			"gate": "structured_runtime_and_activity_worker",
+		"transport_schedule_lookup": map[string]any{
+			"open": s.config.ToolOpen("transport_schedule_lookup"),
+			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
-		"navigation": map[string]any{
-			"open": s.config.CapabilityOpen("navigation"),
-			"gate": "activity_worker",
+		"campus_notice_change_set_lookup": map[string]any{
+			"open": s.config.ToolOpen("campus_notice_change_set_lookup"),
+			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
-		"notice": map[string]any{
-			"open": s.config.CapabilityOpen("notice"),
-			"gate": "structured_runtime_and_activity_worker",
+		"campus_notice_discover": map[string]any{
+			"open": s.config.ToolOpen("campus_notice_discover"),
+			"gate": "tool_read_model_runtime_and_activity_worker",
+		},
+		"campus_notice_period_summary": map[string]any{
+			"open": s.config.ToolOpen("campus_notice_period_summary"),
+			"gate": "tool_read_model_runtime_and_activity_worker",
 		},
 	}
 }
 
-func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) bool {
-	if s.config.CapabilityOpen("campus_services") &&
+func (s *Server) openToolReadModelRuntimeHealthy(status toolreadmodel.Status) bool {
+	if s.config.ToolOpen("transport_schedule_lookup") &&
 		(!status.Configured ||
 			!status.TransportScheduleReadModelConfigured ||
 			!status.TransportScheduleReadModelHealthy ||
 			!status.TransportScheduleImplemented) {
 		return false
 	}
-	if s.config.CapabilityOpen("notice") &&
+	if (s.config.ToolOpen("campus_notice_change_set_lookup") ||
+		s.config.ToolOpen("campus_notice_discover") ||
+		s.config.ToolOpen("campus_notice_period_summary")) &&
 		(!status.NoticeReadModelConfigured ||
 			!status.NoticeBodyStoreConfigured ||
 			!status.NoticeReadModelHealthy ||

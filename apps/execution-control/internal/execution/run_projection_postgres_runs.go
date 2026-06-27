@@ -34,7 +34,7 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		ctx,
 		`insert into runtime.agent_runs (
 			run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
-			requested_capability, selected_capability, lane, status, terminal_reason,
+			requested_tool, selected_tool, task_queue, status, terminal_reason,
 			fail_close_reason, retryable, created_at, queued_at, admitted_at, started_at,
 			streaming_started_at, completed_at, updated_at, runtime_versions_json,
 			workflow_plan_ref, final_response_ref, metadata_json
@@ -49,9 +49,9 @@ func (s *PostgresRunProjectionStore) CreateRun(
 		run.TraceID,
 		run.OwnerUserID,
 		run.Surface,
-		run.RequestedCapability,
-		run.SelectedCapability,
-		string(run.Lane),
+		run.RequestedTool,
+		run.SelectedTool,
+		run.TaskQueue,
 		string(run.Status),
 		string(run.TerminalReason),
 		run.FailCloseReason,
@@ -226,8 +226,8 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 	run.Status = DurableRunStatusCompleted
 	run.TerminalReason = request.TerminalReason
 	run.FinalResponseRef = request.FinalResponseRef
-	if request.SelectedCapability != "" {
-		run.SelectedCapability = request.SelectedCapability
+	if request.SelectedTool != "" {
+		run.SelectedTool = request.SelectedTool
 	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)
@@ -239,7 +239,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
-			final_response_ref = $10, selected_capability = $11
+			final_response_ref = $10, selected_tool = $11
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -251,7 +251,7 @@ func (s *PostgresRunProjectionStore) CompleteRunProjection(
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
 		run.FinalResponseRef,
-		run.SelectedCapability,
+		run.SelectedTool,
 	)
 	if err != nil {
 		return DurableRun{}, err
@@ -359,8 +359,8 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 	}
 	run.Status = DurableRunStatusFailed
 	run.TerminalReason = request.TerminalReason
-	if request.SelectedCapability != "" {
-		run.SelectedCapability = request.SelectedCapability
+	if request.SelectedTool != "" {
+		run.SelectedTool = request.SelectedTool
 	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusFailed, request.Now)
@@ -372,7 +372,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		`update runtime.agent_runs
 		set status = $2, terminal_reason = $3, queued_at = $4, admitted_at = $5,
 			started_at = $6, streaming_started_at = $7, completed_at = $8, updated_at = $9,
-			selected_capability = $10
+			selected_tool = $10
 		where run_id = $1`,
 		run.RunID,
 		string(run.Status),
@@ -383,7 +383,7 @@ func (s *PostgresRunProjectionStore) FailRunProjection(
 		nullableTime(run.StreamingStartedAt),
 		nullableTime(run.CompletedAt),
 		run.UpdatedAt,
-		run.SelectedCapability,
+		run.SelectedTool,
 	)
 	if err != nil {
 		return DurableRun{}, err
@@ -420,7 +420,7 @@ func mapDurableRunUniqueViolation(
 
 func scanDurableRun(row pgx.Row) (DurableRun, error) {
 	var run DurableRun
-	var lane string
+	var taskQueue string
 	var status string
 	var terminalReason string
 	var runtimeVersionsRaw []byte
@@ -438,9 +438,9 @@ func scanDurableRun(row pgx.Row) (DurableRun, error) {
 		&run.TraceID,
 		&run.OwnerUserID,
 		&run.Surface,
-		&run.RequestedCapability,
-		&run.SelectedCapability,
-		&lane,
+		&run.RequestedTool,
+		&run.SelectedTool,
+		&taskQueue,
 		&status,
 		&terminalReason,
 		&run.FailCloseReason,
@@ -459,7 +459,7 @@ func scanDurableRun(row pgx.Row) (DurableRun, error) {
 	); err != nil {
 		return DurableRun{}, err
 	}
-	run.Lane = DurableLane(lane)
+	run.TaskQueue = taskQueue
 	run.Status = DurableRunStatus(status)
 	run.TerminalReason = DurableTerminalReason(terminalReason)
 	if queuedAt != nil {
@@ -499,7 +499,7 @@ func nullableTime(value time.Time) *time.Time {
 
 const durableRunSelectSQL = `select
 	run_id, conversation_id, turn_id, request_id, trace_id, owner_user_id, surface,
-	requested_capability, selected_capability, lane, status, terminal_reason, fail_close_reason,
+	requested_tool, selected_tool, task_queue, status, terminal_reason, fail_close_reason,
 	retryable, created_at, queued_at, admitted_at, started_at, streaming_started_at, completed_at,
 	updated_at, runtime_versions_json, workflow_plan_ref, final_response_ref, metadata_json
 from runtime.agent_runs`

@@ -276,11 +276,11 @@ document center 旧设想已退役，不属于当前主问答产品目标。
 
 - source-channel runtime / boundary：本文
 - authenticated notice source-truth schema：
-  `docs/data/authenticated-notice-source-truth-schema.md`
+  `docs/data/authenticated-notice.md`
 - WeChat source-truth schema：
-  `docs/data/wechat-official-account-source-truth-schema.md`
+  `docs/data/wechat-official.md`
 - authenticated notice processing app-api seam：
-  `docs/contracts/app-api-authenticated-notice-processing-http.md`
+  `docs/contracts/app-api-notice.md`
 - notice discover/get runtime seam：`docs/contracts/campus-notice-runtime-contract.md`
 - file-release collector export contract：
   `docs/reference/authenticated-notice-file-release-export-contract.md`

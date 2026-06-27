@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { CapabilityExecutionInput } from "../src/modules/integration";
-import { buildCapabilityExecutionRunMetadata } from "../src/modules/runtime-command/service/durable-metadata";
+import type { ToolExecutionInput } from "../src/modules/integration";
+import { buildToolExecutionRunMetadata } from "../src/modules/runtime-command/service/durable-metadata";
 
-function executionInput(
-	overrides: Partial<CapabilityExecutionInput> = {},
-): CapabilityExecutionInput {
+function executionInput(overrides: Partial<ToolExecutionInput> = {}): ToolExecutionInput {
 	return {
 		context: {
 			actor: {
@@ -47,16 +45,16 @@ function executionInput(
 }
 
 describe("durable run metadata", () => {
-	it("builds capability-neutral metadata for campus services without preselected tool plan", () => {
-		const metadata = buildCapabilityExecutionRunMetadata(
-			executionInput({ requestedCapability: "campus_services" }),
+	it("builds tool-neutral metadata for campus services without preselected tool plan", () => {
+		const metadata = buildToolExecutionRunMetadata(
+			executionInput({ requestedTool: "transport_schedule_lookup" }),
 		);
 
 		const payload = metadata.execution_payload as Record<string, unknown>;
 
-		expect(payload.requested_capability).toBe("campus_services");
-		expect(payload.effective_capability).toBe("campus_services");
-		expect(payload.lane).toBe("campus_services");
+		expect(payload.requested_tool).toBe("transport_schedule_lookup");
+		expect(payload.effective_tool).toBe("transport_schedule_lookup");
+		expect(payload.task_queue).toBe("campus-agent.workflow");
 		expect(payload.tenant_id).toBe("tenant-main");
 		expect(payload.runtime_decisions).toBeUndefined();
 		expect(metadata.handoff).toBeUndefined();
@@ -67,7 +65,7 @@ describe("durable run metadata", () => {
 	});
 
 	it("projects selected notice context as an explicit session reference", () => {
-		const metadata = buildCapabilityExecutionRunMetadata(
+		const metadata = buildToolExecutionRunMetadata(
 			executionInput({
 				context: {
 					...executionInput().context,
@@ -82,7 +80,7 @@ describe("durable run metadata", () => {
 						turnCount: 3,
 					},
 				},
-				requestedCapability: "campus_services",
+				requestedTool: "transport_schedule_lookup",
 			}),
 		);
 

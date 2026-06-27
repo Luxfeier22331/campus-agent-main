@@ -13,7 +13,7 @@ Product/browser surfaces
 -> app-api
 -> execution-control
 -> Temporal
--> capability activity workers
+-> tool activity workers
 -> OpenAI Agents SDK primary agent loop / Go RAG DTO/runtime / typed tools
 -> Qdrant / provider / structured data-plane services
 ```
@@ -44,24 +44,25 @@ product data and sanitized run/event/step projection, not the execution queue.
   Go RAG graph -> finalization.write`. Go/Temporal keep durable workflow,
   admission, timeout/cancel, RAG graph execution and sanitized projection
   ownership.
-- Ordinary chat routing is primary-agent-first: missing `requested_capability`
-  now stays capability-neutral through `execution-control`, exposes the admitted
+- Ordinary chat routing is primary-agent-first: missing `requested_tool`
+  remains an absent legacy hint through `execution-control`, exposes the admitted
   visible tool set to `agent.primary`, and uses neutral `any` memory recall
-  instead of defaulting to `knowledge`.
+  instead of defaulting to `knowledge_query`.
 - Model-selected campus-services / notice read-only tools are callable through
   the agent-runtime execution-control internal query executor only when the
-  tool is model-visible in `tool-catalog.v1` and its workflow artifact producer
-  is open / `supported_go_runtime`; their success or fail-close results project as normalized
+  tool is model-visible in `tools.v4` and opened by the execution-control
+  runtime profile; their success or fail-close results project as normalized
   `sdk_tool.execute.<tool>.<index>` steps instead of living only in SDK trace or
   finalization payload.
 - RAG remains available as a Go-owned seven-step Temporal activity support path:
   `planning -> rag.plan -> retrieval.indexed_lookup ->
   retrieval.expand_or_rescue -> evidence.selection -> synthesis ->
   grounding.verify -> finalization.write`.
-- The retired Python semantic worker has been removed from the active
-  workspace. Historical code is recoverable only through git history. The active
-  admission/routing/planning/finalization role is the Execution Agent Layer, not
-  a standalone app name.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical handoff code is recoverable only through git history.
+  Current online concepts are execution runtime, primary agent actor, and
+  concrete tools; `supervisor` is a retired implementation name, not an abstract
+  role to preserve.
 - Qdrant remains self-hosted authenticated private data-plane infrastructure.
   API keys are data-plane secrets; transport hardening is an ops issue, not a
   reason to remove authentication.
@@ -80,6 +81,8 @@ product data and sanitized run/event/step projection, not the execution queue.
   hook state, or repo-owned harness state.
 - Structural planning that should persist must be promoted into durable docs,
   ADRs, runbooks, contracts, schemas, or a short update to this file.
+- Durable governance principles belong in the owning docs/ADR/contract/runbook;
+  this work map may point to them but must not redefine them.
 
 ## Owner Areas
 
@@ -87,7 +90,7 @@ product data and sanitized run/event/step projection, not the execution queue.
 | --- | --- | --- |
 | Product Plane | `campus-web`, browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime-architecture.md` |
 | Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-agent-runtime-architecture.md` |
-| Capability Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/tool-and-capability-runtime-architecture.md` |
+| Tool Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/tool-runtime.md` |
 | Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane-architecture.md` |
 | Ops / QA | staging, release gates, observability, smoke evidence | `docs/runbooks/e2e-qa-release-runbook.md` |
 
@@ -99,12 +102,12 @@ truth. Conflict resolution follows `docs/documentation-architecture.md`.
 
 Create or resume durable docs/ADRs/runbook work when any of these occur:
 
-- A product surface, source family, or capability is admitted into default
+- A product surface, source family, or tool is admitted into default
   serving scope.
 - Temporal workflow/activity topology, worker autoscaling, or projection schema
   changes.
 - Primary agent SDK loop, direct/no-tool terminal projection, visible tool
-  catalog, or capability routing contract changes.
+  catalog, or tool routing contract changes.
 - A data-plane source truth, ingestion release, query-enabled surface, or access
   boundary changes.
 - Staging/release evidence reveals drift between `app-api`, execution-control,

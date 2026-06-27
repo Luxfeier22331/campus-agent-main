@@ -28,7 +28,7 @@ function requestExecutionWrite(
 		principalLabel: null,
 		principalType: "student",
 		questionPreview: "奖学金怎么评？",
-		requestedCapability: "knowledge",
+		requestedTool: "knowledge_query",
 		requestedScope: {
 			collection: "student_rules",
 			corpus: "regulations",
@@ -38,7 +38,7 @@ function requestExecutionWrite(
 		resolvedScope: null,
 		runId: "run_001",
 		safetyIdentifier: "safety_001",
-		selectedCapability: null,
+		selectedTool: null,
 		sourceDocIds: [],
 		startedAt: "2026-06-04T01:02:03.000Z",
 		status: "accepted",

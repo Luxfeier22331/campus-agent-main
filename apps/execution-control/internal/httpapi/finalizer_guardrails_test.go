@@ -9,9 +9,9 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 	context := finalizerContextFromExecutionRequest(
 		execution.AnswerExecutionRequest{
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				SelectedTool: "retrieval.query",
+				SelectedTool: "knowledge_query",
 				RuntimeVersions: map[string]any{
-					"execution_contract": "capability_execution_v1",
+					"execution_contract": "tool_execution_v1",
 				},
 				PolicyArtifactVersions: map[string]any{
 					"intent_case_set": "intent-case-set-v2",
@@ -21,8 +21,8 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 		"delegate",
 	)
 
-	if context.RuntimeVersions["execution_contract"] != "capability_execution_v1" {
-		t.Fatalf("runtime versions = %#v, want execution contract", context.RuntimeVersions)
+	if context.RuntimeVersions["execution_contract"] != "tool_execution_v1" {
+		t.Fatalf("runtime versions = %#v, want tool execution contract", context.RuntimeVersions)
 	}
 	if context.PolicyVersions["intent_case_set"] != "intent-case-set-v2" {
 		t.Fatalf("policy versions = %#v, want intent case set", context.PolicyVersions)
@@ -32,8 +32,8 @@ func TestFinalizerContextFromExecutionRequestCarriesVersionProvenance(t *testing
 func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t *testing.T) {
 	clarification := terminalExecutionResponse(
 		map[string]any{
-			"selected_capability": "campus_services",
-			"status":              "needs_clarification",
+			"selected_tool": "transport_schedule_lookup",
+			"status":        "needs_clarification",
 			"result": map[string]any{
 				"clarification_reason": "route_direction_required",
 			},
@@ -52,8 +52,8 @@ func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t 
 	if clarificationTrace["workflow_mode"] != "terminal" {
 		t.Fatalf("clarification workflow_mode = %v, want terminal", clarificationTrace["workflow_mode"])
 	}
-	if clarificationTrace["selected_capability"] != "none" {
-		t.Fatalf("clarification selected_capability = %v, want none", clarificationTrace["selected_capability"])
+	if clarificationTrace["selected_tool"] != "none" {
+		t.Fatalf("clarification selected_tool = %v, want none", clarificationTrace["selected_tool"])
 	}
 	if clarificationTrace["direct_vs_delegate_branch"] != "clarification" {
 		t.Fatalf("clarification branch = %v, want clarification", clarificationTrace["direct_vs_delegate_branch"])
@@ -61,8 +61,8 @@ func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t 
 
 	failClose := terminalExecutionResponse(
 		map[string]any{
-			"selected_capability": "campus_services",
-			"status":              "no_answer",
+			"selected_tool": "transport_schedule_lookup",
+			"status":        "no_answer",
 			"result": map[string]any{
 				"fail_close_reason": "transactional_action_not_supported",
 			},
@@ -81,18 +81,18 @@ func TestTerminalExecutionResponseClassifiesClarificationAndFailCloseBranches(t 
 	if failCloseTrace["workflow_mode"] != "terminal" {
 		t.Fatalf("fail-close workflow_mode = %v, want terminal", failCloseTrace["workflow_mode"])
 	}
-	if failCloseTrace["selected_capability"] != "none" {
-		t.Fatalf("fail-close selected_capability = %v, want none", failCloseTrace["selected_capability"])
+	if failCloseTrace["selected_tool"] != "none" {
+		t.Fatalf("fail-close selected_tool = %v, want none", failCloseTrace["selected_tool"])
 	}
 	if failCloseTrace["direct_vs_delegate_branch"] != "fail_close" {
 		t.Fatalf("fail-close branch = %v, want fail_close", failCloseTrace["direct_vs_delegate_branch"])
 	}
 }
 
-func TestFinalizeCapabilityResponseProjectsSafeRagToolArguments(t *testing.T) {
-	response, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseProjectsSafeRagToolArguments(t *testing.T) {
+	response, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "图书馆开放到 22:00。",
 			"follow_up_question": "",
@@ -110,17 +110,16 @@ func TestFinalizeCapabilityResponseProjectsSafeRagToolArguments(t *testing.T) {
 				PolicyGateDecision: "allow",
 				RoutingNextAction:  "delegate",
 				PlanningOutcome:    "preplanned",
-				SelectedCapability: "knowledge",
-				SelectedTool:       "retrieval.query",
+				SelectedTool:       "knowledge_query",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				PayloadKind:  "rag_request",
 				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
-				AllowedTools: []string{"retrieval.query"},
+				AllowedTools: []string{"knowledge_query"},
 			},
 			Branch:       "delegate",
-			SelectedTool: "retrieval.query",
+			SelectedTool: "knowledge_query",
 		},
 	)
 	if err != nil {
@@ -146,16 +145,16 @@ func TestFinalizeCapabilityResponseProjectsSafeRagToolArguments(t *testing.T) {
 		t.Fatalf("corpus = %v, want regulations", toolSummary["corpus"])
 	}
 	observability := response["observability"].(map[string]any)
-	if observability["selected_tool"] != "retrieval.query" {
-		t.Fatalf("observability selected_tool = %v, want retrieval.query", observability["selected_tool"])
+	if observability["selected_tool"] != "knowledge_query" {
+		t.Fatalf("observability selected_tool = %v, want knowledge_query", observability["selected_tool"])
 	}
 }
 
 func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T) {
 	summary := workflowHandoffSummary(&execution.RuntimeHandoff{
-		Capability:  "knowledge",
+		ToolTarget:  "knowledge_query",
 		PayloadKind: "rag_request",
-	}, "knowledge", "retrieval.query")
+	}, "knowledge_query", "knowledge_query")
 
 	allowedTools, ok := summary["allowed_tools"].([]string)
 	if !ok {
@@ -169,15 +168,15 @@ func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T)
 	}
 }
 
-func TestFinalizeCapabilityResponseRejectsRawCapabilityObservabilityKeys(t *testing.T) {
-	_, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseRejectsRawToolObservabilityKeys(t *testing.T) {
+	_, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "campus_services",
+			"tool":               "transport_schedule_lookup",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
 			"confidence":         "high",
-			"capability_observability": map[string]any{
+			"tool_observability": map[string]any{
 				"safe_details": map[string]any{
 					"providerRawResponse": "forbidden",
 				},
@@ -192,10 +191,10 @@ func TestFinalizeCapabilityResponseRejectsRawCapabilityObservabilityKeys(t *test
 	}
 }
 
-func TestFinalizeCapabilityResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
-	_, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
+	_, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "本科生可申请国家奖学金。",
 			"follow_up_question": "",
@@ -209,8 +208,8 @@ func TestFinalizeCapabilityResponseRejectsRawRagSdkResultDiagnostics(t *testing.
 					},
 				},
 			},
-			"capability_observability": map[string]any{
-				"selected_tool":  "retrieval.query",
+			"tool_observability": map[string]any{
+				"selected_tool":  "knowledge_query",
 				"tool_attempted": true,
 				"tool_outcome":   "rag_sdk_completed",
 				"safe_details": map[string]any{
@@ -229,17 +228,16 @@ func TestFinalizeCapabilityResponseRejectsRawRagSdkResultDiagnostics(t *testing.
 				PolicyGateDecision: "allow",
 				RoutingNextAction:  "delegate",
 				PlanningOutcome:    "preplanned",
-				SelectedCapability: "knowledge",
-				SelectedTool:       "retrieval.query",
+				SelectedTool:       "knowledge_query",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				PayloadKind:  "rag_request",
 				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
-				AllowedTools: []string{"retrieval.query"},
+				AllowedTools: []string{"knowledge_query"},
 			},
 			Branch:       "delegate",
-			SelectedTool: "retrieval.query",
+			SelectedTool: "knowledge_query",
 		},
 	)
 
@@ -248,10 +246,10 @@ func TestFinalizeCapabilityResponseRejectsRawRagSdkResultDiagnostics(t *testing.
 	}
 }
 
-func TestFinalizeCapabilityResponseRejectsUnsupportedTarget(t *testing.T) {
-	_, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseRejectsUnsupportedTarget(t *testing.T) {
+	_, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":  "unexpected-capability",
+			"tool":        "unexpected-tool",
 			"status":      "completed",
 			"answer_text": "unexpected",
 			"confidence":  "high",
@@ -265,10 +263,10 @@ func TestFinalizeCapabilityResponseRejectsUnsupportedTarget(t *testing.T) {
 	}
 }
 
-func TestFinalizeCapabilityResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
-	response, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
+	response, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "campus_services",
+			"tool":               "transport_schedule_lookup",
 			"status":             "completed",
 			"answer_text":        "当前班车正常运行。",
 			"follow_up_question": "",
@@ -282,12 +280,12 @@ func TestFinalizeCapabilityResponseDoesNotInferSelectedToolFromStructuredResult(
 		executionFinalizerContext{
 			Branch: "delegate",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				SelectedCapability: "campus_services",
-				RoutingNextAction:  "delegate",
-				PlanningOutcome:    "preplanned",
+				SelectedTool:      "transport_schedule_lookup",
+				RoutingNextAction: "delegate",
+				PlanningOutcome:   "preplanned",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   "campus_services",
+				ToolTarget:   "transport_schedule_lookup",
 				PayloadKind:  "transport_schedule_lookup",
 				AllowedTools: []string{"transport_schedule_lookup"},
 			},
@@ -298,8 +296,8 @@ func TestFinalizeCapabilityResponseDoesNotInferSelectedToolFromStructuredResult(
 	}
 
 	observability := response["observability"].(map[string]any)
-	if observability["selected_tool"] != "" {
-		t.Fatalf("observability selected_tool = %v, want empty", observability["selected_tool"])
+	if observability["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("observability selected_tool = %v, want explicit transport_schedule_lookup", observability["selected_tool"])
 	}
 
 	traceSummary := response["workflow_trace_summary"].(map[string]any)
@@ -307,15 +305,15 @@ func TestFinalizeCapabilityResponseDoesNotInferSelectedToolFromStructuredResult(
 	if !ok {
 		t.Fatalf("selected_tools = %#v, want string array", traceSummary["selected_tools"])
 	}
-	if len(selectedTools) != 0 {
-		t.Fatalf("selected_tools = %#v, want none", selectedTools)
+	if len(selectedTools) != 1 || selectedTools[0] != "transport_schedule_lookup" {
+		t.Fatalf("selected_tools = %#v, want explicit transport_schedule_lookup", selectedTools)
 	}
 }
 
-func TestFinalizeCapabilityResponseRejectsUnsupportedConfidence(t *testing.T) {
-	_, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseRejectsUnsupportedConfidence(t *testing.T) {
+	_, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":  "knowledge",
+			"tool":        "knowledge_query",
 			"status":      "completed",
 			"answer_text": "unexpected",
 			"confidence":  "certain",
@@ -329,49 +327,49 @@ func TestFinalizeCapabilityResponseRejectsUnsupportedConfidence(t *testing.T) {
 	}
 }
 
-func TestFinalizeCapabilityResponseRejectsMalformedScalarFields(t *testing.T) {
+func TestFinalizeAgentToolResponseRejectsMalformedScalarFields(t *testing.T) {
 	for name, body := range map[string]map[string]any{
 		"non_string_confidence": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
 			"confidence":         true,
 		},
 		"missing_confidence": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
 		},
 		"non_string_answer_text": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        123,
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"missing_answer_text": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"follow_up_question": "",
 			"confidence":         "high",
 		},
 		"non_string_follow_up_question": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "needs_clarification",
 			"answer_text":        "",
 			"follow_up_question": []any{"which campus"},
 			"confidence":         "low",
 		},
 		"missing_follow_up_question": {
-			"capability":  "knowledge",
+			"tool":        "knowledge_query",
 			"status":      "needs_clarification",
 			"answer_text": "",
 			"confidence":  "low",
 		},
 		"non_object_result": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "unexpected",
 			"follow_up_question": "",
@@ -379,7 +377,7 @@ func TestFinalizeCapabilityResponseRejectsMalformedScalarFields(t *testing.T) {
 			"result":             []any{"not", "object"},
 		},
 		"non_object_error": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "error",
 			"answer_text":        "",
 			"follow_up_question": "",
@@ -387,7 +385,7 @@ func TestFinalizeCapabilityResponseRejectsMalformedScalarFields(t *testing.T) {
 			"error":              "failed",
 		},
 		"error_missing_retryable": {
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "error",
 			"answer_text":        "",
 			"follow_up_question": "",
@@ -399,7 +397,7 @@ func TestFinalizeCapabilityResponseRejectsMalformedScalarFields(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			_, err := finalizeCapabilityResponse(
+			_, err := finalizeAgentToolResponse(
 				body,
 				"trace-finalizer-malformed",
 				executionFinalizerContext{},

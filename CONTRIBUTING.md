@@ -7,8 +7,8 @@
 - `AGENTS.md`
 - `README.md`
 - `docs/README.md`
-- `docs/architecture/product-positioning.md`
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/product.md`
+- `docs/architecture/current.md`
 - `.planning/PROJECT.md`
 
 只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/WORKSTREAMS.md` 和对应

@@ -38,7 +38,7 @@ function toIntentObservabilitySummary(
 		return null;
 	}
 	const summary: OperatorIntentObservabilitySummary = {
-		capability: fact.intentCapability ?? null,
+		tool: fact.intentTool ?? null,
 		classifierVersion: fact.intentClassifierVersion ?? null,
 		launchState: fact.intentLaunchState ?? null,
 		nextAction: fact.intentNextAction ?? null,
@@ -123,8 +123,8 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					policyProjectionVersion: row.policyProjectionVersion ?? null,
 					principalType: row.principalType,
 					requestId: row.requestId,
-					requestedCapability: row.requestedCapability ?? null,
-					selectedCapability: row.selectedCapability ?? null,
+					requestedTool: row.requestedTool ?? null,
+					selectedTool: row.selectedTool ?? null,
 					status: row.status,
 					summary: row.summary,
 					surface: row.surface,
@@ -310,10 +310,10 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					},
 					routing: {
 						...(intent ? { intent } : {}),
-						requestedCapability: projection.requestedCapability ?? null,
+						requestedTool: projection.requestedTool ?? null,
 						requestedScope: projection.requestedScopeJson ?? null,
 						resolvedScope: projection.resolvedScopeJson ?? null,
-						selectedCapability: projection.selectedCapability ?? null,
+						selectedTool: projection.selectedTool ?? null,
 					},
 				},
 				request: {
@@ -321,11 +321,11 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 					conversationId: projection.conversationId,
 					requestId: projection.requestId,
 					runId: runBacklinks.get(projection.requestId) ?? null,
-					requestedCapability: projection.requestedCapability ?? null,
+					requestedTool: projection.requestedTool ?? null,
 					requestedScope: projection.requestedScopeJson ?? null,
 					...(projection.versionQueryJson ? { versionQuery: projection.versionQueryJson } : {}),
 					resolvedScope: projection.resolvedScopeJson ?? null,
-					selectedCapability: projection.selectedCapability ?? null,
+					selectedTool: projection.selectedTool ?? null,
 					startedAt: projection.startedAt.toISOString(),
 					status: projection.status as OperatorRequestObservabilityRecord["request"]["status"],
 					surface: projection.surface,
@@ -433,8 +433,8 @@ export function createRequestStoreHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(requestAuditProjection.surface, filters.surface));
 			}
-			if (filters.selectedCapability) {
-				conditions.push(eq(requestAuditProjection.selectedCapability, filters.selectedCapability));
+			if (filters.selectedTool) {
+				conditions.push(eq(requestAuditProjection.selectedTool, filters.selectedTool));
 			}
 			if (filters.eventType) {
 				conditions.push(eq(requestAuditProjection.eventType, filters.eventType));

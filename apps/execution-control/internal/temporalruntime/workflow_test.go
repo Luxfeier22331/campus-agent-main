@@ -11,7 +11,7 @@ import (
 	"go.temporal.io/sdk/testsuite"
 )
 
-func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
+func TestToolExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -24,7 +24,7 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 			return input.RunID == "run-workflow-001" &&
 				input.TraceID == "trace-workflow-001" &&
 				input.RequestID == "req-workflow-001" &&
-				input.RequestedCapability == ""
+				input.RequestedTool == ""
 		}),
 	).Return(
 		MemoryRecallActivityOutput{
@@ -45,11 +45,11 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 				input.RequestID == "req-workflow-001" &&
 				input.ConversationID == "conv-workflow-001" &&
 				input.TurnID == "turn-workflow-001" &&
-				input.RequestedCapability == "" &&
+				input.RequestedTool == "" &&
 				len(input.MemoryProjectionRefs) == 1 &&
 				input.MemoryProjectionRefs[0] == "projection://runs/run-workflow-001/memory/recall" &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "knowledge"
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "knowledge_query"
 		}),
 	).Return(
 		ExecutePrimaryAgentActivityOutput{
@@ -103,7 +103,7 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 		nil,
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
 		ConversationID: "conv-workflow-001",
 		Namespace:      "campus-agent-test",
 		PayloadSHA256:  "d8a73157ce10cd94a91c2079fc9a92c8f9f42f71360e4de7b80bf2e7d5e75c5c",
@@ -112,8 +112,8 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 		TaskQueue:      WorkflowTaskQueue,
 		TraceID:        "trace-workflow-001",
 		TurnID:         "turn-workflow-001",
-		VisibleCapabilities: []string{
-			"knowledge",
+		VisibleToolNames: []string{
+			"knowledge_query",
 		},
 		WorkflowID: "campus-agent.chat.run-workflow-001",
 	})
@@ -124,7 +124,7 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 	if err := env.GetWorkflowError(); err != nil {
 		t.Fatalf("workflow error: %v", err)
 	}
-	var result CapabilityExecutionWorkflowResult
+	var result ToolExecutionWorkflowResult
 	if err := env.GetWorkflowResult(&result); err != nil {
 		t.Fatalf("workflow result: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestCapabilityExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKnowledge(t *testing.T) {
+func TestToolExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKnowledge(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -170,8 +170,8 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "knowledge"
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "knowledge_query"
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef:     agentResultRef,
@@ -275,7 +275,7 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 		Status:        "completed",
 	}, nil)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
 		ConversationID: "conv-workflow-knowledge-001",
 		Namespace:      "campus-agent-test",
 		PayloadSHA256:  "d8a73157ce10cd94a91c2079fc9a92c8f9f42f71360e4de7b80bf2e7d5e75c5c",
@@ -284,8 +284,8 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 		TaskQueue:      WorkflowTaskQueue,
 		TraceID:        traceID,
 		TurnID:         "turn-workflow-knowledge-001",
-		VisibleCapabilities: []string{
-			"knowledge",
+		VisibleToolNames: []string{
+			"knowledge_query",
 		},
 		WorkflowID: "campus-agent.chat." + runID,
 	})
@@ -299,7 +299,7 @@ func TestCapabilityExecutionWorkflowRunsKnowledgeGraphWhenPrimaryAgentSelectsKno
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t *testing.T) {
+func TestToolExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -319,8 +319,8 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "campus_services"
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "transport_schedule_lookup"
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: firstAgentResultRef,
@@ -330,7 +330,6 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 		Status:         "failed",
 		TerminalReason: "agent_runtime_failed",
 		ToolResults: []AgentToolResult{{
-			Capability:      "campus_services",
 			FailCloseReason: "tool_handler_failed",
 			PayloadKind:     "transport_schedule_lookup",
 			ResultRef:       "agent-runtime://" + runID + "/tools/transport_schedule_lookup/1",
@@ -343,8 +342,8 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "campus_services"
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "transport_schedule_lookup"
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: secondAgentResultRef,
@@ -369,17 +368,17 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 		Status:        "completed",
 	}, nil)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
-		ConversationID:      "conv-workflow-primary-replan-001",
-		Namespace:           "campus-agent-test",
-		RequestID:           "req-workflow-primary-replan-001",
-		RequestedCapability: "campus_services",
-		RunID:               runID,
-		TaskQueue:           WorkflowTaskQueue,
-		TraceID:             traceID,
-		TurnID:              "turn-workflow-primary-replan-001",
-		VisibleCapabilities: []string{"campus_services"},
-		WorkflowID:          "campus-agent.chat." + runID,
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
+		ConversationID:   "conv-workflow-primary-replan-001",
+		Namespace:        "campus-agent-test",
+		RequestID:        "req-workflow-primary-replan-001",
+		RequestedTool:    "transport_schedule_lookup",
+		RunID:            runID,
+		TaskQueue:        WorkflowTaskQueue,
+		TraceID:          traceID,
+		TurnID:           "turn-workflow-primary-replan-001",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
+		WorkflowID:       "campus-agent.chat." + runID,
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -391,7 +390,7 @@ func TestCapabilityExecutionWorkflowRetriesPrimaryAgentWithinVisibleToolsOnce(t 
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClose(t *testing.T) {
+func TestToolExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClose(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -409,7 +408,7 @@ func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClo
 		ExecutePrimaryAgentActivityName,
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
-			return input.RunID == runID && len(input.VisibleCapabilities) == 1
+			return input.RunID == runID && len(input.VisibleToolNames) == 1
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: agentResultRef,
@@ -419,7 +418,6 @@ func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClo
 		Status:         "completed",
 		TerminalReason: "unsupported_by_evidence",
 		ToolResults: []AgentToolResult{{
-			Capability:      "campus_services",
 			FailCloseReason: "current_state_unverifiable",
 			PayloadKind:     "transport_schedule_lookup",
 			ResultRef:       "agent-runtime://" + runID + "/tools/transport_schedule_lookup/1",
@@ -442,17 +440,17 @@ func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClo
 		Status:        "completed",
 	}, nil).Once()
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
-		ConversationID:      "conv-workflow-primary-no-replan-001",
-		Namespace:           "campus-agent-test",
-		RequestID:           "req-workflow-primary-no-replan-001",
-		RequestedCapability: "campus_services",
-		RunID:               runID,
-		TaskQueue:           WorkflowTaskQueue,
-		TraceID:             traceID,
-		TurnID:              "turn-workflow-primary-no-replan-001",
-		VisibleCapabilities: []string{"campus_services"},
-		WorkflowID:          "campus-agent.chat." + runID,
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
+		ConversationID:   "conv-workflow-primary-no-replan-001",
+		Namespace:        "campus-agent-test",
+		RequestID:        "req-workflow-primary-no-replan-001",
+		RequestedTool:    "transport_schedule_lookup",
+		RunID:            runID,
+		TaskQueue:        WorkflowTaskQueue,
+		TraceID:          traceID,
+		TurnID:           "turn-workflow-primary-no-replan-001",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
+		WorkflowID:       "campus-agent.chat." + runID,
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -464,7 +462,7 @@ func TestCapabilityExecutionWorkflowDoesNotRetryPrimaryAgentDeterministicFailClo
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSignal(t *testing.T) {
+func TestToolExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSignal(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -491,9 +489,9 @@ func TestCapabilityExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSign
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: agentResultRef,
-		FinalOutput:    "agent selected an invalid raw retrieval tool",
+		FinalOutput:    "agent selected an invalid unknown raw tool",
 		RunID:          runID,
-		SelectedTools:  []string{"retrieval.query"},
+		SelectedTools:  []string{"unknown_raw_tool"},
 		Status:         "completed",
 		TerminalReason: "answer_completed",
 	}, nil)
@@ -513,7 +511,7 @@ func TestCapabilityExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSign
 		Status:        "completed",
 	}, nil)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
 		ConversationID: "conv-" + runID,
 		Namespace:      "campus-agent-test",
 		PayloadSHA256:  "d8a73157ce10cd94a91c2079fc9a92c8f9f42f71360e4de7b80bf2e7d5e75c5c",
@@ -535,7 +533,7 @@ func TestCapabilityExecutionWorkflowDoesNotTreatRetrievalQueryAsPrimaryAgentSign
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusServices(t *testing.T) {
+func TestToolExecutionWorkflowLimitsVisibleToolNamesForExplicitCampusServices(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -546,7 +544,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 		mock.Anything,
 		mock.MatchedBy(func(input MemoryRecallActivityInput) bool {
 			return input.RunID == "run-campus-services-001" &&
-				input.RequestedCapability == "campus_services"
+				input.RequestedTool == "transport_schedule_lookup"
 		}),
 	).Return(
 		MemoryRecallActivityOutput{
@@ -563,9 +561,9 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == "run-campus-services-001" &&
-				input.RequestedCapability == "campus_services" &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "campus_services"
+				input.RequestedTool == "transport_schedule_lookup" &&
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "transport_schedule_lookup"
 		}),
 	).Return(
 		ExecutePrimaryAgentActivityOutput{
@@ -598,18 +596,18 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 		nil,
 	)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
-		ConversationID:      "conv-campus-services-001",
-		Namespace:           "campus-agent-test",
-		PayloadSHA256:       "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
-		RequestID:           "req-campus-services-001",
-		RequestedCapability: "campus_services",
-		RunID:               "run-campus-services-001",
-		TaskQueue:           WorkflowTaskQueue,
-		TraceID:             "trace-campus-services-001",
-		TurnID:              "turn-campus-services-001",
-		VisibleCapabilities: []string{"campus_services"},
-		WorkflowID:          "campus-agent.chat.run-campus-services-001",
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
+		ConversationID:   "conv-campus-services-001",
+		Namespace:        "campus-agent-test",
+		PayloadSHA256:    "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
+		RequestID:        "req-campus-services-001",
+		RequestedTool:    "transport_schedule_lookup",
+		RunID:            "run-campus-services-001",
+		TaskQueue:        WorkflowTaskQueue,
+		TraceID:          "trace-campus-services-001",
+		TurnID:           "turn-campus-services-001",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
+		WorkflowID:       "campus-agent.chat.run-campus-services-001",
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -624,7 +622,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitCampusSe
 	env.AssertExpectations(t)
 }
 
-func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t *testing.T) {
+func TestToolExecutionWorkflowLimitsVisibleToolNamesForExplicitNotice(t *testing.T) {
 	var suite testsuite.WorkflowTestSuite
 	env := suite.NewTestWorkflowEnvironment()
 	registerWorkflowTestActivities(env, &Activities{})
@@ -637,7 +635,7 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t
 		MemoryRecallActivityName,
 		mock.Anything,
 		mock.MatchedBy(func(input MemoryRecallActivityInput) bool {
-			return input.RunID == runID && input.RequestedCapability == "notice"
+			return input.RunID == runID && input.RequestedTool == "campus_notice_discover"
 		}),
 	).Return(MemoryRecallActivityOutput{
 		MemoryRef:           "projection://runs/" + runID + "/memory/recall",
@@ -651,9 +649,9 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t
 		mock.Anything,
 		mock.MatchedBy(func(input ExecutePrimaryAgentActivityInput) bool {
 			return input.RunID == runID &&
-				input.RequestedCapability == "notice" &&
-				len(input.VisibleCapabilities) == 1 &&
-				input.VisibleCapabilities[0] == "notice"
+				input.RequestedTool == "campus_notice_discover" &&
+				len(input.VisibleToolNames) == 1 &&
+				input.VisibleToolNames[0] == "campus_notice_discover"
 		}),
 	).Return(ExecutePrimaryAgentActivityOutput{
 		AgentResultRef: agentResultRef,
@@ -678,18 +676,18 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t
 		Status:        "completed",
 	}, nil)
 
-	env.ExecuteWorkflow(CapabilityExecutionWorkflow, CapabilityExecutionWorkflowInput{
-		ConversationID:      "conv-notice-primary-001",
-		Namespace:           "campus-agent-test",
-		PayloadSHA256:       "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
-		RequestID:           "req-notice-primary-001",
-		RequestedCapability: "notice",
-		RunID:               runID,
-		TaskQueue:           WorkflowTaskQueue,
-		TraceID:             traceID,
-		TurnID:              "turn-notice-primary-001",
-		VisibleCapabilities: []string{"notice"},
-		WorkflowID:          "campus-agent.chat." + runID,
+	env.ExecuteWorkflow(ToolExecutionWorkflow, ToolExecutionWorkflowInput{
+		ConversationID:   "conv-notice-primary-001",
+		Namespace:        "campus-agent-test",
+		PayloadSHA256:    "3f0a4a5f0d2ed0cecbfb4c72dc90653d4f484ba5856ea35f246fb3c3a37c78fe",
+		RequestID:        "req-notice-primary-001",
+		RequestedTool:    "campus_notice_discover",
+		RunID:            runID,
+		TaskQueue:        WorkflowTaskQueue,
+		TraceID:          traceID,
+		TurnID:           "turn-notice-primary-001",
+		VisibleToolNames: []string{"campus_notice_discover"},
+		WorkflowID:       "campus-agent.chat." + runID,
 	})
 
 	if !env.IsWorkflowCompleted() {
@@ -705,8 +703,8 @@ func TestCapabilityExecutionWorkflowLimitsVisibleCapabilitiesForExplicitNotice(t
 
 func TestWorkflowFailureAllowsReplanRejectsFailClosedTypedToolResult(t *testing.T) {
 	allows := workflowFailureAllowsReplan(
-		CapabilityBranchStep{
-			Capability: "campus_services",
+		ToolBranchStep{
+			ToolTarget: "transport_schedule_lookup",
 			ToolName:   "transport_schedule_lookup",
 		},
 		errors.New("typed tool transport_schedule_lookup fail_close_reason=current_state_unverifiable"),
@@ -716,45 +714,43 @@ func TestWorkflowFailureAllowsReplanRejectsFailClosedTypedToolResult(t *testing.
 	}
 }
 
-func TestValidateReplanWithinBoundsRejectsExpandedCapability(t *testing.T) {
+func TestValidateReplanWithinBoundsRejectsExpandedToolTarget(t *testing.T) {
 	err := validateReplanWithinBounds(
 		PlanRouteActivityOutput{
-			AllowedCapabilities: []string{"campus_services"},
-			AllowedTools:        []string{"transport_schedule_lookup"},
+			AllowedToolTargets: []string{"transport_schedule_lookup"},
+			AllowedTools:       []string{"transport_schedule_lookup"},
 		},
-		[]CapabilityBranchStep{{
+		[]ToolBranchStep{{
 			AllowedTools: []string{"transport_schedule_lookup"},
-			Capability:   "campus_services",
 			ToolName:     "transport_schedule_lookup",
+			ToolTarget:   "transport_schedule_lookup",
 		}},
 		PlanReplanActivityOutput{
-			AllowedCapabilities: []string{"knowledge"},
-			NewPlanRef:          "projection://runs/run-replan-expand-001/plan/replan/1",
-			Steps: []CapabilityBranchStep{{
-				Capability: "knowledge",
-				ToolName:   "retrieval.query",
+			AllowedToolTargets: []string{"knowledge_query"},
+			NewPlanRef:         "projection://runs/run-replan-expand-001/plan/replan/1",
+			Steps: []ToolBranchStep{{
+				ToolName:   "knowledge_query",
+				ToolTarget: "knowledge_query",
 			}},
 		},
 	)
-	if err == nil || !strings.Contains(err.Error(), "replan expanded capability") {
-		t.Fatalf("err = %v, want replan expanded capability", err)
+	if err == nil || !strings.Contains(err.Error(), "replan expanded tool target") {
+		t.Fatalf("err = %v, want replan expanded tool target", err)
 	}
 }
 
 func TestWorkerRuntimeRequiresFinalizationActivities(t *testing.T) {
 	_, err := NewWorkerRuntime(context.Background(), WorkerOptions{
-		Address:                 "127.0.0.1:1",
-		Namespace:               "campus-agent-test",
-		WorkflowQueue:           WorkflowTaskQueue,
-		ContextQueue:            ActivityTaskQueueContext,
-		KnowledgePlanQueue:      ActivityTaskQueueKnowledgePlan,
-		KnowledgeRetrievalQueue: ActivityTaskQueueKnowledgeRetrieval,
-		KnowledgeSynthesisQueue: ActivityTaskQueueKnowledgeSynthesis,
-		FinalizationQueue:       ActivityTaskQueueFinalization,
-		ContextActivities:       &Activities{},
-		AgentActivities:         &Activities{},
-		KnowledgeActivities:     &Activities{},
-		FinalizationActivities:  nil,
+		Address:                "127.0.0.1:1",
+		Namespace:              "campus-agent-test",
+		WorkflowQueue:          WorkflowTaskQueue,
+		CoreQueue:              ActivityTaskQueueCore,
+		KnowledgeQueue:         ActivityTaskQueueKnowledge,
+		ContextActivities:      &Activities{},
+		AgentActivities:        &Activities{},
+		KnowledgeActivities:    &Activities{},
+		TypedToolActivities:    &Activities{},
+		FinalizationActivities: nil,
 	})
 	if err == nil {
 		t.Fatal("expected missing finalization activities to fail")

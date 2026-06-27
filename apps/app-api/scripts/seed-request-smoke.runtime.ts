@@ -5,13 +5,13 @@ import { Client } from "pg";
 import { createApp } from "../src/app";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
-	CapabilityExecutionInput,
-	CapabilityExecutionResponse,
 	ExecutionControlRun,
 	ExecutionControlRunCreateInput,
 	ExecutionControlRunEvent,
 	ExecutionControlRuntimeClient,
 	RequestedScope,
+	ToolExecutionInput,
+	ToolExecutionResponse,
 } from "../src/modules/integration";
 import {
 	buildRequestProjectionProjector,
@@ -161,17 +161,17 @@ async function cleanupPreviousSmokeRequestArtifacts(
 	};
 }
 
-interface ScriptedCapabilityExecutionFixture {
-	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
+interface ScriptedToolExecutionFixture {
+	execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
 }
 
-function buildScriptedExecutionClient(
+function buildScriptedToolExecution(
 	scenarios: RequestSmokeSeedScenario[],
-): ScriptedCapabilityExecutionFixture {
+): ScriptedToolExecutionFixture {
 	let currentIndex = 0;
 
 	return {
-		async execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse> {
+		async execute(input: ToolExecutionInput): Promise<ToolExecutionResponse> {
 			const scenario = scenarios[currentIndex];
 			if (!scenario) {
 				throw new Error(`Unexpected extra request for prompt: ${input.userGoal}`);
@@ -196,7 +196,7 @@ function buildScriptedExecutionClient(
 function buildScriptedExecutionRuntime(
 	scenarios: RequestSmokeSeedScenario[],
 ): ExecutionControlRuntimeClient {
-	const scripted = buildScriptedExecutionClient(scenarios);
+	const scripted = buildScriptedToolExecution(scenarios);
 	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
 	const runsById = new Map<string, ExecutionControlRun>();
 	return {
@@ -215,7 +215,7 @@ function buildScriptedExecutionRuntime(
 			return cancelled;
 		},
 		async createRun(input) {
-			const executionInput = capabilityExecutionInputFromRunCreate(input);
+			const executionInput = toolExecutionInputFromRunCreate(input);
 			const response = await scripted.execute(executionInput);
 			const run = durableRunFromCreateInput(input);
 			runsById.set(input.runId, run);
@@ -244,23 +244,23 @@ function buildScriptedExecutionRuntime(
 	};
 }
 
-function capabilityExecutionInputFromRunCreate(
+function toolExecutionInputFromRunCreate(
 	input: ExecutionControlRunCreateInput,
-): CapabilityExecutionInput {
+): ToolExecutionInput {
 	const metadata = objectOrThrow(input.metadata, "execution run metadata");
 	const payload = objectOrThrow(metadata.execution_payload, "execution payload");
 	return {
-		context: payload.context as CapabilityExecutionInput["context"],
+		context: payload.context as ToolExecutionInput["context"],
 		conversationId: stringValue(payload.conversation_id) ?? input.conversationId,
 		requestId: stringValue(payload.request_id) ?? input.requestId,
-		requestedCapability: stringValue(payload.requested_capability),
+		requestedTool: stringValue(payload.requested_tool),
 		requestedScope: payload.requested_scope as RequestedScope | null,
 		safetyIdentifier: stringValue(payload.safety_identifier),
 		surface: input.surface,
 		traceHeaders: input.traceHeaders,
 		traceId: traceIdFromPayload(payload) ?? input.traceId ?? "",
 		userGoal: stringValue(payload.user_goal) ?? "",
-		versionQuery: payload.version_query as CapabilityExecutionInput["versionQuery"],
+		versionQuery: payload.version_query as ToolExecutionInput["versionQuery"],
 	};
 }
 
@@ -273,12 +273,12 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		createdAt: now,
 		failCloseReason: "",
 		finalResponseRef: "",
-		lane: input.lane,
+		taskQueue: input.taskQueue,
 		ownerUserId: input.ownerUserId,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability ?? "",
+		requestedTool: input.requestedTool ?? "",
 		runId: input.runId,
-		selectedCapability: input.selectedCapability ?? "",
+		selectedTool: input.selectedTool ?? "",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
@@ -293,7 +293,7 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 
 function finalizationEventFromResponse(
 	input: ExecutionControlRunCreateInput,
-	response: CapabilityExecutionResponse,
+	response: ToolExecutionResponse,
 ): ExecutionControlRunEvent {
 	return {
 		conversationId: input.conversationId,
@@ -308,7 +308,7 @@ function finalizationEventFromResponse(
 				error: response.error,
 				follow_up_question: response.followUpQuestion,
 				result: response.result,
-				selected_capability: response.selectedCapability,
+				selected_tool: response.selectedTool,
 				status: response.status,
 				trace_id: response.traceId,
 			},
@@ -398,7 +398,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 			key: string;
 			prompt: string;
 			requestId: string;
-			selectedCapability: string | null;
+			selectedTool: string | null;
 			traceId: string;
 		}> = [];
 
@@ -448,7 +448,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				key: scenario.key,
 				prompt: scenario.prompt,
 				requestId,
-				selectedCapability: scenario.response.selectedCapability,
+				selectedTool: scenario.response.selectedTool,
 				traceId: response.headers.get("x-trace-id") ?? payload.answer.result.traceId,
 			});
 		}
@@ -487,7 +487,7 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 
 		const verifiedRequests: Array<{
 			actualErrorCode: string | null;
-			actualSelectedCapability: string | null;
+			actualSelectedTool: string | null;
 			actualStatus: string;
 			answerKind: string;
 			conversationId: string;
@@ -508,13 +508,13 @@ export async function main(argv: string[], env: NodeJS.ProcessEnv = process.env)
 				request: {
 					errorCode: string | null;
 					requestId: string;
-					selectedCapability: string | null;
+					selectedTool: string | null;
 					status: string;
 				};
 			}>(detailResponse, 200);
 			verifiedRequests.push({
 				actualErrorCode: detailPayload.request.errorCode,
-				actualSelectedCapability: detailPayload.request.selectedCapability,
+				actualSelectedTool: detailPayload.request.selectedTool,
 				actualStatus: detailPayload.request.status,
 				answerKind: seededRequest.answerKind,
 				conversationId: seededRequest.conversationId,

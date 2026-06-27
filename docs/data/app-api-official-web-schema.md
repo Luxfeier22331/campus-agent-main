@@ -36,7 +36,7 @@ updated: 2026-05-02
 
 判断当前已实现子集时：
 
-- 当前已落地表族与 read-model 以代码、`docs/architecture/current-architecture.md` 与
+- 当前已落地表族与 read-model 以代码、`docs/architecture/current.md` 与
   `docs/domains/official-web.md` 为准
 - 当前项目执行状态、单轮执行进度与 closeout 证据不在本文维护
 

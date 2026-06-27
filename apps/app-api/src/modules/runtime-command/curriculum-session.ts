@@ -1,5 +1,5 @@
 import type { ChatSessionSlot } from "../chat";
-import type { CapabilityExecutionContextProjection } from "../integration";
+import type { ToolExecutionContextProjection } from "../integration";
 import type { RequestDiagnosticsSummary } from "../request-diagnostics";
 
 export const CURRICULUM_PROGRAM_FAMILY_SLOT_NAME = "curriculum_program_family";
@@ -42,7 +42,7 @@ export function resolveCurriculumFollowUpState(
 export function buildExecutionSessionProjection(input: {
 	sessionSlots: readonly ChatSessionSlot[];
 	turnCount: number;
-}): CapabilityExecutionContextProjection["session"] {
+}): ToolExecutionContextProjection["session"] {
 	return {
 		confirmedSlots: input.sessionSlots
 			.filter((slot) => slot.confirmed && slot.value.trim())
@@ -58,7 +58,7 @@ export function buildExecutionSessionProjection(input: {
 
 function resolveSelectedNoticeRef(
 	sessionSlots: readonly Pick<ChatSessionSlot, "confirmed" | "name" | "value">[],
-): CapabilityExecutionContextProjection["session"]["selectedNoticeRef"] {
+): ToolExecutionContextProjection["session"]["selectedNoticeRef"] {
 	const values = new Map<string, string>();
 	for (const slot of sessionSlots) {
 		if (!(slot.confirmed && slot.value.trim())) {

@@ -77,7 +77,7 @@ describe("app telemetry", () => {
 				},
 				conversationId: "conv_01",
 				requestId: "req_01",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: {
 					collection: "student_rules",
 					corpus: "regulations",
@@ -174,7 +174,7 @@ describe("app telemetry", () => {
 			},
 			conversationId: "conv_01",
 			requestId: "req_01",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -191,7 +191,7 @@ describe("app telemetry", () => {
 			},
 			conversationId: "conv_01",
 			requestId: "req_01",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -251,7 +251,7 @@ describe("app telemetry", () => {
 				},
 				conversationId: "conv_01",
 				requestId: "req_01",
-				requestedCapability: null,
+				requestedTool: null,
 				requestedScope: null,
 				safetyIdentifier: "safety_01",
 				status: "accepted",

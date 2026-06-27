@@ -158,12 +158,12 @@ func TestControllerDrainingRejectsNewRequests(t *testing.T) {
 	}
 }
 
-func TestControllerLaneSaturationDoesNotBlockOtherLanes(t *testing.T) {
+func TestControllerGroupSaturationDoesNotBlockOtherGroups(t *testing.T) {
 	controller := NewController(Config{
 		MaxConcurrent: 2,
 		QueueCapacity: 4,
 		QueueTimeout:  time.Second,
-		Lanes: map[string]LaneConfig{
+		Groups: map[string]GroupConfig{
 			"rag": {
 				MaxConcurrent: 1,
 				QueueCapacity: 0,
@@ -177,41 +177,41 @@ func TestControllerLaneSaturationDoesNotBlockOtherLanes(t *testing.T) {
 		},
 	})
 
-	ragLease, ragDecision := controller.AcquireLane(context.Background(), "rag")
+	ragLease, ragDecision := controller.AcquireGroup(context.Background(), "rag")
 	if ragDecision != DecisionAdmittedImmediate {
 		t.Fatalf("rag decision = %s, want admitted_immediate", ragDecision)
 	}
 	defer ragLease.Release()
 
-	ragOverflow, ragOverflowDecision := controller.AcquireLane(context.Background(), "rag")
+	ragOverflow, ragOverflowDecision := controller.AcquireGroup(context.Background(), "rag")
 	if ragOverflow != nil {
-		t.Fatal("rag lane overflow should not return a lease")
+		t.Fatal("rag group overflow should not return a lease")
 	}
-	if ragOverflowDecision != DecisionLaneQueueFull {
-		t.Fatalf("rag overflow = %s, want lane_queue_full", ragOverflowDecision)
+	if ragOverflowDecision != DecisionGroupQueueFull {
+		t.Fatalf("rag overflow = %s, want group_queue_full", ragOverflowDecision)
 	}
 
-	navigationLease, navigationDecision := controller.AcquireLane(context.Background(), "navigation")
+	navigationLease, navigationDecision := controller.AcquireGroup(context.Background(), "navigation")
 	if navigationDecision != DecisionAdmittedImmediate {
 		t.Fatalf("navigation decision = %s, want admitted_immediate", navigationDecision)
 	}
 	navigationLease.Release()
 
 	status := controller.Status()
-	if status.Lanes["rag"].QueueFullCount != 1 {
-		t.Fatalf("rag queue full count = %d, want 1", status.Lanes["rag"].QueueFullCount)
+	if status.Groups["rag"].QueueFullCount != 1 {
+		t.Fatalf("rag queue full count = %d, want 1", status.Groups["rag"].QueueFullCount)
 	}
-	if status.Lanes["navigation"].Active != 0 {
-		t.Fatalf("navigation active after release = %d, want 0", status.Lanes["navigation"].Active)
+	if status.Groups["navigation"].Active != 0 {
+		t.Fatalf("navigation active after release = %d, want 0", status.Groups["navigation"].Active)
 	}
 }
 
-func TestControllerDispatchesQueuedLanesRoundRobin(t *testing.T) {
+func TestControllerDispatchesQueuedGroupsRoundRobin(t *testing.T) {
 	controller := NewController(Config{
 		MaxConcurrent: 1,
 		QueueCapacity: 4,
 		QueueTimeout:  time.Second,
-		Lanes: map[string]LaneConfig{
+		Groups: map[string]GroupConfig{
 			"campus_services": {
 				MaxConcurrent: 1,
 				QueueCapacity: 4,
@@ -230,23 +230,23 @@ func TestControllerDispatchesQueuedLanesRoundRobin(t *testing.T) {
 		},
 	})
 
-	ragLease, decision := controller.AcquireLane(context.Background(), "rag")
+	ragLease, decision := controller.AcquireGroup(context.Background(), "rag")
 	if decision != DecisionAdmittedImmediate {
 		t.Fatalf("initial rag decision = %s, want %s", decision, DecisionAdmittedImmediate)
 	}
 
-	firstCampus := queueLane(t, controller, "campus_services")
-	notice := queueLane(t, controller, "notice")
+	firstCampus := queueGroup(t, controller, "campus_services")
+	notice := queueGroup(t, controller, "notice")
 	waitForStatus(t, controller, func(status Status) bool {
-		return status.Lanes["campus_services"].Queued == 1 && status.Lanes["notice"].Queued == 1
+		return status.Groups["campus_services"].Queued == 1 && status.Groups["notice"].Queued == 1
 	})
 
 	ragLease.Release()
 	firstCampusLease := firstCampus.expectDecision(t, DecisionAdmittedQueued)
 
-	secondCampus := queueLane(t, controller, "campus_services")
+	secondCampus := queueGroup(t, controller, "campus_services")
 	waitForStatus(t, controller, func(status Status) bool {
-		return status.Lanes["campus_services"].Queued == 1 && status.Lanes["notice"].Queued == 1
+		return status.Groups["campus_services"].Queued == 1 && status.Groups["notice"].Queued == 1
 	})
 
 	firstCampusLease.Release()
@@ -262,20 +262,20 @@ func TestControllerDispatchesQueuedLanesRoundRobin(t *testing.T) {
 	secondCampus.expectDecision(t, DecisionAdmittedQueued).Release()
 }
 
-type queuedLaneRequest struct {
+type queuedGroupRequest struct {
 	decisions chan Decision
 	leases    chan *Lease
 }
 
-func queueLane(t *testing.T, controller *Controller, lane string) queuedLaneRequest {
+func queueGroup(t *testing.T, controller *Controller, group string) queuedGroupRequest {
 	t.Helper()
 
-	request := queuedLaneRequest{
+	request := queuedGroupRequest{
 		decisions: make(chan Decision, 1),
 		leases:    make(chan *Lease, 1),
 	}
 	go func() {
-		lease, decision := controller.AcquireLane(context.Background(), lane)
+		lease, decision := controller.AcquireGroup(context.Background(), group)
 		request.decisions <- decision
 		if lease != nil {
 			request.leases <- lease
@@ -284,7 +284,7 @@ func queueLane(t *testing.T, controller *Controller, lane string) queuedLaneRequ
 	return request
 }
 
-func (r queuedLaneRequest) expectDecision(t *testing.T, expected Decision) *Lease {
+func (r queuedGroupRequest) expectDecision(t *testing.T, expected Decision) *Lease {
 	t.Helper()
 
 	select {

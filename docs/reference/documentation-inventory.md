@@ -6,6 +6,8 @@ status: active
 created: 2026-06-13
 updated: 2026-06-27
 ---
+<!-- markdownlint-disable MD013 -->
+
 # Documentation Inventory
 
 This document is the compact governance snapshot for `docs/`.
@@ -22,29 +24,2375 @@ state board or replacement for `docs/documentation-architecture.md`.
 
 ## Governance Rules
 
-- Durable facts must live in one owner document class, as defined by
-  `docs/documentation-architecture.md`.
-- Narrow capabilities keep one canonical human document. Machine-readable
-  JSON Schema, OpenAPI and fixtures may remain separate executable contracts.
-- `reference/` and `runbooks/` archive material must keep earning its
-  branch-tip body. If the only remaining value is historical traceability, use
-  git history instead of keeping a tracked redirect or obsolete full text.
-- ADRs keep their historical lifecycle. Supersede or deprecate ADRs; do not
-  delete them only to shorten names or remove old context.
-- This inventory records counts and governance hotspots. It must not return to
-  a hand-maintained full tree mirror.
+- `decisions`: 58
+- `runbooks`: 48
+- `reference`: 43
+- `contracts`: 42
+- `architecture`: 40
+- `data`: 18
+- `domains`: 8
+- `environment`: 7
+- `product`: 6
+- `policies`: 5
+- `README.md`: 1
+- `documentation-architecture.md`: 1
 
 ## Cleanup Hotspots
 
-- Python ingestion worker archive bodies were removed from branch tip. Current
-  ingestion/data-plane operations start at `docs/runbooks/ingestion-control-clean-target-runbook.md`.
-- Campus Services human truth is intentionally narrow. The current canonical
-  transport document is `docs/domains/transport.md`; generic service guide,
-  contact directory and process lookup docs are not active surfaces.
-- Historical reference/runbook bodies under `docs/reference/archive/` and
-  `docs/runbooks/archive/` should stay only when they contain unique retained
-  evidence that is still cited with historical context.
-- Large active docs are acceptable only when owner-clean. If a large document
-  mixes active work status, release proof, architecture truth and reference
-  material, split or delete the mixed section rather than adding another
-  summary document.
+- `decision`: 57
+- `contract`: 41
+- `runbook`: 43
+- `reference`: 40
+- `architecture`: 37
+- `index`: 31
+- `data`: 17
+- `product_requirement`: 5
+- `policy`: 4
+- `documentation_architecture`: 1
+- `template`: 1
+
+### By `truth_scope`
+
+- `ops`: 84
+- `repository`: 79
+- `data`: 38
+- `product`: 33
+- `execution`: 30
+- `eval`: 13
+
+### By Owner Class
+
+- `decision_record`: 57
+- `operational_truth`: 48
+- `contract_truth`: 44
+- `reference`: 39
+- `reference_index`: 31
+- `supporting_architecture`: 27
+- `data_truth`: 20
+- `domain_architecture`: 7
+- `product_requirement`: 5
+- `current_truth`: 1
+- `product_truth`: 1
+- `target_invariant`: 1
+- `documentation_governance`: 1
+- `runbook`: 1
+
+### By Governance Action
+
+- `keep_executable_truth`: 63
+- `preserve_adr`: 57
+- `keep_ops_procedure`: 48
+- `keep_owner_truth`: 40
+- `keep_reference_truth`: 31
+- `keep_thin_index`: 24
+- `keep_archive_historical`: 7
+- `keep_thin_domain_hub`: 7
+- `keep_large_owner_truth`: 6
+
+### Hotspot Clusters
+
+- `general`: 91
+- `runtime`: 24
+- `authenticated-notice`: 22
+- `official-web`: 22
+- `operator-observability`: 15
+- `app-api`: 10
+- `campus-services`: 12
+- `retrieval`: 9
+- `eval`: 8
+- `regulation`: 8
+- `navigation`: 7
+- `identity`: 7
+- `memory`: 6
+- `qdrant`: 6
+- `document-reader`: 5
+- `student-handbook`: 5
+- `dining`: 5
+- `prompt`: 3
+- `operator-console`: 3
+- `frontend-design`: 3
+- `temporal`: 2
+- `ingestion`: 2
+- `execution`: 1
+- `agent-llm-io`: 1
+- `account`: 1
+- `langfuse`: 1
+- `chat`: 1
+- `campus-ops`: 1
+- `product`: 1
+
+### Largest Documents
+
+- `docs/reference/documentation-inventory.md`: 2539 lines, action `keep_large_owner_truth`
+- `docs/architecture/target.md`: 857 lines, action `keep_large_owner_truth`
+- `docs/architecture/system/ops-observability.md`: 708 lines, action `keep_large_owner_truth`
+- `docs/architecture/system/durable-agent-runtime-architecture.md`: 707 lines, action `keep_large_owner_truth`
+- `docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md`: 705 lines, action `keep_large_owner_truth`
+- `docs/runbooks/archive/python-ingestion-worker/staging-worker-deploy-runbook.md`: 683 lines, action `keep_ops_procedure`
+- `docs/contracts/tool-execution.md`: 676 lines, action `keep_large_owner_truth`
+- `docs/runbooks/archive/python-ingestion-worker/index-release-runbook.md`: 668 lines, action `keep_ops_procedure`
+- `docs/data/durable-agent-runtime-schema.md`: 650 lines, action `keep_executable_truth`
+- `docs/data/authenticated-notice.md`: 644 lines, action `keep_executable_truth`
+- `docs/contracts/durable-agent-runtime-contract.md`: 630 lines, action `keep_executable_truth`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-collector-smoke-and-audit.md`: 623 lines, action `keep_ops_procedure`
+- `docs/reference/authenticated-notice-retention-state-machine-verification.md`: 599 lines, action `keep_reference_truth`
+- `docs/reference/runtime-serving-and-index-terms.md`: 581 lines, action `keep_reference_truth`
+- `docs/data/app-api-official-web-schema.md`: 570 lines, action `keep_executable_truth`
+- `docs/reference/student-handbook-normalization-strategy.md`: 534 lines, action `keep_reference_truth`
+
+## Full Ledger
+
+### `README.md`
+
+- `docs/README.md`
+  - Title: Docs
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs`
+  - Ledger: `area=README.md`, `cluster=general`, `state=tracked`, `lines=130`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+
+### `architecture`
+
+- `docs/architecture/README.md`
+  - Title: Architecture
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/architecture`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=63`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/architecture/current.md`
+  - Title: 当前架构
+  - Owner class: `current_truth`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/architecture`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=432`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/README.md`
+  - Title: Domain Architecture
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/architecture/domains`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=40`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+  - Title: Authenticated Notice Source Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=architecture`, `cluster=authenticated-notice`, `state=tracked`, `lines=286`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/campus-services/architecture.md`
+  - Title: Campus Services Runtime Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=architecture`, `cluster=campus-services`, `state=tracked`, `lines=311`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/navigation/architecture.md`
+  - Title: Navigation And Wayfinding Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/navigation`
+  - Ledger: `area=architecture`, `cluster=navigation`, `state=tracked`, `lines=309`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/official-web/architecture.md`
+  - Title: Official Web Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=architecture`, `cluster=official-web`, `state=tracked`, `lines=241`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
+  - Title: Official Web Freshness And Incremental Crawling
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=architecture`, `cluster=official-web`, `state=tracked`, `lines=398`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+  - Title: Official Web Serving And News Retrieval Strategy
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=architecture`, `cluster=official-web`, `state=tracked`, `lines=523`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/product.md`
+  - Title: Product Positioning
+  - Owner class: `product_truth`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=203`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/README.md`
+  - Title: System Architecture
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `docs`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=72`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/architecture/system/agent-framework.md`
+  - Title: Agent Framework Boundary Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `agent-runtime`
+  - Ledger: `area=architecture`, `cluster=general`, `state=untracked`, `lines=100`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/agentic-retrieval-architecture.md`
+  - Title: Agentic Retrieval Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=architecture`, `cluster=retrieval`, `state=tracked`, `lines=516`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/tool-routing.md`
+  - Title: Tool Routing And Admission Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=452`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/code-organization.md`
+  - Title: Code Organization And Decomposition Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/architecture/system`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=106`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/data-plane-architecture.md`
+  - Title: Data Plane Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `ingestion-core`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=522`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/document-site-architecture.md`
+  - Title: Document Site Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=364`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/durable-agent-runtime-architecture.md`
+  - Title: Durable Agent Runtime Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=tracked`, `lines=707`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+- `docs/architecture/system/execution-agent-layer-architecture.md`
+  - Title: Execution Agent Layer Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=execution`, `state=tracked`, `lines=122`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/file-asset-loader-architecture.md`
+  - Title: Shared File Asset Loader Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=data`, `status=active`
+  - Owner boundary: `packages/ingestion-core`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=295`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/identity-and-authorization-architecture.md`
+  - Title: Account, Operator Access, And Memory Binding Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=179`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/k8s-runtime.md`
+  - Title: Kubernetes Execution Runtime Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=tracked`, `lines=348`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/memory-plane-architecture.md`
+  - Title: Memory Plane Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=memory`, `state=tracked`, `lines=197`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/ops-observability.md`
+  - Title: Operator Observability Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `app-api`
+  - Ledger: `area=architecture`, `cluster=operator-observability`, `state=tracked`, `lines=708`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+- `docs/architecture/system/langfuse-observability-and-eval-architecture.md`
+  - Title: Langfuse Observability And Eval Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=architecture`, `cluster=operator-observability`, `state=untracked`, `lines=81`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/product-runtime-architecture.md`
+  - Title: Product Runtime Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `app-api`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=tracked`, `lines=410`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/prompt.md`
+  - Title: Prompt And Instruction Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
+  - Ledger: `area=architecture`, `cluster=prompt`, `state=tracked`, `lines=47`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/prompt-and-instruction/assembly-and-assets.md`
+  - Title: Prompt And Instruction Assembly And Assets
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
+  - Ledger: `area=architecture`, `cluster=prompt`, `state=untracked`, `lines=301`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/prompt-and-instruction/current-runtime-baseline.md`
+  - Title: Prompt And Instruction Current Runtime Baseline
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=untracked`, `lines=342`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/prompt-and-instruction/safety-observability-and-rollout.md`
+  - Title: Prompt And Instruction Safety Observability And Rollout
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `docs/architecture/system/prompt-and-instruction`
+  - Ledger: `area=architecture`, `cluster=prompt`, `state=untracked`, `lines=364`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/python-boundaries.md`
+  - Title: Python Boundary
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `supervisor-agent-worker`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=105`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/retrieval-serving-architecture.md`
+  - Title: Retrieval Serving Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `retrieval-runtime-seam`
+  - Ledger: `area=architecture`, `cluster=retrieval`, `state=tracked`, `lines=443`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/runtime-release.md`
+  - Title: Runtime Delivery And Release Hardening Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/architecture/system`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=tracked`, `lines=248`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/tool-runtime.md`
+  - Title: Tool Runtime Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `execution-control-and-tool-packages`
+  - Ledger: `area=architecture`, `cluster=runtime`, `state=untracked`, `lines=118`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/target.md`
+  - Title: 目标架构
+  - Owner class: `target_invariant`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/architecture`
+  - Ledger: `area=architecture`, `cluster=general`, `state=tracked`, `lines=857`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+
+### `contracts`
+
+- `docs/contracts/README.md`
+  - Title: Contracts
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/contracts`
+  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=73`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/contracts/campus-services-tool-standard.md`
+  - Title: Campus Services Tool Standard
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=108`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-notice.md`
+  - Title: App API Authenticated Notice Processing HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=authenticated-notice`, `state=tracked`, `lines=396`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-campus-services-ops-http.md`
+  - Title: App API Campus Services Ops HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=259`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-document-reader-http.md`
+  - Title: App API Document Reader HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=document-reader`, `state=tracked`, `lines=357`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-error-model.md`
+  - Title: App API Error Model
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=207`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-eval-benchmark-http.md`
+  - Title: App API Eval Benchmark HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=eval`, `state=tracked`, `lines=323`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-http.md`
+  - Title: App API HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=407`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-http/chat.md`
+  - Title: App API HTTP Chat
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=untracked`, `lines=393`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-http/operator.md`
+  - Title: App API HTTP Operator
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=untracked`, `lines=89`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-http/system-auth-profile-memory.md`
+  - Title: App API HTTP System Auth Profile Memory
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=memory`, `state=untracked`, `lines=228`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-official-web-http.md`
+  - Title: App API Official Web HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=official-web`, `state=tracked`, `lines=142`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-official-web-http/collector-command-endpoints.md`
+  - Title: App API Official Web Collector Command Endpoints
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=official-web`, `state=untracked`, `lines=251`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-official-web-http/internal-projection-ingest.md`
+  - Title: App API Official Web Internal Projection Ingest
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=official-web`, `state=untracked`, `lines=116`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-official-web-http/operator-query-endpoints.md`
+  - Title: App API Official Web Operator Query Endpoints
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=official-web`, `state=untracked`, `lines=274`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-official-web-run-lifecycle.md`
+  - Title: App API Official Web Run Lifecycle
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=official-web`, `state=tracked`, `lines=219`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability.md`
+  - Title: App API Operator Observability HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=tracked`, `lines=253`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/eval-and-overview.md`
+  - Title: App API Operator Observability Eval And Overview HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=210`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/governance-safety-cost-audit.md`
+  - Title: App API Operator Observability Governance Safety Cost Audit HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=375`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/internal-ingest.md`
+  - Title: App API Operator Observability Internal Ingest HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=235`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/quality.md`
+  - Title: App API Operator Observability Quality HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=415`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/request-detail.md`
+  - Title: App API Operator Observability Request Detail HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=338`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-observability/requests-and-quality.md`
+  - Title: App API Operator Observability Requests And Quality HTTP
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=23`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/operator-runtime.md`
+  - Title: Operator Runtime Observability Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=tracked`, `lines=148`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/langfuse-runtime.md`
+  - Title: Langfuse Runtime Observability Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `execution-control`
+  - Ledger: `area=contracts`, `cluster=operator-observability`, `state=untracked`, `lines=64`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-request-lifecycle.md`
+  - Title: App API Request Lifecycle
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=app-api`, `state=tracked`, `lines=400`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/campus-notice-runtime-contract.md`
+  - Title: Campus Notice Runtime Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=contracts`, `cluster=runtime`, `state=tracked`, `lines=216`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/tool-execution.md`
+  - Title: App API Tool Execution Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=678`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+- `docs/contracts/document-reader-publish-contract.md`
+  - Title: Document Reader Publish Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/contracts`
+  - Ledger: `area=contracts`, `cluster=document-reader`, `state=tracked`, `lines=262`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/durable-agent-runtime-contract.md`
+  - Title: Durable Agent Runtime Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=contracts`, `cluster=runtime`, `state=tracked`, `lines=630`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/knowledge-retrieval-plan-contract.md`
+  - Title: Knowledge Retrieval Plan Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=contracts`, `cluster=retrieval`, `state=tracked`, `lines=358`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/navigation-place-finding-contract.md`
+  - Title: Navigation Place Finding Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `packages/navigation-tool`
+  - Ledger: `area=contracts`, `cluster=navigation`, `state=tracked`, `lines=237`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/tool-read-model-internal-runtime.md`
+  - Title: Tool Read Model Internal Runtime Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=contracts`, `cluster=runtime`, `state=untracked`, `lines=75`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/transport-schedule-lookup-contract.md`
+  - Title: Transport Schedule Lookup Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=contracts`, `cluster=general`, `state=tracked`, `lines=420`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/transport-schedule-lookup-contract/examples.md`
+  - Title: Transport Schedule Lookup Examples
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=contracts`, `cluster=general`, `state=untracked`, `lines=413`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/transport-status.md`
+  - Title: Transport Status
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=contracts`, `cluster=campus-services`, `state=tracked`, `lines=139`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+
+### `data`
+
+- `docs/data/README.md`
+  - Title: Data
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=data`, `status=active`
+  - Owner boundary: `docs/data`
+  - Ledger: `area=data`, `cluster=general`, `state=tracked`, `lines=53`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/data/app-api-official-web-schema.md`
+  - Title: App API Official Web Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=official-web`, `state=tracked`, `lines=570`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/app-api-schema.md`
+  - Title: App API Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=app-api`, `state=tracked`, `lines=200`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/app-api-schema/auth-chat-docs-profile.md`
+  - Title: App API Auth Chat Docs Profile Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=app-api`, `state=untracked`, `lines=400`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/app-api-schema/operator.md`
+  - Title: App API Operator Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=app-api`, `state=untracked`, `lines=492`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/app-api-schema/runtime.md`
+  - Title: App API Runtime Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=runtime`, `state=untracked`, `lines=265`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/authenticated-notice.md`
+  - Title: Authenticated Notice Source-Truth Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=data`, `cluster=authenticated-notice`, `state=tracked`, `lines=644`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/campus-navigation-place-catalog.md`
+  - Title: Campus Navigation Place Catalog
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/navigation`
+  - Ledger: `area=data`, `cluster=navigation`, `state=tracked`, `lines=209`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/campus-services-ops-source-truth-schema.md`
+  - Title: Campus Services Ops Source-Truth Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=189`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/transport-schedule.md`
+  - Title: Campus Services Transport Schedule Source-Truth Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=data`, `cluster=campus-services`, `state=tracked`, `lines=360`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/canonical-document-reader-model.md`
+  - Title: Canonical Document Reader Model
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `packages/ingestion-core`
+  - Ledger: `area=data`, `cluster=document-reader`, `state=tracked`, `lines=256`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/durable-agent-runtime-schema.md`
+  - Title: Durable Agent Runtime Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=data`, `cluster=runtime`, `state=tracked`, `lines=650`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/official-web-source-truth-schema.md`
+  - Title: Official Web Source-Truth Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=data`, `cluster=official-web`, `state=tracked`, `lines=493`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/retrieval-query-activity-model.md`
+  - Title: Retrieval Query Activity Model
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `retrieval-runtime-seam`
+  - Ledger: `area=data`, `cluster=retrieval`, `state=tracked`, `lines=397`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/shared-postgres-ownership.md`
+  - Title: Shared Postgres Ownership
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=general`, `state=tracked`, `lines=148`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/wechat-official.md`
+  - Title: WeChat Official-Account Source-Truth Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=data`, `cluster=general`, `state=tracked`, `lines=258`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+
+### `decisions`
+
+- `docs/decisions/README.md`
+  - Title: Decisions
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=143`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/decisions/adr-0002-local-minio-conventions.md`
+  - Title: ADR-0002 本地 MinIO 约束与迁移不变量
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=270`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0003-golden-dataset-governance.md`
+  - Title: ADR-0003 Golden Dataset 治理规则
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=136`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0004-evaluation-metrics.md`
+  - Title: ADR-0004 评测指标体系
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=eval`, `state=tracked`, `lines=176`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0005-campus-services-taxonomy.md`
+  - Title: ADR-0005 校园服务类语料 taxonomy
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=campus-services`, `state=tracked`, `lines=66`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
+  - Title: ADR-0006 编排模式与安全边界
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=173`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
+  - Title: ADR-0007 Retrieval Baseline 更新（phase1 为历史命名）
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=retrieval`, `state=tracked`, `lines=91`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
+  - Title: ADR-0010 观测与遥测栈决策
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=213`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0011-operator-console-worker-runtime.md`
+  - Title: ADR-0011 Operator Console Worker Runtime 决策
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=163`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
+  - Title: ADR-0012 Shared App API And Worker Web Surfaces
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=app-api`, `state=tracked`, `lines=73`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0013-app-api-worker-runtime.md`
+  - Title: ADR-0013 App API Worker Runtime
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=70`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
+  - Title: ADR-0014 Versioned Document Serving And History Query
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=80`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
+  - Title: ADR-0015 用户身份、长期记忆与个性化边界
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=233`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md`
+  - Title: ADR-0016 App API Request Projection And Panel Query Ownership
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=app-api`, `state=tracked`, `lines=151`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
+  - Title: ADR-0017 Supervisor Internal Execution Admission
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=114`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`
+  - Title: ADR-0018 App API Official Web Control-Plane Ownership
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=official-web`, `state=tracked`, `lines=176`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
+  - Title: ADR-0019 Qdrant Physical Collection Retention And Expiration
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=135`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
+  - Title: ADR-0020 Qdrant Cloud Backup Restore And Object-Store Transition
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=53`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`
+  - Title: ADR-0021：Institution-Scoped Entity Alias Governance
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=255`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
+  - Title: ADR-0022 Campus Identity And Restricted Document Authorization
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=265`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-participation.md`
+  - Title: ADR-0023 Operator Observability Control Plane And Sink Participation
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-observability`, `state=tracked`, `lines=308`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
+  - Title: ADR-0024 Authenticated Notice Source Channel
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=authenticated-notice`, `state=tracked`, `lines=193`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
+  - Title: ADR-0025 Authenticated Notice Async Staged Closeout
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=authenticated-notice`, `state=tracked`, `lines=167`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`
+  - Title: ADR-0026 Authenticated Notice Batch-Leased Closeout Throughput Model
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=authenticated-notice`, `state=tracked`, `lines=201`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
+  - Title: ADR-0027 Navigation Tool And Spatial Truth
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=navigation`, `state=tracked`, `lines=212`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
+  - Title: ADR-0028 Campus Navigation Basemap And Provider Strategy
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=navigation`, `state=tracked`, `lines=190`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
+  - Title: ADR-0029 IPv4 Operator Session-Pooler Postgres Connectivity
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=126`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
+  - Title: ADR-0030 Institution-Scoped Product Path And Explicit Open-Domain Admission
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=114`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
+  - Title: ADR-0031 Authenticated Notice Attachment Typed Routing And Spatial Review Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=authenticated-notice`, `state=tracked`, `lines=201`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
+  - Title: ADR-0032 Internal Notice Notice-Family Stratified Admission
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=229`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`
+  - Title: ADR-0033 Internal Notice PDF Cloud OCR Default
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=128`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
+  - Title: ADR-0034 授权模型与检索过滤投影
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=retrieval`, `state=tracked`, `lines=193`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
+  - Title: ADR-0035 Notice-Derived Regulation Promotion Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=regulation`, `state=tracked`, `lines=182`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0036-notice-derived-non-regulation-rule-boundary.md`
+  - Title: ADR-0036 Notice-Derived Non-Regulation Rule Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=regulation`, `state=tracked`, `lines=140`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0037-unified-scoped-rules-holding-collection.md`
+  - Title: ADR-0037 Unified Scoped Rules Holding Collection
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=161`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0038-documentation-information-architecture-and-lifecycle.md`
+  - Title: ADR-0038 Documentation Information Architecture And Lifecycle
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=162`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0039-reference-and-runbook-historical-lifecycle.md`
+  - Title: ADR-0039 Reference And Runbook Historical Lifecycle
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=84`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
+  - Title: ADR-0040 Regulation Work Title And Edition Separation
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=regulation`, `state=tracked`, `lines=230`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0041-authenticated-document-center-and-regulation-layer-split.md`
+  - Title: ADR-0041 Authenticated Document Center And Regulation Layer Split
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=regulation`, `state=tracked`, `lines=258`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0042-tool-routing.md`
+  - Title: ADR-0042 Tool-Routed Execution And Surface Tool Policy
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=178`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0043-docker-runtime.md`
+  - Title: ADR-0043 Execution Control Docker-First Runtime
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=90`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0044-structured-projection-release-catalog-and-read-model.md`
+  - Title: ADR-0044 Structured Projection Release Catalog And Read Model
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=150`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
+  - Title: ADR-0052 Self-Hosted Single-Node Qdrant And Native Backups
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=133`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`
+  - Title: ADR-0046 GSD SDK And Codex Native Workflow
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=122`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0047-run-centric-durable-agent-runtime.md`
+  - Title: ADR-0047 Run And Step-Centric Durable Agent Runtime
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=255`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0048-temporal.md`
+  - Title: ADR-0048 Temporal Execution Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=temporal`, `state=tracked`, `lines=339`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0053-qdrant-native-personal-memory-index.md`
+  - Title: ADR-0053 Qdrant-Native Personal Memory Index
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=qdrant`, `state=tracked`, `lines=138`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md`
+  - Title: ADR-0054 Ingestion Control Plane And Kernel Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=general`, `state=tracked`, `lines=75`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0057-zep-native-personal-memory-plane.md`
+  - Title: ADR-0057 Zep CE Self-Hosted Personal Memory Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=superseded`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=51`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
+  - Title: ADR-0058 Hindsight Self-Hosted Personal Memory Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=memory`, `state=tracked`, `lines=122`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0059-langfuse-observability-and-eval-platform.md`
+  - Title: ADR-0059 Langfuse Observability And Eval Platform
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-observability`, `state=untracked`, `lines=55`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0060-agent-llm-io-contract.md`
+  - Title: ADR-0060 Agent LLM I/O Contract
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=agent-llm-io`, `state=tracked`, `lines=207`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+
+### `documentation-architecture.md`
+
+- `docs/documentation-architecture.md`
+  - Title: Documentation Architecture
+  - Owner class: `documentation_governance`
+  - Frontmatter: `doc_type=documentation_architecture`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs`
+  - Ledger: `area=documentation-architecture.md`, `cluster=general`, `state=untracked`, `lines=361`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+
+### `domains`
+
+- `docs/domains/README.md`
+  - Title: Domains
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/domains`
+  - Ledger: `area=domains`, `cluster=general`, `state=tracked`, `lines=52`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/domains/authenticated-notice.md`
+  - Title: Authenticated Notice Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=domains`, `cluster=authenticated-notice`, `state=tracked`, `lines=67`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/domains/campus-services.md`
+  - Title: Campus Services Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/campus-services`
+  - Ledger: `area=domains`, `cluster=campus-services`, `state=tracked`, `lines=43`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/domains/identity-authz-memory.md`
+  - Title: Identity / Authz / Memory Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=domains`, `cluster=memory`, `state=tracked`, `lines=71`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/domains/navigation.md`
+  - Title: Navigation Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/navigation`
+  - Ledger: `area=domains`, `cluster=navigation`, `state=tracked`, `lines=42`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/domains/official-web.md`
+  - Title: Official Web Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=domains`, `cluster=official-web`, `state=tracked`, `lines=54`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/domains/operator-observability.md`
+  - Title: Operator Observability Domain
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/domains`
+  - Ledger: `area=domains`, `cluster=operator-observability`, `state=tracked`, `lines=63`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+
+### `environment`
+
+- `docs/environment/README.md`
+  - Title: Environment
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=tracked`, `lines=43`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/environment/deploy-and-eval-readiness.md`
+  - Title: Deploy And Eval Readiness
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=eval`, `state=tracked`, `lines=176`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/environment/env-ownership-and-overrides.md`
+  - Title: Environment Ownership And Overrides
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=tracked`, `lines=164`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/environment/provider-and-secret-inventory.md`
+  - Title: Provider And Secret Inventory
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=tracked`, `lines=310`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/environment/provider-and-secret-inventory/app-and-edge-providers.md`
+  - Title: Provider And Secret Inventory App And Edge Providers
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=untracked`, `lines=454`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/environment/provider-and-secret-inventory/core-providers.md`
+  - Title: Provider And Secret Inventory Core Providers
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=untracked`, `lines=265`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/environment/provider-and-secret-inventory/environment-combinations.md`
+  - Title: Provider And Secret Inventory Environment Combinations
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/environment`
+  - Ledger: `area=environment`, `cluster=general`, `state=untracked`, `lines=94`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+
+### `policies`
+
+- `docs/policies/README.md`
+  - Title: Policies
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/policies`
+  - Ledger: `area=policies`, `cluster=general`, `state=tracked`, `lines=23`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/policies/official-web-cleaning-and-chunking-policy.md`
+  - Title: `official_web` Cleaning 与 Chunking 规则
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=policy`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=policies`, `cluster=official-web`, `state=tracked`, `lines=387`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/policies/official-web-crawl-policy.md`
+  - Title: Official Web Crawl Policy
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=policy`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=policies`, `cluster=official-web`, `state=tracked`, `lines=418`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/policies/student-handbook-chunking-and-validation-policy.md`
+  - Title: `student_rules` Chunking 与 Validation 规则
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=policy`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `domains/regulations`
+  - Ledger: `area=policies`, `cluster=student-handbook`, `state=tracked`, `lines=479`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/policies/student-handbook-judge-gate-policy.md`
+  - Title: Student Handbook Judge Gate Policy
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=policy`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `domains/regulations`
+  - Ledger: `area=policies`, `cluster=student-handbook`, `state=tracked`, `lines=223`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+
+### `product`
+
+- `docs/product/README.md`
+  - Title: Product Requirements
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=general`, `state=untracked`, `lines=39`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/product/account-registration-legal-consent-prd.md`
+  - Title: Account Registration Legal Consent PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=account`, `state=untracked`, `lines=150`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/conversation-attachment-upload-prd.md`
+  - Title: Conversation Attachment Upload PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=conversation`, `state=untracked`, `lines=264`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/langfuse-eval-platform-completion-prd.md`
+  - Title: Langfuse Eval Platform Completion PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=langfuse`, `state=untracked`, `lines=300`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/multi-turn-context-and-rag-followup-prd.md`
+  - Title: Run Context Envelope And RAG Follow-up PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=retrieval`, `state=untracked`, `lines=888`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/product/observability-orchestration-repair-prd.md`
+  - Title: Observability Orchestration Repair PRD
+  - Owner class: `product_requirement`
+  - Frontmatter: `doc_type=product_requirement`, `truth_scope=product`, `status=active`
+  - Owner boundary: `docs/product`
+  - Ledger: `area=product`, `cluster=operator-observability`, `state=untracked`, `lines=390`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+
+### `reference`
+
+- `docs/reference/README.md`
+  - Title: Reference
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=85`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/reference/archive/README.md`
+  - Title: Reference Archive
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference/archive`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=27`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/reference/archive/authenticated-notice/README.md`
+  - Title: Authenticated Notice Historical Archive
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference/archive/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=65`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/reference/archive/authenticated-notice/authenticated-notice-historical-closeout-evidence.md`
+  - Title: Authenticated Notice Historical Closeout Evidence
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=historical`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=73`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/archive/authenticated-notice/authenticated-notice-historical-donor-intake-evidence.md`
+  - Title: Authenticated Notice Historical Donor Intake Snapshot
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=historical`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=106`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/archive/authenticated-notice/authenticated-notice-portal-live-observations.md`
+  - Title: Authenticated Notice Portal Live Observation Snapshot
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=historical`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=90`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/archive/incidents/README.md`
+  - Title: Incident And Snapshot Archive
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference/archive/incidents`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=17`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/reference/archive/incidents/phase1-ingestion-retrieval-implementation-truth.md`
+  - Title: Phase-1 Ingestion / Retrieval Snapshot (Historical)
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=historical`
+  - Owner boundary: `docs/reference/archive/incidents`
+  - Ledger: `area=reference`, `cluster=retrieval`, `state=tracked`, `lines=95`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/archive/incidents/retrieval-tail-latency-diagnosis-20260406.md`
+  - Title: Retrieval Tail-Latency Snapshot (Historical, 2026-04-06)
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=historical`
+  - Owner boundary: `docs/reference/archive/incidents`
+  - Ledger: `area=reference`, `cluster=retrieval`, `state=tracked`, `lines=110`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/archive/official-web/README.md`
+  - Title: Official Web Historical Snapshot Archive
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference/archive/official-web`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=76`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/reference/authenticated-notice-file-release-export-contract.md`
+  - Title: Authenticated Notice File-Release Export Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=420`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/archive/python-ingestion-worker/authenticated-notice-file-release-owner-recovery-readiness-contract.md`
+  - Title: Authenticated Notice File-Release Owner-Recovery Readiness Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=214`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/authenticated-notice-retention-state-machine-verification.md`
+  - Title: Authenticated Notice Retention State Machine Verification Set
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=599`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/campus-navigation-authoritative-source-inventory.md`
+  - Title: Campus Navigation Authoritative Source Inventory
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/navigation`
+  - Ledger: `area=reference`, `cluster=navigation`, `state=tracked`, `lines=223`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/campus-services-content-corpus-completion-audit.md`
+  - Title: Campus Services And Content Corpus Completion Audit
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=campus-services`, `state=tracked`, `lines=519`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/curriculum-plan-eval-metrics.md`
+  - Title: Curriculum Plan Eval Metrics
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=eval`, `state=tracked`, `lines=191`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/documentation-inventory.md`
+  - Title: Documentation Inventory
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs`
+  - Ledger: `area=reference`, `cluster=general`, `state=untracked`, `lines=2539`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+- `docs/reference/eval-benchmark-artifact-contract.md`
+  - Title: Eval Benchmark Artifact Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=eval`, `state=tracked`, `lines=433`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/eval-gold-truth-model.md`
+  - Title: Eval Gold Truth Model
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=eval`, `state=tracked`, `lines=286`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/golden-dataset-case-matrix.md`
+  - Title: Golden Dataset Coverage Matrix
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=155`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/ingestion-python-cli-clean-target-triage.md`
+  - Title: Ingestion Python CLI Clean-Target Triage
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `packages/ingestion-core`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=253`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/institutional-regulations-offline-inventory.md`
+  - Title: Institutional Regulations Offline Inventory
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/regulations`
+  - Ledger: `area=reference`, `cluster=regulation`, `state=tracked`, `lines=109`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
+  - Title: Institutional Regulations Promotion Quality Acceptance
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=regulation`, `state=tracked`, `lines=169`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/internal-notice-manual-review-collection-strategy.md`
+  - Title: Internal Notice Manual-Review Collection Strategy
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=83`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/internal-notice-manual-review-future-query-contract.md`
+  - Title: Internal Notice Manual-Review Future Query Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=244`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
+  - Title: Internal Notice Offline Preparation Quality Acceptance
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=330`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+  - Title: Internal Notice Offline Preparation Strategy
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=318`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/internal-notice-pdf-chunk-tuning-sample-set-contract.md`
+  - Title: Internal Notice PDF Chunk Tuning Sample-Set Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=367`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/official-web-fresh-news-eval-baseline.md`
+  - Title: Official Web Fresh News Eval Baseline
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=86`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/official-web-fresh-news-surface-handoff.md`
+  - Title: Official Web Fresh News Surface Handoff
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=157`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/official-web-news-surface-opening-checklist.md`
+  - Title: Official Web News Surface Opening Checklist
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `domains/official-web`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=114`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/official-web-stable-reference-eval-baseline.md`
+  - Title: Official Web Stable Reference Eval Baseline
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=official-web`, `state=tracked`, `lines=99`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
+  - Title: Restricted Document Center Artifact Contract
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=historical`
+  - Owner boundary: `domains/authenticated-notice`
+  - Ledger: `area=reference`, `cluster=authenticated-notice`, `state=tracked`, `lines=492`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/reference/runtime-otel-telemetry-taxonomy.md`
+  - Title: Runtime OTel Telemetry Taxonomy
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/execution-control`
+  - Ledger: `area=reference`, `cluster=runtime`, `state=tracked`, `lines=258`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/runtime-orchestration-full-audit.md`
+  - Title: Runtime Orchestration Full Audit
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=runtime`, `state=tracked`, `lines=317`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/runtime-serving-and-index-terms.md`
+  - Title: Runtime Serving And Index Terms
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=runtime`, `state=tracked`, `lines=581`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/student-handbook-eval-metrics.md`
+  - Title: Student Handbook Eval Metrics
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=reference`, `cluster=student-handbook`, `state=tracked`, `lines=185`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/student-handbook-normalization-strategy.md`
+  - Title: Student Handbook Normalization Strategy
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=data`, `status=active`
+  - Owner boundary: `domains/regulations`
+  - Ledger: `area=reference`, `cluster=student-handbook`, `state=tracked`, `lines=534`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/testing-and-verification-lanes.md`
+  - Title: Testing And Verification Lanes
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=general`, `state=tracked`, `lines=237`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+
+### `runbooks`
+
+- `docs/runbooks/README.md`
+  - Title: Runbooks
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=99`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/runbooks/archive/README.md`
+  - Title: Runbooks Archive
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks/archive`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=27`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/runbooks/archive/qdrant-cloud-backup-and-restore-runbook.md`
+  - Title: qdrant-cloud-backup-and-restore-runbook
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=historical`
+  - Owner boundary: `docs/runbooks/archive`
+  - Ledger: `area=runbooks`, `cluster=qdrant`, `state=tracked`, `lines=61`
+  - Governance action: `keep_archive_historical`
+  - Drift signal: `historical_path`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-async-staged-closeout-runbook.md`
+  - Title: Authenticated Notice Async Staged Closeout Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=327`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-bootstrap-smoke-runbook.md`
+  - Title: Authenticated Notice Bootstrap Smoke Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=313`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
+  - Title: Authenticated Notice File-Release Auth-Window Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=295`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-processing-operator-console-runbook.md`
+  - Title: Authenticated Notice Processing Operator Console Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=173`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
+  - Title: Authenticated Notice Source Bucket Attachment Cleanup
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=205`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-truth-replay-runbook.md`
+  - Title: Authenticated Notice Source-Truth Replay Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=authenticated-notice`, `state=tracked`, `lines=211`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/collection-rename-runtime-closeout.md`
+  - Title: Collection Rename Runtime Closeout
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=184`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
+  - Title: Curriculum Plan Hybrid Rebuild Checklist
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=165`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/develop-main-release-runbook.md`
+  - Title: Develop Main Release Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=124`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md`
+  - Title: Document Reader Publish And Docs Deploy Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=document-reader`, `state=tracked`, `lines=705`
+  - Governance action: `keep_large_owner_truth`
+  - Drift signal: `large_owner_clean`
+- `docs/runbooks/e2e-qa-release-runbook.md`
+  - Title: E2E QA Release Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=303`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/eval-operations-governance.md`
+  - Title: Eval Operations Governance
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=runbooks`, `cluster=eval`, `state=tracked`, `lines=178`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/eval-release-gate-automation.md`
+  - Title: Eval Release Gate Automation
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=eval`, `status=active`
+  - Owner boundary: `packages/evals`
+  - Ledger: `area=runbooks`, `cluster=eval`, `state=tracked`, `lines=192`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/local-runtime-smoke.md`
+  - Title: Execution Control Local Runtime Smoke
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=329`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-control-server-handoff.md`
+  - Title: Execution Control Server Handoff
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=193`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-ops.md`
+  - Title: Execution Control Staging Operations
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=166`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-smoke.md`
+  - Title: Execution Control Staging Smoke Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=230`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-control-staging/daily-operations-and-recovery.md`
+  - Title: Execution Control Staging Daily Operations And Recovery
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=untracked`, `lines=382`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-control-staging/deploy-and-ingress.md`
+  - Title: Execution Control Staging Deploy And Ingress
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=untracked`, `lines=341`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/execution-control-staging/durable-runtime-proof.md`
+  - Title: Execution Control Staging Durable Runtime Proof
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=runtime`, `state=untracked`, `lines=178`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/forward-worker-surface-smoke-runbook.md`
+  - Title: Forward Worker Surface Smoke Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=237`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/index-release-runbook.md`
+  - Title: Index Release Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=668`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/ingestion-worker-on-demand-batch-runbook.md`
+  - Title: Ingestion Worker On-Demand Batch Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=525`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-policy-regulation-promotion-runbook.md`
+  - Title: Internal Notice Regulation Promotion Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=regulation`, `state=tracked`, `lines=440`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/internal-notice-regulation-target-quality-acceptance-runbook.md`
+  - Title: Internal Notice Regulation Target Quality Acceptance Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=regulation`, `state=tracked`, `lines=154`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/legacy-office-conversion-runtime.md`
+  - Title: Legacy Office Conversion Runtime
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=135`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md`
+  - Title: Local Postgres Dev Recovery Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=301`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/muc-wiki-visual-modernization-assets/README.md`
+  - Title: MUC Wiki Visual Modernization Artifacts
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks/muc-wiki-visual-modernization-assets`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=68`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/runbooks/muc-wiki-visual-modernization-runbook.md`
+  - Title: MUC Wiki Visual Modernization Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=297`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-collector-smoke-and-audit.md`
+  - Title: Official Web Collector Smoke And Audit
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=official-web`, `state=tracked`, `lines=623`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/official-web-dynamic-shell-discovery.md`
+  - Title: Official Web Dynamic Shell Discovery
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=official-web`, `state=tracked`, `lines=115`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/official-web-source-truth-projection-replay.md`
+  - Title: Official Web Source-Truth Projection Replay
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=official-web`, `state=tracked`, `lines=357`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/provider-secret-governance.md`
+  - Title: Provider Secret Governance
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=150`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/public-product-path-safety-ops-runbook.md`
+  - Title: Public Product-path Safety Ops Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=63`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/runtime-otel-collector-pipeline.md`
+  - Title: Runtime OTel Collector Pipeline
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=runtime`, `state=tracked`, `lines=199`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/self-hosted-qdrant-native-backup-runbook.md`
+  - Title: Self-Hosted Qdrant Native Backup Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=qdrant`, `state=tracked`, `lines=342`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/archive/python-ingestion-worker/staging-worker-deploy-runbook.md`
+  - Title: Staging Worker Deploy Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=683`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
+  - Title: Student Handbook Hybrid Rebuild Checklist
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=student-handbook`, `state=tracked`, `lines=228`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/templates/README.md`
+  - Title: Runbook Templates
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks/templates`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=25`
+  - Governance action: `keep_thin_index`
+  - Drift signal: `index_must_stay_thin`
+- `docs/runbooks/templates/e2e-qa-release-artifact-template.md`
+  - Title: E2E QA Release Evidence
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=template`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks/templates`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=211`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/templates/worker-observability-smoke-artifact-template.md`
+  - Title: Worker Observability Smoke Artifact Template
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks/templates`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=184`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/temporal-self-host-operations.md`
+  - Title: Temporal Self-Hosted Operations
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=temporal`, `state=tracked`, `lines=198`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/worker-observability-smoke-runbook.md`
+  - Title: Worker Observability Smoke Runbook
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=269`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+- `docs/runbooks/workstream-gsd-sdk-workflow.md`
+  - Title: GSD SDK And Codex Native Workflow
+  - Owner class: `operational_truth`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/runbooks`
+  - Ledger: `area=runbooks`, `cluster=general`, `state=tracked`, `lines=100`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`
+
+### `merge-added-current-worktree-docs`
+
+- `docs/architecture/domains/dining/architecture.md`
+  - Title: Dining Domain Architecture
+  - Owner class: `domain_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/dining`
+  - Ledger: `area=architecture`, `cluster=dining`, `state=tracked`, `lines=319`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/operator-console-operations-architecture.md`
+  - Title: Operator Console Operations Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/operator-console-web`
+  - Ledger: `area=architecture`, `cluster=operator-console`, `state=tracked`, `lines=164`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
+  - Title: Federation And MUC Wiki Login Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=189`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/identity-browser-experience-architecture.md`
+  - Title: Identity Browser Experience Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=136`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/architecture/system/identity-platform-architecture.md`
+  - Title: Identity Platform Architecture
+  - Owner class: `supporting_architecture`
+  - Frontmatter: `doc_type=architecture`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=architecture`, `cluster=identity`, `state=tracked`, `lines=285`
+  - Governance action: `keep_owner_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-operator-ops-http.md`
+  - Title: App API Operator Operations HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=operator-console`, `state=tracked`, `lines=178`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-chat-conversation-http.md`
+  - Title: App API Chat Conversation HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=chat`, `state=tracked`, `lines=255`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-dining-http.md`
+  - Title: App API Dining HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=179`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-dining-ops-http.md`
+  - Title: App API Dining Ops HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=dining`, `state=tracked`, `lines=576`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-federation-http.md`
+  - Title: App API Federation HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=identity`, `state=tracked`, `lines=240`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/contracts/app-api-identity-platform-http.md`
+  - Title: App API Identity Platform HTTP Contract
+  - Owner class: `contract_truth`
+  - Frontmatter: `doc_type=contract`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=contracts`, `cluster=identity`, `state=tracked`, `lines=405`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/dining-operations-schema.md`
+  - Title: Dining Operations Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=dining`, `state=tracked`, `lines=441`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/data/identity-platform-schema.md`
+  - Title: Identity Platform Schema
+  - Owner class: `data_truth`
+  - Frontmatter: `doc_type=data`, `truth_scope=data`, `status=active`
+  - Owner boundary: `apps/app-api`
+  - Ledger: `area=data`, `cluster=identity`, `state=tracked`, `lines=307`
+  - Governance action: `keep_executable_truth`
+  - Drift signal: `ok`
+- `docs/decisions/adr-0045-identity-platform-and-auth-runtime-boundary.md`
+  - Title: ADR-0045 Identity Platform And Auth Runtime Boundary
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=identity`, `state=tracked`, `lines=179`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0049-campus-ops-control-plane.md`
+  - Title: ADR-0049 Campus Ops Control Plane
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=campus-ops`, `state=tracked`, `lines=171`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0055-unified-operator-console-surface.md`
+  - Title: ADR-0055 Unified Operator Console Surface
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=operator-console`, `state=tracked`, `lines=112`
+  - Governance action: `preserve_adr`
+  - Drift signal: `ok`
+- `docs/decisions/adr-0056-k8s-keda.md`
+  - Title: ADR-0056 Kubernetes + KEDA Execution Runtime
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=runtime`, `state=tracked`, `lines=193`
+  - Governance action: `preserve_adr`
+  - Drift signal: `ok`
+- `docs/decisions/adr-0050-campus-web-product-entry-and-hub-retirement.md`
+  - Title: ADR-0050 Campus Web Product Entry And Hub Retirement
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=decision`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=product`, `state=tracked`, `lines=125`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/decisions/adr-0051-campus-docs-rspress-reader-surface.md`
+  - Title: ADR-0051 Campus Docs Rspress Reader Surface
+  - Owner class: `decision_record`
+  - Frontmatter: `doc_type=adr`, `truth_scope=repository`, `status=accepted`
+  - Owner boundary: `docs/decisions`
+  - Ledger: `area=decisions`, `cluster=document-reader`, `state=tracked`, `lines=62`
+  - Governance action: `preserve_adr`
+  - Drift signal: `adr_history_preserved`
+- `docs/domains/dining.md`
+  - Title: Dining Domain Hub
+  - Owner class: `reference_index`
+  - Frontmatter: `doc_type=index`, `truth_scope=execution`, `status=active`
+  - Owner boundary: `domains/dining`
+  - Ledger: `area=domains`, `cluster=dining`, `state=tracked`, `lines=37`
+  - Governance action: `keep_thin_domain_hub`
+  - Drift signal: `hub_must_not_own_status`
+- `docs/reference/muc-campus-qa-frontend-design/README.md`
+  - Title: MUC Campus Q&A Frontend Design
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=70`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/muc-campus-qa-frontend-design/design-notes/muc_campus_qa_design_notes_v1_3.md`
+  - Title: v1.3 MUC Campus Q&A 前端设计说明
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=42`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/muc-campus-qa-frontend-design/tokens/muc_campus_qa_design_tokens_v1_3_1.md`
+  - Title: MUC Campus Q&A Design Tokens v1.3.1
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=product`, `status=active`
+  - Owner boundary: `apps/campus-web`
+  - Ledger: `area=reference`, `cluster=frontend-design`, `state=tracked`, `lines=116`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/reference/ingestion-python-clean-target-full-audit.md`
+  - Title: Ingestion Python Clean-Target Full Audit
+  - Owner class: `reference`
+  - Frontmatter: `doc_type=reference`, `truth_scope=repository`, `status=active`
+  - Owner boundary: `docs/reference`
+  - Ledger: `area=reference`, `cluster=ingestion`, `state=tracked`, `lines=402`
+  - Governance action: `keep_reference_truth`
+  - Drift signal: `ok`
+- `docs/runbooks/ingestion-control-clean-target-runbook.md`
+  - Title: Ingestion Control Clean-Target Runbook
+  - Owner class: `runbook`
+  - Frontmatter: `doc_type=runbook`, `truth_scope=ops`, `status=active`
+  - Owner boundary: `apps/ingestion-control`
+  - Ledger: `area=runbooks`, `cluster=ingestion`, `state=tracked`, `lines=77`
+  - Governance action: `keep_ops_procedure`
+  - Drift signal: `ok`

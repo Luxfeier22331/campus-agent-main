@@ -125,7 +125,7 @@ interface ProjectionSignals {
 	projectedRequiredFacts: string[];
 	projectionError: string;
 	requiresClarification: boolean;
-	selectedCapability: string;
+	selectedTool: string;
 	sourceTitles: string[];
 }
 
@@ -306,10 +306,10 @@ function evaluateRouting(
 	observation: AgentEvalObservation,
 ): CaseScoreResult {
 	const expected = caseItem.expected;
-	const selected = optionalString(observation.selected_capability) ?? "";
+	const selected = optionalString(observation.selected_tool) ?? "";
 	const terminal =
 		optionalString(observation.terminal_outcome) ?? optionalString(observation.final_status) ?? "";
-	const forbidden = stringList(expected.forbidden_capabilities);
+	const forbidden = stringList(expected.forbidden_tools);
 	const scores = {
 		"trajectory.correct": boolScore(
 			(!optionalString(expected.terminal_outcome) ||
@@ -319,8 +319,8 @@ function evaluateRouting(
 		),
 		"tool_selection.correct": boolScore(
 			!forbidden.includes(selected) &&
-				(!optionalString(expected.selected_capability) ||
-					selected === optionalString(expected.selected_capability)),
+				(!optionalString(expected.selected_tool) ||
+					selected === optionalString(expected.selected_tool)),
 		),
 		"clarification.correct": boolScore(
 			expected.requires_clarification === undefined ||
@@ -493,7 +493,7 @@ function observationFromChat(
 		projection_error: signals.projectionError,
 		request_id: chat.requestId,
 		run_id: chat.runId,
-		selected_capability: signals.selectedCapability || "none",
+		selected_tool: signals.selectedTool || "none",
 		terminal_outcome: terminalOutcomeFromStatus(
 			chat.status === "completed" ? signals.finalStatus || chat.status : chat.status,
 		),
@@ -617,7 +617,7 @@ function projectionSignals(chat: AgentEvalStagingChatResult): ProjectionSignals 
 		projectedRequiredFacts: [],
 		projectionError: "",
 		requiresClarification: false,
-		selectedCapability: "",
+		selectedTool: "",
 		sourceTitles: [],
 	};
 	const projection = mappingOrNull(chat.agentRuntimeEvalProjection);
@@ -649,7 +649,7 @@ function projectionSignals(chat: AgentEvalStagingChatResult): ProjectionSignals 
 	signals.plannedSteps.push(...stringList(planning.planned_steps));
 	signals.projectedRequiredFacts.push(...stringList(rag.required_facts));
 	signals.requiresClarification = Boolean(trajectory.requires_clarification);
-	signals.selectedCapability = optionalString(trajectory.selected_capability) ?? "";
+	signals.selectedTool = optionalString(trajectory.selected_tool) ?? "";
 	signals.sourceTitles.push(...sourceTitlesFromProjection(rag));
 	return {
 		decomposition: unique(signals.decomposition),
@@ -663,7 +663,7 @@ function projectionSignals(chat: AgentEvalStagingChatResult): ProjectionSignals 
 		projectedRequiredFacts: unique(signals.projectedRequiredFacts),
 		projectionError: signals.projectionError,
 		requiresClarification: signals.requiresClarification,
-		selectedCapability: signals.selectedCapability,
+		selectedTool: signals.selectedTool,
 		sourceTitles: unique(signals.sourceTitles),
 	};
 }

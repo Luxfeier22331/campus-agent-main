@@ -107,10 +107,8 @@ export function createSafetyCostMetricHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 			}
-			if (filters.selectedCapability) {
-				conditions.push(
-					eq(requestObservabilityFact.selectedCapability, filters.selectedCapability),
-				);
+			if (filters.selectedTool) {
+				conditions.push(eq(requestObservabilityFact.selectedTool, filters.selectedTool));
 			}
 			if (filters.window) {
 				const bounds = resolveWindowBounds(filters.window, runtime.now());
@@ -173,7 +171,7 @@ export function createSafetyCostMetricHandlers(runtime: OperatorQueryRuntime) {
 					links: toLinks(backlinksByRequestId.get(row.requestId)),
 					principalType: row.principalType,
 					requestId: row.requestId,
-					selectedCapability: row.selectedCapability ?? null,
+					selectedTool: row.selectedTool ?? null,
 					severity: inferSafetyAnomalySeverity(row),
 					status: "open" as const,
 					summary: summarizeSafetyAnomaly(row),

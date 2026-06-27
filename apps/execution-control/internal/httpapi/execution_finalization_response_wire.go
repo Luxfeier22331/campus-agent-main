@@ -9,7 +9,7 @@ type ExecutionFinalizationResponseWire struct {
 	FollowUpQuestion     string         `json:"follow_up_question"`
 	Observability        map[string]any `json:"observability"`
 	Result               map[string]any `json:"result"`
-	SelectedCapability   *string        `json:"selected_capability"`
+	SelectedTool         *string        `json:"selected_tool"`
 	Status               string         `json:"status"`
 	TraceID              string         `json:"trace_id"`
 	WorkflowTraceSummary map[string]any `json:"workflow_trace_summary"`

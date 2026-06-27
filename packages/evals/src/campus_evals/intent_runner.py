@@ -45,7 +45,7 @@ def build_intent_eval_report(
         ),
         confusion=_build_confusion(cases, results),
         results=results,
-        capability_accuracy=_field_accuracy(cases, results, "expected_capability", "capability"),
+        tool_accuracy=_field_accuracy(cases, results, "expected_tool", "tool"),
         next_action_accuracy=_field_accuracy(cases, results, "expected_next_action", "next_action"),
         handoff_accuracy=_field_accuracy(cases, results, "expected_target", "target"),
         context_resolution_accuracy=_optional_field_accuracy(
@@ -90,7 +90,7 @@ def report_to_dict(report: IntentEvalReport) -> dict[str, object]:
 
 def _intent_mismatches(case: IntentCase, observed: ObservedIntent) -> dict[str, str]:
     checks = {
-        "capability": (observed.capability, case.expected_capability),
+        "tool": (observed.tool, case.expected_tool),
         "task_kind": (observed.task_kind, case.expected_task_kind),
         "launch_state": (observed.launch_state, case.expected_launch_state),
         "next_action": (observed.next_action, case.expected_next_action),
@@ -133,7 +133,7 @@ def _build_confusion(
     buckets: dict[str, Counter[str]] = defaultdict(Counter)
     for case, result in zip(cases, results, strict=True):
         observed = result.observed
-        buckets["capability"][f"{case.expected_capability}->{observed.capability}"] += 1
+        buckets["tool"][f"{case.expected_tool}->{observed.tool}"] += 1
         buckets["task_kind"][f"{case.expected_task_kind}->{observed.task_kind}"] += 1
         buckets["launch_state"][f"{case.expected_launch_state}->{observed.launch_state}"] += 1
         buckets["target"][f"{case.expected_target}->{observed.target}"] += 1

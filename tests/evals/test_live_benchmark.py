@@ -162,7 +162,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
                     "deterministic": {"stable_across_runs": True, "mean_pass_rate": 1.0},
                     "gate_report": {"overall_verdict": "pass"},
                     "supplemental_runtime": {"status_counts": {"available": 1}},
-                    "repair": {"selected_capability_count": 1, "applied_target_count": 1},
+                    "repair": {"selected_tool_count": 1, "applied_target_count": 1},
                 }
                 (repair_dir / "summary.json").write_text(json.dumps(payload), encoding="utf-8")
                 return payload
@@ -203,7 +203,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
         self.assertEqual(summary["final_overall_verdict"], "pass")
         self.assertEqual(summary["initial_run_dir"], str(run_dir))
         self.assertEqual(summary["repair_run_dir"], str(repair_dir))
-        self.assertEqual(summary["repair"]["selected_capability_count"], 1)
+        self.assertEqual(summary["repair"]["selected_tool_count"], 1)
         run_profile.assert_called_once()
         collect_targets.assert_called_once_with(run_dir)
         repair_profile.assert_called_once()
@@ -260,7 +260,7 @@ class LiveBenchmarkProfileRunnerTest(unittest.TestCase):
 
         self.assertEqual(summary["final_overall_verdict"], "pass")
         self.assertIsNone(summary["repair_run_dir"])
-        self.assertEqual(summary["repair"]["selected_capability_count"], 0)
+        self.assertEqual(summary["repair"]["selected_tool_count"], 0)
         repair_profile.assert_not_called()
 
     def test_accept_live_benchmark_profile_publishes_final_case_results_when_configured(

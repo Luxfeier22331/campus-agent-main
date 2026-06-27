@@ -42,16 +42,16 @@ updated: 2026-06-19
 - `adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `adr-0013-app-api-worker-runtime.md`
 - `adr-0017-supervisor-internal-execution-admission.md`
-- `adr-0043-execution-control-docker-first-runtime.md`
-  - superseded by `adr-0056-kubernetes-keda-execution-runtime.md` for production
+- `adr-0043-docker-runtime.md`
+  - superseded by `adr-0056-k8s-keda.md` for production
     execution-control deployment substrate; still useful as current Docker Compose
     / local / transitional staging history
 - `adr-0047-run-centric-durable-agent-runtime.md`
-  - superseded by `adr-0048-temporal-execution-plane.md` for target execution substrate
-- `adr-0048-temporal-execution-plane.md`
-- `adr-0056-kubernetes-keda-execution-runtime.md`
+  - superseded by `adr-0048-temporal.md` for target execution substrate
+- `adr-0048-temporal.md`
+- `adr-0056-k8s-keda.md`
 - `adr-0030-institution-scoped-product-path-and-explicit-open-domain-admission.md`
-- `adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
+- `adr-0042-tool-routing.md`
 - `adr-0060-agent-llm-io-contract.md`
   - Agent LLM I/O 的长期运行时契约：薄 developer instructions、structured tools、
     typed packets、strict structured outputs 与 code-side finalization；不接受用更长总
@@ -77,7 +77,7 @@ updated: 2026-06-19
 Historical / superseded：
 
 - `adr-0022-campus-identity-and-restricted-document-authorization.md`
-  - superseded；restricted documents 与身份差异化 capability 权限不是当前主问答目标。
+  - superseded；restricted documents 与身份差异化 tool 权限不是当前主问答目标。
 - `adr-0034-authorization-model-and-retrieval-filter-projection.md`
   - superseded；受限文档 authorization projection 不是当前主问答 retrieval 目标。
 - `adr-0049-campus-ops-control-plane.md`
@@ -105,7 +105,7 @@ Historical / superseded：
 
 - `adr-0005-campus-services-taxonomy.md`
 - `adr-0021-institution-scoped-entity-alias-governance.md`
-- `adr-0027-navigation-capability-and-spatial-truth.md`
+- `adr-0027-navigation-tool-and-spatial-truth.md`
 - `adr-0028-campus-navigation-basemap-and-provider-strategy.md`
 
 ## Official Web 决策

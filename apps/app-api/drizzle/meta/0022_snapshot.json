@@ -940,8 +940,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2374,8 +2374,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2598,8 +2598,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -2853,8 +2853,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3101,8 +3101,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3265,8 +3265,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "intent_capability": {
-          "name": "intent_capability",
+        "intent_tool": {
+          "name": "intent_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false
@@ -3725,8 +3725,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "requested_capability": {
-          "name": "requested_capability",
+        "requested_tool": {
+          "name": "requested_tool",
           "type": "text",
           "primaryKey": false,
           "notNull": false

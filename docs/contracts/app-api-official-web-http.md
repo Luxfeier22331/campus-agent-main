@@ -38,7 +38,7 @@ contract。
 判断当前已实现子集时：
 
 - 当前已落地能力以
-  `docs/architecture/current-architecture.md`、`docs/domains/official-web.md`
+  `docs/architecture/current.md`、`docs/domains/official-web.md`
   和代码为准
 - 当前 accepted direction 与长期边界以本文、supporting architecture、schema 与相关 ADR 为准
 

@@ -10,7 +10,7 @@
 		"campus_scope_signal",
 		"context_ambiguous",
 		"context_missing",
-		"explicit_requested_capability",
+		"explicit_requested_tool",
 		"explicit_requested_scope",
 		"intent_policy_unavailable",
 		"navigation_temporarily_unsupported",
@@ -19,7 +19,7 @@
 		"product_scope_boundary",
 		"scope_undetermined_delegate",
 		"structured_subtype_missing",
-		"structured_runtime_candidate_signal",
+		"tool_read_model_candidate_signal",
 		"transaction_guardrail"
 	],
 	"signal_groups": {
@@ -235,7 +235,7 @@
 			"总统",
 			"意识形态"
 		],
-		"structured_notice": ["通知", "公告", "公示"],
+		"tool_notice": ["通知", "公告", "公示"],
 		"structured_non_spatial_where_action": [
 			"在哪里申请",
 			"在哪申请",
@@ -289,8 +289,8 @@
 			"从哪个门进",
 			"位置在哪"
 		],
-		"structured_transport": ["校车", "班车", "通勤车", "接驳车"],
-		"structured_transport_boarding_status": [
+		"tool_transport": ["校车", "班车", "通勤车", "接驳车"],
+		"tool_transport_boarding_status": [
 			"在哪里上车",
 			"在哪上车",
 			"在哪儿上车",

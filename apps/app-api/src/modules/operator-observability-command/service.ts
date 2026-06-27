@@ -29,7 +29,7 @@ const ALLOWED_EXECUTION_AUDIT_EVENT_TYPES = new Set([
 	"execution.admission_rejected",
 	"execution.cancel_requested",
 	"execution.cancelled",
-	"execution.runtime_failed",
+	"execution.activity_failed",
 	"execution.timed_out",
 ]);
 const FORBIDDEN_EXECUTION_AUDIT_FIELDS = new Set([
@@ -70,17 +70,18 @@ export interface OperatorTraceBacklinkPayloadItem {
 }
 
 export interface OperatorExecutionAuditEventPayloadItem {
+	activity_duration_ms?: unknown;
 	decision?: unknown;
 	duration_ms?: unknown;
 	event_id?: unknown;
 	event_type?: unknown;
 	failure_kind?: unknown;
 	http_status?: unknown;
-	lane?: unknown;
+	task_queue?: unknown;
 	occurred_at?: unknown;
 	queue_wait_ms?: unknown;
 	request_id?: unknown;
-	requested_capability?: unknown;
+	requested_tool?: unknown;
 	retryable?: unknown;
 	trace_id?: unknown;
 	[key: string]: unknown;
@@ -131,15 +132,16 @@ export interface OperatorObservabilityCommandServiceDependencies {
 	store: OperatorObservabilityCommandStore;
 	telemetry?: {
 		recordExecutionAuditEvent?(input: {
+			activityDurationMs: number | null;
 			decision: string | null;
 			durationMs: number | null;
 			eventType: string;
 			failureKind: string | null;
 			httpStatus: number | null;
-			lane: string | null;
+			taskQueue: string | null;
 			queueWaitMs: number | null;
 			requestId: string;
-			requestedCapability: string | null;
+			requestedTool: string | null;
 			retryable: boolean | null;
 			status: string;
 			surface: string;
@@ -156,11 +158,11 @@ export interface OperatorObservabilityCommandServiceDependencies {
 			rationaleSummary: string | null;
 			requestId: string;
 			requestStartedAt: string;
-			requestedCapability: string | null;
+			requestedTool: string | null;
 			requestedScopeSummary: string | null;
 			sampledAt: string;
 			scoreMilli: number | null;
-			selectedCapability: string | null;
+			selectedTool: string | null;
 			surface: string;
 			traceId: string;
 			verdict: "pass" | "fail" | "needs_review";
@@ -456,15 +458,16 @@ export function buildOperatorObservabilityCommandService(
 			);
 			const writes: ExecutionAuditEventWrite[] = [];
 			const telemetryEvents: Array<{
+				activityDurationMs: number | null;
 				decision: string | null;
 				durationMs: number | null;
 				eventType: string;
 				failureKind: string | null;
 				httpStatus: number | null;
-				lane: string | null;
+				taskQueue: string | null;
 				queueWaitMs: number | null;
 				requestId: string;
-				requestedCapability: string | null;
+				requestedTool: string | null;
 				retryable: boolean | null;
 				status: string;
 				surface: string;
@@ -480,6 +483,10 @@ export function buildOperatorObservabilityCommandService(
 				const traceId = normalizeRequiredString(item.trace_id, `${prefix}.trace_id`);
 				const eventType = normalizeExecutionAuditEventType(item.event_type, `${prefix}.event_type`);
 				const occurredAt = normalizeIsoTimestamp(item.occurred_at, `${prefix}.occurred_at`);
+				const activityDurationMs = normalizeNullableNonNegativeInteger(
+					item.activity_duration_ms,
+					`${prefix}.activity_duration_ms`,
+				);
 				const durationMs = normalizeNullableNonNegativeInteger(
 					item.duration_ms,
 					`${prefix}.duration_ms`,
@@ -495,8 +502,8 @@ export function buildOperatorObservabilityCommandService(
 				const retryable = normalizeNullableBoolean(item.retryable, `${prefix}.retryable`);
 				const decision = normalizeNullableString(item.decision);
 				const failureKind = normalizeNullableString(item.failure_kind);
-				const lane = normalizeNullableString(item.lane);
-				const requestedCapability = normalizeNullableString(item.requested_capability);
+				const taskQueue = normalizeNullableString(item.task_queue);
+				const requestedTool = normalizeNullableString(item.requested_tool);
 
 				const seed = await dependencies.store.getRequestObservabilitySeed(requestId);
 				if (!seed) {
@@ -519,13 +526,14 @@ export function buildOperatorObservabilityCommandService(
 				}
 
 				const payload = {
+					activityDurationMs,
 					decision,
 					durationMs,
 					failureKind,
 					httpStatus,
-					lane,
+					taskQueue,
 					queueWaitMs,
-					requestedCapability,
+					requestedTool,
 					retryable,
 					traceId,
 				};
@@ -605,11 +613,11 @@ export function buildOperatorObservabilityCommandService(
 					rationaleSummary,
 					requestId,
 					requestStartedAt: seed.requestStartedAt,
-					requestedCapability: seed.requestedCapability,
+					requestedTool: seed.requestedTool,
 					requestedScopeSummary: seed.requestedScopeSummary,
 					sampledAt,
 					scoreMilli: score.scoreMilli,
-					selectedCapability: seed.selectedCapability,
+					selectedTool: seed.selectedTool,
 					surface: seed.surface,
 					traceId,
 					verdict,
@@ -629,11 +637,11 @@ export function buildOperatorObservabilityCommandService(
 					rationaleSummary: grade.rationaleSummary,
 					requestId: grade.requestId,
 					requestStartedAt: grade.requestStartedAt,
-					requestedCapability: grade.requestedCapability,
+					requestedTool: grade.requestedTool,
 					requestedScopeSummary: grade.requestedScopeSummary,
 					sampledAt: grade.sampledAt,
 					scoreMilli: grade.scoreMilli,
-					selectedCapability: grade.selectedCapability,
+					selectedTool: grade.selectedTool,
 					surface: grade.surface,
 					traceId: grade.traceId,
 					verdict: grade.verdict,

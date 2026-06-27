@@ -21,7 +21,7 @@ export type CampusServicesTransportScheduleFetch = (
 	request: Request,
 ) => Promise<Response> | Response;
 
-type StructuredQueryRecord = Record<string, unknown>;
+type ToolReadModelRecord = Record<string, unknown>;
 
 interface CampusServicesTransportScheduleServiceDependencies {
 	env: Pick<
@@ -162,7 +162,7 @@ async function requestExecutionControlTransport(
 }
 
 function parseTransportStatusProjection(
-	payload: StructuredQueryRecord,
+	payload: ToolReadModelRecord,
 ): CampusServicesTransportStatusResponse {
 	const release = readRecord(payload.release);
 	const releaseId = readString(release?.releaseId);

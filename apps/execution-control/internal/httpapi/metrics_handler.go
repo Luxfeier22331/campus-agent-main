@@ -15,12 +15,12 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 	response.Header().Set("content-type", "text/plain; version=0.0.4")
 	response.WriteHeader(http.StatusOK)
 	status := s.admission.Status()
-	laneSnapshots := make(map[string]observability.AdmissionLaneSnapshot, len(status.Lanes))
-	for lane, laneStatus := range status.Lanes {
-		laneSnapshots[lane] = observability.AdmissionLaneSnapshot{
-			Active:        laneStatus.Active,
-			Queued:        laneStatus.Queued,
-			QueueCapacity: laneStatus.QueueCapacity,
+	groupSnapshots := make(map[string]observability.AdmissionGroupSnapshot, len(status.Groups))
+	for group, groupStatus := range status.Groups {
+		groupSnapshots[group] = observability.AdmissionGroupSnapshot{
+			Active:        groupStatus.Active,
+			Queued:        groupStatus.Queued,
+			QueueCapacity: groupStatus.QueueCapacity,
 		}
 	}
 	lifecycleStatus := s.lifecycle.Snapshot()
@@ -31,7 +31,7 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 		Queued:        status.Queued,
 		QueueCapacity: status.QueueCapacity,
 		Draining:      status.Draining,
-		Lanes:         laneSnapshots,
+		Groups:        groupSnapshots,
 		Lifecycle: observability.LifecycleSnapshot{
 			ActiveExecutions:     lifecycleStatus.ActiveExecutions,
 			CancelRequestedCount: lifecycleStatus.CancelRequestedCount,

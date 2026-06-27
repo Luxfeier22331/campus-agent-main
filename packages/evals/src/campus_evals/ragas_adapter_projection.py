@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from campus_contracts import CapabilityResponse, EvidenceBundle, ExecutionResponse, RagResultPayload
+from campus_contracts import EvidenceBundle, ExecutionResponse, RagResultPayload, ToolResponse
 
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 
@@ -165,10 +165,10 @@ def _is_metric_applicable(case: GoldenCase, metric_name: str) -> bool:
 
 def _require_supported_response(
     execution: ExecutionResult,
-) -> CapabilityResponse | ExecutionResponse:
+) -> ToolResponse | ExecutionResponse:
     response = execution.response
-    if not isinstance(response, (CapabilityResponse, ExecutionResponse)):
-        raise TypeError("execution.response must be CapabilityResponse or ExecutionResponse")
+    if not isinstance(response, (ToolResponse, ExecutionResponse)):
+        raise TypeError("execution.response must be ToolResponse or ExecutionResponse")
     return response
 
 

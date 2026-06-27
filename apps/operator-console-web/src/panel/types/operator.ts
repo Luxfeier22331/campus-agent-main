@@ -6,8 +6,8 @@ export interface OperatorAggregateFilterInput {
 	collection?: string | null;
 	modelName?: string | null;
 	principalType?: string | null;
-	requestedCapability?: string | null;
-	selectedCapability?: string | null;
+	requestedTool?: string | null;
+	selectedTool?: string | null;
 	surface?: string | null;
 	window?: OperatorOverviewWindow | null;
 }

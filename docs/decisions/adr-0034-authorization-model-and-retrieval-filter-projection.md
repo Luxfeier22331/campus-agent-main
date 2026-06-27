@@ -17,24 +17,24 @@ Superseded on 2026-06-12.
 authorization pre-filter、visibility / entitlement projection、identity-derived
 filter 与 approval / ownership truth；这些能力不是当前公开校园问答产品的目标。
 
-当前有效口径是 readiness-first capability opening：
+当前有效口径是 readiness-first tool opening：
 
 - 普通用户共享同一组已开放、成熟、只读的校园问答能力。
-- capability gate 表达 source truth、typed contract、evidence / fail-close、
+- tool gate 表达 source truth、typed contract、evidence / fail-close、
   projection、cancel / timeout readiness。
 - account / session、operator access、quota 与 user-scoped memory binding
   是 product supporting architecture，不表示学生 / 教职工 / 院系之间存在不同主问答
-  capability 权限。
+  tool 权限。
 - memory 可以影响 follow-up、消歧、query framing 与措辞，不能打开 source、放宽证据要求或改写
   fail-close。
 
 本文保留为历史材料，只保留两个仍有效的边界教训：
 
 - index metadata / retrieval filters 不能成为 canonical product policy truth。
-- applicability / memory / user context 不能伪装成 source truth 或 capability
+- applicability / memory / user context 不能伪装成 source truth 或 tool
   opening truth。
 
-本文早期提到的 Python `apps/supervisor-agent-worker`、`packages/knowledge-capability`
+本文早期提到的 Python `apps/supervisor-agent-worker`、旧 Python knowledge package
 与 `packages/retrieval-core` 已从 active workspace 删除；当前 retrieval filter /
 authorization projection 边界不得通过恢复这些旧 package 实现。
 
@@ -63,7 +63,7 @@ authorization projection 边界不得通过恢复这些旧 package 实现。
 - `apps/app-api` 拥有 canonical principal mapping、entitlement truth、resource
   ownership truth 与 approval truth
 - `apps/execution-control`、`apps/supervisor-agent-worker`、
-  `packages/knowledge-capability` 与 `packages/retrieval-core` 只消费最小化
+  旧 Python knowledge package 与 `packages/retrieval-core` 只消费最小化
   typed authz projection
 - edge / Worker / Cloudflare Access 侧身份材料只属于 boundary input，不等于 canonical
   authorization truth
@@ -190,7 +190,7 @@ authorization projection 边界不得通过恢复这些旧 package 实现。
 ## Historical Related Docs
 
 - `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

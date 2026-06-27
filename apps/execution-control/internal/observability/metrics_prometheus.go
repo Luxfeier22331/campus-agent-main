@@ -78,15 +78,15 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 			m.admissionDecisionTotals[decision],
 		)
 	}
-	builder.WriteString("# HELP campus_execution_control_admission_lane_decisions_total Total admission decisions by lane and decision.\n")
-	builder.WriteString("# TYPE campus_execution_control_admission_lane_decisions_total counter\n")
-	for _, key := range sortedLaneDecisionKeys(m.laneDecisionTotals) {
+	builder.WriteString("# HELP campus_execution_control_admission_group_decisions_total Total admission decisions by group and decision.\n")
+	builder.WriteString("# TYPE campus_execution_control_admission_group_decisions_total counter\n")
+	for _, key := range sortedGroupDecisionKeys(m.groupDecisionTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_execution_control_admission_lane_decisions_total{lane=%q,decision=%q} %d\n",
-			key.Lane,
+			"campus_execution_control_admission_group_decisions_total{group=%q,decision=%q} %d\n",
+			key.Group,
 			key.Decision,
-			m.laneDecisionTotals[key],
+			m.groupDecisionTotals[key],
 		)
 	}
 
@@ -110,35 +110,35 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	} else {
 		builder.WriteString("campus_execution_control_shutdown_draining 0\n")
 	}
-	if len(snapshot.Lanes) > 0 {
-		builder.WriteString("# HELP campus_execution_control_admission_lane_active Current active admitted answer executions by lane.\n")
-		builder.WriteString("# TYPE campus_execution_control_admission_lane_active gauge\n")
-		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+	if len(snapshot.Groups) > 0 {
+		builder.WriteString("# HELP campus_execution_control_admission_group_active Current active admitted answer executions by group.\n")
+		builder.WriteString("# TYPE campus_execution_control_admission_group_active gauge\n")
+		for _, group := range sortedAdmissionGroupNames(snapshot.Groups) {
 			fmt.Fprintf(
 				&builder,
-				"campus_execution_control_admission_lane_active{lane=%q} %d\n",
-				lane,
-				snapshot.Lanes[lane].Active,
+				"campus_execution_control_admission_group_active{group=%q} %d\n",
+				group,
+				snapshot.Groups[group].Active,
 			)
 		}
-		builder.WriteString("# HELP campus_execution_control_admission_lane_queue_depth Current queued answer executions by lane.\n")
-		builder.WriteString("# TYPE campus_execution_control_admission_lane_queue_depth gauge\n")
-		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+		builder.WriteString("# HELP campus_execution_control_admission_group_queue_depth Current queued answer executions by group.\n")
+		builder.WriteString("# TYPE campus_execution_control_admission_group_queue_depth gauge\n")
+		for _, group := range sortedAdmissionGroupNames(snapshot.Groups) {
 			fmt.Fprintf(
 				&builder,
-				"campus_execution_control_admission_lane_queue_depth{lane=%q} %d\n",
-				lane,
-				snapshot.Lanes[lane].Queued,
+				"campus_execution_control_admission_group_queue_depth{group=%q} %d\n",
+				group,
+				snapshot.Groups[group].Queued,
 			)
 		}
-		builder.WriteString("# HELP campus_execution_control_admission_lane_queue_capacity Configured queued answer execution capacity by lane.\n")
-		builder.WriteString("# TYPE campus_execution_control_admission_lane_queue_capacity gauge\n")
-		for _, lane := range sortedAdmissionLaneNames(snapshot.Lanes) {
+		builder.WriteString("# HELP campus_execution_control_admission_group_queue_capacity Configured queued answer execution capacity by group.\n")
+		builder.WriteString("# TYPE campus_execution_control_admission_group_queue_capacity gauge\n")
+		for _, group := range sortedAdmissionGroupNames(snapshot.Groups) {
 			fmt.Fprintf(
 				&builder,
-				"campus_execution_control_admission_lane_queue_capacity{lane=%q} %d\n",
-				lane,
-				snapshot.Lanes[lane].QueueCapacity,
+				"campus_execution_control_admission_group_queue_capacity{group=%q} %d\n",
+				group,
+				snapshot.Groups[group].QueueCapacity,
 			)
 		}
 	}
@@ -149,39 +149,39 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 		"Admission queue wait duration in milliseconds.",
 		m.admissionWaitDurations,
 	)
-	for _, lane := range sortedRoutes(m.laneWaitDurations) {
+	for _, group := range sortedRoutes(m.groupWaitDurations) {
 		writeHistogramWithLabel(
 			&builder,
-			"campus_execution_control_admission_lane_queue_wait_ms",
-			"Admission queue wait duration in milliseconds by lane.",
-			"lane",
-			lane,
-			m.laneWaitDurations[lane],
+			"campus_execution_control_admission_group_queue_wait_ms",
+			"Admission queue wait duration in milliseconds by group.",
+			"group",
+			group,
+			m.groupWaitDurations[group],
 		)
 	}
 
-	builder.WriteString("# HELP campus_execution_control_structured_query_requests_total Total structured query requests by tool and outcome.\n")
-	builder.WriteString("# TYPE campus_execution_control_structured_query_requests_total counter\n")
-	for _, key := range sortedStructuredQueryKeys(m.structuredQueryTotals) {
+	builder.WriteString("# HELP campus_execution_control_tool_read_model_requests_total Total tool read model requests by tool and outcome.\n")
+	builder.WriteString("# TYPE campus_execution_control_tool_read_model_requests_total counter\n")
+	for _, key := range sortedToolReadModelKeys(m.toolReadModelTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_execution_control_structured_query_requests_total{tool=%q,outcome=%q,status_class=%q} %d\n",
+			"campus_execution_control_tool_read_model_requests_total{tool=%q,outcome=%q,status_class=%q} %d\n",
 			key.Tool,
 			key.Outcome,
 			key.StatusClass,
-			m.structuredQueryTotals[key],
+			m.toolReadModelTotals[key],
 		)
 	}
-	builder.WriteString("# HELP campus_execution_control_capability_gate_decisions_total Total capability gate decisions by capability and gate.\n")
-	builder.WriteString("# TYPE campus_execution_control_capability_gate_decisions_total counter\n")
-	for _, key := range sortedCapabilityGateKeys(m.capabilityGateTotals) {
+	builder.WriteString("# HELP campus_execution_control_tool_gate_decisions_total Total tool gate decisions by tool and gate.\n")
+	builder.WriteString("# TYPE campus_execution_control_tool_gate_decisions_total counter\n")
+	for _, key := range sortedToolGateKeys(m.toolGateTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_execution_control_capability_gate_decisions_total{capability=%q,gate=%q,decision=%q} %d\n",
-			key.Capability,
+			"campus_execution_control_tool_gate_decisions_total{tool=%q,gate=%q,decision=%q} %d\n",
+			key.Tool,
 			key.Gate,
 			key.Decision,
-			m.capabilityGateTotals[key],
+			m.toolGateTotals[key],
 		)
 	}
 	builder.WriteString("# HELP campus_execution_control_personal_memory_operations_total Total personal memory operations by operation and outcome.\n")
@@ -231,15 +231,14 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	for _, key := range sortedRuntimeDecisionKeys(m.runtimeDecisionTotals) {
 		fmt.Fprintf(
 			&builder,
-			"campus_execution_control_runtime_policy_decisions_total{capability=%q,lane=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_capability=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
-			key.Capability,
-			key.Lane,
+			"campus_execution_control_runtime_policy_decisions_total{target=%q,task_queue=%q,scope_gate=%q,policy_gate=%q,context_preflight=%q,routing_next_action=%q,planning_outcome=%q,selected_tool=%q,terminal_outcome=%q,fail_close_reason=%q} %d\n",
+			key.Target,
+			key.TaskQueue,
 			key.ScopeGate,
 			key.PolicyGate,
 			key.ContextPreflightState,
 			key.RoutingNextAction,
 			key.PlanningOutcome,
-			key.SelectedCapability,
 			key.SelectedTool,
 			key.TerminalOutcome,
 			key.FailCloseReason,

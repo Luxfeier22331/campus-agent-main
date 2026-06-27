@@ -121,7 +121,7 @@ def _failure_class(case: AuthzPrivacyCase, observation: AuthzPrivacyObservation)
         return "restricted_deny_mismatch"
     if case.expected_fail_close_reason == "policy_unavailable":
         return "policy_unavailable_mismatch"
-    if case.expected_fail_close_reason == "capability_closed":
+    if case.expected_fail_close_reason == "tool_closed":
         return "closed_scope_mismatch"
     return "authorization_mismatch"
 

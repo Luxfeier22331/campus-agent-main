@@ -38,14 +38,14 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	if err != nil {
 		return s.failPrimaryAgentActivity(ctx, run, "provider_profile_missing", err)
 	}
-	input.VisibleCapabilities = s.primaryAgentVisibleCapabilities(run, input)
+	input.VisibleToolNames = s.primaryAgentVisibleToolNames(run, input)
 	agentResultRef := temporalProjectionRef(run.RunID, "agent/primary/result")
 	attempt := primaryAgentAttempt(input.Attempt)
 	replanReason := strings.TrimSpace(input.ReplanReason)
 	finalModelContext := primaryAgentFinalModelContextForRun(run, input)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       attempt,
-		Capability:    "primary_agent",
+		Tool:          "",
 		Run:           run,
 		Status:        "started",
 		StepID:        "agent.primary",
@@ -61,8 +61,8 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			"memory_context":         temporalMemoryContextPayload(input.MemoryContext),
 			"memory_projection_refs": append([]string{}, input.MemoryProjectionRefs...),
 			"replan_reason":          replanReason,
-			"requested_capability":   input.RequestedCapability,
-			"visible_capabilities":   append([]string{}, input.VisibleCapabilities...),
+			"requested_tool":         input.RequestedTool,
+			"visible_tool_names":     append([]string{}, input.VisibleToolNames...),
 		},
 	}); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -82,7 +82,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 			completedAt,
 			attempt,
 			replanReason,
-			input.VisibleCapabilities,
+			input.VisibleToolNames,
 			output,
 		); err != nil {
 			return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -105,7 +105,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 		completedAt,
 		attempt,
 		replanReason,
-		input.VisibleCapabilities,
+		input.VisibleToolNames,
 		output,
 	); err != nil {
 		return temporalruntime.ExecutePrimaryAgentActivityOutput{}, err
@@ -131,7 +131,7 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:               attempt,
-		Capability:            "primary_agent",
+		Tool:                  "",
 		Run:                   run,
 		Status:                "completed",
 		StepID:                "agent.primary",
@@ -176,16 +176,16 @@ func (s *Server) ExecutePrimaryAgentActivity(
 	return output, nil
 }
 
-func (s *Server) primaryAgentVisibleCapabilities(
+func (s *Server) primaryAgentVisibleToolNames(
 	run execution.DurableRun,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
 ) []string {
 	if s == nil || s.intentPolicyErr != nil {
-		return append([]string{}, input.VisibleCapabilities...)
+		return append([]string{}, input.VisibleToolNames...)
 	}
-	return runtimepolicy.PrimaryAgentVisibleCapabilities(
-		input.VisibleCapabilities,
-		input.RequestedCapability,
+	return runtimepolicy.PrimaryAgentVisibleToolNames(
+		input.VisibleToolNames,
+		input.RequestedTool,
 		primaryAgentInputText(run),
 		s.intentPolicy,
 	)
@@ -266,10 +266,10 @@ func (s *Server) projectPrimaryAgentToolResults(
 	completedAt time.Time,
 	attempt int,
 	replanReason string,
-	visibleCapabilities []string,
+	visibleToolNames []string,
 	output temporalruntime.ExecutePrimaryAgentActivityOutput,
 ) error {
-	visible := stringSet(visibleCapabilities)
+	visible := stringSet(visibleToolNames)
 	for index, result := range output.ToolResults {
 		if strings.TrimSpace(result.ToolName) == "knowledge_query" {
 			continue
@@ -278,10 +278,7 @@ func (s *Server) projectPrimaryAgentToolResults(
 		if toolName == "" {
 			return fmt.Errorf("agent runtime tool result tool_name is required")
 		}
-		capability := strings.TrimSpace(result.Capability)
-		if capability == "" {
-			return fmt.Errorf("agent runtime tool result capability is required")
-		}
+		projectionClass := projectionClassForToolName(toolName)
 		payloadKind := strings.TrimSpace(result.PayloadKind)
 		if payloadKind == "" {
 			return fmt.Errorf("agent runtime tool result payload_kind is required")
@@ -290,14 +287,13 @@ func (s *Server) projectPrimaryAgentToolResults(
 		if status == "" {
 			return fmt.Errorf("agent runtime tool result status is required")
 		}
-		if err := validatePrimaryAgentSDKToolResult(toolName, capability, payloadKind); err != nil {
+		if err := validatePrimaryAgentSDKToolResult(toolName, payloadKind); err != nil {
 			return err
 		}
-		if _, ok := visible[capability]; !ok {
+		if _, ok := visible[toolName]; !ok {
 			return fmt.Errorf(
-				"agent runtime tool %s capability %s was not visible for this turn",
+				"agent runtime tool %s was not visible for this turn",
 				toolName,
-				capability,
 			)
 		}
 		callIndex := index + 1
@@ -318,12 +314,12 @@ func (s *Server) projectPrimaryAgentToolResults(
 			}
 			if err := s.projectTemporalStep(ctx, temporalStepProjection{
 				Attempt:         attempt,
-				Capability:      capability,
+				Tool:            projectionClass,
 				Run:             run,
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
-				TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 				WorkerID:        s.config.TemporalWorkerIdentity,
 				StartedAt:       startedAt,
 				CompletedAt:     completedAt,
@@ -341,7 +337,6 @@ func (s *Server) projectPrimaryAgentToolResults(
 		resultPayload := cloneAnyMapFromMetadata(result.Result)
 		resultEnvelope, err := sdkToolResultEnvelopeForProjection(
 			toolName,
-			capability,
 			payloadKind,
 			status,
 			resultPayload,
@@ -360,12 +355,12 @@ func (s *Server) projectPrimaryAgentToolResults(
 			}
 			if err := s.projectTemporalStep(ctx, temporalStepProjection{
 				Attempt:         attempt,
-				Capability:      capability,
+				Tool:            projectionClass,
 				Run:             run,
 				Status:          "failed",
 				StepID:          stepID,
 				StepKind:        "tool",
-				TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+				TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 				WorkerID:        s.config.TemporalWorkerIdentity,
 				StartedAt:       startedAt,
 				CompletedAt:     completedAt,
@@ -397,12 +392,12 @@ func (s *Server) projectPrimaryAgentToolResults(
 		}
 		if err := s.projectTemporalStep(ctx, temporalStepProjection{
 			Attempt:         attempt,
-			Capability:      capability,
+			Tool:            projectionClass,
 			Run:             run,
 			Status:          temporalSDKToolStepStatus(status),
 			StepID:          stepID,
 			StepKind:        "tool",
-			TaskQueue:       temporalruntime.ActivityTaskQueueForCapability(capability),
+			TaskQueue:       temporalruntime.ActivityTaskQueueForToolTarget(projectionClass),
 			WorkerID:        s.config.TemporalWorkerIdentity,
 			StartedAt:       startedAt,
 			CompletedAt:     completedAt,
@@ -437,36 +432,45 @@ func primaryAgentAttempt(attempt int) int {
 	return attempt
 }
 
-func validatePrimaryAgentSDKToolResult(toolName string, capability string, payloadKind string) error {
+func projectionClassForToolName(toolName string) string {
+	switch strings.TrimSpace(toolName) {
+	case "transport_schedule_lookup":
+		return "transport_schedule_lookup"
+	case "campus_notice_change_set_lookup",
+		"campus_notice_discover",
+		"campus_notice_period_summary",
+		"campus_notice_get":
+		return strings.TrimSpace(toolName)
+	case "knowledge_query":
+		return "knowledge_query"
+	default:
+		return "tool"
+	}
+}
+
+func validatePrimaryAgentSDKToolResult(toolName string, payloadKind string) error {
 	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
 	if !ok {
 		return fmt.Errorf("tool registry is not available")
 	}
-	tool, ok := registry.ToolByName(toolName)
+	tool, ok := registry.ModelVisibleToolByName(toolName)
 	if !ok {
 		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
 	}
-	if !tool.Active || !tool.ReadOnly || tool.RuntimePosture != "typed_activity_admitted" {
-		return fmt.Errorf("agent runtime tool %s is not admitted", toolName)
-	}
-	if tool.OwnerCapability != capability || tool.PayloadKind != payloadKind {
-		return fmt.Errorf(
-			"agent runtime tool %s drifted from admitted capability/payload kind",
-			toolName,
-		)
+	if tool.Name != payloadKind {
+		return fmt.Errorf("agent runtime tool %s drifted from admitted payload kind", toolName)
 	}
 	return nil
 }
 
 func sdkToolResultEnvelopeForProjection(
 	toolName string,
-	capability string,
 	payloadKind string,
 	status string,
 	result map[string]any,
 	projectionRef string,
 ) (map[string]any, error) {
-	if capability != "campus_services" {
+	if strings.TrimSpace(toolName) != "transport_schedule_lookup" {
 		return nil, nil
 	}
 	if strings.TrimSpace(status) != "completed" {
@@ -479,8 +483,7 @@ func sdkToolResultEnvelopeForProjection(
 	if stringValue(envelope["schema_version"]) != "campus_services_tool_result.v1" {
 		return nil, fmt.Errorf("campus_services typed tool result_envelope schema_version drift")
 	}
-	if stringValue(envelope["capability"]) != capability ||
-		stringValue(envelope["tool_name"]) != toolName {
+	if stringValue(envelope["tool_name"]) != toolName {
 		return nil, fmt.Errorf("campus_services typed tool result_envelope tool identity drift")
 	}
 	if stringValue(envelope["query_kind"]) == "" ||
@@ -544,7 +547,7 @@ func (s *Server) failPrimaryAgentActivity(
 		}
 	}
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:      "primary_agent",
+		Tool:            "",
 		FailureKind:     failureKind,
 		ProjectionRef:   temporalProjectionRef(run.RunID, "agent/primary/result"),
 		ResultKind:      "activity_failure",

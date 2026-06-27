@@ -30,39 +30,39 @@ func (s *Server) MemoryRecallActivity(
 	}
 	enabled, known := memoryEnabledFromExecutionPayload(payload)
 	if !known {
-		output, err := s.projectSkippedMemoryRecall(ctx, run, input.RequestedCapability, "memory_enabled_unknown", startedAt)
+		output, err := s.projectSkippedMemoryRecall(ctx, run, input.RequestedTool, "memory_enabled_unknown", startedAt)
 		if err == nil {
 			s.recordPersonalMemoryOperation("recall", "skipped", "memory_enabled_unknown", startedAt, 0, 0)
 		}
 		return output, err
 	}
 	if !enabled {
-		output, err := s.projectSkippedMemoryRecall(ctx, run, input.RequestedCapability, "memory_disabled", startedAt)
+		output, err := s.projectSkippedMemoryRecall(ctx, run, input.RequestedTool, "memory_disabled", startedAt)
 		if err == nil {
 			s.recordPersonalMemoryOperation("recall", "skipped", "memory_disabled", startedAt, 0, 0)
 		}
 		return output, err
 	}
-	request, err := memoryRecallRequestForRun(run, input.RequestedCapability)
+	request, err := memoryRecallRequestForRun(run, input.RequestedTool)
 	if err != nil {
 		s.recordPersonalMemoryOperation("recall", "failed", "memory_recall_request_invalid", startedAt, 0, 0)
 		return s.failMemoryRecallActivity(ctx, run, "memory_recall_request_invalid", err)
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    request.RequestedCapability,
+		Tool:          request.RequestedTool,
 		Run:           run,
 		Status:        "started",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
 		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
 		Payload: map[string]any{
-			"requested_capability": request.RequestedCapability,
-			"user_id":              request.UserID,
+			"requested_tool": request.RequestedTool,
+			"user_id":        request.UserID,
 		},
 	}); err != nil {
 		s.recordPersonalMemoryOperation("recall", "failed", "projection_failed", startedAt, 0, 0)
@@ -83,12 +83,12 @@ func (s *Server) MemoryRecallActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    request.RequestedCapability,
+		Tool:          request.RequestedTool,
 		Run:           run,
 		Status:        "completed",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
@@ -130,11 +130,11 @@ func (s *Server) MemoryRecallActivity(
 func (s *Server) projectSkippedMemoryRecall(
 	ctx context.Context,
 	run execution.DurableRun,
-	requestedCapability string,
+	requestedTool string,
 	reason string,
 	startedAt time.Time,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
-	capability := memoryRecallCapabilityForRun(run, requestedCapability)
+	tool := memoryRecallToolForRun(run, requestedTool)
 	output := temporalruntime.MemoryRecallActivityOutput{
 		RunID:         run.RunID,
 		SchemaVersion: "memory_recall_result_v1",
@@ -145,12 +145,12 @@ func (s *Server) projectSkippedMemoryRecall(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    capability,
+		Tool:          tool,
 		Run:           run,
 		Status:        "skipped",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,

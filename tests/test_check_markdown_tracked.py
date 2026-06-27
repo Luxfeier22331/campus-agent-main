@@ -85,7 +85,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
             "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
             relative_paths,
         )
-        self.assertIn("packages/navigation-capability/README.md", relative_paths)
+        self.assertIn("packages/navigation-tool/README.md", relative_paths)
         self.assertNotIn("packages/retrieval-core/AGENTS.md", relative_paths)
         self.assertNotIn(".planning/PROJECT.md", relative_paths)
         self.assertFalse(any("/vendor/" in path for path in relative_paths))

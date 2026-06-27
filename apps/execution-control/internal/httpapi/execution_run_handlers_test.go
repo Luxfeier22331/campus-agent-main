@@ -18,22 +18,22 @@ type fakeTemporalStarter struct {
 	cancelReason string
 	cancelErr    error
 	ctx          context.Context
-	input        temporalruntime.CapabilityExecutionWorkflowInput
+	input        temporalruntime.ToolExecutionWorkflowInput
 	err          error
 }
 
-func (f *fakeTemporalStarter) StartCapabilityExecutionWorkflow(
+func (f *fakeTemporalStarter) StartToolExecutionWorkflow(
 	ctx context.Context,
-	input temporalruntime.CapabilityExecutionWorkflowInput,
+	input temporalruntime.ToolExecutionWorkflowInput,
 ) error {
 	f.ctx = ctx
 	f.input = input
 	return f.err
 }
 
-func (f *fakeTemporalStarter) CancelCapabilityExecutionWorkflow(
+func (f *fakeTemporalStarter) CancelToolExecutionWorkflow(
 	_ context.Context,
-	input temporalruntime.CapabilityExecutionWorkflowCancelInput,
+	input temporalruntime.ToolExecutionWorkflowCancelInput,
 ) error {
 	f.cancelRunID = input.RunID
 	f.cancelReason = input.Reason
@@ -51,31 +51,31 @@ func (f *fakeTemporalStarter) CheckReadiness(context.Context) temporalruntime.Ru
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueContext,
+				Name:    temporalruntime.ActivityTaskQueueCore,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
+				Name:    temporalruntime.ActivityTaskQueueKnowledge,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
 			},
 			{
-				Name:    temporalruntime.ActivityTaskQueueFinalization,
+				Name:    temporalruntime.ActivityTaskQueueCore,
 				Type:    temporalruntime.TaskQueueTypeActivity,
 				Pollers: 1,
 				Healthy: true,
@@ -103,9 +103,9 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 			"trace_id":"trace-temporal-001",
 			"owner_user_id":"user-temporal-001",
 			"surface":"campus-web",
-			"requested_capability":"knowledge",
-			"selected_capability":"knowledge",
-			"lane":"rag",
+			"requested_tool":"knowledge_query",
+			"selected_tool":"knowledge_query",
+			"task_queue":"campus-agent.workflow",
 			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 			"metadata":{
 				"execution_payload":{
@@ -116,9 +116,9 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 					"runtime_decisions":{"runtime_decision_summary":{}}
 				},
 				"handoff":{
-					"capability":"rag-tool",
+					"tool":"rag-tool",
 					"payload_kind":"rag_request",
-					"allowed_tools":["retrieval.query"],
+					"allowed_tools":["knowledge_query"],
 					"payload":{"query_text":"hello"}
 				}
 			}
@@ -150,12 +150,12 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)
 	}
-	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "knowledge" {
-		t.Fatalf("visible capabilities = %#v, want knowledge only", starter.input.VisibleCapabilities)
+	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "knowledge_query" {
+		t.Fatalf("visible tools = %#v, want knowledge_query only", starter.input.VisibleToolNames)
 	}
 }
 
-func TestExecutionRunCreateFailsClosedForProfileClosedCapability(t *testing.T) {
+func TestExecutionRunCreateFailsClosedForProfileClosedTool(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -164,41 +164,39 @@ func TestExecutionRunCreateFailsClosedForProfileClosedCapability(t *testing.T) {
 
 	body := strings.ReplaceAll(
 		durableRunCreateBodyForTest("run-campus-closed", "conv-campus-closed"),
-		`"requested_capability":"knowledge"`,
-		`"requested_capability":"campus_services"`,
+		`"requested_tool":"knowledge_query"`,
+		`"requested_tool":"transport_schedule_lookup"`,
 	)
-	body = strings.ReplaceAll(body, `"selected_capability":"knowledge"`, `"selected_capability":"campus_services"`)
-	body = strings.ReplaceAll(body, `"lane":"rag"`, `"lane":"campus_services"`)
+	body = strings.ReplaceAll(body, `"selected_tool":"knowledge_query"`, `"selected_tool":"transport_schedule_lookup"`)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
 
 	server.ServeHTTP(response, request)
 
-	assertError(t, response, http.StatusConflict, "capability_not_open")
+	assertError(t, response, http.StatusConflict, "tool_not_open")
 	if starter.input.RunID != "" {
-		t.Fatalf("closed capability must not start workflow: %#v", starter.input)
+		t.Fatalf("closed tool must not start workflow: %#v", starter.input)
 	}
 	if _, err := store.GetRun(context.Background(), "run-campus-closed"); err == nil {
-		t.Fatal("closed capability must not create a run projection")
+		t.Fatal("closed tool must not create a run projection")
 	}
 }
 
-func TestExecutionRunCreateStartsProfileOpenCapabilityWithBoundedVisibleSet(t *testing.T) {
+func TestExecutionRunCreateStartsProfileOpenToolWithBoundedVisibleSet(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
-	server.config.OpenCapabilities = []string{"campus_services"}
+	server.config.OpenTools = []string{"transport_schedule_lookup"}
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
 	body := strings.ReplaceAll(
 		durableRunCreateBodyForTest("run-campus-open", "conv-campus-open"),
-		`"requested_capability":"knowledge"`,
-		`"requested_capability":"campus_services"`,
+		`"requested_tool":"knowledge_query"`,
+		`"requested_tool":"transport_schedule_lookup"`,
 	)
-	body = strings.ReplaceAll(body, `"selected_capability":"knowledge"`, `"selected_capability":"campus_services"`)
-	body = strings.ReplaceAll(body, `"lane":"rag"`, `"lane":"campus_services"`)
+	body = strings.ReplaceAll(body, `"selected_tool":"knowledge_query"`, `"selected_tool":"transport_schedule_lookup"`)
 	response := httptest.NewRecorder()
 	request := newTestRequest(http.MethodPost, "/internal/execution/runs", strings.NewReader(body))
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -208,11 +206,11 @@ func TestExecutionRunCreateStartsProfileOpenCapabilityWithBoundedVisibleSet(t *t
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	if starter.input.RequestedCapability != "campus_services" {
-		t.Fatalf("requested capability = %q, want campus_services", starter.input.RequestedCapability)
+	if starter.input.RequestedTool != "transport_schedule_lookup" {
+		t.Fatalf("requested tool = %q, want transport_schedule_lookup", starter.input.RequestedTool)
 	}
-	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "campus_services" {
-		t.Fatalf("visible capabilities = %#v, want campus_services only", starter.input.VisibleCapabilities)
+	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "transport_schedule_lookup" {
+		t.Fatalf("visible tools = %#v, want transport_schedule_lookup only", starter.input.VisibleToolNames)
 	}
 }
 
@@ -238,7 +236,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	traceHeaders := telemetry.InjectRuntimeTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
+	traceHeaders := telemetry.InjectExecutionTraceHeaders(starter.ctx, "req-traceparent-001", "trace-traceparent-001")
 	if traceHeaders["traceparent"] != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
 		t.Fatalf("Temporal starter context traceparent = %q", traceHeaders["traceparent"])
 	}
@@ -247,7 +245,7 @@ func TestExecutionRunCreatePropagatesInboundTraceContextToTemporalStart(t *testi
 	}
 }
 
-func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *testing.T) {
+func TestExecutionRunCreateKeepsNeutralToolForPrimaryAgentWorkflow(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
@@ -266,7 +264,7 @@ func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *test
 			"trace_id":"trace-temporal-neutral",
 			"owner_user_id":"user-temporal-neutral",
 			"surface":"campus-web",
-			"lane":"default",
+			"task_queue":"campus-agent.workflow",
 			"runtime_versions":{"contract":"durable-agent-runtime-contract-v1"},
 			"metadata":{
 				"execution_payload":{
@@ -288,21 +286,21 @@ func TestExecutionRunCreateKeepsNeutralCapabilityForPrimaryAgentWorkflow(t *test
 	if response.Code != http.StatusAccepted {
 		t.Fatalf("status = %d, want 202; body: %s", response.Code, response.Body.String())
 	}
-	if starter.input.RequestedCapability != "" {
+	if starter.input.RequestedTool != "" {
 		t.Fatalf(
-			"workflow requested capability = %q, want empty before primary agent",
-			starter.input.RequestedCapability,
+			"workflow requested tool = %q, want empty before primary agent",
+			starter.input.RequestedTool,
 		)
 	}
-	if len(starter.input.VisibleCapabilities) != 1 || starter.input.VisibleCapabilities[0] != "knowledge" {
-		t.Fatalf("visible capabilities = %#v, want knowledge only", starter.input.VisibleCapabilities)
+	if len(starter.input.VisibleToolNames) != 1 || starter.input.VisibleToolNames[0] != "knowledge_query" {
+		t.Fatalf("visible tools = %#v, want knowledge_query only", starter.input.VisibleToolNames)
 	}
 	run, err := store.GetRun(context.Background(), "run-temporal-neutral")
 	if err != nil {
 		t.Fatalf("get run projection: %v", err)
 	}
-	if run.RequestedCapability != "" {
-		t.Fatalf("run requested capability = %q, want empty", run.RequestedCapability)
+	if run.RequestedTool != "" {
+		t.Fatalf("run requested tool = %q, want empty", run.RequestedTool)
 	}
 }
 
@@ -456,7 +454,7 @@ func TestExecutionRunCancelProjectsIncompleteStepOutcomes(t *testing.T) {
 			RunID:                runID,
 			ConversationID:       conversationID,
 			StepKind:             "agent",
-			Capability:           "primary_agent",
+			Tool:                 "",
 			Status:               status,
 			TaskQueue:            temporalruntime.ActivityTaskQueueAgent,
 			WorkerID:             "test:agent:001",
@@ -572,9 +570,9 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		RunID:                "run-temporal-trajectory",
 		ConversationID:       "conv-temporal-trajectory",
 		StepKind:             "planning",
-		Capability:           "knowledge",
+		Tool:                 "knowledge_query",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:            temporalruntime.ActivityTaskQueueCore,
 		WorkerID:             "staging:context:worker-1",
 		StartedAt:            now,
 		CompletedAt:          now.Add(100 * time.Millisecond),
@@ -593,7 +591,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		RunID:                 "run-temporal-trajectory",
 		Attempt:               1,
 		Status:                "completed",
-		TaskQueue:             temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:             temporalruntime.ActivityTaskQueueCore,
 		WorkerID:              "staging:context:worker-1",
 		WorkflowID:            "campus-agent.chat.run-temporal-trajectory",
 		TemporalRunID:         "temporal-run-trajectory",
@@ -657,14 +655,14 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 			},
 			"tool_call": map[string]any{
 				"authorization": "nested authorization must not leak",
-				"selected_tool": "retrieval.query",
+				"selected_tool": "knowledge_query",
 			},
 			"memory": map[string]any{
 				"behavior": "previous_evidence_reuse",
 				"secret":   "nested secret must not leak",
 			},
-			"selected_capability": "knowledge",
-			"selected_task_queue": temporalruntime.ActivityTaskQueueContext,
+			"selected_tool":       "knowledge_query",
+			"selected_task_queue": temporalruntime.ActivityTaskQueueCore,
 		},
 	}); err != nil {
 		t.Fatalf("upsert result: %v", err)
@@ -689,7 +687,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("steps = %#v, want one step", body["steps"])
 	}
 	step := expectRecord(t, steps[0], "steps[0]")
-	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueContext {
+	if step["step_kind"] != "planning" || step["task_queue"] != temporalruntime.ActivityTaskQueueCore {
 		t.Fatalf("step = %#v", step)
 	}
 	attempts, ok := body["attempts"].([]any)
@@ -740,7 +738,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("eval projection run identity = %#v", evalRun)
 	}
 	evalTrajectory := expectRecord(t, evalProjection["trajectory"], "agent_runtime_eval_projection.trajectory")
-	if evalTrajectory["selected_capability"] != "knowledge" {
+	if evalTrajectory["selected_tool"] != "knowledge_query" {
 		t.Fatalf("eval trajectory = %#v", evalTrajectory)
 	}
 	toolCalls, ok := evalTrajectory["tool_calls"].([]any)
@@ -748,7 +746,7 @@ func TestExecutionRunStepsReturnsSanitizedStepTrajectory(t *testing.T) {
 		t.Fatalf("eval tool calls = %#v, want one tool call", evalTrajectory["tool_calls"])
 	}
 	toolCall := expectRecord(t, toolCalls[0], "agent_runtime_eval_projection.trajectory.tool_calls[0]")
-	if toolCall["selected_tool"] != "retrieval.query" {
+	if toolCall["selected_tool"] != "knowledge_query" {
 		t.Fatalf("eval tool call = %#v", toolCall)
 	}
 	evalRAG := expectRecord(t, evalProjection["rag"], "agent_runtime_eval_projection.rag")

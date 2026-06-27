@@ -192,7 +192,7 @@ function matchConsumerFamily(
 	return {
 		consumerFamily: rule.consumerFamily,
 		ownerSurface: rule.ownerSurface,
-		ownerCapabilityOrRuntime: rule.ownerCapabilityOrRuntime,
+		ownerToolOrRuntime: rule.ownerToolOrRuntime,
 		materializationPolicy: rule.materializationPolicy,
 		selectedWriteTarget: rule.selectedWriteTarget,
 		reviewPolicy: rule.reviewPolicy,

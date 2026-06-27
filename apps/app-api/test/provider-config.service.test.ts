@@ -167,8 +167,8 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "gitee-secret-1234",
 				baseUrl: "https://ai.gitee.com/v1",
-				capabilities: ["embedding"],
-				capabilityConfig: {},
+				features: ["embedding"],
+				featureConfig: {},
 				provider: "gitee",
 			},
 			principal: createOperatorPrincipal(),
@@ -228,8 +228,8 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "gitee-secret-1234",
 				baseUrl: "https://ai.gitee.com/v1",
-				capabilities: ["embedding", "rerank"],
-				capabilityConfig: { rerank: { path: "/rerank" } },
+				features: ["embedding", "rerank"],
+				featureConfig: { rerank: { path: "/rerank" } },
 				provider: "gitee",
 			},
 			principal: createOperatorPrincipal(),
@@ -239,7 +239,7 @@ describe("provider config service", () => {
 		expect(renderedConnection).not.toContain("gitee-secret-1234");
 		expect(createdConnection.connection).toMatchObject({
 			baseUrl: "https://ai.gitee.com/v1",
-			capabilities: ["embedding", "rerank"],
+			features: ["embedding", "rerank"],
 			provider: "gitee",
 			secretLast4: "1234",
 		});
@@ -270,7 +270,7 @@ describe("provider config service", () => {
 				profile: {
 					api_key: "gitee-secret-1234",
 					base_url: "https://ai.gitee.com/v1",
-					capability_config: { rerank: { path: "/rerank" } },
+					feature_config: { rerank: { path: "/rerank" } },
 					kind: "rerank",
 					model: "Qwen3-Reranker",
 					provider: "gitee",
@@ -337,7 +337,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "embedding-key",
 				baseUrl: "https://embedding.example/v1",
-				capabilities: ["embedding"],
+				features: ["embedding"],
 				provider: "openai",
 			},
 			principal: createOperatorPrincipal(),
@@ -396,7 +396,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "hindsight-embedding-key",
 				baseUrl: "https://embedding.example/v1",
-				capabilities: ["embedding"],
+				features: ["embedding"],
 				provider: "openai-compatible",
 			},
 			principal: createOperatorPrincipal(),
@@ -460,7 +460,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "eval-embedding-key",
 				baseUrl: "https://embedding.example/v1",
-				capabilities: ["embedding"],
+				features: ["embedding"],
 				provider: "openai-compatible",
 			},
 			principal: createOperatorPrincipal(),
@@ -514,7 +514,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "eval-llm-key",
 				baseUrl: "https://llm.example/v1",
-				capabilities: ["prompt"],
+				features: ["prompt"],
 				provider: "openai",
 			},
 			principal: createOperatorPrincipal(),
@@ -573,7 +573,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "openai-compatible-key",
 				baseUrl: "https://llm-compatible.example/v1",
-				capabilities: ["prompt"],
+				features: ["prompt"],
 				provider: "openai-compatible",
 			},
 			principal: createOperatorPrincipal(),
@@ -637,7 +637,7 @@ describe("provider config service", () => {
 			payload: {
 				apiKey: "hindsight-llm-key",
 				baseUrl: "https://llm.example/v1",
-				capabilities: ["prompt"],
+				features: ["prompt"],
 				provider: "openai",
 			},
 			principal: createOperatorPrincipal(),

@@ -15,7 +15,6 @@ func primaryAgentResultPayload(
 		resultBody := cloneAnyMapFromMetadata(result.Result)
 		envelope, err := sdkToolResultEnvelopeForProjection(
 			result.ToolName,
-			result.Capability,
 			result.PayloadKind,
 			result.Status,
 			resultBody,
@@ -29,7 +28,6 @@ func primaryAgentResultPayload(
 		}
 		toolResults = append(toolResults, map[string]any{
 			"arguments_json":    cloneAnyMapFromMetadata(result.ArgumentsJSON),
-			"capability":        result.Capability,
 			"fail_close_reason": result.FailCloseReason,
 			"payload_kind":      result.PayloadKind,
 			"result":            resultBody,

@@ -19,7 +19,6 @@ _REQUIRED_FIELDS = (
 _ALLOWED_TRUTH_SCOPES = {
     "product",
     "execution",
-    "capability",
     "data",
     "ops",
     "eval",

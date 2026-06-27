@@ -171,16 +171,15 @@ function selectBudgetedRows<
 	const remainingByHost = new Map<string, number>();
 	const remainingByTarget = new Map<string, number>();
 	const selectedCanonicalUrls = new Set<string>();
-	const selectedCapabilityCanonicalKeys = new Set<string>();
+	const selectedToolCanonicalKeys = new Set<string>();
 
 	for (const row of rows) {
 		const canonicalUrlKey = row.normalizedCanonicalUrl;
 		const targetCanonicalKey = `${row.targetJobId}::${canonicalUrlKey}`;
 		const reuseSelectedCanonicalUrl =
 			options.dedupeByCanonicalUrl === true && selectedCanonicalUrls.has(canonicalUrlKey);
-		const reuseSelectedCapabilityCanonicalKey =
-			options.dedupeByCanonicalUrl === true &&
-			selectedCapabilityCanonicalKeys.has(targetCanonicalKey);
+		const reuseSelectedToolCanonicalKey =
+			options.dedupeByCanonicalUrl === true && selectedToolCanonicalKeys.has(targetCanonicalKey);
 
 		if (
 			(options.dedupeByCanonicalUrl === true ? selectedCanonicalUrls.size : selected.length) >=
@@ -199,7 +198,7 @@ function selectBudgetedRows<
 			selectedCanonicalUrls.add(canonicalUrlKey);
 		}
 
-		if (!reuseSelectedCapabilityCanonicalKey) {
+		if (!reuseSelectedToolCanonicalKey) {
 			const targetRemaining = remainingByTarget.get(row.targetJobId) ?? filters.maxPagesPerHost;
 			if (targetRemaining < 1) {
 				if (!reuseSelectedCanonicalUrl) {
@@ -209,7 +208,7 @@ function selectBudgetedRows<
 				continue;
 			}
 			remainingByTarget.set(row.targetJobId, targetRemaining - 1);
-			selectedCapabilityCanonicalKeys.add(targetCanonicalKey);
+			selectedToolCanonicalKeys.add(targetCanonicalKey);
 		}
 
 		selected.push(row);

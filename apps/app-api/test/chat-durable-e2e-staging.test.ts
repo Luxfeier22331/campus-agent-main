@@ -105,7 +105,7 @@ describe("chat durable staging e2e runner", () => {
 									status: "completed",
 								},
 								trajectory: {
-									selected_capability: "knowledge",
+									selected_tool: "knowledge_query",
 								},
 								planning: {
 									planned_steps: ["indexed_lookup"],
@@ -144,12 +144,12 @@ describe("chat durable staging e2e runner", () => {
 								},
 								{
 									stepId: "rag.plan",
-									selectedCapability: "knowledge",
+									selectedTool: "knowledge_query",
 									status: "completed",
 								},
 								{
 									stepId: "retrieval.indexed_lookup",
-									selectedCapability: "knowledge",
+									selectedTool: "knowledge_query",
 									status: "completed",
 								},
 							],
@@ -249,13 +249,13 @@ describe("chat durable staging e2e runner", () => {
 				workflowId: "campus-agent.chat.run_01HQ",
 			},
 			workflowTraceSummary: {
-				selected_capability: "knowledge",
+				selected_tool: "knowledge_query",
 				trace_steps: [
 					{ status: "completed", step_id: "memory.recall" },
 					{ status: "completed", step_id: "agent.primary" },
-					{ selected_capability: "knowledge", status: "completed", step_id: "rag.plan" },
+					{ selected_tool: "knowledge_query", status: "completed", step_id: "rag.plan" },
 					{
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						status: "completed",
 						step_id: "retrieval.indexed_lookup",
 					},
@@ -597,7 +597,7 @@ describe("chat durable staging e2e runner", () => {
 
 		expect(result.passed).toBe(false);
 		expect(result.workflowTraceSummary).toMatchObject({
-			selected_capability: "none",
+			selected_tool: "none",
 		});
 		expect(result.runtimeStepResults).toEqual([
 			{

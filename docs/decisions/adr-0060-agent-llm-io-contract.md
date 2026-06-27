@@ -17,7 +17,7 @@ Accepted on 2026-06-19.
 
 `campus-agent` 已经在 prompt / instruction architecture 中接受：
 
-- prompt 不是 policy、serving surface、capability opening 或 source-trust 边界
+- prompt 不是 policy、serving surface、tool opening 或 source-trust 边界
 - `system prompt` 只是产品沟通 shorthand，不是实现上的 monolithic mega prompt
 - product path 应按 developer invariants、role prompt、typed task packet、
   untrusted evidence / user packet、strict structured output 与 code-side
@@ -73,7 +73,7 @@ thin developer instructions
 repo-global developer instructions 只表达长期不变量：
 
 - institution-scoped campus assistant
-- 不覆盖 policy、capability opening、serving surface、scope 或 source-truth
+- 不覆盖 policy、tool opening、serving surface、scope 或 source-truth
 - 不用开放域知识补齐 institution-specific 缺口
 - 请求 ambiguous、unsupported、not opened 或 not grounded 时必须 abstain 或要求澄清
 - 输出必须满足 typed schema，code-side finalization authoritative
@@ -83,13 +83,13 @@ repo-global developer instructions 只表达长期不变量：
 - tool selection protocol
 - retrieval planning details
 - answer citation rules的字段全集
-- capability opening 或 source-trust 判断
+- tool opening 或 source-trust 判断
 - provider schema 描述
 - prompt registry / prompt version governance
 
 ### 决策 2：tool guidance 优先进入 tool description 与 schema
 
-模型可见 capability 必须以 structured tool / function schema 暴露。
+模型可见 tool 必须以 structured tool / function schema 暴露。
 
 tool description 应说明：
 
@@ -106,7 +106,7 @@ developer instructions 只保留跨工具 policy，不复制每个 tool 的领�
 
 primary agent 的 direct/no-tool branch 不得只返回自由文本。模型可以直接回答
 `hi 你是谁`，但返回给 runtime 的终态必须是 typed terminal envelope；这不是
-把寒暄拆成 tool / capability。
+把寒暄拆成 tool / tool。
 
 目标 terminal envelope 至少区分：
 
@@ -180,7 +180,7 @@ confidence 或 generic no-answer。
 - 把所有 prompt 迁移到 OpenAI hosted prompt template
 - 把 RAG synthesis 迁移到 Agents SDK
 - 让 app-api 或 browser surface 拥有 prompt assembly
-- 用 prompt 替代 capability admission、serving surface、source-trust 或 finalization
+- 用 prompt 替代 tool admission、serving surface、source-trust 或 finalization
 - 任何 eval 平台或 release gate 的上线要求
 
 ## 相关文档
@@ -188,12 +188,12 @@ confidence 或 generic no-answer。
 - `docs/architecture/system/prompt-and-instruction/assembly-and-assets.md`
 - `docs/architecture/system/prompt-and-instruction/current-runtime-baseline.md`
 - `docs/architecture/system/prompt-and-instruction/safety-observability-and-rollout.md`
-- `docs/architecture/system/agent-framework-boundary-architecture.md`
-- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
+- `docs/architecture/system/agent-framework.md`
+- `docs/architecture/system/tool-runtime.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
-- `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/decisions/adr-0048-temporal.md`
 
 ## 外部参考
 

@@ -32,7 +32,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                 "case_id": case.case_id,
                 "request_id": f"request-{case.case_id}",
                 "trace_id": f"trace-{case.case_id}",
-                "selected_capability": case.expected.selected_capability,
+                "selected_tool": case.expected.selected_tool,
                 "terminal_status": case.expected.terminal_status,
                 "semantic_outcome": case.expected.semantic_outcome,
                 "fail_close_reason": case.expected.fail_close_reason,
@@ -90,7 +90,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "case_id": known_gap_case.case_id,
                                 "request_id": "request-known-gap",
                                 "trace_id": "trace-known-gap",
-                                "selected_capability": known_gap_case.expected.selected_capability,
+                                "selected_tool": known_gap_case.expected.selected_tool,
                                 "terminal_status": known_gap_case.expected.terminal_status,
                                 "semantic_outcome": known_gap_case.expected.semantic_outcome,
                                 "fail_close_reason": known_gap_case.expected.fail_close_reason,
@@ -213,7 +213,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "case_id": case.case_id,
                                 "request_id": "req_public_01",
                                 "trace_id": "trace_public_01",
-                                "selected_capability": case.expected.selected_capability,
+                                "selected_tool": case.expected.selected_tool,
                                 "terminal_status": case.expected.terminal_status,
                                 "semantic_outcome": case.expected.semantic_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
@@ -270,7 +270,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "case_id": case.case_id,
                                 "request_id": "req_public_trace_replay",
                                 "trace_id": "trace_public_trace_replay",
-                                "selected_capability": case.expected.selected_capability,
+                                "selected_tool": case.expected.selected_tool,
                                 "terminal_status": case.expected.terminal_status,
                                 "semantic_outcome": case.expected.semantic_outcome,
                                 "fail_close_reason": case.expected.fail_close_reason,
@@ -278,7 +278,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                 "operator_backflow": case.expected.operator_backflow,
                                 "workflow_trace_summary": {
                                     "direct_vs_delegate_branch": "delegate",
-                                    "selected_capability": "notice",
+                                    "selected_tool": "campus_notice_discover",
                                     "selected_tools": ["campus_notice_discover"],
                                     "fail_close_reason": "",
                                 },
@@ -299,7 +299,7 @@ class EvalProfileGateSuite(unittest.TestCase):
 
         self.assertFalse(report.passed)
         self.assertIn(
-            "workflow_trace_summary.selected_capability expected",
+            "workflow_trace_summary.selected_tool expected",
             payload["sanitized_results"][0]["reason"],
         )
 
@@ -324,7 +324,7 @@ class EvalProfileGateSuite(unittest.TestCase):
                                         "campusServicesProductPath": {
                                             "status": "blocked",
                                             "blockers": {
-                                                "capabilityGate": "campus_services capability gate is closed"
+                                                "toolGate": "transport_schedule_lookup tool gate is closed"
                                             },
                                         },
                                         "executionRuntime": {
@@ -497,7 +497,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                     },
                     "execution": {
                         "status": "completed",
-                        "selectedCapability": "campus_services",
+                        "selectedTool": "transport_schedule_lookup",
                         "answerText": "ok",
                         "traceId": "trace_runtime_01",
                         "observability": {
@@ -507,7 +507,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                         "workflow_trace_summary": {
                             "planning_outcome": "direct_structured_tool",
                             "direct_vs_delegate_branch": "direct",
-                            "selected_capability": "campus_services",
+                            "selected_tool": "transport_schedule_lookup",
                             "selected_tools": ["transport_schedule_lookup"],
                             "tool_call_summaries": [
                                 {
@@ -537,7 +537,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         execution = client.execute_chat_request(
             case_id="runtime-case-1",
             prompt="明天上午丰台到海淀的班车有哪些",
-            requested_capability="campus_services",
+            requested_tool="transport_schedule_lookup",
             requested_scope={"corpus": "campus_services", "collection": "transport_schedule"},
         )
 
@@ -548,7 +548,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
             seen["body"],
             {
                 "prompt": "明天上午丰台到海淀的班车有哪些",
-                "requestedCapability": "campus_services",
+                "requestedTool": "transport_schedule_lookup",
                 "requestedScope": {
                     "corpus": "campus_services",
                     "collection": "transport_schedule",
@@ -596,12 +596,12 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                     },
                     "execution": {
                         "status": "completed",
-                        "selectedCapability": "campus_services",
+                        "selectedTool": "transport_schedule_lookup",
                         "answerText": "ok",
                         "traceId": "trace_runtime_01",
                         "workflowTraceSummary": {
                             "directVsDelegateBranch": "direct",
-                            "selectedCapability": "campus_services",
+                            "selectedTool": "transport_schedule_lookup",
                             "workflowMode": "agent_loop",
                         },
                     },
@@ -630,7 +630,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         self.assertIsNone(execution.observed_trace)
         self.assertEqual(execution.request_correlation.request_id, "req_runtime_01")
         self.assertEqual(execution.request_correlation.trace_id, "trace_runtime_01")
-        self.assertEqual(execution.response.selected_capability, "campus_services")
+        self.assertEqual(execution.response.selected_tool, "transport_schedule_lookup")
 
     def test_execute_chat_request_prefers_top_level_execution_payload(self) -> None:
         from campus_evals.app_api_chat_runtime_client import (
@@ -656,11 +656,11 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
                     },
                     "execution": {
                         "status": "completed",
-                        "selectedCapability": "campus_services",
+                        "selectedTool": "transport_schedule_lookup",
                         "answerText": "execution answer",
                         "traceId": "trace_runtime_01",
                         "workflowTraceSummary": {
-                            "selectedCapability": "campus_services",
+                            "selectedTool": "transport_schedule_lookup",
                             "selectedTools": ["transport_schedule_lookup"],
                             "workflowMode": "agent_loop",
                         },
@@ -686,7 +686,7 @@ class AppApiEvalClientGenericRequestSuite(unittest.TestCase):
         )
 
         self.assertEqual(execution.response.answer_text, "execution answer")
-        self.assertEqual(execution.response.selected_capability, "campus_services")
+        self.assertEqual(execution.response.selected_tool, "transport_schedule_lookup")
         self.assertEqual(
             execution.response.workflow_trace_summary.selected_tools,
             ("transport_schedule_lookup",),
@@ -702,7 +702,7 @@ def _single_online_answer_case_path(root: Path, case) -> Path:
             "domain": case.response_contract["domain"],
             "split": case.split,
             "expected": {
-                "selected_capability": case.expected.selected_capability,
+                "selected_tool": case.expected.selected_tool,
                 "terminal_outcome": _main_path_terminal_outcome(case.expected.terminal_status),
                 "source_truth": case.source_truth,
                 "trace_contract": case.trace_contract,
@@ -715,7 +715,7 @@ def _single_online_answer_case_path(root: Path, case) -> Path:
             "user_goal": case.user_goal,
             "split": case.split,
             "expected": {
-                "selected_capability": case.expected.selected_capability,
+                "selected_tool": case.expected.selected_tool,
                 "terminal_status": case.expected.terminal_status,
                 "semantic_outcome": case.expected.semantic_outcome,
                 "fail_close_reason": case.expected.fail_close_reason,

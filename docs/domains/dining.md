@@ -1,6 +1,6 @@
 ---
 doc_type: index
-truth_scope: capability
+truth_scope: execution
 owner_boundary: domains/dining
 status: active
 created: 2026-06-08

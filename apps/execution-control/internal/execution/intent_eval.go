@@ -7,14 +7,14 @@ import (
 )
 
 type IntentEvalObservation struct {
-	Capability             string   `json:"capability"`
+	Tool                   string   `json:"tool"`
 	TaskKind               string   `json:"task_kind"`
 	LaunchState            string   `json:"launch_state"`
 	NextAction             string   `json:"next_action"`
 	ScopeClass             string   `json:"scope_class"`
 	PolicyReason           string   `json:"policy_reason"`
 	ScopeReason            string   `json:"scope_reason"`
-	SelectedCapability     string   `json:"selected_capability"`
+	SelectedTool           string   `json:"selected_tool"`
 	AllowedTools           []string `json:"allowed_tools"`
 	ClassifierVersion      string   `json:"classifier_version"`
 	SchemaVersion          string   `json:"schema_version"`
@@ -29,7 +29,8 @@ type IntentEvalObservation struct {
 type intentEvalExecutionPayload struct {
 	RuntimeDecisions struct {
 		RoutingFrame struct {
-			Capability             string   `json:"capability"`
+			Tool                   string   `json:"tool"`
+			Target                 string   `json:"target"`
 			TaskKind               string   `json:"task_kind"`
 			LaunchState            string   `json:"launch_state"`
 			NextAction             string   `json:"suggested_next_action"`
@@ -43,13 +44,13 @@ type intentEvalExecutionPayload struct {
 			MissingSlots           []string `json:"missing_slots"`
 		} `json:"routing_frame"`
 		Handoff struct {
-			Capability   string   `json:"capability"`
+			Tool         string   `json:"tool"`
 			AllowedTools []string `json:"allowed_tools"`
 		} `json:"handoff"`
 		RuntimeDecisionSummary struct {
-			PlanningOutcome    string `json:"planning_outcome"`
-			SelectedCapability string `json:"selected_capability"`
-			TerminalOutcome    string `json:"terminal_outcome"`
+			PlanningOutcome string `json:"planning_outcome"`
+			SelectedTool    string `json:"selected_tool"`
+			TerminalOutcome string `json:"terminal_outcome"`
 		} `json:"runtime_decision_summary"`
 		TerminalEnvelope struct {
 			Status string `json:"status"`
@@ -65,8 +66,8 @@ func ObserveIntentForEval(
 	request, httpErr := ParseAnswerRequest(body, headers, cfg)
 	if httpErr != nil {
 		return IntentEvalObservation{
-			SelectedCapability: "none",
-			ErrorCode:          canonicalIntentEvalErrorCode(httpErr.Code),
+			SelectedTool: "none",
+			ErrorCode:    canonicalIntentEvalErrorCode(httpErr.Code),
 		}, nil
 	}
 
@@ -77,25 +78,29 @@ func ObserveIntentForEval(
 	frame := executionPayload.RuntimeDecisions.RoutingFrame
 	handoff := executionPayload.RuntimeDecisions.Handoff
 	summary := executionPayload.RuntimeDecisions.RuntimeDecisionSummary
-	selectedCapability := "none"
-	if handoff.Capability != "" {
-		selectedCapability = handoff.Capability
-	} else if summary.SelectedCapability != "" {
-		selectedCapability = summary.SelectedCapability
+	selectedTool := "none"
+	if handoff.Tool != "" {
+		selectedTool = handoff.Tool
+	} else if summary.SelectedTool != "" {
+		selectedTool = summary.SelectedTool
 	}
 	terminalStatus := executionPayload.RuntimeDecisions.TerminalEnvelope.Status
 	if terminalStatus == "" {
 		terminalStatus = summary.TerminalOutcome
 	}
+	target := frame.Target
+	if target == "" {
+		target = frame.Tool
+	}
 	return IntentEvalObservation{
-		Capability:             frame.Capability,
+		Tool:                   target,
 		TaskKind:               frame.TaskKind,
 		LaunchState:            frame.LaunchState,
 		NextAction:             frame.NextAction,
 		ScopeClass:             frame.ScopeClass,
 		PolicyReason:           frame.PolicyReason,
 		ScopeReason:            frame.ScopeReason,
-		SelectedCapability:     selectedCapability,
+		SelectedTool:           selectedTool,
 		AllowedTools:           append([]string(nil), handoff.AllowedTools...),
 		ClassifierVersion:      frame.ClassifierVersion,
 		SchemaVersion:          frame.SchemaVersion,

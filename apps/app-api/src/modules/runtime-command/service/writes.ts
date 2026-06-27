@@ -6,11 +6,11 @@ import {
 	toConversationResponse,
 } from "../../chat";
 import type {
-	CapabilityExecutionConversationContext,
-	CapabilityExecutionPreviousCapabilityResultRef,
-	CapabilityExecutionPreviousEvidenceRef,
-	CapabilityExecutionResponse,
 	RequestedScope,
+	ToolExecutionConversationContext,
+	ToolExecutionPreviousEvidenceRef,
+	ToolExecutionPreviousToolResultRef,
+	ToolExecutionResponse,
 } from "../../integration";
 import { extractRequestDiagnosticsSummary } from "../../request-diagnostics";
 import {
@@ -39,14 +39,14 @@ export function buildConversationTitle(currentTitle: string, prompt: string): st
 	return prompt.length <= 80 ? prompt : `${prompt.slice(0, 77)}...`;
 }
 
-export function buildCapabilityExecutionContextProjection(input: {
+export function buildToolExecutionContextProjection(input: {
 	actor: ResolvedAppPrincipal["actor"];
 	authorization: ResolvedAppPrincipal["authorization"];
 	conversation: ChatConversation;
 	currentUserMessageContent: string;
 	currentUserMessageId: string;
 	memory?: { enabled: boolean } | null;
-	previousCapabilityResults?: CapabilityExecutionPreviousCapabilityResultRef[];
+	previousToolResults?: ToolExecutionPreviousToolResultRef[];
 	sessionSlots: ChatConversation["sessionSlots"];
 	turnCount: number;
 }) {
@@ -61,7 +61,7 @@ export function buildCapabilityExecutionContextProjection(input: {
 			conversation: input.conversation,
 			currentUserMessageContent: input.currentUserMessageContent,
 			currentUserMessageId: input.currentUserMessageId,
-			previousCapabilityResults: input.previousCapabilityResults ?? [],
+			previousToolResults: input.previousToolResults ?? [],
 			session,
 		}),
 		...(input.memory ? { memory: { enabled: input.memory.enabled } } : {}),
@@ -73,9 +73,9 @@ function buildConversationContextProjection(input: {
 	conversation: ChatConversation;
 	currentUserMessageContent: string;
 	currentUserMessageId: string;
-	previousCapabilityResults: CapabilityExecutionPreviousCapabilityResultRef[];
+	previousToolResults: ToolExecutionPreviousToolResultRef[];
 	session: ReturnType<typeof buildExecutionSessionProjection>;
-}): CapabilityExecutionConversationContext {
+}): ToolExecutionConversationContext {
 	const recentTurnLimit = 6;
 	const priorMessages = input.conversation.messages.slice(-recentTurnLimit);
 	const parentMessage = priorMessages.at(-1) ?? null;
@@ -85,7 +85,7 @@ function buildConversationContextProjection(input: {
 	const previousEvidenceRefs = previousAssistant
 		? extractPreviousEvidenceRefs(previousAssistant)
 		: [];
-	const recentTurns: CapabilityExecutionConversationContext["recentTurns"] = priorMessages.map(
+	const recentTurns: ToolExecutionConversationContext["recentTurns"] = priorMessages.map(
 		(message) => ({
 			createdAt: message.createdAt,
 			messageId: message.id,
@@ -100,7 +100,7 @@ function buildConversationContextProjection(input: {
 		...recentTurns.map((turn) => turn.content ?? turn.summary ?? ""),
 		previousAssistant?.text ?? "",
 		...previousEvidenceRefs.map((ref) => ref.snippet ?? ""),
-		...input.previousCapabilityResults.map((ref) => ref.summary ?? ""),
+		...input.previousToolResults.map((ref) => ref.summary ?? ""),
 	]);
 
 	return {
@@ -121,7 +121,7 @@ function buildConversationContextProjection(input: {
 		},
 		parentMessageId: parentMessage?.id ?? null,
 		previousAnswerSummary: previousAssistant ? previewText(previousAssistant.text, 240) : null,
-		previousCapabilityResults: input.previousCapabilityResults,
+		previousToolResults: input.previousToolResults,
 		previousEvidenceRefs,
 		recentTurns,
 		schemaVersion: "conversation_context.v1",
@@ -133,8 +133,8 @@ function buildConversationContextProjection(input: {
 				source: "runtime step/result projection",
 			}))
 			.concat(
-				input.previousCapabilityResults.map((_, index) => ({
-					item: `previous_capability_results[${index}]`,
+				input.previousToolResults.map((_, index) => ({
+					item: `previous_tool_results[${index}]`,
 					modelVisible: true,
 					source: "runtime request projection",
 				})),
@@ -147,7 +147,7 @@ function buildConversationContextProjection(input: {
 				"recent_turns",
 				"previous_answer_summary",
 				"previous_evidence_refs",
-				"previous_capability_results",
+				"previous_tool_results",
 				"session_state",
 			],
 			runtimeOnly: [
@@ -164,10 +164,8 @@ function buildConversationContextProjection(input: {
 	};
 }
 
-function extractPreviousEvidenceRefs(
-	message: ChatMessage,
-): CapabilityExecutionPreviousEvidenceRef[] {
-	const refs: CapabilityExecutionPreviousEvidenceRef[] = [];
+function extractPreviousEvidenceRefs(message: ChatMessage): ToolExecutionPreviousEvidenceRef[] {
+	const refs: ToolExecutionPreviousEvidenceRef[] = [];
 	for (const part of message.structuredParts) {
 		if (part.type !== "source_items") {
 			continue;
@@ -235,7 +233,7 @@ export function buildAcceptedWrite(input: {
 	prompt: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	runId: string | null;
 	versionQuery: VersionQuery | null;
@@ -291,11 +289,11 @@ export function buildAcceptedWrite(input: {
 			traceId: input.traceId,
 			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedCapability: input.requestedCapability,
+			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope: null,
-			selectedCapability: null,
+			selectedTool: null,
 			status: "accepted",
 			errorCode: null,
 			questionPreview: previewText(input.prompt),
@@ -312,7 +310,7 @@ export function buildAcceptedWrite(input: {
 			conversationId: input.conversation.id,
 			principal: input.principal,
 			requestId: input.requestId,
-			requestedCapability: input.requestedCapability,
+			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			resolvedScope: null,
 			safetyIdentifier: input.safetyIdentifier,
@@ -331,7 +329,7 @@ export function buildAcceptedWrite(input: {
 				conversationId: input.conversation.id,
 				status: "accepted",
 				questionPreview: previewText(input.prompt),
-				requestedCapability: input.requestedCapability,
+				requestedTool: input.requestedTool,
 				requestedScope: input.requestedScope,
 				surface: input.surface,
 			},
@@ -346,7 +344,7 @@ export function buildAcceptedWrite(input: {
 
 function resolveFinalizedScope(input: {
 	requestedScope: RequestedScope | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 }): RequestedScope | null {
 	const corpus = input.response.observability?.resolvedScopeCorpus?.trim();
 	const collection = input.response.observability?.resolvedScopeCollection?.trim();
@@ -367,9 +365,9 @@ export function buildFinalizedWrite(input: {
 	outboxEventId: string;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	runId: string | null;
 	versionQuery: VersionQuery | null;
 	safetyIdentifier: string | null;
@@ -386,12 +384,12 @@ export function buildFinalizedWrite(input: {
 	const normalizedExecutionResponse = {
 		...input.response,
 		traceId: normalizedTraceId,
-	} satisfies CapabilityExecutionResponse;
+	} satisfies ToolExecutionResponse;
 	const diagnostics = extractRequestDiagnosticsSummary(input.response.result);
 	const sourceDocIds = extractSourceDocIds(input.response.result);
 	const structuredParts = normalizeChatResponseStructuredParts({
 		result: input.response.result,
-		selectedCapability: input.response.selectedCapability,
+		selectedTool: input.response.selectedTool,
 		status: input.response.status,
 	});
 	const resolvedScope = resolveFinalizedScope({
@@ -538,11 +536,11 @@ export function buildFinalizedWrite(input: {
 			traceId: normalizedTraceId,
 			runId: input.runId,
 			safetyIdentifier: input.safetyIdentifier,
-			requestedCapability: input.requestedCapability,
+			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			versionQuery: input.versionQuery,
 			resolvedScope,
-			selectedCapability: input.response.selectedCapability,
+			selectedTool: input.response.selectedTool,
 			status,
 			errorCode,
 			questionPreview: "",
@@ -563,7 +561,7 @@ export function buildFinalizedWrite(input: {
 			errorCode,
 			principal: input.principal,
 			requestId: input.requestId,
-			requestedCapability: input.requestedCapability,
+			requestedTool: input.requestedTool,
 			requestedScope: input.requestedScope,
 			resolvedScope,
 			response: normalizedExecutionResponse,
@@ -584,7 +582,7 @@ export function buildFinalizedWrite(input: {
 				traceId: normalizedTraceId,
 				conversationId: input.conversation.id,
 				status,
-				selectedCapability: input.response.selectedCapability,
+				selectedTool: input.response.selectedTool,
 				answerPreview: previewText(assistantText),
 				errorCode,
 				...(diagnostics ? { diagnostics } : {}),

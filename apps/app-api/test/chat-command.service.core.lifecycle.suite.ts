@@ -2,13 +2,13 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	createTelemetryMock,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreLifecycleSuite(): void {
@@ -16,14 +16,14 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
 					[
 						'event: execution.queued\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"queued","occurred_at":"2026-03-28T08:00:00.500Z"}',
 						'event: execution.running\ndata: {"request_id":"req_0001","trace_id":"trace_0001","status":"running","occurred_at":"2026-03-28T08:00:01.000Z"}',
-						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0002","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_capability":"knowledge","status":"completed","trace_id":"trace_0002"}}',
+						'event: execution.completed\ndata: {"request_id":"req_0001","trace_id":"trace_0002","status":"completed","occurred_at":"2026-03-28T08:00:02.000Z","response":{"answer_text":"图书馆开放到 22:00。","confidence":"high","error":null,"follow_up_question":"","result":{"evidence":{"sources":[{"doc_id":"handbook:library-hours"}]}},"selected_tool":"knowledge_query","status":"completed","trace_id":"trace_0002"}}',
 					].join("\n\n"),
 					{
 						headers: {
@@ -39,7 +39,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -108,17 +108,17 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 			requestExecution: {
 				requestId: "req_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0002",
 			},
 		});
 	});
-	it("finalizes invalid executionClient stream terminal errors without defaulting missing fields", async () => {
+	it("finalizes invalid execution stream terminal errors without defaulting missing fields", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn().mockResolvedValue(
 				new Response(
@@ -137,7 +137,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 		if (!service.submitStream) {
@@ -174,11 +174,11 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			}),
 		);
 	});
-	it("leaves omitted requestedCapability unset so executionClient can infer the entrance intent", async () => {
+	it("leaves omitted requestedTool unset so executionClient can infer the entrance intent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆在海淀校区主教学区西侧。",
 				error: null,
@@ -193,7 +193,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 						},
 					},
 				},
-				selectedCapability: "navigation",
+				selectedTool: "place_lookup",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -203,7 +203,7 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 
@@ -218,30 +218,30 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 
 		expect(executionClient.execute).toHaveBeenCalledWith(
 			expect.objectContaining({
-				requestedCapability: null,
+				requestedTool: null,
 				userGoal: "图书馆在哪里",
 			}),
 		);
 		expect(acceptedWrites[0]).toMatchObject({
 			requestExecution: {
-				requestedCapability: null,
+				requestedTool: null,
 			},
 			requestObservabilityFact: {
-				requestedCapability: null,
+				requestedTool: null,
 			},
 		});
 		expect(finalWrites[0]).toMatchObject({
 			requestExecution: {
-				requestedCapability: null,
-				selectedCapability: "navigation",
+				requestedTool: null,
+				selectedTool: "place_lookup",
 			},
 			requestObservabilityFact: {
-				requestedCapability: null,
+				requestedTool: null,
 			},
 		});
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
-				requestedCapability: null,
+				requestedTool: null,
 			}),
 		);
 	});

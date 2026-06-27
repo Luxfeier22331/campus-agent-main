@@ -329,7 +329,7 @@ function RequestsPage() {
 											</TableCell>
 											<TableCell>{request.surface}</TableCell>
 											<TableCell>
-												{request.selectedCapability || request.requestedCapability || "未指定"}
+												{request.selectedTool || request.requestedTool || "未指定"}
 											</TableCell>
 											<TableCell>{formatPanelTimestamp(request.projectedAt)}</TableCell>
 										</TableRow>
@@ -405,7 +405,7 @@ function RequestDetailPage() {
 							<Fact label="接入面" value={request.surface} />
 							<Fact
 								label="能力"
-								value={request.selectedCapability || request.requestedCapability || "未指定"}
+								value={request.selectedTool || request.requestedTool || "未指定"}
 							/>
 							<Fact label="Trace ID" value={request.traceId} />
 							<Fact label="会话" value={request.conversationId} />

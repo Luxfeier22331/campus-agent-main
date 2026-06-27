@@ -4,13 +4,13 @@ from tests.contracts.contract_models_test_support import *
 
 
 class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
-    def test_execution_request_defaults_do_not_inject_fixed_capability_or_scope(self) -> None:
+    def test_tool_request_defaults_do_not_inject_fixed_tool_or_scope(self) -> None:
         request = ExecutionRequest(user_goal="library hours")
 
         self.assertEqual(request.conversation_id, "")
         self.assertEqual(request.request_id, "")
         self.assertIsNone(request.safety_identifier)
-        self.assertIsNone(request.requested_capability)
+        self.assertIsNone(request.requested_tool)
         self.assertIsNone(request.requested_scope)
         self.assertEqual(request.version_query, VersionQuery(mode="current"))
         self.assertEqual(
@@ -61,21 +61,21 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             ),
         )
 
-    def test_execution_request_rejects_removed_availability_capability(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unsupported requested_capability: availability"):
+    def test_tool_request_rejects_removed_availability_tool(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported requested_tool: availability"):
             ExecutionRequest(
                 user_goal="官网能打开吗",
-                requested_capability="availability",  # type: ignore[arg-type]
+                requested_tool="availability",  # type: ignore[arg-type]
             )
 
-    def test_execution_request_does_not_accept_removed_availability_target_field(self) -> None:
+    def test_tool_request_does_not_accept_removed_availability_target_field(self) -> None:
         with self.assertRaisesRegex(TypeError, "availability_target_id"):
             ExecutionRequest(
                 user_goal="官网能打开吗",
                 availability_target_id="official-homepage",  # type: ignore[call-arg]
             )
 
-    def test_execution_request_accepts_typed_context_projection(self) -> None:
+    def test_tool_request_accepts_typed_context_projection(self) -> None:
         request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             context=ContextProjection(
@@ -140,7 +140,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertEqual(request.context.profile_memory.items[0].value, "咨询保研")
         self.assertEqual(request.context.session.confirmed_slots[0].value, "推免资格")
 
-    def test_execution_request_rejects_non_hex_safety_identifier(self) -> None:
+    def test_tool_request_rejects_non_hex_safety_identifier(self) -> None:
         with self.assertRaises(ValueError):
             ExecutionRequest(
                 user_goal="保研政策怎么准备？",
@@ -176,7 +176,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
             ),
         )
 
-    def test_execution_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
+    def test_tool_request_actor_only_no_longer_projects_authorization_filter(self) -> None:
         request = ExecutionRequest(
             user_goal="保研政策怎么准备？",
             actor=ActorContext(

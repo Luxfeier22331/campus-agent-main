@@ -17,11 +17,11 @@ planning status.
 
 ## Repo Entry Truth
 
-- `product-positioning.md`
+- `product.md`
   - product boundary, target users and explicit non-promises
-- `current-architecture.md`
+- `current.md`
   - current accepted merged-truth snapshot
-- `target-architecture.md`
+- `target.md`
   - long-term architecture invariants and non-regression boundaries
 
 ## Supporting Architecture Layout
@@ -31,7 +31,7 @@ planning status.
     data-plane, observability and related system boundaries
 - `domains/README.md`
   - domain architecture for navigation, official-web, authenticated notice,
-    campus services and other capability/domain boundaries
+    campus services and other tool/domain boundaries
 
 ## Related Truth Owners
 
@@ -45,22 +45,22 @@ planning status.
 
 ## Question Routing
 
-- "What is the product?" -> `product-positioning.md`
-- "What is already merged and accepted?" -> `current-architecture.md`
-- "What must the system converge to?" -> `target-architecture.md`
+- "What is the product?" -> `product.md`
+- "What is already merged and accepted?" -> `current.md`
+- "What must the system converge to?" -> `target.md`
 - "How does a cross-domain runtime or owner boundary work?" -> `system/`
-- "How does one capability/domain work?" -> `domains/`
+- "How does one domain or tool boundary work?" -> `domains/`
 - "Where is official-web source truth?" ->
   `../data/official-web-source-truth-schema.md`
 - "Where is authenticated notice source truth?" ->
-  `../data/authenticated-notice-source-truth-schema.md`
+  `../data/authenticated-notice.md`
 - "Where is dining operations data truth?" ->
   `../data/dining-operations-schema.md`
 
 ## Use Rules
 
-- `current-architecture.md` writes merged truth only.
-- `target-architecture.md` writes long-term invariants only.
+- `current.md` writes merged truth only.
+- `target.md` writes long-term invariants only.
 - Supporting architecture explains boundaries and owners, not one-off plans or
   execution history.
 - Cross-domain supporting architecture belongs in `system/`.

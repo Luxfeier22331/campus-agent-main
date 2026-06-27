@@ -325,9 +325,9 @@ function agentExpectedPayload(datasetKind: string, item: JsonObject): JsonObject
 		return {
 			direct_answer: expected.direct_answer,
 			fail_close_reason: optionalString(expected.fail_close_reason),
-			forbidden_capabilities: stringList(expected.forbidden_capabilities),
+			forbidden_tools: stringList(expected.forbidden_tools),
 			requires_clarification: expected.requires_clarification,
-			selected_capability: optionalString(expected.selected_capability),
+			selected_tool: optionalString(expected.selected_tool),
 			split: optionalString(item.split),
 			terminal_outcome: optionalString(expected.terminal_outcome),
 		};

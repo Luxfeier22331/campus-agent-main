@@ -14,7 +14,7 @@ owner、runtime shape 与 forbidden shapes。
 ## 当前领域
 
 - `navigation/architecture.md`
-  - 校园导航 / spatial truth / wayfinding capability boundary
+  - 校园导航 / spatial truth / wayfinding tool boundary
 - `official-web/architecture.md`
   - public official-web source channel、control plane 与 serving split
 - `official-web/freshness-and-incremental-crawling.md`
@@ -24,7 +24,7 @@ owner、runtime shape 与 forbidden shapes。
 - `authenticated-notice/architecture.md`
   - authenticated notice source channel、source/data plane 与 regulation downstream
 - `campus-services/architecture.md`
-  - campus services structured runtime、projection-backed query seam 与 opening gate
+  - campus services tool read model、projection-backed query seam 与 opening gate
 - `dining/architecture.md`
   - dining floor/window/stall/menu、ops draft/release candidate/release 与
     student published projection boundary

@@ -19,7 +19,7 @@ const EVENT_NAME_BY_TYPE = new Map<string, string>([
 	["execution.admission_rejected", "runtime.execution.admission_rejected"],
 	["execution.cancel_requested", "runtime.execution.cancel_requested"],
 	["execution.cancelled", "runtime.execution.cancelled"],
-	["execution.runtime_failed", "runtime.execution.runtime_failed"],
+	["execution.activity_failed", "runtime.execution.activity_failed"],
 	["execution.timed_out", "runtime.execution.timed_out"],
 ]);
 

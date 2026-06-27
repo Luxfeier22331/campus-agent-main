@@ -5,7 +5,6 @@ import unittest
 
 from campus_contracts import (
     ActorContext,
-    CapabilityResponse,
     ErrorInfo,
     EvidenceBundle,
     EvidenceSource,
@@ -14,6 +13,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagResultDiagnostics,
     RagResultPayload,
+    ToolResponse,
     VersionQuery,
 )
 from campus_evals import (
@@ -94,9 +94,9 @@ def _response(
     collection: str = "student_rules",
     sources: tuple[EvidenceSource, ...] = (),
     diagnostics: RagResultDiagnostics | None = None,
-) -> CapabilityResponse:
-    return CapabilityResponse(
-        capability="knowledge",
+) -> ToolResponse:
+    return ToolResponse(
+        tool="knowledge_query",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -116,7 +116,6 @@ __all__ = (
     "CURRICULUM_SCOPE",
     "HANDBOOK_SCOPE",
     "ActorContext",
-    "CapabilityResponse",
     "ErrorInfo",
     "EvidenceBundle",
     "EvidenceSource",
@@ -128,6 +127,7 @@ __all__ = (
     "ObservedTrace",
     "RagResultDiagnostics",
     "RagResultPayload",
+    "ToolResponse",
     "TraceExpectation",
     "VersionQuery",
     "_is_lookup_style_goal",

@@ -16,8 +16,8 @@ runbook，不重复维护每个子流程的全部细节。
 本文只用于真实 staging release closeout。它不替代：
 
 - repo unit / typecheck / build gate
-- `docs/runbooks/execution-control-staging-operations.md`
-- `docs/runbooks/execution-control-staging-smoke-runbook.md`
+- `docs/runbooks/execution-ops.md`
+- `docs/runbooks/execution-smoke.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`
 
 当前默认目标环境是 `mucwiki-edge.link` staging。`campus.muc.wiki` 是 production

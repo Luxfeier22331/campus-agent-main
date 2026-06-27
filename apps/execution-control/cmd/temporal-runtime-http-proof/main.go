@@ -13,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
 var (
@@ -21,12 +23,10 @@ var (
 )
 
 var requiredTemporalTaskQueues = []string{
-	"campus-agent.workflow",
-	"campus-agent.activity.context",
-	"campus-agent.activity.knowledge.plan",
-	"campus-agent.activity.knowledge.retrieval",
-	"campus-agent.activity.knowledge.synthesis",
-	"campus-agent.activity.finalization",
+	temporalruntime.WorkflowTaskQueue,
+	temporalruntime.ActivityTaskQueueCore,
+	temporalruntime.ActivityTaskQueueAgent,
+	temporalruntime.ActivityTaskQueueKnowledge,
 }
 
 type proofOptions struct {

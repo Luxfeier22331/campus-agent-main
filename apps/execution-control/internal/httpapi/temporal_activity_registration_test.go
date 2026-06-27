@@ -13,11 +13,11 @@ func TestTemporalActivitySetsDoNotExposeServerLifecycleMethods(t *testing.T) {
 	server := &Server{}
 
 	for name, activities := range map[string]any{
-		"context":      server.TemporalContextActivities(),
-		"agent":        server.TemporalAgentActivities(),
-		"knowledge":    server.TemporalKnowledgeActivities(),
-		"typed_tool":   server.TemporalTypedToolActivities(),
-		"finalization": server.TemporalFinalizationActivities(),
+		"context":         server.TemporalContextActivities(),
+		"agent":           server.TemporalAgentActivities(),
+		"knowledge_query": server.TemporalKnowledgeActivities(),
+		"typed_tool":      server.TemporalTypedToolActivities(),
+		"finalization":    server.TemporalFinalizationActivities(),
 	} {
 		activityType := reflect.TypeOf(activities)
 		if activityType == nil {
@@ -113,10 +113,13 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 	}
 	defer temporalClient.Close()
 	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewContextActivityWorker(
+		worker := temporalruntime.NewCoreActivityWorkerWithOptions(
 			temporalClient,
-			"test-context",
+			"test-core",
 			server.TemporalContextActivities(),
+			server.TemporalTypedToolActivities(),
+			server.TemporalFinalizationActivities(),
+			workerOptionsForRegistrationTest(),
 		)
 		worker.Stop()
 	})
@@ -129,45 +132,11 @@ func TestTemporalActivityWorkerRegistrationAcceptsActivitySets(t *testing.T) {
 		worker.Stop()
 	})
 	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewKnowledgePlanActivityWorker(
+		worker := temporalruntime.NewKnowledgeActivityWorkerWithOptions(
 			temporalClient,
-			"test-knowledge-plan",
+			"test-knowledge",
 			server.TemporalKnowledgeActivities(),
 			workerOptionsForRegistrationTest(),
-		)
-		worker.Stop()
-	})
-	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewKnowledgeRetrievalActivityWorker(
-			temporalClient,
-			"test-knowledge-retrieval",
-			server.TemporalKnowledgeActivities(),
-			workerOptionsForRegistrationTest(),
-		)
-		worker.Stop()
-	})
-	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewKnowledgeSynthesisActivityWorker(
-			temporalClient,
-			"test-knowledge-synthesis",
-			server.TemporalKnowledgeActivities(),
-			workerOptionsForRegistrationTest(),
-		)
-		worker.Stop()
-	})
-	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewTypedToolActivityWorker(
-			temporalClient,
-			"test-campus-services",
-			server.TemporalTypedToolActivities(),
-		)
-		worker.Stop()
-	})
-	assertDoesNotPanic(t, func() {
-		worker := temporalruntime.NewFinalizationActivityWorker(
-			temporalClient,
-			"test-finalization",
-			server.TemporalFinalizationActivities(),
 		)
 		worker.Stop()
 	})

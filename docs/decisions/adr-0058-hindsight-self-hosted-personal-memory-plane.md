@@ -90,7 +90,7 @@ Retired:
 
 ## Consequences
 
-`execution-control` and `activity-context` require deployment env handles:
+`execution-control` and `activity-core` require deployment env handles:
 
 ```text
 PERSONAL_MEMORY_BASE_URL

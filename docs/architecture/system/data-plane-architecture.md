@@ -21,7 +21,7 @@ updated: 2026-06-17
 补充约束：
 
 - 当前 merged truth 的开放 surface 与产品执行状态不在本文维护，统一看
-  `docs/architecture/current-architecture.md` 与 `.planning/`
+  `docs/architecture/current.md` 与 `.planning/`
 - 本文中的 “scope” 指 canonical data-plane support 范围，不等于 query-enabled 或 rollout 已完成
 - full agentic retrieval 的长期 target truth 另见
   `docs/architecture/system/agentic-retrieval-architecture.md`
@@ -136,7 +136,7 @@ unit，只要不破坏这条 shared chain。
 - `official_web` page-level source truth，详见
   `docs/data/official-web-source-truth-schema.md`
 - `authenticated_notice_portal` notice-level source truth，详见
-  `docs/data/authenticated-notice-source-truth-schema.md`
+  `docs/data/authenticated-notice.md`
 
 这不表示它们都已进入当前 merged truth；当前已落地范围仍以下文 `Accepted Data-Plane Scope` 为准。
 
@@ -216,7 +216,7 @@ repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapp
 阶段门槛：
 
 - collection task registry 只能证明 topology 被声明，不能证明执行链路已完成。
-- 旧 Python CLI 不迁入 registry/executor seam；仍需要的 capability 必须按 TS/Rust target
+- 旧 Python CLI 不迁入 registry/executor seam；仍需要的 tool 必须按 TS/Rust target
   runtime 或 Python adapter 重新建模。
 - `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth
   materialization 的主输入；mainline handoff 必须是 source bucket `object_store` refs。
@@ -258,7 +258,7 @@ live evidence record -> query-time candidate`
   alias
 - 只有被 repo admission 的 source channel 才允许产出 live evidence
 - live evidence 是否能成为 answer-bearing evidence，仍取决于 freshness gate、source-trust
-  gate 与 capability policy
+  gate 与 tool policy
 - 若后续要把 live evidence 升格为 canonical content，必须重新回到 source-truth /
   document-materialization 路径，而不是把 query-time record 原地改写成 canonical truth
 
@@ -497,7 +497,7 @@ registry / control-plane database 与对象存储长期分层。
 - `docs/reference/student-handbook-normalization-strategy.md`
 - `configs/ingestion/*`
 - `docs/data/official-web-source-truth-schema.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/domains/transport.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/reference/internal-notice-pdf-chunks.md`
@@ -560,7 +560,7 @@ closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0019-qdrant-physical-collection-retention-and-expiration.md`
@@ -569,6 +569,6 @@ closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
 - `docs/decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput
   .md`
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
 - `docs/reference/internal-notice-pdf-chunks.md`

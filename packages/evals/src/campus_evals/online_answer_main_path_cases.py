@@ -24,7 +24,7 @@ class OnlineAnswerMainPathTraceContract:
 
 @dataclass(frozen=True, slots=True)
 class OnlineAnswerMainPathExpected:
-    selected_capability: str
+    selected_tool: str
     terminal_outcome: str
     source_truth: OnlineAnswerMainPathSourceTruth
     trace_contract: OnlineAnswerMainPathTraceContract
@@ -80,9 +80,9 @@ def _parse_case(payload: object) -> OnlineAnswerMainPathCase:
         domain=_required_string(item.get("domain"), "case.domain"),
         split=_required_string(item.get("split"), "case.split"),
         expected=OnlineAnswerMainPathExpected(
-            selected_capability=_required_string(
-                expected.get("selected_capability"),
-                "case.expected.selected_capability",
+            selected_tool=_required_string(
+                expected.get("selected_tool"),
+                "case.expected.selected_tool",
             ),
             terminal_outcome=_required_string(
                 expected.get("terminal_outcome"),

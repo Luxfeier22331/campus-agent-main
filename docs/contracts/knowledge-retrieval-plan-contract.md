@@ -1,6 +1,6 @@
 ---
 doc_type: contract
-truth_scope: capability
+truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-21
@@ -24,7 +24,7 @@ seam。
 它不负责：
 
 - browser-facing HTTP schema
-- execution -> capability handoff schema
+- legacy-named execution -> tool handoff schema
 - 当前 multi-step executor 的具体代码实现
 - 通用工具平台或开放域 browse contract
 
@@ -32,7 +32,7 @@ seam。
 
 - 这份 contract 记录的是稳定 runtime seam，不等于 `packages/contracts` 里的 shared package
   placement
-- 当前 merged truth 仍以 `docs/architecture/current-architecture.md` 与
+- 当前 merged truth 仍以 `docs/architecture/current.md` 与
   `docs/architecture/system/retrieval-serving-architecture.md` 的 single-shot baseline
   为准； 本文冻结的是 target-state 进入实现前必须先明确的 seam truth
 
@@ -64,7 +64,7 @@ step trajectory，而不是 prompt 内部不可见的自由文本状态。
 固定规则：
 
 - `packages/contracts` 当前不承载 `RetrievalPlan / RetrievalStep / StepResult`
-- `apps/app-api`、`apps/execution-control`、retired Python bridge 与
+- `apps/app-api`、`apps/execution-control`、retired Python handoff 与
   browser surface 不得依赖这组内部类型
 - operator / browser 最终只应看到衍生后的 supporting evidence 或 operator-safe execution
   summary，而不是 raw plan / raw vendor payload
@@ -108,7 +108,7 @@ RetrievalPlan
 
 - `query_mode` 复用现有 `current / historical / as_of / compare /
   freshness_sensitive / live_assisted` vocabulary，不再另造第二套 mode 名称
-- `admitted_scopes` 由 capability / serving-surface / authz gate 先决决定，planner 只能在
+- `admitted_scopes` 由 tool / serving-surface / authz gate 先决决定，planner 只能在
   这个闭集内排布 steps
 - `version_query` 复用已冻结的 versioned-history truth；plan 不重写版本解析语义
 - `source_trust_policy` 只表达 answer-bearing evidence 的最低可信门槛，不等于 remote tool
@@ -198,7 +198,7 @@ RetrievalStep
 当前 reserved value：
 
 - `scope_follow_up`
-  - 只保留给“同一 admitted capability 内切换 internal retrieval surface”的显式扩展；
+  - 只保留给“同一 admitted tool 内切换 internal retrieval surface”的显式扩展；
     未 admission 时 executor 必须拒绝它
 
 固定排除：
@@ -208,7 +208,7 @@ RetrievalStep
 - internal selected notice resolve with `payload_kind=campus_notice_get`
 - general web browse
 - provider black-box web tool
-- 未经 repo 文档 admission 的 remote capability
+- 未经 repo 文档 admission 的 remote tool
 
 ## Query Mode Vs Step Type
 
@@ -290,8 +290,8 @@ StepResult
 
 固定约束：
 
-- planner 不得静默扩大 scope、trust tier 或 runtime capability
-- executor 不得静默改写 query mode、历史语义或产品 capability
+- planner 不得静默扩大 scope、trust tier 或 runtime tool
+- executor 不得静默改写 query mode、历史语义或产品 tool
 - `RetrievalRequest` 继续是 executor kernel input；它可以从 `RetrievalStep` 派生，但两者不
   允许一一直接等号化
 - evidence verifier 失败时必须 replan、clarification 或 fail-close；synthesis 不得把缺失证据补成自然语言答案
@@ -319,7 +319,7 @@ StepResult
   - admitted scope 不变或收窄
   - authz / visibility gate 不变
   - source-trust policy 不放宽
-  - tool family 不切换成 structured runtime 或 general web
+  - tool domain 不切换成 tool read model runtime 或 general web
 
 固定 fail-close 分支：
 
@@ -355,7 +355,7 @@ browser / execution layer 允许消费的只是：
   plan truth
 - 不把 `RetrievalRequest` 直接冒充成 `RetrievalStep`
 - 不把 `live_source_lookup` 做成 general web fallback
-- 不把 structured runtime tool family 混入 generic retrieval step taxonomy
+- 不把 tool read model runtime tool domain 混入 generic retrieval step taxonomy
 - 不把 fail-close 降成“无依据也尽量回答”
 
 ## 相关稳定文档

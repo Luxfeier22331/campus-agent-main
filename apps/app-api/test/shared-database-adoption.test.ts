@@ -117,13 +117,13 @@ ADD COLUMN "run_intent" text NOT NULL DEFAULT 'baseline';`),
 		});
 		expect(
 			parseMigrationStatement(
-				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_capability" TO "selected_capability";',
+				'ALTER TABLE "runtime"."request_execution" RENAME COLUMN "old_tool" TO "selected_tool";',
 			),
 		).toMatchObject({
-			existsKey: "runtime.request_execution:selected_capability",
-			fromColumn: "old_capability",
+			existsKey: "runtime.request_execution:selected_tool",
+			fromColumn: "old_tool",
 			kind: "rename_column",
-			toColumn: "selected_capability",
+			toColumn: "selected_tool",
 		});
 		expect(
 			parseMigrationStatement(
@@ -183,12 +183,12 @@ ON "official_web"."crawl_runs" USING btree (
 		});
 		expect(
 			parseMigrationStatement(
-				'ALTER INDEX IF EXISTS "operator"."operator_metric_rollup_domain_target_bucket_idx" RENAME TO "operator_metric_rollup_domain_capability_bucket_idx";',
+				'ALTER INDEX IF EXISTS "operator"."operator_metric_rollup_domain_target_bucket_idx" RENAME TO "operator_metric_rollup_domain_tool_bucket_idx";',
 			),
 		).toMatchObject({
-			existsKey: "operator@operator_metric_rollup_domain_capability_bucket_idx",
+			existsKey: "operator@operator_metric_rollup_domain_tool_bucket_idx",
 			fromIndex: "operator_metric_rollup_domain_target_bucket_idx",
-			index: "operator_metric_rollup_domain_capability_bucket_idx",
+			index: "operator_metric_rollup_domain_tool_bucket_idx",
 			kind: "rename_index",
 		});
 		expect(
@@ -656,10 +656,10 @@ DROP COLUMN "actor_groups_json";`),
 				return {
 					...table,
 					indexes: table.indexes.map((index) =>
-						index.name === "runtime_request_observability_selected_capability_started_at_idx"
+						index.name === "runtime_request_observability_selected_tool_started_at_idx"
 							? {
 									...index,
-									name: "runtime_request_observability_selected_capability_started_at_id",
+									name: "runtime_request_observability_selected_tool_started_at_id",
 								}
 							: index,
 					),
@@ -676,11 +676,11 @@ DROP COLUMN "actor_groups_json";`),
 			plan.statements.some(
 				(item) =>
 					item.target.existsKey ===
-					"runtime.request_observability_fact@runtime_request_observability_selected_capability_started_at_idx",
+					"runtime.request_observability_fact@runtime_request_observability_selected_tool_started_at_idx",
 			),
 		).toBe(false);
 		expect(plan.mismatches).not.toContain(
-			"runtime.request_observability_fact missing index runtime_request_observability_selected_capability_started_at_idx",
+			"runtime.request_observability_fact missing index runtime_request_observability_selected_tool_started_at_idx",
 		);
 	});
 
@@ -693,10 +693,10 @@ DROP COLUMN "actor_groups_json";`),
 					return {
 						...table,
 						indexes: table.indexes.map((index) =>
-							index.name === "runtime_request_observability_selected_capability_started_at_idx"
+							index.name === "runtime_request_observability_selected_tool_started_at_idx"
 								? {
 										...index,
-										name: "runtime_request_observability_selected_capability_started_at_id",
+										name: "runtime_request_observability_selected_tool_started_at_id",
 									}
 								: index,
 						),

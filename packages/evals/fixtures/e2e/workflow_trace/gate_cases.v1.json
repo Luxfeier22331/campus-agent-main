@@ -10,14 +10,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"selected_tools": ["transport_schedule_lookup"],
 				"handoff": {
-					"target": "campus_services"
+					"target": "transport_schedule_lookup"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus_services",
+						"target": "transport_schedule_lookup",
 						"selected_tool": "transport_schedule_lookup"
 					}
 				],
@@ -54,14 +54,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"selected_tools": ["campus_notice_discover"],
 				"handoff": {
-					"target": "notice"
+					"target": "campus_notice_discover"
 				},
 				"handoff_chain": [
 					{
-						"target": "notice",
+						"target": "campus_notice_change_set_lookup",
 						"selected_tool": "campus_notice_discover"
 					}
 				],
@@ -98,15 +98,15 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"selected_tools": ["transport_schedule_lookup"],
 				"expected_answer_artifact_kinds": ["schedule_baseline"],
 				"handoff": {
-					"target": "campus_services"
+					"target": "transport_schedule_lookup"
 				},
 				"handoff_chain": [
 					{
-						"target": "campus_services",
+						"target": "transport_schedule_lookup",
 						"selected_tool": "transport_schedule_lookup"
 					}
 				],
@@ -128,7 +128,7 @@
 							"selected_tool": "transport_schedule_lookup",
 							"snapshot_query_mode": "current"
 						},
-						"source_ids": ["notice:353903", "transport_schedule:commute"]
+						"source_ids": ["transport_schedule:commute", "notice:353903"]
 					}
 				],
 				"expected_tool_order": ["transport_schedule_lookup"],
@@ -146,19 +146,19 @@
 		{
 			"case_id": "workflow-knowledge-delegate",
 			"family": "workflow_trace",
-			"description": "student rules knowledge family delegate branch",
+			"description": "student rules knowledge tool delegate branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_capability": "knowledge",
-				"selected_tools": ["retrieval.query"],
+				"selected_tool": "knowledge_query",
+				"selected_tools": ["knowledge_query"],
 				"handoff": {
-					"target": "knowledge"
+					"target": "knowledge_query"
 				},
 				"handoff_chain": [
 					{
-						"target": "knowledge",
-						"selected_tool": "retrieval.query"
+						"target": "knowledge_query",
+						"selected_tool": "knowledge_query"
 					}
 				],
 				"tool_argument_summary": {
@@ -166,7 +166,7 @@
 				},
 				"tool_call_summaries": [
 					{
-						"tool_name": "retrieval.query",
+						"tool_name": "knowledge_query",
 						"result_status": "completed",
 						"argument_summary": {
 							"collection": "student_rules"
@@ -187,26 +187,26 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "multi_step",
 				"workflow_mode": "multi_step",
-				"selected_capability": "knowledge",
-				"selected_tools": ["retrieval.query"],
+				"selected_tool": "knowledge_query",
+				"selected_tools": ["knowledge_query"],
 				"handoff": {
-					"target": "notice",
+					"target": "campus_notice_get",
 					"payload_kind": "campus_notice_get"
 				},
 				"handoff_chain": [
 					{
-						"target": "notice",
+						"target": "campus_notice_discover",
 						"payload_kind": "campus_notice_get"
 					},
 					{
-						"target": "knowledge",
+						"target": "knowledge_query",
 						"payload_kind": "rag_request",
-						"selected_tool": "retrieval.query"
+						"selected_tool": "knowledge_query"
 					}
 				],
 				"tool_argument_summary": {
 					"payload_kind": "campus_notice_get",
-					"selected_tool": "retrieval.query",
+					"selected_tool": "knowledge_query",
 					"notice_id": "notice:smoke:001",
 					"source_family": "wechat_public_notice"
 				},
@@ -217,21 +217,21 @@
 				],
 				"tool_call_summaries": [
 					{
-						"tool_name": "retrieval.query",
+						"tool_name": "knowledge_query",
 						"result_status": "needs_clarification",
 						"business_outcome": "needs_clarification",
 						"argument_summary": {
 							"payload_kind": "campus_notice_get",
-							"selected_tool": "retrieval.query",
+							"selected_tool": "knowledge_query",
 							"notice_id": "notice:smoke:001",
 							"source_family": "wechat_public_notice"
 						},
 						"source_ids": ["handbook:rule-001"]
 					}
 				],
-				"expected_tool_order": ["retrieval.query"],
+				"expected_tool_order": ["knowledge_query"],
 				"expected_tool_result_statuses": {
-					"retrieval.query": "needs_clarification"
+					"knowledge_query": "needs_clarification"
 				},
 				"guardrail_outcomes": {
 					"context_preflight": "resolved",
@@ -248,7 +248,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"selected_tools": [],
 				"handoff": null,
 				"handoff_chain": [],
@@ -269,19 +269,19 @@
 		{
 			"case_id": "workflow-curriculum-delegate",
 			"family": "workflow_trace",
-			"description": "curriculum plan knowledge family delegate branch",
+			"description": "curriculum plan knowledge tool delegate branch",
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_step",
-				"selected_capability": "knowledge",
-				"selected_tools": ["retrieval.query"],
+				"selected_tool": "knowledge_query",
+				"selected_tools": ["knowledge_query"],
 				"handoff": {
-					"target": "knowledge"
+					"target": "knowledge_query"
 				},
 				"handoff_chain": [
 					{
-						"target": "knowledge",
-						"selected_tool": "retrieval.query"
+						"target": "knowledge_query",
+						"selected_tool": "knowledge_query"
 					}
 				],
 				"tool_argument_summary": {
@@ -289,7 +289,7 @@
 				},
 				"tool_call_summaries": [
 					{
-						"tool_name": "retrieval.query",
+						"tool_name": "knowledge_query",
 						"result_status": "completed",
 						"argument_summary": {
 							"collection": "curriculum_plan"
@@ -310,7 +310,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "clarification",
 				"workflow_mode": "terminal",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
@@ -331,7 +331,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],
@@ -351,7 +351,7 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "fail_close",
 				"workflow_mode": "terminal",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"selected_tools": [],
 				"handoff": {},
 				"handoff_chain": [],

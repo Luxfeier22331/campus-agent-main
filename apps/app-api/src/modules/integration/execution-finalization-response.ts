@@ -1,17 +1,17 @@
 import { summarizeObservedSources } from "../source-trace";
-import type {
-	CapabilityExecutionModelUsageSummary,
-	CapabilityExecutionObservability,
-	CapabilityExecutionPromptTrace,
-	CapabilityExecutionResponse,
-	CapabilityExecutionUsageSummary,
-	CapabilityExecutionWorkflowTraceSummary,
-} from "./capability-execution-types";
 import {
 	EXECUTION_FINALIZATION_CONFIDENCE_LEVELS,
 	EXECUTION_FINALIZATION_STATUSES,
 	type ExecutionFinalizationResponseWire,
 } from "./execution-finalization-contract";
+import type {
+	ToolExecutionModelUsageSummary,
+	ToolExecutionObservability,
+	ToolExecutionPromptTrace,
+	ToolExecutionResponse,
+	ToolExecutionUsageSummary,
+	ToolExecutionWorkflowTraceSummary,
+} from "./tool-execution-types";
 
 const FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = [
 	"raw_prompt",
@@ -31,7 +31,7 @@ const EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = new Set([
 	"follow_up_question",
 	"observability",
 	"result",
-	"selected_capability",
+	"selected_tool",
 	"status",
 	"trace_id",
 	"workflow_trace_summary",
@@ -43,7 +43,7 @@ const REQUIRED_EXECUTION_FINALIZATION_RESPONSE_WIRE_KEYS = [
 	"error",
 	"follow_up_question",
 	"result",
-	"selected_capability",
+	"selected_tool",
 	"status",
 	"trace_id",
 ] as const;
@@ -73,9 +73,7 @@ function normalizeNullableString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function isExecutionFinalizationStatus(
-	value: unknown,
-): value is CapabilityExecutionResponse["status"] {
+function isExecutionFinalizationStatus(value: unknown): value is ToolExecutionResponse["status"] {
 	return (
 		typeof value === "string" &&
 		(EXECUTION_FINALIZATION_STATUSES as readonly string[]).includes(value)
@@ -120,10 +118,8 @@ function assertExecutionFinalizationResponseWire(
 	) {
 		throw new ExecutionFinalizationResponseContractError("confidence must be high, medium, or low");
 	}
-	if (!(record.selected_capability === null || typeof record.selected_capability === "string")) {
-		throw new ExecutionFinalizationResponseContractError(
-			"selected_capability must be a string or null",
-		);
+	if (!(record.selected_tool === null || typeof record.selected_tool === "string")) {
+		throw new ExecutionFinalizationResponseContractError("selected_tool must be a string or null");
 	}
 	if (!(record.result === null || getRecord(record.result))) {
 		throw new ExecutionFinalizationResponseContractError("result must be an object or null");
@@ -238,13 +234,13 @@ function normalizeStringRecord(
 	return Object.keys(normalized).length > 0 ? normalized : {};
 }
 
-function parsePromptTrace(value: unknown): CapabilityExecutionPromptTrace | null {
+function parsePromptTrace(value: unknown): ToolExecutionPromptTrace | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
 	}
 
-	const parsed: CapabilityExecutionPromptTrace = {
+	const parsed: ToolExecutionPromptTrace = {
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputSchemaVersion: normalizeNullableString(record.output_schema_version),
@@ -261,7 +257,7 @@ function parsePromptTrace(value: unknown): CapabilityExecutionPromptTrace | null
 	return parsed;
 }
 
-function parseModelUsageSummary(value: unknown): CapabilityExecutionModelUsageSummary | null {
+function parseModelUsageSummary(value: unknown): ToolExecutionModelUsageSummary | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
@@ -277,7 +273,7 @@ function parseModelUsageSummary(value: unknown): CapabilityExecutionModelUsageSu
 	};
 }
 
-function parseUsageSummary(value: unknown): CapabilityExecutionUsageSummary | null {
+function parseUsageSummary(value: unknown): ToolExecutionUsageSummary | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
@@ -289,7 +285,7 @@ function parseUsageSummary(value: unknown): CapabilityExecutionUsageSummary | nu
 				return parsed ? [parsed] : [];
 			})
 		: [];
-	const parsed: CapabilityExecutionUsageSummary = {
+	const parsed: ToolExecutionUsageSummary = {
 		billableStepCount: normalizeNullableNumber(record.billable_step_count) ?? 0,
 		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens) ?? 0,
 		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd) ?? 0,
@@ -305,7 +301,7 @@ function parseUsageSummary(value: unknown): CapabilityExecutionUsageSummary | nu
 	return parsed;
 }
 
-function parseExecutionObservability(value: unknown): CapabilityExecutionObservability | null {
+function parseExecutionObservability(value: unknown): ToolExecutionObservability | null {
 	const record = getRecord(value);
 	if (!record) {
 		return null;
@@ -321,7 +317,7 @@ function parseExecutionObservability(value: unknown): CapabilityExecutionObserva
 	const retrievedSourceCount =
 		explicitRetrievedSourceCount ??
 		(retrievalAttempted === true && hasRetrievedSourcesTrace ? retrievedSources.length : null);
-	const parsed: CapabilityExecutionObservability = {
+	const parsed: ToolExecutionObservability = {
 		aclAnomalyCode: normalizeNullableString(record.acl_anomaly_code),
 		aclDecision: normalizeNullableString(record.acl_decision),
 		cachedInputTokens: normalizeNullableNumber(record.cached_input_tokens),
@@ -334,7 +330,7 @@ function parseExecutionObservability(value: unknown): CapabilityExecutionObserva
 		inputTokens: normalizeNullableNumber(record.input_tokens),
 		intentAmbiguityReason: normalizeRecordString(record, "intent_ambiguity_reason"),
 		intentAmbiguitySignal: normalizeRecordString(record, "intent_ambiguity_signal"),
-		intentCapability: normalizeRecordString(record, "intent_capability"),
+		intentTool: normalizeRecordString(record, "intent_tool"),
 		intentClassifierVersion: normalizeRecordString(record, "intent_classifier_version"),
 		intentContextReferenceType: normalizeRecordString(record, "intent_context_reference_type"),
 		intentContextResolutionState: normalizeRecordString(record, "intent_context_resolution_state"),
@@ -377,7 +373,7 @@ function parseExecutionObservability(value: unknown): CapabilityExecutionObserva
 	return parsed;
 }
 
-function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowTraceSummary | null {
+function parseWorkflowTraceSummary(value: unknown): ToolExecutionWorkflowTraceSummary | null {
 	const record = getRecord(value);
 	if (!record || containsForbiddenWorkflowTraceKey(record)) {
 		return null;
@@ -416,7 +412,7 @@ function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowT
 				return summary ? [summary] : [];
 			})
 		: [];
-	const parsed: CapabilityExecutionWorkflowTraceSummary = {
+	const parsed: ToolExecutionWorkflowTraceSummary = {
 		contextResolution: normalizeWorkflowRecord(recordValue(record, "context_resolution")),
 		directVsDelegateBranch: normalizeRecordString(record, "direct_vs_delegate_branch"),
 		failCloseReason: normalizeRecordString(record, "fail_close_reason"),
@@ -430,7 +426,7 @@ function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowT
 		),
 		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
 		runtimeVersions: normalizeWorkflowRecord(recordValue(record, "runtime_versions")),
-		selectedCapability: normalizeRecordString(record, "selected_capability"),
+		selectedTool: normalizeRecordString(record, "selected_tool"),
 		selectedTools,
 		toolArgumentSummary: normalizeWorkflowRecord(recordValue(record, "tool_argument_summary")),
 		traceSteps,
@@ -439,7 +435,7 @@ function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowT
 	};
 
 	if (
-		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedCapability) &&
+		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTool) &&
 		parsed.selectedTools.length === 0 &&
 		Object.values(parsed).every(
 			(item) =>
@@ -456,7 +452,7 @@ function parseWorkflowTraceSummary(value: unknown): CapabilityExecutionWorkflowT
 
 export function parseExecutionFinalizationResponsePayload(
 	parsed: (Partial<ExecutionFinalizationResponseWire> & Record<string, unknown>) | null | undefined,
-): CapabilityExecutionResponse {
+): ToolExecutionResponse {
 	assertExecutionFinalizationResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
 	return {
@@ -472,7 +468,7 @@ export function parseExecutionFinalizationResponsePayload(
 		followUpQuestion: parsed.follow_up_question,
 		observability: parseExecutionObservability(parsed.observability),
 		result: parsed.result ?? null,
-		selectedCapability: parsed.selected_capability,
+		selectedTool: parsed.selected_tool,
 		status: parsed.status,
 		traceId: parsed.trace_id,
 		...(workflowTraceSummary ? { workflowTraceSummary } : {}),

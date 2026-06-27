@@ -48,13 +48,13 @@ interface OfficialWebReleaseTaskTimelineEventJson {
 
 interface RequestAuditDiagnosticsJson {
 	aclAnomalyCode: string | null;
-	bridgeDurationMs?: number | null;
+	activityDurationMs?: number | null;
 	decision?: string | null;
 	durationMs?: number | null;
 	failClosed: boolean | null;
 	failureKind?: string | null;
 	httpStatus?: number | null;
-	lane?: string | null;
+	taskQueue?: string | null;
 	queueWaitMs?: number | null;
 	retryable?: boolean | null;
 	sourceDocIds: string[];
@@ -92,11 +92,11 @@ export const requestProjection = operator.table(
 		entitlementGroupsJson: jsonb("entitlement_groups_json").$type<string[]>().notNull().default([]),
 		visibilityScope: text("visibility_scope"),
 		applicabilityScope: text("applicability_scope"),
-		requestedCapability: text("requested_capability"),
+		requestedTool: text("requested_tool"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
 		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
-		selectedCapability: text("selected_capability"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		questionPreview: text("question_preview").notNull(),
@@ -132,8 +132,8 @@ export const requestAuditProjection = operator.table(
 		principalType: text("principal_type").notNull(),
 		entitlementSnapshotId: text("entitlement_snapshot_id"),
 		policyProjectionVersion: text("policy_projection_version"),
-		requestedCapability: text("requested_capability"),
-		selectedCapability: text("selected_capability"),
+		requestedTool: text("requested_tool"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		terminalCode: text("terminal_code"),
 		summary: text("summary").notNull(),
@@ -169,8 +169,8 @@ export const metricRollup = operator.table(
 		bucketStart: timestamp("bucket_start", { withTimezone: true }).notNull(),
 		bucketEnd: timestamp("bucket_end", { withTimezone: true }).notNull(),
 		surface: text("surface").notNull(),
-		selectedCapability: text("selected_capability"),
-		requestedCapability: text("requested_capability"),
+		selectedTool: text("selected_tool"),
+		requestedTool: text("requested_tool"),
 		principalType: text("principal_type").notNull(),
 		collection: text("collection"),
 		modelName: text("model_name"),
@@ -189,9 +189,9 @@ export const metricRollup = operator.table(
 			table.surface,
 			table.bucketStart,
 		),
-		domainTargetBucketStartIndex: index("operator_metric_rollup_domain_capability_bucket_idx").on(
+		domainTargetBucketStartIndex: index("operator_metric_rollup_domain_tool_bucket_idx").on(
 			table.domain,
-			table.selectedCapability,
+			table.selectedTool,
 			table.bucketStart,
 		),
 	}),
@@ -204,7 +204,7 @@ export const qualityBadcaseProjection = operator.table(
 		requestId: text("request_id").notNull(),
 		traceId: text("trace_id").notNull(),
 		surface: text("surface").notNull(),
-		selectedCapability: text("selected_capability"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		causeClass: text("cause_class").notNull(),
 		detectedBy: text("detected_by").notNull(),
@@ -300,8 +300,8 @@ export const qualityGradeProjection = operator.table(
 		traceId: text("trace_id").notNull(),
 		surface: text("surface").notNull(),
 		requestStartedAt: timestamp("request_started_at", { withTimezone: true }).notNull(),
-		selectedCapability: text("selected_capability"),
-		requestedCapability: text("requested_capability"),
+		selectedTool: text("selected_tool"),
+		requestedTool: text("requested_tool"),
 		principalType: text("principal_type").notNull(),
 		collection: text("collection"),
 		modelName: text("model_name"),

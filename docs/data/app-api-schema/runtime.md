@@ -41,11 +41,11 @@ owns this section group; the original path remains the stable index.
 - `request_fingerprint_sha256` nullable
 - `trace_id`
 - `run_id` nullable
-- `requested_capability` nullable
+- `requested_tool` nullable
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_capability` nullable
+- `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -96,7 +96,7 @@ owns this section group; the original path remains the stable index.
   current
 - `resolved_scope_json` 表示 finalized execution 实际命中的 serving scope；如果 agent
   自主解析 surface，这里必须落最终解析结果
-- `selected_capability` 表示 finalized execution 实际选择的 capability id；它不承载
+- `selected_tool` 表示 finalized execution 实际选择的 tool id；它不承载
   forward family vocabulary，也不应被重载为 operator-facing display label
 - `run_id` 是 durable agent runtime 的 answer execution backlink；cutover 前旧同步执行
   路径可以为空，durable chat 主路径必须在第一次 command-side commit 后显式绑定真实
@@ -148,7 +148,7 @@ owns this section group; the original path remains the stable index.
 - `execution.admission_rejected`
 - `execution.cancel_requested`
 - `execution.cancelled`
-- `execution.runtime_failed`
+- `execution.activity_failed`
 - `execution.timed_out`
 
 规则：
@@ -156,8 +156,8 @@ owns this section group; the original path remains the stable index.
 - projector 必须按 `event_id` 做幂等消费
 - outbox payload 只携带 projection 所需字段，不承担 raw audit dump 角色
 - `execution.*` payload 只允许 Go `apps/execution-control` 的 safe runtime summary，例如
-  lane、decision、failure kind、HTTP status、retryable、duration 与 queue wait；禁止
-  raw prompt、raw answer、raw transcript、auth material、
+  lane、decision、failure kind、HTTP status、retryable、duration、queue wait、
+  activity duration；禁止 raw prompt、raw answer、raw transcript、auth material、
   retrieval payload 或 provider raw response
 
 ## `runtime.request_observability_fact`
@@ -176,13 +176,13 @@ owns this section group; the original path remains the stable index.
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
 - `policy_reason` nullable
-- `requested_capability` nullable
+- `requested_tool` nullable
 - `requested_scope_summary` nullable
 - `version_query_mode` nullable
 - `version_query_summary` nullable
 - `resolved_scope_summary` nullable
 - `collection` nullable
-- `selected_capability` nullable
+- `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `started_at`
@@ -227,7 +227,7 @@ owns this section group; the original path remains the stable index.
 - `(started_at desc)`
 - `(status, started_at desc)`
 - `(surface, started_at desc)`
-- `(selected_capability, started_at desc)`
+- `(selected_tool, started_at desc)`
 - `(principal_type, started_at desc)`
 - `(model_name, started_at desc)`
 - `(collection, started_at desc)`
@@ -239,7 +239,7 @@ owns this section group; the original path remains the stable index.
 - `accepted` 阶段的 `resolved_scope_summary` 与 `collection` 必须保持 `null`
 - `finalized` 阶段的 `collection` 必须按 `resolved_scope_summary` 对应的最终 collection
   回填，不能继续拿 `requested_scope_summary` 充当真实执行 collection
-- `selected_capability` 继续只保存 raw capability id，供 operator projection /
+- `selected_tool` 继续只保存 raw tool id，供 operator projection /
   aggregate 过滤；future family grouping 如有需要，应走显式新字段或 projection
 - `version_query_mode` / `version_query_summary` 只保存 operator-safe 版本查询摘要，不回放
   raw caller payload

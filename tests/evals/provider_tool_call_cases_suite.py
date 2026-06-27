@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from campus_evals.provider_tool_call_cases import load_provider_tool_call_cases
-from campus_evals.tool_family_denominator import tool_spec_tool_names
+from campus_evals.tool_denominator import tool_spec_tool_names
 
 
 class ProviderToolCallCasesTest(unittest.TestCase):

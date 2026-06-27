@@ -51,7 +51,7 @@ func TestHTTPProofRejectsReadyzWithoutRequiredTaskQueues(t *testing.T) {
 				"namespace":"campus-agent-staging",
 				"task_queue":"campus-agent.workflow",
 				"worker_id":"staging:execution-control:001",
-				"task_queues":["campus-agent.workflow","campus-agent.activity.context"]
+				"task_queues":["campus-agent.workflow","campus-agent.activity.core"]
 			}
 		}`))
 	}))
@@ -88,11 +88,9 @@ func TestHTTPProofWritesReadyzEvidenceForTemporalRuntime(t *testing.T) {
 				"worker_id":"staging:execution-control:001",
 					"task_queues":[
 						"campus-agent.workflow",
-						"campus-agent.activity.context",
-						"campus-agent.activity.knowledge.plan",
-						"campus-agent.activity.knowledge.retrieval",
-						"campus-agent.activity.knowledge.synthesis",
-						"campus-agent.activity.finalization"
+						"campus-agent.activity.core",
+						"campus-agent.activity.agent",
+						"campus-agent.activity.knowledge"
 					]
 				}
 		}`))

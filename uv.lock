@@ -27,7 +27,7 @@ members = [
     "campus-ingestion-kernels-rs",
     "campus-ingestion-worker",
     "campus-legacy-office-conversion-service",
-    "campus-navigation-capability",
+    "campus-navigation-tool",
     "campus-official-web-collector",
     "campus-official-web-core",
     "campus-regulation-semantics",
@@ -402,9 +402,9 @@ version = "0.1.0"
 source = { virtual = "apps/legacy-office-conversion-service" }
 
 [[package]]
-name = "campus-navigation-capability"
+name = "campus-navigation-tool"
 version = "0.1.0"
-source = { editable = "packages/navigation-capability" }
+source = { editable = "packages/navigation-tool" }
 dependencies = [
     { name = "campus-contracts" },
 ]

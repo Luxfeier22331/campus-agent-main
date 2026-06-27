@@ -87,7 +87,7 @@ export function createPgChatCommandStore(
 	}
 
 	return {
-		async listPreviousCapabilityResultRefs(input) {
+		async listPreviousToolResultRefs(input) {
 			const db = await getDb();
 			const limit = Math.max(1, Math.min(input.limit, 10));
 			const rows = await db
@@ -95,7 +95,7 @@ export function createPgChatCommandStore(
 					answerPreview: requestExecution.answerPreview,
 					requestId: requestExecution.requestId,
 					runId: requestExecution.runId,
-					selectedCapability: requestExecution.selectedCapability,
+					selectedTool: requestExecution.selectedTool,
 					status: requestExecution.status,
 					turnSequence: requestExecution.turnSequence,
 				})
@@ -106,24 +106,24 @@ export function createPgChatCommandStore(
 						eq(requestExecution.conversationId, input.conversationId),
 						eq(requestExecution.status, "completed"),
 						isNotNull(requestExecution.runId),
-						isNotNull(requestExecution.selectedCapability),
+						isNotNull(requestExecution.selectedTool),
 						lte(requestExecution.turnSequence, input.beforeTurnSequence - 1),
 					),
 				)
 				.orderBy(desc(requestExecution.turnSequence))
 				.limit(limit);
 			return rows.flatMap((row) => {
-				if (!(row.runId && row.selectedCapability)) {
+				if (!(row.runId && row.selectedTool)) {
 					return [];
 				}
 				const projectionRef = `projection://runs/${row.runId}/finalization`;
 				return [
 					{
-						capability: row.selectedCapability,
+						tool: row.selectedTool,
 						contentHash: stableContextHash([
 							row.requestId,
 							row.runId,
-							row.selectedCapability,
+							row.selectedTool,
 							row.status,
 							row.answerPreview ?? "",
 						]),
@@ -209,7 +209,7 @@ export function createPgChatCommandStore(
 					questionPreview: row.questionPreview,
 					requestFingerprintSha256: row.requestFingerprintSha256,
 					requestId: row.requestId,
-					requestedCapability: row.requestedCapability,
+					requestedTool: row.requestedTool,
 					requestedScope:
 						row.requestedScopeJson as AcceptedDurableRequestCloseout["requestedScope"],
 					runId: row.runId,

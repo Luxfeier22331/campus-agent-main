@@ -139,7 +139,7 @@ build structured projection release
 这项决策 complements：
 
 - `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/domains/transport.md`
-- `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/decisions/adr-0048-temporal.md`

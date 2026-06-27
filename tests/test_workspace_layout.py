@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from campus_contracts import CapabilityRequest, KnowledgeScope, RagRequestPayload
+from campus_contracts import KnowledgeScope, RagRequestPayload, ToolRequest
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -16,7 +16,7 @@ EXPECTED_WORKSPACES = {
     "packages/contracts",
     "packages/evals",
     "packages/ingestion-core",
-    "packages/navigation-capability",
+    "packages/navigation-tool",
     "packages/official-web-core",
     "packages/shared",
 }
@@ -38,9 +38,9 @@ class WorkspaceLayoutTest(unittest.TestCase):
     def test_chatkit_adapter_app_is_retired(self) -> None:
         self.assertFalse((ROOT / "apps/chatkit-adapter").exists())
 
-    def test_contract_surface_exposes_generic_capability_request(self) -> None:
-        request = CapabilityRequest(
-            capability="knowledge",
+    def test_contract_surface_exposes_generic_tool_request(self) -> None:
+        request = ToolRequest(
+            tool="knowledge_query",
             user_goal="library hours",
             payload=RagRequestPayload(
                 scope=KnowledgeScope(

@@ -1,0 +1,101 @@
+{
+	"selected_tool": "knowledge_query",
+	"status": "completed",
+	"answer_text": "请假制度以学生手册当前版本为准。",
+	"follow_up_question": "",
+	"confidence": "high",
+	"result": {
+		"evidence": {
+			"sources": [
+				{
+					"doc_id": "student_rules:leave-policy"
+				}
+			]
+		}
+	},
+	"error": null,
+	"observability": {
+		"semantic_outcome": "grounded_answer",
+		"retrieval_attempted": true,
+		"retrieved_source_count": 1,
+		"selected_tool": "knowledge_query"
+	},
+	"workflow_trace_summary": {
+		"routing_frame": {
+			"suggested_next_action": "delegate"
+		},
+		"context_resolution": {
+			"state": "not_follow_up"
+		},
+		"planning_outcome": "preplanned",
+		"direct_vs_delegate_branch": "delegate",
+		"workflow_mode": "single_step",
+		"handoff": {
+			"tool": "knowledge_query",
+			"tool_request": {
+				"tool": "knowledge_query"
+			}
+		},
+		"handoff_chain": [
+			{
+				"tool": "knowledge_query",
+				"payload_kind": "rag_request",
+				"selected_tool": "knowledge_query",
+				"task_queue": "campus-agent.activity.knowledge"
+			}
+		],
+		"tool_invocations": [
+			{
+				"invocation_id": "tool-invocation:knowledge_query:1",
+				"workflow_run_ref": "single_step:knowledge_query:knowledge_query",
+				"step_id": "tool:knowledge_query:rag_request",
+				"tool_id": "knowledge_query",
+				"status": "completed",
+				"allowed_tools": [],
+				"used_tools": ["knowledge_query"],
+				"projection_ids": []
+			}
+		],
+		"selected_tool": "knowledge_query",
+		"selected_tools": ["knowledge_query"],
+		"context_projections": [],
+		"answer_artifact_projection_ids": [],
+		"answer_artifact_kinds": [],
+		"tool_argument_summary": {
+			"collection": "student_rules"
+		},
+		"trace_steps": [
+			{
+				"step_id": "runtime_policy",
+				"span_kind": "runtime_policy",
+				"parent_step_id": "",
+				"outcome": "delegate"
+			},
+			{
+				"step_id": "finalization",
+				"span_kind": "finalization",
+				"parent_step_id": "runtime_policy",
+				"outcome": "completed"
+			}
+		],
+		"tool_call_summaries": [
+			{
+				"tool_name": "knowledge_query",
+				"result_status": "completed",
+				"business_outcome": "grounded_answer",
+				"source_ids": ["student_rules:leave-policy"]
+			}
+		],
+		"guardrail_outcomes": {
+			"scope_gate": "allow"
+		},
+		"fail_close_reason": "",
+		"runtime_versions": {
+			"workflow_trace_summary": "workflow-trace-summary-v4"
+		},
+		"policy_artifact_versions": {
+			"intent_policy": "intent-policy.v1"
+		}
+	},
+	"trace_id": "trace-contract-completed"
+}

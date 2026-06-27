@@ -122,7 +122,7 @@ describe("chat memory staging e2e runner", () => {
 							},
 							steps: [
 								{
-									capability: "any",
+									tool: "any",
 									completedAt: "2026-06-04T01:02:05.000Z",
 									conversationId: "conv_01HQ",
 									parentStepId: "",

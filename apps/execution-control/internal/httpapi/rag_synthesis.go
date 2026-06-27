@@ -149,7 +149,7 @@ func ragProviderInput(packet ragSynthesisPacket) []map[string]any {
 		memoryContext = append(memoryContext, map[string]any{
 			"memory_id":    item.MemoryID,
 			"memory_type":  item.MemoryType,
-			"capability":   item.Capability,
+			"tool":         item.Tool,
 			"compact_text": item.CompactText,
 			"score":        item.Score,
 			"updated_at":   item.UpdatedAt,
@@ -414,12 +414,12 @@ func ragSynthesisFinalizedResponse(
 	}
 	groundingVerdict := strings.TrimSpace(result.GroundingVerdict)
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedCapability: ptrString("knowledge"),
-		Status:             "completed",
-		AnswerText:         strings.TrimSpace(result.AnswerText),
-		Error:              nil,
-		FollowUpQuestion:   "",
-		Confidence:         confidence,
+		SelectedTool:     ptrString("knowledge_query"),
+		Status:           "completed",
+		AnswerText:       strings.TrimSpace(result.AnswerText),
+		Error:            nil,
+		FollowUpQuestion: "",
+		Confidence:       confidence,
 		Result: map[string]any{
 			"evidence": map[string]any{
 				"query_text": packet.QueryIntent,
@@ -443,15 +443,15 @@ func ragSynthesisFinalizedResponse(
 			},
 		},
 		Observability: map[string]any{
-			"selected_tool":          "retrieval.query",
+			"selected_tool":          "knowledge_query",
 			"result_outcome":         semanticOutcome,
 			"model_execution_state":  "go_provider_synthesis_completed",
 			"model_execution_detail": result.ProviderSummary.SchemaVersion,
 		},
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":         "single_step",
-			"selected_capability":   "knowledge",
-			"selected_tools":        []string{"retrieval.query"},
+			"selected_tool":         "knowledge_query",
+			"selected_tools":        []string{"knowledge_query"},
 			"answer_artifact_kinds": []string{"provider_execution_summary"},
 			"answer_artifact_refs":  []string{providerRequestRefForPacket(packet)},
 			"runtime_versions":      map[string]any{"provider_summary": result.ProviderSummary.SchemaVersion},

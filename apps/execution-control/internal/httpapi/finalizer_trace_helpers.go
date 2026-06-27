@@ -8,9 +8,9 @@ import (
 )
 
 func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[string]any {
-	var selectedCapability any
-	if wire.SelectedCapability != nil {
-		selectedCapability = *wire.SelectedCapability
+	var selectedTool any
+	if wire.SelectedTool != nil {
+		selectedTool = *wire.SelectedTool
 	}
 	return map[string]any{
 		"routing_frame":                  wire.RoutingFrame,
@@ -20,8 +20,8 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"workflow_mode":                  string(wire.WorkflowMode),
 		"handoff":                        wire.Handoff,
 		"handoff_chain":                  wire.HandoffChain,
-		"capability_invocations":         workflowCapabilityInvocationWireMaps(wire.CapabilityInvocations),
-		"selected_capability":            selectedCapability,
+		"tool_invocations":               workflowToolInvocationWireMaps(wire.ToolInvocations),
+		"selected_tool":                  selectedTool,
 		"selected_tools":                 wire.SelectedTools,
 		"context_projections":            workflowContextProjectionWireMaps(wire.ContextProjections),
 		"answer_artifact_projection_ids": append([]string{}, wire.AnswerArtifactProjectionIDs...),
@@ -117,17 +117,17 @@ func workflowContextProjectionWireMaps(
 	return items
 }
 
-func workflowCapabilityInvocationWire(
-	invocations []execution.CapabilityInvocation,
-) []contractsv1.CapabilityInvocationWire {
-	items := make([]contractsv1.CapabilityInvocationWire, 0, len(invocations))
+func workflowToolInvocationWire(
+	invocations []execution.ToolInvocation,
+) []contractsv1.ToolInvocationWire {
+	items := make([]contractsv1.ToolInvocationWire, 0, len(invocations))
 	for _, invocation := range invocations {
-		items = append(items, contractsv1.CapabilityInvocationWire{
+		items = append(items, contractsv1.ToolInvocationWire{
 			InvocationID:       invocation.InvocationID,
 			ParentInvocationID: invocation.ParentInvocationID,
 			WorkflowRunRef:     invocation.WorkflowRunRef,
 			StepID:             invocation.StepID,
-			CapabilityID:       contractsv1.CapabilityID(invocation.CapabilityID),
+			ToolID:             contractsv1.ToolID(invocation.ToolTarget),
 			Status:             invocation.Status,
 			AllowedTools:       append([]string{}, invocation.AllowedTools...),
 			UsedTools:          append([]string{}, invocation.UsedTools...),
@@ -138,8 +138,8 @@ func workflowCapabilityInvocationWire(
 	return items
 }
 
-func workflowCapabilityInvocationWireMaps(
-	invocations []contractsv1.CapabilityInvocationWire,
+func workflowToolInvocationWireMaps(
+	invocations []contractsv1.ToolInvocationWire,
 ) []map[string]any {
 	items := make([]map[string]any, 0, len(invocations))
 	for _, invocation := range invocations {
@@ -147,7 +147,7 @@ func workflowCapabilityInvocationWireMaps(
 			"invocation_id":    invocation.InvocationID,
 			"workflow_run_ref": invocation.WorkflowRunRef,
 			"step_id":          invocation.StepID,
-			"capability_id":    string(invocation.CapabilityID),
+			"tool_id":          string(invocation.ToolID),
 			"status":           invocation.Status,
 			"allowed_tools":    append([]string{}, invocation.AllowedTools...),
 			"used_tools":       append([]string{}, invocation.UsedTools...),
@@ -184,7 +184,7 @@ func workflowMode(
 	return "single_step"
 }
 
-func workflowTraceSelectedCapability(workflowMode string, target string) string {
+func workflowTraceSelectedTool(workflowMode string, target string) string {
 	if workflowMode == "terminal" {
 		return "none"
 	}
@@ -198,7 +198,7 @@ func validFinalizerHandoffInvariant(target string, context executionFinalizerCon
 	}
 	if context.WorkflowRun != nil {
 		for _, handoff := range context.WorkflowRun.HandoffChain {
-			if handoff.Capability == target {
+			if handoff.ToolTarget == target {
 				return true
 			}
 		}
@@ -207,10 +207,10 @@ func validFinalizerHandoffInvariant(target string, context executionFinalizerCon
 	if context.Handoff == nil {
 		return false
 	}
-	if context.RuntimeDecisions.SelectedCapability != "" && context.RuntimeDecisions.SelectedCapability != target {
+	if context.RuntimeDecisions.SelectedTool != "" && context.RuntimeDecisions.SelectedTool != target {
 		return false
 	}
-	if context.Handoff.Capability != "" && context.Handoff.Capability != target {
+	if context.Handoff.ToolTarget != "" && context.Handoff.ToolTarget != target {
 		return false
 	}
 	if context.SelectedTool != "" && len(context.Handoff.AllowedTools) > 0 {
@@ -270,8 +270,8 @@ func workflowHandoffSummary(
 		return map[string]any{}
 	}
 	return map[string]any{
-		"capability":    defaultString(handoff.Capability, target),
-		"worker_role":   handoff.WorkerRole,
+		"tool":          defaultString(handoff.ToolTarget, target),
+		"task_queue":    handoff.TaskQueue,
 		"payload_kind":  handoff.PayloadKind,
 		"allowed_tools": append([]string{}, handoff.AllowedTools...),
 	}
@@ -286,14 +286,14 @@ func workflowTraceRun(
 	status string,
 	decisions execution.RuntimeDecisionSummary,
 	failCloseReason string,
-	runtimeAttemptCount int,
-	runtimeRetryCount int,
+	executionAttemptCount int,
+	executionRetryCount int,
 ) execution.WorkflowRun {
-	if runtimeAttemptCount <= 0 {
-		runtimeAttemptCount = 1
+	if executionAttemptCount <= 0 {
+		executionAttemptCount = 1
 	}
-	if runtimeRetryCount < 0 {
-		runtimeRetryCount = 0
+	if executionRetryCount < 0 {
+		executionRetryCount = 0
 	}
 	run := execution.WorkflowRun{
 		Mode:   execution.WorkflowMode(workflowMode),
@@ -302,16 +302,16 @@ func workflowTraceRun(
 	}
 	if run.Mode == execution.WorkflowModeSingleStep && handoff != nil {
 		run.HandoffChain = append(run.HandoffChain, execution.HandoffStep{
-			Capability:   defaultString(handoff.Capability, target),
+			ToolTarget:   defaultString(handoff.ToolTarget, target),
 			PayloadKind:  handoff.PayloadKind,
 			AllowedTools: append([]string{}, handoff.AllowedTools...),
 			SelectedTool: selectedTool,
 		})
-		run.CapabilityInvocations = append(run.CapabilityInvocations, execution.CapabilityInvocation{
-			InvocationID:   "capability-invocation:" + defaultString(handoff.Capability, target) + ":1",
+		run.ToolInvocations = append(run.ToolInvocations, execution.ToolInvocation{
+			InvocationID:   "tool-invocation:" + defaultString(handoff.ToolTarget, target) + ":1",
 			WorkflowRunRef: workflowRunRef(run, target, selectedTool),
-			StepID:         "capability:" + defaultString(handoff.Capability, target) + ":" + handoff.PayloadKind,
-			CapabilityID:   defaultString(handoff.Capability, target),
+			StepID:         "tool:" + defaultString(handoff.ToolTarget, target) + ":" + handoff.PayloadKind,
+			ToolTarget:     defaultString(handoff.ToolTarget, target),
 			Status:         status,
 			AllowedTools:   append([]string{}, handoff.AllowedTools...),
 			UsedTools:      workflowSelectedTools(handoff, selectedTool),
@@ -331,7 +331,7 @@ func workflowTraceRun(
 			StepID:       "handoff",
 			SpanKind:     "handoff",
 			ParentStepID: "runtime_policy",
-			Capability:   target,
+			ToolTarget:   target,
 			Outcome:      branch,
 		})
 	}
@@ -341,7 +341,7 @@ func workflowTraceRun(
 			SpanKind:     "tool_call",
 			ParentStepID: workflowToolCallParentStep(branch),
 			ToolName:     selectedTool,
-			Capability:   target,
+			ToolTarget:   target,
 			Outcome:      status,
 			ResultStatus: status,
 			RetryCount:   0,
@@ -353,8 +353,8 @@ func workflowTraceRun(
 		ParentStepID:      workflowFinalizationParentStep(branch, selectedTool),
 		Outcome:           status,
 		ResultStatus:      status,
-		AttemptCount:      runtimeAttemptCount,
-		RuntimeRetryCount: runtimeRetryCount,
+		AttemptCount:      executionAttemptCount,
+		RuntimeRetryCount: executionRetryCount,
 		FailCloseReason:   failCloseReason,
 	})
 	return run
@@ -457,7 +457,7 @@ func workflowToolCallSummaries(
 		"result_projection":   "bounded_summary",
 		"raw_result_included": false,
 		"tool_name":           selectedTool,
-		"capability":          target,
+		"tool":                target,
 		"result_status":       status,
 		"argument_summary":    safeWorkflowMap(argumentSummary),
 		"source_ids":          workflowSourceIDs(result),

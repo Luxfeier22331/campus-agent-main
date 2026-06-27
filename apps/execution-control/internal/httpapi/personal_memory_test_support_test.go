@@ -30,7 +30,7 @@ func (f *fakePersonalMemoryExecutor) Recall(
 	return memoryruntime.RecallResult{
 		ContextBlock: "用户记忆:\n相关事实:\n- 用户关注保研和培养方案。",
 		Items: []memoryruntime.ContextItem{{
-			Capability:  "knowledge",
+			Tool:        "knowledge_query",
 			CompactText: "用户关注保研和培养方案。",
 			MemoryID:    "mem-test-1",
 			MemoryType:  "preference",

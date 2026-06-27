@@ -9,7 +9,7 @@ RUN corepack enable pnpm \
   && pnpm install --frozen-lockfile --filter agent-runtime
 
 COPY apps/agent-runtime ./apps/agent-runtime
-COPY configs/runtime/tool-catalog.v1.json ./configs/runtime/tool-catalog.v1.json
+COPY configs/runtime/tools.v4.json ./configs/runtime/tools.v4.json
 COPY configs/runtime/tool-function-schemas.v1.json ./configs/runtime/tool-function-schemas.v1.json
 
 RUN pnpm --filter agent-runtime typecheck
@@ -20,7 +20,7 @@ WORKDIR /app
 ENV NODE_ENV=production \
   AGENT_RUNTIME_HOST=0.0.0.0 \
   AGENT_RUNTIME_PORT=27062 \
-  AGENT_RUNTIME_TOOL_CATALOG_PATH=configs/runtime/tool-catalog.v1.json
+  AGENT_RUNTIME_TOOL_REGISTRY_PATH=configs/runtime/tools.v4.json
 
 COPY --from=build /app /app
 

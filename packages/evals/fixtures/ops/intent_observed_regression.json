@@ -22,14 +22,14 @@
 			},
 			"intent_case": {
 				"critical": true,
-				"expected_capability": "place_lookup",
+				"expected_tool": "place_lookup",
 				"expected_launch_state": "closed",
 				"expected_next_action": "out_of_scope",
 				"expected_policy_reason": "navigation_temporarily_unsupported",
 				"expected_scope_class": "out_of_scope",
 				"expected_target": "none",
 				"expected_task_kind": "place_lookup",
-				"requested_capability": "place_lookup",
+				"requested_tool": "place_lookup",
 				"tags": ["observed_regression", "navigation", "closed"],
 				"user_goal": "图书馆在哪里"
 			}

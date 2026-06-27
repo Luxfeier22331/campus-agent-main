@@ -14,23 +14,9 @@ STAGING_OVERLAY = ROOT / "infra/k8s/execution-runtime/overlays/staging"
 
 WORKERS = {
     "workflow-worker": ("workflow", "campus-agent.workflow", 3),
-    "activity-worker-context": ("activity", "campus-agent.activity.context", 3),
+    "activity-worker-core": ("activity", "campus-agent.activity.core", 3),
     "activity-worker-agent": ("activity", "campus-agent.activity.agent", 3),
-    "activity-worker-knowledge-plan": ("activity", "campus-agent.activity.knowledge.plan", 3),
-    "activity-worker-knowledge-retrieval": (
-        "activity",
-        "campus-agent.activity.knowledge.retrieval",
-        5,
-    ),
-    "activity-worker-knowledge-synthesis": (
-        "activity",
-        "campus-agent.activity.knowledge.synthesis",
-        5,
-    ),
-    "activity-worker-campus-services": ("activity", "campus-agent.activity.campus_services", 3),
-    "activity-worker-notice": ("activity", "campus-agent.activity.notice", 3),
-    "activity-worker-navigation": ("activity", "campus-agent.activity.navigation", 3),
-    "activity-worker-finalization": ("activity", "campus-agent.activity.finalization", 3),
+    "activity-worker-knowledge": ("activity", "campus-agent.activity.knowledge", 5),
 }
 
 FORBIDDEN_K8S_WORKLOADS = (

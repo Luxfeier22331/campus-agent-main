@@ -210,7 +210,7 @@ pnpm --dir packages/eval-langfuse langfuse verify-trace \
   --run-id <execution-run-id> \
   --workflow-id <temporal-workflow-id> \
   --tag surface:execution-control \
-  --tag capability:knowledge \
+  --tag target:knowledge \
   --tag env:staging \
   --json
 ```
@@ -225,7 +225,7 @@ tags drift, the trace lacks populated identity attributes (`request_id`,
 do not match the trace evidence, the trace has no observations, or no
 observation exposes the runtime observation attribute contract (`step_id`,
 `step_kind`, `activity_type`, `task_queue`, `activity_attempt`, selected
-capability/tool, status, timing, projection ref and fail-close reason). Omit
+tool/tool, status, timing, projection ref and fail-close reason). Omit
 the request / run / workflow id flags only for local diagnostics. Release
 closeout must include them from the staging durable reconnect artifact. This
 command is release evidence only; Langfuse remains a sink and does not become
@@ -241,7 +241,7 @@ pnpm --dir packages/eval-langfuse langfuse closeout-staging \
   --environment staging \
   --release <runtime-release-id> \
   --tag surface:execution-control \
-  --tag capability:knowledge \
+  --tag target:knowledge \
   --tag env:staging \
   --json
 ```
@@ -280,7 +280,7 @@ pnpm --dir packages/eval-langfuse langfuse closeout-staging \
   --release <runtime-release-id> \
   --durable-chat-artifact "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json" \
   --tag surface:execution-control \
-  --tag capability:knowledge \
+  --tag target:knowledge \
   --tag env:staging
 ```
 
@@ -298,11 +298,11 @@ pnpm --dir packages/eval-langfuse langfuse build-release-evidence \
   --session-id "$(jq -er '.langfuseCloseout.sessionId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --user-id "$(jq -er '.langfuseCloseout.userId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --tag surface:execution-control \
-  --tag capability:knowledge \
+  --tag target:knowledge \
   --tag env:staging \
   --verify-output "$E2E_QA_EVIDENCE_DIR/verify-trace.json" \
   --verify-exit-code 0 \
-  --verify-command "pnpm --dir packages/eval-langfuse langfuse verify-trace --product-trace-id <app-api-trace-id-from-chat-request> --session-id <conversation-id> --user-id <stable-non-pii-user-id> --release <runtime-release-id> --request-id <app-api-request-id> --run-id <execution-run-id> --workflow-id <temporal-workflow-id> --tag surface:execution-control --tag capability:knowledge --tag env:staging --json" \
+  --verify-command "pnpm --dir packages/eval-langfuse langfuse verify-trace --product-trace-id <app-api-trace-id-from-chat-request> --session-id <conversation-id> --user-id <stable-non-pii-user-id> --release <runtime-release-id> --request-id <app-api-request-id> --run-id <execution-run-id> --workflow-id <temporal-workflow-id> --tag surface:execution-control --tag target:knowledge --tag env:staging --json" \
   --publish-output "$E2E_QA_EVIDENCE_DIR/publish-score-report.json" \
   --publish-exit-code 0 \
   --expected-publish-denominator "$(jq -er '.expected_publish_denominator' "$E2E_QA_EVIDENCE_DIR/langfuse-score-report.json")" \
@@ -339,7 +339,7 @@ Boundary guard:
 
 ```bash
 rg -n "opentelemetry|go\\.opentelemetry|@opentelemetry|OTel|Sentry|Axiom" \
-  packages/ingestion-core packages/navigation-capability packages/contracts \
+  packages/ingestion-core packages/navigation-tool packages/contracts \
   -g '!**/__pycache__/**' \
   -g '!**/*.md'
 ```

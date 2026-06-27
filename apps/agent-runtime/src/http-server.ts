@@ -52,10 +52,9 @@ const finalModelContextSchema = z.object({
 			}),
 		)
 		.default([]),
-	previous_capability_results: z
+	previous_tool_results: z
 		.array(
 			z.object({
-				capability: z.string().min(1),
 				content_hash: z.string().min(1),
 				projection_ref: z.string().min(1),
 				request_id: z.string().min(1),
@@ -81,7 +80,7 @@ const runRequestSchema = z.object({
 	turn_id: z.string().min(1),
 	trace_id: z.string().min(1),
 	input: z.string().min(1),
-	visible_capabilities: z.array(z.string().min(1)).default([]),
+	visible_tool_names: z.array(z.string().min(1)).default([]),
 	provider_config: providerConfigSchema,
 	final_model_context: finalModelContextSchema.optional(),
 	memory_context: memoryContextSchema.optional(),
@@ -131,7 +130,7 @@ export function createAgentRuntimeHandler(
 					turnId: parsed.turn_id,
 					traceId: parsed.trace_id,
 					input: parsed.input,
-					visibleCapabilities: parsed.visible_capabilities,
+					visibleToolNames: parsed.visible_tool_names,
 					providerConfig: {
 						profileId: parsed.provider_config.profile_id,
 						revision: parsed.provider_config.revision,
@@ -165,9 +164,8 @@ export function createAgentRuntimeHandler(
 									title: evidence.title,
 									versionId: evidence.version_id,
 								})),
-								previousCapabilityResults:
-									parsed.final_model_context.previous_capability_results.map((result) => ({
-										capability: result.capability,
+								previousToolResults: parsed.final_model_context.previous_tool_results.map(
+									(result) => ({
 										contentHash: result.content_hash,
 										projectionRef: result.projection_ref,
 										requestId: result.request_id,
@@ -175,7 +173,8 @@ export function createAgentRuntimeHandler(
 										runId: result.run_id,
 										status: result.status,
 										summary: result.summary,
-									})),
+									}),
+								),
 								usageSummary: {
 									memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
 									modelVisibleItemCount:
@@ -222,7 +221,6 @@ export function createAgentRuntimeHandler(
 				tool_results: result.toolResults.map((toolResult) => ({
 					status: toolResult.status,
 					tool_name: toolResult.toolName,
-					capability: toolResult.capability,
 					payload_kind: toolResult.payloadKind,
 					arguments_json: toolResult.argumentsJson ?? {},
 					result: toolResult.result,
@@ -281,7 +279,7 @@ function runtimeInputFromParsedRunRequest(
 		turnId: parsed.turn_id,
 		traceId: parsed.trace_id,
 		input: parsed.input,
-		visibleCapabilities: parsed.visible_capabilities,
+		visibleToolNames: parsed.visible_tool_names,
 		providerConfig: {
 			profileId: parsed.provider_config.profile_id,
 			revision: parsed.provider_config.revision,
@@ -315,18 +313,15 @@ function runtimeInputFromParsedRunRequest(
 						title: evidence.title,
 						versionId: evidence.version_id,
 					})),
-					previousCapabilityResults: parsed.final_model_context.previous_capability_results.map(
-						(result) => ({
-							capability: result.capability,
-							contentHash: result.content_hash,
-							projectionRef: result.projection_ref,
-							requestId: result.request_id,
-							resultKind: result.result_kind,
-							runId: result.run_id,
-							status: result.status,
-							summary: result.summary,
-						}),
-					),
+					previousToolResults: parsed.final_model_context.previous_tool_results.map((result) => ({
+						contentHash: result.content_hash,
+						projectionRef: result.projection_ref,
+						requestId: result.request_id,
+						resultKind: result.result_kind,
+						runId: result.run_id,
+						status: result.status,
+						summary: result.summary,
+					})),
 					usageSummary: {
 						memoryRecallState: parsed.final_model_context.usage_summary.memory_recall_state,
 						modelVisibleItemCount:
@@ -411,7 +406,6 @@ function agentRunResultWire(result: PrimaryAgentRunResult) {
 		tool_results: result.toolResults.map((toolResult) => ({
 			status: toolResult.status,
 			tool_name: toolResult.toolName,
-			capability: toolResult.capability,
 			payload_kind: toolResult.payloadKind,
 			arguments_json: toolResult.argumentsJson ?? {},
 			result: toolResult.result,

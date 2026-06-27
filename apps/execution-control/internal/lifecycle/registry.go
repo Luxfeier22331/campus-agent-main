@@ -16,22 +16,21 @@ var (
 type State string
 
 const (
-	StateAccepted        State = "accepted"
-	StateQueued          State = "queued"
-	StateRunningRuntime  State = "running_runtime"
-	StateCancelRequested State = "cancel_requested"
-	StateCompleted       State = "completed"
-	StateFailed          State = "failed"
-	StateTimedOut        State = "timed_out"
-	StateClientCanceled  State = "client_canceled"
-	StateCanceled        State = "canceled"
+	StateAccepted         State = "accepted"
+	StateQueued           State = "queued"
+	StateRunningExecution State = "running_execution"
+	StateCancelRequested  State = "cancel_requested"
+	StateCompleted        State = "completed"
+	StateFailed           State = "failed"
+	StateTimedOut         State = "timed_out"
+	StateClientCanceled   State = "client_canceled"
+	StateCanceled         State = "canceled"
 )
 
 type Metadata struct {
-	RequestID           string
-	TraceID             string
-	Lane                string
-	RequestedCapability string
+	RequestID     string
+	TraceID       string
+	RequestedTool string
 }
 
 type Execution struct {

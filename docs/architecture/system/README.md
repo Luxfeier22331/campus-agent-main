@@ -12,7 +12,7 @@ updated: 2026-06-13
 runtime, routing, execution, retrieval, data-plane and observability boundaries.
 
 It does not own phase status, release closeout, source-channel schemas or
-capability-local readiness.
+tool-local readiness.
 
 ## Question Routing
 
@@ -20,18 +20,18 @@ capability-local readiness.
   - `product-runtime-architecture.md`
 - Main answer chain and Execution Agent Layer ownership:
   - `execution-agent-layer-architecture.md`
-- Capability routing, surface admission and visible tool set:
-  - `capability-routing-and-admission-architecture.md`
+- Tool routing, surface admission and visible tool set:
+  - `tool-routing.md`
 - Typed tool, deterministic query function and agent-as-tool runtime:
-  - `tool-and-capability-runtime-architecture.md`
+  - `tool-runtime.md`
 - Agent framework / OpenAI Agents SDK boundary:
-  - `agent-framework-boundary-architecture.md`
+  - `agent-framework.md`
 - Temporal, durable run/event/step projection, cancel, timeout and resume:
   - `durable-agent-runtime-architecture.md`
 - Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
-  - `kubernetes-execution-runtime-architecture.md`
+  - `k8s-runtime.md`
 - Prompt, system instruction and provider-facing prompt ownership:
-  - `prompt-and-instruction-architecture.md`
+  - `prompt.md`
   - `prompt-and-instruction/current-runtime-baseline.md`
   - `prompt-and-instruction/assembly-and-assets.md`
   - `prompt-and-instruction/safety-observability-and-rollout.md`
@@ -43,13 +43,13 @@ capability-local readiness.
 - Data-plane owner boundaries:
   - `data-plane-architecture.md`
 - Operator/eval/badcase/release diagnostic projection:
-  - `operator-observability-architecture.md`
+  - `ops-observability.md`
 - Langfuse LLM observability / eval platform boundary:
   - `langfuse-observability-and-eval-architecture.md`
 - Code organization, decomposition and package ownership:
-  - `code-organization-and-decomposition-architecture.md`
+  - `code-organization.md`
 - Runtime delivery, readiness and release hardening architecture:
-  - `runtime-delivery-and-release-hardening-architecture.md`
+  - `runtime-release.md`
 - Document site and file asset architecture:
   - `document-site-architecture.md`
   - `file-asset-loader-architecture.md`
@@ -60,8 +60,8 @@ capability-local readiness.
   - `federation-and-mucwiki-login-architecture.md`
 - Operator Console operations domain and current implementation boundary:
   - `operator-console-operations-architecture.md`
-- Retired or offline Python capability boundary:
-  - `python-capability-boundaries.md`
+- Retired or offline Python boundary:
+  - `python-boundaries.md`
 
 ## Use Rules
 

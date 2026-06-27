@@ -154,7 +154,7 @@ REMOVED_INGESTION_CORE_RUNTIME_FILES = {
 }
 
 REMOVED_PYTHON_ONLINE_RAG_PACKAGE_ROOTS = {
-    Path("packages/knowledge-capability/src/campus_knowledge_capability"),
+    Path("packages") / "knowledge-tool" / "src" / "campus_knowledge_tool",
     Path("packages/retrieval-core/src/campus_retrieval_core"),
 }
 

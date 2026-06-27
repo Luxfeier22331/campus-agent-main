@@ -61,7 +61,7 @@ Better Auth 当前可以继续承担：
 - session cookie and server-side session runtime
 - password reset
 - Turnstile / auth admission plugins
-- future OAuth/OIDC provider runtime, if accepted after capability review
+- future OAuth/OIDC provider runtime, if accepted after tool review
 
 但 Better Auth 的 internal `user` / `session` / `account` / plugin tables 不得成为
 产品账号中心、校园身份、access entitlement 或 federation policy 的 canonical schema。

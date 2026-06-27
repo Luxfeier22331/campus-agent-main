@@ -206,13 +206,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "transport_schedule")
-        self.assertEqual(profile.serving_stage, "structured_query_serving")
+        self.assertEqual(profile.serving_stage, "tool_read_model_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
-        self.assertTrue(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ("transport_schedule_lookup",))
+        self.assertTrue(profile.tool_read_model_enabled)
+        self.assertEqual(profile.tool_read_model_tools, ("transport_schedule_lookup",))
         self.assertEqual(profile.cleaning_policy_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.chunk_profile_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
@@ -228,8 +228,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
-        self.assertFalse(profile.structured_query_enabled)
-        self.assertEqual(profile.structured_query_tools, ())
+        self.assertFalse(profile.tool_read_model_enabled)
+        self.assertEqual(profile.tool_read_model_tools, ())
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -494,7 +494,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
             ),
         )
 
-    def test_structured_query_tools_have_explicit_runtime_profile_opening(self) -> None:
+    def test_tool_read_model_tools_have_explicit_runtime_profile_opening(self) -> None:
         profiles = {
             tool: load_runtime_profile(corpus, collection)
             for tool, corpus, collection in (
@@ -503,44 +503,44 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         }
 
         for tool_name, profile in profiles.items():
-            self.assertEqual(profile.serving_stage, "structured_query_serving", tool_name)
-            self.assertTrue(profile.structured_query_enabled, tool_name)
-            self.assertIn(tool_name, profile.structured_query_tools)
+            self.assertEqual(profile.serving_stage, "tool_read_model_serving", tool_name)
+            self.assertTrue(profile.tool_read_model_enabled, tool_name)
+            self.assertIn(tool_name, profile.tool_read_model_tools)
             self.assertFalse(profile.retrieval_enabled, tool_name)
             self.assertFalse(profile.query_enabled_by_default, tool_name)
 
-    def test_structured_query_serving_profile_rejects_generic_query_opening(self) -> None:
+    def test_tool_read_model_serving_profile_rejects_generic_query_opening(self) -> None:
         base_kwargs = {
             "corpus": "campus_services",
             "collection": "transport_schedule",
-            "serving_stage": "structured_query_serving",
+            "serving_stage": "tool_read_model_serving",
             "allowed_artifact_modes": ("source_truth_only",),
             "split_manifest_required": False,
             "cleaning_policy_version": "transport_schedule_projection_v1",
             "chunk_profile_version": "transport_schedule_projection_v1",
             "retrieval_enabled": False,
             "query_enabled_by_default": False,
-            "structured_query_enabled": True,
-            "structured_query_tools": ("transport_schedule_lookup",),
+            "tool_read_model_enabled": True,
+            "tool_read_model_tools": ("transport_schedule_lookup",),
         }
 
         with self.assertRaisesRegex(
             ValueError,
-            "structured_query_serving requires retrieval_enabled=false",
+            "tool_read_model_serving requires retrieval_enabled=false",
         ):
             CollectionRuntimeProfile(**{**base_kwargs, "retrieval_enabled": True})
 
         with self.assertRaisesRegex(
             ValueError,
-            "structured_query_serving requires query_enabled_by_default=false",
+            "tool_read_model_serving requires query_enabled_by_default=false",
         ):
             CollectionRuntimeProfile(**{**base_kwargs, "query_enabled_by_default": True})
 
         with self.assertRaisesRegex(
             ValueError,
-            "structured_query_serving requires structured_query_enabled=true",
+            "tool_read_model_serving requires tool_read_model_enabled=true",
         ):
-            CollectionRuntimeProfile(**{**base_kwargs, "structured_query_enabled": False})
+            CollectionRuntimeProfile(**{**base_kwargs, "tool_read_model_enabled": False})
 
 
 if __name__ == "__main__":

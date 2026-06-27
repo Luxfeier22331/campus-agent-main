@@ -15,7 +15,7 @@ export function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "calendar/academic_calendar",
-						owner_capability_or_runtime: "calendar",
+						owner_tool_or_runtime: "calendar",
 						materialization_policy: "candidate_only",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["校历", "教学周", "放假安排"],
@@ -31,7 +31,7 @@ export function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "stable_reference_candidate",
 						owner_surface: "official_web/stable_reference",
-						owner_capability_or_runtime: "knowledge",
+						owner_tool_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "directory_page", "generic_content_page"],
 						title_keywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
@@ -46,7 +46,7 @@ export function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "regulation_candidate",
 						owner_surface: "regulations/institutional_rules",
-						owner_capability_or_runtime: "knowledge",
+						owner_tool_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["办法", "规定", "细则", "制度"],
@@ -62,7 +62,7 @@ export function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "student_regulation_candidate",
 						owner_surface: "regulations/student_rules",
-						owner_capability_or_runtime: "knowledge",
+						owner_tool_or_runtime: "knowledge",
 						materialization_policy: "release_gate_required",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["办法", "规定", "细则", "制度"],
@@ -78,7 +78,7 @@ export function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "notice_news_candidate",
 						owner_surface: "future_notice_runtime",
-						owner_capability_or_runtime: "notice",
+						owner_tool_or_runtime: "notice",
 						materialization_policy: "inventory_only",
 						page_families: ["article_detail"],
 						title_keywords: ["新闻", "通知", "公告", "讲座", "活动"],
@@ -186,7 +186,7 @@ export function writeMinimalTargetInventory(siteRoot: string): void {
 						target_label: "Institutional rules page",
 						consumer_family: "regulation_candidate",
 						owner_surface: "regulations/institutional_rules",
-						owner_capability_or_runtime: "knowledge",
+						owner_tool_or_runtime: "knowledge",
 						selected_write_target: "regulations/institutional_rules",
 						source_hosts: ["www.example.edu"],
 						source_urls: ["https://www.example.edu/rules/policy.htm"],
@@ -213,7 +213,7 @@ export function writeMinimalTargetInventory(siteRoot: string): void {
 						target_label: "Academic calendar page",
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "calendar/academic_calendar",
-						owner_capability_or_runtime: "calendar",
+						owner_tool_or_runtime: "calendar",
 						selected_write_target: "calendar/academic_calendar",
 						source_hosts: ["www.example.edu"],
 						source_urls: ["https://www.example.edu/calendar"],

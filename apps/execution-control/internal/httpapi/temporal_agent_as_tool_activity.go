@@ -54,13 +54,13 @@ func (s *Server) failAgentAsToolActivity(
 	cause error,
 ) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    "agent_as_tool",
+		Tool:          "agent_as_tool",
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "agent-as-tool/failure"),
 		ResultKind:    "activity_failure",
 		StepID:        "agent_as_tool.execute",
 		StepKind:      "agent_as_tool",
-		TaskQueue:     temporalruntime.ActivityTaskQueueStructured,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),

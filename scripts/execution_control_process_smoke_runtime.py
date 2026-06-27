@@ -20,11 +20,11 @@ from scripts.execution_control_process_smoke_models import (
     ProcessSmokePlan,
 )
 from scripts.execution_control_process_smoke_profiles import (
-    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     profile_requires_notice_read_model,
-    profile_requires_structured_projection,
     profile_requires_temporary_postgres,
+    profile_requires_tool_read_model_projection,
     profile_requires_workflow_run_store,
 )
 
@@ -52,15 +52,15 @@ def _prepare_process_smoke_runtime(
     database_name = _temporary_process_smoke_database_name()
     management_url = _postgres_url_with_database(base_database_url, "postgres")
     runtime_database_url = _postgres_url_with_database(base_database_url, database_name)
-    seed_log_path = plan.output_dir / "structured-projection-seed.log"
+    seed_log_path = plan.output_dir / "tool-read-model-projection-seed.log"
     cleanup = _create_temporary_postgres_database(management_url, database_name)
     env_overlay: dict[str, str] = {}
     artifacts: list[dict[str, object]] = []
     try:
-        if profile_requires_structured_projection(plan.profile):
-            selected_collections = _structured_projection_seed_collections(plan.profile)
+        if profile_requires_tool_read_model_projection(plan.profile):
+            selected_collections = _tool_read_model_projection_seed_collections(plan.profile)
             trusted_time = _profile_trusted_time(plan.profile)
-            _seed_structured_projection_smoke(
+            _seed_tool_read_model_projection_smoke(
                 repo_root=plan.repo_root,
                 runtime_database_url=runtime_database_url,
                 log_path=seed_log_path,
@@ -69,10 +69,10 @@ def _prepare_process_smoke_runtime(
                 generated_at=trusted_time,
             )
             env_overlay["CAMPUS_SHARED_POSTGRES_URL"] = runtime_database_url
-            env_overlay["EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = trusted_time
+            env_overlay["EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339"] = trusted_time
             artifacts.append(
                 {
-                    "kind": "temporary_postgres_structured_projection",
+                    "kind": "temporary_postgres_tool_read_model_projection",
                     "seed_log_path": str(seed_log_path),
                     "trusted_time": trusted_time,
                     "collections": list(selected_collections),
@@ -172,7 +172,7 @@ def _create_temporary_postgres_database(management_url: str, database_name: str)
         import psycopg
         from psycopg import sql
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("psycopg is required for SDK structured process smoke") from exc
+        raise RuntimeError("psycopg is required for tool read-model process smoke") from exc
 
     with (
         psycopg.connect(management_url, autocommit=True) as connection,
@@ -212,7 +212,7 @@ def _drop_temporary_postgres_database(cursor: object, database_name: str, sql: o
     cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database_name)))
 
 
-def _seed_structured_projection_smoke(
+def _seed_tool_read_model_projection_smoke(
     *,
     repo_root: Path,
     runtime_database_url: str,
@@ -231,7 +231,7 @@ def _seed_structured_projection_smoke(
     reports = {}
     try:
         for collection in collections:
-            bundle = _structured_projection_smoke_bundles()[collection]
+            bundle = _tool_read_model_projection_smoke_bundles()[collection]
             corpus = "calendar" if collection == "academic_calendar" else "campus_services"
             release_id = f"execution-control-process-smoke-{collection.replace('_', '-')}"
             report = publisher.publish_release(
@@ -242,7 +242,7 @@ def _seed_structured_projection_smoke(
                 schema_version=str(bundle["schema_version"]),
                 artifact_object_key=(
                     f"campus_services/releases/{collection}/"
-                    f"{release_id}/structured-projection-smoke.json"
+                    f"{release_id}/tool-read-model-projection-smoke.json"
                 ),
                 artifact_checksum=projection_artifact_checksum(bundle),
                 bundle=bundle,
@@ -254,7 +254,7 @@ def _seed_structured_projection_smoke(
             )
             if current_release_id != release_id:
                 raise RuntimeError(
-                    f"{collection} structured projection smoke current release = "
+                    f"{collection} tool read-model projection smoke current release = "
                     f"{current_release_id}, want {release_id}"
                 )
             reports[collection] = {
@@ -280,7 +280,7 @@ def _seed_structured_projection_smoke(
     )
 
 
-def _structured_projection_seed_collections(profile: str) -> tuple[str, ...]:
+def _tool_read_model_projection_seed_collections(profile: str) -> tuple[str, ...]:
     if profile == "transport_notice_override_multistep":
         return ("transport_schedule",)
     if (
@@ -294,10 +294,10 @@ def _structured_projection_seed_collections(profile: str) -> tuple[str, ...]:
 def _profile_trusted_time(profile: str) -> str:
     if profile == "transport_notice_override_multistep":
         return TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
-    return STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+    return TOOL_READ_MODEL_OPENED_TRUSTED_TIME
 
 
-def _structured_projection_smoke_bundles() -> dict[str, dict[str, object]]:
+def _tool_read_model_projection_smoke_bundles() -> dict[str, dict[str, object]]:
     return {
         "transport_schedule": _smoke_transport_schedule_bundle(),
     }
@@ -414,8 +414,8 @@ def _seed_notice_read_model_smoke(
         ),
         body_excerpt="烟雾测试通知正文摘要。",
         search_text="烟雾测试通知 通知详情 原文",
-        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
+        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     )
     restricted_record = InternalNoticeReadModelEntry(
         source_family="internal_notice_restricted",
@@ -440,8 +440,8 @@ def _seed_notice_read_model_smoke(
         ),
         body_excerpt="自 3 月 18 日起增加若干学生通勤班车班次。",
         search_text="两校区学生通勤班车 增加班次 班车通知 355122",
-        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
+        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     )
     transport_override_record = InternalNoticeReadModelEntry(
         source_family="internal_notice_restricted",
@@ -466,8 +466,8 @@ def _seed_notice_read_model_smoke(
         ),
         body_excerpt="通勤班车丰台校区乘车点调整至南门外停车区。",
         search_text="丰台到海淀通勤车 乘车点 调整 丰台校区 南门外停车区 353903",
-        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        projection_updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
+        updated_at=TOOL_READ_MODEL_OPENED_TRUSTED_TIME,
     )
     store.upsert_many((record, restricted_record, transport_override_record))
     log_path.write_text(

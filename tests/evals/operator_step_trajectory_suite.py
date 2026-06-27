@@ -25,7 +25,7 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
                 {
                     "stepId": "retrieval.indexed_lookup",
                     "stepKind": "retrieval",
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "toolName": None,
                     "status": "completed",
                     "attemptCount": 1,
@@ -51,7 +51,7 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
                 {
                     "stepId": "synthesis",
                     "stepKind": "synthesis",
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "toolName": None,
                     "status": "completed",
                     "attemptCount": 1,
@@ -86,7 +86,7 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
                 {
                     "stepId": "wrong.legacy.summary",
                     "stepKind": "diagnostic",
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "status": "completed",
                     "attemptCount": 1,
                     "resultCount": 1,
@@ -116,7 +116,7 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
                     "runtimeRun": {
                         "workflowTraceSummary": {
                             "workflow_mode": "multi_step",
-                            "capability_invocations": [],
+                            "tool_invocations": [],
                         }
                     },
                 }
@@ -152,14 +152,14 @@ class OperatorStepTrajectorySuite(unittest.TestCase):
             [
                 {
                     "stepId": "retrieval.indexed_lookup",
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "stepKind": "retrieval",
                     "status": "completed",
                     "projectionRefs": ["projection://runs/run_01HQ/retrieval"],
                 },
                 {
                     "stepId": "synthesis",
-                    "capability": "knowledge",
+                    "tool": "knowledge_query",
                     "stepKind": "synthesis",
                     "status": "completed",
                     "projectionRefs": ["projection://runs/run_01HQ/synthesis"],
@@ -274,7 +274,7 @@ def _operator_request_detail() -> dict[str, object]:
                 "steps": [
                     {
                         "attemptCount": 1,
-                        "capability": "knowledge",
+                        "tool": "knowledge_query",
                         "cancelOutcome": "not_requested",
                         "durationMs": 100,
                         "estimatedCostMicrousd": 0,
@@ -302,7 +302,7 @@ def _operator_request_detail() -> dict[str, object]:
                     },
                     {
                         "attemptCount": 1,
-                        "capability": "knowledge",
+                        "tool": "knowledge_query",
                         "cancelOutcome": "not_requested",
                         "durationMs": 2200,
                         "estimatedCostMicrousd": 321,
@@ -338,7 +338,7 @@ def _trajectory_step(step_id: str, step_kind: str) -> dict[str, object]:
     return {
         "stepId": step_id,
         "stepKind": step_kind,
-        "capability": "knowledge",
+        "tool": "knowledge_query",
         "toolName": None,
         "status": "completed",
         "attemptCount": 1,

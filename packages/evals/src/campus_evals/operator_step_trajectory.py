@@ -101,9 +101,9 @@ def build_release_evidence_fixture(
         "trajectoryRefs": [
             {
                 "stepId": _required_string(step.get("stepId"), f"steps[{index}].stepId"),
-                "capability": _required_string(
-                    step.get("capability"),
-                    f"steps[{index}].capability",
+                "tool": _required_string(
+                    step.get("tool"),
+                    f"steps[{index}].tool",
                 ),
                 "stepKind": _required_string(step.get("stepKind"), f"steps[{index}].stepKind"),
                 "status": _required_string(step.get("status"), f"steps[{index}].status"),
@@ -137,7 +137,7 @@ def trajectory_attribution_for_stage(
         "status": "attributed",
         "stepId": _optional_string(matched.get("stepId")),
         "stepKind": _optional_string(matched.get("stepKind")),
-        "capability": _optional_string(matched.get("capability")),
+        "tool": _optional_string(matched.get("tool")),
         "toolName": _optional_string(matched.get("toolName")),
         "stepStatus": _optional_string(matched.get("status")),
         "outcome": _step_outcome(matched),
@@ -154,7 +154,7 @@ def _normalize_step(value: object, field_name: str) -> dict:
     return {
         "stepId": _required_string(step.get("stepId"), f"{field_name}.stepId"),
         "stepKind": _required_string(step.get("stepKind"), f"{field_name}.stepKind"),
-        "capability": _required_string(step.get("capability"), f"{field_name}.capability"),
+        "tool": _required_string(step.get("tool"), f"{field_name}.tool"),
         "toolName": _optional_string(step.get("toolName")),
         "status": _required_string(step.get("status"), f"{field_name}.status"),
         "attemptCount": _non_negative_int(step.get("attemptCount"), f"{field_name}.attemptCount"),
@@ -252,7 +252,7 @@ def _missing_attribution(status: str) -> dict:
         "status": status,
         "stepId": None,
         "stepKind": None,
-        "capability": None,
+        "tool": None,
         "toolName": None,
         "stepStatus": None,
         "outcome": {

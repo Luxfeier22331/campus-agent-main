@@ -63,14 +63,14 @@ task packet 由 code 生成，不由模型猜。
 - `language`
 - `task_kind`
 - `resolved_scope`
-- `requested_capability`
+- `requested_tool`
 - `personalization_mode`
 - `allowed_actions`
 - `forbidden_actions`
 - `response_constraints`
 - `output_schema_name`
 
-knowledge / RAG capability 可额外带：
+knowledge / RAG tool 可额外带：
 
 - `query_plan_kind`
 - `clarification_reason`
@@ -136,7 +136,7 @@ prompt 只能消费已经过 code 过滤的 personalization inputs。
 一致：
 
 - personalization 可以影响 wording、clarification、preference
-- 不能扩大 capability opening、source trust、account/session 或 operator access truth
+- 不能扩大 tool opening、source trust、account/session 或 operator access truth
 
 ## Observability And Storage
 
@@ -182,7 +182,7 @@ LLM I/O contract 变更不是纯文案改动，而是 release-relevant change。
 1. `policy gate`
 
 - clarify / no-answer / deny-path 是否正确
-- `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`capability_not_ready`
+- `policy_refusal`、`out_of_scope`、`unsupported_by_evidence`、`tool_not_ready`
   与 `source_truth_unavailable` 的区分是否正确
 
 1. `quality gate`
@@ -198,7 +198,7 @@ LLM I/O contract 变更不是纯文案改动，而是 release-relevant change。
 - `student_rules` live accept
 - `curriculum_plan` live accept
 - alias / family ambiguity regression
-- capability-not-open / source-unavailable / fail-close regression
+- tool-not-open / source-unavailable / fail-close regression
 - out-of-scope / policy-refusal / unsupported-by-evidence regression
 
 LLM I/O schema 或 tool schema 变更必须与对应回归证据一起进入变更记录。
@@ -224,7 +224,7 @@ LLM I/O schema 或 tool schema 变更必须与对应回归证据一起进入变�
 
 1. `boundary gate`
 
-- 未开放 capability、未可靠摄入的 current-state truth 或内部 source material 不得通过 wording
+- 未开放 tool、未可靠摄入的 current-state truth 或内部 source material 不得通过 wording
   包装成可确认答案
 
 1. `freshness gate`
@@ -253,7 +253,7 @@ offline/eval hardening：
   runtime surface
 - `refusal` / `incomplete` / `content-filter` 现在会以 observability-safe typed
   product state 留痕，而不是只作为 fallback reason
-- 旧 Python `packages/knowledge-capability` 中的 claim validator 不作为 online serving gate；
+- 旧 Python knowledge package 中的 claim validator 不作为 online serving gate；
   不继续把 Python validator depth 当作主链路实现缺口
 - claim-level semantic grounding 只有在 badcase / eval 证明 evidence-integrity 不足时，
   才作为 Go RAG hardening 进入实施
@@ -266,7 +266,7 @@ offline/eval hardening：
 
 - Execution Agent Layer routing
 - deterministic execution terminal wording
-- capability opening gate
+- tool opening gate
 - serving-surface filter
 - retrieval planning
 - canonical entity / alias resolution
@@ -297,7 +297,7 @@ offline/eval hardening：
 - 但不需要把系统改写成 prompt-first RAG
 - execution terminal prompt family 当前已移除；deterministic terminal wording 由 Go
   direct terminal path 承接
-- knowledge-path prompt 应按 mode 拆分，并避免把 raw capability id 写成 model-facing
+- knowledge-path prompt 应按 mode 拆分，并避免把 raw legacy tool id 写成 model-facing
   persona
 - 结构化、高精度场景继续优先 deterministic composer
 - 幻觉治理的主力仍然是 `scope/evidence/finalization/eval`，而不是继续把 system prompt 写得更长
@@ -361,10 +361,10 @@ session state 为准。
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`
-- `docs/architecture/system/agent-framework-boundary-architecture.md`
+- `docs/architecture/system/agent-framework.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
-- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/ops-observability.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

@@ -11,14 +11,14 @@ updated: 2026-04-21
 ## 先看什么
 
 - supporting
-  architecture：`../architecture/system/operator-observability-architecture.md`
+  architecture：`../architecture/system/ops-observability.md`
 - product/runtime ownership：`../architecture/system/product-runtime-architecture.md`
-- 当前 merged truth：`../architecture/current-architecture.md`
+- 当前 merged truth：`../architecture/current.md`
 - 通用执行态入口：`README.md`
 
 ## 长期边界与决策
 
-- `../architecture/system/operator-observability-architecture.md`
+- `../architecture/system/ops-observability.md`
 - `../decisions/adr-0023-operator-observability-control-plane-and-sink-participa
   tion.md`
 - `../decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.md
@@ -26,14 +26,14 @@ updated: 2026-04-21
 
 ## Contract 与 Data
 
-- `../contracts/app-api-operator-observability-http.md`
+- `../contracts/app-api-observability.md`
 - `../contracts/app-api-http.md`
 - `../data/app-api-schema.md`
 
 ## 执行路由
 
-- 当前 merged truth 统一看 `../architecture/current-architecture.md`、`../architecture
-  /operator-observability-architecture.md` 与 contract/data 文档
+- 当前 merged truth 统一看 `../architecture/current.md`、`../architecture
+  /ops-observability.md` 与 contract/data 文档
 - 当前 work map 与 live session state 分别看 `README.md` 定义的通用执行态入口与 GSD SDK /
   Codex native session
 - `Requests` triage table 重构继续只作为 follow-up 入口，不自动并入当前 active workstream
@@ -45,8 +45,8 @@ updated: 2026-04-21
 
 ## Runbooks / smoke
 
-- `../runbooks/execution-control-staging-operations.md`
-- `../runbooks/execution-control-staging-smoke-runbook.md`
+- `../runbooks/execution-ops.md`
+- `../runbooks/execution-smoke.md`
 - `../runbooks/worker-observability-smoke-runbook.md`
 - `../runbooks/templates/worker-observability-smoke-artifact-template.md`
 

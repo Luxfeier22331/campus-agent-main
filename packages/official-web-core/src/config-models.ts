@@ -294,7 +294,7 @@ export interface OfficialWebProjectionDeclarations {
 export interface OfficialWebConsumerFamilyRule {
 	consumerFamily: OfficialWebConsumerFamily;
 	ownerSurface: string;
-	ownerCapabilityOrRuntime: string;
+	ownerToolOrRuntime: string;
 	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
 	pageFamilies: OfficialWebDeclarablePageFamily[];
 	titleKeywords: string[];
@@ -349,7 +349,7 @@ export interface OfficialWebTargetInventoryEntry {
 	inventoryOnly: boolean;
 	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
 	notes: string;
-	ownerCapabilityOrRuntime: string;
+	ownerToolOrRuntime: string;
 	ownerSurface: string;
 	previewStatus: string;
 	releaseBlockers: string[];

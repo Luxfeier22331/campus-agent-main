@@ -77,7 +77,7 @@ checkouts continue to use their own ops-owned env files and secret stores.
 
 ### Change Completed Functionality
 
-1. Identify whether this is product, execution, capability, data-plane, or ops.
+1. Identify whether this is product, execution, tool, data-plane, or ops.
 2. Recover historical context through git history only if it contains a specific
    useful decision or evidence reference.
 3. Do not restore old phase directories to restart work.

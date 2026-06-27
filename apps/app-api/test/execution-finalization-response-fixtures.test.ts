@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 
-const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/capability_execution_contract");
+const fixtureDir = resolve(process.cwd(), "../..", "tests/fixtures/tool_execution_contract");
 
 function loadFixture(name: string): Record<string, unknown> {
 	return JSON.parse(readFileSync(join(fixtureDir, name), "utf8")) as Record<string, unknown>;
@@ -20,14 +20,14 @@ describe("execution finalization canonical response fixtures", () => {
 				loadFixture("response_completed_delegate.valid.json"),
 			),
 		).toMatchObject({
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace-contract-completed",
 			workflowTraceSummary: {
 				contextProjections: [],
 				directVsDelegateBranch: "delegate",
-				selectedCapability: "knowledge",
-				selectedTools: ["retrieval.query"],
+				selectedTool: "knowledge_query",
+				selectedTools: ["knowledge_query"],
 			},
 		});
 		expect(
@@ -37,12 +37,12 @@ describe("execution finalization canonical response fixtures", () => {
 		).toMatchObject({
 			answerText: "国家奖学金按学校现行评审办法执行。",
 			error: null,
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace-temporal-finalization",
 			workflowTraceSummary: {
-				selectedCapability: "knowledge",
-				selectedTools: ["retrieval.query"],
+				selectedTool: "knowledge_query",
+				selectedTools: ["knowledge_query"],
 			},
 		});
 		expect(
@@ -54,7 +54,7 @@ describe("execution finalization canonical response fixtures", () => {
 				code: "execution_cancelled",
 				retryable: false,
 			},
-			selectedCapability: null,
+			selectedTool: null,
 			status: "cancelled",
 			traceId: "trace-contract-cancelled",
 		});
@@ -65,7 +65,7 @@ describe("execution finalization canonical response fixtures", () => {
 				code: "execution_timeout",
 				retryable: true,
 			},
-			selectedCapability: null,
+			selectedTool: null,
 			status: "error",
 		});
 	});
@@ -88,7 +88,7 @@ describe("execution finalization canonical response fixtures", () => {
 			context_projections: [
 				{
 					projection_id: "projection:notice:001",
-					source_step_id: "capability:notice:campus_notice_get",
+					source_step_id: "tool:notice:campus_notice_get",
 					projection_kind: "notice_context",
 					content_hash: "sha256:test",
 					safety: {

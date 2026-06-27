@@ -53,8 +53,8 @@ current truth 文档负责。
 - 支持上下文 token budget、裁剪、摘要预留和可诊断 truncation reason。
 - 支持同一 conversation 下连续消息、重试、取消和 regenerate 的顺序与分支语义。
 - 支持 Langfuse 记录上下文装配、query rewrite、evidence reuse 与 eval score。
-- 保持当前 Temporal + typed capability 架构，不把 RAG 细节泄漏到顶层 capability handoff contract。
-- 保持 context envelope capability-neutral，不让 RAG、notice、navigation、services 或
+- 保持当前 Temporal + typed tool 架构，不把 RAG 细节泄漏到顶层 tool handoff contract。
+- 保持 context envelope tool-neutral，不让 RAG、notice、navigation、services 或
   direct answer 各自发明上下文拼接逻辑。
 
 ## 3. 非目标
@@ -80,7 +80,7 @@ current truth 文档负责。
 app-api builds context.conversation provenance envelope
 -> execution-control admits and validates the envelope
 -> context.memory_recall enriches the run when enabled
--> primary agent / typed capability / RAG consume typed model-visible slices
+-> primary agent / typed tool / RAG consume typed model-visible slices
 -> finalization and Langfuse consume sanitized summaries
 ```
 
@@ -111,13 +111,13 @@ conversation store、runtime projection 与 session slots 重建当前
 - recent turns
 - previous answer summary
 - previous evidence refs
-- previous capability result refs
+- previous tool result refs
 - session state
 - message / run / trace identity
 
 长期个人记忆不由 app-api 从 PG profile memory projection 自行拼接。app-api 必须把
 execution payload 需要的 `run_id`、`tenant_id`、`user_id`、`user_goal`、
-`requested_capability`、confirmed `session_slots` 与 `context.memory.enabled` gate
+`requested_tool`、confirmed `session_slots` 与 `context.memory.enabled` gate
 传给 execution-control；online recall 由 execution-control 的
 `context.memory_recall` activity 调用 Hindsight runtime 完成。
 
@@ -131,20 +131,20 @@ context packet 必须区分 model-visible 与 runtime-only 内容。
 - sanitized recent turns
 - previous answer summary
 - previous evidence metadata / excerpt / refs
-- previous capability result refs / bounded summary
+- previous tool result refs / bounded summary
 - selected session state summary
 - bounded memory context returned by Hindsight recall when recall is enabled and
   completed
 
 其中 current user message、recent turns、previous answer summary、previous evidence、
-previous capability result refs 与 session state 来自 app-api 生成的
+previous tool result refs 与 session state 来自 app-api 生成的
 `context.conversation`；bounded memory context 来自 execution-control enrichment，不属于
 app-api 生成的 `context.conversation`。
 
 Runtime-only 内容包括：
 
 - actor / principal / entitlement / authorization projection
-- retrieval filter and capability admission input
+- retrieval filter and tool admission input
 - request / run / trace identity
 - memory recall request inputs and projection refs
 - token estimate, truncation reason and audit metadata
@@ -202,7 +202,7 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
 
 - Run context envelope 读取、清洗、编译与重建。
 - app-api 到 execution-control 的 `context.conversation` handoff 要求。
-- primary agent、typed capability 与 RAG 的 typed context slice 消费。
+- primary agent、typed tool 与 RAG 的 typed context slice 消费。
 - RAG query rewrite 与 previous evidence proof reuse。
 - token budget、visibility class、裁剪与摘要预留。
 - turn sequence、message branch 与并发保护。
@@ -244,11 +244,11 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
   - Model-visible: yes, bounded metadata / excerpt
   - Notes: 必须保留 source / version / snapshot provenance；不读取 Temporal history 或
     raw provider payload
-- previous capability results
+- previous tool results
   - Canonical source: sanitized run / step / result projection
   - Compiler owner: app-api
   - Model-visible: not in P0
-  - Notes: generic capability result reuse belongs to P2 unless a concrete P0
+  - Notes: generic tool result reuse belongs to P2 unless a concrete P0
     consumer needs it
 - session state
   - Canonical source: conversation sessionSlots
@@ -290,7 +290,7 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
 - `run_id`
 - `user_id`
 - `user_goal`
-- `requested_capability`
+- `requested_tool`
 - tenant / institution scope
 - confirmed `session_slots`
 - optional `context.memory.enabled` gate
@@ -317,7 +317,7 @@ message parent / branch schema 与 active branch pointer，属于 P2 结构性�
       "recent_turns": [],
       "previous_answer_summary": null,
       "previous_evidence_refs": [],
-      "previous_capability_results": [],
+      "previous_tool_results": [],
       "session_state": {},
       "visibility": {
         "model_visible": [],
@@ -364,14 +364,14 @@ app-api 到 execution-control 的执行 payload 必须新增稳定的 run contex
 
 contract source 必须遵循 execution contract 现有治理：
 
-- 更新 `docs/contracts/schemas/capability-execution.openapi.yaml`。
+- 更新 `docs/contracts/schemas/tool-execution.openapi.yaml`。
 - 重新生成 `apps/app-api` TS artifact 与 `apps/execution-control` Go artifact。
 - 更新 valid / invalid fixture matrix。
 - 通过 `pnpm contracts:check`。
 
 要求：
 
-- PRD 锁定语义；最终 wire shape 由 capability execution OpenAPI schema 冻结。
+- PRD 锁定语义；最终 wire shape 由 tool execution OpenAPI schema 冻结。
 - run context envelope 必须纳入 execution `context` 下，作为 `context.conversation`；
   不新增 top-level `conversation_context`。
 - contract 不得泄漏 Qdrant、Temporal internal、provider SDK、Hindsight internal bank id
@@ -446,7 +446,7 @@ retrieval intent。未完成或 skipped 的 enrichment 不得被猜测补入。
   才允许执行明确标注的 admitted conservative retrieval。
 - query rewrite hash、followup reference、resolution state 和是否新检索必须进入 Langfuse
   trace；standalone query 明文不得进入 Langfuse。
-- query rewrite 不能绕过 capability admission 或 retrieval serving surface 限制。
+- query rewrite 不能绕过 tool admission 或 retrieval serving surface 限制。
 
 ### FR5. Previous Evidence Proof Reuse
 
@@ -535,7 +535,7 @@ Hindsight recall、recent turns、session slots 和 previous evidence 必须有�
 每轮执行必须记录上下文装配和 RAG 追问相关 evidence。
 
 具体 Langfuse attribute name 由
-`docs/contracts/langfuse-runtime-observability-contract.md` 冻结；本 PRD 只锁定必须可观测的
+`docs/contracts/langfuse-runtime.md` 冻结；本 PRD 只锁定必须可观测的
 最小 semantic summary。
 
 最小 semantic summary：
@@ -558,7 +558,7 @@ Hindsight recall、recent turns、session slots 和 previous evidence 必须有�
 要求：
 
 - PRD 后续实施必须同步更新
-  `docs/contracts/langfuse-runtime-observability-contract.md`，由该 contract 冻结允许的
+  `docs/contracts/langfuse-runtime.md`，由该 contract 冻结允许的
   semantic-to-attribute projection。
 - Langfuse-bound payload 必须遵守 repo 脱敏边界。
 - Langfuse-bound payload 不得包含 raw prompt、raw answer、raw transcript、standalone
@@ -599,7 +599,7 @@ user: 转专业条件是什么？
 assistant: 转专业通常需要满足成绩、名额、学院审核等条件...
 ```
 
-上一轮 answer 由 `knowledge` capability 完成，并产生 source card：
+上一轮 answer 由 `knowledge` tool 完成，并产生 source card：
 
 ```json
 {
@@ -677,11 +677,11 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
           "snippet": "学生申请转专业应符合学校规定的年级、成绩、名额及学院审核要求。"
         }
       ],
-      "previous_capability_results": [
+      "previous_tool_results": [
         {
           "request_id": "req_previous_services",
           "run_id": "run_previous_services",
-          "capability": "campus_services",
+          "tool": "transport_schedule_lookup",
           "result_kind": "final_response",
           "projection_ref": "projection://runs/run_previous_services/finalization",
           "content_hash": "sha256:previous-service-result",
@@ -700,7 +700,7 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
           "recent_turns",
           "previous_answer_summary",
           "previous_evidence_refs",
-          "previous_capability_results",
+          "previous_tool_results",
           "session_state"
         ],
         "runtime_only": [
@@ -726,7 +726,7 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
           "model_visible": true
         },
         {
-          "item": "previous_capability_results[0]",
+          "item": "previous_tool_results[0]",
           "source": "runtime request projection",
           "model_visible": true
         }
@@ -743,14 +743,14 @@ wire 位置；`snippet` 可进入模型可见上下文，但不得作为 Langfus
 
 对应 Langfuse-bound trace 只允许记录脱敏摘要。下列 key 是示例性
 semantic-to-attribute projection，不是字段名契约；具体 Langfuse attribute name 由
-`docs/contracts/langfuse-runtime-observability-contract.md` 冻结。
+`docs/contracts/langfuse-runtime.md` 冻结。
 
 ```json
 {
   "envelope_schema_version": "conversation_context.v1",
   "recent_turn_count": 2,
   "previous_evidence_count": 1,
-  "previous_capability_result_count": 1,
+  "previous_tool_result_count": 1,
   "model_visible_item_count": 6,
   "runtime_only_item_count": 8,
   "query_rewrite_hash": "sha256:rewrite-example",
@@ -796,11 +796,11 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 - valid skipped fixture 覆盖 `context.memory.enabled` 缺失 / false 的 skipped diagnostics。
 - 同一 conversation 连续两条消息不会互相覆盖 active state。
 - 超过 token budget 时有明确 truncation reason。
-- generic previous capability result reuse 只消费 `runtime.request_execution` sanitized
-  completed projection，模型侧只接收 `previous_capability_results` refs / bounded summary，
+- generic previous tool result reuse 只消费 `runtime.request_execution` sanitized
+  completed projection，模型侧只接收 `previous_tool_results` refs / bounded summary，
   不接收 Temporal history、raw tool payload、原始 provider output 或前端 structured parts。
 - final model context 和 context usage summary 均暴露
-  `previous_capability_results` / `previous_capability_result_count`。
+  `previous_tool_results` / `previous_tool_result_count`。
 - Langfuse 能按 dataset run 产出 retrieval、groundedness 和 follow-up scores。
 - 新增 contract 有 schema / validator / malformed fixture 测试。
 - malformed fixture 覆盖 top-level `conversation_context` 被拒绝、缺 provenance、gate 为
@@ -836,7 +836,7 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 
 - turn sequence guard。
 - regenerate branch schema / active branch pointer。
-- generic previous capability result reuse。
+- generic previous tool result reuse。
 - compact / summary strategy。
 - context summary 预留字段接入。
 - late completion / cancel / timeout 状态保护。
@@ -873,16 +873,16 @@ trace 只能记录 `standalone_query_hash`、公开 fixture case id 或 categori
 ## 15. 文档依赖
 
 - Current merged truth:
-  [docs/architecture/current-architecture.md](../architecture/current-architecture.md)
+  [docs/architecture/current.md](../architecture/current.md)
 - Execution Agent Layer:
   [docs/architecture/system/execution-agent-layer-architecture.md](../architecture/system/execution-agent-layer-architecture.md)
-- Capability execution contract:
-  [docs/contracts/capability-execution.md](../contracts/capability-execution.md)
+- Tool execution contract:
+  [docs/contracts/tool-execution.md](../contracts/tool-execution.md)
 - Memory plane:
   [docs/architecture/system/memory-plane-architecture.md](../architecture/system/memory-plane-architecture.md)
 - Retrieval serving:
   [docs/architecture/system/retrieval-serving-architecture.md](../architecture/system/retrieval-serving-architecture.md)
 - Langfuse runtime observability contract:
-  [docs/contracts/langfuse-runtime-observability-contract.md](../contracts/langfuse-runtime-observability-contract.md)
+  [docs/contracts/langfuse-runtime.md](../contracts/langfuse-runtime.md)
 - Langfuse eval platform:
   [docs/product/langfuse-eval-platform-completion-prd.md](./langfuse-eval-platform-completion-prd.md)

@@ -19,7 +19,7 @@ func TestEmitterDisabledNoops(t *testing.T) {
 	emitter := NewEmitter(context.Background(), config.Config{}, nil)
 
 	if err := emitter.Emit(context.Background(), Event{
-		EventType: "execution.runtime_failed",
+		EventType: "execution.activity_failed",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
 	}); err != nil {
@@ -67,7 +67,7 @@ func TestEmitterEmitFailsWhenDeliveryFails(t *testing.T) {
 	}, nil)
 
 	err := emitter.Emit(context.Background(), Event{
-		EventType: "execution.runtime_failed",
+		EventType: "execution.activity_failed",
 		RequestID: "req-audit-failed",
 		TraceID:   "trace-audit-failed",
 	})
@@ -87,7 +87,7 @@ func TestEmitterEmitFailsWhenEnabledButUnconfigured(t *testing.T) {
 	}, nil)
 
 	err := emitter.Emit(context.Background(), Event{
-		EventType: "execution.runtime_failed",
+		EventType: "execution.activity_failed",
 		RequestID: "req-audit-unconfigured",
 		TraceID:   "trace-audit-unconfigured",
 	})
@@ -180,19 +180,19 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	if err := emitter.Emit(context.Background(), Event{
+		ActivityDuration:      35 * time.Second,
 		ContextPreflightState: "not_follow_up",
 		Decision:              "queue_full",
 		Duration:              35*time.Second + 12*time.Millisecond,
-		EventType:             "execution.runtime_failed",
+		EventType:             "execution.activity_failed",
 		FailureKind:           "timeout",
 		HTTPStatus:            http.StatusGatewayTimeout,
-		Lane:                  "rag",
 		OccurredAt:            time.Date(2026, 4, 24, 10, 0, 0, 0, time.UTC),
 		PlanningOutcome:       "not_preplanned",
 		PolicyGateDecision:    "out_of_scope",
 		QueueWait:             12 * time.Millisecond,
 		RequestID:             "req-001",
-		RequestedCapability:   "knowledge",
+		RequestedTool:         "knowledge_query",
 		Retryable:             true,
 		RoutingNextAction:     "out_of_scope",
 		ScopeGateDecision:     "out_of_scope",
@@ -213,10 +213,10 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		if !ok {
 			t.Fatalf("event = %#v, want object", events[0])
 		}
-		if event["event_id"] != "execution-control:req-001:execution.runtime_failed" {
+		if event["event_id"] != "execution-control:req-001:execution.activity_failed" {
 			t.Fatalf("event_id = %v", event["event_id"])
 		}
-		if event["event_type"] != "execution.runtime_failed" || event["request_id"] != "req-001" {
+		if event["event_type"] != "execution.activity_failed" || event["request_id"] != "req-001" {
 			t.Fatalf("unexpected event payload: %#v", event)
 		}
 		if _, ok := event["user_goal"]; ok {

@@ -12,8 +12,7 @@ import { createExecutionControlToolExecutor } from "./tool-executor.ts";
 const port = Number.parseInt(process.env.AGENT_RUNTIME_PORT ?? "27062", 10);
 const host = process.env.AGENT_RUNTIME_HOST ?? "127.0.0.1";
 const sharedSecret = process.env.AGENT_RUNTIME_SHARED_SECRET ?? "";
-const catalogPath =
-	process.env.AGENT_RUNTIME_TOOL_CATALOG_PATH ?? "configs/runtime/tool-catalog.v1.json";
+const catalogPath = process.env.AGENT_RUNTIME_TOOL_REGISTRY_PATH ?? "configs/runtime/tools.v4.json";
 const executionControlBaseUrl =
 	process.env.AGENT_RUNTIME_EXECUTION_CONTROL_BASE_URL ?? "http://127.0.0.1:27051";
 const executionControlSharedSecret =

@@ -1,5 +1,5 @@
 import type {
-	ProviderConfigCapabilityConfig,
+	ProviderConfigFeatureConfig,
 	ProviderConfigKind,
 	ProviderConfigValidationResult,
 	ProviderConfigValidators,
@@ -185,11 +185,11 @@ export async function defaultValidateEmbeddingProvider(
 export async function defaultValidateRerankProvider(
 	input: Parameters<ProviderConfigValidators["validateRerank"]>[0],
 ): Promise<ProviderConfigValidationResult> {
-	const path = rerankPathFromCapabilityConfig(input.capabilityConfig);
+	const path = rerankPathFromToolConfig(input.featureConfig);
 	if (!path) {
 		return {
 			errorCode: "rerank_path_missing",
-			message: "rerank capability path is not configured.",
+			message: "rerank feature path is not configured.",
 			ok: false,
 			status: "failed",
 		};
@@ -248,7 +248,7 @@ export async function validateByKind(
 	return validators.validatePrompt(input);
 }
 
-function rerankPathFromCapabilityConfig(config: ProviderConfigCapabilityConfig): string {
+function rerankPathFromToolConfig(config: ProviderConfigFeatureConfig): string {
 	const rerank = config.rerank;
 	if (!rerank || typeof rerank !== "object" || Array.isArray(rerank)) {
 		return "";

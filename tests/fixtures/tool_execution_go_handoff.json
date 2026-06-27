@@ -1,0 +1,197 @@
+{
+	"execution_contract_version": "tool_execution_v1",
+	"response_contract": "execution_finalization_response_v1",
+	"user_goal": "保研政策怎么准备？",
+	"conversation_id": "conv-go-fixture-001",
+	"request_id": "req-go-fixture-001",
+	"safety_identifier": null,
+	"trace": {
+		"trace_id": "trace-go-fixture-001"
+	},
+	"actor": {
+		"user_id": "student@example.edu",
+		"principal_id": "principal-go-fixture-001",
+		"principal_type": "student",
+		"roles": ["student"],
+		"departments": []
+	},
+	"context": {
+		"actor": {
+			"user_id": "student@example.edu",
+			"principal_id": "principal-go-fixture-001",
+			"principal_type": "student",
+			"roles": ["student"],
+			"departments": []
+		},
+		"authorization": {
+			"principal_id": "principal-go-fixture-001",
+			"entitlement_groups": ["students"],
+			"visibility_scope": "",
+			"retrieval_filter": {
+				"entitlement_groups": ["students"],
+				"visibility_level": "public",
+				"visibility_scope": "",
+				"policy_projection_version": "phase1-authorization-projection-v1"
+			}
+		}
+	},
+	"requested_tool": "knowledge_query",
+	"effective_tool": "knowledge_query",
+	"requested_scope": null,
+	"version_query": {
+		"mode": "current"
+	},
+	"runtime_decisions": {
+		"schema_version": "tool-execution-runtime-decisions-v1",
+		"effective_tool": "knowledge_query",
+		"scope_gate": {
+			"decision": "in_scope",
+			"reason": "scope_undetermined_delegate",
+			"matched_signal": ""
+		},
+		"policy_gate": {
+			"decision": "delegate",
+			"reason": "",
+			"risk_level": "low",
+			"matched_signal": ""
+		},
+		"context_preflight": {
+			"state": "not_follow_up",
+			"reference_type": "none",
+			"missing_slots": [],
+			"resolved_slots": {},
+			"matched_signal": "",
+			"ambiguity_reason": ""
+		},
+		"tool_policy": {
+			"policy_version": "runtime-policy-v1"
+		},
+		"runtime_decision_summary": {
+			"schema_version": "runtime-decision-summary-v1",
+			"scope_gate_decision": "in_scope",
+			"policy_gate_decision": "delegate",
+			"context_preflight_state": "not_follow_up",
+			"routing_next_action": "delegate",
+			"planning_outcome": "preplanned",
+			"task_queue": "campus-agent.workflow"
+		},
+		"routing_frame": {
+			"tool": "knowledge_query",
+			"task_kind": "knowledge_lookup",
+			"domain_candidates": ["knowledge_query"],
+			"missing_slots": [],
+			"risk_level": "low",
+			"needs_clarification": false,
+			"suggested_next_action": "delegate",
+			"personalization_mode": "generic",
+			"clarification_subject": "",
+			"scope_class": "in_scope",
+			"policy_reason": "",
+			"launch_state": "open",
+			"scope_reason": "scope_undetermined_delegate",
+			"matched_signal": "",
+			"classifier_version": "go-runtime-policy-v2",
+			"schema_version": "intent-schema-1.0.0",
+			"routing_confidence": "high",
+			"ambiguity_signal": "",
+			"context_resolution_state": "not_follow_up",
+			"context_reference_type": "none",
+			"resolved_slots": {},
+			"ambiguity_reason": ""
+		},
+		"handoff": {
+			"planning_outcome": "preplanned",
+			"tool": "knowledge_query",
+			"allowed_tools": [],
+			"tool_request": {
+				"tool": "knowledge_query",
+				"user_goal": "保研政策怎么准备？",
+				"conversation_id": "conv-go-fixture-001",
+				"request_id": "req-go-fixture-001",
+				"safety_identifier": null,
+				"trace": {
+					"trace_id": "trace-go-fixture-001"
+				},
+				"actor": {
+					"user_id": "student@example.edu",
+					"principal_id": "principal-go-fixture-001",
+					"principal_type": "student",
+					"roles": ["student"],
+					"departments": []
+				},
+				"context": {
+					"actor": {
+						"user_id": "student@example.edu",
+						"principal_id": "principal-go-fixture-001",
+						"principal_type": "student",
+						"roles": ["student"],
+						"departments": []
+					},
+					"authorization": {
+						"principal_id": "principal-go-fixture-001",
+						"entitlement_groups": ["students"],
+						"visibility_scope": "",
+						"retrieval_filter": {
+							"entitlement_groups": ["students"],
+							"visibility_level": "public",
+							"visibility_scope": "",
+							"policy_projection_version": "phase1-authorization-projection-v1"
+						}
+					}
+				},
+				"workflow_context": {
+					"schema_version": "workflow-tool-context-v1",
+					"visibility": "tool_private",
+					"workflow_run_ref": "workflow:req-go-fixture-001",
+					"step_id": "tool:knowledge_query:rag_request",
+					"tool_id": "knowledge_query",
+					"tool": "knowledge_query",
+					"required_projection_kind": "",
+					"expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
+					"projection_refs": [],
+					"task_queue": "campus-agent.activity.knowledge"
+				},
+				"payload": {
+					"kind": "rag_request",
+					"payload": {
+						"scope": null,
+						"version_query": {
+							"mode": "current"
+						}
+					}
+				},
+				"allowed_tools": []
+			},
+			"task_queue": "campus-agent.activity.knowledge"
+		},
+		"workflow_plan": {
+			"schema_version": "workflow-plan-v1",
+			"plan_id": "plan:single_step:knowledge_query:rag_request",
+			"workflow_mode": "single_step",
+			"allowed_tools": ["knowledge_query"],
+			"steps": [
+				{
+					"step_id": "tool:knowledge_query:rag_request",
+					"step_kind": "handoff",
+					"tool": "knowledge_query",
+					"payload_kind": "rag_request",
+					"allowed_tools": [],
+					"selected_tool": "knowledge_query",
+					"task_queue": "campus-agent.activity.knowledge"
+				}
+			],
+			"edges": [],
+			"terminal_policy": {
+				"fail_close_on_invalid_plan": true
+			},
+			"resume_policy": {
+				"resume_supported": false
+			},
+			"semantic_retry_policy": {
+				"max_replans": 0
+			}
+		},
+		"task_queue": "campus-agent.workflow"
+	},
+	"task_queue": "campus-agent.workflow"
+}

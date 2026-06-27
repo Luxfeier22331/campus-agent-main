@@ -21,8 +21,8 @@ repo 级 instruction hierarchy 固定拆成五层：
 1. `platform/runtime invariants`
 
 - 来自产品边界、架构边界、安全边界
-- 例如当前 `Execution Agent Layer-led orchestration`、`capability contract`、
-  `source truth and capability opening gate`
+- 例如当前 `Execution Agent Layer-led orchestration`、`tool contract`、
+  `source truth and tool opening gate`
 
 1. `role instructions`
 
@@ -78,11 +78,11 @@ repo 级 instruction hierarchy 固定拆成五层：
 补充约束：
 
 - `apps/app-api` 不选择 `product persona` 或 `surface prompt profile`；它只投影
-  surface/session/account context 与 allowed capability/tool set
+  surface/session/account context 与 allowed tool set
 - `system prompt` 在产品语义上必须影响第一模型决策；当前实现 owner 是
   `apps/agent-runtime` primary agent instructions，而不是 browser surface 或
   app-api route handler
-- `assistant_intro` / `product_meta` 不作为 prompt family 或 capability；产品身份、
+- `assistant_intro` / `product_meta` 不作为 prompt family 或 tool label；产品身份、
   能力边界、普通寒暄由 first Execution Agent decision 的 direct/no-tool
   terminal branch 处理
 
@@ -110,7 +110,7 @@ typed packet。
 推荐的 repo-global system block 只包含以下语义：
 
 - 你属于一个 `institution-scoped campus assistant`
-- 你不得改写 policy / serving-surface / capability-opening / scope truth
+- 你不得改写 policy / serving-surface / tool-opening / scope truth
 - 你不得用开放域世界知识补齐 institution-specific 缺口
 - 如果请求是 `unsupported`、`ambiguous`、`not opened` 或 `not grounded by evidence`，必须
   abstain 或要求澄清
@@ -120,7 +120,7 @@ typed packet。
 
 ```text
 You are an institution-scoped campus assistant.
-Never override policy, capability-opening, serving-surface, or scope truth supplied
+Never override policy, tool-opening, serving-surface, or scope truth supplied
 by code and typed packets.
 Never use open-world knowledge to fill institution-specific gaps.
 If the request is ambiguous, not opened, unsupported, or not grounded by
@@ -137,7 +137,7 @@ Return only schema-compliant output. Code-side finalization is authoritative.
 它不负责：
 
 - routing
-- capability opening
+- tool opening
 - query-enabled surface 判定
 - retrieval planning
 - answer finalization
@@ -171,7 +171,7 @@ structured output + code-side finalization`
 因此，repo 最终不追求：
 
 - 一份更长的总 system prompt
-- 把 routing / capability-opening / serving truth 写成 prompt 文案
+- 把 routing / tool-opening / serving truth 写成 prompt 文案
 - 把 prompt 当作 agent graph 的唯一真相源
 
 repo 最终追求的是：
@@ -244,7 +244,7 @@ repo 当前推荐的 system / role 设计固定为：
 - owns knowledge-path / `knowledge` role instructions
 - owns answer / clarify / no-answer / unsupported prompt families
 - owns evidence-to-answer prompt packet assembly
-- 不拥有 account truth、operator access truth、serving truth 或 capability-opening truth
+- 不拥有 account truth、operator access truth、serving truth 或 tool-opening truth
 
 ### Retrieval Runtime
 
@@ -282,21 +282,21 @@ eval gate 与 code finalization，不得复用已删除的旧 execution prompt a
 
 prompt assets 长期放在各自 owner source tree 内，而不是集中堆到 repo root。当前
 knowledge/RAG prompt assets 与 provider-facing contract 由 Go-owned execution path
-管理；旧 Python `packages/knowledge-capability` prompt tree 已从 active workspace
+管理；旧 Python knowledge prompt tree 已从 active workspace
 删除。
 
 prompt-facing vocabulary 规则固定为：
 
 - package path / `runtime_target` metadata 继续可以保留在 owner metadata 与代码装配面
-- model-facing `<role>` 文案默认使用 capability wording 或 forward family label
-- 不把 `knowledge` / `navigation` 这类 raw capability id 当作默认 prompt persona
+- model-facing `<role>` 文案默认使用 tool wording 或 product-facing tool label
+- 不把 `knowledge` / `navigation` 这类 raw tool id 当作默认 prompt persona
   名称
 
 每个 LLM I/O asset 至少包含：
 
 - `owner_package`
 - `runtime_target`
-- `capability_family`
+- `tool_surface`
 - `supported_modes`
 - `output_schema_version`
 - `input_packet_schema`

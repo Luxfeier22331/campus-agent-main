@@ -68,7 +68,7 @@ class CommandRunner(Protocol):
 
 
 _SHARED_OPENING_CHECKS = (
-    "execution_control_go_structured_runtime_tests",
+    "execution_control_go_tool_read_model_tests",
     "app_api_campus_services_runtime_tests",
     "campus_web_worker_e2e_tests",
     "app_api_typecheck",
@@ -112,16 +112,15 @@ def validate_tool_opening_profiles(
 TOOL_OPENING_PROFILES = validate_tool_opening_profiles(_TOOL_OPENING_PROFILES)
 
 
-def _execution_control_go_structured_runtime_command() -> tuple[str, ...]:
+def _execution_control_go_tool_read_model_command() -> tuple[str, ...]:
     return (
         "go",
         "test",
-        "./internal/structuredquery",
-        "./internal/structuredplanning",
+        "./internal/toolreadmodel",
         "./internal/runtimepolicy",
         "./internal/httpapi",
         "-run",
-        "TransportSchedule|ServiceStatus|StructuredPlan|AllowedTools|StructuredAnswerText|Readyz",
+        "TransportSchedule|ServiceStatus|AllowedTools|ToolDirectText|Readyz",
     )
 
 
@@ -182,8 +181,8 @@ def run_campus_services_product_path_opening_gate(
 
     checks = (
         _run_command_check(
-            check_id="execution_control_go_structured_runtime_tests",
-            command=_execution_control_go_structured_runtime_command(),
+            check_id="execution_control_go_tool_read_model_tests",
+            command=_execution_control_go_tool_read_model_command(),
             command_runner=command,
             cwd=EXECUTION_CONTROL_DIR,
         ),

@@ -18,7 +18,7 @@ updated: 2026-06-15
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - internal eval ingress contract：`docs/contracts/app-api-eval-benchmark-http.md`
 - `app-api -> execution-control`
-  契约：`docs/contracts/capability-execution.md`
+  契约：`docs/contracts/tool-execution.md`
 - error model：`docs/contracts/app-api-error-model.md`
 - 数据模型：`docs/data/app-api-schema.md`
 - durable agent runtime contract：`docs/contracts/durable-agent-runtime-contract.md`
@@ -205,7 +205,7 @@ fail-close checks。
 - 不把 execution-control / Temporal raw event 直接暴露给 browser
 - 不回写 panel projection
 - 只返回 typed execution outcome
-- execution origin 必须指向 Go `apps/execution-control`，而不是 Python private bridge
+- execution origin 必须指向 Go `apps/execution-control`，而不是 Python private handoff
   worker；Docker Compose 只保留 local / transitional evidence，production target
   substrate 由 K8s + KEDA 承接
 
@@ -373,7 +373,7 @@ operator.request_projection`
   fingerprint 计算
 - 第一版 discriminator 固定为 `__new__`
 - 这样同一首轮请求在首次提交完成前后都能稳定重放，而不要求客户端先显式创建 conversation
-- 对 knowledge-family request，`requestedScope` 与 `versionQuery` 都属于 fingerprint
+- 对 knowledge tool request，`requestedScope` 与 `versionQuery` 都属于 fingerprint
   输入；同一 prompt 但不同历史版本锚点不得命中同一个幂等结果
 
 `requestId` 不是幂等键。

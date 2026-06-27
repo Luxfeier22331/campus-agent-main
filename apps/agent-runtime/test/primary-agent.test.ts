@@ -38,12 +38,11 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-catalog.v1",
-	catalogVersion: "test",
+	schemaVersion: "tool-registry-v4",
+	registryVersion: "test",
 	tools: [
 		{
 			name: "knowledge_query",
-			capability: "knowledge",
 			description: "Route this turn to the governed knowledge workflow.",
 			exposure: "model_visible",
 			readOnly: true,
@@ -59,7 +58,6 @@ const catalog: ToolCatalog = {
 		},
 		{
 			name: "transport_schedule_lookup",
-			capability: "campus_services",
 			description: "Lookup campus shuttle schedule snapshots.",
 			exposure: "model_visible",
 			readOnly: true,
@@ -82,7 +80,7 @@ function schemaRef(schemaName: string, definitionName: string): string {
 }
 
 describe("primary agent runtime", () => {
-	it("returns a no-tool final answer without synthetic capability routing", async () => {
+	it("returns a no-tool final answer without synthetic tool routing", async () => {
 		const runner: AgentRunner = async ({ input }) =>
 			({
 				finalOutput: `我是校园问答助手。收到：${input}`,
@@ -104,7 +102,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-1",
 			input: "hi 你是谁",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -135,7 +133,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-1",
 			input: "hi 你是谁",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -166,7 +164,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-1",
 			input: "hi",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
 		await expect(events[Symbol.asyncIterator]().next()).rejects.toThrow(
@@ -195,7 +193,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-memory",
 			input: "之后回答能不能先给结论？",
 			providerConfig,
-			visibleCapabilities: ["knowledge"],
+			visibleToolNames: ["knowledge_query"],
 			memoryContext: {
 				contextBlock: "用户记忆:\n- 用户偏好回答先给结论",
 				memoryRef: "projection://runs/run-memory/memory/recall",
@@ -236,7 +234,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-context",
 			input: "那大一能不能申请？",
 			providerConfig,
-			visibleCapabilities: ["knowledge"],
+			visibleToolNames: ["knowledge_query"],
 			finalModelContext: {
 				schemaVersion: "final_model_context.v1" as const,
 				currentUserMessage: "那大一能不能申请？",
@@ -266,9 +264,8 @@ describe("primary agent runtime", () => {
 						versionId: "rule-transfer-major-2026",
 					},
 				],
-				previousCapabilityResults: [
+				previousToolResults: [
 					{
-						capability: "campus_services",
 						contentHash: "sha256:previous-service-result",
 						projectionRef: "projection://runs/run_previous_services/finalization",
 						requestId: "req_previous_services",
@@ -302,8 +299,7 @@ describe("primary agent runtime", () => {
 			"previous_answer_summary: 上一轮围绕转专业申请条件回答。",
 		);
 		expect(observedInstructions).toContain("ev_transfer_rule_01");
-		expect(observedInstructions).toContain("previous_capability_results:");
-		expect(observedInstructions).toContain("campus_services");
+		expect(observedInstructions).toContain("previous_tool_results:");
 		expect(observedInstructions).toContain("projection://runs/run_previous_services/finalization");
 		expect(observedInstructions).toContain("<personal_memory>");
 		expect(observedInstructions).toContain("用户偏好先看结论");
@@ -336,7 +332,6 @@ describe("primary agent runtime", () => {
 			toolExecutor: async ({ tool, argumentsJson }) => ({
 				status: "completed",
 				toolName: tool.name,
-				capability: tool.capability,
 				payloadKind: tool.name,
 				result: {
 					outcome: "resolved_current",
@@ -353,7 +348,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-2",
 			input: "校车今天几点",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
 		expect(result.selectedTools).toEqual(["transport_schedule_lookup"]);
@@ -394,7 +389,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-4",
 			input: "学籍管理规定是什么",
 			providerConfig,
-			visibleCapabilities: ["knowledge"],
+			visibleToolNames: ["knowledge_query"],
 		});
 
 		expect(result.status).toBe("completed");
@@ -405,7 +400,6 @@ describe("primary agent runtime", () => {
 			{
 				status: "completed",
 				toolName: "knowledge_query",
-				capability: "knowledge",
 				payloadKind: "knowledge_query",
 				argumentsJson: { query_text: "学籍管理规定是什么" },
 				result: { workflow_signal: "knowledge_query" },
@@ -440,7 +434,6 @@ describe("primary agent runtime", () => {
 			toolExecutor: async ({ tool }) => ({
 				status: "failed",
 				toolName: tool.name,
-				capability: tool.capability,
 				payloadKind: tool.name,
 				result: {
 					error: "source truth unavailable",
@@ -457,7 +450,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-3",
 			input: "校车今天几点",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 		});
 
 		expect(result.status).toBe("failed");
@@ -502,7 +495,6 @@ describe("primary agent runtime", () => {
 				return {
 					status: "completed",
 					toolName: tool.name,
-					capability: tool.capability,
 					payloadKind: tool.name,
 					argumentsJson,
 					result: { outcome: "resolved_current" },
@@ -518,7 +510,7 @@ describe("primary agent runtime", () => {
 			traceId: "trace-signal",
 			input: "校车今天几点",
 			providerConfig,
-			visibleCapabilities: ["campus_services"],
+			visibleToolNames: ["transport_schedule_lookup"],
 			signal: controller.signal,
 		});
 

@@ -16,9 +16,9 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/observability"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/provider"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/telemetry"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
 
 type Server struct {
@@ -29,7 +29,7 @@ type Server struct {
 	metrics                *observability.Metrics
 	telemetry              *telemetry.Emitter
 	executionAudit         *executionaudit.Emitter
-	structuredQuery        *structuredquery.Runtime
+	toolReadModel          *toolreadmodel.Runtime
 	workflowRuns           execution.WorkflowRunStore
 	workflowRunsErr        error
 	runProjectionStore     execution.RunProjectionStore
@@ -220,8 +220,8 @@ func NewServerWithDependencies(
 	if cfg.RequestBodyLimitBytes <= 0 {
 		cfg.RequestBodyLimitBytes = 1_048_576
 	}
-	if cfg.StructuredQueryTimeoutMS <= 0 {
-		cfg.StructuredQueryTimeoutMS = 1_000
+	if cfg.ToolReadModelTimeoutMS <= 0 {
+		cfg.ToolReadModelTimeoutMS = 1_000
 	}
 	if cfg.QueueTimeoutMS <= 0 {
 		cfg.QueueTimeoutMS = 3_000
@@ -242,9 +242,9 @@ func NewServerWithDependencies(
 	telemetryEmitter := telemetry.NewEmitter(context.Background(), cfg, logger)
 	executionAuditEmitter := executionaudit.NewEmitter(context.Background(), cfg, logger)
 	intentPolicy, intentPolicyErr := runtimepolicy.LoadIntentPolicy(cfg.IntentPolicyPath)
-	structuredQueryRuntime := structuredquery.NewRuntime(structuredquery.Options{
+	toolReadModelRuntime := toolreadmodel.NewRuntime(toolreadmodel.Options{
 		StructuredProjectionDatabaseURL:     cfg.StructuredProjectionDatabaseURL,
-		TrustedTimeRFC3339:                  cfg.StructuredQueryTrustedTimeRFC3339,
+		TrustedTimeRFC3339:                  cfg.ToolReadModelTrustedTimeRFC3339,
 		NoticeReadModelDatabaseURL:          cfg.NoticeReadModelDatabaseURL,
 		NoticeReadModelTable:                cfg.NoticeReadModelTable,
 		NoticeBodyObjectStoreEndpoint:       cfg.NoticeBodyObjectStoreEndpoint,
@@ -270,7 +270,7 @@ func NewServerWithDependencies(
 		metrics:                metrics,
 		telemetry:              telemetryEmitter,
 		executionAudit:         executionAuditEmitter,
-		structuredQuery:        structuredQueryRuntime,
+		toolReadModel:          toolReadModelRuntime,
 		workflowRuns:           workflowRuns,
 		workflowRunsErr:        workflowRunsErr,
 		runProjectionStore:     runProjectionStore,
@@ -375,19 +375,10 @@ func newRunProjectionStore(cfg config.Config) (execution.RunProjectionStore, err
 }
 
 func newAdmissionController(cfg config.Config) *admission.Controller {
-	laneConfigs := make(map[string]admission.LaneConfig, len(cfg.LaneBudgets))
-	for lane, budget := range cfg.LaneBudgets {
-		laneConfigs[lane] = admission.LaneConfig{
-			MaxConcurrent: budget.MaxConcurrent,
-			QueueCapacity: budget.QueueCapacity,
-			QueueTimeout:  time.Duration(budget.QueueTimeoutMS) * time.Millisecond,
-		}
-	}
 	return admission.NewController(admission.Config{
 		MaxConcurrent: cfg.MaxConcurrentAnswers,
 		QueueCapacity: cfg.QueueCapacity,
 		QueueTimeout:  time.Duration(cfg.QueueTimeoutMS) * time.Millisecond,
-		Lanes:         laneConfigs,
 	})
 }
 
@@ -412,8 +403,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 			firstErr = err
 		}
 	}
-	if s.structuredQuery != nil {
-		s.structuredQuery.Close()
+	if s.toolReadModel != nil {
+		s.toolReadModel.Close()
 	}
 	if closer, ok := s.workflowRuns.(interface{ Close() }); ok {
 		closer.Close()
@@ -493,17 +484,17 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":
 		s.handleProfileMemoryOwnerDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/transport-schedule":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolTransportScheduleLookup)
+		s.handleToolReadModel(writer, request, toolreadmodel.ToolTransportScheduleLookup)
 	case request.Method == http.MethodGet && path == "/internal/projections/campus-services/transport-schedule/status":
 		s.handleTransportStatusProjection(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
+		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeDiscover)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/period-summary":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticePeriodSummary)
+		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticePeriodSummary)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/change-set":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeChangeSet)
+		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeChangeSet)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":
-		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeGet)
+		s.handleToolReadModel(writer, request, toolreadmodel.ToolCampusNoticeGet)
 	default:
 		setOutcome(writer, "not_found")
 		writeError(

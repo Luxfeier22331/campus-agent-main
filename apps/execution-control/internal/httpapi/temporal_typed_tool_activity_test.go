@@ -16,13 +16,13 @@ func TestTemporalToolResultFromRunFindsSelectedToolResult(t *testing.T) {
 		Metadata: map[string]any{
 			"temporal_tools": map[string]any{
 				"transport_schedule_lookup": map[string]any{
-					"capability":   "campus_services",
 					"payload_kind": "transport_schedule_lookup",
 					"result": map[string]any{
 						"outcome": "resolved_current",
 					},
-					"result_ref": "projection://runs/run-tool-result/tools/transport_schedule_lookup",
-					"tool_name":  "transport_schedule_lookup",
+					"result_ref":  "projection://runs/run-tool-result/tools/transport_schedule_lookup",
+					"tool_name":   "transport_schedule_lookup",
+					"tool_target": "transport_schedule_lookup",
 				},
 			},
 		},
@@ -36,8 +36,8 @@ func TestTemporalToolResultFromRunFindsSelectedToolResult(t *testing.T) {
 	if err != nil {
 		t.Fatalf("temporal tool result: %v", err)
 	}
-	if result.Capability != "campus_services" {
-		t.Fatalf("capability = %q", result.Capability)
+	if result.ToolTarget != "transport_schedule_lookup" {
+		t.Fatalf("tool target = %q", result.ToolTarget)
 	}
 	if result.PayloadKind != "transport_schedule_lookup" {
 		t.Fatalf("payload kind = %q", result.PayloadKind)
@@ -59,11 +59,11 @@ func TestTemporalToolResultFromRunRejectsResultRefDrift(t *testing.T) {
 		Metadata: map[string]any{
 			"temporal_tools": map[string]any{
 				"transport_schedule_lookup": map[string]any{
-					"capability":   "campus_services",
 					"payload_kind": "transport_schedule_lookup",
 					"result":       map[string]any{"outcome": "resolved_current"},
 					"result_ref":   "projection://runs/run-tool-drift/tools/transport_schedule_lookup",
 					"tool_name":    "transport_schedule_lookup",
+					"tool_target":  "transport_schedule_lookup",
 				},
 			},
 		},
@@ -94,7 +94,7 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 		"conv-tool-finalization",
 		now,
 		map[string]any{
-			"capability":    "campus_services",
+			"tool":          "transport_schedule_lookup",
 			"payload_kind":  "transport_schedule_lookup",
 			"allowed_tools": []any{"transport_schedule_lookup"},
 			"payload":       map[string]any{"route_id": "library"},
@@ -107,13 +107,13 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 	}
 	if err := server.replaceTemporalToolMetadata(context.Background(), run, func(metadata map[string]any) {
 		metadata["transport_schedule_lookup"] = map[string]any{
-			"capability":   "campus_services",
 			"payload_kind": "transport_schedule_lookup",
 			"result": map[string]any{
 				"outcome": "resolved_current",
 			},
-			"result_ref": toolRef,
-			"tool_name":  "transport_schedule_lookup",
+			"result_ref":  toolRef,
+			"tool_name":   "transport_schedule_lookup",
+			"tool_target": "transport_schedule_lookup",
 		}
 	}); err != nil {
 		t.Fatalf("replace temporal tool metadata: %v", err)
@@ -140,11 +140,10 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 	first, err := server.WriteFinalizationActivity(
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
-			RunID:              "run-tool-finalization",
-			SelectedCapability: "campus_services",
-			SelectedTool:       "transport_schedule_lookup",
-			ToolResultRef:      toolRef,
-			TraceID:            "trace-executor-001",
+			RunID:         "run-tool-finalization",
+			SelectedTool:  "transport_schedule_lookup",
+			ToolResultRef: toolRef,
+			TraceID:       "trace-executor-001",
 		},
 	)
 	if err != nil {
@@ -157,11 +156,10 @@ func TestTypedToolFinalizationIsIdempotentAfterCompletedRun(t *testing.T) {
 	second, err := server.WriteFinalizationActivity(
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
-			RunID:              "run-tool-finalization",
-			SelectedCapability: "campus_services",
-			SelectedTool:       "transport_schedule_lookup",
-			ToolResultRef:      toolRef,
-			TraceID:            "trace-executor-001",
+			RunID:         "run-tool-finalization",
+			SelectedTool:  "transport_schedule_lookup",
+			ToolResultRef: toolRef,
+			TraceID:       "trace-executor-001",
 		},
 	)
 	if err != nil {
@@ -187,7 +185,7 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 		"conv-tool-late-cancel",
 		now,
 		map[string]any{
-			"capability":    "campus_services",
+			"tool":          "transport_schedule_lookup",
 			"payload_kind":  "transport_schedule_lookup",
 			"allowed_tools": []any{"transport_schedule_lookup"},
 			"payload":       map[string]any{"route_id": "library"},
@@ -200,11 +198,11 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 	}
 	if err := server.replaceTemporalToolMetadata(context.Background(), run, func(metadata map[string]any) {
 		metadata["transport_schedule_lookup"] = map[string]any{
-			"capability":   "campus_services",
 			"payload_kind": "transport_schedule_lookup",
 			"result":       map[string]any{"outcome": "resolved_current"},
 			"result_ref":   toolRef,
 			"tool_name":    "transport_schedule_lookup",
+			"tool_target":  "transport_schedule_lookup",
 		}
 	}); err != nil {
 		t.Fatalf("replace temporal tool metadata: %v", err)
@@ -238,11 +236,10 @@ func TestTypedToolFinalizationRejectsLateCompletionAfterCanceledRun(t *testing.T
 	_, err = server.WriteFinalizationActivity(
 		context.Background(),
 		temporalruntime.WriteFinalizationActivityInput{
-			RunID:              "run-tool-late-cancel",
-			SelectedCapability: "campus_services",
-			SelectedTool:       "transport_schedule_lookup",
-			ToolResultRef:      toolRef,
-			TraceID:            "trace-executor-001",
+			RunID:         "run-tool-late-cancel",
+			SelectedTool:  "transport_schedule_lookup",
+			ToolResultRef: toolRef,
+			TraceID:       "trace-executor-001",
 		},
 	)
 	if err == nil {
@@ -277,11 +274,11 @@ func TestExecuteTypedToolActivityRejectsClosedNoticeChangeSetTool(t *testing.T) 
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
-		"run-typed-tool-failure-capability",
-		"conv-typed-tool-failure-capability",
+		"run-typed-tool-failure-tool",
+		"conv-typed-tool-failure-tool",
 		now,
 		map[string]any{
-			"capability":    "notice",
+			"tool":          "campus_notice_change_set_lookup",
 			"payload_kind":  "campus_notice_change_set_lookup",
 			"allowed_tools": []any{"campus_notice_change_set_lookup"},
 			"payload": map[string]any{
@@ -294,15 +291,15 @@ func TestExecuteTypedToolActivityRejectsClosedNoticeChangeSetTool(t *testing.T) 
 		context.Background(),
 		temporalruntime.ExecuteTypedToolActivityInput{
 			AllowedTools: []string{"campus_notice_change_set_lookup"},
-			Capability:   "notice",
 			Payload: map[string]any{
 				"service_date": "2026-01-02",
 			},
 			PayloadKind: "campus_notice_change_set_lookup",
-			RunID:       "run-typed-tool-failure-capability",
+			RunID:       "run-typed-tool-failure-tool",
 			ToolName:    "campus_notice_change_set_lookup",
+			ToolTarget:  "campus_notice_change_set_lookup",
 			TraceID:     "trace-executor-001",
-			WorkerRole:  "activity-worker-notice",
+			TaskQueue:   temporalruntime.ActivityTaskQueueCore,
 		},
 	)
 	if err == nil {
@@ -311,14 +308,14 @@ func TestExecuteTypedToolActivityRejectsClosedNoticeChangeSetTool(t *testing.T) 
 	if !strings.Contains(err.Error(), "tool campus_notice_change_set_lookup is not admitted") {
 		t.Fatalf("error = %q, want closed tool admission failure", err.Error())
 	}
-	steps, listErr := store.ListRunSteps(context.Background(), "run-typed-tool-failure-capability")
+	steps, listErr := store.ListRunSteps(context.Background(), "run-typed-tool-failure-tool")
 	if listErr != nil {
 		t.Fatalf("list steps: %v", listErr)
 	}
 	if len(steps) != 1 {
 		t.Fatalf("step count = %d, want failure step: %#v", len(steps), steps)
 	}
-	if steps[0].Capability != "notice" {
-		t.Fatalf("failed typed tool capability = %q, want notice", steps[0].Capability)
+	if steps[0].Tool != "campus_notice_change_set_lookup" {
+		t.Fatalf("failed typed tool tool = %q, want campus_notice_change_set_lookup", steps[0].Tool)
 	}
 }

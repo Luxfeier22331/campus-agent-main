@@ -126,7 +126,7 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
 
 ## 决策 8：文档分层关系
 
-- `docs/architecture/target-architecture.md` 只保留 `evals` 边界与可替换性原则
+- `docs/architecture/target.md` 只保留 `evals` 边界与可替换性原则
 - 本 ADR 负责 golden dataset 的长期治理、不变量与边界
 - `docs/decisions/adr-0004-evaluation-metrics.md` 负责指标家族、指标分层与 gate 语义
 - `.planning/WORKSTREAMS.md` 与 `GSD SDK / Codex native session state`

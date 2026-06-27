@@ -25,12 +25,11 @@ const transportResultSchemaRef = schemaRef(
 );
 
 const catalog: ToolCatalog = {
-	schemaVersion: "tool-catalog.v1",
-	catalogVersion: "test",
+	schemaVersion: "tool-registry-v4",
+	registryVersion: "test",
 	tools: [
 		{
 			name: "transport_schedule_lookup",
-			capability: "campus_services",
 			description: "Lookup campus shuttle schedule snapshots.",
 			exposure: "model_visible",
 			readOnly: true,
@@ -123,9 +122,8 @@ describe("agent runtime HTTP handler", () => {
 								version_id: "rule-transfer-major-2026",
 							},
 						],
-						previous_capability_results: [
+						previous_tool_results: [
 							{
-								capability: "campus_services",
 								content_hash: "sha256:previous-service-result",
 								projection_ref: "projection://runs/run_previous_services/finalization",
 								request_id: "req_previous_services",
@@ -181,9 +179,8 @@ describe("agent runtime HTTP handler", () => {
 					contentHash: "sha256:transfer-major-evidence-example",
 				}),
 			],
-			previousCapabilityResults: [
+			previousToolResults: [
 				expect.objectContaining({
-					capability: "campus_services",
 					projectionRef: "projection://runs/run_previous_services/finalization",
 				}),
 			],
@@ -409,7 +406,6 @@ describe("agent runtime HTTP handler", () => {
 				toolExecutor: async ({ tool }) => ({
 					status: "failed",
 					toolName: tool.name,
-					capability: tool.capability,
 					payloadKind: tool.name,
 					result: { error: "source truth unavailable" },
 					resultRef: "agent-runtime://run-1/tools/transport_schedule_lookup/failed",
@@ -530,7 +526,7 @@ function validRunBody(): Record<string, unknown> {
 		turn_id: "turn-1",
 		trace_id: "trace-1",
 		input: "hi 你是谁",
-		visible_capabilities: ["campus_services"],
+		visible_tool_names: ["transport_schedule_lookup"],
 	};
 }
 

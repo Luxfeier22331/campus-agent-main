@@ -26,14 +26,14 @@ func TestSamplerMarksUnsupportedMetricsExplicitly(t *testing.T) {
 				"workflow:campus-agent.workflow": {
 					PollerIdentities: []string{"workflow-worker-1"},
 				},
-				"activity:campus-agent.activity.knowledge.retrieval": {},
+				"activity:campus-agent.activity.knowledge": {},
 			},
 		},
 		Namespace: "campus-agent-staging",
 		Source:    "execution-control.temporal-task-queue-sampler",
 		TaskQueues: []TaskQueueTarget{
 			{Name: "campus-agent.workflow", Kind: TaskQueueKindWorkflow},
-			{Name: "campus-agent.activity.knowledge.retrieval", Kind: TaskQueueKindActivity},
+			{Name: "campus-agent.activity.knowledge", Kind: TaskQueueKindActivity},
 		},
 		Now: func() time.Time {
 			return time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)
@@ -90,7 +90,7 @@ func TestSamplerProjectsObservedTemporalStats(t *testing.T) {
 	sampler := Sampler{
 		Client: fakeTaskQueueClient{
 			responses: map[string]DescribeTaskQueueResult{
-				"activity:campus-agent.activity.knowledge.retrieval": {
+				"activity:campus-agent.activity.knowledge": {
 					ApproximateBacklogAgeMS: &backlogAgeMS,
 					ApproximateBacklogCount: &backlog,
 					PollerIdentities:        []string{"knowledge-worker-1"},
@@ -99,7 +99,7 @@ func TestSamplerProjectsObservedTemporalStats(t *testing.T) {
 		},
 		Namespace: "campus-agent-staging",
 		TaskQueues: []TaskQueueTarget{
-			{Name: "campus-agent.activity.knowledge.retrieval", Kind: TaskQueueKindActivity},
+			{Name: "campus-agent.activity.knowledge", Kind: TaskQueueKindActivity},
 		},
 		Now: func() time.Time {
 			return time.Date(2026, 6, 15, 10, 0, 0, 0, time.UTC)

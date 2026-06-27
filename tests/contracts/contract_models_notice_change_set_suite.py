@@ -23,7 +23,7 @@ ARTIFACT_REGISTRY_PATH = ROOT / "configs/runtime/workflow-artifacts.v2.json"
 GO_EXECUTION_PROJECTION_PATH = (
     ROOT / "apps/execution-control/internal/execution/step_output_projection.go"
 )
-OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/capability-execution.openapi.yaml"
+OPENAPI_CONTRACT_PATH = ROOT / "docs/contracts/schemas/tool-execution.openapi.yaml"
 
 
 class ContractModelsNoticeChangeSetSuite(unittest.TestCase):
@@ -37,7 +37,7 @@ class ContractModelsNoticeChangeSetSuite(unittest.TestCase):
         notice_change_set_binding = bindings[NOTICE_CHANGE_SET_PRODUCER_BINDING_ID]
 
         self.assertEqual(notice_change_set["display_name"], NOTICE_CHANGE_SET_DISPLAY_NAME)
-        self.assertEqual(notice_change_set["owner_capability"], "notice")
+        self.assertEqual(notice_change_set["owner_tool_boundary"], "notice")
         self.assertEqual(
             notice_change_set["producer_tools"],
             [NOTICE_CHANGE_SET_PRODUCER_TOOL_NAME],

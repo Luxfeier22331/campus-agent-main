@@ -14,8 +14,8 @@ updated: 2026-06-15
 ## 当前边界说明
 
 本文的 OpenTelemetry-first / Axiom / Sentry 分层决策仍有效。背景中涉及旧 Python
-supervisor、knowledge-capability、retrieval-core 在线链路的 runtime 拆分已由
-ADR-0048 与 `python-capability-boundaries` 局部 supersede；当前 online execution /
+supervisor、旧 Python knowledge/retrieval 在线链路的 runtime 拆分已由
+ADR-0048 与 `python-boundaries` 局部 supersede；当前 online execution /
 retrieval telemetry 由 `apps/execution-control`、Temporal、`agent-runtime` 与 typed
 activity workers 产出。
 
@@ -214,7 +214,7 @@ redaction 与字段裁剪。
 
 ## 相关文档
 
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/durable-agent-runtime-architecture.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

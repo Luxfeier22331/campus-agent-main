@@ -16,7 +16,7 @@ updated: 2026-04-06
 
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- execution contract：`docs/contracts/capability-execution.md`
+- execution contract：`docs/contracts/tool-execution.md`
 
 ## Error Envelope
 

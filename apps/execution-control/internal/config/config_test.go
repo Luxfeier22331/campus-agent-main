@@ -127,11 +127,6 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.MetricsBearerToken != "" {
 		t.Fatalf("metrics bearer token = %q, want empty", cfg.MetricsBearerToken)
 	}
-	if cfg.LaneBudgets["rag"].MaxConcurrent != 8 ||
-		cfg.LaneBudgets["rag"].QueueCapacity != 24 ||
-		cfg.LaneBudgets["rag"].QueueTimeoutMS != 3_000 {
-		t.Fatalf("unexpected default rag lane budget: %#v", cfg.LaneBudgets["rag"])
-	}
 	if cfg.OTelEnabled {
 		t.Fatal("otel enabled = true, want false by default")
 	}
@@ -141,8 +136,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 	if cfg.ExecutionAuditEnabled {
 		t.Fatal("execution audit enabled = true, want false by default")
 	}
-	if len(cfg.OpenCapabilities) != 0 {
-		t.Fatalf("open capabilities = %#v, want empty by default", cfg.OpenCapabilities)
+	if len(cfg.OpenTools) != 0 {
+		t.Fatalf("open tools = %#v, want empty by default", cfg.OpenTools)
 	}
 	if cfg.ExecutionAuditTimeoutMS != 500 {
 		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
@@ -214,9 +209,9 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.RAGSynthesisTextVerbosity != "low" {
 		t.Fatalf("unexpected rag budget defaults: %#v", cfg)
 	}
-	if cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivitySlots != 4 ||
-		cfg.WorkerProfiles["activity-knowledge-synthesis"].ActivitySlots != 2 ||
-		cfg.WorkerProfiles["activity-knowledge-plan"].ActivitySlots != 16 {
+	if cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 8 ||
+		cfg.WorkerProfiles["activity-core"].ActivitySlots != 8 ||
+		cfg.WorkerProfiles["activity-agent"].ActivitySlots != 4 {
 		t.Fatalf("unexpected worker profile defaults: %#v", cfg.WorkerProfiles)
 	}
 }
@@ -283,42 +278,18 @@ func TestLoadFromEnvForRoleScopesPersonalMemoryRequirements(t *testing.T) {
 	if _, err := LoadFromEnvForRole("workflow"); err != nil {
 		t.Fatalf("workflow worker must not require personal memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-finalization"); err != nil {
-		t.Fatalf("finalization worker must not require personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-context"); err == nil {
-		t.Fatal("context worker must require personal memory config")
+	if _, err := LoadFromEnvForRole("activity-core"); err == nil {
+		t.Fatal("core worker must require personal memory config")
 	}
 	if _, err := LoadFromEnvForRole("activity-agent"); err != nil {
 		t.Fatalf("agent worker must not require personal memory config: %v", err)
 	}
-	if _, err := LoadFromEnvForRole("activity-knowledge"); err == nil {
-		t.Fatal("retired single knowledge worker role must be rejected")
-	}
-	if _, err := LoadFromEnvForRole("activity-knowledge-plan"); err != nil {
-		t.Fatalf("knowledge plan worker must not require query-side personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-knowledge-synthesis"); err != nil {
-		t.Fatalf("knowledge synthesis worker must not require query-side personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-knowledge-retrieval"); err == nil {
-		t.Fatal("knowledge retrieval worker must require query-side personal memory config")
-	}
-	if _, err := LoadFromEnvForRole("activity-campus-services"); err != nil {
-		t.Fatalf("campus services worker must not require personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-notice"); err != nil {
-		t.Fatalf("notice worker must not require personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-navigation"); err != nil {
-		t.Fatalf("navigation worker must not require personal memory config: %v", err)
+	if _, err := LoadFromEnvForRole("activity-knowledge"); err != nil {
+		t.Fatalf("knowledge worker must not require personal memory config: %v", err)
 	}
 	setStagingPersonalMemoryEnv(t)
-	if _, err := LoadFromEnvForRole("activity-context"); err != nil {
-		t.Fatalf("context worker must accept personal memory config: %v", err)
-	}
-	if _, err := LoadFromEnvForRole("activity-knowledge-retrieval"); err != nil {
-		t.Fatalf("knowledge retrieval worker recall must accept Hindsight config: %v", err)
+	if _, err := LoadFromEnvForRole("activity-core"); err != nil {
+		t.Fatalf("core worker must accept personal memory config: %v", err)
 	}
 	if _, err := LoadFromEnvForRole("execution-control"); err != nil {
 		t.Fatalf("execution-control must accept personal memory config: %v", err)
@@ -418,7 +389,7 @@ func TestLoadFromEnvRejectsRetiredDurableWorkerLoopSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_ENABLED", "true")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag")
-	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "capability:knowledge:rag_request")
+	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "tool:knowledge:rag_request")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000")
 	t.Setenv("EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000")
@@ -445,7 +416,7 @@ func TestLoadFromEnvRejectsAnyRetiredDurableLoopSetting(t *testing.T) {
 	}{
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_WORKER_ID", "worker-staging-rag-001"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LANE", "rag"},
-		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "capability:knowledge:rag_request"},
+		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_STEP_ID", "tool:knowledge:rag_request"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_POLL_INTERVAL_MS", "250"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_TTL_MS", "30000"},
 		{"EXECUTION_CONTROL_DURABLE_WORKER_LOOP_LEASE_HEARTBEAT_INTERVAL_MS", "5000"},
@@ -544,9 +515,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
   "request_timeout_ms": 30000,
   "shutdown_grace_ms": 20000,
   "intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
-  "lane_budgets": {
-    "rag": {"max_concurrent": 2, "queue_capacity": 5, "queue_timeout_ms": 1500}
-  },
   "otel": {
     "enabled": true,
     "endpoint": "http://collector:4318/v1/traces",
@@ -566,7 +534,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
     "shared_secret": "audit-secret",
     "timeout_ms": 250
   },
-  "open_capabilities": ["campus_services", "notice"],
+  "open_tools": ["transport_schedule_lookup", "campus_notice_discover"],
   "multi_step_workflow_enabled": true
 }`)
 	t.Setenv("EXECUTION_CONTROL_RUNTIME_RELEASE", "execution-control@hardening-test")
@@ -587,9 +555,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ShutdownGraceMS != 20000 ||
 		cfg.MetricsBearerToken != "metrics-token" ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
-		cfg.LaneBudgets["rag"].MaxConcurrent != 2 ||
-		cfg.LaneBudgets["rag"].QueueCapacity != 5 ||
-		cfg.LaneBudgets["rag"].QueueTimeoutMS != 1500 ||
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
 		cfg.OTelHeaders != "authorization=Bearer test" ||
@@ -605,9 +570,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ExecutionAuditTimeoutMS != 250 ||
 		cfg.OTelSampleRatio != 0.25 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
-		len(cfg.OpenCapabilities) != 2 ||
-		cfg.OpenCapabilities[0] != "campus_services" ||
-		cfg.OpenCapabilities[1] != "notice" ||
+		len(cfg.OpenTools) != 2 ||
+		cfg.OpenTools[0] != "transport_schedule_lookup" ||
+		cfg.OpenTools[1] != "campus_notice_discover" ||
 		!cfg.MultiStepWorkflowEnabled ||
 		cfg.WorkflowRunDatabaseURL != "postgresql://workflow.example/db" ||
 		!cfg.WorkflowRunAutoMigrate ||
@@ -649,6 +614,40 @@ func TestLoadFromEnvRejectsRetiredPromptRuntimeSettings(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvRejectsRetiredSupervisorPromptModel(t *testing.T) {
+	t.Setenv("SUPERVISOR_PROMPT_MODEL", "gpt-supervisor")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected retired execution prompt model env to fail")
+	} else if !strings.Contains(err.Error(), "SUPERVISOR_PROMPT_MODEL is retired") {
+		t.Fatalf("error = %q, want retired execution prompt model error", err.Error())
+	}
+}
+
+func TestLoadFromEnvRejectsRetiredPythonBridgeSettings(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		value string
+	}{
+		{"SUPERVISOR_AGENT_WORKER_BASE_URL", "http://127.0.0.1:27052"},
+		{"SUPERVISOR_AGENT_WORKER_SHARED_SECRET", "bridge-secret"},
+		{"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES", "2048"},
+		{"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS", "25000"},
+		{"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS", "500"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD", "3"},
+		{"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS", "7500"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS", "4"},
+		{"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS", "15"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(tc.name, tc.value)
+			if _, err := LoadFromEnv(); err == nil {
+				t.Fatalf("expected retired Python handoff setting %s to fail", tc.name)
+			}
+		})
+	}
+}
+
 func TestLoadFromEnvIgnoresLegacyLLMAliases(t *testing.T) {
 	t.Setenv("LLM_API_KEY", "legacy-key")
 	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")
@@ -676,12 +675,12 @@ func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsProviderConfigResolver(t *
 	}
 }
 
-func TestLoadFromEnvRejectsInvalidLaneAndOTelSettings(t *testing.T) {
+func TestLoadFromEnvRejectsRetiredGroupQueueAndInvalidOTelSettings(t *testing.T) {
 	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY", "-1")
 
 	_, err := LoadFromEnv()
 	if err == nil {
-		t.Fatal("expected invalid lane queue capacity to fail")
+		t.Fatal("expected retired group queue env to fail")
 	}
 
 	t.Setenv("EXECUTION_CONTROL_LANE_RAG_QUEUE_CAPACITY", "")

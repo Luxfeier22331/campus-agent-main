@@ -132,8 +132,8 @@ func TestSynthesisProviderFailureProjectsPacketSummary(t *testing.T) {
 	if run.TerminalReason != execution.DurableTerminalReasonProviderUnavailable {
 		t.Fatalf("terminal reason = %q, want provider_unavailable", run.TerminalReason)
 	}
-	if run.SelectedCapability != "knowledge" {
-		t.Fatalf("selected capability = %q, want knowledge", run.SelectedCapability)
+	if run.SelectedTool != "knowledge_query" {
+		t.Fatalf("selected tool = %q, want knowledge_query", run.SelectedTool)
 	}
 	results, err := store.ListStepResults(context.Background(), "run-rag-provider-failure")
 	if err != nil {

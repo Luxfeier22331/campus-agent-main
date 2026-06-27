@@ -155,7 +155,7 @@ class EvalGateTest(unittest.TestCase):
             self.assertRaisesRegex(ValueError, "does not produce live case-results"),
         ):
             run_eval_acceptance(
-                profile="tool-family-denominator",
+                profile="tool-denominator",
                 output_dir=Path("/tmp/eval-artifacts"),
                 publish_dry_run=True,
                 publish_grade_source="eval_release_gate",
@@ -173,7 +173,7 @@ class EvalGateTest(unittest.TestCase):
     def test_all_observation_profiles_are_registered(self) -> None:
         profiles = (
             "online-answer-path",
-            "tool-family-denominator",
+            "tool-denominator",
             "tool-routing-product-path",
             "document-quality",
             "authz-privacy",
@@ -192,7 +192,7 @@ class EvalGateTest(unittest.TestCase):
 
         self.assertEqual([summary["exit_code"] for summary in summaries], [0] * len(profiles))
 
-    def test_multi_capability_product_path_deprecated_alias_is_rejected(self) -> None:
+    def test_tool_runtime_contract_deprecated_alias_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
             run_eval_acceptance(
                 profile="multi-agent-product-path",
@@ -324,7 +324,10 @@ class EvalGateTest(unittest.TestCase):
                     "gaps": ["regulations/student_rules:doc_recall_at_5_below_threshold"],
                 },
             ),
-            patch("scripts.eval_gate._audit_tool_family_fixture_coverage", return_value=_pass("g")),
+            patch(
+                "scripts.eval_gate._audit_tool_denominator_fixture_coverage",
+                return_value=_pass("g"),
+            ),
             patch("scripts.eval_gate._audit_profile_fixture_smoke", return_value=_pass("h")),
         ):
             report = audit_eval_gate_configuration(repo_root=Path("/tmp/campus-agent"))

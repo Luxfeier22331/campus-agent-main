@@ -1,5 +1,5 @@
 import type { ResolvedAppPrincipal } from "./auth";
-import type { CapabilityExecutionResponse, RequestedScope } from "./integration";
+import type { RequestedScope, ToolExecutionResponse } from "./integration";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -23,7 +23,7 @@ function toScopeSummary(scope: RequestedScope | null | undefined): string | null
 
 function normalizeAclDecision(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.aclDecision) {
@@ -44,7 +44,7 @@ function normalizeAclDecision(input: {
 
 function normalizeFailClosed(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): boolean | null {
 	if (typeof input.response.observability?.failClosed === "boolean") {
@@ -71,7 +71,7 @@ function normalizeFailClosed(input: {
 
 function normalizeRefusalClass(
 	diagnostics: RequestDiagnosticsSummary | null,
-	response: CapabilityExecutionResponse,
+	response: ToolExecutionResponse,
 	status: RequestExecutionStatus,
 ): string | null {
 	if (response.observability?.refusalClass) {
@@ -122,7 +122,7 @@ function deriveSemanticOutcomeFromDiagnostics(
 
 function normalizeSemanticOutcome(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.semanticOutcome) {
@@ -157,7 +157,7 @@ function normalizeScopeClass(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.scopeClass) {
@@ -183,7 +183,7 @@ function normalizeScopeClass(input: {
 
 function normalizePolicyReason(input: {
 	diagnostics: RequestDiagnosticsSummary | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	status: RequestExecutionStatus;
 }): string | null {
 	if (input.response.observability?.policyReason) {
@@ -239,7 +239,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 	conversationId: string;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
 	safetyIdentifier?: string | null;
@@ -275,7 +275,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		inputTokens: null,
 		billableStepCount: null,
 		modelUsageSummary: null,
-		intentCapability: null,
+		intentTool: null,
 		intentClassifierVersion: null,
 		intentLaunchState: null,
 		intentNextAction: null,
@@ -307,7 +307,7 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability,
+		requestedTool: input.requestedTool,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
 		versionQueryMode: versionSummary.mode,
 		versionQuerySummary: versionSummary.summary,
@@ -319,7 +319,6 @@ export function buildAcceptedRequestObservabilityFact(input: {
 		templateSha256: null,
 		retrievedSourceCount: null,
 		retrievalAttempted: null,
-		selectedCapability: null,
 		selectedTool: null,
 		startedAt: input.startedAt,
 		status: "accepted",
@@ -341,10 +340,10 @@ export function buildFinalizedRequestObservabilityFact(input: {
 	errorCode: string | null;
 	principal: ResolvedAppPrincipal;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	resolvedScope: RequestedScope | null;
-	response: CapabilityExecutionResponse;
+	response: ToolExecutionResponse;
 	safetyIdentifier?: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
@@ -413,7 +412,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		inputTokens: usageSummary ? usageSummary.inputTokens : (observability?.inputTokens ?? null),
 		billableStepCount: usageSummary?.billableStepCount ?? null,
 		modelUsageSummary: usageSummary?.modelUsage ?? null,
-		intentCapability: normalizeIntentString(observability?.intentCapability),
+		intentTool: normalizeIntentString(observability?.intentTool),
 		intentClassifierVersion: normalizeIntentString(observability?.intentClassifierVersion),
 		intentLaunchState: normalizeIntentString(observability?.intentLaunchState),
 		intentNextAction: normalizeIntentString(observability?.intentNextAction),
@@ -455,7 +454,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		principalType: input.principal.principal.type,
 		projectionLagMs: null,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability,
+		requestedTool: input.requestedTool,
 		requestedScopeSummary: toScopeSummary(input.requestedScope),
 		versionQueryMode: versionSummary.mode,
 		versionQuerySummary: versionSummary.summary,
@@ -477,8 +476,7 @@ export function buildFinalizedRequestObservabilityFact(input: {
 		templateSha256: observability?.promptTrace?.templateSha256 ?? null,
 		retrievedSourceCount,
 		retrievalAttempted,
-		selectedCapability: input.response.selectedCapability,
-		selectedTool: observability?.selectedTool ?? null,
+		selectedTool: input.response.selectedTool,
 		startedAt: input.startedAt,
 		status: input.status,
 		surface: input.surface,

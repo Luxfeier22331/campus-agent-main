@@ -168,7 +168,7 @@ function deriveRuntimeEnv(env, input) {
 	const agentRuntimeSharedSecret =
 		read(env, "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET") ||
 		read(env, "AGENT_RUNTIME_SHARED_SECRET") ||
-		deriveAgentRuntimeLinkSecret(workerSharedSecret, internalQuerySharedSecret);
+		deriveAgentRuntimeSharedSecret(workerSharedSecret, internalQuerySharedSecret);
 	if (agentRuntimeSharedSecret) {
 		setValue(env, "EXECUTION_CONTROL_AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
 		setValue(env, "AGENT_RUNTIME_SHARED_SECRET", agentRuntimeSharedSecret);
@@ -227,35 +227,9 @@ function deriveRuntimeEnv(env, input) {
 	setDefault(env, "EXECUTION_CONTROL_TIMEOUT_MS", read(env, "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS"));
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY", "local:execution-control:001");
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY", "local:workflow-worker:001");
-	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY", "local:activity-context:001");
+	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY", "local:activity-core:001");
 	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY", "local:activity-agent:001");
-	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY", "local:activity-knowledge-plan:001");
-	setDefault(
-		env,
-		"EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
-		"local:activity-knowledge-retrieval:001",
-	);
-	setDefault(
-		env,
-		"EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
-		"local:activity-knowledge-synthesis:001",
-	);
-	setDefault(
-		env,
-		"EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
-		"local:activity-campus-services:001",
-	);
-	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY", "local:activity-notice:001");
-	setDefault(
-		env,
-		"EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
-		"local:activity-navigation:001",
-	);
-	setDefault(
-		env,
-		"EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
-		"local:activity-finalization:001",
-	);
+	setDefault(env, "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY", "local:activity-knowledge:001");
 	setDefault(
 		env,
 		"EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE_SAMPLER_IDENTITY",
@@ -451,12 +425,12 @@ function deriveRuntimeRelease(repoRoot) {
 	return "execution-control@local";
 }
 
-function deriveAgentRuntimeLinkSecret(workerSharedSecret, internalQuerySharedSecret) {
+function deriveAgentRuntimeSharedSecret(workerSharedSecret, internalQuerySharedSecret) {
 	if (!(workerSharedSecret && internalQuerySharedSecret)) {
 		return "";
 	}
 	return createHash("sha256")
-		.update("campus-agent:agent-runtime-link:v1\0")
+		.update("campus-agent:agent-runtime-shared-secret:v1\0")
 		.update(workerSharedSecret)
 		.update("\0")
 		.update(internalQuerySharedSecret)

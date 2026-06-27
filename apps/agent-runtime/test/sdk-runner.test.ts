@@ -110,7 +110,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const toolResult: ToolExecutionResult = {
 			status: "completed",
 			toolName: "transport_schedule_lookup",
-			capability: "campus_services",
 			payloadKind: "transport_schedule_lookup",
 			result: { outcome: "resolved_current" },
 			resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
@@ -179,7 +178,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const firstResult: ToolExecutionResult = {
 			status: "completed",
 			toolName: "campus_notice_discover",
-			capability: "notice",
 			payloadKind: "campus_notice_discover",
 			result: { outcome: "resolved_current" },
 			resultRef: "agent-runtime://run-sdk/tools/campus_notice_discover",
@@ -187,7 +185,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		const secondResult: ToolExecutionResult = {
 			status: "completed",
 			toolName: "transport_schedule_lookup",
-			capability: "campus_services",
 			payloadKind: "transport_schedule_lookup",
 			result: { outcome: "next_departure" },
 			resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",
@@ -281,7 +278,6 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					execute: async () => ({
 						status: "completed",
 						toolName: "transport_schedule_lookup",
-						capability: "campus_services",
 						payloadKind: "transport_schedule_lookup",
 						result: { outcome: "resolved_current" },
 						resultRef: "agent-runtime://run-sdk/tools/transport_schedule_lookup",

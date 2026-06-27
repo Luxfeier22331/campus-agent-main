@@ -12,9 +12,9 @@ updated: 2026-06-12
 
 这份文档只负责解释当前运行面里最容易被混用的 serving / indexing 术语。
 
-- 不重复长期 package 边界：`docs/architecture/target-architecture.md`
-- 不重复 capability routing / admission supporting
-  truth：`docs/architecture/system/capability-routing-and-admission-architecture.md`
+- 不重复长期 package 边界：`docs/architecture/target.md`
+- 不重复 tool routing / admission supporting
+  truth：`docs/architecture/system/tool-routing.md`
 - 不重复数据平面全景：`docs/architecture/system/data-plane-architecture.md`
 - 不重复对象存储 key 约束：`docs/decisions/adr-0002-local-minio-conventions.md`
 - 不重复旧 physical collection retention 决策：`docs/decisions/adr-0019-qdrant-physical
@@ -72,7 +72,7 @@ updated: 2026-06-12
 说明：
 
 - `source channel` 不等于 `corpus/collection`
-- `corpus/collection` 不是顶层产品意图分类；只有当请求已经进入 knowledge-family path 后，这个 scope
+- `corpus/collection` 不是顶层产品意图分类；只有当请求已经进入 knowledge tool path 后，这个 scope
   才开始承担 serving/runtime 语义
 - 同一个 source channel 可以 fan-out 到多个 `corpus/collection` scope
 - `official_web` 作为 source channel，不表示它只能有一个 mixed collection
@@ -114,7 +114,7 @@ updated: 2026-06-12
 
 - `configs/ingestion/<corpus>/<collection>/runtime-profile.json`
 - `.planning/PROJECT.md`
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 
 说明：
 
@@ -125,7 +125,7 @@ updated: 2026-06-12
   RAG release candidate；它可以作为 `gated_asset` 进入 document-site read-model /
   docs reader release，由 `app-api` 做 reader admission
 - `campus_services/transport_schedule` 当前是 campus-services 唯一
-  `structured_query_serving` collection，只能通过 admitted
+  `tool_read_model_serving` collection，只能通过 admitted
   `transport_schedule_lookup` 消费 current projection/read model，不进入 generic
   retrieval 默认 query scope
 - `campus_services/service_status` 当前只保留 closed/internal status projection
@@ -184,36 +184,52 @@ updated: 2026-06-12
 - 只有 candidate 通过 deterministic gate 时才允许产生 recommendation
 - tuning report 不自动改写 `runtime-profile.json`，也不自动扩大 query-enabled scope
 
-### Capability Family
+### Tool Domain
 
 定义：
 
-- Execution Agent Layer 在 agent-owned execution 之前识别的顶层能力类别
+- primary agent / execution-control 在 agent-owned execution 之前识别的顶层
+  tool domain 或 workflow signal 类别
 
 说明：
 
-- capability family 用于 surface admission、routing、guardrails 与 routing
+- tool domain 用于 surface admission、routing、guardrails 与 routing
   clarification
-- capability family 不等于 `corpus/collection`，也不要求与 `selected_capability` 1:1 同名
-- 这里描述的是分类层，不在本文新增新的 capability 枚举命名
+- tool domain 不等于 `corpus/collection`，也不要求与 `selected_tool` 1:1 同名
+- 这里描述的是分类层，不新增额外的 product routing taxonomy
 
-### Surface Capability Allowlist
+### Legacy Tool Field
 
 定义：
 
-- 某个 product surface 当前 admission 的 capability family 集合
+- `tool` / `requested_tool` / `selected_tool` 是历史 wire /
+  projection 字段名，用来承载当前执行实际选择的 tool target 或 compatibility hint
 
 说明：
 
-- surface capability allowlist 先于 knowledge-family scope 生效
-- `campus-web` 当前 knowledge-only 是 current surface posture，不是长期产品架构原则
-- 某条 capability 暂未在某个 surface 开放，不等于该 capability 已从长期产品架构里删除
+- `tool` 不是产品面向用户的能力分类，不应作为产品对外主叙事
+- 产品和 active architecture 文档优先使用 `tool`、`tool domain`、`agent`、
+  `surface` 或 `workflow signal`
+- 运行时、contract 与 schema 文档只有在指向既有 wire/projection 字段名时才使用
+  `tool`
 
-### Knowledge-Family-Specific Scope
+### Surface Tool Allowlist
 
 定义：
 
-- 仅在请求已经进入 knowledge-family path 后，用来约束 serving surface 的 scope hint 或 resolved
+- 某个 product surface 当前 admission 的 tool domain 集合
+
+说明：
+
+- surface tool allowlist 先于 knowledge tool scope 生效
+- `campus-web` 当前 knowledge-only 是 current surface posture，不是长期产品架构原则
+- 某个 tool 暂未在某个 surface 开放，不等于该 tool 已从长期产品架构里删除
+
+### Knowledge Tool Scope
+
+定义：
+
+- 仅在请求已经进入 knowledge tool path 后，用来约束 serving surface 的 scope hint 或 resolved
   scope
 
 说明：
@@ -226,13 +242,13 @@ updated: 2026-06-12
 
 定义：
 
-- Execution Agent Layer 为了判定 admission、capability route 或 handoff path，在 agent-owned
-  execution 之前发起的澄清
+- primary agent / execution-control 为了判定 admission、tool route 或 handoff
+  path，在 agent-owned execution 之前发起的澄清
 
 说明：
 
 - routing clarification 解决的是“请求应该进入哪个 admitted path”
-- 它不应退化成 collection picker；如果问题本质上仍是 capability family 未决，就不应直接要求用户选
+- 它不应退化成 collection picker；如果问题本质上仍是 tool domain 未决，就不应直接要求用户选
   `corpus/collection`
 - 某些 surface 当前可以选择 fail-close，而不是把 routing clarification 直接暴露给终端用户
 
@@ -240,13 +256,13 @@ updated: 2026-06-12
 
 定义：
 
-- 在 capability route 已确定后，由 agent 为本域缺失参数、歧义或约束信息发起的澄清
+- 在 tool route 已确定后，由 agent 为本域缺失参数、歧义或约束信息发起的澄清
 
 说明：
 
 - agent clarification 属于 agent-owned execution，不属于顶层 routing gate
-- knowledge-family agent 可以用它补全时间、院系、版本或制度对象等 domain-specific slots
-- 不同 agent 的 clarification shape 可以不同，但都不应回退成顶层 capability routing 代理
+- knowledge tool 可以用它补全时间、院系、版本或制度对象等 domain-specific slots
+- 不同 agent 的 clarification shape 可以不同，但都不应回退成顶层 tool routing 代理
 
 ### Retrieval Plan
 
@@ -575,7 +591,7 @@ updated: 2026-06-12
 ## 当前约束
 
 - runtime profile 声明 serving alias、collection prefix 和 vector binding
-- surface capability allowlist 先于 knowledge-family scope 生效；`corpus/collection`
+- surface tool allowlist 先于 knowledge tool scope 生效；`corpus/collection`
   不是顶层产品意图分类
 - source channel、corpus、collection、serving surface 是不同层；命名相近不表示必须一一对应
 - source-triage collection 与 semantic-owner collection 也是不同层；不得把 wrapper notice
@@ -594,7 +610,7 @@ updated: 2026-06-12
 ## 易错点
 
 - 不要把 serving alias 和 physical collection 混为一谈
-- 不要把 `corpus/collection` 或 `requestedScope` 误当成 capability routing 的代理字段
+- 不要把 `corpus/collection` 或 `requestedScope` 误当成 tool routing 的代理字段
 - 不要把 routing clarification 和 agent clarification 混为一谈
 - 不要把 chunk preparation manifest 误读成 index release manifest
 - 不要把“文档历史版本必须保留”误读成“所有历史 physical collection 必须永久留在 Qdrant”

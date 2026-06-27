@@ -2,14 +2,14 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	expectNoInternalLocators,
 	type FinalizeRequestWrite,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
@@ -58,7 +58,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				},
 			},
 		] as const;
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(async (input) => {
 				const currentCase = cases.find((candidate) => candidate.prompt === input.userGoal);
 				if (!currentCase) {
@@ -69,7 +69,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 					error: null,
 					followUpQuestion: "",
 					result: currentCase.result,
-					selectedCapability: "campus_services",
+					selectedTool: "transport_schedule_lookup",
 					status: "completed",
 					traceId: "trace_0003",
 				} as const;
@@ -80,7 +80,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		for (const [index, currentCase] of cases.entries()) {
@@ -107,7 +107,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 
 			const finalizedWrite = finalWrites[index] as FinalizeRequestWrite;
 			expect(finalizedWrite.assistantMessage.text).toBe(answerText);
-			expect(finalizedWrite.requestExecution.selectedCapability).toBe("campus_services");
+			expect(finalizedWrite.requestExecution.selectedTool).toBe("campus_services");
 			const tracePart = finalizedWrite.assistantMessage.structuredParts.find(
 				(part) => part.type === "campus_service_trace_cards",
 			);

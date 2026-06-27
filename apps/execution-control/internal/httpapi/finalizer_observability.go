@@ -12,9 +12,15 @@ func normalizeWorkflowTraceKeyToken(value string) string {
 	return builder.String()
 }
 
-func allowedCapabilityID(target string) bool {
+func allowedToolID(target string) bool {
 	switch target {
-	case "knowledge", "navigation", "campus_services", "notice":
+	case "knowledge_query",
+		"place_lookup",
+		"transport_schedule_lookup",
+		"campus_notice_discover",
+		"campus_notice_change_set_lookup",
+		"campus_notice_period_summary",
+		"campus_notice_get":
 		return true
 	default:
 		return false
@@ -45,7 +51,7 @@ func buildExecutionObservability(
 	result map[string]any,
 	selectedTool string,
 ) map[string]any {
-	if target == "knowledge" {
+	if target == "knowledge_query" {
 		return buildRagExecutionObservability(status, result, selectedTool)
 	}
 	return buildStructuredExecutionObservability(target, status, result, selectedTool)
@@ -183,7 +189,13 @@ func refusalClassForAgentStatus(status string) string {
 
 func scopeClassForTarget(target string) string {
 	switch target {
-	case "knowledge", "navigation", "campus_services", "notice":
+	case "knowledge_query",
+		"place_lookup",
+		"transport_schedule_lookup",
+		"campus_notice_discover",
+		"campus_notice_change_set_lookup",
+		"campus_notice_period_summary",
+		"campus_notice_get":
 		return "in_scope"
 	default:
 		return ""

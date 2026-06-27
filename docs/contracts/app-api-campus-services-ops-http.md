@@ -30,7 +30,7 @@ updated: 2026-06-11
 ## Core Contract
 
 所有 endpoint 位于 `apps/app-api`，caller class 为 `operator-via-panel` 或 future
-operator app same-site/internal bridge。Admission 固定为 admitted operator principal。
+operator app same-site/internal trusted caller。Admission 固定为 admitted operator principal。
 非 operator principal 返回统一错误 envelope：
 
 ```json
@@ -186,7 +186,7 @@ Response:
 `POST /api/operator/campus-services/releases` 创建 release。Publish 在 store
 transaction 内写入 release 与 audit event；失败时不得产生 best-effort 部分发布。
 当前 release snapshot 是 app-api ops store 的 current-effective summary，后续由
-execution-control / structured read model consumption lane 显式接入，不允许 query-time
+execution-control / tool read model consumption path 显式接入，不允许 query-time
 扫描 raw source。
 
 ## Audit

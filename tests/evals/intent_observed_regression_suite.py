@@ -38,7 +38,7 @@ def _accepted_case_payload(
                 },
                 "intent_case": {
                     "critical": True,
-                    "expected_capability": "place_lookup",
+                    "expected_tool": "place_lookup",
                     "expected_launch_state": "closed",
                     "expected_next_action": "out_of_scope",
                     "expected_policy_reason": "navigation_temporarily_unsupported",

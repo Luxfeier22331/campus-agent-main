@@ -89,7 +89,7 @@ describe("official web consumer denominator", () => {
 						{
 							consumer_family: "academic_calendar_candidate",
 							owner_surface: "calendar/academic_calendar",
-							owner_capability_or_runtime: "calendar",
+							owner_tool_or_runtime: "calendar",
 							materialization_policy: "emit_directly",
 							page_families: ["article_detail"],
 							title_keywords: ["校历"],

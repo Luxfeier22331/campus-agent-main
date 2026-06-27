@@ -287,7 +287,7 @@ provider 选择与 deployment mode 是同一 contract 下的两个维度，不�
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/domains/official-web/architecture.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`

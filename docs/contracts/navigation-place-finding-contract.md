@@ -1,7 +1,7 @@
 ---
 doc_type: contract
-truth_scope: capability
-owner_boundary: packages/navigation-capability
+truth_scope: execution
+owner_boundary: packages/navigation-tool
 status: active
 created: 2026-04-11
 updated: 2026-04-26
@@ -15,7 +15,7 @@ updated: 2026-04-26
 它覆盖：
 
 - `packages/contracts` 里的 shared place-finding types
-- `execution-control -> typed navigation capability activity / internal query service`
+- `execution-control -> typed navigation tool activity / internal query service`
   的 active execution seam
 - `apps/app-api` 对 assistant structured parts 的归一化边界
 - `apps/campus-web` 对地点卡片的消费形态
@@ -35,10 +35,10 @@ updated: 2026-04-26
 - 地图 UI、route planning 与更完整的 `place_card` product consumption 等到地图产品上线后再开放
 - `place_card` / map consumption 已转入地图实际上线后的 backlog
 
-## Capability And Routing
+## Tool And Routing
 
-- `RequestedCapability` 首发新增 `place_lookup`
-- `CapabilityID` 首发新增 `navigation`
+- legacy-named `requested_tool` compatibility hint 可表达 `place_lookup`
+- legacy-named `tool` projection label 可表达 `navigation`
 - Go `apps/execution-control` 把用户地点问句 framing 成
   `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`
@@ -231,7 +231,7 @@ updated: 2026-04-26
 
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/domains/navigation.md`
-- `docs/decisions/adr-0027-navigation-capability-and-spatial-truth.md`
+- `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
 - `docs/decisions/adr-0028-campus-navigation-basemap-and-provider-strategy.md`
-- `docs/contracts/capability-execution.md`
+- `docs/contracts/tool-execution.md`
 - `docs/data/campus-navigation-place-catalog.md`

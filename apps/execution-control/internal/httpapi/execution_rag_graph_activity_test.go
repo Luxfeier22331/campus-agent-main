@@ -56,10 +56,10 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 	memoryRecall, err := server.MemoryRecallActivity(
 		context.Background(),
 		temporalruntime.MemoryRecallActivityInput{
-			RequestID:           "req-executor-001",
-			RequestedCapability: "knowledge",
-			RunID:               "run-rag-graph",
-			TraceID:             "trace-executor-001",
+			RequestID:     "req-executor-001",
+			RequestedTool: "knowledge_query",
+			RunID:         "run-rag-graph",
+			TraceID:       "trace-executor-001",
 		},
 	)
 	if err != nil {
@@ -192,8 +192,8 @@ func TestTemporalRAGGraphActivitiesProjectSevenStepTrajectory(t *testing.T) {
 			finalization.ProjectionRef,
 		)
 	}
-	if completedRun.SelectedCapability != "knowledge" {
-		t.Fatalf("run selected capability = %q, want knowledge", completedRun.SelectedCapability)
+	if completedRun.SelectedTool != "knowledge_query" {
+		t.Fatalf("run selected tool = %q, want knowledge_query", completedRun.SelectedTool)
 	}
 	events, eventsErr := store.ListRunEvents(context.Background(), "run-rag-graph")
 	if eventsErr != nil {

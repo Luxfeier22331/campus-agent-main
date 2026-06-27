@@ -163,6 +163,6 @@ promoter 的职责固定为：
 ## Complementary Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/runbooks/ingestion-control-clean-target-runbook.md`

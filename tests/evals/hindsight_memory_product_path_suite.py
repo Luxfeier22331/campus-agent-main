@@ -174,7 +174,7 @@ class HindsightMemoryProductPathSuite(unittest.TestCase):
                             "memory_context_items": [
                                 {
                                     "compact_text": "用户关注丰台校区培养方案",
-                                    "capability": "knowledge",
+                                    "tool": "knowledge_query",
                                     "memory_id": "edge-1",
                                     "memory_type": "fact",
                                     "updated_at": "2026-06-16T10:00:00Z",

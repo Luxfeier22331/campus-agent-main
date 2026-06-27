@@ -16,7 +16,7 @@ updated: 2026-06-11
 
 - 为什么人工确认可以作为合法 upstream
 - `campus_services_ops.*` 保存哪些事实
-- release snapshot 如何成为后续 structured runtime 的输入
+- release snapshot 如何成为后续 tool read model 的输入
 - 哪些内容禁止进入 ops store
 
 它不覆盖：
@@ -39,7 +39,7 @@ operator manual attestation
 -> bounded transport override draft
 -> app-api preview
 -> app-api publish release snapshot
--> structured runtime typed consumption
+-> tool read model typed consumption
 ```
 
 ## Logical Schema

@@ -33,7 +33,6 @@ func TestPrimaryAgentBoundedReplanUsesTypedOutcomeMatrix(t *testing.T) {
 				RunID:  "run-primary-replan-matrix",
 				Status: "failed",
 				ToolResults: []AgentToolResult{{
-					Capability:      "campus_services",
 					FailCloseReason: testCase.reason,
 					Status:          "failed",
 					ToolName:        "transport_schedule_lookup",
@@ -52,15 +51,13 @@ func TestPrimaryAgentBoundedReplanRejectsMixedUnclassifiedToolResults(t *testing
 		Status: "failed",
 		ToolResults: []AgentToolResult{
 			{
-				Capability:      "campus_services",
 				FailCloseReason: "provider_timeout",
 				Status:          "failed",
 				ToolName:        "transport_schedule_lookup",
 			},
 			{
-				Capability: "campus_services",
-				Status:     "failed",
-				ToolName:   "transport_schedule_lookup",
+				Status:   "failed",
+				ToolName: "transport_schedule_lookup",
 			},
 		},
 	})
@@ -70,8 +67,8 @@ func TestPrimaryAgentBoundedReplanRejectsMixedUnclassifiedToolResults(t *testing
 }
 
 func TestWorkflowFailureAllowsReplanUsesTypedOutcomeMatrix(t *testing.T) {
-	step := CapabilityBranchStep{
-		Capability: "campus_services",
+	step := ToolBranchStep{
+		ToolTarget: "transport_schedule_lookup",
 		ToolName:   "transport_schedule_lookup",
 	}
 	for _, testCase := range []struct {

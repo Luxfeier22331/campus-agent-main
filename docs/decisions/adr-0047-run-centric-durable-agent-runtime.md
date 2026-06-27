@@ -6,7 +6,7 @@ decision_id: ADR-0047
 status: superseded
 created: 2026-06-04
 updated: 2026-06-15
-replacement: adr-0048-temporal-execution-plane.md
+replacement: adr-0048-temporal.md
 ---
 # ADR-0047 Run And Step-Centric Durable Agent Runtime
 
@@ -14,7 +14,7 @@ replacement: adr-0048-temporal-execution-plane.md
 
 Accepted on 2026-06-04.
 
-Superseded on 2026-06-06 by `adr-0048-temporal-execution-plane.md`.
+Superseded on 2026-06-06 by `adr-0048-temporal.md`.
 
 本 ADR 只保留 PG-backed run-level durable baseline 与 run / step / event projection
 语义的历史依据；长期 execution substrate 已改为 Temporal execution plane。branch tip 不再保留
@@ -22,14 +22,14 @@ PG lease runtime code、proof command 或 gap matrix。
 
 本文背景中的 Python `apps/supervisor-agent-worker` semantic worker 表述只保留为历史
 baseline；当前 active workspace 已删除该 app，online execution 以 ADR-0048、
-`current-architecture` 与 `python-capability-boundaries` 为准。
+`current` 与 `python-boundaries` 为准。
 
 ## 背景
 
 `campus-agent` 当时已经冻结了以下方向：
 
 - `apps/app-api` 是 product-layer auth、session、principal、conversation 与 surface
-  capability policy owner
+  tool policy owner
 - `apps/execution-control` 是 Docker-first internal execution engine；该 deploy
   substrate 表述后来已由 ADR-0056 supersede 为 K8s + KEDA production target
 - semantic execution worker 当时作为 private worker baseline 参与设计
@@ -48,8 +48,8 @@ app-api durable chat cutover。
 - run-level durable baseline 还没有扩展成 step-level durable ledger
 - supervisor code domain 还没有拆成 control / scheduler / recovery / lane
   worker / autoscaler 部署职责
-- multi-lane worker pool 与 worker autoscaler 还没有形成可审计 topology
-- typed-tool agentic RAG 还没有把 planner、tool、retrieval、rerank、
+- per-tool task queue worker pool 与 worker autoscaler 还没有形成可审计 topology
+- typed-tool retrieval graph 还没有把 planner、tool、retrieval、rerank、
   selection、synthesis 与 grounding 全部落成 durable step trajectory
 - panel / eval / badcase / RAGAS 还没有统一消费 step-level sanitized projection
 
@@ -138,9 +138,9 @@ conversation 是上下文、memory、authorization 与 committed history 的边�
 - client 可以通过 `run_id` 查询 terminal status 或恢复 event stream
 - panel、eval 与 operator projection 应消费 sanitized run events 或其 read model
 
-### 决策 6：lane 和 worker pool 是 durable scheduling 维度
+### 决策 6：tool target 和 worker pool 是 durable scheduling 维度
 
-当前 lane family：
+当前 tool target：
 
 - `rag`
 - `notice`
@@ -148,7 +148,8 @@ conversation 是上下文、memory、authorization 与 committed history 的边�
 - `campus_services`
 - `default`
 
-lane 不只是 `execution-control` 内部计数器，而是 durable queue / lease / worker pool 的调度维度。
+tool target 不只是 `execution-control` 内部计数器，而是 durable queue /
+lease / worker pool 的调度维度。
 
 直接含义：
 
@@ -186,7 +187,7 @@ K8s 可以调度 pod、resource、rollout、readiness 与 service discovery。
 - HPA / KEDA / CronJob 不能替代 Temporal execution substrate
 - pod readiness 不能被解释成 step execution success
 
-### 决策 9：worker autoscaler 只调整 capability worker replicas
+### 决策 9：worker autoscaler 只调整 tool worker replicas
 
 `worker-autoscaler` 只能读取 Temporal task queue backlog / schedule-to-start
 latency / poller health、downstream budget projection 与当前 worker replica
@@ -199,7 +200,7 @@ observation，并输出 workflow / activity worker desired replica count。
 - autoscaler 不改变 downstream budget 或 execution policy
 - autoscaler 不基于 raw prompt、raw provider trace 或 raw source body 做决策
 
-### 决策 10：domain capability 默认 tools-first
+### 决策 10：domain tool 默认 tools-first
 
 notice、services、navigation 与 retrieval-domain deterministic data access 默认表现为
 typed tool 或 projection-backed internal query service。semantic specialist 只能作为
@@ -207,28 +208,28 @@ agent-as-tool 参与 typed step。
 
 直接含义：
 
-- `notice`、`campus_services`、`navigation` 等 label 表示 semantic
-  specialist family，不表示 source truth owner
+- `notice`、`campus_services`、`navigation` 等 label 表示 tool target，
+  不表示 source truth owner
 - supervisor 只调度 typed step，不调用自由 agent
-- RAG 目标形态是 durable planner-first typed-tool agentic RAG
+- RAG 目标形态是 durable planner-first typed-tool retrieval graph
 
 ## 结果
 
 直接结果如下：
 
 - 新增 `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `target-architecture.md` 必须把 run + step-centric run projection 写为
+- `target.md` 必须把 run + step-centric run projection 写为
   production execution shape
-- `current-architecture.md` 当时需要明确已具备 run-level durable baseline，同时列出
-  step-level ledger、role split、lane worker pool 与 autoscaler 差距
+- `current.md` 当时需要明确已具备 run-level durable baseline，同时列出
+  step-level ledger、task-queue split、per-tool worker pool 与 autoscaler 差距
 - `durable-agent-runtime-architecture.md` 必须区分 durable run / step store、scheduler、
-  lease coordinator、worker roles 与 process-local limiter
-- `tool-and-capability-runtime-architecture.md` 必须区分 tools-first domain capability
+  lease coordinator、worker task queues 与 process-local limiter
+- `tool-runtime.md` 必须区分 tools-first domain execution
 - `product-runtime-architecture.md` 必须把 browser streaming 改写成 run event subscription
   语义
-- `capability-routing-and-admission-architecture.md` 必须把 admission 拆成 surface、
+- `tool-routing.md` 必须把 admission 拆成 surface、
   identity/quota、run admission、execution lease admission
-- `agentic-retrieval-architecture.md` 必须把 RAG 写成 durable typed-tool agentic RAG
+- `agentic-retrieval-architecture.md` 必须把 RAG 写成 durable typed-tool retrieval graph
 
 ## 非目标
 
@@ -248,8 +249,8 @@ agent-as-tool 参与 typed step。
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-policy.md`
-- `docs/decisions/adr-0043-execution-control-docker-first-runtime.md`
+- `docs/decisions/adr-0042-tool-routing.md`
+- `docs/decisions/adr-0043-docker-runtime.md`
 
 本 ADR 不 supersede 上述 ADR；它补充 production agent execution substrate 的 run projection
 truth，并冻结 PG-backed step-level execution queue / lease / result model。

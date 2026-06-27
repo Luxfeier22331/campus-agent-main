@@ -5,32 +5,33 @@
 它负责：
 
 - Execution Agent Layer-facing request DTOs
-- Execution Agent Layer -> capability 的 `CapabilityRequest` / `CapabilityResponse`
+- legacy-named Execution Agent Layer tool handoff DTO
+  `ToolRequest` / `ToolResponse`
 - retrieval-oriented `EvidenceBundle`
-- navigation / structured-runtime handoff 所需的共享 payload / result 分支
+- navigation / typed tool handoff 所需的共享 payload / result 分支
 - trace、actor、error、scope 等共享 dataclass 与枚举
 
 它不负责：
 
 - runtime / framework / transport 类型
 - retrieval backend、Qdrant、MinIO、registry 或其他基础设施类型
-- capability / explicit agent-as-tool 内部实现细节
+- tool / explicit agent-as-tool 内部实现细节
 - historical bridge wrappers、`runtime_decisions` 或 app-api / execution-control execution
   transport wrapper
 
-当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `knowledge`、
-`navigation` 与已 admission 的 structured runtime target。`CapabilityRequest` /
-`CapabilityResponse` 是当前 canonical Execution Agent Layer -> capability handoff DTO；
-`capability_response` 是 capability-owned response contract 名称。
+当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `knowledge_query`、
+`place_lookup` 与已 admission 的 tool read model target。`ToolRequest` /
+`ToolResponse` 是 legacy-named Execution Agent Layer -> tool handoff DTO；
+`tool_response` 是兼容 wire 名称，不是 active product routing 概念。
 
 ## Machine-Readable Schemas
 
 - `packages/contracts/schemas/contract-schema-registry.v1.json` 是当前
   machine-readable schema registry。新增 OpenAPI / JSON Schema contract 或
   runtime JSON artifact schema 必须先登记，再进入 `pnpm contracts:check`
-- `packages/contracts/schemas/capability-handoff.v1.schema.json` 是
-  package-owned capability handoff JSON Schema，覆盖 `CapabilityRequest` /
-  `CapabilityResponse`
+- `packages/contracts/schemas/tool-handoff.v1.schema.json` 是
+  legacy-named package-owned tool handoff JSON Schema，覆盖 `ToolRequest` /
+  `ToolResponse`
 - `packages/contracts/schemas/campus-services-tool-result.v1.schema.json` 是
   `campus_services` typed tool result envelope 的 canonical JSON Schema；Python /
   Go / TS 侧模型只能作为 consumer helper 或 runtime projection，不替代该 schema
@@ -41,31 +42,30 @@
   active schema 里预注册；它们只有重新完成 owner、source truth 与 opening gate
   设计后才可以加入
 - `packages/contracts/schemas/knowledge-tool-contracts.v1.schema.json` 是
-  `knowledge_query` workflow signal 与 capability-internal RAG packet 的
-  canonical JSON Schema；`knowledge_query` 只表示进入 Go-owned Temporal RAG
-  graph，不把 `retrieval.query` 暴露成 model-visible tool
+  `knowledge_query` workflow signal 的 canonical JSON Schema；`knowledge_query`
+  只表示进入 Go-owned Temporal RAG graph，不把内部 retrieval 注册或暴露成独立 tool
 - `packages/contracts/schemas/notice-tool-contracts.v1.schema.json` 是 `notice`
   typed tool payload / result packet 的 canonical JSON Schema；它冻结 notice
   discovery、period summary、selected notice get 与 change-set lookup 的边界 shape、
   fail-close 语义与 public display policy guardrail
-- `docs/contracts/schemas/capability-execution.openapi.yaml` 是 app-api /
-  execution-control capability execution wrapper 的 canonical OpenAPI
+- `docs/contracts/schemas/tool-execution.openapi.yaml` 是 app-api /
+  execution-control legacy-named execution wrapper 的 canonical OpenAPI
   schema；它同时覆盖 durable run create / read / events / steps / cancel 与
-  private capability execution wire shape
+  private tool execution wire shape
 - `packages/contracts/schemas/runtime-*.schema.json` 覆盖当前 execution
-  runtime 实际读取的 tool catalog、tool function schemas、capability registry
+  runtime 实际读取的 tool registry、tool function schemas、runtime profile
   与 workflow artifact registry JSON artifact
-- `packages/contracts/schemas/runtime-tools.v3.schema.json`、
+- `packages/contracts/schemas/runtime-tools.v4.schema.json`、
   `execution-control-runtime-profile.v1.schema.json`、
   `query-serving-scopes.v1.schema.json`、`intent-policy.v1.schema.json`、
   `intent-drift-thresholds.v1.schema.json`、`provider-pricing.v1.schema.json`
   与 `env-surface-policy.v1.schema.json` 覆盖当前 execution runtime 与 repo
   static checks 实际读取的 non-code JSON artifacts
 - cross-language generated artifacts 由
-  `uv run --all-packages python -m scripts.generate_capability_execution_contracts`
-  生成，并由 `--check` 和 `multi-agent-runtime-contract` gate 防漂移
+  `uv run --all-packages python -m scripts.generate_tool_execution_contracts`
+  生成，并由 `--check` 和 `tool-runtime-contract` gate 防漂移
 
-新增共享字段时，先判断它属于稳定 capability handoff、execution wrapper 还是
+新增共享字段时，先判断它属于稳定 tool handoff、execution wrapper 还是
 runtime JSON artifact。工具 payload/result 的跨语言边界先落到
 `*-tool-contracts.v1.schema.json`；runtime tool catalog 的
 `payload_schema_ref` / `result_schema_ref` 只能指向已登记 JSON Schema `$id`

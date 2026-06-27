@@ -20,7 +20,7 @@ user-scoped memory binding supporting architecture。
 - execution / retrieval path 只能消费什么投影
 - memory 为什么不是 policy / opening truth
 
-本文不把 restricted documents、学生 / 教职工差异化 capability 权限、approval / HITL 或
+本文不把 restricted documents、学生 / 教职工差异化 tool 权限、approval / HITL 或
 state-changing tools 作为当前主问答产品目标。若历史 ADR 提到这些主题，应按历史决策或非目标分支阅读，不得反向影响当前
 Campus Assistant 主链路。
 
@@ -52,7 +52,7 @@ account / operator / memory supporting architecture 当前已经明确：
 - retrieval path 只消费 admitted source / runtime profile / evidence policy，不拥有
   account、operator access 或 memory binding truth
 - personal memory 存在，但只是 per-user advisory context；它不是 account、operator
-  access、source truth、capability opening 或 fail-close truth
+  access、source truth、tool opening 或 fail-close truth
 
 ## Ownership Model
 
@@ -83,11 +83,11 @@ account / operator / memory supporting architecture 当前已经明确：
 - account / session validity
 - quota / abuse-control posture
 - operator surface access when caller is using protected ops APIs
-- surface capability allowlist
-- capability readiness / opening posture
+- surface tool allowlist
+- tool readiness / opening posture
 
-普通 chat 用户默认共享同一组成熟 read-only campus capabilities。当前主问答架构不设计学生 /
-教职工 / 院系之间的 capability 权限差异。
+普通 chat 用户默认共享同一组成熟 read-only campus tools。当前主问答架构不设计学生 /
+教职工 / 院系之间的 tool 权限差异。
 
 ## Memory Vs Applicability
 
@@ -100,7 +100,7 @@ personal memory 只能作为 applicability / context signal：
 
 personal memory 不能决定：
 
-- capability 是否开放
+- tool 是否开放
 - tool 是否 allowed
 - source trust 是否放宽
 - fail-close 是否绕过
@@ -135,7 +135,7 @@ account / session truth。
 
 - verification 失败只代表 auth-family request 在 admission 处 fail-close
 - verification 成功也不会变成 principal、profile、memory binding、operator access 或
-  capability opening truth
+  tool opening truth
 - interactive challenge escalation 属于 product runtime / edge provider
   posture，不下沉到 Execution Agent Layer、retrieval 或 panel
 - raw captcha token、provider-specific risk signal 与 challenge state 不进入
@@ -165,14 +165,14 @@ extension 进入新的 workstream；不得把本地 MediaWiki session 复用当�
 - 不把 raw JWT / raw session 洩漏给 Execution Agent Layer / agent / retrieval
 - 不把 MediaWiki cookie / session / password hash 提升为 app identity truth
 - 不把 captcha token / challenge state / risk score 提升成 account、operator access 或
-  capability-opening truth
+  tool-opening truth
 - 不让 Operator Console 旁路 `app-api` 直接做授权解释
-- 不把 personal memory 当作 source truth、capability opening truth 或 fail-close override
+- 不把 personal memory 当作 source truth、tool opening truth 或 fail-close override
 
 ## 相关稳定文档
 
-- `docs/architecture/product-positioning.md`
-- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/architecture/product.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`

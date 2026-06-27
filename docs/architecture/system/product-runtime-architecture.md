@@ -31,9 +31,8 @@ supporting architecture。
 `browser -> campus-web Q&A -> app-api durable chat lifecycle SSE
 (/api/chat/requests/stream, /api/chat/runs/:runId/events/stream) ->
 app-api chat conversation/run routes -> execution-control -> Temporal ->
-workflow-worker / activity-worker-context / activity-worker-knowledge-plan /
-activity-worker-knowledge-retrieval / activity-worker-knowledge-synthesis /
-capability workers / activity-worker-finalization -> sanitized projection`
+workflow-worker / activity-worker-core / activity-worker-agent /
+activity-worker-knowledge -> sanitized projection`
 
 `browser -> campus-web /docs/* -> Rspress-powered canonical reader`
 
@@ -72,10 +71,10 @@ projection / operator read model / operator-safe operations domains`
 
 补充结论：
 
-- 当前 online answer surface posture 只表示学生侧 Q&A 当前开放的 capability set；它不等于
+- 当前 online answer surface posture 只表示学生侧 Q&A 当前开放的 tool set；它不等于
   整个产品的长期入口语义
 - ordinary chat 的目标态 first decision 由 primary agent 在 admitted visible
-  tool set 内完成；surface capability policy 仍由 shared `app-api` 表达，
+  tool set 内完成；surface policy 仍由 shared `app-api` 表达，
   durable admission / projection 仍由 Execution Agent Layer 表达
 
 ## Accepted Surface Shape
@@ -139,9 +138,9 @@ projection / operator read model / operator-safe operations domains`
 
 补充约束：
 
-- 当前 merged truth 以 `docs/architecture/current-architecture.md` 为准
+- 当前 merged truth 以 `docs/architecture/current.md` 为准
 - release hardening supporting architecture 统一看
-  `docs/architecture/system/runtime-delivery-and-release-hardening-architecture.md`
+  `docs/architecture/system/runtime-release.md`
 - staging runbook、Cloudflare Access 执行细节与 rollout closeout 证据统一看 runbooks 与
   `.planning/`
 
@@ -173,7 +172,7 @@ projection / operator read model / operator-safe operations domains`
 - auth / session / principal mapping
 - Identity Platform account / identity / access / preferences / federation
   policy boundary
-- surface capability policy
+- surface tool policy
 - conversation 与 chat ingress
 - durable run creation / status / cancel / stream proxy 的 product-layer
   command / query surface
@@ -193,20 +192,20 @@ projection / operator read model / operator-safe operations domains`
 - `api-staging.mucwiki-edge.link` 如存在，只能作为 staging machine / ops ingress
   与 readiness/smoke 入口，不是 browser product contract
 
-## Surface Capability Policy
+## Surface Tool Policy
 
-surface capability policy 的长期 owner 固定为 `apps/app-api`。
+surface tool policy 的长期 owner 固定为 `apps/app-api`。
 
 直接含义：
 
-- `campus-web` Q&A 的 capability set 是 current surface posture
-- `campus-web /docs/*` 是非执行 reader surface，不自动进入 capability routing
-- future `服务状态`、`校园地图` 等 surface 可以开放不同 capability set
-- `apps/execution-control` 不拥有 browser-facing capability allowlist truth
+- `campus-web` Q&A 的 tool set 是 current surface posture
+- `campus-web /docs/*` 是非执行 reader surface，不自动进入 tool routing
+- future `服务状态`、`校园地图` 等 surface 可以开放不同 tool set
+- `apps/execution-control` 不拥有 browser-facing tool allowlist truth
 
 固定规则：
 
-- 不把某个 surface 当前开放的 capability 直接写成整个 repo 的长期入口原则
+- 不把某个 surface 当前开放的 tool 直接写成整个 repo 的长期入口原则
 - surface policy 先于 primary agent tool decision
 - `app-api` 负责把 surface policy、account / session projection 与 request truth 组装为最小
   execution input
@@ -223,7 +222,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   Kubernetes internal execution-control Service + KEDA/HPA worker autoscaling.
 - Go `execution-control` 承担 execution-level backpressure、timeout、readiness、
   metrics 与 graceful drain；它不拥有 product-level 用户限流或 browser-facing
-  capability policy
+  tool policy
 - 长期上，production run admission 与 workflow/activity dispatch 必须落在
   `execution-control` + Temporal execution plane；当前 Go 进程内 admission 只表达
   single-process protection
@@ -255,7 +254,7 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 - `apps/execution-control`
   - 当前 execution ingress
   - 当前 active chat execution path 已硬切到 Temporal-backed
-    `CapabilityExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
+    `ToolExecutionWorkflow`；run store、events 与 step ledger 是 app-api /
     Operator Console / eval 消费的 sanitized projection store
   - online RAG 由 Go-owned `memory.recall` + RAG Temporal activity graph 执行，不经过 Python
     bridge
@@ -270,11 +269,11 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
 
 长期边界固定为：
 
-- `apps/app-api` 仍拥有 product-layer auth/session/principal、surface capability
+- `apps/app-api` 仍拥有 product-layer auth/session/principal、surface tool
   policy、conversation、request projection 与 operator read model
 - `apps/app-api` 拥有 browser-facing run command / query / stream proxy；streaming
   是 run event subscription，不是 execution ownership
-- Go execution runtime 不能反向拥有 browser-facing capability allowlist、用户级限流、
+- Go execution runtime 不能反向拥有 browser-facing tool allowlist、用户级限流、
   duplicate-click UX、conversation truth 或 operator control plane
 - 长期 `execution-control` 拥有 workflow command/query、admission、execution
   budget projection 与 finalization；Temporal 拥有 workflow history、task queue、
@@ -318,7 +317,7 @@ future operator-facing observability 域也遵循同一 ownership rule：
   本地证据文件
 
 更完整的 operator observability supporting architecture 不在本文展开，统一看
-`docs/architecture/system/operator-observability-architecture.md`。
+`docs/architecture/system/ops-observability.md`。
 
 ## Operator Console Access
 
@@ -376,7 +375,7 @@ contract 或 auth family route/endpoint truth。
 - `apps/execution-control` live substrate must be proven by environment evidence;
   committed Docker Compose config is local / transitional evidence, and production
   target substrate is Kubernetes + KEDA，详见
-  `kubernetes-execution-runtime-architecture.md`
+  `k8s-runtime.md`
 - execution public ingress 已 hardcut 到 Go `apps/execution-control`；retired Python
   semantic bridge code 已从 active workspace 删除，只可通过 git history 追溯，不参与
   online answer hot path
@@ -391,10 +390,10 @@ contract 或 auth family route/endpoint truth。
 ## 相关稳定文档
 
 - `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-operator-observability-http.md`
+- `docs/contracts/app-api-observability.md`
 - `docs/contracts/app-api-request-lifecycle.md`
-- `docs/contracts/capability-execution.md`
-- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/contracts/tool-execution.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/data/app-api-schema.md`
 - `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
@@ -406,8 +405,8 @@ contract 或 auth family route/endpoint truth。
 - `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
-- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
+- `docs/decisions/adr-0056-k8s-keda.md`
 - `docs/decisions/adr-0023-operator-observability-control-plane-and-sink-partici
   pation.md`
-- `docs/architecture/system/operator-observability-architecture.md`
-- `docs/architecture/system/runtime-delivery-and-release-hardening-architecture.md`
+- `docs/architecture/system/ops-observability.md`
+- `docs/architecture/system/runtime-release.md`

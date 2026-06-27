@@ -177,11 +177,10 @@ rollback 规则：
 `POST /api/chat/requests/stream`；同步入口会等待 durable finalization，不应用作
 Cloudflare Worker 上的 RAG / memory staging closeout 标准。
 
-当前 online answer 接受已 admission 的 capability hint。这里描述的是请求字段与
-surface policy 的交互，不是把整个产品入口固定为某个 capability；前向 routing 语义见
-`docs/architecture/system/capability-routing-and-admission-architecture.md` 与 `docs/dec
-isions/adr-0042-capability-neutral-supervisor-routing-and-surface-capability-pol
-icy.md`。
+当前 online answer 接受已 admission 的 legacy tool hint。这里描述的是请求字段与
+surface policy 的交互，不是把整个产品入口固定为某个 legacy tool；前向 routing 语义见
+`docs/architecture/system/tool-routing.md` 与
+`docs/decisions/adr-0042-tool-routing.md`。
 
 请求 headers：
 
@@ -193,7 +192,7 @@ icy.md`。
 ```json
 {
   "prompt": "图书馆开放到几点？",
-  "requestedCapability": "knowledge",
+  "requestedTool": "knowledge_query",
   "requestedScope": {
     "corpus": "regulations",
     "collection": "student_rules"
@@ -213,17 +212,17 @@ icy.md`。
 - 如果未提供 `conversationId`，`app-api` 仍可在同一条 command path 内 lazy create
   conversation，并返回 canonical conversation id
 - `prompt` 必填，服务端会 trim 并做最小长度校验
-- `requestedCapability` 可选；当前 online answer 接受已 admission 的 explicit
-  capability hint，例如 `knowledge`、`campus_services`、`notice` 与仍保持
-  fail-close 的 `navigation` seam
-- `requestedCapability` 缺失时，`app-api` 不伪造成 `knowledge`，也不预选 tool
+- `requestedTool` 可选；它是 legacy-named explicit tool hint，例如
+  `knowledge_query`、`transport_schedule_lookup`、`campus_notice_discover` 与仍保持
+  fail-close 的 `place_lookup` seam
+- `requestedTool` 缺失时，`app-api` 不伪造成 `knowledge_query`，也不预选 tool
   plan；它只投影 surface/session/account context 与 caller hint。下游
-  `execution-control` 保持 capability-neutral request envelope，并把 admitted
+  `execution-control` 保持 neutral request envelope，并把 admitted
   visible tool set 交给 `agent.primary` 决策
-- `requestedScope` 可选；它只属于 knowledge-family path。未提供时 `app-api` 不得伪造默认 serving
+- `requestedScope` 可选；它只属于 knowledge tool path。未提供时 `app-api` 不得伪造默认 serving
   surface，最终 scope 由 downstream agent 解析，并在 finalized projection /
   observability 中回填 `resolvedScope`
-- `versionQuery` 可选；它只属于 knowledge-family path，用 `camelCase` 传
+- `versionQuery` 可选；它只属于 knowledge tool path，用 `camelCase` 传
   `mode`、`asOf`、`versionId`、`compareToVersionId`
 - `versionQuery.mode` 允许 `current`、`historical`、`as_of`、`compare`
 - `versionQuery.asOf` 只允许与 `mode=as_of` 一起出现；`versionQuery.versionId` 只允许与
@@ -352,7 +351,7 @@ terminal event 额外携带：
 - 如果本次 stream 已消费过 `answer.delta`，terminal closeout 不再合成整段
   `answer.delta`，避免浏览器重复刷全文
 - terminal answer 可以来自 first Execution Agent decision 的 direct/no-tool branch；
-  这类结果不要求 `selectedCapability` 非空，但必须携带 request/run correlation、
+  这类结果不要求 `selectedTool` 非空，但必须携带 request/run correlation、
   trace/runtime provenance 与 terminal intent summary
 - submit stream 的浏览器连接不拥有 finalization；app-api 必须通过 request
   `waitUntil` 持有同一个 durable finalization closeout，浏览器断开只停止事件消费，

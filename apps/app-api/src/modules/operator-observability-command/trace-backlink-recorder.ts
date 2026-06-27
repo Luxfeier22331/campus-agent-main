@@ -2,12 +2,12 @@ import type { Env } from "../../config";
 import type { OperatorObservabilityCommandService } from "./service";
 
 const TEMPLATE_PLACEHOLDER_PATTERN =
-	/\{(requestId|traceId|errorCode|selectedCapability|surface|status)\}/gu;
+	/\{(requestId|traceId|errorCode|selectedTool|surface|status)\}/gu;
 
 export interface OperatorTraceBacklinkRecordInput {
 	errorCode?: string | null;
 	requestId: string;
-	selectedCapability?: string | null;
+	selectedTool?: string | null;
 	status?: string | null;
 	surface?: string | null;
 	traceId: string;
@@ -39,7 +39,7 @@ function renderSafeUrlTemplate(
 	const values: Record<string, string> = {
 		errorCode: input.errorCode?.trim() ?? "",
 		requestId: input.requestId.trim(),
-		selectedCapability: input.selectedCapability?.trim() ?? "",
+		selectedTool: input.selectedTool?.trim() ?? "",
 		status: input.status?.trim() ?? "",
 		surface: input.surface?.trim() ?? "",
 		traceId: input.traceId.trim(),
@@ -79,7 +79,7 @@ function buildIssueFingerprint(input: OperatorTraceBacklinkRecordInput): string 
 
 	return [
 		normalizeFingerprintPart(input.errorCode, "unknown_error"),
-		normalizeFingerprintPart(input.selectedCapability ?? input.surface, "app_api"),
+		normalizeFingerprintPart(input.selectedTool ?? input.surface, "app_api"),
 	].join(":");
 }
 

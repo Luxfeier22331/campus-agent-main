@@ -15,7 +15,7 @@ updated: 2026-04-12
 本文回答的是：
 
 - Phase 1 当时到底已经落地了哪些关键实现边界
-- 哪些 capability 已经在代码中存在，哪些还没有
+- 哪些 tool 已经在代码中存在，哪些还没有
 - 为什么这份文档现在只能作为历史背景，而不是当前 merged truth
 
 本文不负责：
@@ -26,7 +26,7 @@ updated: 2026-04-12
 
 当前应优先阅读：
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/retrieval-serving-architecture.md`
 - `docs/decisions/` 中后续 superseding ADR
 
@@ -88,7 +88,7 @@ Phase 1 当时已经固定下来的几条实现边界是：
 
 Phase 1 之后，仓库的当前 truth 已由以下文档接管：
 
-- 当前产品与 runtime truth：`docs/architecture/current-architecture.md`
+- 当前产品与 runtime truth：`docs/architecture/current.md`
 - retrieval / serving 边界：`docs/architecture/retrieval-serving-architecture.md`
 - 更晚期的 identity、authorization、offline data plane 与 agent/supervisor 边界文档
 

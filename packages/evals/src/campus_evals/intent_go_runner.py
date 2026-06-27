@@ -70,7 +70,7 @@ def _case_payload(case: IntentCase) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "case_id": case.case_id,
         "user_goal": case.user_goal,
-        "requested_capability": case.requested_capability,
+        "requested_tool": case.requested_tool,
         "context": _json_ready(case.context),
     }
     if case.requested_scope is not None:
@@ -87,14 +87,14 @@ def _case_payload(case: IntentCase) -> dict[str, Any]:
 
 def _observed_from_payload(payload: dict[str, Any]) -> ObservedIntent:
     return ObservedIntent(
-        capability=_optional_string(payload.get("capability")),
+        tool=_optional_string(payload.get("tool")),
         task_kind=_optional_string(payload.get("task_kind")),
         launch_state=_optional_string(payload.get("launch_state")),
         next_action=_optional_string(payload.get("next_action")),
         scope_class=_optional_string(payload.get("scope_class")),
         policy_reason=_optional_string(payload.get("policy_reason")),
         scope_reason=_optional_string(payload.get("scope_reason")),
-        target=_optional_string(payload.get("selected_capability"))
+        target=_optional_string(payload.get("selected_tool"))
         or _optional_string(payload.get("target"))
         or "none",
         allowed_tools=_string_tuple(payload.get("allowed_tools")),

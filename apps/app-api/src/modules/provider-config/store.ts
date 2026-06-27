@@ -186,8 +186,8 @@ function toConnection(
 	return {
 		apiKeySecret: row.apiKeySecretJson,
 		baseUrl: row.baseUrl,
-		capabilities: row.capabilitiesJson,
-		capabilityConfig: row.capabilityConfigJson,
+		features: row.featuresJson,
+		featureConfig: row.featureConfigJson,
 		connectionId: row.connectionId,
 		createdAt: row.createdAt.toISOString(),
 		createdBy: row.createdByJson,
@@ -228,8 +228,8 @@ function writeConnectionRow(
 	return {
 		apiKeySecretJson: connection.apiKeySecret,
 		baseUrl: connection.baseUrl,
-		capabilitiesJson: connection.capabilities,
-		capabilityConfigJson: connection.capabilityConfig,
+		featuresJson: connection.features,
+		featureConfigJson: connection.featureConfig,
 		connectionId: connection.connectionId,
 		createdAt: toDate(connection.createdAt),
 		createdByJson: connection.createdBy,

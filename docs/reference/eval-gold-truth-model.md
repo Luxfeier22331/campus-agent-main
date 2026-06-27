@@ -115,13 +115,13 @@ candidate review manifest，不能直接写入 golden truth。
 denominator expectation、sanitized observation shape 与 deterministic verdict：
 
 - `online_answer_path`
-  - truth 来源是产品路径 case expectation：request / trace correlation、selected capability、
+  - truth 来源是产品路径 case expectation：request / trace correlation、selected tool、
     terminal outcome、response contract 与 operator backflow summary
   - 不保存 raw transcript、raw prompt 或 provider raw response
-- `tool_family_denominators`
+- `tool_denominators`
   - truth 来源是 opened tool denominator：tool name、split、expected result status 与必要
     argument summary
-  - failure class 只表达 routing error、read-model gap、capability-not-open /
+  - failure class 只表达 routing error、read-model gap、tool-not-open /
     source-truth fail-close 或 missing observation，不替代 service / notice read-model
     owner
 - `document_quality_cases`

@@ -56,15 +56,9 @@ func TestParseOptionsBuildsDefaultServicePolicies(t *testing.T) {
 	policies := defaultServicePolicies(opts.workflowTaskQueue)
 	for _, service := range []string{
 		"workflow-worker",
-		"activity-worker-context",
+		"activity-worker-core",
 		"activity-worker-agent",
-		"activity-worker-knowledge-plan",
-		"activity-worker-knowledge-retrieval",
-		"activity-worker-knowledge-synthesis",
-		"activity-worker-campus-services",
-		"activity-worker-notice",
-		"activity-worker-navigation",
-		"activity-worker-finalization",
+		"activity-worker-knowledge",
 	} {
 		if _, ok := policies[service]; !ok {
 			t.Fatalf("missing service policy for %s", service)

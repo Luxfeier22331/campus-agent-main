@@ -89,10 +89,8 @@ def _parse_execution_observability(value: object) -> ExecutionObservability | No
             record.get("policyReason") if "policyReason" in record else record.get("policy_reason")
         )
         or "",
-        intent_capability=_optional_string(
-            record.get("intentCapability")
-            if "intentCapability" in record
-            else record.get("intent_capability")
+        intent_tool=_optional_string(
+            record.get("intentTool") if "intentTool" in record else record.get("intent_tool")
         )
         or "",
         intent_task_kind=_optional_string(

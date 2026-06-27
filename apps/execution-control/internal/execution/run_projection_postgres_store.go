@@ -97,13 +97,6 @@ func jsonMapToBytes(value map[string]any) ([]byte, error) {
 	return json.Marshal(value)
 }
 
-func jsonDurableLanes(lanes []DurableLane) ([]byte, error) {
-	if lanes == nil {
-		lanes = []DurableLane{}
-	}
-	return json.Marshal(lanes)
-}
-
 func scanJSONMap(raw []byte) (map[string]any, error) {
 	if len(raw) == 0 {
 		return map[string]any{}, nil
@@ -129,9 +122,9 @@ create table if not exists runtime.agent_runs (
 	trace_id text not null default '',
 	owner_user_id text not null,
 	surface text not null,
-	requested_capability text not null default '',
-	selected_capability text not null default '',
-	lane text not null,
+	requested_tool text not null default '',
+	selected_tool text not null default '',
+	task_queue text not null,
 	status text not null,
 	terminal_reason text not null default '',
 	fail_close_reason text not null default '',
@@ -167,7 +160,7 @@ create table if not exists runtime.agent_run_steps (
 	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
 	conversation_id text not null,
 	step_kind text not null,
-	capability text not null default '',
+	tool text not null default '',
 	parent_step_id text not null default '',
 	status text not null,
 	task_queue text not null default '',
@@ -274,8 +267,8 @@ create index if not exists agent_runs_request_idx
 create index if not exists agent_runs_trace_idx
 	on runtime.agent_runs (trace_id);
 
-create index if not exists agent_runs_status_lane_created_idx
-	on runtime.agent_runs (status, lane, created_at);
+create index if not exists agent_runs_status_task_queue_created_idx
+	on runtime.agent_runs (status, task_queue, created_at);
 
 create unique index if not exists agent_run_events_run_sequence_idx
 	on runtime.agent_run_events (run_id, sequence);

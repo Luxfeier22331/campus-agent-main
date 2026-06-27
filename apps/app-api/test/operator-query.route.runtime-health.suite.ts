@@ -36,9 +36,9 @@ export function registerOperatorQueryRuntimeHealthSuite(): void {
 					namespace: "campus-agent-staging",
 					requiredTaskQueues: [
 						"campus-agent.workflow",
-						"campus-agent.activity.context",
+						"campus-agent.activity.core",
 						"campus-agent.activity.knowledge",
-						"campus-agent.activity.finalization",
+						"campus-agent.activity.core",
 					],
 					taskQueueGate: "pollers_required",
 					taskQueuePollers: [

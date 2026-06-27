@@ -14,7 +14,7 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 	scopeGate := evaluateScope(request, normalizedGoal, policy)
 	policyGate := PolicyGate{Decision: "delegate", RiskLevel: "low"}
 
-	frame := baseRoutingFrame(request.EffectiveCapability, policy)
+	frame := baseRoutingFrame(request.ToolAdmissionTarget, policy)
 	frame.ContextResolutionState = contextPreflight.State
 	frame.ContextReferenceType = contextPreflight.ReferenceType
 	frame.ResolvedSlots = contextPreflight.ResolvedSlots
@@ -42,7 +42,7 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 			Reason:    "approval_required",
 			RiskLevel: "high",
 		}
-		frame.DomainCandidates = domainCandidatesForCapability(request.EffectiveCapability, request)
+		frame.DomainCandidates = domainCandidatesForToolTarget(request.ToolAdmissionTarget, request)
 		frame.RiskLevel = "high"
 		frame.SuggestedNextAction = "approval_required"
 		frame.ScopeClass = "in_scope"
@@ -99,26 +99,7 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
-	if request.EffectiveCapability != "" &&
-		request.EffectiveCapability != "place_lookup" &&
-		!defaultCapabilityOpen(request.EffectiveCapability) {
-		reason := "capability_not_open"
-		frame.DomainCandidates = []string{request.EffectiveCapability}
-		frame.SuggestedNextAction = "out_of_scope"
-		frame.ScopeClass = "in_scope"
-		frame.PolicyReason = reason
-		frame.LaunchState = "closed"
-		frame.ScopeReason = reason
-		frame.RoutingConfidence = "high"
-		policyGate = PolicyGate{
-			Decision:  "out_of_scope",
-			Reason:    reason,
-			RiskLevel: "low",
-		}
-		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
-	}
-
-	switch request.EffectiveCapability {
+	switch request.ToolAdmissionTarget {
 	case "place_lookup":
 		frame.DomainCandidates = []string{"out_of_scope"}
 		frame.SuggestedNextAction = "out_of_scope"
@@ -131,9 +112,9 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 			Reason:    frame.PolicyReason,
 			RiskLevel: "low",
 		}
-	case "campus_services":
+	case "transport_schedule_lookup":
 		if !isPlannableCampusServicesSubtype(normalizedGoal, policy) {
-			frame.DomainCandidates = []string{"campus_services"}
+			frame.DomainCandidates = []string{"transport_schedule_lookup"}
 			frame.MissingSlots = []string{"campus_service_task"}
 			frame.NeedsClarification = true
 			frame.SuggestedNextAction = "clarify"
@@ -147,12 +128,12 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 				RiskLevel: "low",
 			}
 		} else {
-			frame.DomainCandidates = []string{"campus_services"}
+			frame.DomainCandidates = []string{"transport_schedule_lookup"}
 			frame.ScopeClass = "in_scope"
 			frame.ScopeReason = scopeGate.Reason
 		}
-	case "notice":
-		frame.DomainCandidates = []string{"notice"}
+	case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary", "campus_notice_get":
+		frame.DomainCandidates = []string{request.ToolAdmissionTarget}
 		frame.ScopeClass = "in_scope"
 		frame.ScopeReason = scopeGate.Reason
 	default:
@@ -175,7 +156,7 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 			frame.ScopeClass = "in_scope"
 			frame.ScopeReason = scopeGate.Reason
 			frame.MatchedSignal = scopeGate.MatchedSignal
-			if scopeGate.Reason == "structured_runtime_candidate_signal" {
+			if scopeGate.Reason == "tool_read_model_candidate_signal" {
 				frame.LaunchState = "candidate_only"
 			}
 		}
@@ -218,8 +199,8 @@ func IntentPolicyUnavailableDecision(request Request) Decision {
 	scopeGate := ScopeGate{Decision: "out_of_scope", Reason: "intent_policy_unavailable"}
 	policyGate := PolicyGate{Decision: "rejected", Reason: "intent_policy_unavailable", RiskLevel: "high"}
 	frame := RoutingFrame{
-		Capability:             defaultString(request.EffectiveCapability, "knowledge"),
-		TaskKind:               taskKindForCapability(request.EffectiveCapability),
+		Target:                 defaultString(request.ToolAdmissionTarget, "primary_agent"),
+		TaskKind:               taskKindForToolTarget(request.ToolAdmissionTarget),
 		DomainCandidates:       []string{"policy_refusal"},
 		MissingSlots:           []string{},
 		RiskLevel:              "high",
@@ -244,11 +225,11 @@ func IntentPolicyUnavailableDecision(request Request) Decision {
 	return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{PolicyVersion}, frame}
 }
 
-func baseRoutingFrame(capability string, policy IntentPolicyArtifact) RoutingFrame {
+func baseRoutingFrame(target string, policy IntentPolicyArtifact) RoutingFrame {
 	return RoutingFrame{
-		Capability:             defaultString(capability, "knowledge"),
-		TaskKind:               taskKindForCapability(capability),
-		DomainCandidates:       []string{"knowledge"},
+		Target:                 defaultString(target, "primary_agent"),
+		TaskKind:               taskKindForToolTarget(target),
+		DomainCandidates:       []string{"knowledge_query"},
 		MissingSlots:           []string{},
 		RiskLevel:              "low",
 		NeedsClarification:     false,

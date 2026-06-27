@@ -30,7 +30,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
         entries = {entry["id"]: entry for entry in registry["entries"]}
 
         expected_validates = {
-            "runtime-tools.v3": ["configs/runtime/tools.v3.json"],
+            "runtime-tools.v4": ["configs/runtime/tools.v4.json"],
             "execution-control-runtime-profile.v1": [
                 "configs/runtime/execution-control/runtime-profile.local.json",
                 "configs/runtime/execution-control/runtime-profile.local-real-provider.json",
@@ -94,10 +94,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
             schema_docs[str(schema["$id"])] = schema
 
-        for config_path in (
-            Path("configs/runtime/tool-catalog.v1.json"),
-            Path("configs/runtime/tools.v3.json"),
-        ):
+        for config_path in (Path("configs/runtime/tools.v4.json"),):
             config = json.loads(config_path.read_text(encoding="utf-8"))
             for tool in config["tools"]:
                 for field_name in ("payload_schema_ref", "result_schema_ref"):
@@ -115,7 +112,7 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                         definition_name = fragment.removeprefix("/$defs/")
                         self.assertIn(definition_name, schema_docs[schema_id].get("$defs", {}))
 
-    def test_knowledge_tool_contracts_bind_internal_rag_packets(self) -> None:
+    def test_knowledge_tool_contracts_accept_only_public_knowledge_query_tool(self) -> None:
         schema = json.loads(
             Path("packages/contracts/schemas/knowledge-tool-contracts.v1.schema.json").read_text(
                 encoding="utf-8"
@@ -123,7 +120,26 @@ class ContractSchemaRegistryTest(unittest.TestCase):
         )
         validator = Draft202012Validator(schema)
 
-        cases = (
+        valid_cases = (
+            {
+                "schema_version": "knowledge_tool_contracts.v1",
+                "tool_name": "knowledge_query",
+                "packet_kind": "payload",
+                "payload": {"query_text": "图书馆开放到几点？", "intent": "answer_question"},
+            },
+            {
+                "schema_version": "knowledge_tool_contracts.v1",
+                "tool_name": "knowledge_query",
+                "packet_kind": "result",
+                "result": {"workflow_signal": "knowledge_query"},
+            },
+        )
+
+        for instance in valid_cases:
+            with self.subTest(tool_name=instance["tool_name"], packet_kind=instance["packet_kind"]):
+                self.assertEqual(list(validator.iter_errors(instance)), [])
+
+        invalid_cases = (
             {
                 "schema_version": "knowledge_tool_contracts.v1",
                 "tool_name": "retrieval.query",
@@ -138,17 +154,15 @@ class ContractSchemaRegistryTest(unittest.TestCase):
             },
         )
 
-        for instance in cases:
+        for instance in invalid_cases:
             with self.subTest(tool_name=instance["tool_name"], packet_kind=instance["packet_kind"]):
                 self.assertTrue(list(validator.iter_errors(instance)))
 
-    def test_capability_execution_openapi_covers_step_projection_route(self) -> None:
+    def test_tool_execution_openapi_covers_step_projection_route(self) -> None:
         import yaml
 
         openapi = yaml.safe_load(
-            Path("docs/contracts/schemas/capability-execution.openapi.yaml").read_text(
-                encoding="utf-8"
-            )
+            Path("docs/contracts/schemas/tool-execution.openapi.yaml").read_text(encoding="utf-8")
         )
         paths = openapi["paths"]
         schemas = openapi["components"]["schemas"]
@@ -172,16 +186,17 @@ class ContractSchemaRegistryTest(unittest.TestCase):
     def test_runtime_schema_rejects_bad_instances(self) -> None:
         cases = (
             (
-                "packages/contracts/schemas/runtime-tools.v3.schema.json",
+                "packages/contracts/schemas/runtime-tools.v4.schema.json",
                 {
-                    "schema_version": "tool-spec-registry-v3",
+                    "schema_version": "tool-registry-v4",
                     "registry_version": "bad",
                     "tools": [
                         {
                             "name": "bad_tool",
-                            "owner_capability": "campus_services",
-                            "capability": "campus_services",
-                            "payload_kind": "bad_tool",
+                            "description": "Bad tool.",
+                            "exposure": "model_visible",
+                            "read_only": True,
+                            "requires_approval": False,
                             "payload_schema_ref": (
                                 "https://muc.wiki/campus-agent/schemas/"
                                 "campus-services-tool-contracts.v1.schema.json"
@@ -192,13 +207,12 @@ class ContractSchemaRegistryTest(unittest.TestCase):
                                 "campus-services-tool-contracts.v1.schema.json"
                                 "#/$defs/TransportScheduleLookupResult"
                             ),
-                            "backend": "internal_structured_query_service",
-                            "surface": "structured_handoff",
-                            "read_only": True,
-                            "active": True,
-                            "function_schema": {"available": True, "strict": False},
-                            "runtime_posture": "typed_activity_admitted",
-                            "description": "Bad strict posture.",
+                            "handler": {
+                                "type": "execution_control_internal_query",
+                                "endpoint": "/public/not-allowed",
+                            },
+                            "timeout_ms": 1000,
+                            "result_projection_policy": "bounded_json",
                         }
                     ],
                 },

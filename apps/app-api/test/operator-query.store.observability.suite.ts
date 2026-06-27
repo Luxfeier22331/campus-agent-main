@@ -20,7 +20,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					conversationId: "conv_01HQ",
 					surface: "campus_web",
 					status: "completed",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 					requestedScopeJson: {
 						corpus: "curriculum",
 						collection: "curriculum_plan",
@@ -29,7 +29,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "curriculum",
 						collection: "curriculum_plan",
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -63,23 +63,23 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					requestId: "req_01HQ",
 					retrievalAttempted: true,
 					candidateCount: 4,
-					intentCapability: "knowledge",
+					intentTool: "knowledge_query",
 					intentClassifierVersion: "deterministic-intent-v1",
 					intentLaunchState: "candidate_only",
 					intentNextAction: "delegate",
 					intentPolicyReason: null,
 					intentScopeClass: "in_scope",
-					intentScopeReason: "structured_runtime_candidate_signal",
+					intentScopeReason: "tool_read_model_runtime_candidate_signal",
 					intentTaskKind: "knowledge_lookup",
-					selectedTool: "retrieval.query",
+					selectedTool: "knowledge_query",
 					toolBusinessOutcome: "grounded_answer",
 					toolFailCloseReason: null,
 					toolHistoricalDowngradeReason: null,
 					workflowTraceSummaryJson: {
 						directVsDelegateBranch: "delegate",
 						planningOutcome: "preplanned",
-						selectedCapability: "knowledge",
-						selectedTools: ["retrieval.query"],
+						selectedTool: "knowledge_query",
+						selectedTools: ["knowledge_query"],
 						toolArgumentSummary: {
 							collection: "curriculum_plan",
 						},
@@ -131,36 +131,36 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			],
 		});
 		expect(result?.observability.intent).toEqual({
-			capability: "knowledge",
+			tool: "knowledge_query",
 			classifierVersion: "deterministic-intent-v1",
 			launchState: "candidate_only",
 			nextAction: "delegate",
 			policyReason: null,
 			scopeClass: "in_scope",
-			scopeReason: "structured_runtime_candidate_signal",
+			scopeReason: "tool_read_model_runtime_candidate_signal",
 			taskKind: "knowledge_lookup",
 		});
 		expect(result?.replay.routing.intent).toEqual({
-			capability: "knowledge",
+			tool: "knowledge_query",
 			classifierVersion: "deterministic-intent-v1",
 			launchState: "candidate_only",
 			nextAction: "delegate",
 			policyReason: null,
 			scopeClass: "in_scope",
-			scopeReason: "structured_runtime_candidate_signal",
+			scopeReason: "tool_read_model_runtime_candidate_signal",
 			taskKind: "knowledge_lookup",
 		});
 		expect(result?.observability.tool).toEqual({
 			businessOutcome: "grounded_answer",
 			failCloseReason: null,
 			historicalDowngradeReason: null,
-			selectedTool: "retrieval.query",
+			selectedTool: "knowledge_query",
 		});
 		expect(result?.observability.workflowTrace).toMatchObject({
 			directVsDelegateBranch: "delegate",
 			planningOutcome: "preplanned",
-			selectedCapability: "knowledge",
-			selectedTools: ["retrieval.query"],
+			selectedTool: "knowledge_query",
+			selectedTools: ["knowledge_query"],
 		});
 	});
 	it("returns replay-safe observability sections without raw prompt or raw evidence text", async () => {
@@ -205,7 +205,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					applicabilityScope: "undergraduate",
 					status: "no_answer",
 					errorCode: null,
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 					requestedScopeJson: {
 						corpus: "curriculum",
 						collection: "curriculum_plan",
@@ -214,7 +214,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "curriculum",
 						collection: "curriculum_plan",
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -334,7 +334,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 				},
 			},
 			routing: {
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: {
 					collection: "curriculum_plan",
 					corpus: "curriculum",
@@ -343,7 +343,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					collection: "curriculum_plan",
 					corpus: "curriculum",
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 			},
 		});
 	});
@@ -356,7 +356,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					conversationId: "conv_versioned_01HQ",
 					surface: "campus_web",
 					status: "completed",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 					requestedScopeJson: {
 						corpus: "regulations",
 						collection: "student_rules",
@@ -370,7 +370,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "regulations",
 						collection: "student_rules",
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -386,7 +386,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 					conversationId: "conv_versioned_01HQ",
 					surface: "campus_web",
 					status: "completed",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 					requestedScopeJson: {
 						corpus: "regulations",
 						collection: "student_rules",
@@ -400,7 +400,7 @@ export function registerOperatorQueryStoreObservabilitySuite(
 						corpus: "regulations",
 						collection: "student_rules",
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					startedAt: new Date("2026-03-28T08:00:00.000Z"),
 					completedAt: new Date("2026-03-28T08:00:01.000Z"),
 					projectedAt: new Date("2026-03-28T08:00:02.000Z"),
@@ -614,8 +614,8 @@ export function registerOperatorQueryStoreObservabilitySuite(
 			granularity: null,
 			modelName: null,
 			principalType: null,
-			requestedCapability: null,
-			selectedCapability: null,
+			requestedTool: null,
+			selectedTool: null,
 			surface: null,
 			window: "24h",
 		});

@@ -28,7 +28,7 @@ supporting architecture。
 - 某个 worker pool 的机器规格或具体 autoscaling 阈值
 - eval、retrieval、ingestion 的 collection-specific release 细节
 
-当前 merged truth 仍以 `docs/architecture/current-architecture.md` 为准。本文描述的是
+当前 merged truth 仍以 `docs/architecture/current.md` 为准。本文描述的是
 supporting architecture；实现状态必须单独写在 current architecture 或 evidence artifact 中。
 
 ## Core Conclusion
@@ -64,11 +64,11 @@ model -> browser surface / Operator Console / eval / badcase`
 - production worker replica autoscaling 的目标 controller 是 KEDA Temporal scaler +
   Kubernetes HPA；repo-owned `worker-autoscaler` 只保留为 Docker Compose local /
   transitional staging proof。
-- capability 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
+- tool 只有在 normal、fail-close、cancel、timeout、late completion 与 replan
   outcome 都能写入 sanitized step / attempt / result projection，并能被
   app-api operator read model 消费时，才算 production-open。
 
-Current merged execution facts belong in `../current-architecture.md`; they
+Current merged execution facts belong in `../current.md`; they
 must not be duplicated in this supporting architecture.
 
 The retired Python semantic bridge remains outside online serving. Historical
@@ -93,7 +93,7 @@ Repo owns：
 
 - product account/session/conversation truth
 - request/run product projection
-- capability admission, ToolSpec and CapabilitySpec policy
+- tool admission and ToolSpec policy
 - source-truth ownership
 - final answer contract
 - sanitized step / event / result projection
@@ -184,8 +184,8 @@ canceled / expired`
 - step id
 - run id
 - parent step id / dependency step ids
-- lane
-- capability family
+- execution group
+- tool target
 - step kind
 - target typed tool 或 agent-as-tool
 - input projection refs
@@ -269,9 +269,10 @@ canceled / expired`
   projection。provider raw response、raw prompt 与 SDK-native trace 不能作为 canonical
   projection。
 
-### Target Capability Execution Graph
+### Target Tool Execution Graph
 
-目标 `CapabilityExecutionWorkflow` 不以 RAG 为顶层入口。它先记录 durable run，
+目标 `ToolExecutionWorkflow` 是 legacy-named Temporal workflow。它不以
+RAG 为顶层入口，而是先记录 durable run，
 准备 bounded context，再执行 `agent.primary` first decision；该 decision 可以直接
 产生 no-tool terminal outcome，也可以选择 admitted tool / workflow signal，再进入
 对应 typed tool 或 RAG graph：
@@ -293,17 +294,17 @@ context.memory_recall when needed
 
 - `first_decision` 是 provider/model-facing 的第一 agent decision contract；
   它使用 repo-global invariants / role instructions / typed task packet，并基于
-  admitted tool/capability set 判断是否需要工具。它不是 app-api 本地 prompt，
+  admitted tool set 判断是否需要工具。它不是 app-api 本地 prompt，
   也不是 surface persona selector。
 - direct/no-tool terminal branch 覆盖产品身份说明、普通寒暄、澄清、拒绝、
   out-of-scope 与 fail-close outcome；不得把这些拆成
-  `assistant_intro`、`product_meta` 或 synthetic capability。
+  `assistant_intro`、`product_meta` 或 synthetic tool。
 - `context.memory_recall` 使用 Hindsight runtime recall bounded personal memory
   context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
 - `plan.route` 只能作为 retained deterministic support path / historical
   planning artifact，不读取 PG profile memory full dump，也不把普通 chat
-  缺失 capability 的请求默认压成 knowledge/RAG。
+  缺失 tool hint 的请求默认压成 `knowledge_query` / RAG。
 - `knowledge` branch 承接 RAG retrieval、evidence、synthesis 与
   `grounding.verify` evidence-integrity verification；该 step 不适用于
   direct/no-tool terminal、campus-services typed tool 或 notice typed tool。
@@ -319,7 +320,7 @@ context.memory_recall when needed
 
 ### Knowledge/RAG Step Graph
 
-Knowledge-family durable execution must remain a typed step graph:
+`knowledge_query` durable execution must remain a typed step graph:
 
 1. `memory.recall`
 1. `planning`
@@ -362,7 +363,7 @@ badcase 诊断以这条 step trajectory 为主线，不读取 Temporal history �
 
 Temporal Task Queue 是 worker dispatch substrate。
 
-第一组 target task queue family：
+第一组 target task queues：
 
 - `campus-agent.workflow`
 - `activity.context`
@@ -375,17 +376,18 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 固定规则：
 
-- task queue 按 capability / resource / latency profile 切分，不按 UI surface 切分。
+- task queue 按 tool target / resource / latency profile 切分，不按 UI surface 切分。
 - worker poll task queue 执行 workflow task 或 activity task。
 - task queue backlog 是 autoscaling input，不是 product read model。
 - task queue 不替代 app-api conversation truth、operator projection 或 eval
   denominator。
 
-### Lane
+### Execution Group
 
-`Lane` 是 production scheduling 的能力预算维度。
+`Execution group` 是 production scheduling 的预算维度。它是内部调度和
+projection 维度，不是产品级 routing 概念，也不是对外 tool taxonomy。
 
-目标 canonical lane family 包括：
+目标 canonical execution groups 包括：
 
 - `knowledge`
 - `notice`
@@ -395,13 +397,13 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 长期规则：
 
-- lane 预算由 workflow admission policy、Temporal task queue budget projection、
+- execution group 预算由 workflow admission policy、Temporal task queue budget projection、
   downstream budget projection 与 worker autoscaler 共同定义；不得重新引入 PG lease
   coordinator 作为 online execution truth。
-- lane queue 与 worker pool 可以独立扩容。
+- execution group 对应的 task queue 与 worker pool 可以独立扩容。
 - knowledge、notice、navigation 与 campus services 不得互相占死 execution capacity。
 - provider、Qdrant、Postgres、object store 等 downstream budget 必须作为 scheduler 输入。
-- 新增 lane 必须同步 contract、observability、eval denominator 与 runbook。
+- 新增 execution group 必须同步 contract、observability、eval denominator 与 runbook。
 
 ## Runtime Components
 
@@ -411,7 +413,7 @@ Temporal Task Queue 是 worker dispatch substrate。
 
 - browser / Worker surface intake
 - auth、session、principal 与 conversation truth
-- surface capability policy
+- surface tool policy
 - request normalization
 - run creation command
 - run status / event stream proxy
@@ -434,11 +436,11 @@ Temporal Task Queue 是 worker dispatch substrate。
 它负责：
 
 - trusted machine ingress from app-api
-- capability admission closeout
+- tool admission closeout
 - workflow template selection
 - Temporal workflow start / signal / cancel / query / update
 - workflow planning
-- global / lane / actor / conversation / provider budget projection
+- global / execution-group / actor / conversation / provider budget projection
 - cancel / timeout / drain semantics
 - finalization
 - runtime metrics、audit 与 trace projection
@@ -446,8 +448,8 @@ Temporal Task Queue 是 worker dispatch substrate。
 它不负责：
 
 - product-layer auth/session/conversation ownership
-- browser-facing capability policy
-- capability / explicit agent-as-tool semantic reasoning
+- browser-facing tool policy
+- typed tool / explicit agent-as-tool semantic reasoning
 - retrieval backend implementation
 - worker autoscaling decision
 
@@ -463,8 +465,8 @@ truth 属于 Temporal workflow / task queue；product truth 属于 repo-owned pr
     readyz / metrics 与 projection command。
 - `workflow-worker`
   - polls workflow task queues and executes deterministic workflow code.
-- `activity-worker-{capability}`
-  - polls capability task queues
+- `activity-worker-{tool-target}`
+  - polls tool-target task queues
   - executes typed tool / agent-as-tool activities
   - writes sanitized projection
 - `projection-worker`
@@ -494,15 +496,15 @@ dependency 或 Temporal workflow branch 恢复。
 
 ### Worker Pools
 
-worker pool 按 lane / capability family 组织。
+worker pool 按 execution group / tool target 组织。
 
 固定规则：
 
 - 每个 worker 只能执行 Temporal task queue 分派的 workflow / activity task。
-- capability worker pool 可以横向扩容；扩容只增加消费能力，不改变 workflow history、
+- tool worker pool 可以横向扩容；扩容只增加消费能力，不改变 workflow history、
   task queue truth 或 product projection truth。
 - worker pool 不写 global budget、不决定未授权 terminal state、不绕过 workflow policy。
-- lane worker pool 的性能优化必须围绕 step specialization、connection reuse、provider
+- execution-group worker pool 的性能优化必须围绕 step specialization、connection reuse、provider
   concurrency、retrieval/tool batching、bounded prompt assembly 与 backpressure；不得通过扩大
   prompt context、跳过 evidence verifier 或绕过 policy gate 换取吞吐。
 - K8s 可以承载这些 worker pod，但 K8s readiness / HPA metric 不是 execution truth。
@@ -517,7 +519,7 @@ Owner：`apps/app-api`。
 
 判断：
 
-- 当前 browser surface 是否允许该 capability
+- 当前 browser surface 是否允许该 tool
 - actor / session / operator context 是否满足产品入口条件
 - request 是否符合 surface contract
 
@@ -540,7 +542,7 @@ Owner：`execution-control` + Temporal workflow admission policy。
 
 - 是否允许创建或推进一个 workflow-backed run
 - workflow mode 是否打开
-- selected capability / lane 是否可用
+- selected tool / execution group 是否可用
 - required context projection 是否满足
 
 ### Activity Dispatch Admission
@@ -549,9 +551,9 @@ Owner：Temporal workflow policy + task queue worker matching。
 
 判断：
 
-- 当前 capability / task queue 是否还有执行预算
+- 当前 tool target / task queue 是否还有执行预算
 - downstream provider / retrieval / database 是否还有预算
-- worker 是否符合该 activity 的 capability / version / readiness 条件
+- worker 是否符合该 activity 的 tool target / version / readiness 条件
 - activity retry、timeout、heartbeat policy 是否满足
 
 当前 runtime profile 中的 admission budget 只表达 current process-local
@@ -594,7 +596,7 @@ execution protection。它不得被解释为完整 production admission model。
 Temporal-backed execution plane 必须支持：
 
 - global active workflow / activity budget projection
-- per-capability task queue budget projection
+- per-tool-target task queue budget projection
 - per-user / per-org active run and queued run budget
 - per-conversation active run policy
 - downstream resource budget
@@ -629,7 +631,7 @@ worker 绕过 Temporal workflow / task queue policy。
 - run store unavailable：不能创建新的 run
 - Temporal service unavailable：不能 start / signal / query workflow
 - task queue unavailable：不能 dispatch activity
-- worker readiness mismatch：不能领取对应 lane lease
+- worker readiness mismatch：不能领取对应 tool-target activity task
 - required projection missing：run 进入 terminal failed / clarification path
 - workflow/activity metadata drift：不得执行该 step
 
@@ -646,7 +648,7 @@ repo-owned target durable substrate 固定为：
 
 - Temporal 直接提供 workflow history、activity retry、timeout、heartbeat、signal、query、
   update、task queue 与 worker polling。
-- repo 可以把精力放在 capability contract、projection、eval、panel 与 source-truth 边界，
+- repo 可以把精力放在 tool contract、projection、eval、panel 与 source-truth 边界，
   不继续自研通用 scheduler / lease / recovery kernel。
 - PG 继续保留 product/runtime projection schema boundary，避免 Temporal history 直接泄漏给
   product UI、panel 或 eval。
@@ -680,9 +682,9 @@ worker autoscaler 边界固定为：
 - cooldown 由 app-api operator runtime actuation projection 驱动；worker-autoscaler
   通过 internal query seam 读取最近 actuation，而不是直连 app-api database。
 - autoscaler 的 operator-facing 证据归属 app-api runtime projection，contract 见
-  `docs/contracts/operator-runtime-observability-contract.md`。
+  `docs/contracts/operator-runtime.md`。
 - K8s/KEDA target deployment substrate 的完整设计见
-  `kubernetes-execution-runtime-architecture.md`。
+  `k8s-runtime.md`。
 
 ## Current-State Ownership
 
@@ -691,14 +693,14 @@ active backlog or release closeout evidence. Current-state facts must stay in
 these owner classes:
 
 - merged topology and implemented execution path:
-  `../current-architecture.md`
+  `../current.md`
 - durable execution work signals and backlog pointers:
   `../../../.planning/PROJECT.md` and `../../../.planning/WORKSTREAMS.md`
 - operational proof, staging closeout and recovery commands:
   `../../runbooks/`
 
 Do not add implementation-progress lists to this supporting architecture. If a
-new runtime fact needs to persist, promote it to `current-architecture.md`, the
+new runtime fact needs to persist, promote it to `current.md`, the
 matching contract/schema, an ADR or a runbook.
 
 Durable runtime work must not be marked complete by simple multi-instance HTTP
@@ -708,22 +710,22 @@ attempt / result projection.
 
 Stable artifacts for this architecture:
 
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
+- `docs/decisions/adr-0048-temporal.md`
 - `docs/contracts/durable-agent-runtime-contract.md`
 - `docs/data/durable-agent-runtime-schema.md`
 
 ## Related Documents
 
-- `docs/architecture/current-architecture.md`
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/current.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`
-- `docs/architecture/system/agent-framework-boundary-architecture.md`
-- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
-- `docs/architecture/system/capability-routing-and-admission-architecture.md`
-- `docs/architecture/system/operator-observability-architecture.md`
-- `docs/architecture/system/kubernetes-execution-runtime-architecture.md`
+- `docs/architecture/system/agent-framework.md`
+- `docs/architecture/system/tool-runtime.md`
+- `docs/architecture/system/tool-routing.md`
+- `docs/architecture/system/ops-observability.md`
+- `docs/architecture/system/k8s-runtime.md`
 - `docs/contracts/durable-agent-runtime-contract.md`
 - `docs/data/durable-agent-runtime-schema.md`
-- `docs/decisions/adr-0048-temporal-execution-plane.md`
-- `docs/decisions/adr-0056-kubernetes-keda-execution-runtime.md`
+- `docs/decisions/adr-0048-temporal.md`
+- `docs/decisions/adr-0056-k8s-keda.md`

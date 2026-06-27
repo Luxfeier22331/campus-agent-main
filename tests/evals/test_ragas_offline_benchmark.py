@@ -28,7 +28,7 @@ class RagasOfflineBenchmarkSuite(unittest.TestCase):
     def test_wraps_app_api_eval_execution_as_execution_result(self) -> None:
         case = build_ragas_eval_cases(surface="student_rules", split="smoke")[0]
         response = ExecutionResponse(
-            selected_capability="knowledge",
+            selected_tool="knowledge_query",
             status="completed",
             answer_text="answer",
         )

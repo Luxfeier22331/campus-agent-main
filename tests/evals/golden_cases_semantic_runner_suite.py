@@ -24,9 +24,9 @@ from tests.evals.golden_cases_test_support import (
 
 
 class RunCasesSemanticRunnerTest(unittest.TestCase):
-    def test_run_cases_grades_capability_and_capability_family_separately(self) -> None:
+    def test_run_cases_grades_expected_tool(self) -> None:
         matching_case = GoldenCase(
-            case_id="case-runtime-target-and-family-match",
+            case_id="case-runtime-target-match",
             split="release_gate",
             source_type="expert_authored",
             user_goal="学生证丢了怎么办",
@@ -38,12 +38,11 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                 retrieval_called=False,
                 clarification_expected=False,
                 error_expected=False,
-                expected_capability="knowledge",
-                expected_capability_family="knowledge",
+                expected_tool="knowledge_query",
             ),
         )
-        mismatched_family_case = GoldenCase(
-            case_id="case-runtime-target-family-mismatch",
+        mismatched_tool_case = GoldenCase(
+            case_id="case-runtime-target-mismatch",
             split="release_gate",
             source_type="expert_authored",
             user_goal="学生证丢了怎么办",
@@ -55,15 +54,15 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                 retrieval_called=False,
                 clarification_expected=False,
                 error_expected=False,
-                expected_capability_family="navigation",
+                expected_tool="campus_notice_discover",
             ),
         )
 
         report = run_cases(
-            (matching_case, mismatched_family_case),
+            (matching_case, mismatched_tool_case),
             executor=lambda _case: ExecutionResult(
                 response=ExecutionResponse(
-                    selected_capability="knowledge",
+                    selected_tool="knowledge_query",
                     status="no_answer",
                     answer_text="当前依据不足，暂时不能直接回答。",
                     confidence="low",
@@ -93,7 +92,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
 
         self.assertTrue(report.results[0].trace_result.passed)
         self.assertFalse(report.results[1].trace_result.passed)
-        self.assertEqual(report.results[1].trace_result.reason, "capability_family=knowledge")
+        self.assertEqual(report.results[1].trace_result.reason, "selected_tool=knowledge_query")
 
     def test_run_cases_grades_out_of_scope_semantic_truth(self) -> None:
         case = GoldenCase(
@@ -119,7 +118,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             (case,),
             executor=lambda _case: ExecutionResult(
                 response=ExecutionResponse(
-                    selected_capability=None,
+                    selected_tool=None,
                     status="no_answer",
                     answer_text="这个问题不在当前支持范围内。",
                     confidence="low",
@@ -181,7 +180,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             executor=lambda case: ExecutionResult(
                 response=(
                     ExecutionResponse(
-                        selected_capability="knowledge",
+                        selected_tool="knowledge_query",
                         status="no_answer",
                         answer_text="当前未检索到足够依据支持回答这个学生手册问题。",
                         confidence="low",
@@ -201,7 +200,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                     )
                     if case.case_id == "case-unsupported"
                     else ExecutionResponse(
-                        selected_capability="knowledge",
+                        selected_tool="knowledge_query",
                         status="no_answer",
                         answer_text="当前依据不足。",
                         confidence="low",
@@ -408,7 +407,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
             executor=lambda case: ExecutionResult(
                 response=(
                     ExecutionResponse(
-                        selected_capability=None,
+                        selected_tool=None,
                         status="rejected",
                         answer_text="这个请求不在当前可执行范围内。",
                         confidence="low",
@@ -432,7 +431,7 @@ class RunCasesSemanticRunnerTest(unittest.TestCase):
                     )
                     if case.case_id == "case-policy-refusal"
                     else ExecutionResponse(
-                        selected_capability="knowledge",
+                        selected_tool="knowledge_query",
                         status="no_answer",
                         answer_text="当前无法提供这部分受限内容。",
                         confidence="low",

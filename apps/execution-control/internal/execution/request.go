@@ -29,10 +29,10 @@ type AnswerExecutionRequest struct {
 	OwnerUserID         string
 	RequestID           string
 	TraceID             string
-	RequestedCapability string
-	Lane                string
+	RequestedTool       string
+	TaskQueue           string
 	RuntimeDecisions    RuntimeDecisionSummary
-	StructuredHandoff   *RuntimeHandoff
+	ToolHandoff         *RuntimeHandoff
 	WorkflowMode        WorkflowMode
 	WorkflowPlanID      string
 	PlannedHandoffs     []RuntimeHandoff
@@ -48,9 +48,8 @@ type RuntimeDecisionSummary struct {
 	PlanningOutcome        string
 	WorkflowMode           WorkflowMode
 	WorkflowPlanID         string
-	SelectedCapability     string
 	SelectedTool           string
-	WorkerRole             string
+	TaskQueue              string
 	TerminalOutcome        string
 	FailCloseReason        string
 	RuntimeVersions        map[string]any
@@ -66,9 +65,8 @@ func (s RuntimeDecisionSummary) Map() map[string]any {
 		"context_preflight_state":  s.ContextPreflightState,
 		"routing_next_action":      s.RoutingNextAction,
 		"planning_outcome":         s.PlanningOutcome,
-		"selected_capability":      s.SelectedCapability,
 		"selected_tool":            s.SelectedTool,
-		"worker_role":              s.WorkerRole,
+		"task_queue":               s.TaskQueue,
 		"terminal_outcome":         s.TerminalOutcome,
 		"fail_close_reason":        s.FailCloseReason,
 		"runtime_versions":         cloneAnyMap(s.RuntimeVersions),
@@ -88,8 +86,8 @@ func cloneAnyMap(source map[string]any) map[string]any {
 }
 
 type RuntimeHandoff struct {
-	Capability             string
-	WorkerRole             string
+	ToolTarget             string
+	TaskQueue              string
 	PayloadKind            string
 	Payload                map[string]any
 	AllowedTools           []string
@@ -249,13 +247,13 @@ func ParseAnswerRequestWithIntentPolicy(
 		)
 	}
 
-	requestedCapability, err := parseOptionalString(payload["requested_capability"])
+	requestedTool, err := parseOptionalString(payload["requested_tool"])
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
-	if requestedCapability != "" && !isAllowedRequestedCapability(requestedCapability) {
+	if requestedTool != "" && !isAllowedRequestedTool(requestedTool) {
 		return AnswerExecutionRequest{}, invalidRequest(
-			fmt.Sprintf("unsupported requested_capability: %s", requestedCapability),
+			fmt.Sprintf("unsupported requested_tool: %s", requestedTool),
 		)
 	}
 
@@ -267,8 +265,8 @@ func ParseAnswerRequestWithIntentPolicy(
 	if err != nil {
 		return AnswerExecutionRequest{}, invalidRequest(err.Error())
 	}
-	if err := validateCapabilityEnvelope(
-		requestedCapability,
+	if err := validateToolEnvelope(
+		requestedTool,
 		hasRequestedScope,
 		versionQuery,
 	); err != nil {
@@ -300,32 +298,17 @@ func ParseAnswerRequestWithIntentPolicy(
 			}
 		}
 	}
-	effectiveRequestedCapability := ""
-	capabilitySource := "primary_agent"
-	if shouldPreResolveCapability(requestedCapability, hasRequestedScope, versionQuery) {
-		capabilityResolution := runtimepolicy.ResolveCapability(
-			runtimepolicy.CapabilityResolutionRequest{
-				RequestedCapability: requestedCapability,
-				UserGoal:            userGoal,
-				HasRequestedScope:   hasRequestedScope,
-				VersionQueryMode:    versionQuery.Mode,
-			},
-			intentPolicy,
-		)
-		effectiveRequestedCapability = capabilityResolution.EffectiveCapability
-		capabilitySource = capabilityResolution.Source
-	}
-	lane := laneForCapability(effectiveRequestedCapability)
+	admissionTarget := toolAdmissionTargetForRequest(requestedTool, hasRequestedScope, versionQuery)
+	taskQueue := taskQueueForToolTarget(admissionTarget)
 
 	traceID := strings.TrimSpace(headers["x-trace-id"])
 	if traceID == "" {
 		traceID = newTraceID()
 	}
 
-	runtimeDecisionPayload, runtimeDecisionSummary, structuredHandoff, terminalEnvelope := runtimeDecisions(
-		effectiveRequestedCapability,
-		capabilitySource,
-		lane,
+	runtimeDecisionPayload, runtimeDecisionSummary, toolHandoff, terminalEnvelope := runtimeDecisions(
+		admissionTarget,
+		taskQueue,
 		userGoal,
 		conversationID,
 		requestID,
@@ -347,8 +330,9 @@ func ParseAnswerRequestWithIntentPolicy(
 		"user_goal":                  userGoal,
 		"conversation_id":            conversationID,
 		"request_id":                 requestID,
-		"effective_capability":       effectiveRequestedCapability,
-		"lane":                       lane,
+		"effective_tool":             admissionTarget,
+		"tool_admission_target":      admissionTarget,
+		"task_queue":                 taskQueue,
 		"tenant_id":                  tenantID,
 		"trace": map[string]any{
 			"trace_id": traceID,
@@ -366,8 +350,8 @@ func ParseAnswerRequestWithIntentPolicy(
 	if safetyIdentifier != "" {
 		executionPayload["safety_identifier"] = safetyIdentifier
 	}
-	if effectiveRequestedCapability != "" {
-		executionPayload["requested_capability"] = effectiveRequestedCapability
+	if admissionTarget != "" {
+		executionPayload["requested_tool"] = admissionTarget
 	}
 	if hasRequestedScope {
 		executionPayload["requested_scope"] = map[string]any{
@@ -376,7 +360,7 @@ func ParseAnswerRequestWithIntentPolicy(
 		}
 	}
 
-	executionJSON, marshalErr := json.Marshal(executionPayload)
+	payloadJSON, marshalErr := json.Marshal(executionPayload)
 	if marshalErr != nil {
 		return AnswerExecutionRequest{}, &HTTPError{
 			Status:    500,
@@ -387,15 +371,15 @@ func ParseAnswerRequestWithIntentPolicy(
 	}
 
 	return AnswerExecutionRequest{
-		Payload:             executionJSON,
+		Payload:             payloadJSON,
 		ConversationID:      conversationID,
 		OwnerUserID:         actor.UserID,
 		RequestID:           requestID,
 		TraceID:             traceID,
-		RequestedCapability: effectiveRequestedCapability,
-		Lane:                lane,
+		RequestedTool:       admissionTarget,
+		TaskQueue:           taskQueue,
 		RuntimeDecisions:    runtimeDecisionSummary,
-		StructuredHandoff:   structuredHandoff,
+		ToolHandoff:         toolHandoff,
 		WorkflowMode:        runtimeDecisionSummary.WorkflowMode,
 		WorkflowPlanID:      runtimeDecisionSummary.WorkflowPlanID,
 		PlannedHandoffs:     runtimeDecisionSummary.PlannedHandoffs,
@@ -404,62 +388,55 @@ func ParseAnswerRequestWithIntentPolicy(
 	}, nil
 }
 
-func shouldPreResolveCapability(
-	requestedCapability string,
+func toolAdmissionTargetForRequest(
+	requestedTool string,
 	hasRequestedScope bool,
 	versionQuery versionQuery,
-) bool {
-	if strings.TrimSpace(requestedCapability) != "" {
-		return true
+) string {
+	normalized := strings.TrimSpace(requestedTool)
+	if normalized != "" {
+		return normalized
 	}
-	return hasRequestedScope || (versionQuery.Mode != "" && versionQuery.Mode != "current")
+	if hasRequestedScope || (versionQuery.Mode != "" && versionQuery.Mode != "current") {
+		return "knowledge_query"
+	}
+	return ""
 }
 
-func laneForCapability(requestedCapability string) string {
-	switch requestedCapability {
-	case "knowledge":
-		return "rag"
-	case "":
-		return "default"
-	case "place_lookup":
-		return "navigation"
-	case "campus_services":
-		return "campus_services"
-	case "notice":
-		return "notice"
-	default:
-		return "default"
-	}
+func taskQueueForToolTarget(string) string {
+	return "campus-agent.workflow"
 }
 
-func isAllowedRequestedCapability(requestedCapability string) bool {
-	switch requestedCapability {
-	case "knowledge", "place_lookup", "campus_services", "notice":
+func isAllowedRequestedTool(requestedTool string) bool {
+	switch requestedTool {
+	case "knowledge_query",
+		"place_lookup",
+		"transport_schedule_lookup",
+		"campus_notice_discover",
+		"campus_notice_change_set_lookup",
+		"campus_notice_period_summary":
 		return true
 	default:
 		return false
 	}
 }
 
-func validateCapabilityEnvelope(
-	requestedCapability string,
+func validateToolEnvelope(
+	requestedTool string,
 	hasRequestedScope bool,
 	versionQuery versionQuery,
 ) error {
-	if requestedCapability == "" || requestedCapability == "knowledge" {
+	if requestedTool == "" || requestedTool == "knowledge_query" {
 		return nil
 	}
 	if hasRequestedScope {
-		if requestedCapability == "campus_services" {
-			return nil
-		}
-		if requestedCapability == "place_lookup" {
+		if requestedTool == "place_lookup" {
 			return fmt.Errorf("requested_scope is not allowed for place_lookup requests")
 		}
 		return fmt.Errorf("requested_scope is only allowed for knowledge requests")
 	}
 	if versionQuery.Mode != "" && versionQuery.Mode != "current" {
-		if requestedCapability == "place_lookup" {
+		if requestedTool == "place_lookup" {
 			return fmt.Errorf("version_query is not allowed for place_lookup requests")
 		}
 		return fmt.Errorf("version_query is only allowed for knowledge requests")

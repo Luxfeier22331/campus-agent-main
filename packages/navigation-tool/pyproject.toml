@@ -1,0 +1,25 @@
+[project]
+name = "campus-navigation-tool"
+version = "0.1.0"
+description = "Navigation tool runtime for campus-agent v2."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "campus-contracts",
+]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+campus-contracts = { workspace = true }
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_navigation_tool"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/campus_navigation_tool", "pyproject.toml", "README.md"]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

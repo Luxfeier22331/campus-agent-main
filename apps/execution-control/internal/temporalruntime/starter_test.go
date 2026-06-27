@@ -8,25 +8,19 @@ import (
 	"go.temporal.io/sdk/worker"
 )
 
-func TestNormalizeActivityTaskQueuesIncludesOpenedCapabilityQueues(t *testing.T) {
+func TestNormalizeActivityTaskQueuesDeduplicatesWorkloadQueues(t *testing.T) {
 	queues := normalizeActivityTaskQueues([]string{
-		ActivityTaskQueueKnowledgeRetrieval,
-		ActivityTaskQueueCampusService,
-		ActivityTaskQueueNavigation,
-		ActivityTaskQueueNotice,
-		ActivityTaskQueueNotice,
+		ActivityTaskQueueKnowledge,
+		ActivityTaskQueueCore,
+		ActivityTaskQueueCore,
+		ActivityTaskQueueCore,
+		ActivityTaskQueueCore,
 	})
 
 	want := []string{
-		ActivityTaskQueueContext,
+		ActivityTaskQueueCore,
 		ActivityTaskQueueAgent,
-		ActivityTaskQueueKnowledgePlan,
-		ActivityTaskQueueKnowledgeRetrieval,
-		ActivityTaskQueueKnowledgeSynthesis,
-		ActivityTaskQueueFinalization,
-		ActivityTaskQueueCampusService,
-		ActivityTaskQueueNavigation,
-		ActivityTaskQueueNotice,
+		ActivityTaskQueueKnowledge,
 	}
 	if len(queues) != len(want) {
 		t.Fatalf("queues = %#v, want %#v", queues, want)

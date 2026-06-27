@@ -26,7 +26,7 @@ operations domain 重新进入 Operator Console 的准入条件。
 - dining object schema，见 `docs/data/dining-operations-schema.md`
 - dining HTTP contract，见 `docs/contracts/app-api-dining-ops-http.md`
 - Operator Console observability query，见
-  `operator-observability-architecture.md`
+  `ops-observability.md`
 - account / OAuth browser experience，见 identity browser architecture 文档
 
 ## Core Conclusion
@@ -157,7 +157,7 @@ Accepted profile roles:
 
 Accepted commands:
 
-- create/update provider connection with service endpoint, capabilities and API
+- create/update provider connection with service endpoint, tools and API
   key
 - create draft profile with connection, model name, timeout, usage and transport
 - update inactive profile

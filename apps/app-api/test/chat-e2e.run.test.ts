@@ -265,7 +265,7 @@ describe("chat e2e runner", () => {
 
 		expect(sessionMintCount).toBe(0);
 		expect(result.passed).toBe(false);
-		expect(result.blocked_by).toBe("execution_control_ingress_unreachable");
+		expect(result.blocked_by).toBe("execution_control_tunnel_unreachable");
 		expect(result.chat_request_attempted).toBe(false);
 		expect(result.session_mint_attempted).toBe(false);
 		expect(result.readyz.exec?.status).toBe(530);

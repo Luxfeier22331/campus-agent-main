@@ -46,8 +46,8 @@ closed instead of exposing a public panel shell.
 Canonical references:
 
 - `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/current-architecture.md`
-- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/current.md`
+- `docs/architecture/system/ops-observability.md`
 - `docs/decisions/adr-0012-shared-app-api-and-worker-web-surfaces.md`
 - `docs/decisions/adr-0013-app-api-worker-runtime.md`
 - `docs/decisions/adr-0011-operator-console-worker-runtime.md`

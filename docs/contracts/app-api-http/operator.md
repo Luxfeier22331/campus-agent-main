@@ -58,7 +58,7 @@ owns this section group; the original path remains the stable index.
     "surface": "campus_web",
     "conversationId": "conv_01HQ...",
     "status": "completed",
-    "requestedCapability": "knowledge",
+    "requestedTool": "knowledge_query",
     "requestedScope": {
       "corpus": "regulations",
       "collection": "student_rules"
@@ -67,7 +67,7 @@ owns this section group; the original path remains the stable index.
       "corpus": "regulations",
       "collection": "student_rules"
     },
-    "selectedCapability": "knowledge",
+    "selectedTool": "knowledge_query",
     "questionPreview": "图书馆开放到几点？",
     "answerPreview": "图书馆开放到 22:00。",
     "errorCode": null,
@@ -83,7 +83,7 @@ owns this section group; the original path remains the stable index.
 规则：
 
 - 这是 projection detail，不是 raw execution dump
-- `requestedScope` 表示调用方显式请求的 knowledge-family scope，可为 `null`
+- `requestedScope` 表示调用方显式请求的 knowledge tool scope，可为 `null`
 - `resolvedScope` 表示 agent 最终解析并执行的 serving scope，是 operator/panel 侧的前向真相
 - 细节页允许比 list 多出 `errorMessage`、`followUpQuestion`、`confidence` 或 `sourceDocIds`
 - v1 不暴露 raw prompt、raw answer 全量、raw audit JSONL 或 agent-internal payload

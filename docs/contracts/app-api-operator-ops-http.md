@@ -23,7 +23,7 @@ operator HTTP contract 横切规则。
 它不负责：
 
 - dining 领域对象字段，见 `app-api-dining-ops-http.md`
-- operator observability query，见 `app-api-operator-observability-http.md`
+- operator observability query，见 `app-api-observability.md`
 - student-facing campus projection，见 `app-api-http.md`
 - auth/session/OAuth provider 细节
 
@@ -206,8 +206,8 @@ Connection summary shape:
 {
   "connection": {
     "baseUrl": "https://provider.example/v1",
-    "capabilities": ["embedding", "rerank"],
-    "capabilityConfig": {
+    "tools": ["embedding", "rerank"],
+    "toolConfig": {
       "rerank": {
         "path": "/configured-rerank"
       }
@@ -265,7 +265,7 @@ Accepted roles:
 
 Rules:
 
-- provider, base URL, capability-specific transport settings and raw API key are
+- provider, base URL, tool-specific transport settings and raw API key are
   owned by provider connections
 - profiles bind an active role to one connection plus model, kind, transport,
   timeout and kind-specific dimensions
@@ -290,7 +290,7 @@ GET /api/internal/provider-config/active?role=primary_agent
 
 Requires `x-app-internal-auth`. Response resolves the active profile through its
 provider connection and includes raw `api_key`, `base_url`, `kind` and optional
-`capability_config`. It is a control-plane export used by explicit projection
+`tool_config`. It is a control-plane export used by explicit projection
 sync jobs. Self-host runtimes must consume a local
 `provider_config_projection.v1` artifact, not call this endpoint on their hot
 path. The endpoint is not browser-facing.

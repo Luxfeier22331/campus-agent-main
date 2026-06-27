@@ -67,8 +67,8 @@ async function main() {
 		const promptConnection = await createConnection(args, {
 			apiKey: args.apiKey,
 			baseUrl: args.baseUrl,
-			capabilities: ["prompt"],
-			capabilityConfig: {},
+			features: ["prompt"],
+			featureConfig: {},
 			provider: args.provider,
 		});
 		for (const role of PROMPT_ROLES) {
@@ -100,8 +100,8 @@ async function main() {
 		const embeddingConnection = await createConnection(args, {
 			apiKey: args.embedding.apiKey,
 			baseUrl: args.embedding.baseUrl,
-			capabilities: ["embedding"],
-			capabilityConfig: {},
+			features: ["embedding"],
+			featureConfig: {},
 			provider: args.embedding.provider,
 		});
 		for (const role of EMBEDDING_ROLES) {
@@ -121,8 +121,8 @@ async function main() {
 			connection: await createConnection(args, {
 				apiKey: args.rerank.apiKey,
 				baseUrl: args.rerank.baseUrl,
-				capabilities: ["rerank"],
-				capabilityConfig: { rerank: { path: args.rerank.path } },
+				features: ["rerank"],
+				featureConfig: { rerank: { path: args.rerank.path } },
 				provider: args.rerank.provider,
 			}),
 			kind: "rerank",
@@ -288,8 +288,8 @@ async function createConnection(
 	body: {
 		apiKey: string;
 		baseUrl: string;
-		capabilities: string[];
-		capabilityConfig: Record<string, unknown>;
+		features: string[];
+		featureConfig: Record<string, unknown>;
 		provider: string;
 	},
 ): Promise<{ connection: { connectionId: string } }> {

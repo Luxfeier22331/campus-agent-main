@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-truth_scope: capability
+truth_scope: execution
 owner_boundary: domains/navigation
 status: active
 created: 2026-04-05
@@ -10,11 +10,11 @@ updated: 2026-06-12
 
 ## 文档边界
 
-本文冻结 `campus-agent` 长期导航 / wayfinding 能力的 supporting architecture。
+本文冻结 `campus-agent` 长期导航 / wayfinding tool domain 的 supporting architecture。
 
 它回答的是：
 
-- 校园导航在长期产品形态里属于什么能力边界
+- 校园导航在长期产品形态里属于什么 tool domain 边界
 - Execution Agent Layer、`navigation`、`app-api`、spatial truth 各自负责什么
 - 用户当前位置、地点别名、路线图谱与地图呈现分别属于哪一层
 - 外部地图 provider 与瓦片地图在长期形态里应怎样参与
@@ -34,18 +34,18 @@ updated: 2026-06-12
 - campus service discovery
 - campus navigation / wayfinding
 
-其中导航不是附属工具，而是 Execution Agent Layer-led multi-capability / agent-as-tool
-product 中的稳定 capability family。
+其中导航不是 generic retrieval fallback，而是 Execution Agent Layer-led
+tool-using product 中的稳定 tool domain。
 
 长期导航主链路固定为：
 
 ```text
 web surface -> app-api -> execution-control -> Temporal activity
--> capability worker -> navigation / typed spatial tools
+-> tool worker -> navigation / typed spatial tools
 -> spatial truth / provider adapters -> execution response
 ```
 
-在长期 multi-capability / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
+在长期 multi-tool / agent-as-tool workflow 中，`navigation` 也可以作为 bounded spatial
 specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
 `StopContext`、route summary 或 accessibility warning projection。它不因此拥有
 timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
@@ -104,7 +104,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - intent framing
 - risk / safety gate
-- capability routing
+- tool routing
 - handoff shaping
 - response finalization
 
@@ -115,15 +115,15 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - provider-specific route or geocode logic
 - browser map rendering
 
-### `packages/navigation-capability`
+### `packages/navigation-tool`
 
 长期负责：
 
 - place / building / entrance / gate / stop resolution
-- route planning inside the capability boundary
+- route planning inside the tool boundary
 - ambiguity handling and clarification
 - navigation answer shaping
-- provider candidate orchestration inside the capability boundary
+- provider candidate orchestration inside the tool boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
 - manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
   projection
@@ -251,7 +251,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 - canonical spatial truth
 - route correctness truth
-- agent capability boundary
+- agent tool boundary
 - shared contract vocabulary
 
 长期 provider posture 固定为：
@@ -259,7 +259,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 - browser geolocation 是 input source，不是 canonical truth
 - map / geocode / route provider 是 adapter，不是 campus truth owner
 - provider geocode、POI search、secondary route candidates 可以参与
-  navigation capability 内部执行
+  navigation tool 内部执行
 - provider-specific IDs、SDK types、payload shapes 不进入 `packages/contracts`
 
 针对“学校 + 周边关键地点”的底图、自建范围与 provider 成本 posture，见
@@ -295,7 +295,7 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 
 ## Related Stable Docs
 
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`

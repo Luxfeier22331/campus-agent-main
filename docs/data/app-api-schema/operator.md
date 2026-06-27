@@ -33,11 +33,11 @@ owns this section group; the original path remains the stable index.
 - `entitlement_groups_json`
 - `visibility_scope` nullable
 - `applicability_scope` nullable
-- `requested_capability` nullable
+- `requested_tool` nullable
 - `requested_scope_json` nullable
 - `version_query_json` nullable
 - `resolved_scope_json` nullable
-- `selected_capability` nullable
+- `selected_tool` nullable
 - `status`
 - `error_code` nullable
 - `question_preview`
@@ -87,8 +87,8 @@ owns this section group; the original path remains the stable index.
 - `principal_type`
 - `entitlement_snapshot_id` nullable
 - `policy_projection_version` nullable
-- `requested_capability` nullable
-- `selected_capability` nullable
+- `requested_tool` nullable
+- `selected_tool` nullable
 - `status`
 - `terminal_code` nullable
 - `summary`
@@ -111,7 +111,7 @@ owns this section group; the original path remains the stable index.
 - `diagnostics_json` 只保存受控最小摘要，例如
   `fail_closed`、`acl_anomaly_code`、`source_doc_ids`；当 event type 为
   `execution.*` 时，可以额外保存 lane、decision、failure kind、HTTP status、
-  retryable、duration 与 queue wait
+  retryable、duration、queue wait 与 activity duration
 - 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor
   sink blob
 
@@ -340,8 +340,8 @@ owns this section group; the original path remains the stable index.
 - `bucket_start`
 - `bucket_end`
 - `surface`
-- `selected_capability` nullable
-- `requested_capability` nullable
+- `selected_tool` nullable
+- `requested_tool` nullable
 - `principal_type`
 - `collection` nullable
 - `model_name` nullable
@@ -353,7 +353,7 @@ owns this section group; the original path remains the stable index.
 - `(domain, granularity, bucket_start)`
 - `(request_id, granularity, bucket_start)`
 - `(domain, surface, bucket_start)`
-- `(domain, selected_capability, bucket_start)`
+- `(domain, selected_tool, bucket_start)`
 
 规则：
 
@@ -381,7 +381,7 @@ owns this section group; the original path remains the stable index.
 - `request_id`
 - `trace_id`
 - `surface`
-- `selected_capability` nullable
+- `selected_tool` nullable
 - `status`
 - `cause_class`
 - `detected_by`
@@ -430,8 +430,8 @@ owns this section group; the original path remains the stable index.
 - `trace_id`
 - `surface`
 - `request_started_at`
-- `selected_capability` nullable
-- `requested_capability` nullable
+- `selected_tool` nullable
+- `requested_tool` nullable
 - `principal_type`
 - `collection` nullable
 - `model_name` nullable

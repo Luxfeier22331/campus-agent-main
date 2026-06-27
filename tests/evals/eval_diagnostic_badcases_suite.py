@@ -78,7 +78,7 @@ class EvalDiagnosticBadcasesSuite(unittest.TestCase):
                     "status": "trajectory_missing",
                     "stepId": None,
                     "stepKind": None,
-                    "capability": None,
+                    "tool": None,
                     "toolName": None,
                     "stepStatus": None,
                     "outcome": {
@@ -171,7 +171,7 @@ class EvalDiagnosticBadcasesSuite(unittest.TestCase):
                 "status": "attributed",
                 "stepId": "evidence.selection",
                 "stepKind": "selection",
-                "capability": "knowledge",
+                "tool": "knowledge_query",
                 "toolName": None,
                 "stepStatus": "completed",
                 "outcome": {
@@ -201,7 +201,7 @@ class EvalDiagnosticBadcasesSuite(unittest.TestCase):
                             "metric_failures": {"faithfulness": "grounding"},
                         },
                         "workflow_trace_summary": {
-                            "capability_invocations": [
+                            "tool_invocations": [
                                 {"step_id": "synthesis", "result_projection": "bounded_summary"}
                             ]
                         },
@@ -219,7 +219,7 @@ class EvalDiagnosticBadcasesSuite(unittest.TestCase):
                 "status": "trajectory_missing",
                 "stepId": None,
                 "stepKind": None,
-                "capability": None,
+                "tool": None,
                 "toolName": None,
                 "stepStatus": None,
                 "outcome": {
@@ -314,7 +314,7 @@ def _operator_step_trajectory() -> dict[str, object]:
             {
                 "stepId": "retrieval.indexed_lookup",
                 "stepKind": "retrieval",
-                "capability": "knowledge",
+                "tool": "knowledge_query",
                 "toolName": None,
                 "status": "completed",
                 "failCloseReason": None,
@@ -328,7 +328,7 @@ def _operator_step_trajectory() -> dict[str, object]:
             {
                 "stepId": "evidence.selection",
                 "stepKind": "selection",
-                "capability": "knowledge",
+                "tool": "knowledge_query",
                 "toolName": None,
                 "status": "completed",
                 "failCloseReason": None,

@@ -42,6 +42,10 @@ func registerWorkflowTestActivities(env workflowTestActivityRegistrar, activitie
 	)
 	env.RegisterActivityWithOptions(activities.VerifyGroundingActivity, activity.RegisterOptions{Name: VerifyGroundingActivityName})
 	env.RegisterActivityWithOptions(activities.ExecuteTypedToolActivity, activity.RegisterOptions{Name: ExecuteTypedToolActivityName})
+	env.RegisterActivityWithOptions(
+		activities.ExecuteAgentAsToolActivity,
+		activity.RegisterOptions{Name: ExecuteAgentAsToolActivityName},
+	)
 	env.RegisterActivityWithOptions(activities.WriteFinalizationActivity, activity.RegisterOptions{Name: WriteFinalizationActivityName})
 }
 
@@ -52,18 +56,19 @@ func newWorkflowTestEnvironment() *testsuite.TestWorkflowEnvironment {
 	return env
 }
 
-func workflowTestInput(runID string) CapabilityExecutionWorkflowInput {
-	return CapabilityExecutionWorkflowInput{
+func workflowTestInput(runID string) ToolExecutionWorkflowInput {
+	return ToolExecutionWorkflowInput{
 		ConversationID: "conv-" + runID,
 		Namespace:      "campus-agent-test",
 		PayloadSHA256:  "d8a73157ce10cd94a91c2079fc9a92c8f9f42f71360e4de7b80bf2e7d5e75c5c",
 		RequestID:      "req-" + runID,
+		RequestedTool:  "knowledge_query",
 		RunID:          runID,
 		TaskQueue:      WorkflowTaskQueue,
 		TraceID:        "trace-" + runID,
 		TurnID:         "turn-" + runID,
-		VisibleCapabilities: []string{
-			"knowledge",
+		VisibleToolNames: []string{
+			"knowledge_query",
 		},
 		WorkflowID: "campus-agent.chat." + runID,
 	}
@@ -119,33 +124,33 @@ func (Activities) PlanRouteActivity(
 	_ context.Context,
 	input PlanRouteActivityInput,
 ) (PlanRouteActivityOutput, error) {
-	capability := input.RequestedCapability
-	if capability == "" {
-		capability = "knowledge"
+	tool := input.RequestedTool
+	if tool == "" {
+		tool = "knowledge_query"
 	}
-	if capability == "campus_services" {
+	if tool == "transport_schedule_lookup" {
 		return PlanRouteActivityOutput{
-			AllowedCapabilities: []string{"campus_services"},
-			AllowedTools:        []string{"transport_schedule_lookup"},
-			Capability:          "campus_services",
-			PlanRef:             "projection://runs/" + input.RunID + "/plan/route",
-			RunID:               input.RunID,
-			Status:              "planned",
-			ToolName:            "transport_schedule_lookup",
-			WorkerRole:          "activity-worker-campus-services",
-			PayloadKind:         "transport_schedule_lookup",
+			AllowedToolTargets: []string{"transport_schedule_lookup"},
+			AllowedTools:       []string{"transport_schedule_lookup"},
+			PlanRef:            "projection://runs/" + input.RunID + "/plan/route",
+			RunID:              input.RunID,
+			Status:             "planned",
+			ToolName:           "transport_schedule_lookup",
+			ToolTarget:         "transport_schedule_lookup",
+			TaskQueue:          ActivityTaskQueueCore,
+			PayloadKind:        "transport_schedule_lookup",
 		}, nil
 	}
 	return PlanRouteActivityOutput{
-		AllowedCapabilities: []string{"knowledge"},
-		AllowedTools:        []string{"retrieval.query"},
-		Capability:          "knowledge",
-		PlanRef:             "projection://runs/" + input.RunID + "/plan/route",
-		RunID:               input.RunID,
-		Status:              "planned",
-		ToolName:            "retrieval.query",
-		WorkerRole:          "activity-worker-knowledge-plan",
-		PayloadKind:         "rag_request",
+		AllowedToolTargets: []string{"knowledge_query"},
+		AllowedTools:       []string{"knowledge_query"},
+		PlanRef:            "projection://runs/" + input.RunID + "/plan/route",
+		RunID:              input.RunID,
+		Status:             "planned",
+		ToolName:           "knowledge_query",
+		ToolTarget:         "knowledge_query",
+		TaskQueue:          ActivityTaskQueueKnowledge,
+		PayloadKind:        "rag_request",
 	}, nil
 }
 
@@ -154,17 +159,17 @@ func (Activities) PlanReplanActivity(
 	input PlanReplanActivityInput,
 ) (PlanReplanActivityOutput, error) {
 	return PlanReplanActivityOutput{
-		AllowedCapabilities: append([]string{}, input.AllowedCapabilities...),
-		NewPlanRef:          "projection://runs/" + input.RunID + "/plan/replan/default",
-		RunID:               input.RunID,
-		Status:              "planned",
-		Steps: []CapabilityBranchStep{{
+		AllowedToolTargets: append([]string{}, input.AllowedToolTargets...),
+		NewPlanRef:         "projection://runs/" + input.RunID + "/plan/replan/default",
+		RunID:              input.RunID,
+		Status:             "planned",
+		Steps: []ToolBranchStep{{
 			AllowedTools: append([]string{}, input.AllowedTools...),
-			Capability:   input.AllowedCapabilities[0],
 			PayloadKind:  "transport_schedule_lookup",
-			StepID:       "capability:campus_services:transport_schedule_lookup:replan",
+			StepID:       "tool:transport_schedule_lookup:replan",
 			ToolName:     input.AllowedTools[0],
-			WorkerRole:   "activity-worker-campus-services",
+			ToolTarget:   input.AllowedToolTargets[0],
+			TaskQueue:    ActivityTaskQueueCore,
 		}},
 	}, nil
 }
@@ -174,12 +179,25 @@ func (Activities) ExecuteTypedToolActivity(
 	input ExecuteTypedToolActivityInput,
 ) (ExecuteTypedToolActivityOutput, error) {
 	return ExecuteTypedToolActivityOutput{
-		Capability:  input.Capability,
 		ResultRef:   "projection://runs/" + input.RunID + "/tools/" + input.ToolName,
 		RunID:       input.RunID,
 		Status:      "completed",
 		ToolName:    input.ToolName,
+		ToolTarget:  input.ToolTarget,
 		PayloadKind: input.PayloadKind,
+	}, nil
+}
+
+func (Activities) ExecuteAgentAsToolActivity(
+	_ context.Context,
+	input ExecuteAgentAsToolActivityInput,
+) (ExecuteAgentAsToolActivityOutput, error) {
+	return ExecuteAgentAsToolActivityOutput{
+		AdmittedAgentID: input.AdmittedAgentID,
+		ResultRef:       "projection://runs/" + input.RunID + "/agent-as-tool/" + input.StepID,
+		RunID:           input.RunID,
+		Status:          "completed",
+		StepID:          input.StepID,
 	}, nil
 }
 
@@ -267,7 +285,7 @@ func memoryRecallInputMatcher(runID string) func(MemoryRecallActivityInput) bool
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
 			input.RequestID == "req-workflow-001" &&
-			input.RequestedCapability == "knowledge"
+			input.RequestedTool == "knowledge_query"
 	}
 }
 
@@ -276,7 +294,7 @@ func planInputMatcher(runID string) func(PlanRouteActivityInput) bool {
 		return input.RunID == runID &&
 			input.TraceID == "trace-workflow-001" &&
 			input.PayloadSHA256 != "" &&
-			input.RequestedCapability == "knowledge"
+			input.RequestedTool == "knowledge_query"
 	}
 }
 

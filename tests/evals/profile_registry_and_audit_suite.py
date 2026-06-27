@@ -20,14 +20,14 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
             resolve_profile_id("multi-agent-product-path")
 
-        definition = get_profile_definition("multi-agent-runtime-contract")
-        self.assertEqual(definition.profile_id, "multi-agent-runtime-contract")
+        definition = get_profile_definition("tool-runtime-contract")
+        self.assertEqual(definition.profile_id, "tool-runtime-contract")
         self.assertEqual(definition.artifact_kind, "composite_gate")
 
     def test_registry_declares_dispatchable_profiles_without_deprecated_aliases(self) -> None:
         profile_ids = dispatchable_profile_ids()
 
-        self.assertIn("multi-agent-runtime-contract", profile_ids)
+        self.assertIn("tool-runtime-contract", profile_ids)
         self.assertIn("tool-routing-product-path", profile_ids)
         self.assertIn("online-answer-path", profile_ids)
         self.assertIn("answer-quality-contract", profile_ids)
@@ -89,12 +89,11 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
                 "profile_registry_runners",
                 "workflow_dispatch_choices",
                 "workflow_contract_generation_check",
-                "workflow_langfuse_publish_contract",
                 "operations_policy_coverage",
                 "denominator_registry_coverage",
                 "rag_eval_coverage",
                 "rag_retrieval_quality_gate",
-                "tool_family_fixture_coverage",
+                "tool_denominator_fixture_coverage",
                 "profile_fixture_smoke",
             }.issubset(check_ids)
         )

@@ -76,9 +76,7 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
     }
   },
   "worker_profiles": {
-    "activity-knowledge-plan": {"activity_slots": 12},
-    "activity-knowledge-retrieval": {"activity_slots": 3, "activity_task_pollers": 2},
-    "activity-knowledge-synthesis": {"activity_slots": 1}
+    "activity-knowledge": {"activity_slots": 3, "activity_task_pollers": 2}
   }
 }`)
 
@@ -99,10 +97,8 @@ func TestLoadFromEnvReadsRAGBudgetsAndWorkerProfiles(t *testing.T) {
 		cfg.RAGSynthesisTextVerbosity != "low" {
 		t.Fatalf("unexpected rag budgets: %#v", cfg)
 	}
-	if cfg.WorkerProfiles["activity-knowledge-plan"].ActivitySlots != 12 ||
-		cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivitySlots != 3 ||
-		cfg.WorkerProfiles["activity-knowledge-synthesis"].ActivitySlots != 1 ||
-		cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivityTaskPollers != 2 {
+	if cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 ||
+		cfg.WorkerProfiles["activity-knowledge"].ActivityTaskPollers != 2 {
 		t.Fatalf("unexpected worker profiles: %#v", cfg.WorkerProfiles)
 	}
 }
@@ -117,7 +113,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
   "request_body_limit_bytes": 2097152,
   "shutdown_grace_ms": 21000,
   "intent_policy_path": "/etc/campus-agent/intent-policy.v1.json",
-  "open_capabilities": ["campus_services", "notice"],
+  "open_tools": ["transport_schedule_lookup", "campus_notice_discover"],
   "multi_step_workflow_enabled": true,
   "otel": {
     "enabled": true,
@@ -137,9 +133,6 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "url": "http://app-api:27031/api/internal/execution/audit-events",
     "shared_secret": "audit-secret",
     "timeout_ms": 300
-  },
-  "lane_budgets": {
-    "rag": {"max_concurrent": 3, "queue_capacity": 8, "queue_timeout_ms": 1700}
   },
   "rag": {
     "top_k_max": 7,
@@ -163,7 +156,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "recall_max_chars": 900
   },
   "worker_profiles": {
-    "activity-knowledge-retrieval": {
+    "activity-knowledge": {
       "activity_slots": 3,
       "activity_task_pollers": 2
     }
@@ -183,7 +176,9 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.RequestBodyLimitBytes != 2_097_152 ||
 		cfg.ShutdownGraceMS != 21000 ||
 		cfg.IntentPolicyPath != "/etc/campus-agent/intent-policy.v1.json" ||
-		len(cfg.OpenCapabilities) != 2 ||
+		len(cfg.OpenTools) != 2 ||
+		cfg.OpenTools[0] != "transport_schedule_lookup" ||
+		cfg.OpenTools[1] != "campus_notice_discover" ||
 		!cfg.MultiStepWorkflowEnabled ||
 		!cfg.OTelEnabled ||
 		cfg.OTelEndpoint != "http://collector:4318/v1/traces" ||
@@ -200,9 +195,6 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 300 ||
-		cfg.LaneBudgets["rag"].MaxConcurrent != 3 ||
-		cfg.LaneBudgets["rag"].QueueCapacity != 8 ||
-		cfg.LaneBudgets["rag"].QueueTimeoutMS != 1700 ||
 		cfg.RAGTopKMax != 7 ||
 		cfg.RAGSelectedEvidenceMax != 6 ||
 		cfg.RAGRetrievalMaxConcurrent != 3 ||
@@ -218,7 +210,7 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.PersonalMemoryTimeoutSeconds != 7 ||
 		cfg.PersonalMemoryRecallLimit != 4 ||
 		cfg.PersonalMemoryRecallMaxChars != 900 ||
-		cfg.WorkerProfiles["activity-knowledge-retrieval"].ActivitySlots != 3 {
+		cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 {
 		t.Fatalf("unexpected config from runtime profile: %#v", cfg)
 	}
 }

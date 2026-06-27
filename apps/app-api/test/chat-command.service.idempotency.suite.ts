@@ -2,19 +2,19 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	type ChatCommandStore,
 	createCommandStore,
 	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createHmac,
 	createPrincipal,
 	createTelemetryMock,
 	DRAFT_CONVERSATION_TITLE,
 	deriveSafetyIdentifier,
 	ExecutionControlTransportError,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceIdempotencySuite(): void {
@@ -33,7 +33,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			shouldThrottle: true,
 			throttleReason: "requests_per_minute",
 		});
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -45,7 +45,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 				...store,
 				getAbuseControlState,
 			} as ChatCommandStore,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			telemetry,
 		});
 
@@ -98,7 +98,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		);
 	});
 
-	it("finalizes a handled execution error when the executionClient transport fails after accept", async () => {
+	it("finalizes a handled execution error when the execution transport fails after accept", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
@@ -108,7 +108,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			telemetry,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockRejectedValue(
 					new ExecutionControlTransportError({
 						code: "execution_timeout",
@@ -175,7 +175,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			conversationStore,
 			store,
 			telemetry,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockRejectedValue(new Error("untyped execution failure")),
 			}),
 		});
@@ -284,7 +284,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		store.findIdempotentRequest = findIdempotentRequest;
 		const executionClient = {
 			execute: vi.fn(),
-		} satisfies CapabilityExecutionClient;
+		} satisfies ToolExecutionClient;
 
 		const service = buildChatCommandService({
 			computeFingerprint: () => "fingerprint:图书馆开放到几点？",
@@ -292,7 +292,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		const replay = await service.submit({
@@ -340,7 +340,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		conversationStore.getConversationByOwner = vi.fn().mockResolvedValue(null);
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -350,7 +350,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 						sources: [],
 					},
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -362,7 +362,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		const response = await service.submit({
@@ -401,7 +401,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 	it("creates a conversation lazily on the first chat request when conversationId is omitted", async () => {
 		const { store, acceptedWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆开放到 22:00。",
 				error: null,
@@ -411,7 +411,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 						sources: [],
 					},
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			}),
@@ -423,7 +423,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		const response = await service.submit({
@@ -492,7 +492,7 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore: createConversationStore().store,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn(),
 			}),
 		});

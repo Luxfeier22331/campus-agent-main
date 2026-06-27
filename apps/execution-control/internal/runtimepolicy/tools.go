@@ -8,35 +8,20 @@ var (
 	defaultToolSpecRegistryOK   bool
 )
 
-func AllowedToolsForCapability(capability string) []string {
-	if !defaultCapabilityOpen(capability) {
-		return nil
-	}
+func ModelVisibleToolNames() []string {
 	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
 		return nil
 	}
-	return registry.AllowedToolsForCapability(capability)
+	return registry.ModelVisibleToolNames()
 }
 
-func AllowedToolsForCapabilityPayloadKind(capability string, payloadKind string) []string {
-	if !defaultCapabilityOpen(capability) {
-		return nil
-	}
+func ModelVisibleToolByName(name string) (ToolSpec, bool) {
 	registry, ok := DefaultToolSpecRegistry()
 	if !ok {
-		return nil
+		return ToolSpec{}, false
 	}
-	return registry.AllowedToolsForCapabilityPayloadKind(capability, payloadKind)
-}
-
-func defaultCapabilityOpen(capability string) bool {
-	registry, ok := DefaultCapabilitySpecRegistry()
-	if !ok {
-		return false
-	}
-	spec, ok := registry.CapabilityByID(capability)
-	return ok && spec.Active && spec.OpeningGate == "open"
+	return registry.ModelVisibleToolByName(name)
 }
 
 func DefaultToolSpecRegistry() (ToolSpecRegistry, bool) {

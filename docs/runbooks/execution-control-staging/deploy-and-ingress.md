@@ -215,15 +215,9 @@ staging 不应依赖 repo-root `.env.staging.local`。
   - `EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow`
   - `EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=staging:activity-knowledge-plan:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=staging:activity-knowledge-retrieval:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=staging:activity-knowledge-synthesis:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:<instance>`
-  - `EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:<instance>`
+  - `EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:<instance>`
   - `EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT`
   - `EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000`
   缺任一投影值时，lifecycle 必须 fail closed，并作为 env projection bug 处理。

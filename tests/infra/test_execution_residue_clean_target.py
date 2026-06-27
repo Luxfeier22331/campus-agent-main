@@ -51,21 +51,46 @@ ALLOWLISTED_FILES = {
     Path("apps/execution-control/internal/config/config.go"),
     Path("apps/execution-control/internal/config/config_test.go"),
     Path("configs/runtime/env-surface-policy.v1.json"),
+    Path("tests/contracts/contract_boundary_guardrails_suite.py"),
     Path("tests/infra/test_execution_control_architecture_residue.py"),
     Path("tests/infra/test_execution_residue_clean_target.py"),
 }
 ACTIVE_RETIRED_OWNER_FORBIDDEN_SNIPPETS = {
     "- `apps/ingestion-worker`: ingestion runtime 壳；承接摄入任务，不负责在线回答编排",
-    "- `packages/knowledge-capability`: knowledge-family / RAG capability",
     "- `packages/retrieval-core`: retrieval abstraction、evidence 获取与回链路径",
-    "它顺序启动 `" + "super" + "visor-agent-worker`、`execution-control`",
-    "packages/ingestion-core packages/retrieval-core packages/navigation-capability packages/contracts",
+    "它顺序启动 `supervisor-agent-worker`、`execution-control`",
+    "packages/ingestion-core packages/retrieval-core packages/navigation-tool packages/contracts",
     "返回 ingestion-worker 可消费的 deterministic `releaseId`",
-    "Python `" + "super" + "visor-agent-worker` 不再参与 online answer path；它只保留 offline /",
-    "`" + RETIRED_WORKER_PATH + "` 是 private semantic worker",
-    "Python `" + RETIRED_WORKER_PATH + "` 继续保留 semantic orchestration",
-    " `packages/knowledge-capability` 负责 retrieval strategy selection",
+    "Python `supervisor-agent-worker` 不再参与 online answer path；它只保留 offline /",
+    "`apps/supervisor-agent-worker` 是 private semantic worker",
+    "Python `apps/supervisor-agent-worker` 继续保留 semantic orchestration",
     " `packages/retrieval-core` 负责 query preprocessing",
+}
+ACTIVE_TOOL_CONCEPT_FORBIDDEN_SNIPPETS = {
+    '"selectedTool": "knowledge"',
+    '"requestedTool": "knowledge"',
+    'intentTool: "knowledge"',
+    '"intentTool": "knowledge"',
+    '"selectedTool": "campus_services"',
+    '"requestedTool": "campus_services"',
+    'intentTool: "campus_services"',
+    '"intentTool": "campus_services"',
+    'Tool: "primary_agent"',
+    'tool: "primary_agent"',
+    '"tool": "primary_agent"',
+    "structured_query",
+    "structured-query",
+    "structured runtime",
+    "structured_runtime",
+    "structuredquery",
+    "EXECUTION_CONTROL_STRUCTURED_QUERY",
+    "tool_family",
+    "toolFamily",
+    "ToolFamily",
+    "worker_role",
+    "workerRole",
+    "WorkerRole",
+    "`supervisor` concept is an abstract",
 }
 
 
@@ -125,6 +150,15 @@ class ExecutionResidueCleanTargetTest(unittest.TestCase):
         self.assertFalse(
             offenders,
             "active truth must not describe retired Python worker/retrieval packages as current owners:\n"
+            + "\n".join(offenders),
+        )
+
+    def test_active_truth_uses_tool_clean_target_terms(self) -> None:
+        offenders = self._find_active_references(tuple(ACTIVE_TOOL_CONCEPT_FORBIDDEN_SNIPPETS))
+
+        self.assertFalse(
+            offenders,
+            "active truth must expose concrete tools, not retired capability/supervisor/structured-runtime concepts:\n"
             + "\n".join(offenders),
         )
 

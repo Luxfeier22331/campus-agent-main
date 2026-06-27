@@ -54,11 +54,11 @@ implementation surfaces 暴露的 browser-facing HTTP contract。
 - shared product topology：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api` runtime 与内部边界：`docs/architecture/system/product-runtime-architecture.md`
 - `app-api -> execution-control`
-  内部执行契约：`docs/contracts/capability-execution.md`
+  内部执行契约：`docs/contracts/tool-execution.md`
 - internal eval benchmark
   ingress：`docs/contracts/app-api-eval-benchmark-http.md`
 - operator observability query
-  contract：`docs/contracts/app-api-operator-observability-http.md`
+  contract：`docs/contracts/app-api-observability.md`
 - `official_web` collector/control-plane HTTP
   contract：`docs/contracts/app-api-official-web-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
@@ -110,7 +110,7 @@ implementation surfaces 暴露的 browser-facing HTTP contract。
 contract test carrier。新增 route 必须声明：
 
 - `browser-surface`：由 campus-web same-origin proxy 调用
-- `operator-via-panel`：由 Operator Console internal bridge 调用；当前代码名保留
+- `operator-via-panel`：由 Operator Console internal trusted caller 调用；当前代码名保留
   `panel`，不表示长期只存在 `operator-console-web` 一个 product concept
 - `machine-internal`：由 execution-control / eval / ingestion 等 trusted machine
   caller 调用
@@ -264,7 +264,7 @@ not implemented in the current inventory.
 - `GET /api/operator/requests/:requestId/observability`
 
 expanded observability / quality / safety / cost / audit query surfaces 另见
-`docs/contracts/app-api-operator-observability-http.md`
+`docs/contracts/app-api-observability.md`
 
 第一版不冻结：
 
@@ -381,7 +381,7 @@ assistant message 可以包含 `feedback`：
   "surface": "campus_web",
   "conversationId": "conv_01HQ...",
   "status": "completed",
-  "requestedCapability": "knowledge",
+  "requestedTool": "knowledge_query",
   "requestedScope": {
     "corpus": "regulations",
     "collection": "student_rules"
@@ -394,7 +394,7 @@ assistant message 可以包含 `feedback`：
     "corpus": "regulations",
     "collection": "student_rules"
   },
-  "selectedCapability": "knowledge",
+  "selectedTool": "knowledge_query",
   "questionPreview": "图书馆开放到几点？",
   "answerPreview": "图书馆开放到 22:00。",
   "errorCode": null,
@@ -408,8 +408,8 @@ assistant message 可以包含 `feedback`：
 
 补充约束：
 
-- `selectedCapability` 始终表示 request finalized 后的 capability id。
-- 它当前只承载 raw contract truth，不承载 forward family label，也不承载 operator-facing
+- `selectedTool` 始终表示 request finalized 后的 legacy-named selected tool id。
+- 它当前只承载 raw contract truth，不承载 forward alias，也不承载 operator-facing
   localized wording。
 - 如果 browser 或 Operator Console 需要展示友好名称，必须由 app-owned mapping /
   presentation layer 派生，而不是重载这个字段。

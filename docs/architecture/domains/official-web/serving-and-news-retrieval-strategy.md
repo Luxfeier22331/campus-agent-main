@@ -172,7 +172,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
 - `notice`
   - 面向“帮我找通知/讲座/公示/结果”“把这条通知打开”这类显式 notice task
   - 通过 discover / get contract 返回 canonical notice metadata 与 normalized content
-  - 可以作为 future public notice source family 被 structured runtime 消费，但这不自动决定
+  - 可以作为 future public notice source family 被 tool read model 消费，但这不自动决定
     authenticated-source notice 如何并入同一 runtime
 
 这意味着：
@@ -239,7 +239,7 @@ runtime 消费，而不是并行再开一条 `knowledge` generic retrieval surfa
   `brand_history` / 校史人物类 surface。
 - 不要因为来源 URL 在官网 host 下，就把所有内容都留在 `official_web/*`
 - 也不要为了“来源来自官网”再复制一套 `official_web/regulation` 或 `official_web/curriculum`
-- contact、办事指南与流程说明当前不提升为 campus-services structured runtime
+- contact、办事指南与流程说明当前不提升为 campus-services tool read model
   tool；public page 只能作为 `official_web/stable_reference` 或 wiki 上游来源，不充当
   repo-owned runtime owner
 

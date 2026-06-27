@@ -18,7 +18,7 @@ updated: 2026-04-20
 
 - `docs/domains/authenticated-notice.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/runbooks/ingestion-control-clean-target-runbook.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 

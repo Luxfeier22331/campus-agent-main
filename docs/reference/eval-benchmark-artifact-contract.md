@@ -126,7 +126,7 @@ observation source is the app-api durable chat collector that exercises
 diagnostic seam and must not be used as the release proof for durable submit /
 resume behavior. The release profile denominator is the main-path
 `release_gate` / `regression_locked` subset; full-suite `known_gap`,
-`blocked_capability`, `structured_tool_later`, clarification and fail-closed
+`blocked_tool`, `structured_tool_later`, clarification and fail-closed
 cases require an explicit cases path for offline profile replay. The current
 durable staging collector is a completed release-subset proof, not a full-suite
 collector.
@@ -169,7 +169,7 @@ uncorrelated cases with a reason.
 - `first_decision_branch`（preferred）
 - `direct_vs_delegate_branch`（legacy compatibility alias）
 - `handoff`
-- `selected_capability`
+- `selected_tool`
 - `selected_tools`
 - `tool_argument_summary`
 - `trace_steps`
@@ -200,7 +200,7 @@ uncorrelated cases with a reason.
   document payload 或 raw restricted payload
 - external trace ids / grader ids 只能作为 backlink；不能替代 repo-owned case truth 或
   release verdict
-- direct/no-tool terminal、typed structured activity 与 capability-required case
+- direct/no-tool terminal、typed structured activity 与 tool-required case
   都必须可落到同一 `workflow_trace_summary` shape，避免形成两套不可比的
   artifact；legacy `direct_vs_delegate_*` 命名只作为兼容字段，不表示 active
   Python delegate path
@@ -314,7 +314,7 @@ retrieval/scorer。低分 metric 必须携带对应
   `status = trajectory_missing`，找不到对应阶段时必须写成
   `status = attribution_missing`，不得从 `workflow_trace_summary` 或 request detail 链接猜测
   runtime correlation
-- `trajectoryAttribution` 只允许 step id/kind/status、capability、tool name、outcome reason
+- `trajectoryAttribution` 只允许 step id/kind/status、tool、tool name、outcome reason
   与 sanitized projection refs；不得包含 Temporal history、provider payload、local path
   或原始回答
 - projection 不得包含 local path、bucket/object key、raw prompt、raw answer、transcript、
@@ -431,7 +431,7 @@ operator publish 只允许从 accepted artifact 进入。
 - `eval_operations_governance`
 - `tool_routing_product_path`
 - `answer_quality_contract`
-- `multi_capability_runtime_contract`
+- `tool_runtime_contract`
 
 后续新 corpus 只有在：
 

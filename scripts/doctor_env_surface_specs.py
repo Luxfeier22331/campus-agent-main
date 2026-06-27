@@ -156,30 +156,10 @@ SURFACE_SPECS = {
             "temporal_workflow_worker_identity": (
                 "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY",
             ),
-            "temporal_context_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY",
-            ),
+            "temporal_core_worker_identity": ("EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY",),
             "temporal_agent_worker_identity": ("EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY",),
-            "temporal_knowledge_plan_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY",
-            ),
-            "temporal_knowledge_retrieval_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
-            ),
-            "temporal_knowledge_synthesis_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
-            ),
-            "temporal_campus_services_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY",
-            ),
-            "temporal_notice_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY",
-            ),
-            "temporal_navigation_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY",
-            ),
-            "temporal_finalization_worker_identity": (
-                "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY",
+            "temporal_knowledge_worker_identity": (
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
             ),
             "temporal_workflow_id_salt": ("EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT",),
             "temporal_start_timeout_ms": ("EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS",),

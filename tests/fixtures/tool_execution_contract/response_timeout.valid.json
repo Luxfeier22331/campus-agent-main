@@ -1,0 +1,36 @@
+{
+	"selected_tool": null,
+	"status": "error",
+	"answer_text": "",
+	"follow_up_question": "",
+	"confidence": "low",
+	"result": null,
+	"error": {
+		"code": "execution_timeout",
+		"message": "Execution control timed out.",
+		"retryable": true
+	},
+	"workflow_trace_summary": {
+		"routing_frame": {},
+		"context_resolution": {},
+		"planning_outcome": "timeout",
+		"direct_vs_delegate_branch": "terminal",
+		"workflow_mode": "terminal",
+		"handoff": {},
+		"handoff_chain": [],
+		"tool_invocations": [],
+		"selected_tool": "none",
+		"selected_tools": [],
+		"context_projections": [],
+		"answer_artifact_projection_ids": [],
+		"answer_artifact_kinds": [],
+		"tool_argument_summary": {},
+		"guardrail_outcomes": {},
+		"fail_close_reason": "execution_timeout",
+		"runtime_versions": {
+			"workflow_trace_summary": "workflow-trace-summary-v4"
+		},
+		"policy_artifact_versions": {}
+	},
+	"trace_id": "trace-contract-timeout"
+}

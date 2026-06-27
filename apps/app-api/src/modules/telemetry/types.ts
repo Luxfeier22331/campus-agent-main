@@ -10,7 +10,7 @@ export interface BaseRequestTelemetry {
 	conversationId: string;
 	principalType?: string | null;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope?: RequestedScope | null;
 	resolvedScope?: RequestedScope | null;
 	safetyIdentifier?: string | null;
@@ -41,15 +41,16 @@ export interface AppTelemetry {
 	getTraceHeaders(input?: { request?: Request | Headers | null }): TracePropagationHeaders;
 	markHttpResponseStatus(status: number): void;
 	recordExecutionAuditEvent(input: {
+		activityDurationMs: number | null;
 		decision: string | null;
 		durationMs: number | null;
 		eventType: string;
 		failureKind: string | null;
 		httpStatus: number | null;
-		lane: string | null;
+		taskQueue: string | null;
 		queueWaitMs: number | null;
 		requestId: string;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		retryable: boolean | null;
 		status: string;
 		surface: string;
@@ -87,7 +88,7 @@ export interface AppTelemetry {
 			durationMs: number;
 			errorCode: string | null;
 			retryable: boolean | null;
-			selectedCapability: string | null;
+			selectedTool: string | null;
 			sourceDocIds: string[];
 			status:
 				| "completed"
@@ -116,11 +117,11 @@ export interface AppTelemetry {
 		rationaleSummary: string | null;
 		requestId: string;
 		requestStartedAt: string;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		requestedScopeSummary: string | null;
 		sampledAt: string;
 		scoreMilli: number | null;
-		selectedCapability: string | null;
+		selectedTool: string | null;
 		surface: string;
 		traceId: string;
 		verdict: "pass" | "fail" | "needs_review";

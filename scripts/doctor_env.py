@@ -343,28 +343,26 @@ def _collect_surface_conditions(
         ),
     }
 
-    opened_capabilities = _runtime_profile_open_capabilities(profile_payload)
-    structured_runtime_required = bool(
-        opened_capabilities.intersection({"campus_services", "notice"})
-    )
-    structured_missing: list[str] = []
-    if structured_runtime_required:
+    opened_tools = _runtime_profile_open_tools(profile_payload)
+    tool_read_model_required = bool(_tool_read_model_tools(opened_tools))
+    tool_read_model_missing: list[str] = []
+    if tool_read_model_required:
         if not _setting_present(optional_settings, "internal_query_shared_secret"):
-            structured_missing.append("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
+            tool_read_model_missing.append("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
-            structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
-    conditions["structured_runtime_contract"] = {
-        "required": structured_runtime_required,
-        "opened_capabilities": sorted(opened_capabilities),
-        "ready": len(structured_missing) == 0,
+            tool_read_model_missing.append("CAMPUS_SHARED_POSTGRES_URL")
+    conditions["tool_read_model_runtime_contract"] = {
+        "required": tool_read_model_required,
+        "open_tools": sorted(opened_tools),
+        "ready": len(tool_read_model_missing) == 0,
         "error": (
-            "structured runtime opened but missing " + " / ".join(structured_missing)
-            if structured_missing
+            "tool read model tools opened but missing " + " / ".join(tool_read_model_missing)
+            if tool_read_model_missing
             else None
         ),
     }
 
-    notice_capability_open = "notice" in opened_capabilities
+    notice_tools_open = bool(_notice_tools(opened_tools))
     notice_missing: list[str] = []
     notice_read_model_present = (
         _setting_present(
@@ -373,7 +371,7 @@ def _collect_surface_conditions(
         )
         or shared_postgres_present
     )
-    if notice_capability_open:
+    if notice_tools_open:
         if not notice_read_model_present:
             notice_missing.append(
                 "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
@@ -387,10 +385,11 @@ def _collect_surface_conditions(
         if not _setting_present(optional_settings, "notice_object_store_bucket"):
             notice_missing.append("EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_BUCKET")
     conditions["notice_runtime_contract"] = {
-        "required": notice_capability_open,
+        "required": notice_tools_open,
+        "open_tools": sorted(_notice_tools(opened_tools)),
         "ready": len(notice_missing) == 0,
         "error": (
-            "notice capability opened but missing " + " / ".join(notice_missing)
+            "notice tools opened but missing " + " / ".join(notice_missing)
             if notice_missing
             else None
         ),
@@ -465,11 +464,23 @@ def _collect_execution_control_runtime_profile_status(
     }
 
 
-def _runtime_profile_open_capabilities(profile: dict[str, object]) -> set[str]:
-    raw_value = profile.get("open_capabilities")
+def _runtime_profile_open_tools(profile: dict[str, object]) -> set[str]:
+    raw_value = profile.get("open_tools")
     if not isinstance(raw_value, list):
         return set()
     return {item.strip() for item in raw_value if isinstance(item, str) and item.strip()}
+
+
+def _tool_read_model_tools(open_tools: set[str]) -> set[str]:
+    return {
+        tool
+        for tool in open_tools
+        if tool.startswith("campus_notice_") or tool == "transport_schedule_lookup"
+    }
+
+
+def _notice_tools(open_tools: set[str]) -> set[str]:
+    return {tool for tool in open_tools if tool.startswith("campus_notice_")}
 
 
 def _setting_present(

@@ -6,7 +6,7 @@
 	"additionalProperties": false,
 	"required": [
 		"schema_version",
-		"capability",
+		"tool",
 		"tool_name",
 		"query_kind",
 		"outcome",
@@ -20,8 +20,8 @@
 		"schema_version": {
 			"const": "campus_services_tool_result.v1"
 		},
-		"capability": {
-			"const": "campus_services"
+		"tool": {
+			"const": "transport_schedule_lookup"
 		},
 		"tool_name": {
 			"enum": ["transport_schedule_lookup"]

@@ -14,10 +14,10 @@ export interface RawRequestProjectionRecord {
 	projectedAt: string;
 	questionPreview: string;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: Record<string, unknown> | null;
 	resolvedScope: Record<string, unknown> | null;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	sourceDocIds: string[];
 	startedAt: string;
 	status: string;
@@ -113,7 +113,7 @@ export interface RequestRuntimeRunModel {
 }
 
 export interface RequestRuntimeStepModel {
-	capability: string | null;
+	tool: string | null;
 	durationMs: number | null;
 	failCloseReason: string | null;
 	modelName: string | null;

@@ -21,18 +21,18 @@ from campus_contracts.models_retrieval import (
 )
 from campus_contracts.models_shared import (
     _SHA256_HEX_RE,
-    ALLOWED_CAPABILITY_IDS,
-    ALLOWED_CAPABILITY_TOOL_NAMES,
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_DELEGATE_STATUSES,
     ALLOWED_EXECUTION_STATUSES,
-    ALLOWED_REQUESTED_CAPABILITIES,
-    CapabilityID,
-    CapabilityToolName,
+    ALLOWED_REQUESTED_TOOLS,
+    ALLOWED_TOOL_IDS,
+    ALLOWED_TOOL_NAMES,
     ConfidenceLevel,
     DelegateStatus,
     ExecutionStatus,
-    RequestedCapability,
+    RequestedTool,
+    ToolID,
+    ToolName,
 )
 from campus_contracts.models_tools import (
     CampusNoticeChangeSetLookupPayload,
@@ -140,7 +140,7 @@ class RagResultPayload:
 
 
 @dataclass(frozen=True, slots=True)
-class CapabilityObservability:
+class ToolObservability:
     selected_tool: str = ""
     tool_attempted: bool | None = None
     tool_outcome: str = ""
@@ -165,8 +165,8 @@ class WorkflowTraceSummary:
     workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
-    capability_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
-    selected_capability: str = ""
+    tool_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    selected_tool: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     answer_artifact_projection_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -185,7 +185,7 @@ class WorkflowTraceSummary:
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
             ("context_projections", self.context_projections),
-            ("capability_invocations", self.capability_invocations),
+            ("tool_invocations", self.tool_invocations),
             ("tool_argument_summary", self.tool_argument_summary),
             ("trace_steps", self.trace_steps),
             ("tool_call_summaries", self.tool_call_summaries),
@@ -204,29 +204,27 @@ class WorkflowTraceSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class WorkflowCapabilityContext:
-    schema_version: str = "workflow-capability-context-v1"
-    visibility: str = "capability_private"
+class WorkflowToolContext:
+    schema_version: str = "workflow-tool-context-v1"
+    visibility: str = "tool_private"
     workflow_run_ref: str = ""
     step_id: str = ""
-    capability_id: str = ""
-    capability: str = ""
+    tool_id: str = ""
+    tool: str = ""
     required_projection_kind: str = ""
     expected_output_artifacts: tuple[str, ...] = field(default_factory=tuple)
     projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
-        if self.schema_version != "workflow-capability-context-v1":
-            raise ValueError(
-                "workflow_context.schema_version must be workflow-capability-context-v1"
-            )
-        if self.visibility != "capability_private":
-            raise ValueError("workflow_context.visibility must be capability_private")
+        if self.schema_version != "workflow-tool-context-v1":
+            raise ValueError("workflow_context.schema_version must be workflow-tool-context-v1")
+        if self.visibility != "tool_private":
+            raise ValueError("workflow_context.visibility must be tool_private")
         workflow_used = bool(
             self.workflow_run_ref.strip()
             or self.step_id.strip()
-            or self.capability_id.strip()
-            or self.capability.strip()
+            or self.tool_id.strip()
+            or self.tool.strip()
             or self.required_projection_kind.strip()
             or self.projection_refs
         )
@@ -235,8 +233,8 @@ class WorkflowCapabilityContext:
                 raise ValueError("workflow_context.workflow_run_ref is required")
             if not self.step_id.strip():
                 raise ValueError("workflow_context.step_id is required")
-            if self.capability_id not in ALLOWED_CAPABILITY_IDS:
-                raise ValueError("workflow_context.capability_id is required")
+            if self.tool_id not in ALLOWED_TOOL_IDS:
+                raise ValueError("workflow_context.tool_id is required")
         if self.required_projection_kind and not any(
             str(item.get("projection_kind") or "").strip() == self.required_projection_kind
             for item in self.projection_refs
@@ -274,7 +272,7 @@ class ExecutionObservability:
     semantic_outcome: str = ""
     scope_class: str = ""
     policy_reason: str = ""
-    intent_capability: str = ""
+    intent_tool: str = ""
     intent_task_kind: str = ""
     intent_launch_state: str = ""
     intent_next_action: str = ""
@@ -324,7 +322,7 @@ def _normalize_optional_safety_identifier(value: str | None) -> str | None:
     return normalized
 
 
-def _coerce_context_projection(request: ExecutionRequest | CapabilityRequest) -> None:
+def _coerce_context_projection(request: ExecutionRequest | ToolRequest) -> None:
     default_actor = ActorContext()
     default_context = ContextProjection()
     if request.actor == default_actor and request.context == default_context:
@@ -352,7 +350,7 @@ class ExecutionRequest:
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
-    requested_capability: RequestedCapability | None = None
+    requested_tool: RequestedTool | None = None
     requested_scope: KnowledgeScope | None = None
     version_query: VersionQuery = field(default_factory=VersionQuery)
 
@@ -363,16 +361,13 @@ class ExecutionRequest:
         if normalized_safety_identifier != self.safety_identifier:
             object.__setattr__(self, "safety_identifier", normalized_safety_identifier)
         _coerce_context_projection(self)
-        if (
-            self.requested_capability is not None
-            and self.requested_capability not in ALLOWED_REQUESTED_CAPABILITIES
-        ):
-            raise ValueError(f"unsupported requested_capability: {self.requested_capability}")
+        if self.requested_tool is not None and self.requested_tool not in ALLOWED_REQUESTED_TOOLS:
+            raise ValueError(f"unsupported requested_tool: {self.requested_tool}")
 
 
 @dataclass(frozen=True, slots=True)
-class CapabilityRequest:
-    capability: CapabilityID
+class ToolRequest:
+    tool: ToolID
     user_goal: str
     payload: (
         RagRequestPayload
@@ -383,20 +378,20 @@ class CapabilityRequest:
         | CampusNoticePeriodSummaryPayload
         | CampusNoticeGetPayload
     )
-    allowed_tools: tuple[CapabilityToolName, ...] = field(default_factory=tuple)
+    allowed_tools: tuple[ToolName, ...] = field(default_factory=tuple)
     conversation_id: str = ""
     request_id: str = ""
     safety_identifier: str | None = None
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
-    workflow_context: WorkflowCapabilityContext = field(default_factory=WorkflowCapabilityContext)
+    workflow_context: WorkflowToolContext = field(default_factory=WorkflowToolContext)
 
     def __post_init__(self) -> None:
-        if self.capability not in ALLOWED_CAPABILITY_IDS:
-            raise ValueError(f"unsupported capability: {self.capability}")
+        if self.tool not in ALLOWED_TOOL_IDS:
+            raise ValueError(f"unsupported tool: {self.tool}")
         for allowed_tool in self.allowed_tools:
-            if allowed_tool not in ALLOWED_CAPABILITY_TOOL_NAMES:
+            if allowed_tool not in ALLOWED_TOOL_NAMES:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
@@ -407,8 +402,8 @@ class CapabilityRequest:
 
 
 @dataclass(frozen=True, slots=True)
-class CapabilityResponse:
-    capability: CapabilityID
+class ToolResponse:
+    tool: ToolID
     status: DelegateStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -424,11 +419,11 @@ class CapabilityResponse:
         | None
     ) = None
     error: ErrorInfo | None = None
-    capability_observability: CapabilityObservability | None = None
+    tool_observability: ToolObservability | None = None
 
     def __post_init__(self) -> None:
-        if self.capability not in ALLOWED_CAPABILITY_IDS:
-            raise ValueError(f"unsupported capability: {self.capability}")
+        if self.tool not in ALLOWED_TOOL_IDS:
+            raise ValueError(f"unsupported tool: {self.tool}")
         if self.status not in ALLOWED_DELEGATE_STATUSES:
             raise ValueError(f"unsupported delegate status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:
@@ -437,7 +432,7 @@ class CapabilityResponse:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResponse:
-    selected_capability: CapabilityID | None
+    selected_tool: ToolID | None
     status: ExecutionStatus
     answer_text: str = ""
     follow_up_question: str = ""
@@ -457,11 +452,8 @@ class ExecutionResponse:
     workflow_trace_summary: WorkflowTraceSummary | None = None
 
     def __post_init__(self) -> None:
-        if (
-            self.selected_capability is not None
-            and self.selected_capability not in ALLOWED_CAPABILITY_IDS
-        ):
-            raise ValueError(f"unsupported selected_capability: {self.selected_capability}")
+        if self.selected_tool is not None and self.selected_tool not in ALLOWED_TOOL_IDS:
+            raise ValueError(f"unsupported selected_tool: {self.selected_tool}")
         if self.status not in ALLOWED_EXECUTION_STATUSES:
             raise ValueError(f"unsupported execution status: {self.status}")
         if self.confidence not in ALLOWED_CONFIDENCE_LEVELS:

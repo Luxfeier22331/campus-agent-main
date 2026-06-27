@@ -34,8 +34,8 @@ export interface StoredRequestObservabilitySeed {
 	surface: string;
 	requestStartedAt: string;
 	requestedScopeSummary: string | null;
-	selectedCapability: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string;
 	collection: string | null;
 	modelName: string | null;
@@ -47,8 +47,8 @@ export interface QualityGradeProjectionWrite {
 	traceId: string;
 	surface: string;
 	requestStartedAt: string;
-	selectedCapability: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string;
 	collection: string | null;
 	modelName: string | null;
@@ -125,10 +125,10 @@ function toStoredRequestObservabilitySeed(
 		modelName: row.modelName ?? null,
 		principalType: row.principalType,
 		requestId: row.requestId,
-		requestedCapability: row.requestedCapability ?? null,
+		requestedTool: row.requestedTool ?? null,
 		requestedScopeSummary: row.requestedScopeSummary ?? null,
 		requestStartedAt: row.startedAt.toISOString(),
-		selectedCapability: row.selectedCapability ?? null,
+		selectedTool: row.selectedTool ?? null,
 		surface: row.surface,
 		traceId: row.traceId,
 	};
@@ -273,10 +273,10 @@ export function createPgOperatorObservabilityCommandStore(
 							rationaleSummary: grade.rationaleSummary,
 							requestId: grade.requestId,
 							requestStartedAt: new Date(grade.requestStartedAt),
-							requestedCapability: grade.requestedCapability,
+							requestedTool: grade.requestedTool,
 							sampledAt: new Date(grade.sampledAt),
 							scoreMilli: grade.scoreMilli,
-							selectedCapability: grade.selectedCapability,
+							selectedTool: grade.selectedTool,
 							surface: grade.surface,
 							traceId: grade.traceId,
 							verdict: grade.verdict,
@@ -293,10 +293,10 @@ export function createPgOperatorObservabilityCommandStore(
 								rationaleSummary: grade.rationaleSummary,
 								requestId: grade.requestId,
 								requestStartedAt: new Date(grade.requestStartedAt),
-								requestedCapability: grade.requestedCapability,
+								requestedTool: grade.requestedTool,
 								sampledAt: new Date(grade.sampledAt),
 								scoreMilli: grade.scoreMilli,
-								selectedCapability: grade.selectedCapability,
+								selectedTool: grade.selectedTool,
 								surface: grade.surface,
 								traceId: grade.traceId,
 								verdict: grade.verdict,

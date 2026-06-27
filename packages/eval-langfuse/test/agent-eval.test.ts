@@ -91,7 +91,7 @@ describe("agent eval TS runner", () => {
 						case_id: "agent-routing-network-password-knowledge",
 						direct_answer: false,
 						requires_clarification: false,
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						terminal_outcome: "completed",
 						trace_id: "trace-routing-001",
 					},
@@ -205,7 +205,7 @@ describe("agent eval TS runner", () => {
 						trajectory: {
 							direct_answer: false,
 							requires_clarification: false,
-							selected_capability: "knowledge",
+							selected_tool: "knowledge_query",
 						},
 					},
 					runId: "routing-network-password",
@@ -230,7 +230,7 @@ describe("agent eval TS runner", () => {
 		expect(prompts).toEqual(["校园网密码怎么改"]);
 		expect(observations.observations[0]).toMatchObject({
 			case_id: "agent-routing-network-password-knowledge",
-			selected_capability: "knowledge",
+			selected_tool: "knowledge_query",
 			trace_id: "trace-routing-network-password",
 		});
 		expect(caseResults.schema_version).toBe("agent_eval_case_results.v1");
@@ -297,7 +297,7 @@ describe("agent eval TS runner", () => {
 							fail_close_reason: "unsupported_source",
 						},
 						trajectory: {
-							selected_capability: "knowledge",
+							selected_tool: "knowledge_query",
 						},
 						planning: {
 							decomposition: ["unsupported_external_source"],
@@ -347,7 +347,7 @@ describe("agent eval TS runner", () => {
 						status: "completed",
 					},
 					trajectory: {
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 					},
 					rag: {
 						source_refs: [
@@ -371,10 +371,10 @@ describe("agent eval TS runner", () => {
 					},
 				],
 				workflowTraceSummary: {
-					selected_capability: "knowledge",
+					selected_tool: "knowledge_query",
 					trace_steps: [
 						{ status: "completed", step_id: "memory.recall" },
-						{ selected_capability: "knowledge", status: "completed", step_id: "agent.primary" },
+						{ selected_tool: "knowledge_query", status: "completed", step_id: "agent.primary" },
 						{ status: "completed", step_id: "finalization.write" },
 					],
 				},
@@ -488,7 +488,7 @@ describe("agent eval TS runner", () => {
 						status: "completed",
 					},
 					trajectory: {
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 					},
 					planning: {
 						decomposition: ["campus_card", "current_policy"],
@@ -505,9 +505,9 @@ describe("agent eval TS runner", () => {
 					},
 				],
 				workflowTraceSummary: {
-					selected_capability: "knowledge",
+					selected_tool: "knowledge_query",
 					trace_steps: [
-						{ selected_capability: "knowledge", status: "completed", step_id: "rag.plan" },
+						{ selected_tool: "knowledge_query", status: "completed", step_id: "rag.plan" },
 					],
 				},
 			}),
@@ -557,7 +557,7 @@ describe("agent eval TS runner", () => {
 					},
 					runtimeStepResults: [],
 					workflowTraceSummary: {
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						trace_steps: [{ status: "completed", step_id: "memory.recall" }],
 					},
 				}),
@@ -583,7 +583,7 @@ describe("agent eval TS runner", () => {
 							status: "completed",
 						},
 						trajectory: {
-							selected_capability: "knowledge",
+							selected_tool: "knowledge_query",
 						},
 						memory: {
 							behavior: "previous_evidence_reuse",
@@ -592,7 +592,7 @@ describe("agent eval TS runner", () => {
 					},
 					runtimeStepResults: [],
 					workflowTraceSummary: {
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						trace_steps: [{ status: "completed", step_id: "memory.recall" }],
 					},
 				}),
@@ -663,7 +663,7 @@ describe("agent eval TS runner", () => {
 										status: "completed",
 									},
 									trajectory: {
-										selected_capability: "knowledge",
+										selected_tool: "knowledge_query",
 									},
 									memory: {
 										behavior: "user_isolation",
@@ -707,7 +707,7 @@ describe("agent eval TS runner", () => {
 						case_id: "agent-routing-network-password-knowledge",
 						direct_answer: false,
 						requires_clarification: false,
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						terminal_outcome: "completed",
 						trace_id: "trace-routing-001",
 					},
@@ -754,7 +754,7 @@ describe("agent eval TS runner", () => {
 						case_id: "agent-routing-network-password-knowledge",
 						direct_answer: false,
 						requires_clarification: false,
-						selected_capability: "knowledge",
+						selected_tool: "knowledge_query",
 						terminal_outcome: "completed",
 						trace_id: "trace-routing-001",
 					},

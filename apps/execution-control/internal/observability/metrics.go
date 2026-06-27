@@ -36,13 +36,13 @@ type AdmissionSnapshot struct {
 	Queued         int
 	QueueCapacity  int
 	Draining       bool
-	Lanes          map[string]AdmissionLaneSnapshot
+	Groups         map[string]AdmissionGroupSnapshot
 	Lifecycle      LifecycleSnapshot
 	Telemetry      TelemetrySnapshot
 	ExecutionAudit ExecutionAuditSnapshot
 }
 
-type AdmissionLaneSnapshot struct {
+type AdmissionGroupSnapshot struct {
 	Active        int
 	Queued        int
 	QueueCapacity int
@@ -75,21 +75,21 @@ type ExecutionAuditSnapshot struct {
 	LastError    string
 }
 
-type laneDecisionKey struct {
-	Lane     string
+type groupDecisionKey struct {
+	Group    string
 	Decision string
 }
 
-type structuredQueryKey struct {
+type toolReadModelKey struct {
 	Tool        string
 	Outcome     string
 	StatusClass string
 }
 
-type capabilityGateKey struct {
-	Capability string
-	Gate       string
-	Decision   string
+type toolGateKey struct {
+	Tool     string
+	Gate     string
+	Decision string
 }
 
 type personalMemoryOperationKey struct {
@@ -106,28 +106,26 @@ type valueHistogram struct {
 }
 
 type RuntimeDecisionLabels struct {
-	Capability            string
-	Lane                  string
+	Target                string
+	TaskQueue             string
 	ScopeGate             string
 	PolicyGate            string
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
-	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string
 }
 
 type runtimeDecisionKey struct {
-	Capability            string
-	Lane                  string
+	Target                string
+	TaskQueue             string
 	ScopeGate             string
 	PolicyGate            string
 	ContextPreflightState string
 	RoutingNextAction     string
 	PlanningOutcome       string
-	SelectedCapability    string
 	SelectedTool          string
 	TerminalOutcome       string
 	FailCloseReason       string
@@ -140,11 +138,11 @@ type Metrics struct {
 	requestTotals           map[requestKey]uint64
 	requestDurations        map[string]*routeHistogram
 	admissionDecisionTotals map[string]uint64
-	laneDecisionTotals      map[laneDecisionKey]uint64
+	groupDecisionTotals     map[groupDecisionKey]uint64
 	admissionWaitDurations  *routeHistogram
-	laneWaitDurations       map[string]*routeHistogram
-	structuredQueryTotals   map[structuredQueryKey]uint64
-	capabilityGateTotals    map[capabilityGateKey]uint64
+	groupWaitDurations      map[string]*routeHistogram
+	toolReadModelTotals     map[toolReadModelKey]uint64
+	toolGateTotals          map[toolGateKey]uint64
 	personalMemoryTotals    map[personalMemoryOperationKey]uint64
 	personalMemoryDurations map[string]*routeHistogram
 	personalMemoryItems     map[string]*valueHistogram
@@ -158,20 +156,20 @@ func NewMetrics() *Metrics {
 		requestTotals:    make(map[requestKey]uint64),
 		requestDurations: make(map[string]*routeHistogram),
 		admissionDecisionTotals: map[string]uint64{
-			"admitted_immediate": 0,
-			"admitted_queued":    0,
-			"queue_full":         0,
-			"queue_timeout":      0,
-			"lane_queue_full":    0,
-			"lane_queue_timeout": 0,
-			"client_canceled":    0,
-			"draining":           0,
+			"admitted_immediate":  0,
+			"admitted_queued":     0,
+			"queue_full":          0,
+			"queue_timeout":       0,
+			"group_queue_full":    0,
+			"group_queue_timeout": 0,
+			"client_canceled":     0,
+			"draining":            0,
 		},
-		laneDecisionTotals:      make(map[laneDecisionKey]uint64),
+		groupDecisionTotals:     make(map[groupDecisionKey]uint64),
 		admissionWaitDurations:  newHistogram(),
-		laneWaitDurations:       make(map[string]*routeHistogram),
-		structuredQueryTotals:   make(map[structuredQueryKey]uint64),
-		capabilityGateTotals:    make(map[capabilityGateKey]uint64),
+		groupWaitDurations:      make(map[string]*routeHistogram),
+		toolReadModelTotals:     make(map[toolReadModelKey]uint64),
+		toolGateTotals:          make(map[toolGateKey]uint64),
 		personalMemoryTotals:    make(map[personalMemoryOperationKey]uint64),
 		personalMemoryDurations: make(map[string]*routeHistogram),
 		personalMemoryItems:     make(map[string]*valueHistogram),
@@ -228,8 +226,8 @@ func (m *Metrics) RecordAdmissionDecision(decision string, waitDuration time.Dur
 	}
 }
 
-func (m *Metrics) RecordAdmissionDecisionForLane(
-	lane string,
+func (m *Metrics) RecordAdmissionDecisionForGroup(
+	group string,
 	decision string,
 	waitDuration time.Duration,
 ) {
@@ -237,35 +235,35 @@ func (m *Metrics) RecordAdmissionDecisionForLane(
 	defer m.mu.Unlock()
 
 	m.admissionDecisionTotals[decision]++
-	m.laneDecisionTotals[laneDecisionKey{Lane: lane, Decision: decision}]++
+	m.groupDecisionTotals[groupDecisionKey{Group: group, Decision: decision}]++
 	if decision == "admitted_queued" {
 		recordHistogramDuration(m.admissionWaitDurations, waitDuration)
-		histogram := m.laneWaitDurations[lane]
+		histogram := m.groupWaitDurations[group]
 		if histogram == nil {
 			histogram = newHistogram()
-			m.laneWaitDurations[lane] = histogram
+			m.groupWaitDurations[group] = histogram
 		}
 		recordHistogramDuration(histogram, waitDuration)
 	}
 }
 
-func (m *Metrics) RecordStructuredQuery(tool string, outcome string, statusCode int) {
+func (m *Metrics) RecordToolReadModel(tool string, outcome string, statusCode int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.structuredQueryTotals[structuredQueryKey{
+	m.toolReadModelTotals[toolReadModelKey{
 		Tool:        tool,
 		Outcome:     outcome,
 		StatusClass: statusClass(statusCode),
 	}]++
 }
 
-func (m *Metrics) RecordCapabilityGate(capability string, gate string, decision string) {
+func (m *Metrics) RecordToolGate(tool string, gate string, decision string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.capabilityGateTotals[capabilityGateKey{
-		Capability: capability,
-		Gate:       gate,
-		Decision:   decision,
+	m.toolGateTotals[toolGateKey{
+		Tool:     tool,
+		Gate:     gate,
+		Decision: decision,
 	}]++
 }
 
@@ -312,14 +310,13 @@ func (m *Metrics) RecordRuntimeDecision(labels RuntimeDecisionLabels) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.runtimeDecisionTotals[runtimeDecisionKey{
-		Capability:            defaultMetricLabel(labels.Capability, "unknown"),
-		Lane:                  defaultMetricLabel(labels.Lane, "unknown"),
+		Target:                defaultMetricLabel(labels.Target, "unknown"),
+		TaskQueue:             defaultMetricLabel(labels.TaskQueue, "unknown"),
 		ScopeGate:             defaultMetricLabel(labels.ScopeGate, "unknown"),
 		PolicyGate:            defaultMetricLabel(labels.PolicyGate, "unknown"),
 		ContextPreflightState: defaultMetricLabel(labels.ContextPreflightState, "unknown"),
 		RoutingNextAction:     defaultMetricLabel(labels.RoutingNextAction, "unknown"),
 		PlanningOutcome:       defaultMetricLabel(labels.PlanningOutcome, "unknown"),
-		SelectedCapability:    defaultMetricLabel(labels.SelectedCapability, "none"),
 		SelectedTool:          defaultMetricLabel(labels.SelectedTool, "none"),
 		TerminalOutcome:       defaultMetricLabel(labels.TerminalOutcome, "none"),
 		FailCloseReason:       defaultMetricLabel(labels.FailCloseReason, "none"),

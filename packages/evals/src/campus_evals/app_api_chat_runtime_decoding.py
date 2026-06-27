@@ -43,7 +43,7 @@ def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
 
     if kind == "answer":
         return ExecutionResponse(
-            selected_capability="knowledge",
+            selected_tool="knowledge_query",
             status="completed",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -52,7 +52,7 @@ def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
     if kind == "clarification":
         follow_up = _required_string(result.get("text"), "answer.result.text")
         return ExecutionResponse(
-            selected_capability="knowledge",
+            selected_tool="knowledge_query",
             status="needs_clarification",
             answer_text=follow_up,
             follow_up_question=follow_up,
@@ -61,7 +61,7 @@ def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
         )
     if kind == "no_answer":
         return ExecutionResponse(
-            selected_capability="knowledge",
+            selected_tool="knowledge_query",
             status="no_answer",
             answer_text=_required_string(result.get("text"), "answer.result.text"),
             confidence="low",
@@ -71,7 +71,7 @@ def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
         message = _required_string(result.get("message"), "answer.result.message")
         error_code = _required_string(result.get("errorCode"), "answer.result.errorCode")
         return ExecutionResponse(
-            selected_capability=None,
+            selected_tool=None,
             status="error",
             answer_text=message,
             confidence="low",
@@ -87,7 +87,7 @@ def _build_execution_response(result: dict[str, object]) -> ExecutionResponse:
 
 def _build_execution_response_from_internal_eval(payload: dict[str, object]) -> ExecutionResponse:
     status = _required_string(payload.get("status"), "execution.status")
-    selected_capability = _optional_string(payload.get("selectedCapability"))
+    selected_tool = _optional_string(payload.get("selectedTool"))
     answer_text = _optional_string(payload.get("answerText")) or ""
     follow_up_question = _optional_string(payload.get("followUpQuestion")) or ""
     trace_id = _required_string(payload.get("traceId"), "execution.traceId")
@@ -103,7 +103,7 @@ def _build_execution_response_from_internal_eval(payload: dict[str, object]) -> 
         )
 
     return ExecutionResponse(
-        selected_capability=selected_capability,
+        selected_tool=selected_tool,
         status=status,  # type: ignore[arg-type]
         answer_text=answer_text,
         follow_up_question=follow_up_question,
@@ -147,9 +147,7 @@ def _parse_workflow_trace_summary(value: object) -> WorkflowTraceSummary | None:
         or "",
         handoff=_optional_record(record.get("handoff")) or {},
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
-        selected_capability=_optional_string(
-            _record_value(record, "selected_capability", "selectedCapability")
-        )
+        selected_tool=_optional_string(_record_value(record, "selected_tool", "selectedTool"))
         or "",
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(

@@ -24,9 +24,9 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         project = (REPO_ROOT / ".planning" / "PROJECT.md").read_text(encoding="utf-8")
         workstreams = (REPO_ROOT / ".planning" / "WORKSTREAMS.md").read_text(encoding="utf-8")
-        current_architecture = (
-            REPO_ROOT / "docs" / "architecture" / "current-architecture.md"
-        ).read_text(encoding="utf-8")
+        current_architecture = (REPO_ROOT / "docs" / "architecture" / "current.md").read_text(
+            encoding="utf-8"
+        )
         product_runtime = (
             REPO_ROOT / "docs" / "architecture" / "system" / "product-runtime-architecture.md"
         ).read_text(encoding="utf-8")

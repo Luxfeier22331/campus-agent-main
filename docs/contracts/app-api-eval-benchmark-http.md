@@ -18,9 +18,9 @@ ingress seam。
 - browser-facing app contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - `app-api -> execution-control`
-  内部执行契约：`docs/contracts/capability-execution.md`
+  内部执行契约：`docs/contracts/tool-execution.md`
 - operator observability ingest/query
-  seam：`docs/contracts/app-api-operator-observability-http.md`
+  seam：`docs/contracts/app-api-observability.md`
 - eval artifact truth：`docs/reference/eval-benchmark-artifact-contract.md`
 
 它不冻结：
@@ -125,7 +125,7 @@ ingress seam。
 
 - `surface = eval_benchmark`
 - identity 取自 internal eval headers，而不是 session principal
-- 非 `current` 的 eval case 现在通过同一条 `app-api` command path 进入 execution，不再走
+- 非 `current` 的 eval case 现在通过同一条 `app-api` command path 进入 execution-control，不再走
   legacy shortcut
 
 ## Success Response
@@ -158,7 +158,7 @@ response body：
   },
   "execution": {
     "status": "completed",
-    "selectedCapability": "knowledge",
+    "selectedTool": "knowledge_query",
     "traceId": "trace_eval_01HQ",
     "answerText": "图书馆开放到 22:00。",
     "followUpQuestion": "",
@@ -289,7 +289,7 @@ operator-safe review candidate：
         "status": "attributed",
         "stepId": "evidence.selection",
         "stepKind": "selection",
-        "capability": "knowledge",
+        "tool": "knowledge_query",
         "toolName": null,
         "stepStatus": "completed",
         "outcome": {

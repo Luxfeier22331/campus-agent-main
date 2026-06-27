@@ -2,20 +2,20 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from campus_contracts import ContextProjection, KnowledgeScope, RequestedCapability, VersionQuery
+from campus_contracts import ContextProjection, KnowledgeScope, RequestedTool, VersionQuery
 
 
 @dataclass(frozen=True, slots=True)
 class IntentCase:
     case_id: str
     user_goal: str
-    expected_capability: str
+    expected_tool: str
     expected_task_kind: str
     expected_launch_state: str
     expected_next_action: str
     expected_scope_class: str
     expected_target: str
-    requested_capability: RequestedCapability | None = None
+    requested_tool: RequestedTool | None = None
     requested_scope: KnowledgeScope | None = None
     version_query: VersionQuery = field(default_factory=VersionQuery)
     context: ContextProjection = field(default_factory=ContextProjection)
@@ -34,15 +34,15 @@ class IntentCase:
             raise ValueError("case_id must not be empty")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")
-        if not self.expected_capability.strip() and not self.expected_error_code:
-            raise ValueError("expected_capability must not be empty")
+        if not self.expected_tool.strip() and not self.expected_error_code:
+            raise ValueError("expected_tool must not be empty")
         if not self.expected_target.strip():
             raise ValueError("expected_target must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
 class ObservedIntent:
-    capability: str = ""
+    tool: str = ""
     task_kind: str = ""
     launch_state: str = ""
     next_action: str = ""
@@ -81,7 +81,7 @@ class IntentEvalReport:
     critical_gate_pass_rate: float | None
     confusion: dict[str, dict[str, int]]
     results: tuple[IntentCaseResult, ...]
-    capability_accuracy: float | None = None
+    tool_accuracy: float | None = None
     next_action_accuracy: float | None = None
     handoff_accuracy: float | None = None
     context_resolution_accuracy: float | None = None

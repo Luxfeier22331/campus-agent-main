@@ -42,7 +42,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
-				"capability":   "campus_services",
+				"tool":         "transport_schedule_lookup",
 				"payload_kind": "transport_schedule_lookup",
 				"result_ref":   "agent-runtime://run-primary-agent-finalization/tools/transport_schedule_lookup",
 				"result":       map[string]any{"outcome": "resolved_current"},
@@ -100,8 +100,8 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if completedRun.FinalResponseRef != output.ProjectionRef {
 		t.Fatalf("final response ref = %q, want %q", completedRun.FinalResponseRef, output.ProjectionRef)
 	}
-	if completedRun.SelectedCapability != "campus_services" {
-		t.Fatalf("run selected capability = %q, want campus_services", completedRun.SelectedCapability)
+	if completedRun.SelectedTool != "transport_schedule_lookup" {
+		t.Fatalf("run selected tool = %q, want transport_schedule_lookup", completedRun.SelectedTool)
 	}
 	events, err := store.ListRunEvents(context.Background(), "run-primary-agent-finalization")
 	if err != nil {
@@ -123,8 +123,8 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	if finalizationResponse["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("answer_text = %#v", finalizationResponse["answer_text"])
 	}
-	if finalizationResponse["selected_capability"] != "campus_services" {
-		t.Fatalf("selected_capability = %#v", finalizationResponse["selected_capability"])
+	if finalizationResponse["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("selected_tool = %#v", finalizationResponse["selected_tool"])
 	}
 	workflowTrace, ok := finalizationResponse["workflow_trace_summary"].(map[string]any)
 	if !ok {
@@ -132,7 +132,7 @@ func TestWriteFinalizationActivityCompletesPrimaryAgentResult(t *testing.T) {
 	}
 	if workflowTrace["workflow_mode"] != "single_step" ||
 		workflowTrace["first_decision_actor"] != "primary_agent" ||
-		workflowTrace["selected_capability"] != "campus_services" {
+		workflowTrace["selected_tool"] != "transport_schedule_lookup" {
 		t.Fatalf("workflow trace = %#v", workflowTrace)
 	}
 	toolCalls := expectRecordList(t, workflowTrace["tool_call_summaries"], "tool_call_summaries")

@@ -141,8 +141,8 @@ Identity answers “who is this principal in the institution context?”
 Minimum semantics:
 
 - end-user principal type: `campus_member`, `student`, `staff`, or `faculty`
-- separate operator/service principal class when the account represents an
-  operator bridge or controlled machine actor
+- separate operator/service principal class when the account represents a
+  controlled operator integration or machine actor
 - verification status
 - claims version
 - optional campus attributes such as department, cohort, major or program

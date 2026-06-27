@@ -8,8 +8,6 @@ import (
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredplanning"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
@@ -28,12 +26,12 @@ func (s *Server) PlanRouteActivity(
 	now := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    route.Capability,
+		Tool:          route.ToolTarget,
 		Run:           run,
 		Status:        "started",
 		StepID:        "plan.route",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     now,
 		UpdatedAt:     now,
@@ -44,7 +42,7 @@ func (s *Server) PlanRouteActivity(
 			"namespace":             input.Namespace,
 			"payload_sha256":        input.PayloadSHA256,
 			"policy_versions":       input.PolicyVersions,
-			"requested_capability":  input.RequestedCapability,
+			"requested_tool":        input.RequestedTool,
 			"selected_memory_chars": input.SelectedMemoryChars,
 			"selected_memory_count": input.SelectedMemoryCount,
 			"workflow_id":           input.WorkflowID,
@@ -84,13 +82,13 @@ func (s *Server) PlanRouteActivity(
 		Visibility:           execution.DurableRunEventVisibilityInternal,
 		PayloadSchemaVersion: "run-event-v1",
 		Payload: map[string]any{
-			"capability":      route.Capability,
+			"tool_target":     route.ToolTarget,
 			"namespace":       input.Namespace,
 			"payload_kind":    route.PayloadKind,
 			"payload_sha256":  input.PayloadSHA256,
 			"policy_versions": input.PolicyVersions,
 			"selected_tool":   route.ToolName,
-			"worker_role":     route.WorkerRole,
+			"task_queue":      route.TaskQueue,
 			"workflow_id":     input.WorkflowID,
 		},
 	}); err != nil {
@@ -98,12 +96,12 @@ func (s *Server) PlanRouteActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    route.Capability,
+		Tool:          route.ToolTarget,
 		Run:           run,
 		Status:        "completed",
 		StepID:        "plan.route",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     now,
 		CompletedAt:   now,
@@ -111,15 +109,17 @@ func (s *Server) PlanRouteActivity(
 		ResultKind:    "route_plan",
 		ProjectionRef: route.PlanRef,
 		Payload: map[string]any{
+			"allowed_tool_targets": append([]string{}, route.AllowedToolTargets...),
 			"allowed_tools":        append([]string{}, route.AllowedTools...),
 			"memory_ref":           input.MemoryRef,
 			"namespace":            input.Namespace,
 			"payload_kind":         route.PayloadKind,
 			"payload_sha256":       input.PayloadSHA256,
 			"policy_versions":      input.PolicyVersions,
-			"requested_capability": input.RequestedCapability,
+			"requested_tool":       input.RequestedTool,
 			"selected_tool":        route.ToolName,
-			"worker_role":          route.WorkerRole,
+			"tool_target":          route.ToolTarget,
+			"task_queue":           route.TaskQueue,
 			"workflow_id":          input.WorkflowID,
 		},
 	}); err != nil {
@@ -142,31 +142,32 @@ func (s *Server) PlanReplanActivity(
 	if strings.TrimSpace(input.PreviousPlanRef) == "" {
 		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("previous_plan_ref is required")
 	}
-	if len(input.AllowedCapabilities) == 0 {
-		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("allowed_capabilities is required")
+	if len(input.AllowedToolTargets) == 0 {
+		return temporalruntime.PlanReplanActivityOutput{}, fmt.Errorf("allowed_tool_targets is required")
 	}
 	now := time.Now().UTC()
 	replanRef := temporalProjectionRef(run.RunID, fmt.Sprintf("plan/replan/%d", input.ReplanCount))
-	step := temporalruntime.CapabilityBranchStep{
+	toolTarget := input.AllowedToolTargets[0]
+	step := temporalruntime.ToolBranchStep{
 		AllowedTools: append([]string{}, input.AllowedTools...),
-		Capability:   input.AllowedCapabilities[0],
 		PayloadKind:  firstNonEmptyText(input.PreviousStepID, "replanned_step"),
-		StepID:       fmt.Sprintf("replan:%d:%s", input.ReplanCount, input.AllowedCapabilities[0]),
-		ToolName:     firstNonEmptyText(firstString(input.AllowedTools), "retrieval.query"),
-		WorkerRole:   runtimepolicy.WorkerRoleForCapability(input.AllowedCapabilities[0]),
+		StepID:       fmt.Sprintf("replan:%d:%s", input.ReplanCount, toolTarget),
+		ToolName:     firstNonEmptyText(firstString(input.AllowedTools), "knowledge_query"),
+		ToolTarget:   toolTarget,
+		TaskQueue:    temporalruntime.ActivityTaskQueueForToolTarget(toolTarget),
 	}
-	if input.AllowedCapabilities[0] == "knowledge" {
+	if toolTarget == "knowledge_query" {
 		step.PayloadKind = "rag_request"
-		step.ToolName = "retrieval.query"
+		step.ToolName = "knowledge_query"
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       input.ReplanCount,
-		Capability:    step.Capability,
+		Tool:          step.ToolTarget,
 		Run:           run,
 		Status:        "completed",
 		StepID:        "plan.replan",
 		StepKind:      "planning",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     now,
 		CompletedAt:   now,
@@ -175,7 +176,7 @@ func (s *Server) PlanReplanActivity(
 		ProjectionRef: replanRef,
 		ReplanReason:  input.Reason,
 		Payload: map[string]any{
-			"allowed_capabilities": append([]string{}, input.AllowedCapabilities...),
+			"allowed_tool_targets": append([]string{}, input.AllowedToolTargets...),
 			"allowed_tools":        append([]string{}, input.AllowedTools...),
 			"failure_summary":      input.FailureSummary,
 			"previous_plan_ref":    input.PreviousPlanRef,
@@ -187,11 +188,11 @@ func (s *Server) PlanReplanActivity(
 		return temporalruntime.PlanReplanActivityOutput{}, err
 	}
 	return temporalruntime.PlanReplanActivityOutput{
-		AllowedCapabilities: append([]string{}, input.AllowedCapabilities...),
-		NewPlanRef:          replanRef,
-		RunID:               run.RunID,
-		Status:              "planned",
-		Steps:               []temporalruntime.CapabilityBranchStep{step},
+		AllowedToolTargets: append([]string{}, input.AllowedToolTargets...),
+		NewPlanRef:         replanRef,
+		RunID:              run.RunID,
+		Status:             "planned",
+		Steps:              []temporalruntime.ToolBranchStep{step},
 	}, nil
 }
 
@@ -216,7 +217,7 @@ func (s *Server) PlanRAGActivity(
 	startedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "started",
 		StepID:        "rag.plan",
@@ -284,7 +285,7 @@ func (s *Server) PlanRAGActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "rag.plan",
@@ -318,7 +319,7 @@ func (s *Server) temporalRoutePlanForRun(
 	run execution.DurableRun,
 	input temporalruntime.PlanRouteActivityInput,
 ) (temporalruntime.PlanRouteActivityOutput, error) {
-	if route, ok, err := s.plannedRouteForRun(run, input.RequestedCapability); ok || err != nil {
+	if route, ok, err := s.plannedRouteForRun(run, input.RequestedTool); ok || err != nil {
 		return route, err
 	}
 	return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf(
@@ -328,11 +329,8 @@ func (s *Server) temporalRoutePlanForRun(
 
 func (s *Server) plannedRouteForRun(
 	run execution.DurableRun,
-	requestedCapability string,
+	requestedTool string,
 ) (temporalruntime.PlanRouteActivityOutput, bool, error) {
-	if s == nil || s.intentPolicyErr != nil {
-		return temporalruntime.PlanRouteActivityOutput{}, false, nil
-	}
 	if len(run.Metadata) == 0 {
 		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
@@ -341,168 +339,72 @@ func (s *Server) plannedRouteForRun(
 	if userGoal == "" {
 		return temporalruntime.PlanRouteActivityOutput{}, false, nil
 	}
-	capability := firstNonEmptyText(
-		payload["effective_capability"],
-		run.SelectedCapability,
-		run.RequestedCapability,
-		requestedCapability,
+	toolTarget := firstNonEmptyText(
+		payload["effective_tool"],
+		run.SelectedTool,
+		run.RequestedTool,
+		requestedTool,
 	)
-	if capability == "" {
-		capability = "knowledge"
+	if toolTarget == "" {
+		toolTarget = "knowledge_query"
 	}
-	if !temporalPlanningCapabilityOpen(capability) {
-		return temporalruntime.PlanRouteActivityOutput{}, true, fmt.Errorf(
-			"capability %s is not open for plan.route",
-			capability,
-		)
+	if toolTarget == "place_lookup" {
+		return temporalruntime.PlanRouteActivityOutput{}, true, fmt.Errorf("place_lookup is not available for plan.route")
 	}
-	version := cloneAnyMapFromMetadata(payload["version_query"])
-	scope := cloneAnyMapFromMetadata(payload["requested_scope"])
-	selectedNotice := cloneAnyMapFromMetadata(nestedAny(payload, "context", "session", "selected_notice_ref"))
-	plan := structuredplanning.PlanWithPolicy(structuredplanning.Request{
-		EffectiveCapability:      capability,
-		UserGoal:                 userGoal,
-		HasRequestedScope:        len(scope) > 0,
-		MultiStepWorkflowEnabled: true,
-		RequestedScope: structuredplanning.Scope{
-			Collection: firstNonEmptyText(scope["collection"]),
-			Corpus:     firstNonEmptyText(scope["corpus"]),
-		},
-		SelectedNoticeRef: structuredplanning.SelectedNoticeRef{
-			NoticeID:      firstNonEmptyText(selectedNotice["notice_id"]),
-			SourceFamily:  firstNonEmptyText(selectedNotice["source_family"]),
-			Title:         firstNonEmptyText(selectedNotice["title"]),
-			TargetSurface: firstNonEmptyText(selectedNotice["target_surface"]),
-		},
-		VersionQuery: structuredplanning.VersionQuery{
-			AsOf:               firstNonEmptyText(version["as_of"]),
-			CompareToVersionID: firstNonEmptyText(version["compare_to_version_id"]),
-			Mode:               firstNonEmptyText(version["mode"]),
-			VersionID:          firstNonEmptyText(version["version_id"]),
-		},
-	}, s.intentPolicy)
-	if plan == nil {
-		return temporalruntime.PlanRouteActivityOutput{}, false, nil
+	if !isConcreteTemporalToolTarget(toolTarget) {
+		return temporalruntime.PlanRouteActivityOutput{}, true, fmt.Errorf("tool target %s is not admitted", toolTarget)
 	}
-	if capabilityPlan := plan.CapabilityPlan(); capabilityPlan != nil {
-		resolvedPlan, err := resolveStructuredCapabilityPlan(*capabilityPlan)
-		if err != nil {
-			return temporalruntime.PlanRouteActivityOutput{}, true, err
-		}
-		plan = resolvedPlan
+	toolName := toolTarget
+	payloadKind := toolTarget
+	if toolTarget == "knowledge_query" {
+		payloadKind = "rag_request"
 	}
-	route, err := temporalRouteOutputFromStructuredPlan(run.RunID, capability, plan)
-	return route, true, err
-}
-
-func temporalPlanningCapabilityOpen(capability string) bool {
-	if strings.TrimSpace(capability) == "" {
-		return true
+	if toolTarget == "transport_schedule_lookup" {
+		toolName = "transport_schedule_lookup"
+		payloadKind = "transport_schedule_lookup"
 	}
-	if capability == "place_lookup" {
-		return false
+	if toolTarget == "campus_notice_discover" {
+		toolName = "campus_notice_discover"
+		payloadKind = "campus_notice_discover"
 	}
-	registry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
-	if !ok {
-		return false
+	step := temporalruntime.ToolBranchStep{
+		AllowedTools: []string{toolName},
+		Payload:      map[string]any{"query_text": userGoal},
+		PayloadKind:  payloadKind,
+		StepID:       "tool:" + toolName,
+		ToolName:     toolName,
+		ToolTarget:   toolTarget,
+		TaskQueue:    temporalruntime.ActivityTaskQueueForToolTarget(toolTarget),
 	}
-	spec, ok := registry.CapabilityByID(capability)
-	return ok && spec.Active && spec.OpeningGate == "open"
-}
-
-func resolveStructuredCapabilityPlan(
-	capabilityPlan structuredplanning.CapabilityPlan,
-) (*structuredplanning.WorkflowPlan, error) {
-	capabilityRegistry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
-	if !ok {
-		return nil, fmt.Errorf("capability registry is not available")
-	}
-	toolRegistry, ok := runtimepolicy.DefaultToolSpecRegistry()
-	if !ok {
-		return nil, fmt.Errorf("tool registry is not available")
-	}
-	artifactRegistry, err := runtimepolicy.LoadWorkflowArtifactRegistry("")
-	if err != nil {
-		return nil, err
-	}
-	return structuredplanning.ResolveCapabilityPlan(
-		capabilityPlan,
-		capabilityRegistry,
-		toolRegistry,
-		artifactRegistry,
-	)
-}
-
-func temporalRouteOutputFromStructuredPlan(
-	runID string,
-	effectiveCapability string,
-	plan *structuredplanning.WorkflowPlan,
-) (temporalruntime.PlanRouteActivityOutput, error) {
-	if plan == nil {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("workflow plan is required")
-	}
-	capabilityRegistry, ok := runtimepolicy.DefaultCapabilitySpecRegistry()
-	if !ok {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("capability registry is not available")
-	}
-	toolRegistry, ok := runtimepolicy.DefaultToolSpecRegistry()
-	if !ok {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("tool registry is not available")
-	}
-	if err := structuredplanning.ValidateWorkflowPlanWithCapabilitySpec(
-		plan,
-		capabilityRegistry,
-		toolRegistry,
-	); err != nil {
-		return temporalruntime.PlanRouteActivityOutput{}, err
-	}
-	handoffs := plan.Handoffs()
-	if len(handoffs) == 0 {
-		return temporalruntime.PlanRouteActivityOutput{}, fmt.Errorf("workflow plan has no executable handoffs")
-	}
-	steps := make([]temporalruntime.CapabilityBranchStep, 0, len(handoffs))
-	for index, handoff := range handoffs {
-		planStep := structuredplanning.WorkflowPlanStep{}
-		if index < len(plan.Steps) {
-			planStep = plan.Steps[index]
-		}
-		steps = append(steps, temporalruntime.CapabilityBranchStep{
-			AllowedTools: append([]string{}, handoff.AllowedTools...),
-			Capability:   handoff.Capability,
-			Payload:      cloneAnyMapFromMetadata(handoff.Payload),
-			PayloadKind:  handoff.PayloadKind,
-			StepID:       firstNonEmptyText(planStep.StepID, "capability:"+handoff.Capability+":"+handoff.PayloadKind),
-			ToolName:     firstNonEmptyText(planStep.SelectedTool, selectedToolNameForHandoff(handoff)),
-			WorkerRole:   firstNonEmptyText(planStep.WorkerRole, runtimepolicy.WorkerRoleForCapability(handoff.Capability)),
-		})
-	}
-	first := steps[0]
-	routeCapability := firstNonEmptyText(effectiveCapability, first.Capability)
 	return temporalruntime.PlanRouteActivityOutput{
-		AllowedCapabilities: append([]string{}, plan.AllowedCapabilities...),
-		AllowedTools:        append([]string{}, first.AllowedTools...),
-		Capability:          routeCapability,
-		MaxReplans:          plan.SemanticRetryPolicy.MaxReplans,
-		Payload:             cloneAnyMapFromMetadata(first.Payload),
-		PayloadKind:         firstNonEmptyText(first.PayloadKind, "capability_plan"),
-		PlanRef:             temporalProjectionRef(runID, "plan/route"),
-		RunID:               runID,
-		Status:              "planned",
-		Steps:               steps,
-		ToolName:            first.ToolName,
-		WorkerRole:          runtimepolicy.WorkerRoleForCapability(routeCapability),
-		WorkflowMode:        string(plan.WorkflowMode),
-	}, nil
+		AllowedToolTargets: []string{toolTarget},
+		AllowedTools:       []string{toolName},
+		MaxReplans:         0,
+		Payload:            cloneAnyMapFromMetadata(step.Payload),
+		PayloadKind:        payloadKind,
+		PlanRef:            temporalProjectionRef(run.RunID, "plan/route"),
+		RunID:              run.RunID,
+		Status:             "planned",
+		Steps:              []temporalruntime.ToolBranchStep{step},
+		TaskQueue:          temporalruntime.ActivityTaskQueueForToolTarget(toolTarget),
+		ToolName:           toolName,
+		ToolTarget:         toolTarget,
+		WorkflowMode:       "single_step",
+	}, true, nil
 }
 
-func selectedToolNameForHandoff(handoff structuredplanning.Handoff) string {
-	if len(handoff.AllowedTools) == 1 {
-		return handoff.AllowedTools[0]
+func isConcreteTemporalToolTarget(toolTarget string) bool {
+	switch strings.TrimSpace(toolTarget) {
+	case "knowledge_query",
+		"transport_schedule_lookup",
+		"campus_notice_discover",
+		"campus_notice_change_set_lookup",
+		"campus_notice_period_summary",
+		"campus_notice_get":
+		return true
+	default:
+		return false
 	}
-	if handoff.Capability == "knowledge" {
-		return "retrieval.query"
-	}
-	return ""
 }
 
 func firstString(values []string) string {
@@ -532,7 +434,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 	startedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "started",
 		StepID:        "retrieval.indexed_lookup",
@@ -576,7 +478,7 @@ func (s *Server) RetrieveIndexedLookupActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "retrieval.indexed_lookup",
@@ -678,7 +580,7 @@ func (s *Server) ExpandOrRescueRetrievalActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "retrieval.expand_or_rescue",
@@ -738,7 +640,7 @@ func (s *Server) SelectEvidenceActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "knowledge",
+		Tool:          "knowledge_query",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "evidence.selection",

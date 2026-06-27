@@ -46,12 +46,12 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-missing-envelope",
-		RequestID:           "req-primary-agent-missing-envelope",
-		RunID:               "run-primary-agent-missing-envelope",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-missing-envelope",
-		VisibleCapabilities: []string{"campus_services"},
+		ConversationID:   "conv-primary-agent-missing-envelope",
+		RequestID:        "req-primary-agent-missing-envelope",
+		RunID:            "run-primary-agent-missing-envelope",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-missing-envelope",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
 		t.Fatal("expected direct primary agent answer without terminal envelope to fail")
@@ -65,7 +65,7 @@ func TestExecutePrimaryAgentActivityFailsClosedWhenDirectAnswerMissingTerminalEn
 	}
 }
 
-func TestWriteFinalizationActivityKeepsDirectPrimaryAgentCapabilityNullableWithAgentProvenance(t *testing.T) {
+func TestWriteFinalizationActivityKeepsDirectPrimaryAgentToolNullableWithAgentProvenance(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 11, 45, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -125,14 +125,14 @@ func TestWriteFinalizationActivityKeepsDirectPrimaryAgentCapabilityNullableWithA
 	if finalizationResponse == nil {
 		t.Fatal("finalization.completed event missing")
 	}
-	if finalizationResponse["selected_capability"] != nil {
-		t.Fatalf("selected_capability = %#v, want nil for direct no-tool branch", finalizationResponse["selected_capability"])
+	if finalizationResponse["selected_tool"] != nil {
+		t.Fatalf("selected_tool = %#v, want nil for direct no-tool branch", finalizationResponse["selected_tool"])
 	}
 	if finalizationResponse["answer_text"] != "你好，我是校园问答助手。" {
 		t.Fatalf("answer_text = %#v", finalizationResponse["answer_text"])
 	}
 	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if workflowTrace["selected_capability"] != "none" ||
+	if workflowTrace["selected_tool"] != "none" ||
 		workflowTrace["workflow_mode"] != "terminal" ||
 		workflowTrace["first_decision_actor"] != "primary_agent" ||
 		workflowTrace["direct_vs_delegate_branch"] != "direct_answer" {
@@ -188,7 +188,7 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 			},
 			"tool_results": []map[string]any{{
 				"arguments_json":    map[string]any{"query_text": "明天去丰台的校车", "intent": "next_departure"},
-				"capability":        "campus_services",
+				"tool":              "transport_schedule_lookup",
 				"fail_close_reason": "source_truth_unavailable",
 				"payload_kind":      "transport_schedule_lookup",
 				"result": map[string]any{
@@ -230,11 +230,11 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 	if finalizationResponse == nil {
 		t.Fatal("finalization.completed event missing")
 	}
-	if finalizationResponse["selected_capability"] != "campus_services" {
-		t.Fatalf("selected_capability = %#v, want campus_services", finalizationResponse["selected_capability"])
+	if finalizationResponse["selected_tool"] != "transport_schedule_lookup" {
+		t.Fatalf("selected_tool = %#v, want transport_schedule_lookup", finalizationResponse["selected_tool"])
 	}
 	workflowTrace := finalizationResponse["workflow_trace_summary"].(map[string]any)
-	if workflowTrace["selected_capability"] != "campus_services" ||
+	if workflowTrace["selected_tool"] != "transport_schedule_lookup" ||
 		workflowTrace["workflow_mode"] != "single_step" ||
 		workflowTrace["first_decision_actor"] != "primary_agent" ||
 		workflowTrace["direct_vs_delegate_branch"] != "tool" {
@@ -246,7 +246,7 @@ func TestWriteFinalizationActivityProjectsPrimaryAgentToolCallTrace(t *testing.T
 	}
 	toolCall := toolCalls[0]
 	if toolCall["tool_name"] != "transport_schedule_lookup" ||
-		toolCall["capability"] != "campus_services" ||
+		toolCall["tool"] != "transport_schedule_lookup" ||
 		toolCall["payload_kind"] != "transport_schedule_lookup" ||
 		toolCall["result_status"] != "temporarily_unverifiable" ||
 		toolCall["fail_close_reason"] != "source_truth_unavailable" ||

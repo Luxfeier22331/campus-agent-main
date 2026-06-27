@@ -12,20 +12,20 @@
 			"notes": "Machine-readable inventory for contract schema governance."
 		},
 		{
-			"id": "capability-execution.openapi",
+			"id": "tool-execution.openapi",
 			"kind": "openapi_wire",
-			"path": "docs/contracts/schemas/capability-execution.openapi.yaml",
+			"path": "docs/contracts/schemas/tool-execution.openapi.yaml",
 			"owner": "docs/contracts",
 			"status": "active",
-			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by scripts.generate_capability_execution_contracts."
+			"notes": "Private app-api -> execution-control wire contract; generated TS/Go artifacts remain checked by scripts.generate_tool_execution_contracts."
 		},
 		{
-			"id": "capability-handoff.v1",
+			"id": "tool-handoff.v1",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/capability-handoff.v1.schema.json",
+			"path": "packages/contracts/schemas/tool-handoff.v1.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"notes": "Execution Agent Layer -> capability handoff schema."
+			"notes": "Legacy-named Execution Agent Layer -> tool handoff schema."
 		},
 		{
 			"id": "campus-services-tool-result.v1",
@@ -96,13 +96,13 @@
 			"notes": "Canonical JSON Schema for knowledge workflow-signal and internal RAG payload/result packets."
 		},
 		{
-			"id": "runtime-tool-catalog.v1",
+			"id": "runtime-tools.v4",
 			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tool-catalog.v1.schema.json",
+			"path": "packages/contracts/schemas/runtime-tools.v4.schema.json",
 			"owner": "packages/contracts",
 			"status": "active",
-			"validates": ["configs/runtime/tool-catalog.v1.json"],
-			"notes": "Runtime tool catalog artifact consumed by agent-runtime and execution-control."
+			"validates": ["configs/runtime/tools.v4.json"],
+			"notes": "Tool-native runtime registry consumed by agent-runtime and execution-control."
 		},
 		{
 			"id": "runtime-tool-function-schemas.v1",
@@ -114,15 +114,6 @@
 			"notes": "Strict model-facing function parameter schema artifact."
 		},
 		{
-			"id": "runtime-capabilities.v1",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-capabilities.v1.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/capabilities.v1.json"],
-			"notes": "Capability registry artifact loaded by execution-control runtime policy."
-		},
-		{
 			"id": "runtime-workflow-artifacts.v2",
 			"kind": "json_artifact",
 			"path": "packages/contracts/schemas/runtime-workflow-artifacts.v2.schema.json",
@@ -130,15 +121,6 @@
 			"status": "active",
 			"validates": ["configs/runtime/workflow-artifacts.v2.json"],
 			"notes": "Workflow artifact registry consumed by execution-control runtime policy."
-		},
-		{
-			"id": "runtime-tools.v3",
-			"kind": "json_artifact",
-			"path": "packages/contracts/schemas/runtime-tools.v3.schema.json",
-			"owner": "packages/contracts",
-			"status": "active",
-			"validates": ["configs/runtime/tools.v3.json"],
-			"notes": "Execution-control typed capability tool spec registry consumed by Go runtime policy and eval tooling."
 		},
 		{
 			"id": "execution-control-runtime-profile.v1",
@@ -151,7 +133,7 @@
 				"configs/runtime/execution-control/runtime-profile.local-real-provider.json",
 				"configs/runtime/execution-control/runtime-profile.staging.json"
 			],
-			"notes": "Execution-control runtime profile artifact used to own env-independent queue, lane, RAG, telemetry, and memory settings."
+			"notes": "Execution-control runtime profile artifact used to own env-independent queue, execution group, RAG, telemetry, and memory settings."
 		},
 		{
 			"id": "query-serving-scopes.v1",

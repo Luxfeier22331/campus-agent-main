@@ -128,8 +128,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!pnpm-workspace.yaml",
                 "!apps/agent-runtime/",
                 "!apps/agent-runtime/**",
-                "!configs/runtime/tool-catalog.v1.json",
                 "!configs/runtime/tool-function-schemas.v1.json",
+                "!configs/runtime/tools.v4.json",
             }.issubset(patterns)
         )
 
@@ -157,8 +157,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             {
                 "!tests/",
                 "!tests/fixtures/",
-                "!tests/fixtures/capability_execution_contract/",
-                "!tests/fixtures/capability_execution_contract/**",
+                "!tests/fixtures/tool_execution_contract/",
+                "!tests/fixtures/tool_execution_contract/**",
             }.issubset(patterns)
         )
 
@@ -169,12 +169,11 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         self.assertTrue(
             {
                 "!configs/runtime/",
-                "!configs/runtime/capabilities.v1.json",
                 "!configs/runtime/intent-policy.v1.json",
                 "!configs/runtime/provider-pricing.v1.json",
                 "!configs/runtime/query-serving-scopes.v1.json",
                 "!configs/runtime/tool-function-schemas.v1.json",
-                "!configs/runtime/tools.v3.json",
+                "!configs/runtime/tools.v4.json",
                 "!configs/runtime/workflow-artifacts.v2.json",
             }.issubset(patterns)
         )
@@ -208,8 +207,8 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
 
         copy_statement = (
-            "COPY tests/fixtures/capability_execution_contract "
-            "/src/tests/fixtures/capability_execution_contract"
+            "COPY tests/fixtures/tool_execution_contract "
+            "/src/tests/fixtures/tool_execution_contract"
         )
 
         self.assertIn(copy_statement, dockerfile)
@@ -219,17 +218,18 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         repo_root = Path(__file__).resolve().parents[1]
         dockerfile = (repo_root / "apps/execution-control/Dockerfile").read_text(encoding="utf-8")
 
-        tool_catalog_copy = (
-            "COPY configs/runtime/tool-catalog.v1.json /src/configs/runtime/tool-catalog.v1.json"
-        )
+        tool_registry_copy = "COPY configs/runtime/tools.v4.json /src/configs/runtime/tools.v4.json"
         tool_schema_copy = (
             "COPY configs/runtime/tool-function-schemas.v1.json "
             "/src/configs/runtime/tool-function-schemas.v1.json"
         )
 
-        self.assertIn(tool_catalog_copy, dockerfile)
+        self.assertIn(tool_registry_copy, dockerfile)
         self.assertIn(tool_schema_copy, dockerfile)
-        self.assertLess(dockerfile.index(tool_catalog_copy), dockerfile.index("RUN go test ./..."))
+        self.assertLess(
+            dockerfile.index(tool_registry_copy),
+            dockerfile.index("RUN go test ./..."),
+        )
         self.assertLess(dockerfile.index(tool_schema_copy), dockerfile.index("RUN go test ./..."))
 
     def test_execution_control_dockerfile_builds_primary_agent_activity_worker(self) -> None:

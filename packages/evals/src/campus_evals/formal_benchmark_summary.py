@@ -380,9 +380,7 @@ def _render_summary_markdown(summary: dict[str, object]) -> str:
         lines.append(f"- provenance.repair_of: `{provenance.get('repair_of')}`")
     repair = summary.get("repair")
     if isinstance(repair, dict):
-        lines.append(
-            f"- repair.selected_capability_count: `{repair.get('selected_capability_count')}`"
-        )
+        lines.append(f"- repair.selected_tool_count: `{repair.get('selected_tool_count')}`")
         lines.append(f"- repair.applied_target_count: `{repair.get('applied_target_count')}`")
     supplemental_preflight = summary.get("supplemental_preflight")
     if isinstance(supplemental_preflight, dict):

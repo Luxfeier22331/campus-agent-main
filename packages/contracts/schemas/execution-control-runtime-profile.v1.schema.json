@@ -15,12 +15,11 @@
 		"intent_policy_path",
 		"provider_pricing_path",
 		"query_serving_scopes_path",
-		"structured_query_timeout_ms",
-		"open_capabilities",
+		"tool_read_model_timeout_ms",
+		"open_tools",
 		"multi_step_workflow_enabled",
 		"otel",
 		"execution_audit",
-		"lane_budgets",
 		"rag",
 		"personal_memory"
 	],
@@ -64,14 +63,20 @@
 			"type": "string",
 			"minLength": 1
 		},
-		"structured_query_timeout_ms": {
+		"tool_read_model_timeout_ms": {
 			"type": "integer",
 			"minimum": 1
 		},
-		"open_capabilities": {
+		"open_tools": {
 			"type": "array",
 			"items": {
-				"enum": ["knowledge", "navigation", "campus_services", "notice"]
+				"enum": [
+					"knowledge_query",
+					"transport_schedule_lookup",
+					"campus_notice_change_set_lookup",
+					"campus_notice_discover",
+					"campus_notice_period_summary"
+				]
 			}
 		},
 		"multi_step_workflow_enabled": {
@@ -82,28 +87,6 @@
 		},
 		"execution_audit": {
 			"$ref": "#/$defs/ExecutionAudit"
-		},
-		"lane_budgets": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["rag", "navigation", "campus_services", "notice", "default"],
-			"properties": {
-				"rag": {
-					"$ref": "#/$defs/LaneBudget"
-				},
-				"navigation": {
-					"$ref": "#/$defs/LaneBudget"
-				},
-				"campus_services": {
-					"$ref": "#/$defs/LaneBudget"
-				},
-				"notice": {
-					"$ref": "#/$defs/LaneBudget"
-				},
-				"default": {
-					"$ref": "#/$defs/LaneBudget"
-				}
-			}
 		},
 		"rag": {
 			"$ref": "#/$defs/RAG"
@@ -212,25 +195,6 @@
 					"type": "string"
 				},
 				"timeout_ms": {
-					"type": "integer",
-					"minimum": 1
-				}
-			}
-		},
-		"LaneBudget": {
-			"type": "object",
-			"additionalProperties": false,
-			"required": ["max_concurrent", "queue_capacity", "queue_timeout_ms"],
-			"properties": {
-				"max_concurrent": {
-					"type": "integer",
-					"minimum": 1
-				},
-				"queue_capacity": {
-					"type": "integer",
-					"minimum": 0
-				},
-				"queue_timeout_ms": {
 					"type": "integer",
 					"minimum": 1
 				}

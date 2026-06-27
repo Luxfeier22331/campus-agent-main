@@ -27,7 +27,7 @@ updated: 2026-04-23
 
 - `README.md`
 - `provider-and-secret-inventory.md`
-- `../runbooks/execution-control-staging-operations.md`
+- `../runbooks/execution-ops.md`
 - `../runbooks/provider-secret-governance.md`
 
 ## Readiness Gates
@@ -66,7 +66,7 @@ Conditional readiness:
 - if runtime profile `execution_audit.enabled=true`, doctor requires
   `EXECUTION_CONTROL_EXECUTION_AUDIT_URL` and
   `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-- if runtime profile `open_capabilities` opens `campus_services` or `notice`,
+- if runtime profile `open_tools` opens concrete campus-services or notice tools,
   doctor requires `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
   read-model/object-store runtime dependencies
@@ -175,6 +175,6 @@ uv run --all-packages python -m scripts.eval_gate doctor --json
 
 ## Related Runbooks
 
-- `docs/runbooks/execution-control-staging-operations.md`
+- `docs/runbooks/execution-ops.md`
 - `docs/runbooks/provider-secret-governance.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

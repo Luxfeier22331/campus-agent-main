@@ -70,7 +70,7 @@ function toCandidate(row: EvalDiagnosticBadcaseRow): EvalDiagnosticCandidate {
 		},
 		requestId: null,
 		runId: null,
-		selectedCapability: null,
+		selectedTool: null,
 		summary: summaryFor(row),
 		surface: row.surfaceKey,
 		traceId: null,
@@ -85,7 +85,7 @@ export function createEvalDiagnosticCandidateHandlers(runtime: OperatorQueryRunt
 			if (
 				(filters.detectedBy && filters.detectedBy !== "ragas_diagnostic") ||
 				(filters.status && filters.status !== "pending_review") ||
-				filters.selectedCapability
+				filters.selectedTool
 			) {
 				return emptyResult();
 			}

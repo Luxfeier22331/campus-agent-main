@@ -119,7 +119,7 @@ data-plane materialization 已迁移完成。
 
 ## 相关文档
 
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
 - `apps/ingestion-control/README.md`

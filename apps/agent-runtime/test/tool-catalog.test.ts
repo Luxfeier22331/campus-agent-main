@@ -12,12 +12,11 @@ describe("tool catalog", () => {
 	it("exposes only model-visible read-only tools to the SDK surface", () => {
 		const catalog = loadToolCatalogFromObject(
 			{
-				schema_version: "tool-catalog.v1",
-				catalog_version: "test",
+				schema_version: "tool-registry-v4",
+				registry_version: "test",
 				tools: [
 					{
 						name: "knowledge_query",
-						capability: "knowledge",
 						description: "Route this turn to the governed knowledge workflow.",
 						exposure: "model_visible",
 						read_only: true,
@@ -38,7 +37,6 @@ describe("tool catalog", () => {
 					},
 					{
 						name: "transport_schedule_lookup",
-						capability: "campus_services",
 						description: "Lookup campus shuttle schedule snapshots.",
 						exposure: "model_visible",
 						read_only: true,
@@ -60,7 +58,6 @@ describe("tool catalog", () => {
 					},
 					{
 						name: "campus_notice_get",
-						capability: "notice",
 						description: "Internal selected notice resolution.",
 						exposure: "internal_only",
 						read_only: true,
@@ -88,12 +85,11 @@ describe("tool catalog", () => {
 	it("rejects model-visible tools that are not read-only", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-catalog.v1",
-				catalog_version: "test",
+				schema_version: "tool-registry-v4",
+				registry_version: "test",
 				tools: [
 					{
 						name: "submit_ticket",
-						capability: "campus_services",
 						description: "Submit a ticket.",
 						exposure: "model_visible",
 						read_only: false,
@@ -121,8 +117,8 @@ describe("tool catalog", () => {
 	it("requires a tool function schema config", () => {
 		expect(() =>
 			loadToolCatalogFromObject({
-				schema_version: "tool-catalog.v1",
-				catalog_version: "test",
+				schema_version: "tool-registry-v4",
+				registry_version: "test",
 				tools: [rawKnowledgeQueryTool()],
 			}),
 		).toThrow("tool function schema path is required");
@@ -132,8 +128,8 @@ describe("tool catalog", () => {
 		expect(() =>
 			loadToolCatalogFromObject(
 				{
-					schema_version: "tool-catalog.v1",
-					catalog_version: "test",
+					schema_version: "tool-registry-v4",
+					registry_version: "test",
 					tools: [rawKnowledgeQueryTool()],
 				},
 				{ toolFunctionSchemaPath: testSchemaPath("transport_schedule_lookup") },
@@ -142,7 +138,7 @@ describe("tool catalog", () => {
 	});
 
 	it("loads the checked-in catalog and exposes only model-facing tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 
 		expect(buildVisibleToolDefinitions(catalog).map((tool) => tool.name)).toEqual([
 			"knowledge_query",
@@ -152,7 +148,7 @@ describe("tool catalog", () => {
 	});
 
 	it("keeps institutional account questions on the knowledge tool contract", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 		const tools = buildVisibleToolDefinitions(catalog);
 
 		const knowledge = tools.find((tool) => tool.name === "knowledge_query");
@@ -162,7 +158,7 @@ describe("tool catalog", () => {
 	});
 
 	it("exposes strict SDK parameter schemas with explicit required fields", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 
 		for (const tool of buildVisibleToolDefinitions(catalog)) {
 			expect(tool.parameterSchema).toMatchObject({
@@ -174,7 +170,7 @@ describe("tool catalog", () => {
 	});
 
 	it("uses the canonical tool function schema config for model-visible tools", () => {
-		const catalog = loadToolCatalog("../../configs/runtime/tool-catalog.v1.json");
+		const catalog = loadToolCatalog("../../configs/runtime/tools.v4.json");
 		const tools = buildVisibleToolDefinitions(catalog);
 
 		const transport = tools.find((tool) => tool.name === "transport_schedule_lookup");
@@ -195,7 +191,6 @@ describe("tool catalog", () => {
 function rawKnowledgeQueryTool() {
 	return {
 		name: "knowledge_query",
-		capability: "knowledge",
 		description: "Route this turn to the governed knowledge workflow.",
 		exposure: "model_visible",
 		read_only: true,

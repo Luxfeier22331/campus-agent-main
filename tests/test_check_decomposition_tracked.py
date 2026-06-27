@@ -26,7 +26,7 @@ class CheckDecompositionTrackedTest(unittest.TestCase):
         self.assertIn("tests/test_check_yaml_tracked.py", candidates)
         self.assertIn("apps/app-api/src/app/request-scope.ts", candidates)
         self.assertIn("apps/execution-control/internal/execution/request.go", candidates)
-        self.assertNotIn("docs/architecture/current-architecture.md", candidates)
+        self.assertNotIn("docs/architecture/current.md", candidates)
         self.assertNotIn("package.json", candidates)
 
     def test_load_decomposition_baseline_reads_admitted_budget(self) -> None:

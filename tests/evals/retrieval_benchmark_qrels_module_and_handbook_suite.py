@@ -116,7 +116,7 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
             }.issubset(forbidden_case_ids)
         )
 
-    def test_attendance_threshold_qrels_distinguishes_direct_answer_from_bridge_source(
+    def test_attendance_threshold_qrels_distinguishes_direct_answer_from_handoff_source(
         self,
     ) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)

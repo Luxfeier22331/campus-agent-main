@@ -33,7 +33,7 @@ describe("execution-control tool executor", () => {
 		});
 	});
 
-	it("calls structured query endpoints with internal query auth", async () => {
+	it("calls tool read model endpoints with internal query auth", async () => {
 		const requests: Request[] = [];
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
@@ -65,7 +65,7 @@ describe("execution-control tool executor", () => {
 						outcome: "resolved_current",
 						result_envelope: {
 							schema_version: "campus_services_tool_result.v1",
-							capability: "campus_services",
+							tool: "transport_schedule_lookup",
 							tool_name: "transport_schedule_lookup",
 							query_kind: "transport_schedule",
 							outcome: "resolved_current",
@@ -108,7 +108,7 @@ describe("execution-control tool executor", () => {
 		});
 	});
 
-	it("fails closed when structured query returns non-2xx", async () => {
+	it("fails closed when tool read model returns non-2xx", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
 			sharedSecret: "query-secret",
@@ -126,7 +126,7 @@ describe("execution-control tool executor", () => {
 		expect(result.result).toEqual({ error: { code: "source_truth_unavailable" } });
 	});
 
-	it("fails closed when structured query response is not JSON", async () => {
+	it("fails closed when tool read model response is not JSON", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
 			sharedSecret: "query-secret",
@@ -140,7 +140,7 @@ describe("execution-control tool executor", () => {
 		expect(result.result.error).toBe("execution-control query returned invalid JSON");
 	});
 
-	it("fails closed when structured query request throws", async () => {
+	it("fails closed when tool read model request throws", async () => {
 		const executor = createExecutionControlToolExecutor({
 			baseUrl: "http://execution-control:8000",
 			sharedSecret: "query-secret",
@@ -157,7 +157,7 @@ describe("execution-control tool executor", () => {
 		expect(result.result.detail).toBe("network down");
 	});
 
-	it("passes run cancellation signal into structured query fetch timeout envelope", async () => {
+	it("passes run cancellation signal into tool read model fetch timeout envelope", async () => {
 		const controller = new AbortController();
 		let observedSignal: AbortSignal | undefined;
 		const executor = createExecutionControlToolExecutor({
@@ -192,7 +192,6 @@ function toolRequest(): ToolExecutionRequest {
 		argumentsJson: { query_text: "校车下一班几点", intent: "next_departure" },
 		tool: {
 			name: "transport_schedule_lookup",
-			capability: "campus_services",
 			description: "Lookup transport schedule.",
 			exposure: "model_visible",
 			readOnly: true,

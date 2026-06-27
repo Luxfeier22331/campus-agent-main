@@ -12,8 +12,8 @@ decision_id: ADR-0021
 ## 当前边界说明
 
 本 ADR 的 institution-scoped alias governance 结论仍有效。早期将 owner 写为
-Python `packages/knowledge-capability` / `packages/retrieval-core` 的段落已由
-`docs/architecture/system/python-capability-boundaries.md` 局部 supersede；当前
+Python knowledge / retrieval packages 的段落已由
+`docs/architecture/system/python-boundaries.md` 局部 supersede；当前
 owner 是 Go-owned execution-control retrieval seam、repo-owned DTO / domain
 semantics packages 与 eval fixtures 的组合边界。
 
@@ -144,11 +144,11 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 - `思修课` 也不是 repo-wide 通用 safe alias
 - `思修课` 只在中央民族大学课程域中被接受为 `思想政治理论课` 的 institution-scoped family alias
 
-### 决策 5：alias resolution 的 owner 在 knowledge-family seam
+### 决策 5：alias resolution 的 owner 在 knowledge tool seam
 
 长期 owner split 固定如下：
 
-- knowledge-family seam 拥有 alias/entity resolution、ambiguity policy、clarification
+- knowledge tool seam 拥有 alias/entity resolution、ambiguity policy、clarification
   policy 与 answer shaping contract；当前实现不得恢复旧 Python knowledge package
 - retrieval runtime 只消费 canonical entity/filter truth，不拥有 alias 治理语义
 - `packages/ingestion-core` 负责构建离线派生的 canonical entity facts，例如 course facts /
@@ -248,7 +248,7 @@ canonical golden/eval truth 必须同步遵守：
 
 ## 文档分层
 
-- `docs/architecture/target-architecture.md` 只记录 alias/entity resolution 的 owner
+- `docs/architecture/target.md` 只记录 alias/entity resolution 的 owner
   boundary
 - `docs/architecture/system/execution-agent-layer-architecture.md` 负责 agent 对
   alias/entity resolution 的长期职责

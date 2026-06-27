@@ -57,7 +57,7 @@ class EvalCaseGovernanceTest(unittest.TestCase):
         rag_surfaces = {
             entry.surface_id
             for entry in registry.entries
-            if entry.capability_family == "knowledge" and entry.admission_state == "admitted"
+            if entry.tool_surface == "knowledge_query" and entry.admission_state == "admitted"
         }
 
         self.assertEqual(
@@ -84,7 +84,7 @@ class EvalCaseGovernanceTest(unittest.TestCase):
                         {
                             "surface_id": "student_rules",
                             "domain_owner": "regulations/student_rules",
-                            "capability_family": "knowledge",
+                            "tool_surface": "knowledge_query",
                             "admission_state": "admitted",
                             "truth_scope": "denominator_expectation",
                             "authors_domain_truth": False,

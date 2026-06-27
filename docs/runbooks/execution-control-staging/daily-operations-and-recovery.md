@@ -31,11 +31,8 @@ infra/local/staging/status-execution-control-staging.sh --check
 `--check` 通过标准：
 
 - `otel-collector`、`execution-control`、`workflow-worker`、
-  `activity-worker-context`、`agent-runtime`、`activity-worker-agent`、
-  `activity-worker-knowledge-plan`、`activity-worker-knowledge-retrieval`、
-  `activity-worker-knowledge-synthesis`、
-  `activity-worker-campus-services`、`activity-worker-notice`、
-  `activity-worker-navigation`、`activity-worker-finalization`、
+  `activity-worker-core`、`agent-runtime`、`activity-worker-agent`、
+  `activity-worker-knowledge`、
   `temporal` 都在当前 compose project 中运行
 - 本地 `<http://127.0.0.1:27051/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27051/readyz`> 带 `x-worker-origin-auth` 返回 `200`
@@ -199,16 +196,10 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - `.tmp/execution-control-staging/logs/otel-collector.recent.log`
 - `.tmp/execution-control-staging/logs/execution-control.log`
 - `.tmp/execution-control-staging/logs/workflow-worker.log`
-- `.tmp/execution-control-staging/logs/activity-worker-context.log`
+- `.tmp/execution-control-staging/logs/activity-worker-core.log`
 - `.tmp/execution-control-staging/logs/agent-runtime.log`
 - `.tmp/execution-control-staging/logs/activity-worker-agent.log`
-- `.tmp/execution-control-staging/logs/activity-worker-knowledge-plan.log`
-- `.tmp/execution-control-staging/logs/activity-worker-knowledge-retrieval.log`
-- `.tmp/execution-control-staging/logs/activity-worker-knowledge-synthesis.log`
-- `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
-- `.tmp/execution-control-staging/logs/activity-worker-notice.log`
-- `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
-- `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
+- `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
 - ops proof 输出应写入本轮 evidence 目录，不作为常驻日志文件依赖
 
 轮转规则：
@@ -227,16 +218,10 @@ until infra/local/staging/status-execution-control-staging.sh --check; do \
 - 先看：
   - `.tmp/execution-control-staging/logs/execution-control.log`
   - `.tmp/execution-control-staging/logs/workflow-worker.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-context.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-core.log`
   - `.tmp/execution-control-staging/logs/agent-runtime.log`
   - `.tmp/execution-control-staging/logs/activity-worker-agent.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-plan.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-retrieval.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-knowledge-synthesis.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-campus-services.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-notice.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-navigation.log`
-  - `.tmp/execution-control-staging/logs/activity-worker-finalization.log`
+  - `.tmp/execution-control-staging/logs/activity-worker-knowledge.log`
 - 如果 `start-execution-control-staging.sh` 在 build 前失败，先直接运行：
 
 ```bash

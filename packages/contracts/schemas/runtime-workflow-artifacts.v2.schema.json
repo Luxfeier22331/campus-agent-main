@@ -25,7 +25,7 @@
 			"type": "array",
 			"minItems": 1,
 			"items": {
-				"enum": ["capability_private", "operator_safe_summary", "finalizer_input"]
+				"enum": ["tool_private", "operator_safe_summary", "finalizer_input"]
 			}
 		},
 		"support_status_values": {
@@ -65,7 +65,7 @@
 			"required": [
 				"kind",
 				"display_name",
-				"owner_capability",
+				"owner_tool_boundary",
 				"producer_tools",
 				"source_truth_owner",
 				"visibility",
@@ -85,8 +85,17 @@
 					"type": "string",
 					"minLength": 1
 				},
-				"owner_capability": {
-					"enum": ["knowledge", "navigation", "campus_services", "notice", "execution-control"]
+				"owner_tool_boundary": {
+					"enum": [
+						"knowledge_query",
+						"place_lookup",
+						"transport_schedule_lookup",
+						"campus_notice_discover",
+						"campus_notice_change_set_lookup",
+						"campus_notice_period_summary",
+						"campus_notice_get",
+						"execution-control"
+					]
 				},
 				"producer_tools": {
 					"type": "array",
@@ -99,7 +108,7 @@
 					"minLength": 1
 				},
 				"visibility": {
-					"enum": ["capability_private", "operator_safe_summary", "finalizer_input"]
+					"enum": ["tool_private", "operator_safe_summary", "finalizer_input"]
 				},
 				"current_projection_support": {
 					"enum": ["supported_go_runtime", "contract_only", "planned_contract_gap"]
@@ -148,7 +157,7 @@
 			"additionalProperties": false,
 			"required": [
 				"binding_id",
-				"owner_capability",
+				"owner_tool_boundary",
 				"tool_name",
 				"produces",
 				"consumes",
@@ -164,8 +173,16 @@
 					"type": "string",
 					"minLength": 1
 				},
-				"owner_capability": {
-					"enum": ["knowledge", "navigation", "campus_services", "notice"]
+				"owner_tool_boundary": {
+					"enum": [
+						"knowledge_query",
+						"place_lookup",
+						"transport_schedule_lookup",
+						"campus_notice_discover",
+						"campus_notice_change_set_lookup",
+						"campus_notice_period_summary",
+						"campus_notice_get"
+					]
 				},
 				"tool_name": {
 					"type": "string"

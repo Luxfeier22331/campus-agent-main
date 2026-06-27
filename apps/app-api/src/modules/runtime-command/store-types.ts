@@ -2,9 +2,9 @@ import type { ResolvedAppPrincipal } from "../auth";
 import type { ChatMessage, ChatSessionSlot } from "../chat";
 import type { RequestedScope } from "../integration";
 import type {
-	CapabilityExecutionModelUsageSummary,
-	CapabilityExecutionWorkflowTraceSummary,
-} from "../integration/capability-execution-types";
+	ToolExecutionModelUsageSummary,
+	ToolExecutionWorkflowTraceSummary,
+} from "../integration/tool-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -26,8 +26,8 @@ export type RequestExecutionStatus =
 	| "rejected"
 	| "cancelled";
 
-export interface PreviousCapabilityResultRef {
-	capability: string;
+export interface PreviousToolResultRef {
+	tool: string;
 	contentHash: string;
 	projectionRef: string;
 	requestId: string;
@@ -59,11 +59,11 @@ export interface RequestExecutionWrite {
 	traceId: string;
 	runId: string | null;
 	safetyIdentifier?: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 	resolvedScope: RequestedScope | null;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -99,14 +99,13 @@ export interface RequestObservabilityFactWrite {
 	entitlementSnapshotId: string | null;
 	policyProjectionVersion: string | null;
 	policyReason: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScopeSummary: string | null;
 	versionQueryMode: VersionQueryMode | null;
 	versionQuerySummary: string | null;
 	resolvedScopeSummary: string | null;
 	collection: string | null;
-	selectedCapability: string | null;
-	selectedTool?: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	startedAt: string;
@@ -130,12 +129,12 @@ export interface RequestObservabilityFactWrite {
 	toolBusinessOutcome?: string | null;
 	toolFailCloseReason?: string | null;
 	toolHistoricalDowngradeReason?: string | null;
-	workflowTraceSummary?: CapabilityExecutionWorkflowTraceSummary | null;
+	workflowTraceSummary?: ToolExecutionWorkflowTraceSummary | null;
 	modelProvider: string | null;
 	modelName: string | null;
 	billableStepCount: number | null;
-	modelUsageSummary: CapabilityExecutionModelUsageSummary[] | null;
-	intentCapability: string | null;
+	modelUsageSummary: ToolExecutionModelUsageSummary[] | null;
+	intentTool: string | null;
 	intentTaskKind: string | null;
 	intentLaunchState: string | null;
 	intentNextAction: string | null;
@@ -213,7 +212,7 @@ export interface AcceptedDurableRequestCloseout {
 	questionPreview: string;
 	requestFingerprintSha256: string | null;
 	requestId: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	runId: string;
 	safetyIdentifier: string | null;
@@ -249,10 +248,10 @@ export interface ChatCommandStore {
 		runId?: string;
 		startedBefore?: string;
 	}): Promise<AcceptedDurableRequestCloseout[]>;
-	listPreviousCapabilityResultRefs(input: {
+	listPreviousToolResultRefs(input: {
 		beforeTurnSequence: number;
 		conversationId: string;
 		limit: number;
 		ownerUserId: string;
-	}): Promise<PreviousCapabilityResultRef[]>;
+	}): Promise<PreviousToolResultRef[]>;
 }

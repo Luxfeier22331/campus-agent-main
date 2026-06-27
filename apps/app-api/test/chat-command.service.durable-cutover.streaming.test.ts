@@ -14,12 +14,12 @@ import {
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
@@ -28,7 +28,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes accepted requests as errors when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -58,7 +58,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -92,7 +92,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("does not expose a resumable accepted event when durable run creation fails", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -124,7 +124,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -240,7 +240,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("finalizes blocking durable requests as execution timeouts when polling budget expires", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -252,12 +252,12 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
@@ -307,7 +307,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -334,7 +334,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -347,12 +347,12 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
@@ -426,7 +426,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",

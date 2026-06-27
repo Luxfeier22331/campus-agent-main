@@ -35,12 +35,12 @@ func primaryAgentFinalModelContextForRun(
 	currentUserMessage := cloneAnyMapFromMetadata(conversation["current_user_message"])
 	usageSummary := primaryAgentFinalModelUsageSummary(conversation, input)
 	context := map[string]any{
-		"schema_version":              "final_model_context.v1",
-		"current_user_message":        strings.TrimSpace(firstNonEmptyText(currentUserMessage["content"], executionPayload["user_goal"])),
-		"recent_turns":                primaryAgentRecentTurns(conversation),
-		"previous_evidence":           primaryAgentPreviousEvidence(conversation),
-		"previous_capability_results": primaryAgentPreviousCapabilityResults(conversation),
-		"usage_summary":               usageSummary,
+		"schema_version":        "final_model_context.v1",
+		"current_user_message":  strings.TrimSpace(firstNonEmptyText(currentUserMessage["content"], executionPayload["user_goal"])),
+		"recent_turns":          primaryAgentRecentTurns(conversation),
+		"previous_evidence":     primaryAgentPreviousEvidence(conversation),
+		"previous_tool_results": primaryAgentPreviousToolResults(conversation),
+		"usage_summary":         usageSummary,
 	}
 	if summary := firstNonEmptyText(conversation["previous_answer_summary"]); summary != "" {
 		context["previous_answer_summary"] = summary
@@ -130,25 +130,25 @@ func primaryAgentPreviousEvidence(conversation map[string]any) []any {
 	return result
 }
 
-func primaryAgentPreviousCapabilityResults(conversation map[string]any) []any {
-	refs := anyListFromAny(conversation["previous_capability_results"])
+func primaryAgentPreviousToolResults(conversation map[string]any) []any {
+	refs := anyListFromAny(conversation["previous_tool_results"])
 	result := make([]any, 0, len(refs))
 	for _, raw := range refs {
 		ref := cloneAnyMapFromMetadata(raw)
 		requestID := firstNonEmptyText(ref["request_id"])
 		runID := firstNonEmptyText(ref["run_id"])
-		capability := firstNonEmptyText(ref["capability"])
+		tool := firstNonEmptyText(ref["tool"])
 		resultKind := firstNonEmptyText(ref["result_kind"])
 		projectionRef := firstNonEmptyText(ref["projection_ref"])
 		contentHash := firstNonEmptyText(ref["content_hash"])
 		status := firstNonEmptyText(ref["status"])
-		if requestID == "" || runID == "" || capability == "" || resultKind == "" || projectionRef == "" || contentHash == "" || status == "" {
+		if requestID == "" || runID == "" || tool == "" || resultKind == "" || projectionRef == "" || contentHash == "" || status == "" {
 			continue
 		}
 		item := map[string]any{
 			"request_id":     requestID,
 			"run_id":         runID,
-			"capability":     capability,
+			"tool":           tool,
 			"result_kind":    resultKind,
 			"projection_ref": projectionRef,
 			"content_hash":   contentHash,
@@ -166,14 +166,14 @@ func primaryAgentContextUsageSummary(finalModelContext map[string]any) map[strin
 	}
 	usage := cloneAnyMapFromMetadata(finalModelContext["usage_summary"])
 	summary := map[string]any{
-		"schema_version":                   finalModelContext["schema_version"],
-		"recent_turn_count":                len(anyListFromAny(finalModelContext["recent_turns"])),
-		"previous_evidence_count":          len(anyListFromAny(finalModelContext["previous_evidence"])),
-		"previous_capability_result_count": len(anyListFromAny(finalModelContext["previous_capability_results"])),
-		"memory_recall_state":              usage["memory_recall_state"],
-		"model_visible_item_count":         usage["model_visible_item_count"],
-		"runtime_only_item_count":          usage["runtime_only_item_count"],
-		"token_estimate":                   usage["token_estimate"],
+		"schema_version":             finalModelContext["schema_version"],
+		"recent_turn_count":          len(anyListFromAny(finalModelContext["recent_turns"])),
+		"previous_evidence_count":    len(anyListFromAny(finalModelContext["previous_evidence"])),
+		"previous_tool_result_count": len(anyListFromAny(finalModelContext["previous_tool_results"])),
+		"memory_recall_state":        usage["memory_recall_state"],
+		"model_visible_item_count":   usage["model_visible_item_count"],
+		"runtime_only_item_count":    usage["runtime_only_item_count"],
+		"token_estimate":             usage["token_estimate"],
 	}
 	if reason := firstNonEmptyText(usage["truncation_reason"]); reason != "" {
 		summary["truncation_reason"] = reason
@@ -232,7 +232,6 @@ type agentToolResult struct {
 	ArgumentsJSON   map[string]any `json:"arguments_json"`
 	Status          string         `json:"status"`
 	ToolName        string         `json:"tool_name"`
-	Capability      string         `json:"capability"`
 	PayloadKind     string         `json:"payload_kind"`
 	Result          map[string]any `json:"result"`
 	ResultRef       string         `json:"result_ref"`

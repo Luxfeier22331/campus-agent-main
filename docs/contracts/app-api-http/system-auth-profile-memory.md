@@ -38,19 +38,19 @@ owns this section group; the original path remains the stable index.
     "auth": "ready",
     "database": "ready",
     "officialWebHandoff": "not_configured",
-    "operatorBridge": "configured",
+    "operatorSurface": "configured",
     "authShellOrigin": "configured",
     "executionControl": "ready"
   },
   "preflight": {
     "campusServicesProductPath": {
       "status": "ready",
-      "capabilityGate": "open",
+      "toolGate": "open",
       "projectionSource": "postgres",
       "checks": {
         "transportSchedule": "ready",
         "transportScheduleReadModel": "ready",
-        "structuredQueryRuntime": "ready"
+        "toolReadModelRuntime": "ready"
       },
       "blockers": {}
     }
@@ -125,7 +125,7 @@ owns this section group; the original path remains the stable index.
 - 已登录 end-user 默认投影为 `campus_member`
 - `session.sessionId` 是当前 end-user path 的 canonical app-owned session
   identifier；它来自 typed auth projection，不来自 browser 自造 conversation id
-- `operator` 使用 protected surface trusted identity bridge
+- `operator` 使用 protected surface trusted identity handoff
 - v1 不要求单独的 operator 用户系统或 operator session 表
 - 当前 chat routes 继续要求 resolved principal；无 principal 请求返回
   `session_required`，不会创建 anonymous chat conversation

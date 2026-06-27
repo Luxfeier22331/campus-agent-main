@@ -245,7 +245,7 @@ func createMemoryAppendRunForTest(
 		TraceID:          "trace-" + runID,
 		OwnerUserID:      "user-executor",
 		Surface:          "campus-web",
-		Lane:             execution.DurableLaneDefault,
+		TaskQueue:        "campus-agent.workflow",
 		Status:           execution.DurableRunStatusCompleted,
 		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 		CreatedAt:        now,

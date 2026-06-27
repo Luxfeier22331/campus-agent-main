@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-truth_scope: capability
+truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-20
@@ -25,7 +25,7 @@ updated: 2026-06-14
 - 某一轮 workstream 的执行顺序
 - 某个 provider / SDK / vendor API 的具体接法
 
-当前 merged truth 仍以 `docs/architecture/current-architecture.md` 与
+当前 merged truth 仍以 `docs/architecture/current.md` 与
 `docs/architecture/system/retrieval-serving-architecture.md` 为准。本文描述的是长期 target
 architecture，不得把它误读成当前已开放产品 truth。
 
@@ -33,7 +33,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 `campus-agent` 的 retrieval 目标不是继续停留在 single-shot hybrid query，而是：
 
-`durable planner-first typed-tool agentic RAG`
+`durable planner-first typed-tool retrieval graph`
 
 它的固定形态是：
 
@@ -54,7 +54,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 - 让 retrieval backend 自行决定产品 scope 的自治代理
 - 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进
   retrieval planner
-- 把 `knowledge` 重新变成所有 campus capability 的默认 fallback 或 hidden mega-agent
+- 把 `knowledge_query` 重新变成所有 campus tool 的默认 fallback 或 hidden mega-agent
 
 ## Why Agentic Retrieval Exists Here
 
@@ -74,7 +74,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 - `transport_schedule_lookup`、`campus_notice_discover`
   与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
-  runtime capability 不属于 retrieval runtime seam 本身
+  runtime tool 不属于 retrieval runtime seam 本身
 - 它们应通过 projection-backed internal query service + typed domain tool 提供；只有需要语义判断时
   才进入 agent-as-tool
 - `knowledge` 可以消费这些 typed domain tool / agent-as-tool 产出的 bounded context projection，但不能代持它们的
@@ -99,7 +99,7 @@ Execution Agent Layer typed step admission
 
 其中：
 
-- Execution Agent Layer 负责 capability / policy / top-level routing admission
+- Execution Agent Layer 负责 tool / policy / top-level routing admission
 - `knowledge` 负责 plan 与 answer 语义
 - retrieval runtime seam 负责 retrieval execution，不拥有产品级 scope 决策
 - Temporal execution plane 负责 workflow/activity retry、timeout、heartbeat 与 dispatch；
@@ -111,7 +111,7 @@ Execution Agent Layer typed step admission
   durable steps；后续优化重点是让每个 step 的 evidence、latency、token/cost、
   cancel/timeout 与 evidence-integrity verdict 更可证明，而不是恢复 coarse activity
 
-当 retrieval 处于 multi-capability / agent-as-tool workflow 中时，长期片段固定为：
+当 retrieval 处于 multi-tool / agent-as-tool workflow 中时，长期片段固定为：
 
 `upstream typed tool / agent-as-tool StepOutputProjection -> knowledge context
 framing -> typed retrieval plan -> retrieval/domain tools -> evidence verifier ->
@@ -155,7 +155,7 @@ input，不得绕过 query-enabled surface、freshness gate 或 source-trust gat
 不负责：
 
 - 隐式扩面到未开放 collection
-- 在无 planner truth 时自猜历史语义、freshness 语义或产品 capability
+- 在无 planner truth 时自猜历史语义、freshness 语义或产品 tool
 
 ### runtime truth owners
 
@@ -164,7 +164,7 @@ input，不得绕过 query-enabled surface、freshness gate 或 source-trust gat
 - runtime profile / registry / release truth
   - collection posture、visibility、serving alias、version mode
 - `execution-control` / current `apps/execution-control`
-  - policy / capability admission
+  - policy / tool admission
   - workflow/activity admission
   - projection command and finalization
 - Temporal execution plane
@@ -176,7 +176,7 @@ input，不得绕过 query-enabled surface、freshness gate 或 source-trust gat
 
 它至少应显式表达：
 
-- resolved capability
+- resolved tool
 - resolved `corpus/collection` 或 admitted cross-scope branch
 - query mode
   - `current`
@@ -242,7 +242,7 @@ admitted retrieval/domain tool step types 固定优先包括：
 - `entity_resolution`
   - 面向课程、方案家族、制度对象、地点等实体分辨
 - `scope_follow_up`
-  - 在已 admitted 的 capability 内切换到 internal retrieval surface
+  - 在已 admitted 的 tool 内切换到 internal retrieval surface
   - 只保留给显式 admission 的扩展；未 admission 时 executor 必须拒绝它
 - `historical_version_lookup`
   - 显式 historical / `as_of` 版本定位
@@ -256,7 +256,7 @@ admitted retrieval/domain tool step types 固定优先包括：
 禁止新增：
 
 - general web browse fallback
-- 未经 repo 文档 admission 的 remote capability
+- 未经 repo 文档 admission 的 remote tool
 - 以 provider 内置黑盒 web tool 替代 repo-owned source truth
 
 ## Plan Lifecycle
@@ -493,9 +493,8 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
   `execution-control -> Temporal context memory -> activity-worker-agent /
   agent-runtime primary agent -> knowledge_query workflow signal ->
   admitted knowledge RAG graph ->
-  activity-worker-knowledge-plan -> activity-worker-knowledge-retrieval ->
-  activity-worker-knowledge-synthesis -> activity-worker-finalization -> sanitized
-  projection -> app-api` 返回 canonical product response
+  activity-worker-knowledge -> activity-worker-core -> sanitized projection ->
+  app-api` 返回 canonical product response
 - real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
   Docker daemon / WSL backend failure 只能记录为 environment blocker
 - SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；
@@ -522,12 +521,12 @@ SDK loop 的验收口径固定为产品 contract，而不是 provider run succes
 
 ## 相关稳定文档
 
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`
-- `docs/architecture/system/tool-and-capability-runtime-architecture.md`
+- `docs/architecture/system/tool-runtime.md`
 - `docs/architecture/system/retrieval-serving-architecture.md`
-- `docs/architecture/system/prompt-and-instruction-architecture.md`
-- `docs/architecture/system/operator-observability-architecture.md`
+- `docs/architecture/system/prompt.md`
+- `docs/architecture/system/ops-observability.md`
 - `docs/contracts/knowledge-retrieval-plan-contract.md`
 - `docs/data/retrieval-query-activity-model.md`
 - `docs/reference/runtime-serving-and-index-terms.md`

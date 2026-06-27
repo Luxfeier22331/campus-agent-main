@@ -10,7 +10,7 @@ func TestExtractIncomingContextAcceptsSentryTrace(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("sentry-trace", "4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-1")
 
-	traceHeaders := InjectRuntimeTraceHeaders(
+	traceHeaders := InjectExecutionTraceHeaders(
 		ExtractIncomingContext(context.Background(), headers),
 		"req-001",
 		"trace-001",
@@ -31,7 +31,7 @@ func TestExtractIncomingContextIgnoresInvalidSentryTrace(t *testing.T) {
 	headers := http.Header{}
 	headers.Set("sentry-trace", "invalid-secret-token")
 
-	traceHeaders := InjectRuntimeTraceHeaders(
+	traceHeaders := InjectExecutionTraceHeaders(
 		ExtractIncomingContext(context.Background(), headers),
 		"req-001",
 		"trace-001",

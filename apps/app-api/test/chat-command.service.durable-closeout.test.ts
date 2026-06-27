@@ -12,12 +12,12 @@ import { DEFAULT_DURABLE_EVENT_POLLING_POLICY } from "../src/modules/runtime-com
 import { deriveLangfuseTraceId } from "../src/modules/telemetry/trace";
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
@@ -30,12 +30,12 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		createdAt: "2026-06-04T01:02:03Z",
 		failCloseReason: "",
 		finalResponseRef: "",
-		lane: "rag",
+		taskQueue: "campus-agent.workflow",
 		ownerUserId: "user_01HQ",
 		requestId: "req_0001",
-		requestedCapability: "knowledge",
+		requestedTool: "knowledge_query",
 		runId: "run_0001",
-		selectedCapability: "knowledge",
+		selectedTool: "knowledge_query",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
@@ -68,7 +68,7 @@ function answerResponsePayload(text = "国家奖学金每学年评审一次。")
 				sources: [{ doc_id: "student_rules:national-scholarship" }],
 			},
 		},
-		selected_capability: "knowledge",
+		selected_tool: "knowledge_query",
 		status: "completed",
 		trace_id: "trace_0001",
 	};
@@ -106,7 +106,7 @@ describe("chat command durable stream closeout", () => {
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -143,7 +143,7 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -206,7 +206,7 @@ describe("chat command durable stream closeout", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const waitUntilPromises: Promise<unknown>[] = [];
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -244,7 +244,7 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -397,7 +397,7 @@ describe("chat command durable stream closeout", () => {
 	it("does not consume the empty-poll budget while durable progress events keep advancing", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -462,7 +462,7 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -516,7 +516,7 @@ describe("chat command durable stream closeout", () => {
 				questionPreview: "中央民族大学本科学生国家奖学金评审办法",
 				requestFingerprintSha256: "fingerprint_0001",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: null,
 				runId: "run_0001",
 				safetyIdentifier: "safety_0001",

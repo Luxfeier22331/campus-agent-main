@@ -46,7 +46,7 @@ This taxonomy follows the OpenTelemetry direction that:
 | Protected Collector OTLP HTTP receiver | yes, deployment edge | Authenticated Worker-origin OTLP HTTP ingress before the Collector pipeline |
 | OTel Collector | yes, deployment layer | Batching, retry, resource enrichment, attribute filtering, redaction, sampling and fan-out to sinks |
 | Sentry | sink only | Error, trace and performance debugging |
-| Axiom | sink only | High-volume structured runtime events, retrieval/ingestion analysis and quality slicing through Collector exporter |
+| Axiom | sink only | High-volume tool read model events, retrieval/ingestion analysis and quality slicing through Collector exporter |
 
 ## Signal Taxonomy
 
@@ -55,9 +55,9 @@ explicitly allowed below.
 
 | Event / Span Family | Primary Owner | Signal Shape |
 | --------------------- | --------------- | -------------- |
-| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, capability, scope summary, trace/request correlation |
-| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected capability/tool, duration, source count summary, fail-close reason |
-| `runtime.request.transport_error` | `apps/app-api` | Product entry to execution-control transport failure |
+| `runtime.request.accepted` | `apps/execution-control`, `apps/app-api` | Request admitted, actor type, surface, legacy tool hint, scope summary, trace/request correlation |
+| `runtime.request.finalized` | `apps/execution-control`, `apps/app-api` | Request terminal status, selected tool, duration, source count summary, fail-close reason |
+| `runtime.request.transport_error` | `apps/app-api` | Product entry to supervisor transport failure |
 | `agent.bridge.started` | `apps/execution-control` | Historical/offline bridge call admitted with lane, timeout and request correlation |
 | `agent.bridge.completed` | `apps/execution-control` | Historical/offline bridge terminal outcome, duration, queue wait, retry/cancel status |
 | `agent.bridge.failed` | `apps/execution-control` | Historical/offline bridge failure code, retryability and circuit-breaker decision |
@@ -66,7 +66,7 @@ explicitly allowed below.
 | `execution.activity.failed` | `apps/execution-control` / Go activity worker | Temporal activity attempt failure kind, retryability and terminal projection reason |
 | `agent.tool.dispatched` | `apps/execution-control` / worker | Tool call selected by allowed runtime policy |
 | `agent.tool.completed` | `apps/execution-control` / worker | Tool terminal state, latency and failure kind |
-| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge-retrieval` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
+| `retrieval.runtime_observation` | `apps/execution-control` / `activity-worker-knowledge` | Sanitized retrieval observation emitted from `RetrievalObservationSink` |
 | `ingestion.run.started` | `apps/ingestion-control` | Offline ingestion/index run start with run id, source family, surface and collection |
 | `ingestion.run.completed` | `apps/ingestion-control` | Run count summary, duration, cost estimate, release id and audit result |
 | `ingestion.run.failed` | `apps/ingestion-control` | Run failure kind, stage and retryability |
@@ -101,10 +101,10 @@ explicitly allowed below.
 
 - `surface`
 - `lane`
-- `requested_capability`
+- `requested_tool`
 - `requested_scope`
 - `requested_scope_summary`
-- `selected_capability`
+- `selected_tool`
 - `selected_tool`
 - `status`
 - `outcome`
@@ -230,7 +230,7 @@ from production sink configuration.
 
 Runtime adapters or Collector/backend aggregation may derive these low-cardinality metrics:
 
-- request count by surface/capability/status
+- request count by surface/tool/status
 - request latency histogram
 - bridge latency and queue wait histogram
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state

@@ -175,8 +175,8 @@ export function registerOperatorQueryQualitySuite(): void {
 					granularity: null,
 					modelName: null,
 					principalType: null,
-					requestedCapability: null,
-					selectedCapability: null,
+					requestedTool: null,
+					selectedTool: null,
 					surface: null,
 					window: "24h",
 				},
@@ -216,7 +216,7 @@ export function registerOperatorQueryQualitySuite(): void {
 									{ count: 1, value: "answer" },
 									{ count: 1, value: "no_answer" },
 								],
-								capability: [{ count: 2, value: "knowledge" }],
+								tool: [{ count: 2, value: "knowledge" }],
 								citationPosture: [
 									{ count: 1, value: "citation_present" },
 									{ count: 1, value: "citation_not_expected" },
@@ -327,7 +327,7 @@ export function registerOperatorQueryQualitySuite(): void {
 								{ count: 1, value: "answer" },
 								{ count: 1, value: "no_answer" },
 							],
-							capability: [{ count: 2, value: "knowledge" }],
+							tool: [{ count: 2, value: "knowledge" }],
 							citationPosture: [
 								{ count: 1, value: "citation_present" },
 								{ count: 1, value: "citation_not_expected" },
@@ -400,8 +400,8 @@ export function registerOperatorQueryQualitySuite(): void {
 					granularity: null,
 					modelName: null,
 					principalType: null,
-					requestedCapability: null,
-					selectedCapability: null,
+					requestedTool: null,
+					selectedTool: null,
 					surface: "campus_web",
 					window: "24h",
 				},
@@ -503,8 +503,8 @@ export function registerOperatorQueryQualitySuite(): void {
 					granularity: "1h",
 					modelName: null,
 					principalType: null,
-					requestedCapability: null,
-					selectedCapability: null,
+					requestedTool: null,
+					selectedTool: null,
 					surface: "campus_web",
 					window: "24h",
 				},
@@ -543,7 +543,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							},
 							openedAt: "2026-03-28T08:00:10.000Z",
 							requestId: "req_01HQ",
-							selectedCapability: "knowledge",
+							selectedTool: "knowledge_query",
 							status: "open",
 							summary: "citationExpected=true 但 citationCount=0",
 							surface: "campus_web",
@@ -565,7 +565,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=campus_web&selectedCapability=knowledge&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/badcases?window=24h&surface=campus_web&selectedTool=knowledge_query&status=open&causeClass=citation_missing&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -589,7 +589,7 @@ export function registerOperatorQueryQualitySuite(): void {
 						},
 						openedAt: "2026-03-28T08:00:10.000Z",
 						requestId: "req_01HQ",
-						selectedCapability: "knowledge",
+						selectedTool: "knowledge_query",
 						status: "open",
 						summary: "citationExpected=true 但 citationCount=0",
 						surface: "campus_web",
@@ -606,7 +606,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "open",
 					surface: "campus_web",
 					window: "24h",
@@ -651,7 +651,7 @@ export function registerOperatorQueryQualitySuite(): void {
 								traceLink: "https://sentry.example/traces/trace_01HQ",
 							},
 							requestId: "req_01HQ",
-							selectedCapability: "knowledge",
+							selectedTool: "knowledge_query",
 							summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 							surface: "campus_web",
 							traceId: "trace_01HQ",
@@ -672,7 +672,7 @@ export function registerOperatorQueryQualitySuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=campus_web&selectedCapability=knowledge&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
+					"https://app-api.internal/api/operator/quality/eval-candidates?window=24h&surface=campus_web&selectedTool=knowledge_query&status=open&causeClass=unsupported_by_evidence&detectedBy=runtime_monitor",
 				),
 			);
 
@@ -700,7 +700,7 @@ export function registerOperatorQueryQualitySuite(): void {
 							traceLink: "https://sentry.example/traces/trace_01HQ",
 						},
 						requestId: "req_01HQ",
-						selectedCapability: "knowledge",
+						selectedTool: "knowledge_query",
 						summary: "semanticOutcome=unsupported_by_evidence 或存在 unsupported claims",
 						surface: "campus_web",
 						traceId: "trace_01HQ",
@@ -716,7 +716,7 @@ export function registerOperatorQueryQualitySuite(): void {
 					cursor: null,
 					detectedBy: "runtime_monitor",
 					limit: null,
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "open",
 					surface: "campus_web",
 					window: "24h",

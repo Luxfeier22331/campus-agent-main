@@ -7,22 +7,22 @@ import (
 	"testing"
 )
 
-func TestAllowedToolsForCapabilityPayloadKindIsScopedToCapability(t *testing.T) {
-	allowed := AllowedToolsForCapabilityPayloadKind("notice", "campus_notice_get")
-	if allowed != nil {
-		t.Fatalf("allowed = %#v, want nil for closed campus_notice_get", allowed)
+func TestToolRegistryKeepsInternalAndClosedToolsOutOfModelVisibleSet(t *testing.T) {
+	if _, ok := ModelVisibleToolByName("campus_notice_get"); ok {
+		t.Fatal("campus_notice_get must not be model-visible")
 	}
-	if AllowedToolsForCapabilityPayloadKind("campus_services", "service_guide_lookup") != nil {
-		t.Fatal("campus_services must not allow service_guide_lookup")
+	if _, ok := ModelVisibleToolByName("retrieval.query"); ok {
+		t.Fatal("retrieval.query must not be model-visible")
 	}
-	if AllowedToolsForCapabilityPayloadKind("campus_services", "contact_directory_lookup") != nil {
-		t.Fatal("campus_services must not allow contact_directory_lookup")
+	registry, err := LoadToolSpecRegistry("")
+	if err != nil {
+		t.Fatalf("load tool registry: %v", err)
 	}
-	if AllowedToolsForCapabilityPayloadKind("campus_services", "academic_calendar_lookup") != nil {
-		t.Fatal("campus_services must not allow academic_calendar_lookup")
+	if _, ok := registry.ToolByName("retrieval.query"); ok {
+		t.Fatal("retrieval.query must not be registered as a tool")
 	}
-	if AllowedToolsForCapabilityPayloadKind("navigation", "place_lookup") != nil {
-		t.Fatal("navigation must not allow place_lookup before map rollout")
+	if _, ok := ModelVisibleToolByName("place_lookup"); ok {
+		t.Fatal("place_lookup must not be model-visible before map rollout")
 	}
 }
 

@@ -44,9 +44,9 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 				"version_id":    "rule-transfer-major-2026",
 			},
 		},
-		"previous_capability_results": []any{
+		"previous_tool_results": []any{
 			map[string]any{
-				"capability":     "campus_services",
+				"tool":           "transport_schedule_lookup",
 				"content_hash":   "sha256:previous-service-result",
 				"projection_ref": "projection://runs/run_previous_services/finalization",
 				"request_id":     "req_previous_services",
@@ -75,7 +75,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 				"recent_turns",
 				"previous_answer_summary",
 				"previous_evidence_refs",
-				"previous_capability_results",
+				"previous_tool_results",
 				"session_state",
 			},
 			"runtime_only": []any{
@@ -133,7 +133,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		RunID:                "run-primary-agent-context",
 		TraceID:              "trace-executor-001",
 		TurnID:               "turn-primary-agent-context",
-		VisibleCapabilities:  []string{"knowledge"},
+		VisibleToolNames:     []string{"knowledge_query"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -161,14 +161,14 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		firstEvidence["content_hash"] != "sha256:transfer-major-evidence-example" {
 		t.Fatalf("previous evidence = %#v", previousEvidence)
 	}
-	previousCapabilityResults, ok := finalModelContext["previous_capability_results"].([]any)
-	if !ok || len(previousCapabilityResults) != 1 {
-		t.Fatalf("previous_capability_results = %#v", finalModelContext["previous_capability_results"])
+	previousToolResults, ok := finalModelContext["previous_tool_results"].([]any)
+	if !ok || len(previousToolResults) != 1 {
+		t.Fatalf("previous_tool_results = %#v", finalModelContext["previous_tool_results"])
 	}
-	firstCapabilityResult, ok := previousCapabilityResults[0].(map[string]any)
-	if !ok || firstCapabilityResult["capability"] != "campus_services" ||
-		firstCapabilityResult["projection_ref"] != "projection://runs/run_previous_services/finalization" {
-		t.Fatalf("previous capability result = %#v", previousCapabilityResults)
+	firstToolResult, ok := previousToolResults[0].(map[string]any)
+	if !ok || firstToolResult["tool"] != "transport_schedule_lookup" ||
+		firstToolResult["projection_ref"] != "projection://runs/run_previous_services/finalization" {
+		t.Fatalf("previous tool result = %#v", previousToolResults)
 	}
 	steps, err := store.ListRunSteps(context.Background(), "run-primary-agent-context")
 	if err != nil {
@@ -180,7 +180,7 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 	contextUsage, ok := steps[0].SanitizedPayload["context_usage"].(map[string]any)
 	if !ok || contextUsage["schema_version"] != "final_model_context.v1" ||
 		contextUsage["previous_evidence_count"] != 1 ||
-		contextUsage["previous_capability_result_count"] != 1 {
+		contextUsage["previous_tool_result_count"] != 1 {
 		t.Fatalf("context_usage = %#v", steps[0].SanitizedPayload["context_usage"])
 	}
 }

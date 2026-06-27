@@ -18,7 +18,6 @@ const handlerSchema = z.discriminatedUnion("type", [
 ]);
 const rawToolSchema = z.object({
 	name: z.string().min(1),
-	capability: z.string().min(1),
 	description: z.string().min(1),
 	exposure: exposureSchema,
 	read_only: z.boolean(),
@@ -30,8 +29,8 @@ const rawToolSchema = z.object({
 	result_projection_policy: z.literal("bounded_json"),
 });
 const rawCatalogSchema = z.object({
-	schema_version: z.literal("tool-catalog.v1"),
-	catalog_version: z.string().min(1),
+	schema_version: z.literal("tool-registry-v4"),
+	registry_version: z.string().min(1),
 	tools: z.array(rawToolSchema).min(1),
 });
 
@@ -50,7 +49,6 @@ export type ToolCatalogHandler = ExecutionControlInternalQueryHandler | Workflow
 
 export interface ToolCatalogEntry {
 	name: string;
-	capability: string;
 	description: string;
 	exposure: ToolExposure;
 	readOnly: boolean;
@@ -64,15 +62,14 @@ export interface ToolCatalogEntry {
 }
 
 export interface ToolCatalog {
-	schemaVersion: "tool-catalog.v1";
-	catalogVersion: string;
+	schemaVersion: "tool-registry-v4";
+	registryVersion: string;
 	tools: ToolCatalogEntry[];
 }
 
 export interface VisibleToolDefinition {
 	name: string;
 	description: string;
-	capability: string;
 	handler: ToolCatalogHandler;
 	parameterSchema: JsonObjectSchema;
 	timeoutMs: number;
@@ -117,7 +114,6 @@ export function loadToolCatalogFromObject(
 		}
 		return {
 			name: tool.name,
-			capability: tool.capability,
 			description: tool.description,
 			exposure: tool.exposure,
 			readOnly: tool.read_only,
@@ -132,7 +128,7 @@ export function loadToolCatalogFromObject(
 	});
 	return {
 		schemaVersion: parsed.schema_version,
-		catalogVersion: parsed.catalog_version,
+		registryVersion: parsed.registry_version,
 		tools,
 	};
 }
@@ -147,7 +143,6 @@ export function buildVisibleToolDefinitions(catalog: ToolCatalog): VisibleToolDe
 			return {
 				name: tool.name,
 				description: tool.description,
-				capability: tool.capability,
 				handler: tool.handler,
 				parameterSchema: tool.parameterSchema,
 				timeoutMs: tool.timeoutMs,

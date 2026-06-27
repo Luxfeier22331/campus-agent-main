@@ -178,7 +178,7 @@ class FormalBenchmarkRepairExecutionTest(unittest.TestCase):
             repair_summary = json.loads(
                 (repair_dir / "repair-summary.json").read_text(encoding="utf-8")
             )
-            self.assertEqual(repair_summary["selected_capability_count"], 1)
+            self.assertEqual(repair_summary["selected_tool_count"], 1)
             self.assertEqual(repair_summary["applied_target_count"], 1)
             self.assertEqual(repair_summary["remaining_metric_keys"], [])
 
@@ -318,7 +318,7 @@ class FormalBenchmarkRepairExecutionTest(unittest.TestCase):
             )
 
             self.assertEqual(repair_adapter.evaluate_calls, 2)
-            self.assertEqual(repaired_summary["repair"]["selected_capability_count"], 2)
+            self.assertEqual(repaired_summary["repair"]["selected_tool_count"], 2)
             self.assertEqual(repaired_summary["repair"]["applied_target_count"], 2)
             repaired_metric = repaired_summary["aggregate"]["supplemental"][
                 "judge.answer_correctness_rubric"
@@ -529,7 +529,7 @@ class FormalBenchmarkRepairExecutionTest(unittest.TestCase):
             )
 
             self.assertEqual(repair_adapter.evaluate_calls, 0)
-            self.assertEqual(repaired_summary["repair"]["selected_capability_count"], 1)
+            self.assertEqual(repaired_summary["repair"]["selected_tool_count"], 1)
             self.assertEqual(repaired_summary["repair"]["applied_target_count"], 0)
             repair_results = json.loads(
                 (repair_dir / "run-01-repair-results.json").read_text(encoding="utf-8")

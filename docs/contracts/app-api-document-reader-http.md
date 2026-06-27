@@ -115,7 +115,7 @@ control-plane HTTP contract。
 - 该 endpoint 只表达 docs surface 真正依赖的控制面依赖
 - 不把 execution-control readiness、chat runtime readiness、operator surface
   readiness 混入 docs readiness
-- campus docs readiness smoke 应通过 same-origin bridge 调用这个 endpoint，而不是调用根
+- campus docs readiness smoke 应通过 same-origin internal request 调用这个 endpoint，而不是调用根
   `/readyz`
 - 失败时返回 `503 dependency_not_ready`，message 固定为
   `Document reader control plane is not ready.`

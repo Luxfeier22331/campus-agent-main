@@ -36,7 +36,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
-				"capability":   "campus_services",
+				"tool":         "transport_schedule_lookup",
 				"payload_kind": "transport_schedule_lookup",
 				"arguments_json": validTransportScheduleLookupArguments(
 					"今晚六点还有丰台去海淀的班车吗",
@@ -50,7 +50,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 			}, {
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
-				"capability":   "campus_services",
+				"tool":         "transport_schedule_lookup",
 				"payload_kind": "transport_schedule_lookup",
 				"arguments_json": validTransportScheduleLookupArguments(
 					"今晚六点还有丰台去海淀的班车吗",
@@ -82,12 +82,12 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool",
-		RequestID:           "req-primary-agent-sdk-tool",
-		RunID:               "run-primary-agent-sdk-tool",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool",
-		VisibleCapabilities: []string{"campus_services", "notice", "knowledge"},
+		ConversationID:   "conv-primary-agent-sdk-tool",
+		RequestID:        "req-primary-agent-sdk-tool",
+		RunID:            "run-primary-agent-sdk-tool",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool",
+		VisibleToolNames: []string{"transport_schedule_lookup", "campus_notice_discover", "knowledge_query"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -114,7 +114,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		t.Fatalf("second sdk typed tool step missing: %#v", steps)
 		return
 	}
-	if firstToolStep.Capability != "campus_services" ||
+	if firstToolStep.Tool != "transport_schedule_lookup" ||
 		firstToolStep.StepKind != "tool" ||
 		firstToolStep.Status != "completed" ||
 		secondToolStep.Status != "completed" {
@@ -157,7 +157,7 @@ func TestExecutePrimaryAgentActivityProjectsSdkTypedToolResult(t *testing.T) {
 		t.Fatalf("second sdk typed tool result_envelope = %#v", secondToolResult.SanitizedPayload["result_envelope"])
 	}
 	if secondEnvelope["schema_version"] != "campus_services_tool_result.v1" ||
-		secondEnvelope["capability"] != "campus_services" ||
+		secondEnvelope["tool"] != "transport_schedule_lookup" ||
 		secondEnvelope["tool_name"] != "transport_schedule_lookup" ||
 		secondEnvelope["query_kind"] != "transport_schedule" ||
 		secondEnvelope["projection_ref"] != secondToolResult.ProjectionRef ||
@@ -210,7 +210,7 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
-				"capability":   "campus_services",
+				"tool":         "transport_schedule_lookup",
 				"payload_kind": "transport_schedule_lookup",
 				"arguments_json": validTransportScheduleLookupArguments(
 					"今晚六点还有丰台去海淀的班车吗",
@@ -236,14 +236,14 @@ func TestExecutePrimaryAgentActivityProjectsBoundedReplanAttempt(t *testing.T) {
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		Attempt:             2,
-		ConversationID:      "conv-primary-agent-sdk-tool-replan",
-		ReplanReason:        "bounded_replan_after_tool_handler_failed",
-		RequestID:           "req-primary-agent-sdk-tool-replan",
-		RunID:               "run-primary-agent-sdk-tool-replan",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-replan",
-		VisibleCapabilities: []string{"campus_services"},
+		Attempt:          2,
+		ConversationID:   "conv-primary-agent-sdk-tool-replan",
+		ReplanReason:     "bounded_replan_after_tool_handler_failed",
+		RequestID:        "req-primary-agent-sdk-tool-replan",
+		RunID:            "run-primary-agent-sdk-tool-replan",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-replan",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -302,7 +302,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 			"tool_results": []map[string]any{{
 				"status":            "failed",
 				"tool_name":         "campus_notice_discover",
-				"capability":        "notice",
+				"tool":              "campus_notice_discover",
 				"payload_kind":      "campus_notice_discover",
 				"arguments_json":    validCampusNoticeDiscoverArguments("最近有什么通知"),
 				"result_ref":        "agent-runtime://run-primary-agent-sdk-tool-failed/tools/campus_notice_discover/failed",
@@ -329,12 +329,12 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool-failed",
-		RequestID:           "req-primary-agent-sdk-tool-failed",
-		RunID:               "run-primary-agent-sdk-tool-failed",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-failed",
-		VisibleCapabilities: []string{"notice", "knowledge"},
+		ConversationID:   "conv-primary-agent-sdk-tool-failed",
+		RequestID:        "req-primary-agent-sdk-tool-failed",
+		RunID:            "run-primary-agent-sdk-tool-failed",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-failed",
+		VisibleToolNames: []string{"campus_notice_discover", "knowledge_query"},
 	})
 	if err == nil {
 		t.Fatal("expected failed SDK tool to fail primary agent activity")
@@ -354,7 +354,7 @@ func TestExecutePrimaryAgentActivityProjectsFailedSdkTypedToolResult(t *testing.
 		return
 	}
 	if toolStep.Status != "failed" ||
-		toolStep.Capability != "notice" ||
+		toolStep.Tool != "campus_notice_discover" ||
 		toolStep.SanitizedPayload["fail_close_reason"] != "tool_handler_failed" {
 		t.Fatalf("failed sdk typed tool step = %#v", toolStep)
 	}
@@ -400,7 +400,7 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 			"tool_results": []map[string]any{{
 				"status":         "completed",
 				"tool_name":      "transport_schedule_lookup",
-				"capability":     "campus_services",
+				"tool":           "transport_schedule_lookup",
 				"payload_kind":   "transport_schedule_lookup",
 				"arguments_json": map[string]any{"query_text": "校车", "unexpected": "field"},
 				"result_ref":     "agent-runtime://run-primary-agent-sdk-tool-bad-args/tools/transport_schedule_lookup",
@@ -420,12 +420,12 @@ func TestExecutePrimaryAgentActivityFailsClosedOnInvalidSdkToolArguments(t *test
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool-bad-args",
-		RequestID:           "req-primary-agent-sdk-tool-bad-args",
-		RunID:               "run-primary-agent-sdk-tool-bad-args",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-bad-args",
-		VisibleCapabilities: []string{"campus_services"},
+		ConversationID:   "conv-primary-agent-sdk-tool-bad-args",
+		RequestID:        "req-primary-agent-sdk-tool-bad-args",
+		RunID:            "run-primary-agent-sdk-tool-bad-args",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-bad-args",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
 		t.Fatal("execute primary agent accepted invalid SDK tool arguments")
@@ -479,7 +479,7 @@ func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnv
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "transport_schedule_lookup",
-				"capability":   "campus_services",
+				"tool":         "transport_schedule_lookup",
 				"payload_kind": "transport_schedule_lookup",
 				"arguments_json": validTransportScheduleLookupArguments(
 					"今晚六点还有丰台去海淀的班车吗",
@@ -501,15 +501,15 @@ func TestExecutePrimaryAgentActivityRejectsCampusServicesSdkToolResultWithoutEnv
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool-missing-envelope",
-		RequestID:           "req-primary-agent-sdk-tool-missing-envelope",
-		RunID:               "run-primary-agent-sdk-tool-missing-envelope",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-missing-envelope",
-		VisibleCapabilities: []string{"campus_services"},
+		ConversationID:   "conv-primary-agent-sdk-tool-missing-envelope",
+		RequestID:        "req-primary-agent-sdk-tool-missing-envelope",
+		RunID:            "run-primary-agent-sdk-tool-missing-envelope",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-missing-envelope",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
-		t.Fatal("execute primary agent accepted campus_services SDK tool result without envelope")
+		t.Fatal("execute primary agent accepted transport_schedule_lookup SDK tool result without envelope")
 	}
 	if !strings.Contains(err.Error(), "fail_close_reason=result_contract_drift") {
 		t.Fatalf("error = %q, want result_contract_drift fail close", err.Error())
@@ -557,7 +557,7 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "campus_notice_get",
-				"capability":   "notice",
+				"tool":         "campus_notice_discover",
 				"payload_kind": "campus_notice_get",
 				"result_ref":   "agent-runtime://run-primary-agent-sdk-tool-unadmitted/tools/campus_notice_get",
 				"result":       map[string]any{"outcome": "resolved_current"},
@@ -582,12 +582,12 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool-unadmitted",
-		RequestID:           "req-primary-agent-sdk-tool-unadmitted",
-		RunID:               "run-primary-agent-sdk-tool-unadmitted",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-unadmitted",
-		VisibleCapabilities: []string{"notice", "knowledge"},
+		ConversationID:   "conv-primary-agent-sdk-tool-unadmitted",
+		RequestID:        "req-primary-agent-sdk-tool-unadmitted",
+		RunID:            "run-primary-agent-sdk-tool-unadmitted",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-unadmitted",
+		VisibleToolNames: []string{"campus_notice_discover", "knowledge_query"},
 	})
 	if err == nil {
 		t.Fatal("expected unadmitted SDK tool result to fail closed")
@@ -606,31 +606,31 @@ func TestExecutePrimaryAgentActivityRejectsUnadmittedSdkToolResult(t *testing.T)
 	}
 }
 
-func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleCapabilities(t *testing.T) {
+func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleToolNames(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 11, 45, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
 		t,
 		store,
-		"run-primary-agent-sdk-tool-hidden-capability",
-		"conv-primary-agent-sdk-tool-hidden-capability",
+		"run-primary-agent-sdk-tool-hidden-tool",
+		"conv-primary-agent-sdk-tool-hidden-tool",
 		now,
 		ragHandoffForDurableWorkerTest("最近有什么通知"),
 	)
 	agentRuntime := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		writeAgentRuntimeSSEEvent(t, response, "completed", map[string]any{
 			"status":               "completed",
-			"run_id":               "run-primary-agent-sdk-tool-hidden-capability",
+			"run_id":               "run-primary-agent-sdk-tool-hidden-tool",
 			"final_output":         "不应使用本轮不可见能力回答。",
-			"provider_response_id": "resp-primary-agent-sdk-tool-hidden-capability",
-			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-hidden-capability",
+			"provider_response_id": "resp-primary-agent-sdk-tool-hidden-tool",
+			"sdk_trace_ref":        "trace://openai-agents/run-primary-agent-sdk-tool-hidden-tool",
 			"selected_tools":       []string{"campus_notice_discover"},
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "campus_notice_discover",
-				"capability":   "notice",
+				"tool":         "campus_notice_discover",
 				"payload_kind": "campus_notice_discover",
-				"result_ref":   "agent-runtime://run-primary-agent-sdk-tool-hidden-capability/tools/campus_notice_discover",
+				"result_ref":   "agent-runtime://run-primary-agent-sdk-tool-hidden-tool/tools/campus_notice_discover",
 				"result":       map[string]any{"outcome": "resolved_current"},
 			}},
 			"terminal_reason": "answer_completed",
@@ -641,32 +641,32 @@ func TestExecutePrimaryAgentActivityRejectsSdkToolOutsideVisibleCapabilities(t *
 		AgentRuntimeBaseURL:      agentRuntime.URL,
 		AgentRuntimeSharedSecret: "agent-secret",
 		AgentRuntimeTimeoutMS:    1000,
-		TemporalWorkerIdentity:   "test:agent:sdk-tool-hidden-capability",
+		TemporalWorkerIdentity:   "test:agent:sdk-tool-hidden-tool",
 	})
 	attachPrimaryAgentProviderConfigForTest(server)
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-sdk-tool-hidden-capability",
-		RequestID:           "req-primary-agent-sdk-tool-hidden-capability",
-		RunID:               "run-primary-agent-sdk-tool-hidden-capability",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-sdk-tool-hidden-capability",
-		VisibleCapabilities: []string{"campus_services"},
+		ConversationID:   "conv-primary-agent-sdk-tool-hidden-tool",
+		RequestID:        "req-primary-agent-sdk-tool-hidden-tool",
+		RunID:            "run-primary-agent-sdk-tool-hidden-tool",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-sdk-tool-hidden-tool",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
-		t.Fatal("expected hidden capability SDK tool result to fail closed")
+		t.Fatal("expected hidden tool SDK tool result to fail closed")
 	}
-	if !strings.Contains(err.Error(), "agent runtime tool campus_notice_discover capability notice was not visible") {
-		t.Fatalf("error = %q, want hidden capability failure", err.Error())
+	if !strings.Contains(err.Error(), "agent runtime tool campus_notice_discover was not visible") {
+		t.Fatalf("error = %q, want hidden tool failure", err.Error())
 	}
-	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-hidden-capability")
+	steps, listErr := store.ListRunSteps(context.Background(), "run-primary-agent-sdk-tool-hidden-tool")
 	if listErr != nil {
 		t.Fatalf("list run steps: %v", listErr)
 	}
 	for _, step := range steps {
 		if strings.HasPrefix(step.StepID, "sdk_tool.execute.campus_notice_discover") {
-			t.Fatalf("hidden capability SDK tool was projected as typed step: %#v", step)
+			t.Fatalf("hidden tool SDK tool was projected as typed step: %#v", step)
 		}
 	}
 }
@@ -723,7 +723,7 @@ func campusServicesToolResultForTest(
 		"outcome": outcome,
 		"result_envelope": map[string]any{
 			"schema_version": "campus_services_tool_result.v1",
-			"capability":     "campus_services",
+			"tool":           "transport_schedule_lookup",
 			"tool_name":      toolName,
 			"query_kind":     "transport_schedule",
 			"outcome":        outcome,

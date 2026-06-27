@@ -24,8 +24,8 @@ func validateDurableRun(run DurableRun) error {
 	if run.Surface == "" {
 		return fmt.Errorf("%w: surface is required", ErrInvalidDurableRun)
 	}
-	if !durableLaneValid(run.Lane) {
-		return fmt.Errorf("%w: unsupported lane %q", ErrInvalidDurableRun, run.Lane)
+	if run.TaskQueue == "" {
+		return fmt.Errorf("%w: task_queue is required", ErrInvalidDurableRun)
 	}
 	if !durableRunStatusValid(run.Status) {
 		return fmt.Errorf("%w: unsupported status %q", ErrInvalidDurableRun, run.Status)
@@ -173,16 +173,6 @@ func durableRunTransitionAllowed(from DurableRunStatus, to DurableRunStatus) boo
 			to == DurableRunStatusCanceled ||
 			to == DurableRunStatusFailed ||
 			to == DurableRunStatusExpired
-	default:
-		return false
-	}
-}
-
-func durableLaneValid(lane DurableLane) bool {
-	switch lane {
-	case DurableLaneRAG, DurableLaneNotice, DurableLaneNavigation, DurableLaneCampusServices,
-		DurableLaneDefault:
-		return true
 	default:
 		return false
 	}

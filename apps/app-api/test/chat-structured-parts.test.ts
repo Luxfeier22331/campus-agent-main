@@ -369,7 +369,7 @@ describe("chat structured parts", () => {
 					],
 				},
 			},
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "completed",
 		});
 

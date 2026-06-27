@@ -9,7 +9,7 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
 )
 
-func TestReadyzDoesNotRequireRetiredRuntimeForOnlineRAGRuntime(t *testing.T) {
+func TestReadyzDoesNotRequireRetiredPythonHandoffForOnlineRAGRuntime(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
@@ -62,7 +62,7 @@ func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
 	}
 }
 
-func TestReadyzDoesNotCheckRetiredRuntimeReadiness(t *testing.T) {
+func TestReadyzDoesNotCheckRetiredPythonHandoffReadiness(t *testing.T) {
 	server := newReadyServerForTest(t)
 	response := httptest.NewRecorder()
 
@@ -132,31 +132,31 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueContext,
+					Name:    temporalruntime.ActivityTaskQueueCore,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueFinalization,
+					Name:    temporalruntime.ActivityTaskQueueCore,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 0,
 					Healthy: false,
@@ -183,7 +183,7 @@ func TestReadyzDegradesWhenTemporalTaskQueuePollerIsMissing(t *testing.T) {
 
 func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 	server := newReadyServerForTest(t, func(cfg *config.Config) {
-		cfg.OpenCapabilities = []string{"notice"}
+		cfg.OpenTools = []string{"campus_notice_discover"}
 	})
 	server.temporalStarter = readyTemporalStarter{
 		readiness: temporalruntime.RuntimeReadiness{
@@ -196,31 +196,31 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueContext,
+					Name:    temporalruntime.ActivityTaskQueueCore,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgePlan,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
+					Name:    temporalruntime.ActivityTaskQueueKnowledge,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
 				},
 				{
-					Name:    temporalruntime.ActivityTaskQueueFinalization,
+					Name:    temporalruntime.ActivityTaskQueueCore,
 					Type:    temporalruntime.TaskQueueTypeActivity,
 					Pollers: 1,
 					Healthy: true,
@@ -241,7 +241,7 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 	if !ok {
 		t.Fatalf("temporal_runtime.task_queues = %#v, want array", temporalRuntime["task_queues"])
 	}
-	if !containsStringValue(required, temporalruntime.ActivityTaskQueueNotice) {
+	if !containsStringValue(required, temporalruntime.ActivityTaskQueueCore) {
 		t.Fatalf("required task queues = %#v, want notice activity queue", required)
 	}
 	if temporalRuntime["healthy"] != false {
@@ -249,22 +249,21 @@ func TestReadyzDegradesWhenOpenedNoticeActivityPollerIsMissing(t *testing.T) {
 	}
 }
 
-func TestRequiredTemporalTaskQueuesIncludeOpenedCapabilityWorkers(t *testing.T) {
+func TestRequiredTemporalTaskQueuesIncludeOpenedToolWorkers(t *testing.T) {
 	queues := requiredTemporalTaskQueueNames(config.Config{
 		TemporalTaskQueue: "custom.workflow",
-		OpenCapabilities:  []string{"campus_services", "navigation", "notice"},
+		OpenTools:         []string{"transport_schedule_lookup", "campus_notice_discover"},
 	})
 
 	for _, want := range []string{
 		"custom.workflow",
-		temporalruntime.ActivityTaskQueueContext,
-		temporalruntime.ActivityTaskQueueKnowledgePlan,
-		temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
-		temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
-		temporalruntime.ActivityTaskQueueFinalization,
-		temporalruntime.ActivityTaskQueueCampusService,
-		temporalruntime.ActivityTaskQueueNavigation,
-		temporalruntime.ActivityTaskQueueNotice,
+		temporalruntime.ActivityTaskQueueCore,
+		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueKnowledge,
+		temporalruntime.ActivityTaskQueueCore,
+		temporalruntime.ActivityTaskQueueCore,
+		temporalruntime.ActivityTaskQueueCore,
 	} {
 		if !containsStringValue(anySlice(queues), want) {
 			t.Fatalf("required task queues = %#v, missing %s", queues, want)

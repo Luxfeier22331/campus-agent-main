@@ -25,16 +25,16 @@ function durableRunPayload(overrides: Record<string, unknown> = {}): Record<stri
 		created_at: "2026-06-04T01:02:03Z",
 		fail_close_reason: "",
 		final_response_ref: "",
-		lane: "rag",
 		owner_user_id: "user_001",
 		request_id: "req_durable_001",
-		requested_capability: "knowledge",
+		requested_tool: "knowledge_query",
 		run_id: "run_durable_001",
-		selected_capability: "knowledge",
+		selected_tool: "knowledge_query",
 		started_at: "",
 		status: "queued",
 		streaming_started_at: "",
 		surface: "campus-web",
+		task_queue: "campus-agent.workflow",
 		terminal_reason: "",
 		trace_id: "trace_durable_001",
 		turn_id: "turn_durable_001",
@@ -57,7 +57,7 @@ function durableRunStepsPayload(
 				status: "completed",
 			},
 			trajectory: {
-				selected_capability: "knowledge",
+				selected_tool: "knowledge_query",
 			},
 		},
 		attempts: [
@@ -90,7 +90,7 @@ function durableRunStepsPayload(
 				started_at: "2026-06-04T01:02:04.000Z",
 				status: "completed",
 				step_id: "plan.route",
-				task_queue: "campus-agent.activity.context",
+				task_queue: "campus-agent.activity.core",
 				temporal_run_id: "temporal-run-001",
 				terminal_reason: "answer_completed",
 				timeout_outcome: "not_timed_out",
@@ -103,7 +103,7 @@ function durableRunStepsPayload(
 		results: [],
 		steps: [
 			{
-				capability: "knowledge",
+				tool: "knowledge_query",
 				completed_at: "2026-06-04T01:02:04.100Z",
 				conversation_id: "conv_durable_001",
 				parent_step_id: "",
@@ -114,7 +114,7 @@ function durableRunStepsPayload(
 				status: "completed",
 				step_id: "plan.route",
 				step_kind: "planning",
-				task_queue: "campus-agent.activity.context",
+				task_queue: "campus-agent.activity.core",
 				updated_at: "2026-06-04T01:02:04.100Z",
 				worker_id: "staging:context:worker-1",
 			},
@@ -165,7 +165,7 @@ describe("execution control runtime adapter", () => {
 
 		const result = await client.createRun({
 			conversationId: "conv_durable_001",
-			lane: "rag",
+			taskQueue: "campus-agent.workflow",
 			metadata: {
 				execution_payload: {
 					conversation_id: "conv_durable_001",
@@ -175,12 +175,12 @@ describe("execution control runtime adapter", () => {
 			},
 			ownerUserId: "user_001",
 			requestId: "req_durable_001",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			runId: "run_durable_001",
 			runtimeVersions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			surface: "campus-web",
 			traceId: "trace_durable_001",
 			turnId: "turn_durable_001",
@@ -199,7 +199,6 @@ describe("execution control runtime adapter", () => {
 		);
 		expect(JSON.parse(readMockRequestBody(fetchImplementation, 0))).toEqual({
 			conversation_id: "conv_durable_001",
-			lane: "rag",
 			metadata: {
 				execution_payload: {
 					conversation_id: "conv_durable_001",
@@ -209,13 +208,14 @@ describe("execution control runtime adapter", () => {
 			},
 			owner_user_id: "user_001",
 			request_id: "req_durable_001",
-			requested_capability: "knowledge",
+			requested_tool: "knowledge_query",
 			run_id: "run_durable_001",
 			runtime_versions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
-			selected_capability: "knowledge",
+			selected_tool: "knowledge_query",
 			surface: "campus-web",
+			task_queue: "campus-agent.workflow",
 			trace_id: "trace_durable_001",
 			turn_id: "turn_durable_001",
 		});
@@ -226,12 +226,12 @@ describe("execution control runtime adapter", () => {
 			createdAt: "2026-06-04T01:02:03Z",
 			failCloseReason: "",
 			finalResponseRef: "",
-			lane: "rag",
+			taskQueue: "campus-agent.workflow",
 			ownerUserId: "user_001",
 			requestId: "req_durable_001",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			runId: "run_durable_001",
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			startedAt: "",
 			status: "queued",
 			streamingStartedAt: "",
@@ -327,7 +327,7 @@ describe("execution control runtime adapter", () => {
 		]);
 	});
 
-	it("passes durable run event sequence cursor to executionClient events query", async () => {
+	it("passes durable run event sequence cursor to execution-control events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ events: [] }), {
 				status: 200,
@@ -355,7 +355,7 @@ describe("execution control runtime adapter", () => {
 		);
 	});
 
-	it("passes bounded wait budget to executionClient events query", async () => {
+	it("passes bounded wait budget to execution-control events query", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(JSON.stringify({ events: [] }), {
 				status: 200,
@@ -431,7 +431,7 @@ describe("execution control runtime adapter", () => {
 				status: "completed",
 			},
 			trajectory: {
-				selected_capability: "knowledge",
+				selected_tool: "knowledge_query",
 			},
 		});
 	});
@@ -702,7 +702,7 @@ describe("execution control runtime adapter", () => {
 		});
 	});
 
-	it("maps durable executionClient error envelopes without widening them", async () => {
+	it("maps durable execution-control error envelopes without widening them", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
@@ -726,7 +726,7 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				metadata: { execution_payload: {}, handoff: {} },
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",
@@ -742,7 +742,7 @@ describe("execution control runtime adapter", () => {
 		});
 	});
 
-	it("rejects invalid durable run projections from executionClient", async () => {
+	it("rejects invalid durable run projections from execution-control", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(
 				JSON.stringify({
@@ -763,7 +763,7 @@ describe("execution control runtime adapter", () => {
 		await expect(
 			client.createRun({
 				conversationId: "conv_durable_001",
-				lane: "rag",
+				taskQueue: "campus-agent.workflow",
 				metadata: { execution_payload: {}, handoff: {} },
 				ownerUserId: "user_001",
 				requestId: "req_durable_001",

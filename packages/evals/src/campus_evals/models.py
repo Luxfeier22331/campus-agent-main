@@ -5,14 +5,14 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import (
-    ALLOWED_CAPABILITY_IDS,
+    ALLOWED_TOOL_IDS,
     ActorContext,
-    CapabilityID,
-    CapabilityResponse,
     EvidenceSource,
     ExecutionResponse,
     ExecutionStatus,
     KnowledgeScope,
+    ToolID,
+    ToolResponse,
     VersionQuery,
     WorkflowTraceSummary,
 )
@@ -32,22 +32,8 @@ ALLOWED_SOURCE_TYPES = (
     "incident_backfill",
     "synthetic_expansion",
 )
-ExpectedCapability = CapabilityID | Literal["none"]
-CapabilityFamilyLabel = Literal["none", "knowledge", "navigation", "campus_services", "notice"]
-ALLOWED_EXPECTED_CAPABILITIES = ("none", *ALLOWED_CAPABILITY_IDS)
-ALLOWED_CAPABILITY_FAMILY_LABELS = (
-    "none",
-    "knowledge",
-    "navigation",
-    "campus_services",
-    "notice",
-)
-_CAPABILITY_TO_CAPABILITY_FAMILY: dict[CapabilityID, CapabilityFamilyLabel] = {
-    "knowledge": "knowledge",
-    "navigation": "navigation",
-    "campus_services": "campus_services",
-    "notice": "notice",
-}
+ExpectedTool = ToolID | Literal["none"]
+ALLOWED_EXPECTED_TOOLS = ("none", *ALLOWED_TOOL_IDS)
 _FORBIDDEN_WORKFLOW_TRACE_KEY_TOKENS = (
     "raw_prompt",
     "raw_transcript",
@@ -77,12 +63,6 @@ _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
     "token=",
 )
 _JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
-
-
-def capability_family_for_capability(capability: CapabilityID | None) -> CapabilityFamilyLabel:
-    if capability is None:
-        return "none"
-    return _CAPABILITY_TO_CAPABILITY_FAMILY[capability]
 
 
 def reject_forbidden_workflow_trace_keys(payload: object, field_name: str) -> None:
@@ -158,29 +138,11 @@ class TraceExpectation:
     clarification_expected: bool | None = None
     error_expected: bool | None = None
     fail_closed_expected: bool | None = None
-    expected_capability: ExpectedCapability | None = None
-    expected_capability_family: CapabilityFamilyLabel | None = None
+    expected_tool: ExpectedTool | None = None
 
     def __post_init__(self) -> None:
-        if (
-            self.expected_capability is not None
-            and self.expected_capability not in ALLOWED_EXPECTED_CAPABILITIES
-        ):
-            raise ValueError(f"unsupported expected_capability: {self.expected_capability}")
-        if (
-            self.expected_capability_family is not None
-            and self.expected_capability_family not in ALLOWED_CAPABILITY_FAMILY_LABELS
-        ):
-            raise ValueError(
-                f"unsupported expected_capability_family: {self.expected_capability_family}"
-            )
-        if self.expected_capability is not None and self.expected_capability_family is not None:
-            capability = None if self.expected_capability == "none" else self.expected_capability
-            expected_family = capability_family_for_capability(capability)
-            if expected_family != self.expected_capability_family:
-                raise ValueError(
-                    "expected_capability and expected_capability_family must describe the same lane"
-                )
+        if self.expected_tool is not None and self.expected_tool not in ALLOWED_EXPECTED_TOOLS:
+            raise ValueError(f"unsupported expected_tool: {self.expected_tool}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -296,7 +258,7 @@ class OrchestrationCaseResults:
 
 @dataclass(frozen=True, slots=True)
 class ExecutionResult:
-    response: CapabilityResponse | ExecutionResponse
+    response: ToolResponse | ExecutionResponse
     observed_trace: ObservedTrace | None = None
     request_correlation: OperatorRequestCorrelation | None = None
     workflow_trace_summary: WorkflowTraceSummary | None = None

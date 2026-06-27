@@ -73,20 +73,15 @@ Readiness must confirm:
 
 Required activity task queues:
 
-- `campus-agent.activity.context`
-- `campus-agent.activity.knowledge.plan`
-- `campus-agent.activity.knowledge.retrieval`
-- `campus-agent.activity.knowledge.synthesis`
-- `campus-agent.activity.finalization`
+- `campus-agent.activity.core`
+- `campus-agent.activity.knowledge`
 
-Capability-gated activity task queues:
+Tool-gated activity task queues:
 
-- `campus-agent.activity.notice`
-- `campus-agent.activity.navigation`
-- `campus-agent.activity.campus_services`
+- `campus-agent.activity.core`
 
-If runtime profile `open_capabilities` opens one of these capabilities, the matching
-task queue must have a poller. Missing pollers are a readiness blocker.
+If runtime profile `open_tools` opens a concrete typed tool, the matching task
+queue must have a poller. Missing pollers are a readiness blocker.
 
 ## Worker Identity
 
@@ -191,7 +186,7 @@ The app-api operator runtime projection must include:
   latency metric source is wired
 
 Apply mode is allowed only for the Docker Compose service allowlist documented in
-`docs/contracts/operator-runtime-observability-contract.md`. The autoscaler must
+`docs/contracts/operator-runtime.md`. The autoscaler must
 not write workflow state, run projection, step projection, event projection,
 terminal state, or downstream budget.
 
@@ -225,9 +220,8 @@ The K8s staging proof must confirm:
 
 - exactly one Deployment and one KEDA ScaledObject exist for each worker pool
 - every ScaledObject has `minReplicaCount=1`
-- `activity-worker-knowledge-retrieval` and
-  `activity-worker-knowledge-synthesis` have `maxReplicaCount=5`; other pools
-  have `maxReplicaCount=3`
+- `activity-worker-knowledge` has `maxReplicaCount=5`; other pools have
+  `maxReplicaCount=3`
 - every ScaledObject uses `targetQueueSize="8"`, `pollingInterval=15`,
   `cooldownPeriod=180` and HPA scale-down stabilization `300`
 - `temporal-task-queue-sampler` writes fresh

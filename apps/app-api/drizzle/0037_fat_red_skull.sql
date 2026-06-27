@@ -3,7 +3,7 @@ ADD COLUMN "trajectory_attribution_json" jsonb DEFAULT '{
     "status": "trajectory_missing",
     "stepId": null,
     "stepKind": null,
-    "capability": null,
+    "tool": null,
     "toolName": null,
     "stepStatus": null,
     "outcome": {

@@ -81,12 +81,6 @@
 			"secret": false,
 			"retired": true
 		},
-		"EXECUTION_CONTROL_OPEN_CAPABILITIES": {
-			"owner": "execution-control-runtime-profile",
-			"scopes": [],
-			"secret": false,
-			"retired": true
-		},
 		"EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED": {
 			"owner": "execution-control-runtime-profile",
 			"scopes": [],

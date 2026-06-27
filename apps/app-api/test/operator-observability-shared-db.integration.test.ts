@@ -211,7 +211,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "actor_departments_json", "principal_type",
           "principal_label", "entitlement_snapshot_id", "entitlement_groups_json",
           "visibility_scope", "applicability_scope", "idempotency_key", "request_fingerprint_sha256",
-          "trace_id", "requested_capability", "requested_scope_json", "selected_capability",
+          "trace_id", "requested_tool", "requested_scope_json", "selected_tool",
           "status", "error_code", "question_preview", "answer_preview", "diagnostics_json",
           "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "created_at", "updated_at"
         ) values (
@@ -232,8 +232,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 			`
         insert into "runtime"."request_observability_fact" (
           "request_id", "trace_id", "conversation_id", "surface", "principal_type",
-          "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
-          "requested_scope_summary", "collection", "selected_capability", "status", "error_code",
+          "entitlement_snapshot_id", "policy_projection_version", "requested_tool",
+          "requested_scope_summary", "collection", "selected_tool", "status", "error_code",
           "started_at", "completed_at", "duration_ms", "retrieval_attempted", "candidate_count",
           "retrieved_source_count", "empty_recall", "citation_expected", "citation_count",
           "citation_missing", "refusal_class", "acl_decision", "acl_anomaly_code", "fail_closed",
@@ -257,8 +257,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         insert into "operator"."request_projection" (
           "request_id", "trace_id", "surface", "conversation_id", "principal_type",
           "principal_id", "principal_label", "entitlement_snapshot_id", "entitlement_groups_json",
-          "visibility_scope", "applicability_scope", "requested_capability", "requested_scope_json",
-          "selected_capability", "status", "error_code", "question_preview", "answer_preview",
+          "visibility_scope", "applicability_scope", "requested_tool", "requested_scope_json",
+          "selected_tool", "status", "error_code", "question_preview", "answer_preview",
           "diagnostics_json", "source_doc_ids_json", "started_at", "completed_at", "duration_ms", "projected_at"
         ) values (
           $1, $2, 'campus_web', $3, 'student',
@@ -275,8 +275,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 			`
         insert into "operator"."request_audit_projection" (
           "audit_event_id", "request_id", "trace_id", "occurred_at", "event_type", "surface",
-          "principal_type", "entitlement_snapshot_id", "policy_projection_version", "requested_capability",
-          "selected_capability", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
+          "principal_type", "entitlement_snapshot_id", "policy_projection_version", "requested_tool",
+          "selected_tool", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
         ) values (
           $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'campus_web',
           'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
@@ -291,7 +291,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 			`
         insert into "operator"."metric_rollup" (
           "rollup_id", "request_id", "domain", "granularity", "bucket_start", "bucket_end", "surface",
-          "selected_capability", "requested_capability", "principal_type", "collection", "model_name",
+          "selected_tool", "requested_tool", "principal_type", "collection", "model_name",
           "metrics_json", "projected_at"
         ) values (
           $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'campus_web',
@@ -305,7 +305,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 		await dbClient.query(
 			`
         insert into "operator"."quality_badcase_projection" (
-          "badcase_id", "request_id", "trace_id", "surface", "selected_capability", "status",
+          "badcase_id", "request_id", "trace_id", "surface", "selected_tool", "status",
           "cause_class", "detected_by", "opened_at", "summary", "grade_json", "projected_at"
         ) values (
           $1, $2, $3, 'campus_web', 'knowledge', 'open',
@@ -514,11 +514,11 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 					anomalyCode: "projection_missing",
 					principalType: "student",
 					requestId,
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					severity: "high",
 					status: "open",
 					summary:
-						"knowledge request finalized without the required policy projection for knowledge capability.",
+						"knowledge request finalized without the required policy projection for knowledge tool.",
 					surface: "campus_web",
 					traceId,
 				},

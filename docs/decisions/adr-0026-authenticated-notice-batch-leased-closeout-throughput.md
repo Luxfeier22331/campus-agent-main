@@ -197,5 +197,5 @@ single-promoter 语义保持不变：
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/architecture/system/data-plane-architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/runbooks/ingestion-control-clean-target-runbook.md`

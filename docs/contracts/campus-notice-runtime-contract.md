@@ -1,6 +1,6 @@
 ---
 doc_type: contract
-truth_scope: capability
+truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
@@ -17,7 +17,7 @@ It covers:
 - `packages/contracts` notice payload/result dataclasses
 - Go `apps/execution-control` ToolSpec, planner, typed tool runtime and internal
   query service
-- `execution-control -> typed notice capability activity / internal query service`
+- `execution-control -> typed notice tool activity / internal query service`
   active execution seam
 - eval/provider/SDK guardrails that prevent raw notice body regressions
 
@@ -28,9 +28,8 @@ retention or downstream materialization ownership.
 
 Notice user-facing output is card-first and source-link-first.
 
-- `campus_notice_discover` is the only capability-facing/model-visible notice
-  tool.
-- `campus_notice_get` is not a capability-facing/provider/SDK tool.
+- `campus_notice_discover` is the only model-visible notice tool.
+- `campus_notice_get` is not a model-facing/provider/SDK tool.
 - `campus_notice_get` remains only as an internal selected notice
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
@@ -189,7 +188,7 @@ NoticeContextProjection / StepOutputProjection
 - projection_kind=notice_context
 - content_hash
 - safety summary
-- payload only inside private bridge context
+- payload only inside private handoff context
   - title
   - body_excerpt
   - bounded_summary / extracted facts when available

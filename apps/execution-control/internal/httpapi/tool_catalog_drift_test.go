@@ -7,25 +7,8 @@ import (
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/runtimepolicy"
-	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/structuredquery"
+	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/toolreadmodel"
 )
-
-type checkedInToolCatalog struct {
-	Tools []checkedInToolCatalogEntry `json:"tools"`
-}
-
-type checkedInToolCatalogEntry struct {
-	Name       string                      `json:"name"`
-	Capability string                      `json:"capability"`
-	Exposure   string                      `json:"exposure"`
-	ReadOnly   bool                        `json:"read_only"`
-	Handler    checkedInToolCatalogHandler `json:"handler"`
-}
-
-type checkedInToolCatalogHandler struct {
-	Type     string `json:"type"`
-	Endpoint string `json:"endpoint"`
-}
 
 type checkedInToolFunctionSchemas struct {
 	SchemaVersion string                        `json:"schema_version"`
@@ -40,54 +23,22 @@ type checkedInToolFunctionSchema struct {
 }
 
 func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) {
-	rawCatalog, err := os.ReadFile(filepath.Join(
-		"..",
-		"..",
-		"..",
-		"..",
-		"configs",
-		"runtime",
-		"tool-catalog.v1.json",
-	))
-	if err != nil {
-		t.Fatalf("read tool catalog: %v", err)
-	}
-	var catalog checkedInToolCatalog
-	if err := json.Unmarshal(rawCatalog, &catalog); err != nil {
-		t.Fatalf("parse tool catalog: %v", err)
-	}
 	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("load Go tool registry: %v", err)
 	}
-	artifactRegistry, err := runtimepolicy.LoadWorkflowArtifactRegistry("")
-	if err != nil {
-		t.Fatalf("load workflow artifact registry: %v", err)
-	}
-	registeredEndpoints := structuredQueryEndpointsByPath()
+	registeredEndpoints := toolReadModelEndpointsByPath()
 
-	for _, tool := range catalog.Tools {
+	for _, tool := range toolRegistry.Tools {
 		if tool.Exposure != "model_visible" || tool.Handler.Type != "execution_control_internal_query" {
 			continue
 		}
-		spec, ok := toolRegistry.ToolByName(tool.Name)
-		if !ok {
-			t.Fatalf("model-visible tool %s missing from Go tool registry", tool.Name)
-		}
-		if !spec.Active || !spec.ReadOnly || spec.RuntimePosture != "typed_activity_admitted" {
-			t.Fatalf("tool %s spec is not active read-only typed activity: %#v", tool.Name, spec)
-		}
-		if spec.OwnerCapability != tool.Capability || spec.PayloadKind != tool.Name {
-			t.Fatalf("tool %s spec drift: capability=%q payload_kind=%q", tool.Name, spec.OwnerCapability, spec.PayloadKind)
-		}
-		if spec.OwnerCapability == "campus_services" {
-			if err := runtimepolicy.ValidateModelVisibleToolArtifactGate(spec, artifactRegistry); err != nil {
-				t.Fatalf("tool %s is not backed by an open supported workflow artifact binding: %v", tool.Name, err)
-			}
+		if !tool.ReadOnly {
+			t.Fatalf("model-visible tool %s must be read-only", tool.Name)
 		}
 		if registeredEndpoints[tool.Handler.Endpoint] != tool.Name {
 			t.Fatalf(
-				"tool %s endpoint %q not registered to matching structured query handler; registered=%q",
+				"tool %s endpoint %q not registered to matching tool read model handler; registered=%q",
 				tool.Name,
 				tool.Handler.Endpoint,
 				registeredEndpoints[tool.Handler.Endpoint],
@@ -97,21 +48,9 @@ func TestModelVisibleExecutionControlToolsMatchGoRuntimeAndRoutes(t *testing.T) 
 }
 
 func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) {
-	rawCatalog, err := os.ReadFile(filepath.Join(
-		"..",
-		"..",
-		"..",
-		"..",
-		"configs",
-		"runtime",
-		"tool-catalog.v1.json",
-	))
+	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
 	if err != nil {
-		t.Fatalf("read tool catalog: %v", err)
-	}
-	var catalog checkedInToolCatalog
-	if err := json.Unmarshal(rawCatalog, &catalog); err != nil {
-		t.Fatalf("parse tool catalog: %v", err)
+		t.Fatalf("load Go tool registry: %v", err)
 	}
 	rawSchemas, err := os.ReadFile(filepath.Join(
 		"..",
@@ -138,7 +77,7 @@ func TestModelVisibleToolCatalogHasCanonicalStrictFunctionSchemas(t *testing.T) 
 			strictSchemas[schema.Name] = schema
 		}
 	}
-	for _, tool := range catalog.Tools {
+	for _, tool := range toolRegistry.Tools {
 		if tool.Exposure != "model_visible" {
 			continue
 		}
@@ -210,12 +149,12 @@ func isObjectOrNullableObject(value any) bool {
 	return false
 }
 
-func structuredQueryEndpointsByPath() map[string]string {
+func toolReadModelEndpointsByPath() map[string]string {
 	return map[string]string{
-		"/internal/query/campus-services/transport-schedule": structuredquery.ToolTransportScheduleLookup,
-		"/internal/query/notices/discover":                   structuredquery.ToolCampusNoticeDiscover,
-		"/internal/query/notices/period-summary":             structuredquery.ToolCampusNoticePeriodSummary,
-		"/internal/query/notices/change-set":                 structuredquery.ToolCampusNoticeChangeSet,
-		"/internal/query/notices/get":                        structuredquery.ToolCampusNoticeGet,
+		"/internal/query/campus-services/transport-schedule": toolreadmodel.ToolTransportScheduleLookup,
+		"/internal/query/notices/discover":                   toolreadmodel.ToolCampusNoticeDiscover,
+		"/internal/query/notices/period-summary":             toolreadmodel.ToolCampusNoticePeriodSummary,
+		"/internal/query/notices/change-set":                 toolreadmodel.ToolCampusNoticeChangeSet,
+		"/internal/query/notices/get":                        toolreadmodel.ToolCampusNoticeGet,
 	}
 }

@@ -75,7 +75,7 @@ operator diagnosis model。
 | --- | --- | --- |
 | Operator Console request list/detail | 运维请求真相、运行状态、诊断摘要 | app-api / Postgres projection |
 | Sentry | error issue、trace/performance drill-down、release regression | Sentry project |
-| Axiom | structured runtime event / log query、dashboard、alert | Axiom dataset |
+| Axiom | tool read model event / log query、dashboard、alert | Axiom dataset |
 | Temporal | workflow history、activity attempt、retry、timeout、cancel、visibility | Temporal persistence / visibility |
 | Langfuse | LLM trace、GenAI observation、eval score/review artifact | Langfuse project |
 | OTel Collector | redaction、sampling、batch、retry、sink fan-out | deployment pipeline, not truth source |
@@ -109,7 +109,7 @@ Required owner documents:
 
 - `docs/reference/runtime-otel-telemetry-taxonomy.md` owns runtime ownership
   matrix, signal taxonomy, allowed attributes and forbidden fields.
-- `docs/architecture/system/operator-observability-architecture.md` owns
+- `docs/architecture/system/ops-observability.md` owns
   Operator Console / sink participation boundaries.
 - This PRD owns only product requirements and acceptance criteria.
 
@@ -246,7 +246,7 @@ Acceptance:
 Operator Console must keep a minimum diagnostic view:
 
 - request status
-- selected capability / tool
+- selected tool / tool
 - terminal outcome / fail-close reason
 - duration and token/cost summaries when available
 - source/citation/retrieval summary when available
@@ -331,8 +331,8 @@ Allowed examples:
 - hashed actor identifier
 - `surface`
 - `status`
-- `requested_capability`
-- `selected_capability`
+- `requested_tool`
+- `selected_tool`
 - `selected_tool`
 - `duration_ms`
 - source count / summary
@@ -346,7 +346,7 @@ Allowed examples:
 ### 8.1 Documentation Alignment
 
 - Update `docs/reference/runtime-otel-telemetry-taxonomy.md`.
-- Update `docs/architecture/system/operator-observability-architecture.md`.
+- Update `docs/architecture/system/ops-observability.md`.
 - Update app-api observability docs to state direct Axiom REST ingest is retired.
 - Update operator observability docs to reference the PRD acceptance model.
 - Ensure docs consistently state that external sinks are drill-down systems, not product truth.
@@ -427,6 +427,6 @@ This PRD is complete when:
 - Whether Axiom should receive traces and logs only, or also metrics after volume and quota are
   measured.
 - Whether Sentry structured logs are worth enabling for Worker surfaces, given Axiom already owns
-  structured runtime event query.
+  tool read model event query.
 - Which exact Operator Console fields should show external backlink availability in the first
   implementation pass.

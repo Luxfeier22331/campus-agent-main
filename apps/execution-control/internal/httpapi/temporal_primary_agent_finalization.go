@@ -33,22 +33,22 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	agentResult, err := temporalAgentResultFromRun(run, input.AgentResultRef)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "primary_agent", "agent_result_missing", err)
+		return s.failFinalizationActivity(ctx, run, "", "agent_result_missing", err)
 	}
 	finalizedResponse, err := primaryAgentFinalizedResponse(run, agentResult)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, "primary_agent", "agent_finalization_invalid", err)
+		return s.failFinalizationActivity(ctx, run, "", "agent_finalization_invalid", err)
 	}
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "primary_agent",
+		Tool:          "",
 		Run:           run,
 		Status:        "started",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		UpdatedAt:     finalizationStartedAt,
@@ -82,15 +82,15 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	completedAt := time.Now().UTC()
 	terminalReason := primaryAgentTerminalReason(agentResult)
-	selectedCapability := primaryAgentSelectedCapability(stringSliceFromAny(agentResult["selected_tools"]))
+	selectedTool := primaryAgentSelectedTool(stringSliceFromAny(agentResult["selected_tools"]))
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
-			FinalResponseRef:   finalizationRef,
-			Now:                completedAt,
-			RunID:              run.RunID,
-			SelectedCapability: selectedCapability,
-			TerminalReason:     terminalReason,
+			FinalResponseRef: finalizationRef,
+			Now:              completedAt,
+			RunID:            run.RunID,
+			SelectedTool:     selectedTool,
+			TerminalReason:   terminalReason,
 		},
 	)
 	if err != nil {
@@ -114,12 +114,12 @@ func (s *Server) writePrimaryAgentFinalizationActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "primary_agent",
+		Tool:          "",
 		Run:           run,
 		Status:        "completed",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		CompletedAt:   completedAt,
@@ -147,18 +147,18 @@ func primaryAgentFinalizedResponse(
 		return nil, fmt.Errorf("agent terminal_envelope is required")
 	}
 	selectedTools := stringSliceFromAny(agentResult["selected_tools"])
-	selectedCapability := primaryAgentSelectedCapability(selectedTools)
+	selectedTool := primaryAgentSelectedTool(selectedTools)
 	terminalKind := primaryAgentTerminalKind(envelope)
 	answerText := primaryAgentEnvelopeAnswerText(envelope)
 	status, followUpQuestion, confidence := primaryAgentResponseFields(terminalKind, answerText)
-	traceSelectedCapability := primaryAgentTraceSelectedCapability(selectedCapability)
+	traceSelectedTool := primaryAgentTraceSelectedTool(selectedTool)
 	return executionFinalizationResponseWireMap(ExecutionFinalizationResponseWire{
-		SelectedCapability: primaryAgentResponseSelectedCapability(selectedCapability),
-		Status:             status,
-		AnswerText:         primaryAgentAnswerText(status, answerText),
-		Error:              primaryAgentErrorBody(status, terminalKind),
-		FollowUpQuestion:   followUpQuestion,
-		Confidence:         confidence,
+		SelectedTool:     primaryAgentResponseSelectedTool(selectedTool),
+		Status:           status,
+		AnswerText:       primaryAgentAnswerText(status, answerText),
+		Error:            primaryAgentErrorBody(status, terminalKind),
+		FollowUpQuestion: followUpQuestion,
+		Confidence:       confidence,
 		Result: map[string]any{
 			"agent_result_ref":     agentResult["agent_result_ref"],
 			"provider_response_id": agentResult["provider_response_id"],
@@ -175,7 +175,7 @@ func primaryAgentFinalizedResponse(
 		},
 		WorkflowTraceSummary: map[string]any{
 			"workflow_mode":             primaryAgentWorkflowMode(selectedTools),
-			"selected_capability":       traceSelectedCapability,
+			"selected_tool":             traceSelectedTool,
 			"selected_tools":            selectedTools,
 			"first_decision_actor":      "primary_agent",
 			"planning_outcome":          primaryAgentPlanningOutcome(terminalKind),
@@ -183,7 +183,7 @@ func primaryAgentFinalizedResponse(
 			"terminal_reason":           terminalKind,
 			"answer_artifact_kinds":     []string{"agent_final_output"},
 			"answer_artifact_refs":      []string{strings.TrimSpace(stringValue(agentResult["agent_result_ref"]))},
-			"trace_steps":               primaryAgentTraceSteps(selectedTools, selectedCapability, agentResult, status),
+			"trace_steps":               primaryAgentTraceSteps(selectedTools, selectedTool, agentResult, status),
 			"tool_call_summaries":       primaryAgentToolCallSummaries(agentResult),
 			"runtime_versions":          map[string]any{"agent_runtime": "openai_agents_sdk"},
 		},
@@ -284,37 +284,37 @@ func primaryAgentEnvelopeAnswerText(envelope map[string]any) string {
 	}
 }
 
-func primaryAgentSelectedCapability(selectedTools []string) string {
+func primaryAgentSelectedTool(selectedTools []string) string {
 	if len(selectedTools) == 0 {
 		return ""
 	}
 	for _, tool := range selectedTools {
 		switch tool {
 		case "transport_schedule_lookup":
-			return "campus_services"
+			return "transport_schedule_lookup"
 		case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
-			return "notice"
+			return tool
 		case "knowledge_query":
-			return "knowledge"
+			return "knowledge_query"
 		}
 	}
 	return ""
 }
 
-func primaryAgentResponseSelectedCapability(selectedCapability string) *string {
-	selectedCapability = strings.TrimSpace(selectedCapability)
-	if selectedCapability == "" {
+func primaryAgentResponseSelectedTool(selectedTool string) *string {
+	selectedTool = strings.TrimSpace(selectedTool)
+	if selectedTool == "" {
 		return nil
 	}
-	return &selectedCapability
+	return &selectedTool
 }
 
-func primaryAgentTraceSelectedCapability(selectedCapability string) string {
-	selectedCapability = strings.TrimSpace(selectedCapability)
-	if selectedCapability == "" {
+func primaryAgentTraceSelectedTool(selectedTool string) string {
+	selectedTool = strings.TrimSpace(selectedTool)
+	if selectedTool == "" {
 		return "none"
 	}
-	return selectedCapability
+	return selectedTool
 }
 
 func primaryAgentWorkflowMode(selectedTools []string) string {
@@ -333,7 +333,7 @@ func primaryAgentPlanningOutcome(terminalReason string) string {
 
 func primaryAgentTraceSteps(
 	selectedTools []string,
-	selectedCapability string,
+	selectedTool string,
 	agentResult map[string]any,
 	status string,
 ) []map[string]any {
@@ -359,7 +359,7 @@ func primaryAgentTraceSteps(
 			"span_kind":      "tool_call",
 			"parent_step_id": "agent.primary",
 			"tool_name":      tool,
-			"capability":     defaultString(strings.TrimSpace(stringValue(toolResult["capability"])), selectedCapability),
+			"tool":           defaultString(strings.TrimSpace(stringValue(toolResult["tool"])), selectedTool),
 			"outcome":        resultStatus,
 			"result_status":  resultStatus,
 			"retry_count":    0,
@@ -387,7 +387,7 @@ func primaryAgentToolCallSummaries(agentResult map[string]any) []map[string]any 
 	summaries := make([]map[string]any, 0, len(toolResults))
 	for index, toolResult := range toolResults {
 		toolName := strings.TrimSpace(stringValue(toolResult["tool_name"]))
-		capability := strings.TrimSpace(stringValue(toolResult["capability"]))
+		tool := strings.TrimSpace(stringValue(toolResult["tool"]))
 		resultStatus := primaryAgentToolResultStatus(toolResult)
 		result := cloneAnyMapFromMetadata(toolResult["result"])
 		summary := map[string]any{
@@ -399,7 +399,7 @@ func primaryAgentToolCallSummaries(agentResult map[string]any) []map[string]any 
 			"result_projection":   "bounded_summary",
 			"raw_result_included": false,
 			"tool_name":           toolName,
-			"capability":          capability,
+			"tool":                tool,
 			"payload_kind":        strings.TrimSpace(stringValue(toolResult["payload_kind"])),
 			"result_status":       resultStatus,
 			"argument_summary":    safeWorkflowMap(cloneAnyMapFromMetadata(toolResult["arguments_json"])),

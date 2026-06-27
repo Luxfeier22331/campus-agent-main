@@ -17,7 +17,7 @@ type ChatE2eBlockedBy =
 	| "app_api_not_ready"
 	| "chat_surface_not_ready"
 	| "execution_control_not_ready"
-	| "execution_control_ingress_unreachable";
+	| "execution_control_tunnel_unreachable";
 
 export interface ChatE2eDependencies {
 	fetchJsonWithCookie?: typeof fetchJsonWithCookie;
@@ -182,7 +182,7 @@ function classifyReadyzBlock(name: ReadyzName, probe: ReadyzProbe): ChatE2eBlock
 	}
 	if (name === "exec") {
 		if (probe.status === 530 && isCloudflareTunnelError(probe.payload)) {
-			return "execution_control_ingress_unreachable";
+			return "execution_control_tunnel_unreachable";
 		}
 		return "execution_control_not_ready";
 	}

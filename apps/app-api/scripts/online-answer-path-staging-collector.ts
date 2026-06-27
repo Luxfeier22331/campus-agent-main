@@ -23,7 +23,7 @@ interface OnlineAnswerPathCase {
 	domain: string;
 	expected: {
 		answer_contract: Record<string, unknown>;
-		selected_capability: string;
+		selected_tool: string;
 		source_truth: {
 			evidence_required: boolean;
 			expected_collections: string[];
@@ -47,7 +47,7 @@ interface OnlineAnswerPathObservation {
 	request_id: string;
 	response_contract: Record<string, unknown>;
 	semantic_outcome: string;
-	selected_capability: string;
+	selected_tool: string;
 	terminal_status: string;
 	trace_id: string;
 	workflow_trace_summary: WorkflowTraceSummary;
@@ -156,7 +156,7 @@ function optionalString(value: unknown): string | null {
 function projectionSignals(chat: ChatDurableE2eResult): {
 	failCloseReason: string;
 	projectionError: string;
-	selectedCapability: string;
+	selectedTool: string;
 } {
 	const projection = isRecord(chat.agentRuntimeEvalProjection)
 		? chat.agentRuntimeEvalProjection
@@ -165,14 +165,14 @@ function projectionSignals(chat: ChatDurableE2eResult): {
 		return {
 			failCloseReason: "",
 			projectionError: "agent_runtime_eval_projection_missing",
-			selectedCapability: "none",
+			selectedTool: "none",
 		};
 	}
 	if (optionalString(projection.schema_version) !== "agent_runtime_eval_projection.v1") {
 		return {
 			failCloseReason: "",
 			projectionError: "agent_runtime_eval_projection_schema_mismatch",
-			selectedCapability: "none",
+			selectedTool: "none",
 		};
 	}
 	const run = isRecord(projection.run) ? projection.run : {};
@@ -180,7 +180,7 @@ function projectionSignals(chat: ChatDurableE2eResult): {
 	return {
 		failCloseReason: optionalString(run.fail_close_reason) ?? "",
 		projectionError: "",
-		selectedCapability: optionalString(trajectory.selected_capability) ?? "none",
+		selectedTool: optionalString(trajectory.selected_tool) ?? "none",
 	};
 }
 
@@ -194,7 +194,7 @@ function observationFromChatResult(
 		chat.run?.status ?? chat.resume.terminalEvent?.status,
 	);
 	const workflowTraceSummary = chat.workflowTraceSummary ?? {
-		selected_capability: "none",
+		selected_tool: "none",
 		trace_steps: [],
 	};
 	const projection = projectionSignals(chat);
@@ -220,7 +220,7 @@ function observationFromChatResult(
 			answer_text_present: Boolean(chat.conversation?.hasAssistantMessageForRequest),
 		},
 		semantic_outcome: semanticOutcomeFromStatus(terminalStatus),
-		selected_capability: projection.selectedCapability,
+		selected_tool: projection.selectedTool,
 		terminal_status: terminalStatus,
 		trace_id: traceId,
 		workflow_trace_summary: workflowTraceSummary,
@@ -262,7 +262,7 @@ export async function runOnlineAnswerPathStagingCollector(
 				observation.request_id &&
 				!observation.projection_error &&
 				observation.trace_id &&
-				observation.selected_capability !== "none",
+				observation.selected_tool !== "none",
 		),
 		schema_version: "online_answer_path_observations.v1",
 	};

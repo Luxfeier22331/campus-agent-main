@@ -16,7 +16,7 @@ updated: 2026-06-13
 - `e2e-qa-release-runbook.md`
   - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
     public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
-- `execution-control-staging-operations.md`
+- `execution-ops.md`
   - 当前 execution-control + Temporal staging runtime 运维入口。
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
@@ -33,11 +33,11 @@ updated: 2026-06-13
 
 ## Environment-Specific Smoke / Evidence
 
-- `execution-control-staging-operations.md`
+- `execution-ops.md`
   - `execution-control-staging/deploy-and-ingress.md`
   - `execution-control-staging/daily-operations-and-recovery.md`
   - `execution-control-staging/durable-runtime-proof.md`
-- `execution-control-staging-smoke-runbook.md`
+- `execution-smoke.md`
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
     bootstrap、worker identity、task queue poller evidence、failure-mode evidence
@@ -50,7 +50,7 @@ updated: 2026-06-13
 
 ## Local Infra / Recovery
 
-- `execution-control-local-runtime-smoke.md`
+- `local-runtime-smoke.md`
 - `provider-secret-governance.md`
 - `legacy-office-conversion-runtime.md`
 

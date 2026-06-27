@@ -73,7 +73,7 @@ func TestExecutePrimaryAgentActivityCallsAgentRuntimeAndProjectsResult(t *testin
 		RunID:                "run-primary-agent-001",
 		TraceID:              "trace-executor-001",
 		TurnID:               "turn-primary-agent-001",
-		VisibleCapabilities:  []string{"knowledge", "campus_services", "notice"},
+		VisibleToolNames:     []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -212,12 +212,12 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeAnswerDelta(t *testing.T
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-streaming",
-		RequestID:           "req-primary-agent-streaming",
-		RunID:               "run-primary-agent-streaming",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-streaming",
-		VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+		ConversationID:   "conv-primary-agent-streaming",
+		RequestID:        "req-primary-agent-streaming",
+		RunID:            "run-primary-agent-streaming",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-streaming",
+		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -335,12 +335,12 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	done := make(chan error, 1)
 	go func() {
 		_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-			ConversationID:      "conv-primary-agent-live-streaming",
-			RequestID:           "req-primary-agent-live-streaming",
-			RunID:               "run-primary-agent-live-streaming",
-			TraceID:             "trace-executor-001",
-			TurnID:              "turn-primary-agent-live-streaming",
-			VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+			ConversationID:   "conv-primary-agent-live-streaming",
+			RequestID:        "req-primary-agent-live-streaming",
+			RunID:            "run-primary-agent-live-streaming",
+			TraceID:          "trace-executor-001",
+			TurnID:           "turn-primary-agent-live-streaming",
+			VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
 		})
 		done <- err
 	}()
@@ -436,12 +436,12 @@ func TestExecutePrimaryAgentActivityOmitsEmptyMemoryContextForAgentRuntime(t *te
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-empty-memory",
-		RequestID:           "req-primary-agent-empty-memory",
-		RunID:               "run-primary-agent-empty-memory",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-empty-memory",
-		VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+		ConversationID:   "conv-primary-agent-empty-memory",
+		RequestID:        "req-primary-agent-empty-memory",
+		RunID:            "run-primary-agent-empty-memory",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-empty-memory",
+		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
@@ -558,9 +558,9 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeDiagnosticFailure(t *tes
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:               "run-primary-agent-runtime-diagnostic",
-		TraceID:             "trace-executor-001",
-		VisibleCapabilities: []string{"campus_services"},
+		RunID:            "run-primary-agent-runtime-diagnostic",
+		TraceID:          "trace-executor-001",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
 		t.Fatal("expected agent runtime diagnostic failure")
@@ -606,9 +606,9 @@ func TestExecutePrimaryAgentActivityProjectsAgentRuntimeTimeoutTerminalEvent(t *
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		RunID:               "run-primary-agent-runtime-timeout",
-		TraceID:             "trace-executor-001",
-		VisibleCapabilities: []string{"campus_services"},
+		RunID:            "run-primary-agent-runtime-timeout",
+		TraceID:          "trace-executor-001",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err == nil {
 		t.Fatal("expected agent runtime timeout")
@@ -676,7 +676,7 @@ func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *t
 			"tool_results": []map[string]any{{
 				"status":       "completed",
 				"tool_name":    "knowledge_query",
-				"capability":   "knowledge",
+				"tool":         "knowledge_query",
 				"payload_kind": "knowledge_query",
 				"result_ref":   "agent-runtime://run-primary-agent-knowledge-signal/tools/knowledge_query",
 				"result":       map[string]any{"workflow_signal": "knowledge_query"},
@@ -701,12 +701,12 @@ func TestExecutePrimaryAgentActivityAllowsKnowledgeSignalWithoutFinalOutput(t *t
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	output, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-knowledge-signal",
-		RequestID:           "req-primary-agent-knowledge-signal",
-		RunID:               "run-primary-agent-knowledge-signal",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-knowledge-signal",
-		VisibleCapabilities: []string{"knowledge"},
+		ConversationID:   "conv-primary-agent-knowledge-signal",
+		RequestID:        "req-primary-agent-knowledge-signal",
+		RunID:            "run-primary-agent-knowledge-signal",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-knowledge-signal",
+		VisibleToolNames: []string{"knowledge_query"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)

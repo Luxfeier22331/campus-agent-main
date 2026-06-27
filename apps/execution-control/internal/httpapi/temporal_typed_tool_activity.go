@@ -27,12 +27,12 @@ func (s *Server) ExecuteTypedToolActivity(
 	resultRef := temporalProjectionRef(run.RunID, "tools/"+input.ToolName)
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    input.Capability,
+		Tool:          input.ToolTarget,
 		Run:           run,
 		Status:        "started",
 		StepID:        "typed_tool.execute",
 		StepKind:      "tool",
-		TaskQueue:     temporalruntime.ActivityTaskQueueForCapability(input.Capability),
+		TaskQueue:     temporalruntime.ActivityTaskQueueForToolTarget(input.ToolTarget),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		UpdatedAt:     startedAt,
@@ -41,14 +41,15 @@ func (s *Server) ExecuteTypedToolActivity(
 			"payload_kind":   input.PayloadKind,
 			"route_plan_ref": input.RoutePlanRef,
 			"selected_tool":  input.ToolName,
-			"worker_role":    input.WorkerRole,
+			"tool_target":    input.ToolTarget,
+			"task_queue":     input.TaskQueue,
 		},
 	}); err != nil {
 		return temporalruntime.ExecuteTypedToolActivityOutput{}, err
 	}
-	rawPayload, err := structuredQueryPayload(&execution.RuntimeHandoff{
-		Capability:   input.Capability,
-		WorkerRole:   input.WorkerRole,
+	rawPayload, err := toolReadModelPayload(&execution.RuntimeHandoff{
+		ToolTarget:   input.ToolTarget,
+		TaskQueue:    input.TaskQueue,
 		PayloadKind:  input.PayloadKind,
 		Payload:      input.Payload,
 		AllowedTools: append([]string{}, input.AllowedTools...),
@@ -56,27 +57,27 @@ func (s *Server) ExecuteTypedToolActivity(
 	if err != nil {
 		return s.failTypedToolActivity(ctx, run, input, "typed_tool_payload_invalid", err)
 	}
-	response := s.executeStructuredRuntime(ctx, input.PayloadKind, rawPayload)
+	response := s.executeToolReadModelRuntime(ctx, input.PayloadKind, rawPayload)
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return s.failTypedToolActivity(
 			ctx,
 			run,
 			input,
 			"typed_tool_runtime_failed",
-			fmt.Errorf("structured runtime returned status %d", response.StatusCode),
+			fmt.Errorf("tool read model runtime returned status %d", response.StatusCode),
 		)
 	}
-	resultBody, err := structuredResultMap(response.Body)
+	resultBody, err := toolReadModelResultMap(response.Body)
 	if err != nil {
 		return s.failTypedToolActivity(ctx, run, input, "typed_tool_result_invalid", err)
 	}
 	if err := s.replaceTemporalToolMetadata(ctx, run, func(metadata map[string]any) {
 		metadata[input.ToolName] = map[string]any{
-			"capability":   input.Capability,
 			"payload_kind": input.PayloadKind,
 			"result":       resultBody,
 			"result_ref":   resultRef,
 			"tool_name":    input.ToolName,
+			"tool_target":  input.ToolTarget,
 		}
 	}); err != nil {
 		return temporalruntime.ExecuteTypedToolActivityOutput{}, err
@@ -84,12 +85,12 @@ func (s *Server) ExecuteTypedToolActivity(
 	completedAt := time.Now().UTC()
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    input.Capability,
+		Tool:          input.ToolTarget,
 		Run:           run,
 		Status:        "completed",
 		StepID:        "typed_tool.execute",
 		StepKind:      "tool",
-		TaskQueue:     temporalruntime.ActivityTaskQueueForCapability(input.Capability),
+		TaskQueue:     temporalruntime.ActivityTaskQueueForToolTarget(input.ToolTarget),
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     startedAt,
 		CompletedAt:   completedAt,
@@ -101,27 +102,28 @@ func (s *Server) ExecuteTypedToolActivity(
 			"payload_kind":   input.PayloadKind,
 			"route_plan_ref": input.RoutePlanRef,
 			"selected_tool":  input.ToolName,
-			"worker_role":    input.WorkerRole,
+			"tool_target":    input.ToolTarget,
+			"task_queue":     input.TaskQueue,
 		},
 	}); err != nil {
 		return temporalruntime.ExecuteTypedToolActivityOutput{}, err
 	}
 	return temporalruntime.ExecuteTypedToolActivityOutput{
-		Capability:  input.Capability,
 		PayloadKind: input.PayloadKind,
 		ResultRef:   resultRef,
 		RunID:       run.RunID,
 		Status:      "completed",
 		ToolName:    input.ToolName,
+		ToolTarget:  input.ToolTarget,
 	}, nil
 }
 
 func validateTypedToolActivityInput(input temporalruntime.ExecuteTypedToolActivityInput) error {
-	capability := strings.TrimSpace(input.Capability)
+	toolTarget := strings.TrimSpace(input.ToolTarget)
 	toolName := strings.TrimSpace(input.ToolName)
 	payloadKind := strings.TrimSpace(input.PayloadKind)
-	if capability == "" || toolName == "" || payloadKind == "" {
-		return fmt.Errorf("capability, tool_name, and payload_kind are required")
+	if toolTarget == "" || toolName == "" || payloadKind == "" {
+		return fmt.Errorf("tool_target, tool_name, and payload_kind are required")
 	}
 	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
 	if !ok {
@@ -131,11 +133,8 @@ func validateTypedToolActivityInput(input temporalruntime.ExecuteTypedToolActivi
 	if !ok {
 		return fmt.Errorf("tool %s is not admitted", toolName)
 	}
-	if !tool.Active || tool.OwnerCapability != capability || tool.PayloadKind != payloadKind {
-		return fmt.Errorf("tool %s is not admitted for %s/%s", toolName, capability, payloadKind)
-	}
-	if tool.RuntimePosture != "typed_activity_admitted" {
-		return fmt.Errorf("tool %s runtime posture is %s", toolName, tool.RuntimePosture)
+	if tool.Exposure == "closed" || tool.Handler.Type != "execution_control_internal_query" || toolName != payloadKind {
+		return fmt.Errorf("tool %s is not admitted for typed activity", toolName)
 	}
 	return nil
 }
@@ -148,13 +147,13 @@ func (s *Server) failTypedToolActivity(
 	cause error,
 ) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
 	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
-		Capability:    input.Capability,
+		Tool:          input.ToolTarget,
 		FailureKind:   failureKind,
 		ProjectionRef: temporalProjectionRef(run.RunID, "tools/failure"),
 		ResultKind:    "activity_failure",
 		StepID:        "typed_tool.execute",
 		StepKind:      "tool",
-		TaskQueue:     temporalruntime.ActivityTaskQueueStructured,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
@@ -180,11 +179,11 @@ func (s *Server) replaceTemporalToolMetadata(
 }
 
 type temporalToolResultMetadata struct {
-	Capability  string
 	PayloadKind string
 	Result      map[string]any
 	ResultRef   string
 	ToolName    string
+	ToolTarget  string
 }
 
 func temporalToolResultFromRun(
@@ -240,21 +239,21 @@ func decodeTemporalToolResult(
 	if expectedTool != "" && toolName != expectedTool {
 		return temporalToolResultMetadata{}, fmt.Errorf("temporal tool name drift")
 	}
-	capability := strings.TrimSpace(stringValue(record["capability"]))
+	toolTarget := strings.TrimSpace(stringValue(record["tool_target"]))
 	payloadKind := strings.TrimSpace(stringValue(record["payload_kind"]))
-	if capability == "" || payloadKind == "" {
-		return temporalToolResultMetadata{}, fmt.Errorf("temporal tool capability and payload kind are required")
+	if toolTarget == "" || payloadKind == "" {
+		return temporalToolResultMetadata{}, fmt.Errorf("temporal tool target and payload kind are required")
 	}
 	result, ok := record["result"].(map[string]any)
 	if !ok || result == nil {
 		return temporalToolResultMetadata{}, fmt.Errorf("temporal tool result must be an object")
 	}
 	return temporalToolResultMetadata{
-		Capability:  capability,
 		PayloadKind: payloadKind,
 		Result:      result,
 		ResultRef:   resultRef,
 		ToolName:    toolName,
+		ToolTarget:  toolTarget,
 	}, nil
 }
 
@@ -281,51 +280,47 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}
 	toolResult, err := temporalToolResultFromRun(run, input.ToolResultRef, input.SelectedTool)
 	if err != nil {
-		return s.failFinalizationActivity(ctx, run, input.SelectedCapability, "typed_tool_result_missing", err)
+		return s.failFinalizationActivity(ctx, run, input.SelectedTool, "typed_tool_result_missing", err)
 	}
-	capability := defaultString(strings.TrimSpace(input.SelectedCapability), toolResult.Capability)
 	toolName := defaultString(strings.TrimSpace(input.SelectedTool), toolResult.ToolName)
 	finalizedResponse := shapeStructuredExecutionResponse(
-		capability,
+		toolName,
 		toolResult.PayloadKind,
 		toolResult.Result,
 		run.TraceID,
 		executionFinalizerContext{
 			SelectedTool: toolName,
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				PlanningOutcome:    "preplanned",
-				RoutingNextAction:  "delegate",
-				SelectedCapability: capability,
-				SelectedTool:       toolName,
-				WorkerRole:         runtimepolicy.WorkerRoleForCapability(capability),
+				PlanningOutcome:   "preplanned",
+				RoutingNextAction: "delegate",
+				SelectedTool:      toolName,
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   capability,
-				WorkerRole:   runtimepolicy.WorkerRoleForCapability(capability),
+				ToolTarget:   toolName,
+				TaskQueue:    temporalruntime.ActivityTaskQueueForToolTarget(toolName),
 				PayloadKind:  toolResult.PayloadKind,
 				AllowedTools: []string{toolName},
 			},
-			Branch: "capability_execution",
+			Branch: "tool_execution",
 		},
 	)
 	finalizationStartedAt := time.Now().UTC()
 	finalizationRef := temporalProjectionRef(run.RunID, "finalization/write")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    capability,
+		Tool:          toolName,
 		Run:           run,
 		Status:        "started",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		UpdatedAt:     finalizationStartedAt,
 		ProjectionRef: finalizationRef,
 		Payload: map[string]any{
-			"selected_capability": capability,
-			"selected_tool":       toolName,
-			"tool_result_ref":     input.ToolResultRef,
+			"selected_tool":   toolName,
+			"tool_result_ref": input.ToolResultRef,
 		},
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
@@ -355,11 +350,11 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	completedRun, err := s.runProjectionStore.CompleteRunProjection(
 		ctx,
 		execution.DurableRunCompleteRequest{
-			FinalResponseRef:   finalizationRef,
-			Now:                completedAt,
-			RunID:              run.RunID,
-			SelectedCapability: capability,
-			TerminalReason:     execution.DurableTerminalReasonAnswerCompleted,
+			FinalResponseRef: finalizationRef,
+			Now:              completedAt,
+			RunID:            run.RunID,
+			SelectedTool:     toolName,
+			TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 		},
 	)
 	if err != nil {
@@ -383,12 +378,12 @@ func (s *Server) writeTypedToolFinalizationActivity(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    capability,
+		Tool:          toolName,
 		Run:           run,
 		Status:        "completed",
 		StepID:        "finalization.write",
 		StepKind:      "finalization",
-		TaskQueue:     temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     finalizationStartedAt,
 		CompletedAt:   completedAt,

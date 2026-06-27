@@ -396,7 +396,7 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_denominator_registry_coverage(),
         _audit_rag_eval_coverage(),
         _audit_rag_retrieval_quality_gate(),
-        _audit_tool_family_fixture_coverage(),
+        _audit_tool_denominator_fixture_coverage(),
         _audit_profile_fixture_smoke(),
     )
     return {
@@ -416,20 +416,20 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.campus_services_product_path_opening_gate import main as runner
 
         return runner
-    if normalized == "multi-agent-runtime-contract":
-        from campus_evals.multi_capability_runtime_contract_gate import main as runner
+    if normalized == "tool-runtime-contract":
+        from campus_evals.tool_runtime_contract_gate import main as runner
 
         return runner
-    if normalized == "multi-agent-live-smoke":
-        from campus_evals.multi_capability_live_smoke_gate import main as runner
+    if normalized == "tool-live-smoke":
+        from campus_evals.tool_live_smoke_gate import main as runner
 
         return runner
     if normalized == "online-answer-path":
         from campus_evals.eval_profile_gate import online_answer_path_main as runner
 
         return runner
-    if normalized == "tool-family-denominator":
-        from campus_evals.eval_profile_gate import tool_family_denominator_main as runner
+    if normalized == "tool-denominator":
+        from campus_evals.eval_profile_gate import tool_denominator_main as runner
 
         return runner
     if normalized == "tool-routing-product-path":
@@ -498,9 +498,9 @@ def _audit_workflow_contract_generation_check(workflow_path: Path) -> dict[str, 
         "workflow_contract_generation_check",
         workflow_path,
         (
-            "scripts.generate_capability_execution_contracts",
+            "scripts.generate_tool_execution_contracts",
             "--check",
-            "multi-agent-runtime-contract",
+            "tool-runtime-contract",
             "actions/upload-artifact",
         ),
     )
@@ -591,10 +591,10 @@ def _audit_rag_retrieval_quality_gate() -> dict[str, object]:
     }
 
 
-def _audit_tool_family_fixture_coverage() -> dict[str, object]:
-    from campus_evals.tool_family_denominator import load_tool_family_denominator
+def _audit_tool_denominator_fixture_coverage() -> dict[str, object]:
+    from campus_evals.tool_denominator import load_tool_denominator
 
-    fixture = load_tool_family_denominator()
+    fixture = load_tool_denominator()
     required_splits = {"smoke", "release_gate"}
     splits_by_tool = {
         tool.tool_name: {case.split for case in fixture.cases if case.tool_name == tool.tool_name}
@@ -606,7 +606,7 @@ def _audit_tool_family_fixture_coverage() -> dict[str, object]:
         if not required_splits.issubset(splits)
     }
     return {
-        "check_id": "tool_family_fixture_coverage",
+        "check_id": "tool_denominator_fixture_coverage",
         "passed": not missing,
         "missing": missing,
     }

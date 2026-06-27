@@ -51,26 +51,26 @@ func TestExecutePrimaryAgentActivityNarrowsInstitutionalAccountQuestionToKnowled
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-institutional-account",
-		RequestID:           "req-primary-agent-institutional-account",
-		RunID:               "run-primary-agent-institutional-account",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-institutional-account",
-		VisibleCapabilities: []string{"knowledge", "campus_services", "notice"},
+		ConversationID:   "conv-primary-agent-institutional-account",
+		RequestID:        "req-primary-agent-institutional-account",
+		RunID:            "run-primary-agent-institutional-account",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-institutional-account",
+		VisibleToolNames: []string{"knowledge_query", "transport_schedule_lookup", "campus_notice_discover"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	visible, ok := seenBody["visible_capabilities"].([]any)
+	visible, ok := seenBody["visible_tool_names"].([]any)
 	if !ok {
-		t.Fatalf("visible_capabilities missing or wrong type: %#v", seenBody)
+		t.Fatalf("visible_tool_names missing or wrong type: %#v", seenBody)
 	}
-	if len(visible) != 1 || visible[0] != "knowledge" {
-		t.Fatalf("visible_capabilities = %#v, want only knowledge", visible)
+	if len(visible) != 1 || visible[0] != "knowledge_query" {
+		t.Fatalf("visible_tool_names = %#v, want only knowledge_query", visible)
 	}
 }
 
-func TestExecutePrimaryAgentActivityPreservesExplicitCampusServicesCapability(t *testing.T) {
+func TestExecutePrimaryAgentActivityPreservesExplicitCampusServicesTool(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	now := time.Date(2026, 6, 12, 10, 34, 0, 0, time.UTC)
 	createHTTPAPIQueuedDurableRunForTest(
@@ -109,22 +109,22 @@ func TestExecutePrimaryAgentActivityPreservesExplicitCampusServicesCapability(t 
 	attachRunProjectionStoreForHandlerTest(server, store)
 
 	_, err := server.ExecutePrimaryAgentActivity(context.Background(), temporalruntime.ExecutePrimaryAgentActivityInput{
-		ConversationID:      "conv-primary-agent-explicit-services",
-		RequestID:           "req-primary-agent-explicit-services",
-		RequestedCapability: "campus_services",
-		RunID:               "run-primary-agent-explicit-services",
-		TraceID:             "trace-executor-001",
-		TurnID:              "turn-primary-agent-explicit-services",
-		VisibleCapabilities: []string{"campus_services"},
+		ConversationID:   "conv-primary-agent-explicit-services",
+		RequestID:        "req-primary-agent-explicit-services",
+		RequestedTool:    "transport_schedule_lookup",
+		RunID:            "run-primary-agent-explicit-services",
+		TraceID:          "trace-executor-001",
+		TurnID:           "turn-primary-agent-explicit-services",
+		VisibleToolNames: []string{"transport_schedule_lookup"},
 	})
 	if err != nil {
 		t.Fatalf("execute primary agent: %v", err)
 	}
-	visible, ok := seenBody["visible_capabilities"].([]any)
+	visible, ok := seenBody["visible_tool_names"].([]any)
 	if !ok {
-		t.Fatalf("visible_capabilities missing or wrong type: %#v", seenBody)
+		t.Fatalf("visible_tool_names missing or wrong type: %#v", seenBody)
 	}
-	if len(visible) != 1 || visible[0] != "campus_services" {
-		t.Fatalf("visible_capabilities = %#v, want only campus_services", visible)
+	if len(visible) != 1 || visible[0] != "transport_schedule_lookup" {
+		t.Fatalf("visible_tool_names = %#v, want only transport_schedule_lookup", visible)
 	}
 }

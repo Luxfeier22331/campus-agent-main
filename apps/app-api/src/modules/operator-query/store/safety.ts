@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { formatOperatorCapabilitySummaryLabel } from "../../operator-target-labels";
+import { formatOperatorToolSummaryLabel } from "../../operator-target-labels";
 import {
 	buildIncidentBackfillHint,
 	SAFETY_ALERT_LOOKBACK_MS,
@@ -49,24 +49,24 @@ export function inferSafetyAnomalySeverity(
 export function summarizeSafetyAnomaly(
 	row: Pick<
 		RequestObservabilityFactRow,
-		"aclAnomalyCode" | "failClosed" | "requestedCapability" | "selectedCapability" | "status"
+		"aclAnomalyCode" | "failClosed" | "requestedTool" | "selectedTool" | "status"
 	>,
 ): string {
-	const capability = row.requestedCapability ?? "request";
-	const target = formatOperatorCapabilitySummaryLabel(row.selectedCapability);
+	const tool = row.requestedTool ?? "request";
+	const target = formatOperatorToolSummaryLabel(row.selectedTool);
 
 	switch (row.aclAnomalyCode) {
 		case "projection_missing":
-			return `${capability} request finalized without the required policy projection for ${target}.`;
+			return `${tool} request finalized without the required policy projection for ${target}.`;
 		case "projection_conflict":
-			return `${capability} request recorded a policy projection conflict for ${target}.`;
+			return `${tool} request recorded a policy projection conflict for ${target}.`;
 		case "fail_open_suspected":
-			return `${capability} request shows a suspected fail-open authorization path for ${target}.`;
+			return `${tool} request shows a suspected fail-open authorization path for ${target}.`;
 		default:
 			if (row.failClosed === true) {
-				return `${capability} request fail-closed with ACL anomaly ${row.aclAnomalyCode ?? "unknown"}.`;
+				return `${tool} request fail-closed with ACL anomaly ${row.aclAnomalyCode ?? "unknown"}.`;
 			}
-			return `${capability} request recorded ACL anomaly ${row.aclAnomalyCode ?? "unknown"} for ${target}.`;
+			return `${tool} request recorded ACL anomaly ${row.aclAnomalyCode ?? "unknown"} for ${target}.`;
 	}
 }
 

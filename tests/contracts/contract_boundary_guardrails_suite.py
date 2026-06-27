@@ -56,7 +56,7 @@ class ContractBoundaryGuardrailsTest(unittest.TestCase):
             "LlamaIndex",
             "qdrant_client",
             "llama_index",
-            "super" + "visor_bridge_v",
+            "retired_supervisor_bridge_v",
             "runtime_decisions",
             "terminal_envelope",
         )
@@ -71,8 +71,8 @@ class ContractBoundaryGuardrailsTest(unittest.TestCase):
         runtime_annotations = "\n".join(
             str(value)
             for value in (
-                models_runtime.CapabilityRequest.__annotations__["payload"],
-                models_runtime.CapabilityResponse.__annotations__["result"],
+                models_runtime.ToolRequest.__annotations__["payload"],
+                models_runtime.ToolResponse.__annotations__["result"],
                 models_runtime.ExecutionResponse.__annotations__["result"],
             )
         )

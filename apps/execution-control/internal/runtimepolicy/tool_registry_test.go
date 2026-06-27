@@ -12,130 +12,63 @@ const (
 	transportResultSchemaRef  = "https://muc.wiki/campus-agent/schemas/campus-services-tool-contracts.v1.schema.json#/$defs/TransportScheduleLookupResult"
 )
 
-func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
+func TestLoadToolSpecRegistryLoadsDefaultToolInventory(t *testing.T) {
 	registry, err := LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("LoadToolSpecRegistry default failed: %v", err)
 	}
 
-	if registry.SchemaVersion != ToolSpecSchemaVersion {
-		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolSpecSchemaVersion)
+	if registry.SchemaVersion != ToolRegistrySchemaVersion {
+		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, ToolRegistrySchemaVersion)
 	}
-	want := []string{
+	wantVisible := []string{
+		"knowledge_query",
 		"transport_schedule_lookup",
-	}
-	if got := registry.AllowedToolsForCapability("campus_services"); !sameStrings(got, want) {
-		t.Fatalf("campus services tools = %#v, want %#v", got, want)
-	}
-	wantNotice := []string{
 		"campus_notice_discover",
 	}
-	if got := registry.AllowedToolsForCapability("notice"); !sameStrings(got, wantNotice) {
-		t.Fatalf("notice tools = %#v, want %#v", got, wantNotice)
+	if got := registry.ModelVisibleToolNames(); !sameStrings(got, wantVisible) {
+		t.Fatalf("model-visible tools = %#v, want %#v", got, wantVisible)
 	}
-	if got := registry.AllowedToolsForCapability("knowledge"); len(got) != 0 {
-		t.Fatalf("knowledge structured tools = %#v, want none", got)
+	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/campus-services/transport-schedule"); !sameStrings(got, []string{"transport_schedule_lookup"}) {
+		t.Fatalf("transport endpoint tools = %#v, want transport_schedule_lookup", got)
 	}
-	retrieveEvidence, ok := registry.ToolByName("retrieve_evidence")
-	if !ok {
-		t.Fatal("retrieve_evidence missing from ToolSpec")
-	}
-	if !retrieveEvidence.Active ||
-		retrieveEvidence.Surface != "capability_internal" ||
-		!retrieveEvidence.FunctionSchema.Available ||
-		!retrieveEvidence.FunctionSchema.Strict ||
-		retrieveEvidence.RuntimePosture != "capability_internal_admitted" {
-		t.Fatalf(
-			"retrieve_evidence active/surface/function/runtime posture = %v/%q/%#v/%q, want active capability_internal strict capability_internal_admitted",
-			retrieveEvidence.Active,
-			retrieveEvidence.Surface,
-			retrieveEvidence.FunctionSchema,
-			retrieveEvidence.RuntimePosture,
-		)
-	}
-	if got := registry.AllowedToolsForCapability("calendar"); len(got) != 0 {
-		t.Fatalf("calendar tools = %#v, want none", got)
+	if got := registry.ToolNamesByHandlerEndpoint("/internal/query/notices/discover"); !sameStrings(got, []string{"campus_notice_discover"}) {
+		t.Fatalf("discover endpoint tools = %#v, want campus_notice_discover", got)
 	}
 	noticeGet, ok := registry.ToolByName("campus_notice_get")
 	if !ok {
-		t.Fatal("campus_notice_get missing from ToolSpec")
+		t.Fatal("campus_notice_get missing from tool registry")
 	}
-	if !noticeGet.Active ||
-		noticeGet.Surface != "capability_internal" ||
-		noticeGet.FunctionSchema.Available ||
-		noticeGet.RuntimePosture != "internal_function" {
-		t.Fatalf(
-			"campus_notice_get active/surface/function/runtime posture = %v/%q/%#v/%q, want active capability_internal unavailable internal_function",
-			noticeGet.Active,
-			noticeGet.Surface,
-			noticeGet.FunctionSchema,
-			noticeGet.RuntimePosture,
-		)
+	if noticeGet.Exposure != "internal_only" || !noticeGet.ReadOnly {
+		t.Fatalf("campus_notice_get exposure/read_only = %q/%t, want internal_only/read_only", noticeGet.Exposure, noticeGet.ReadOnly)
 	}
-	transport, ok := registry.ToolByName("transport_schedule_lookup")
-	if !ok {
-		t.Fatal("transport_schedule_lookup missing from ToolSpec")
+	if _, ok := registry.ToolByName("retrieval.query"); ok {
+		t.Fatal("retrieval.query must not be registered as a tool")
 	}
-	if !transport.FunctionSchema.Available || transport.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"transport_schedule_lookup function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			transport.FunctionSchema,
-			transport.RuntimePosture,
-		)
+	if _, ok := registry.ModelVisibleToolByName("campus_notice_get"); ok {
+		t.Fatal("campus_notice_get must not be model-visible")
 	}
-	noticeDiscover, ok := registry.ToolByName("campus_notice_discover")
-	if !ok {
-		t.Fatal("campus_notice_discover missing from ToolSpec")
-	}
-	if !noticeDiscover.FunctionSchema.Available || noticeDiscover.RuntimePosture != "typed_activity_admitted" {
-		t.Fatalf(
-			"campus_notice_discover function/runtime posture = %#v/%q, want available typed_activity_admitted",
-			noticeDiscover.FunctionSchema,
-			noticeDiscover.RuntimePosture,
-		)
-	}
-	noticePeriodSummary, ok := registry.ToolByName("campus_notice_period_summary")
-	if !ok {
-		t.Fatal("campus_notice_period_summary missing from ToolSpec")
-	}
-	if noticePeriodSummary.Active ||
-		noticePeriodSummary.FunctionSchema.Available ||
-		noticePeriodSummary.RuntimePosture != "closed" {
-		t.Fatalf(
-			"campus_notice_period_summary active/function/runtime posture = %v/%#v/%q, want inactive unavailable closed",
-			noticePeriodSummary.Active,
-			noticePeriodSummary.FunctionSchema,
-			noticePeriodSummary.RuntimePosture,
-		)
-	}
-	noticeChangeSet, ok := registry.ToolByName("campus_notice_change_set_lookup")
-	if !ok {
-		t.Fatal("campus_notice_change_set_lookup missing from ToolSpec")
-	}
-	if noticeChangeSet.Active ||
-		noticeChangeSet.FunctionSchema.Available ||
-		noticeChangeSet.RuntimePosture != "closed" {
-		t.Fatalf(
-			"campus_notice_change_set_lookup active/function/runtime posture = %v/%#v/%q, want inactive unavailable closed",
-			noticeChangeSet.Active,
-			noticeChangeSet.FunctionSchema,
-			noticeChangeSet.RuntimePosture,
-		)
+	for _, closedTool := range []string{"campus_notice_period_summary", "campus_notice_change_set_lookup"} {
+		tool, ok := registry.ToolByName(closedTool)
+		if !ok {
+			t.Fatalf("%s missing from tool registry", closedTool)
+		}
+		if tool.Exposure != "closed" || tool.RequiresApproval || tool.ReadOnly != true {
+			t.Fatalf("%s exposure/requires_approval/read_only = %q/%t/%t, want closed/false/true", closedTool, tool.Exposure, tool.RequiresApproval, tool.ReadOnly)
+		}
+		if _, ok := registry.ModelVisibleToolByName(closedTool); ok {
+			t.Fatalf("%s must not be model-visible", closedTool)
+		}
 	}
 }
 
-func TestRuntimePolicyAllowedToolsMatchDefaultToolSpec(t *testing.T) {
+func TestRuntimePolicyModelVisibleToolsMatchDefaultToolSpec(t *testing.T) {
 	registry, err := LoadToolSpecRegistry("")
 	if err != nil {
 		t.Fatalf("LoadToolSpecRegistry default failed: %v", err)
 	}
-	for _, target := range []string{"knowledge", "navigation", "notice"} {
-		if got, want := AllowedToolsForCapability(target), registry.AllowedToolsForCapability(target); !sameStrings(got, want) {
-			t.Fatalf("%s allowed tools = %#v, want ToolSpec %#v", target, got, want)
-		}
-	}
-	if got, want := AllowedToolsForCapability("campus_services"), registry.AllowedToolsForCapability("campus_services"); !sameStrings(got, want) {
-		t.Fatalf("campus_services allowed tools = %#v, want ToolSpec %#v", got, want)
+	if got, want := ModelVisibleToolNames(), registry.ModelVisibleToolNames(); !sameStrings(got, want) {
+		t.Fatalf("model visible tools = %#v, want ToolSpec %#v", got, want)
 	}
 }
 
@@ -143,40 +76,10 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-spec-registry-v3",
+		  "schema_version": "tool-registry-v4",
 		  "registry_version": "test",
-		  "tools": [
-		    {
-		      "name": "transport_schedule_lookup",
-		      "owner_capability": "campus_services",
-		      "capability": "campus_services",
-		      "payload_kind": "transport_schedule_lookup",
-			      "payload_schema_ref": "`+transportPayloadSchemaRef+`",
-			      "result_schema_ref": "`+transportResultSchemaRef+`",
-		      "backend": "internal_structured_query_service",
-		      "surface": "structured_handoff",
-		      "read_only": true,
-		      "active": true,
-		      "function_schema": {"available": true, "strict": true},
-		      "runtime_posture": "typed_activity_admitted",
-		      "description": "Lookup current campus shuttle timetable."
-		    },
-		    {
-		      "name": "transport_schedule_lookup",
-		      "owner_capability": "campus_services",
-		      "capability": "campus_services",
-		      "payload_kind": "transport_schedule_lookup",
-			      "payload_schema_ref": "`+transportPayloadSchemaRef+`",
-			      "result_schema_ref": "`+transportResultSchemaRef+`",
-		      "backend": "internal_structured_query_service",
-		      "surface": "structured_handoff",
-		      "read_only": true,
-		      "active": true,
-		      "function_schema": {"available": true, "strict": true},
-		      "runtime_posture": "typed_activity_admitted",
-		      "description": "Lookup current campus shuttle timetable."
-		    }
-		  ]
+		  "tools": [`+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`,
+		            `+validToolJSON("transport_schedule_lookup", "model_visible", true, false, "execution_control_internal_query", "/internal/query/campus-services/transport-schedule")+`]
 		}`,
 	)
 
@@ -185,160 +88,117 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	}
 }
 
-func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *testing.T) {
+func TestToolSpecRegistryValidationRejectsInvalidToolShape(t *testing.T) {
 	tests := []struct {
 		name string
 		body string
+		want string
 	}{
 		{
-			name: "unsupported owner",
-			body: `{
-			  "schema_version": "tool-spec-registry-v3",
-			  "registry_version": "test",
-			  "tools": [{
-			    "name": "bad_tool",
-			    "owner_capability": "external",
-			    "capability": "campus_services",
-			    "payload_kind": "bad_tool",
-				    "payload_schema_ref": "` + transportPayloadSchemaRef + `",
-				    "result_schema_ref": "` + transportResultSchemaRef + `",
-			    "backend": "internal_structured_query_service",
-			    "surface": "structured_handoff",
-			    "read_only": true,
-			    "active": true,
-			    "function_schema": {"available": false, "strict": true},
-			    "runtime_posture": "typed_handoff_only",
-			    "description": "bad tool"
-			  }]
-			}`,
+			name: "mutable model-visible tool",
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", false, false, "execution_control_internal_query", "/internal/query/test")),
+			want: "model-visible tools must be read_only",
 		},
 		{
-			name: "mutable active tool",
+			name: "python schema ref",
 			body: `{
-			  "schema_version": "tool-spec-registry-v3",
+			  "schema_version": "tool-registry-v4",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
-			    "owner_capability": "campus_services",
-			    "capability": "campus_services",
-			    "payload_kind": "bad_tool",
-				    "payload_schema_ref": "` + transportPayloadSchemaRef + `",
-				    "result_schema_ref": "` + transportResultSchemaRef + `",
-			    "backend": "internal_structured_query_service",
-			    "surface": "structured_handoff",
-			    "read_only": false,
-			    "active": true,
-			    "function_schema": {"available": false, "strict": true},
-			    "runtime_posture": "typed_handoff_only",
-			    "description": "bad tool"
+			    "description": "bad tool",
+			    "exposure": "model_visible",
+			    "read_only": true,
+			    "requires_approval": false,
+			    "payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
+			    "result_schema_ref": "` + transportResultSchemaRef + `",
+			    "handler": {"type": "execution_control_internal_query", "endpoint": "/internal/query/test"},
+			    "timeout_ms": 1000,
+			    "result_projection_policy": "bounded_json"
 			  }]
 			}`,
+			want: "payload_schema_ref must reference a registered JSON Schema definition",
+		},
+		{
+			name: "missing internal endpoint prefix",
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/query/test")),
+			want: "handler.endpoint must be an /internal/ path",
+		},
+		{
+			name: "workflow signal endpoint",
+			body: registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "workflow_signal", "/internal/query/test")),
+			want: "workflow_signal handler must not declare endpoint",
+		},
+		{
+			name: "closed requires approval",
+			body: registryJSON(validToolJSON("bad_tool", "closed", true, true, "execution_control_internal_query", "/internal/query/test")),
+			want: "closed tools must not require approval",
+		},
+		{
+			name: "unsupported projection policy",
+			body: strings.Replace(
+				registryJSON(validToolJSON("bad_tool", "model_visible", true, false, "execution_control_internal_query", "/internal/query/test")),
+				`"result_projection_policy": "bounded_json"`,
+				`"result_projection_policy": "raw"`,
+				1,
+			),
+			want: "result_projection_policy is unsupported",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if _, err := LoadToolSpecRegistry(writeToolRegistryFixture(t, tt.body)); err == nil {
+			_, err := LoadToolSpecRegistry(writeToolRegistryFixture(t, tt.body))
+			if err == nil {
 				t.Fatalf("LoadToolSpecRegistry accepted %s", tt.name)
+			}
+			if !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("LoadToolSpecRegistry error = %q, want %q", err.Error(), tt.want)
 			}
 		})
 	}
 }
 
-func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *testing.T) {
-	path := writeToolRegistryFixture(
-		t,
-		`{
-		  "schema_version": "tool-spec-registry-v3",
-		  "registry_version": "test",
-		  "tools": [{
-		    "name": "transport_schedule_lookup",
-		    "owner_capability": "campus_services",
-		    "capability": "campus_services",
-		    "payload_kind": "bad_payload",
-			    "payload_schema_ref": "`+transportPayloadSchemaRef+`",
-			    "result_schema_ref": "`+transportResultSchemaRef+`",
-		    "backend": "internal_structured_query_service",
-		    "surface": "structured_handoff",
-		    "read_only": true,
-		    "active": true,
-		    "function_schema": {"available": true, "strict": true},
-		    "runtime_posture": "typed_activity_admitted",
-		    "description": "Lookup current campus shuttle timetable."
-		  }]
-		}`,
-	)
-
-	if _, err := LoadToolSpecRegistry(path); err == nil {
-		t.Fatal("LoadToolSpecRegistry accepted structured tool with mismatched payload_kind")
-	}
+func registryJSON(toolJSON string) string {
+	return `{"schema_version":"tool-registry-v4","registry_version":"test","tools":[` + toolJSON + `]}`
 }
 
-func TestToolSpecRegistryValidationRejectsPythonContractSchemaRefs(t *testing.T) {
-	path := writeToolRegistryFixture(
-		t,
-		`{
-		  "schema_version": "tool-spec-registry-v3",
-		  "registry_version": "test",
-		  "tools": [{
-		    "name": "transport_schedule_lookup",
-		    "owner_capability": "campus_services",
-		    "capability": "campus_services",
-		    "payload_kind": "transport_schedule_lookup",
-		    "payload_schema_ref": "campus_contracts.models_tools.TransportScheduleLookupPayload",
-		    "result_schema_ref": "`+transportResultSchemaRef+`",
-		    "backend": "internal_structured_query_service",
-		    "surface": "structured_handoff",
-		    "read_only": true,
-		    "active": true,
-		    "function_schema": {"available": true, "strict": true},
-		    "runtime_posture": "typed_activity_admitted",
-		    "description": "Lookup current campus shuttle timetable."
-		  }]
-		}`,
-	)
-
-	_, err := LoadToolSpecRegistry(path)
-	if err == nil {
-		t.Fatal("LoadToolSpecRegistry accepted Python contract schema ref")
+func validToolJSON(
+	name string,
+	exposure string,
+	readOnly bool,
+	requiresApproval bool,
+	handlerType string,
+	endpoint string,
+) string {
+	handler := `{"type":"` + handlerType + `"}`
+	if endpoint != "" {
+		handler = `{"type":"` + handlerType + `","endpoint":"` + endpoint + `"}`
 	}
-	if got := err.Error(); !strings.Contains(got, "payload_schema_ref must reference a registered JSON Schema definition") {
-		t.Fatalf("LoadToolSpecRegistry error = %q, want schema ref rejection", got)
-	}
+	return `{
+	  "name": "` + name + `",
+	  "description": "Lookup current campus shuttle timetable.",
+	  "exposure": "` + exposure + `",
+	  "read_only": ` + boolJSON(readOnly) + `,
+	  "requires_approval": ` + boolJSON(requiresApproval) + `,
+	  "payload_schema_ref": "` + transportPayloadSchemaRef + `",
+	  "result_schema_ref": "` + transportResultSchemaRef + `",
+	  "handler": ` + handler + `,
+	  "timeout_ms": 1000,
+	  "result_projection_policy": "bounded_json"
+	}`
 }
 
-func TestToolSpecRegistryValidationRejectsLegacySdkAdapterCandidatePosture(t *testing.T) {
-	path := writeToolRegistryFixture(
-		t,
-		`{
-		  "schema_version": "tool-spec-registry-v3",
-		  "registry_version": "test",
-		  "tools": [{
-		    "name": "transport_schedule_lookup",
-		    "owner_capability": "campus_services",
-		    "capability": "campus_services",
-		    "payload_kind": "transport_schedule_lookup",
-			    "payload_schema_ref": "`+transportPayloadSchemaRef+`",
-			    "result_schema_ref": "`+transportResultSchemaRef+`",
-		    "backend": "internal_structured_query_service",
-		    "surface": "structured_handoff",
-		    "read_only": true,
-		    "active": true,
-		    "function_schema": {"available": true, "strict": true},
-		    "runtime_posture": "sdk_adapter_candidate",
-		    "description": "Lookup current campus shuttle timetable."
-		  }]
-		}`,
-	)
-
-	if _, err := LoadToolSpecRegistry(path); err == nil {
-		t.Fatal("LoadToolSpecRegistry accepted legacy sdk_adapter_candidate runtime posture")
+func boolJSON(value bool) string {
+	if value {
+		return "true"
 	}
+	return "false"
 }
 
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "tools.v3.json")
+	path := filepath.Join(t.TempDir(), "tools.v4.json")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}

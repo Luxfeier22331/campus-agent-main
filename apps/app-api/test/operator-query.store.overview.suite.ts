@@ -79,8 +79,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			granularity: null,
 			modelName: null,
 			principalType: null,
-			requestedCapability: null,
-			selectedCapability: null,
+			requestedTool: null,
+			selectedTool: null,
 			surface: null,
 			window: "1h",
 		});
@@ -102,7 +102,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			{
 				intentAmbiguityReason: null,
 				intentAmbiguitySignal: null,
-				intentCapability: "knowledge",
+				intentTool: "knowledge_query",
 				intentClassifierVersion: "intent-classifier@2026-04-20",
 				intentContextResolutionState: "resolved",
 				intentLaunchState: "open",
@@ -117,7 +117,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			{
 				intentAmbiguityReason: "missing_slot",
 				intentAmbiguitySignal: "ambiguous",
-				intentCapability: "campus_services",
+				intentTool: "transport_schedule_lookup",
 				intentClassifierVersion: "intent-classifier@2026-04-20",
 				intentContextResolutionState: "unresolved",
 				intentLaunchState: "candidate_only",
@@ -132,7 +132,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			{
 				intentAmbiguityReason: null,
 				intentAmbiguitySignal: null,
-				intentCapability: "knowledge",
+				intentTool: "knowledge_query",
 				intentClassifierVersion: "intent-classifier@2026-04-21",
 				intentContextResolutionState: "resolved",
 				intentLaunchState: "open",
@@ -187,8 +187,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			granularity: null,
 			modelName: null,
 			principalType: null,
-			requestedCapability: null,
-			selectedCapability: null,
+			requestedTool: null,
+			selectedTool: null,
 			surface: null,
 			window: "1h",
 		});
@@ -201,7 +201,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 		});
 		expect(result.runtime.ambiguityRate.count).toBe(1);
 		expect(result.runtime.contextUnresolvedRate.count).toBe(1);
-		expect(result.runtime.distributions.capability).toEqual([
+		expect(result.runtime.distributions.tool).toEqual([
 			{ count: 2, value: "knowledge" },
 			{ count: 1, value: "campus_services" },
 		]);
@@ -220,12 +220,12 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 			summarizeSafetyAnomaly({
 				aclAnomalyCode: "projection_missing",
 				failClosed: false,
-				requestedCapability: "knowledge",
-				selectedCapability: "knowledge",
+				requestedTool: "knowledge_query",
+				selectedTool: "knowledge_query",
 				status: "completed",
 			}),
 		).toBe(
-			"knowledge request finalized without the required policy projection for knowledge capability.",
+			"knowledge request finalized without the required policy projection for knowledge tool.",
 		);
 	});
 }

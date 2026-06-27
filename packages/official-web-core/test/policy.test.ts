@@ -167,7 +167,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "academic_calendar_candidate",
 					ownerSurface: "calendar/academic_calendar",
-					ownerCapabilityOrRuntime: "calendar",
+					ownerToolOrRuntime: "calendar",
 					materializationPolicy: "candidate_only",
 					pageFamilies: ["article_detail", "generic_content_page"],
 					titleKeywords: ["校历", "教学周", "放假安排"],
@@ -183,7 +183,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "stable_reference_candidate",
 					ownerSurface: "official_web/stable_reference",
-					ownerCapabilityOrRuntime: "knowledge",
+					ownerToolOrRuntime: "knowledge",
 					materializationPolicy: "release_gate_required",
 					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
 					titleKeywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
@@ -199,7 +199,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "regulation_candidate",
 					ownerSurface: "regulations/institutional_rules",
-					ownerCapabilityOrRuntime: "knowledge",
+					ownerToolOrRuntime: "knowledge",
 					materializationPolicy: "release_gate_required",
 					pageFamilies: ["article_detail", "generic_content_page"],
 					titleKeywords: ["办法", "规定", "细则", "制度"],
@@ -215,7 +215,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 				{
 					consumerFamily: "notice_news_candidate",
 					ownerSurface: "future_notice_runtime",
-					ownerCapabilityOrRuntime: "notice",
+					ownerToolOrRuntime: "notice",
 					materializationPolicy: "inventory_only",
 					pageFamilies: ["article_detail"],
 					titleKeywords: ["新闻", "通知", "公告", "讲座", "活动"],
@@ -289,7 +289,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					inventoryOnly: false,
 					materializationPolicy: "candidate_only",
 					notes: "test inventory target",
-					ownerCapabilityOrRuntime: "calendar",
+					ownerToolOrRuntime: "calendar",
 					ownerSurface: "calendar/academic_calendar",
 					previewStatus: "candidate",
 					releaseBlockers: ["no_preview_evidence"],

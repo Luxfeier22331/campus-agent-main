@@ -1,5 +1,5 @@
 import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
-import type { CapabilityExecutionWorkflowTraceSummary } from "../integration/capability-execution-types";
+import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
 import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
 import type {
 	RequestClaimSupportSummary,
@@ -55,11 +55,11 @@ export interface RequestProjectionRecord {
 	entitlementGroups: string[];
 	visibilityScope: string | null;
 	applicabilityScope: string | null;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: Record<string, unknown> | null;
 	versionQuery?: VersionQuery;
 	resolvedScope: Record<string, unknown> | null;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	status: RequestExecutionStatus;
 	errorCode: string | null;
 	questionPreview: string;
@@ -89,7 +89,7 @@ export interface OperatorAuditListFilters {
 	traceId?: string | null;
 	principalType?: string | null;
 	surface?: string | null;
-	selectedCapability?: string | null;
+	selectedTool?: string | null;
 	eventType?: string | null;
 	status?: string | null;
 }
@@ -111,7 +111,7 @@ export interface NormalizedOperatorAuditListFilters {
 	traceId: string | null;
 	principalType: string | null;
 	surface: string | null;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	eventType: string | null;
 	status: string | null;
 }
@@ -120,8 +120,8 @@ export interface OperatorOverviewFilters {
 	window?: string | null;
 	granularity?: string | null;
 	surface?: string | null;
-	selectedCapability?: string | null;
-	requestedCapability?: string | null;
+	selectedTool?: string | null;
+	requestedTool?: string | null;
 	principalType?: string | null;
 	collection?: string | null;
 	modelName?: string | null;
@@ -131,8 +131,8 @@ export interface NormalizedOperatorOverviewFilters {
 	window: OperatorOverviewWindow;
 	granularity: OperatorResultWindow["granularity"] | null;
 	surface: string | null;
-	selectedCapability: string | null;
-	requestedCapability: string | null;
+	selectedTool: string | null;
+	requestedTool: string | null;
 	principalType: string | null;
 	collection: string | null;
 	modelName: string | null;
@@ -163,7 +163,7 @@ export interface OperatorLangfuseEvalBacklinkResult {
 }
 
 export interface OperatorIntentObservabilitySummary {
-	capability: string | null;
+	tool: string | null;
 	taskKind: string | null;
 	launchState: string | null;
 	nextAction: string | null;
@@ -189,11 +189,11 @@ export interface OperatorRequestObservabilityRecord {
 		conversationId: string;
 		surface: string;
 		status: RequestExecutionStatus;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		requestedScope: Record<string, unknown> | null;
 		versionQuery?: VersionQuery;
 		resolvedScope: Record<string, unknown> | null;
-		selectedCapability: string | null;
+		selectedTool: string | null;
 		startedAt: string;
 		completedAt: string | null;
 	};
@@ -217,7 +217,7 @@ export interface OperatorRequestObservabilityRecord {
 			historicalDowngradeReason: string | null;
 			selectedTool: string | null;
 		};
-		workflowTrace?: CapabilityExecutionWorkflowTraceSummary | null;
+		workflowTrace?: ToolExecutionWorkflowTraceSummary | null;
 		retrievalAdequacyVerdict: string | null;
 		retrievalAdequacyReason: string | null;
 		retrievalPlan?: RequestRetrievalPlanSummary | null;
@@ -267,10 +267,10 @@ export interface OperatorRequestObservabilityRecord {
 			policyProjectionVersion: string | null;
 		};
 		routing: {
-			requestedCapability: string | null;
+			requestedTool: string | null;
 			requestedScope: Record<string, unknown> | null;
 			resolvedScope: Record<string, unknown> | null;
-			selectedCapability: string | null;
+			selectedTool: string | null;
 			intent?: OperatorIntentObservabilitySummary;
 		};
 		execution: {
@@ -356,7 +356,7 @@ export interface OperatorRuntimeRunSummary {
 			agentSelectedTools?: string[];
 			agentTerminalReason?: string | null;
 			agentToolResultRefs?: string[];
-			capability: string;
+			tool: string;
 			cancelOutcome: string | null;
 			durationMs: number | null;
 			estimatedCostMicrousd: number;
@@ -390,7 +390,7 @@ export interface OperatorRuntimeRunSummary {
 			agentTerminalReason?: string | null;
 			agentToolResultRefs?: string[];
 			attemptCount: number;
-			capability: string;
+			tool: string;
 			cancelOutcome: string | null;
 			durationMs: number | null;
 			estimatedCostMicrousd: number;
@@ -476,7 +476,7 @@ export interface OperatorAuditEventListItem {
 	eventType: string;
 	surface: string;
 	principalType: string;
-	selectedCapability: string | null;
+	selectedTool: string | null;
 	status: string;
 	summary: string;
 }
@@ -492,20 +492,20 @@ export interface OperatorAuditEventDetail {
 		principalType: string;
 		entitlementSnapshotId: string | null;
 		policyProjectionVersion: string | null;
-		requestedCapability: string | null;
-		selectedCapability: string | null;
+		requestedTool: string | null;
+		selectedTool: string | null;
 		status: string;
 		terminalCode: string | null;
 		summary: string;
 		diagnostics: {
 			failClosed: boolean | null;
 			aclAnomalyCode: string | null;
-			bridgeDurationMs?: number | null;
+			activityDurationMs?: number | null;
 			decision?: string | null;
 			durationMs?: number | null;
 			failureKind?: string | null;
 			httpStatus?: number | null;
-			lane?: string | null;
+			taskQueue?: string | null;
 			queueWaitMs?: number | null;
 			retryable?: boolean | null;
 			sourceDocIds: string[];

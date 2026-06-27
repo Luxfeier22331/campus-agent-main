@@ -102,7 +102,7 @@ code-owned runtime seam。当前接受的实现基线是：
 - 应用拥有的高优先级规则放在 `instructions` / `developer` 层，用户输入与 evidence 继续留在低优先级输入区
 - 工具以结构化 `tools` / function schema 形式暴露给模型，由模型基于 prompt
   判断是否调用工具；不能把工具选择协议写成自然语言假 schema，也不能把每个
-  产品介绍或寒暄拆成 tool / capability
+  产品介绍或寒暄拆成 tool / tool
 - untrusted content 不进入 developer instruction zone；节点间数据交换尽量走 strict structured
   outputs，而不是自由文本通道
 - prompt / model 变更应绑定持续 eval，而不是只靠人工感受或一次性 smoke
@@ -132,7 +132,7 @@ code-owned runtime seam。当前接受的实现基线是：
 禁止退化为：
 
 - `prompt-first orchestration`
-- 用 prompt 软约束代替 serving filter、capability opening gate 或 source-trust gate
+- 用 prompt 软约束代替 serving filter、tool opening gate 或 source-trust gate
 - 把 retrieval snippets 或 external content 直接拼进 trusted instructions 区
 - 用一份 monolithic mega prompt 覆盖所有 agent、所有 mode、所有数据面
 
@@ -143,7 +143,7 @@ code-owned runtime seam。当前接受的实现基线是：
 - current query-enabled scope
 - runtime profile / serving alias / release manifest
 - fail-close deny path
-- capability opening / readiness gate
+- tool opening / readiness gate
 - source-trust / freshness gate
 
 这些 truth 继续由：
@@ -175,7 +175,7 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 这意味着：
 
 - 不把校外世界知识缺口伪装成“RAG 没召回到”
-- 不把超出当前 capability / serving surface 的问题硬塞进现有 campus retrieval path
+- 不把超出当前 tool / serving surface 的问题硬塞进现有 campus retrieval path
 - 不因为问题带有“政治”或“敏感”字样，就自动当作同一类拒答
 - 不在 campus path 内隐式启用 general web / world knowledge fallback
 
@@ -193,9 +193,9 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - `grounded_answer` 当前问题在产品范围内，且回答可由允许的证据支持
 - `needs_clarification` 当前问题可能在范围内，但缺少足够的 disambiguation / slot truth
 - `unsupported_by_evidence` 当前问题在范围内，但没有足够依据支持安全作答
-- `out_of_scope` 当前问题不属于当前 institution / capability / serving surface 所承接的产品范围
+- `out_of_scope` 当前问题不属于当前 institution / tool / serving surface 所承接的产品范围
 - `policy_refusal` 当前问题触发平台或产品级禁止事项
-- `capability_not_ready` 当前问题属于校园问答目标，但对应能力尚未达到主链路 opening gate
+- `tool_not_ready` 当前问题属于校园问答目标，但对应能力尚未达到主链路 opening gate
 - `source_truth_unavailable` 当前问题需要的 source truth 或 current-state truth 尚不可可靠消费
 
 补充约束：
@@ -203,10 +203,10 @@ planner 只能在这些 code-owned truth 之内生成 plan。
 - transport / runtime status 可以在过渡期继续保持 `completed`、`needs_clarification`、`no_an
   swer`、`rejected`、`approval_required`、`error`
 - 但 observability、eval truth、prompt packet 与 operator projection 长期不得再把 `out_of_
-  scope`、`unsupported_by_evidence`、`policy_refusal`、`capability_not_ready` 与
+  scope`、`unsupported_by_evidence`、`policy_refusal`、`tool_not_ready` 与
   `source_truth_unavailable` 混成一个模糊的 `no_answer`
-- `capability_not_ready` 与 `source_truth_unavailable` 是 internal / operator vocabulary；
-  用户可见文案应映射为“当前无法自动查询”“暂无可靠来源确认”或等价表达，不直接暴露内部 capability 名称。
+- `tool_not_ready` 与 `source_truth_unavailable` 是 internal / operator vocabulary；
+  用户可见文案应映射为“当前无法自动查询”“暂无可靠来源确认”或等价表达，不直接暴露内部 tool 名称。
 - 如果当前 contract 尚未升级，这些语义至少也要以显式 `semantic_outcome` / `refusal_class` /
   `no_answer_reason` 投影存在
 
@@ -304,7 +304,7 @@ unsupported`
 
 1. `boundary hallucination`
 
-- 把未开放 capability、未可靠摄入的 current-state truth 或内部 source material 包装成可确认答案
+- 把未开放 tool、未可靠摄入的 current-state truth 或内部 source material 包装成可确认答案
 
 repo 的 hallucination control 必须分别针对这五类做 gate，而不是统一归类成“prompt 质量问题”。
 

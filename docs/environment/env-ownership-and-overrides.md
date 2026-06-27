@@ -151,6 +151,6 @@ not copy secrets between worktrees.
 对应 runbook：
 
 - `docs/runbooks/provider-secret-governance.md`
-- `docs/runbooks/execution-control-local-runtime-smoke.md`
+- `docs/runbooks/local-runtime-smoke.md`
 - `docs/runbooks/legacy-office-conversion-runtime.md`
 - `docs/runbooks/worker-observability-smoke-runbook.md`

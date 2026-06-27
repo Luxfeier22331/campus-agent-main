@@ -1,4 +1,4 @@
-import type { CapabilityExecutionResponse } from "../../integration";
+import type { ToolExecutionResponse } from "../../integration";
 import { ensureLangfuseTraceParent } from "../../telemetry/trace";
 import { durableTerminalOutcomeFromDurableRunEvent } from "./durable";
 import type {
@@ -30,7 +30,7 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 			payload: {
 				conversationId: candidate.conversation.id,
 				prompt: candidate.questionPreview,
-				requestedCapability: candidate.requestedCapability,
+				requestedTool: candidate.requestedTool,
 				requestedScope: candidate.requestedScope,
 				versionQuery: candidate.versionQuery,
 			},
@@ -50,7 +50,7 @@ function acceptedCloseoutContext(candidate: DurableCloseoutCandidate): AcceptedC
 		validatedPayload: {
 			conversationId: candidate.conversation.id,
 			prompt: candidate.questionPreview,
-			requestedCapability: candidate.requestedCapability,
+			requestedTool: candidate.requestedTool,
 			requestedScope: candidate.requestedScope,
 			versionQuery: candidate.versionQuery,
 		},
@@ -62,7 +62,7 @@ async function reconcileOneDurableCloseout(input: {
 	dependencies: ChatCommandServiceDependencies;
 	finalizeAcceptedCommand(finalizeInput: {
 		context: AcceptedChatCommandContext;
-		executionResponse: CapabilityExecutionResponse;
+		executionResponse: ToolExecutionResponse;
 		transportError?: { code: string; retryable: boolean } | null;
 	}): Promise<ChatCommandResponse>;
 }): Promise<boolean> {
@@ -100,7 +100,7 @@ export async function reconcileDurableCloseouts(input: {
 	dependencies: ChatCommandServiceDependencies;
 	finalizeAcceptedCommand(finalizeInput: {
 		context: AcceptedChatCommandContext;
-		executionResponse: CapabilityExecutionResponse;
+		executionResponse: ToolExecutionResponse;
 		transportError?: { code: string; retryable: boolean } | null;
 	}): Promise<ChatCommandResponse>;
 	now: () => Date;

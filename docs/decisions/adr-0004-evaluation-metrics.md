@@ -78,20 +78,20 @@ answer 层长期至少保留以下指标族：
 
 ## 决策 4：Workflow 的核心指标族
 
-对 `Execution Agent Layer -> capability -> retrieval / typed tool` 这类 agentic
+对 `Execution Agent Layer -> tool -> retrieval / typed tool` 这类 agentic
 workflow，长期至少保留以下指标族：
 
 - `status accuracy` `completed`、`needs_clarification`、`no_answer`、`error` 是否与
   truth 一致
 - `intent-frame accuracy` top-level intent / task framing 是否与 truth 一致
-- `routing accuracy` 是否选择了正确的 capability / typed tool，或在不该委派时正确保持不委派
+- `routing accuracy` 是否选择了正确的 tool / typed tool，或在不该委派时正确保持不委派
 - `slot completeness / missing-slot accuracy` 是否识别出 cohort、major、campus、target
   policy 等关键缺失信息
 - `clarification accuracy` 是否在应澄清时澄清，不应澄清时不误触发
 - `no-answer accuracy` 是否在证据不足或范围不符时正确拒答
 - `memory-context correctness` 是否正确使用 typed memory 做 follow-up、消歧、query
-  framing 与措辞，且没有把 memory 当成 source truth 或 capability-opening truth
-- `delegation / handoff accuracy` 是否发生了正确的 capability delegation / handoff，且没有越级绕过
+  framing 与措辞，且没有把 memory 当成 source truth 或 tool-opening truth
+- `delegation / handoff accuracy` 是否发生了正确的 tool delegation / handoff，且没有越级绕过
   execution policy
 - `trace path correctness` 是否发生了正确的 retrieval 调用、fail-closed 行为与其他关键中间路径
 
@@ -106,7 +106,7 @@ workflow 指标属于正式门禁对象，不得被最终答案文本指标替�
 
 长期至少单独保留以下安全与门禁指标：
 
-- capability readiness fail-closed rate
+- tool readiness fail-closed rate
 - source-truth / evidence fail-closed rate
 - forbidden-source or unopened-surface retrieval rate
 - memory boundary violation rate
@@ -164,7 +164,7 @@ split 和指标族的对应关系在长期上固定，但每个 split 的具体�
 
 ## 决策 9：文档分层关系
 
-- `docs/architecture/target-architecture.md` 只保留 `evals` 边界与可替换性原则
+- `docs/architecture/target.md` 只保留 `evals` 边界与可替换性原则
 - `docs/decisions/adr-0003-golden-dataset-governance.md` 负责 golden dataset 的真值治理
 - `./adr-0015-user-identity-memory-and-personalization-boundaries.md`
   负责 identity / memory / personalization 的长期边界

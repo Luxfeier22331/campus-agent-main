@@ -71,20 +71,20 @@ func TestControllerDryRunPublishesDecisionsWithoutActuation(t *testing.T) {
 		ActuationSource:  fakeActuationSource{},
 		Mode:             ModeDryRun,
 		Now:              fixedAutoscalerTime,
-		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge-retrieval": 1}},
+		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge": 1}},
 		RuntimePublisher: publisher,
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 			},
 		},
 		SnapshotLimit: 8,
 		SnapshotSource: fakeSnapshotSource{snapshots: []TemporalTaskQueueSnapshot{{
 			Backlog:       SourceMetric{State: SourceMetricUnsupported},
-			SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			SnapshotID:    "temporal-snapshot-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TaskQueueKind: TaskQueueKindActivity,
 		}}},
 	}
@@ -113,29 +113,29 @@ func TestControllerApplyPublishesActuations(t *testing.T) {
 		Actuator: fakeActuator{actuations: []Actuation{{
 			ActedAt:       "2026-06-15T10:00:06Z",
 			Action:        "scale",
-			ActuationID:   "actuation-knowledge-retrieval",
+			ActuationID:   "actuation-knowledge",
 			ActuatorKind:  ActuatorKindDockerCompose,
-			DecisionID:    "autoscaler-20260615T100005Z-activity-worker-knowledge-retrieval",
+			DecisionID:    "autoscaler-20260615T100005Z-activity-worker-knowledge",
 			FromReplicas:  1,
 			Status:        ActuationStatusApplied,
-			TargetService: "activity-worker-knowledge-retrieval",
+			TargetService: "activity-worker-knowledge",
 			ToReplicas:    2,
 		}}},
 		ActuationSource:  fakeActuationSource{},
 		Mode:             ModeApply,
 		Now:              fixedAutoscalerTime,
-		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge-retrieval": 1}},
+		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge": 1}},
 		RuntimePublisher: publisher,
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 			},
 		},
 		SnapshotSource: fakeSnapshotSource{snapshots: []TemporalTaskQueueSnapshot{{
-			SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			SnapshotID:    "temporal-snapshot-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TaskQueueKind: TaskQueueKindActivity,
 		}}},
 	}
@@ -162,13 +162,13 @@ func TestControllerApplyPublishesFailedActuationBeforeReturningError(t *testing.
 			actuations: []Actuation{{
 				ActedAt:       "2026-06-15T10:00:06Z",
 				Action:        "scale",
-				ActuationID:   "actuation-knowledge-retrieval",
+				ActuationID:   "actuation-knowledge",
 				ActuatorKind:  ActuatorKindDockerCompose,
-				DecisionID:    "autoscaler-20260615T100005Z-activity-worker-knowledge-retrieval",
+				DecisionID:    "autoscaler-20260615T100005Z-activity-worker-knowledge",
 				ErrorCode:     "docker_compose_scale_failed",
 				FromReplicas:  1,
 				Status:        ActuationStatusFailed,
-				TargetService: "activity-worker-knowledge-retrieval",
+				TargetService: "activity-worker-knowledge",
 				ToReplicas:    2,
 			}},
 			err: errors.New("compose failed"),
@@ -176,18 +176,18 @@ func TestControllerApplyPublishesFailedActuationBeforeReturningError(t *testing.
 		ActuationSource:  fakeActuationSource{},
 		Mode:             ModeApply,
 		Now:              fixedAutoscalerTime,
-		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge-retrieval": 1}},
+		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge": 1}},
 		RuntimePublisher: publisher,
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				MaxReplicas: 3,
 				MinReplicas: 1,
-				TaskQueue:   "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:   "campus-agent.activity.knowledge",
 			},
 		},
 		SnapshotSource: fakeSnapshotSource{snapshots: []TemporalTaskQueueSnapshot{{
-			SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			SnapshotID:    "temporal-snapshot-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TaskQueueKind: TaskQueueKindActivity,
 		}}},
 	}
@@ -214,23 +214,23 @@ func TestControllerReadsRecentActuationsForCooldownDecisions(t *testing.T) {
 		ActuationSource: fakeActuationSource{actuations: []Actuation{{
 			ActedAt:       "2026-06-15T10:00:30Z",
 			Action:        "scale",
-			ActuationID:   "actuation-knowledge-retrieval",
+			ActuationID:   "actuation-knowledge",
 			Status:        ActuationStatusApplied,
-			TargetService: "activity-worker-knowledge-retrieval",
+			TargetService: "activity-worker-knowledge",
 			ToReplicas:    2,
 		}}},
 		Mode:             ModeDryRun,
 		Now:              func() time.Time { return time.Date(2026, 6, 15, 10, 1, 0, 0, time.UTC) },
-		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge-retrieval": 1}},
+		ReplicaSource:    fakeReplicaSource{replicas: map[string]int{"activity-worker-knowledge": 1}},
 		RuntimePublisher: publisher,
 		ServicePolicies: map[string]ServicePolicy{
-			"activity-worker-knowledge-retrieval": {
+			"activity-worker-knowledge": {
 				CooldownSeconds:           180,
 				MaxReplicas:               3,
 				MinReplicas:               1,
 				ScaleUpBacklogThreshold:   1,
 				ScaleUpConsecutiveWindows: 1,
-				TaskQueue:                 "campus-agent.activity.knowledge.retrieval",
+				TaskQueue:                 "campus-agent.activity.knowledge",
 			},
 		},
 		SnapshotSource: fakeSnapshotSource{snapshots: []TemporalTaskQueueSnapshot{{
@@ -239,8 +239,8 @@ func TestControllerReadsRecentActuationsForCooldownDecisions(t *testing.T) {
 				State: SourceMetricObserved,
 			},
 			PollerCount:   1,
-			SnapshotID:    "temporal-snapshot-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			SnapshotID:    "temporal-snapshot-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TaskQueueKind: TaskQueueKindActivity,
 		}}},
 	}

@@ -99,10 +99,8 @@ function answerKindFor(row: Pick<RequestObservabilityFactRow, "status">): string
 	return row.status;
 }
 
-function capabilityFor(
-	row: Pick<RequestObservabilityFactRow, "intentCapability" | "requestedCapability">,
-): string {
-	return row.intentCapability ?? row.requestedCapability ?? "unknown";
+function toolFor(row: Pick<RequestObservabilityFactRow, "intentTool" | "requestedTool">): string {
+	return row.intentTool ?? row.requestedTool ?? "unknown";
 }
 
 function citationPostureFor(
@@ -146,7 +144,7 @@ function buildFeedbackSummary(
 
 	const surface = new Map<string, number>();
 	const answerKind = new Map<string, number>();
-	const capability = new Map<string, number>();
+	const tool = new Map<string, number>();
 	const citationPosture = new Map<string, number>();
 	const reasonCode = new Map<string, number>();
 	const vote = new Map<string, number>();
@@ -154,7 +152,7 @@ function buildFeedbackSummary(
 	for (const entry of feedbackEntries) {
 		incrementBucket(surface, entry.request.surface);
 		incrementBucket(answerKind, answerKindFor(entry.request));
-		incrementBucket(capability, capabilityFor(entry.request));
+		incrementBucket(tool, toolFor(entry.request));
 		incrementBucket(citationPosture, citationPostureFor(entry.request));
 		incrementBucket(vote, entry.feedback.vote);
 		for (const code of reasonCodesFor(entry.feedback)) {
@@ -166,7 +164,7 @@ function buildFeedbackSummary(
 		coverageRate: toRatio(feedbackEntries.length, eligibleRows.length),
 		distributions: {
 			answerKind: toDistribution(answerKind),
-			capability: toDistribution(capability),
+			tool: toDistribution(tool),
 			citationPosture: toDistribution(citationPosture),
 			reasonCode: toDistribution(reasonCode),
 			surface: toDistribution(surface),
@@ -308,8 +306,8 @@ function compactIntent(
 	row: RequestObservabilityFactRow,
 ): NonNullable<QualityEvalCandidate["correlation"]>["intent"] {
 	const intent: NonNullable<QualityEvalCandidate["correlation"]>["intent"] = {};
-	if (row.intentCapability) {
-		intent.capability = row.intentCapability;
+	if (row.intentTool) {
+		intent.tool = row.intentTool;
 	}
 	if (row.intentTaskKind) {
 		intent.taskKind = row.intentTaskKind;
@@ -550,10 +548,8 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(qualityBadcaseProjection.surface, filters.surface));
 			}
-			if (filters.selectedCapability) {
-				conditions.push(
-					eq(qualityBadcaseProjection.selectedCapability, filters.selectedCapability),
-				);
+			if (filters.selectedTool) {
+				conditions.push(eq(qualityBadcaseProjection.selectedTool, filters.selectedTool));
 			}
 			if (filters.window) {
 				const bounds = resolveWindowBounds(filters.window, runtime.now());
@@ -637,7 +633,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 					openedAt: row.openedAt.toISOString(),
 					requestId: row.requestId,
 					runId: runBacklinksByRequestId.get(row.requestId) ?? null,
-					selectedCapability: row.selectedCapability ?? null,
+					selectedTool: row.selectedTool ?? null,
 					status: row.status,
 					summary: row.summary,
 					surface: row.surface,
@@ -682,10 +678,8 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			if (filters.surface) {
 				conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 			}
-			if (filters.selectedCapability) {
-				conditions.push(
-					eq(requestObservabilityFact.selectedCapability, filters.selectedCapability),
-				);
+			if (filters.selectedTool) {
+				conditions.push(eq(requestObservabilityFact.selectedTool, filters.selectedTool));
 			}
 
 			const observabilityQuery = db.select().from(requestObservabilityFact);
@@ -753,7 +747,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 							suggestedLabels: reviewLabels,
 						},
 						runId: null,
-						selectedCapability: requestRow.selectedCapability ?? null,
+						selectedTool: requestRow.selectedTool ?? null,
 						summary: feedbackSummary(answerKind, reasonCodes),
 						surface: requestRow.surface,
 						traceId: requestRow.traceId,

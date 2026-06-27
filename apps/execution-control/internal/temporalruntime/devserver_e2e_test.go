@@ -17,7 +17,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func TestTemporalDevServerRunsCapabilityExecutionWorkflowAndReplaysHistory(t *testing.T) {
+func TestTemporalDevServerRunsToolExecutionWorkflowAndReplaysHistory(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	server, err := testsuite.StartDevServer(ctx, testsuite.DevServerOptions{
@@ -36,22 +36,16 @@ func TestTemporalDevServerRunsCapabilityExecutionWorkflowAndReplaysHistory(t *te
 	activities := &Activities{}
 	workers := []worker.Worker{
 		NewWorkflowWorker(temporalClient, WorkflowTaskQueue),
-		NewContextActivityWorker(temporalClient, ActivityTaskQueueContext, activities),
+		NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			ActivityTaskQueueCore,
+			activities,
+			activities,
+			activities,
+			worker.Options{},
+		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
-		NewKnowledgePlanActivityWorker(temporalClient, ActivityTaskQueueKnowledgePlan, activities, worker.Options{}),
-		NewKnowledgeRetrievalActivityWorker(
-			temporalClient,
-			ActivityTaskQueueKnowledgeRetrieval,
-			activities,
-			worker.Options{},
-		),
-		NewKnowledgeSynthesisActivityWorker(
-			temporalClient,
-			ActivityTaskQueueKnowledgeSynthesis,
-			activities,
-			worker.Options{},
-		),
-		NewFinalizationActivityWorker(temporalClient, ActivityTaskQueueFinalization, activities),
+		NewKnowledgeActivityWorkerWithOptions(temporalClient, ActivityTaskQueueKnowledge, activities, worker.Options{}),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -66,11 +60,11 @@ func TestTemporalDevServerRunsCapabilityExecutionWorkflowAndReplaysHistory(t *te
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
 		TaskQueue: WorkflowTaskQueue,
-	}, CapabilityExecutionWorkflow, input)
+	}, ToolExecutionWorkflow, input)
 	if err != nil {
 		t.Fatalf("execute workflow: %v", err)
 	}
-	var result CapabilityExecutionWorkflowResult
+	var result ToolExecutionWorkflowResult
 	if err := workflowRun.Get(ctx, &result); err != nil {
 		t.Fatalf("get workflow result: %v", err)
 	}
@@ -96,8 +90,8 @@ func TestTemporalDevServerRunsCapabilityExecutionWorkflowAndReplaysHistory(t *te
 		t.Fatal("workflow history did not contain completed event")
 	}
 	replayer := worker.NewWorkflowReplayer()
-	replayer.RegisterWorkflowWithOptions(CapabilityExecutionWorkflow, workflow.RegisterOptions{
-		Name: CapabilityExecutionWorkflowType,
+	replayer.RegisterWorkflowWithOptions(ToolExecutionWorkflow, workflow.RegisterOptions{
+		Name: ToolExecutionWorkflowType,
 	})
 	if err := replayer.ReplayWorkflowHistory(nil, history); err != nil {
 		t.Fatalf("replay workflow history: %v", err)
@@ -123,22 +117,21 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 	activities := &knowledgeBranchActivities{}
 	workers := []worker.Worker{
 		NewWorkflowWorker(temporalClient, WorkflowTaskQueue),
-		NewContextActivityWorker(temporalClient, ActivityTaskQueueContext, &activities.Activities),
+		NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			ActivityTaskQueueCore,
+			&activities.Activities,
+			&activities.Activities,
+			&activities.Activities,
+			worker.Options{},
+		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, activities),
-		NewKnowledgePlanActivityWorker(temporalClient, ActivityTaskQueueKnowledgePlan, &activities.Activities, worker.Options{}),
-		NewKnowledgeRetrievalActivityWorker(
+		NewKnowledgeActivityWorkerWithOptions(
 			temporalClient,
-			ActivityTaskQueueKnowledgeRetrieval,
+			ActivityTaskQueueKnowledge,
 			&activities.Activities,
 			worker.Options{},
 		),
-		NewKnowledgeSynthesisActivityWorker(
-			temporalClient,
-			ActivityTaskQueueKnowledgeSynthesis,
-			&activities.Activities,
-			worker.Options{},
-		),
-		NewFinalizationActivityWorker(temporalClient, ActivityTaskQueueFinalization, &activities.Activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -149,16 +142,16 @@ func TestTemporalDevServerRunsKnowledgeBranchAcrossActivityQueues(t *testing.T) 
 
 	runID := "run-temporal-devserver-rag"
 	input := workflowTestInput(runID)
-	input.RequestedCapability = "knowledge"
+	input.RequestedTool = "knowledge_query"
 	input.WorkflowID = "campus-agent.temporal-e2e." + runID
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
 		TaskQueue: WorkflowTaskQueue,
-	}, CapabilityExecutionWorkflow, input)
+	}, ToolExecutionWorkflow, input)
 	if err != nil {
 		t.Fatalf("execute workflow: %v", err)
 	}
-	var result CapabilityExecutionWorkflowResult
+	var result ToolExecutionWorkflowResult
 	if err := workflowRun.Get(ctx, &result); err != nil {
 		t.Fatalf("get workflow result: %v", err)
 	}
@@ -207,9 +200,15 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	activities := blockingAgentActivities{Activities: Activities{}, started: make(chan struct{})}
 	workers := []worker.Worker{
 		NewWorkflowWorker(temporalClient, WorkflowTaskQueue),
-		NewContextActivityWorker(temporalClient, ActivityTaskQueueContext, &activities.Activities),
+		NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			ActivityTaskQueueCore,
+			&activities.Activities,
+			&activities.Activities,
+			&activities.Activities,
+			worker.Options{},
+		),
 		NewAgentActivityWorker(temporalClient, ActivityTaskQueueAgent, &activities),
-		NewFinalizationActivityWorker(temporalClient, ActivityTaskQueueFinalization, &activities.Activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -223,7 +222,7 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 	workflowRun, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        input.WorkflowID,
 		TaskQueue: WorkflowTaskQueue,
-	}, CapabilityExecutionWorkflow, input)
+	}, ToolExecutionWorkflow, input)
 	if err != nil {
 		t.Fatalf("execute workflow: %v", err)
 	}
@@ -238,13 +237,13 @@ func TestTemporalDevServerCancelWorkflow(t *testing.T) {
 		taskQueue:    WorkflowTaskQueue,
 		startTimeout: 5 * time.Second,
 	}
-	if err := starter.CancelCapabilityExecutionWorkflow(ctx, CapabilityExecutionWorkflowCancelInput{
+	if err := starter.CancelToolExecutionWorkflow(ctx, ToolExecutionWorkflowCancelInput{
 		RunID:      runID,
 		WorkflowID: input.WorkflowID,
 	}); err != nil {
 		t.Fatalf("cancel workflow: %v", err)
 	}
-	var result CapabilityExecutionWorkflowResult
+	var result ToolExecutionWorkflowResult
 	err = workflowRun.Get(ctx, &result)
 	if err == nil || !strings.Contains(err.Error(), "canceled") {
 		t.Fatalf("workflow get err = %v, want canceled", err)
@@ -280,7 +279,6 @@ func (a *knowledgeBranchActivities) ExecutePrimaryAgentActivity(
 		Status:         "completed",
 		TerminalReason: "tool_selected",
 		ToolResults: []AgentToolResult{{
-			Capability:  "knowledge",
 			PayloadKind: "rag_request",
 			Result: map[string]any{
 				"workflow_signal": "knowledge_query",

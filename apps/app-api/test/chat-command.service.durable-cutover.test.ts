@@ -14,12 +14,12 @@ import {
 } from "./chat-command.service.durable-cutover.test-support";
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
 	createPrincipal,
 	createTelemetryMock,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 const EXPECTED_LANGFUSE_TRACE_PARENT = `00-${deriveLangfuseTraceId("trace_0001")}-0000000000000001-01`;
@@ -28,7 +28,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const service = buildChatCommandService({
@@ -46,7 +46,7 @@ describe("chat command durable runtime cutover", () => {
 				payload: {
 					conversationId: "conv_01HQ",
 					prompt: "中央民族大学本科学生国家奖学金评审办法",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 				},
 				principal: createPrincipal(),
 				surface: "campus_web",
@@ -65,7 +65,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects streaming deployed chat commands when durable runtime is required but missing", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -83,7 +83,7 @@ describe("chat command durable runtime cutover", () => {
 				payload: {
 					conversationId: "conv_01HQ",
 					prompt: "中央民族大学本科学生国家奖学金评审办法",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 				},
 				principal: createPrincipal(),
 				surface: "campus_web",
@@ -105,7 +105,7 @@ describe("chat command durable runtime cutover", () => {
 	it("rejects blocking deployed chat commands before accept when required durable config is absent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -138,7 +138,7 @@ describe("chat command durable runtime cutover", () => {
 				payload: {
 					conversationId: "conv_01HQ",
 					prompt: "中央民族大学本科学生国家奖学金评审办法",
-					requestedCapability: "knowledge",
+					requestedTool: "knowledge_query",
 				},
 				principal: createPrincipal(),
 				surface: "campus_web",
@@ -159,7 +159,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
@@ -171,16 +171,16 @@ describe("chat command durable runtime cutover", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
 				surface: "campus_web",
+				taskQueue: "campus-agent.workflow",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -215,7 +215,7 @@ describe("chat command durable runtime cutover", () => {
 									sources: [{ doc_id: "student_rules:national-scholarship" }],
 								},
 							},
-							selected_capability: "knowledge",
+							selected_tool: "knowledge_query",
 							status: "completed",
 							trace_id: "trace_0001",
 						},
@@ -242,7 +242,7 @@ describe("chat command durable runtime cutover", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				requestedScope: {
 					collection: "student_rules",
 					corpus: "regulations",
@@ -266,25 +266,25 @@ describe("chat command durable runtime cutover", () => {
 			"actor",
 			"context",
 			"conversation_id",
-			"effective_capability",
+			"effective_tool",
 			"execution_contract_version",
-			"lane",
 			"request_id",
-			"requested_capability",
 			"requested_scope",
+			"requested_tool",
 			"response_contract",
 			"safety_identifier",
+			"task_queue",
 			"tenant_id",
 			"trace",
 			"user_goal",
 			"version_query",
 		]);
 		expect(executionPayload).toMatchObject({
-			execution_contract_version: "capability_execution_v1",
+			execution_contract_version: "tool_execution_v1",
 			response_contract: "execution_finalization_response_v1",
-			effective_capability: "knowledge",
-			lane: "rag",
-			requested_capability: "knowledge",
+			effective_tool: "knowledge_query",
+			task_queue: "campus-agent.workflow",
+			requested_tool: "knowledge_query",
 			tenant_id: "tenant-main",
 			trace: {
 				trace_id: "trace_0001",
@@ -298,7 +298,7 @@ describe("chat command durable runtime cutover", () => {
 		expect(metadata.handoff).toBeUndefined();
 		expect(executionRuntime.createRun).toHaveBeenCalledWith({
 			conversationId: "conv_01HQ",
-			lane: "rag",
+			taskQueue: "campus-agent.workflow",
 			metadata: expect.objectContaining({
 				execution_payload: expect.objectContaining({
 					actor: expect.objectContaining({
@@ -306,9 +306,9 @@ describe("chat command durable runtime cutover", () => {
 					}),
 					context: expect.any(Object),
 					conversation_id: "conv_01HQ",
-					lane: "rag",
+					task_queue: "campus-agent.workflow",
 					request_id: "req_0001",
-					requested_capability: "knowledge",
+					requested_tool: "knowledge_query",
 					requested_scope: {
 						collection: "student_rules",
 						corpus: "regulations",
@@ -326,12 +326,12 @@ describe("chat command durable runtime cutover", () => {
 			}),
 			ownerUserId: "user_01HQ",
 			requestId: "req_0001",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			runId: "run_0001",
 			runtimeVersions: {
 				contract: "durable-agent-runtime-contract-v1",
 			},
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			surface: "campus_web",
 			traceHeaders: {
 				baggage: "release=2026.06.18",
@@ -462,16 +462,16 @@ describe("chat command durable runtime cutover", () => {
 				createdAt: "2026-06-04T01:02:03Z",
 				failCloseReason: "",
 				finalResponseRef: "",
-				lane: "rag",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
 				surface: "campus_web",
+				taskQueue: "campus-agent.workflow",
 				terminalReason: "",
 				traceId: "trace_0001",
 				turnId: "turn_0001",
@@ -506,7 +506,7 @@ describe("chat command durable runtime cutover", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -534,16 +534,15 @@ describe("chat command durable runtime cutover", () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
-					lane: "campus_services",
-					requestedCapability: "campus_services",
-					selectedCapability: "campus_services",
+					requestedTool: "transport_schedule_lookup",
+					selectedTool: "transport_schedule_lookup",
 				}),
 			),
 			getRun: vi.fn(),
@@ -555,7 +554,7 @@ describe("chat command durable runtime cutover", () => {
 						request_id: "req_0001",
 						response: {
 							...answerResponsePayload("图书馆开放状态会由校园服务能力查询。"),
-							selected_capability: "campus_services",
+							selected_tool: "transport_schedule_lookup",
 						},
 						trace_id: "trace_0001",
 					},
@@ -578,7 +577,7 @@ describe("chat command durable runtime cutover", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "海淀校区图书馆现在开门吗？",
-				requestedCapability: "campus_services",
+				requestedTool: "transport_schedule_lookup",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -588,16 +587,16 @@ describe("chat command durable runtime cutover", () => {
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
 		expect(createRunInput).toMatchObject({
-			lane: "campus_services",
-			requestedCapability: "campus_services",
-			selectedCapability: "campus_services",
+			taskQueue: "campus-agent.workflow",
+			requestedTool: "transport_schedule_lookup",
+			selectedTool: "transport_schedule_lookup",
 		});
 		const metadata = createRunInput?.metadata as Record<string, unknown>;
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
 		expect(executionPayload).toMatchObject({
-			effective_capability: "campus_services",
-			lane: "campus_services",
-			requested_capability: "campus_services",
+			effective_tool: "transport_schedule_lookup",
+			task_queue: "campus-agent.workflow",
+			requested_tool: "transport_schedule_lookup",
 			user_goal: "海淀校区图书馆现在开门吗？",
 		});
 		expect(executionPayload.runtime_decisions).toBeUndefined();
@@ -613,16 +612,16 @@ describe("chat command durable runtime cutover", () => {
 		});
 	});
 
-	it("keeps omitted requested capability unset for plan.route instead of defaulting to knowledge", async () => {
+	it("keeps omitted requested tool unset for plan.route instead of defaulting to knowledge", async () => {
 		const { store } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const executionRuntime: ExecutionControlRuntimeClient = {
 			cancelRun: vi.fn(),
 			createRun: vi.fn().mockResolvedValue(
 				durableRun({
-					lane: "default",
-					requestedCapability: "",
-					selectedCapability: "",
+					taskQueue: "campus-agent.workflow",
+					requestedTool: "",
+					selectedTool: "",
 				}),
 			),
 			getRun: vi.fn(),
@@ -634,7 +633,7 @@ describe("chat command durable runtime cutover", () => {
 						request_id: "req_0001",
 						response: {
 							...answerResponsePayload("图书馆在海淀校区主教学区西侧。"),
-							selected_capability: "navigation",
+							selected_tool: "place_lookup",
 						},
 						trace_id: "trace_0001",
 					},
@@ -665,16 +664,16 @@ describe("chat command durable runtime cutover", () => {
 		const createRunInput = (executionRuntime.createRun as ReturnType<typeof vi.fn>).mock
 			.calls[0]?.[0];
 		expect(createRunInput).toMatchObject({
-			lane: "default",
-			requestedCapability: null,
-			selectedCapability: null,
+			taskQueue: "campus-agent.workflow",
+			requestedTool: null,
+			selectedTool: null,
 		});
 		const metadata = createRunInput?.metadata as Record<string, unknown>;
 		const executionPayload = metadata.execution_payload as Record<string, unknown>;
-		expect(executionPayload).not.toHaveProperty("effective_capability");
-		expect(executionPayload).not.toHaveProperty("requested_capability");
+		expect(executionPayload).not.toHaveProperty("effective_tool");
+		expect(executionPayload).not.toHaveProperty("requested_tool");
 		expect(executionPayload).toMatchObject({
-			lane: "default",
+			task_queue: "campus-agent.workflow",
 			user_goal: "图书馆在哪里",
 		});
 	});
@@ -683,7 +682,7 @@ describe("chat command durable runtime cutover", () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
 		const telemetry = createTelemetryMock();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn(),
 		};
 		const listRunEvents = vi
@@ -734,7 +733,7 @@ describe("chat command durable runtime cutover", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",

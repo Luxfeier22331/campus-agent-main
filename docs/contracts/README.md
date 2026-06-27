@@ -22,28 +22,28 @@ updated: 2026-06-26
 - `document-reader-publish-contract.md`
 - `app-api-error-model.md`
 - `app-api-request-lifecycle.md`
-- `capability-execution.md`
+- `tool-execution.md`
 - `app-api-identity-platform-http.md`
 - `app-api-federation-http.md`
 - `app-api-operator-ops-http.md`
 - `app-api-dining-http.md`
 - `app-api-dining-ops-http.md`
-- `structured-query-internal-runtime.md`
+- `tool-read-model-internal-runtime.md`
 - `durable-agent-runtime-contract.md`
-- `operator-runtime-observability-contract.md`
-- `langfuse-runtime-observability-contract.md`
+- `operator-runtime.md`
+- `langfuse-runtime.md`
 
 ## Operator / Official Web contract
 
 - `app-api-campus-services-ops-http.md`
-- `app-api-authenticated-notice-processing-http.md`
-- `app-api-operator-observability-http.md`
-  - `app-api-operator-observability-http/eval-and-overview.md`
-  - `app-api-operator-observability-http/requests-and-quality.md`
-  - `app-api-operator-observability-http/request-detail.md`
-  - `app-api-operator-observability-http/quality.md`
-  - `app-api-operator-observability-http/governance-safety-cost-audit.md`
-  - `app-api-operator-observability-http/internal-ingest.md`
+- `app-api-notice.md`
+- `app-api-observability.md`
+  - `app-api-observability/eval-and-overview.md`
+  - `app-api-observability/requests-and-quality.md`
+  - `app-api-observability/request-detail.md`
+  - `app-api-observability/quality.md`
+  - `app-api-observability/governance-safety-cost-audit.md`
+  - `app-api-observability/internal-ingest.md`
 - `app-api-official-web-http.md`
   - `app-api-official-web-http/collector-command-endpoints.md`
   - `app-api-official-web-http/operator-query-endpoints.md`
@@ -70,7 +70,7 @@ updated: 2026-06-26
 
 ## Machine-readable schemas
 
-- `schemas/capability-execution.openapi.yaml` 是 app-api -> execution-control
+- `schemas/tool-execution.openapi.yaml` 是 app-api -> execution-control
   private wire contract。
 - `../packages/contracts/schemas/contract-schema-registry.v1.json` 是当前
   JSON Schema / OpenAPI registry，登记 active schema、runtime JSON artifact、
@@ -83,8 +83,8 @@ updated: 2026-06-26
   `notice` typed tool payload / result packet 的 canonical schema。
 - `../packages/contracts/schemas/runtime-*.schema.json` 校验 execution runtime
   实际读取的 runtime JSON artifacts。
-- `capability-execution.openapi.yaml` 覆盖 app-api -> execution-control durable
-  run create / read / events / steps / cancel，以及 private capability execution
+- `tool-execution.openapi.yaml` 覆盖 app-api -> execution-control durable
+  run create / read / events / steps / cancel，以及 private tool execution
   wire shape。
 
 ## 使用规则

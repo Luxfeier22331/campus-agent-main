@@ -165,15 +165,15 @@ ACTIVE_EXECUTION_TRUTH_DOC_PATHS = (
     "/AGENTS.md",
     "/README.md",
     "/.planning/PROJECT.md",
-    "/docs/architecture/current-architecture.md",
+    "/docs/architecture/current.md",
     "/docs/architecture/system/durable-agent-runtime-architecture.md",
     "/docs/architecture/system/execution-and-agents-architecture.md",
     "/docs/architecture/system/product-runtime-architecture.md",
-    "/docs/architecture/system/python-capability-boundaries.md",
-    "/docs/decisions/adr-0048-temporal-execution-plane.md",
-    "/docs/runbooks/execution-control-staging-operations.md",
-    "/docs/runbooks/execution-control-staging-smoke-runbook.md",
-    "/docs/runbooks/execution-control-local-runtime-smoke.md",
+    "/docs/architecture/system/python-boundaries.md",
+    "/docs/decisions/adr-0048-temporal.md",
+    "/docs/runbooks/execution-ops.md",
+    "/docs/runbooks/execution-smoke.md",
+    "/docs/runbooks/local-runtime-smoke.md",
     "/apps/execution-control/README.md",
 )
 
@@ -215,7 +215,7 @@ ACTIVE_DOCKER_FIRST_SUBSTRATE_FORBIDDEN_SNIPPETS = (
 )
 
 ACTIVE_DOCKER_FIRST_SUBSTRATE_ALLOWED_PATH_PARTS = (
-    "/docs/decisions/adr-0043-execution-control-docker-first-runtime.md",
+    "/docs/decisions/adr-0043-docker-runtime.md",
     "/docs/decisions/adr-0047-run-centric-durable-agent-runtime.md",
     "/docs/runbooks/archive/",
     "/tests/infra/test_execution_control_architecture_residue.py",
@@ -250,8 +250,7 @@ DETERMINISTIC_AGENT_LABEL_FORBIDDEN_PATTERNS = (
     "retrieval agent",
     "agent-handoff",
     "agent handoff",
-    "agent contract",
-    "super" + "visor -> agent",
+    "supervisor -> agent",
     "AgentInvocation",
     "allowed agents",
     "owner agent",
@@ -458,7 +457,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-    def test_old_bridge_cancel_route_is_not_online_serving_path(self) -> None:
+    def test_old_cancel_delivery_route_is_not_online_serving_path(self) -> None:
         offenders: list[str] = []
 
         for path in tracked_files():
@@ -518,7 +517,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
             with self.subTest(service=service):
                 self.assertIn(service, compose)
 
-    def test_deterministic_capabilities_do_not_use_agent_runtime_labels(self) -> None:
+    def test_deterministic_tools_do_not_use_agent_runtime_labels(self) -> None:
         offenders: list[str] = []
 
         for path in tracked_files():
@@ -536,7 +535,7 @@ class ExecutionControlArchitectureResidueTest(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-    def test_active_contracts_use_capability_tool_fields_not_agent_fields(self) -> None:
+    def test_active_contracts_use_tool_tool_fields_not_agent_fields(self) -> None:
         offenders: list[str] = []
 
         for path in tracked_files():

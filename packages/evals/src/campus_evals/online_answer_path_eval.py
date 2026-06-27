@@ -14,7 +14,7 @@ ONLINE_ANSWER_PATH_RELEASE_SPLITS = ("release_gate", "regression_locked")
 
 @dataclass(frozen=True, slots=True)
 class OnlineAnswerPathExpected:
-    selected_capability: str
+    selected_tool: str
     terminal_status: str
     semantic_outcome: str
     fail_close_reason: str = ""
@@ -46,7 +46,7 @@ class OnlineAnswerPathObservation:
     case_id: str
     request_id: str
     trace_id: str
-    selected_capability: str
+    selected_tool: str
     terminal_status: str
     semantic_outcome: str
     fail_close_reason: str = ""
@@ -176,9 +176,9 @@ def _evaluate_case(
         failures.append("request_id missing")
     if not observation.trace_id.strip():
         failures.append("trace_id missing")
-    if observation.selected_capability != case.expected.selected_capability:
+    if observation.selected_tool != case.expected.selected_tool:
         failures.append(
-            f"selected_capability expected {case.expected.selected_capability!r}, got {observation.selected_capability!r}"
+            f"selected_tool expected {case.expected.selected_tool!r}, got {observation.selected_tool!r}"
         )
     if observation.terminal_status != case.expected.terminal_status:
         failures.append(
@@ -237,9 +237,7 @@ def _parse_product_path_case(payload: object, *, case_family: str) -> OnlineAnsw
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
         split=_required_string(item.get("split"), "split"),
         expected=OnlineAnswerPathExpected(
-            selected_capability=_required_string(
-                expected.get("selected_capability"), "selected_capability"
-            ),
+            selected_tool=_required_string(expected.get("selected_tool"), "selected_tool"),
             terminal_status=_required_string(
                 expected.get("terminal_status"),
                 "terminal_status",
@@ -278,9 +276,9 @@ def _parse_main_path_case(payload: object, *, case_family: str) -> OnlineAnswerP
         user_goal=_required_string(item.get("user_utterance"), "user_utterance"),
         split=_required_string(item.get("split"), "split"),
         expected=OnlineAnswerPathExpected(
-            selected_capability=_required_string(
-                expected.get("selected_capability"),
-                "selected_capability",
+            selected_tool=_required_string(
+                expected.get("selected_tool"),
+                "selected_tool",
             ),
             terminal_status=_terminal_status_from_main_path_outcome(terminal_outcome),
             semantic_outcome=_semantic_outcome_from_main_path_outcome(terminal_outcome),
@@ -336,11 +334,11 @@ def _workflow_trace_mismatch_reasons(
     if not trace:
         return []
     failures: list[str] = []
-    trace_target = _normalized_trace_target(trace.get("selected_capability"))
-    if trace_target != observation.selected_capability:
+    trace_target = _normalized_trace_target(trace.get("selected_tool"))
+    if trace_target != observation.selected_tool:
         failures.append(
-            "workflow_trace_summary.selected_capability expected "
-            f"{observation.selected_capability!r}, got {trace_target!r}"
+            "workflow_trace_summary.selected_tool expected "
+            f"{observation.selected_tool!r}, got {trace_target!r}"
         )
     branch = str(trace.get("direct_vs_delegate_branch") or "").strip()
     expected_branches = _expected_trace_branches(case.expected.semantic_outcome)

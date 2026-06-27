@@ -7,12 +7,12 @@ import type {
 } from "../src/modules/auth";
 import type { ChatConversation, ChatMessage } from "../src/modules/chat";
 import type {
-	CapabilityExecutionInput,
-	CapabilityExecutionResponse,
 	ExecutionControlRun,
 	ExecutionControlRunCreateInput,
 	ExecutionControlRunEvent,
 	ExecutionControlRuntimeClient,
+	ToolExecutionInput,
+	ToolExecutionResponse,
 } from "../src/modules/integration/execution-control";
 import { parseExecutionFinalizationResponsePayload } from "../src/modules/integration/execution-control";
 import type {
@@ -24,9 +24,9 @@ import type { AppTelemetry } from "../src/modules/telemetry";
 
 export { createHmac } from "node:crypto";
 export type { ResolvedAppPrincipal } from "../src/modules/auth";
-export interface CapabilityExecutionClient {
-	execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
-	executeStream?(input: CapabilityExecutionInput): Promise<Response>;
+export interface ToolExecutionClient {
+	execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
+	executeStream?(input: ToolExecutionInput): Promise<Response>;
 }
 export type {
 	ChatCommandStore,
@@ -232,7 +232,7 @@ export function createCommandStore(input?: {
 			throttleReason: null,
 		})),
 		listAcceptedDurableRequestsForCloseout: vi.fn(async () => []),
-		listPreviousCapabilityResultRefs: vi.fn(async () => []),
+		listPreviousToolResultRefs: vi.fn(async () => []),
 	};
 
 	return {
@@ -275,14 +275,14 @@ export function expectNoInternalLocators(text: string) {
 	}
 }
 
-export function createExecutionRuntimeFromCapabilityClient(
-	client: CapabilityExecutionClient,
+export function createExecutionRuntimeFromToolClient(
+	client: ToolExecutionClient,
 ): ExecutionControlRuntimeClient {
 	const eventsByRun = new Map<string, ExecutionControlRunEvent[]>();
 	const runsById = new Map<string, ExecutionControlRun>();
 
 	async function createRun(input: ExecutionControlRunCreateInput): Promise<ExecutionControlRun> {
-		const executionInput = capabilityExecutionInputFromRunCreate(input);
+		const executionInput = toolExecutionInputFromRunCreate(input);
 		const run = durableRunFromCreateInput(input);
 		runsById.set(input.runId, run);
 		if (client.executeStream) {
@@ -331,35 +331,31 @@ export function createExecutionRuntimeFromCapabilityClient(
 	};
 }
 
-function capabilityExecutionInputFromRunCreate(
+function toolExecutionInputFromRunCreate(
 	input: ExecutionControlRunCreateInput,
-): CapabilityExecutionInput {
+): ToolExecutionInput {
 	const metadata = getRecordOrThrow(input.metadata, "run metadata");
 	const payload = getRecordOrThrow(metadata.execution_payload, "execution payload");
 	const context = internalContextFromWire(
 		getRecordOrThrow(payload.context, "execution payload context"),
 	);
 	return {
-		context: context as CapabilityExecutionInput["context"],
+		context: context as ToolExecutionInput["context"],
 		conversationId: getString(payload.conversation_id) ?? input.conversationId,
 		requestId: getString(payload.request_id) ?? input.requestId,
-		requestedCapability: getString(payload.requested_capability),
-		requestedScope: getRecord(
-			payload.requested_scope,
-		) as CapabilityExecutionInput["requestedScope"],
+		requestedTool: getString(payload.requested_tool),
+		requestedScope: getRecord(payload.requested_scope) as ToolExecutionInput["requestedScope"],
 		safetyIdentifier: getString(payload.safety_identifier),
 		surface: input.surface,
 		tenantId: getString(payload.tenant_id),
 		traceHeaders: input.traceHeaders,
 		traceId: getTraceId(payload) ?? input.traceId ?? "",
 		userGoal: getString(payload.user_goal) ?? "",
-		versionQuery: getRecord(payload.version_query) as CapabilityExecutionInput["versionQuery"],
+		versionQuery: getRecord(payload.version_query) as ToolExecutionInput["versionQuery"],
 	};
 }
 
-function internalContextFromWire(
-	wire: Record<string, unknown>,
-): CapabilityExecutionInput["context"] {
+function internalContextFromWire(wire: Record<string, unknown>): ToolExecutionInput["context"] {
 	const actor = internalActorFromWire(getRecordOrThrow(wire.actor, "execution context actor"));
 	const authorizationWire = getRecordOrThrow(wire.authorization, "execution context authorization");
 	const retrievalFilterWire = getRecordOrThrow(
@@ -413,7 +409,7 @@ function internalContextFromWire(
 
 function internalActorFromWire(
 	wire: Record<string, unknown>,
-): CapabilityExecutionInput["context"]["actor"] {
+): ToolExecutionInput["context"]["actor"] {
 	return {
 		cohort: getString(wire.cohort) ?? undefined,
 		departments: getStringArray(wire.departments),
@@ -435,16 +431,16 @@ function durableRunFromCreateInput(input: ExecutionControlRunCreateInput): Execu
 		createdAt: now,
 		failCloseReason: "",
 		finalResponseRef: "",
-		lane: input.lane,
 		ownerUserId: input.ownerUserId,
 		requestId: input.requestId,
-		requestedCapability: input.requestedCapability ?? "",
+		requestedTool: input.requestedTool ?? "",
 		runId: input.runId,
-		selectedCapability: input.selectedCapability ?? "",
+		selectedTool: input.selectedTool ?? "",
 		startedAt: "",
 		status: "queued",
 		streamingStartedAt: "",
 		surface: input.surface,
+		taskQueue: input.taskQueue,
 		terminalReason: "",
 		traceId: input.traceId ?? "",
 		turnId: input.turnId,
@@ -527,7 +523,7 @@ function durableEventFromExecutionLifecycle(
 				occurredAt: getString(parsed.data.occurred_at) ?? "",
 				payload: {
 					request_id: getString(parsed.data.request_id) ?? input.requestId,
-					response: responseWireFromCapabilityResponse(
+					response: responseWireFromToolResponse(
 						executionErrorResponse({
 							code: "execution_control_invalid_response",
 							message: "Execution stream completed without a response payload.",
@@ -572,7 +568,7 @@ function durableEventFromExecutionLifecycle(
 			occurredAt: getString(parsed.data.occurred_at) ?? "",
 			payload: {
 				request_id: getString(parsed.data.request_id) ?? input.requestId,
-				response: responseWireFromCapabilityResponse(response),
+				response: responseWireFromToolResponse(response),
 				trace_id: getString(parsed.data.trace_id) ?? input.traceId ?? "",
 			},
 			sequence,
@@ -583,14 +579,14 @@ function durableEventFromExecutionLifecycle(
 
 function finalizationEventFromResponse(
 	input: ExecutionControlRunCreateInput,
-	response: CapabilityExecutionResponse,
+	response: ToolExecutionResponse,
 	sequence: number,
 ): ExecutionControlRunEvent {
 	return baseRunEvent(input, {
 		eventType: "finalization.completed",
 		payload: {
 			request_id: input.requestId,
-			response: responseWireFromCapabilityResponse(response),
+			response: responseWireFromToolResponse(response),
 			trace_id: input.traceId ?? "",
 		},
 		sequence,
@@ -619,9 +615,7 @@ function baseRunEvent(
 	};
 }
 
-function responseWireFromCapabilityResponse(
-	response: CapabilityExecutionResponse,
-): Record<string, unknown> {
+function responseWireFromToolResponse(response: ToolExecutionResponse): Record<string, unknown> {
 	return {
 		answer_text: response.answerText,
 		confidence: "high",
@@ -634,10 +628,10 @@ function responseWireFromCapabilityResponse(
 			: null,
 		follow_up_question: response.followUpQuestion,
 		...(response.observability
-			? { observability: observabilityWireFromCapabilityResponse(response.observability) }
+			? { observability: observabilityWireFromToolResponse(response.observability) }
 			: {}),
 		result: response.result ?? null,
-		selected_capability: response.selectedCapability,
+		selected_tool: response.selectedTool,
 		status: response.status,
 		trace_id: response.traceId,
 		...(response.workflowTraceSummary
@@ -646,8 +640,8 @@ function responseWireFromCapabilityResponse(
 	};
 }
 
-function observabilityWireFromCapabilityResponse(
-	observability: NonNullable<CapabilityExecutionResponse["observability"]>,
+function observabilityWireFromToolResponse(
+	observability: NonNullable<ToolExecutionResponse["observability"]>,
 ): Record<string, unknown> {
 	return {
 		acl_anomaly_code: observability.aclAnomalyCode,
@@ -662,7 +656,7 @@ function observabilityWireFromCapabilityResponse(
 		input_tokens: observability.inputTokens,
 		intent_ambiguity_reason: observability.intentAmbiguityReason,
 		intent_ambiguity_signal: observability.intentAmbiguitySignal,
-		intent_capability: observability.intentCapability,
+		intent_tool: observability.intentTool,
 		intent_classifier_version: observability.intentClassifierVersion,
 		intent_context_reference_type: observability.intentContextReferenceType,
 		intent_context_resolution_state: observability.intentContextResolutionState,
@@ -713,7 +707,7 @@ function executionErrorResponse(input: {
 	message: string;
 	retryable: boolean;
 	traceId: string;
-}): CapabilityExecutionResponse {
+}): ToolExecutionResponse {
 	return {
 		answerText: "",
 		error: {
@@ -723,7 +717,7 @@ function executionErrorResponse(input: {
 		},
 		followUpQuestion: "",
 		result: null,
-		selectedCapability: null,
+		selectedTool: null,
 		status: "error",
 		traceId: input.traceId,
 	};

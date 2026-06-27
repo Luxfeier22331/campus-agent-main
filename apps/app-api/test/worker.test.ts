@@ -90,17 +90,17 @@ function createRuntimeReadinessResult() {
 			database: "ready",
 			executionRuntime: "not_required",
 			officialWebHandoff: "not_configured",
-			operatorBridge: "configured",
+			operatorSurface: "configured",
 			executionControl: "ready",
 		},
 		failed: {},
 		preflight: {
 			campusServicesProductPath: {
 				status: "ready",
-				capabilityGate: "open",
+				toolGate: "open",
 				projectionSource: "postgres",
 				checks: {
-					structuredQueryRuntime: "ready",
+					toolReadModelRuntime: "ready",
 					transportSchedule: "ready",
 					transportScheduleReadModel: "ready",
 				},
@@ -320,16 +320,16 @@ describe("app-api worker foundation", () => {
 				database: "ready",
 				executionRuntime: "not_required",
 				officialWebHandoff: "not_configured",
-				operatorBridge: "configured",
+				operatorSurface: "configured",
 				executionControl: "ready",
 			},
 			preflight: {
 				campusServicesProductPath: {
 					status: "ready",
-					capabilityGate: "open",
+					toolGate: "open",
 					projectionSource: "postgres",
 					checks: {
-						structuredQueryRuntime: "ready",
+						toolReadModelRuntime: "ready",
 						transportSchedule: "ready",
 						transportScheduleReadModel: "ready",
 					},
@@ -349,7 +349,7 @@ describe("app-api worker foundation", () => {
 					database: "ready",
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
+					operatorSurface: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -424,7 +424,7 @@ describe("app-api worker foundation", () => {
 					database: "ready",
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
+					operatorSurface: "configured",
 					executionControl: "not_ready",
 				},
 				failed: {
@@ -466,7 +466,7 @@ describe("app-api worker foundation", () => {
 					database: "ready",
 					executionRuntime: "not_ready",
 					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
+					operatorSurface: "configured",
 					executionControl: "ready",
 				},
 				failed: {
@@ -530,17 +530,17 @@ describe("app-api worker foundation", () => {
 					database: "ready",
 					executionRuntime: "not_required",
 					officialWebHandoff: "not_configured",
-					operatorBridge: "configured",
+					operatorSurface: "configured",
 					executionControl: "ready",
 				},
 				failed: {},
 				preflight: {
 					campusServicesProductPath: {
 						status: "ready",
-						capabilityGate: "open",
+						toolGate: "open",
 						projectionSource: "postgres",
 						checks: {
-							structuredQueryRuntime: "ready",
+							toolReadModelRuntime: "ready",
 							transportSchedule: "ready",
 							transportScheduleReadModel: "ready",
 						},

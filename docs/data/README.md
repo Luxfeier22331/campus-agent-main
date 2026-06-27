@@ -26,9 +26,9 @@ canonical truth”“哪些只是 projection carrier”。
 ## Source-Channel Source-Truth Schema
 
 - `official-web-source-truth-schema.md`
-- `authenticated-notice-source-truth-schema.md`
+- `authenticated-notice.md`
 - `campus-services-ops-source-truth-schema.md`
-- `wechat-official-account-source-truth-schema.md`
+- `wechat-official.md`
 
 班车时刻表能力的人类 source/update/storage truth 已收口到
 `../domains/transport.md`；机器 schema 仍由 `../../packages/contracts/schemas/`

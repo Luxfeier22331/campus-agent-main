@@ -24,16 +24,16 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         delegate_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
             workflow_mode="single_step",
-            selected_capability="knowledge",
-            selected_tools=("retrieval.query",),
-            handoff={"target": "knowledge"},
-            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
+            selected_tool="knowledge_query",
+            selected_tools=("knowledge_query",),
+            handoff={"target": "knowledge_query"},
+            handoff_chain=({"target": "knowledge_query", "selected_tool": "knowledge_query"},),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
                 {
                     "result_projection": "bounded_summary",
                     "raw_result_included": False,
-                    "tool_name": "retrieval.query",
+                    "tool_name": "knowledge_query",
                     "result_status": "completed",
                     "source_ids": ["student_rules:leave-policy"],
                 },
@@ -43,16 +43,16 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         delegate_summary = _trace_summary(
             workflow_mode="single_step",
             direct_vs_delegate_branch="delegate",
-            selected_capability="knowledge",
-            selected_tools=("retrieval.query",),
-            handoff={"target": "knowledge"},
-            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
-            capability_invocations=(
+            selected_tool="knowledge_query",
+            selected_tools=("knowledge_query",),
+            handoff={"target": "knowledge_query"},
+            handoff_chain=({"target": "knowledge_query", "selected_tool": "knowledge_query"},),
+            tool_invocations=(
                 {
                     "invocation_id": "agent-invocation:knowledge:1",
                     "workflow_run_ref": "run-test",
                     "step_id": "handoff:knowledge:rag_request",
-                    "capability_id": "knowledge",
+                    "tool_id": "knowledge_query",
                     "status": "completed",
                 },
             ),
@@ -61,7 +61,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                 {
                     "result_projection": "bounded_summary",
                     "raw_result_included": False,
-                    "tool_name": "retrieval.query",
+                    "tool_name": "knowledge_query",
                     "result_status": "completed",
                     "source_ids": ["student_rules:leave-policy"],
                 },
@@ -76,7 +76,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _workflow_case(
                 direct_vs_delegate_branch="fail_close",
                 workflow_mode="terminal",
-                selected_capability="none",
+                selected_tool="none",
                 selected_tools=(),
                 handoff={},
                 handoff_chain=(),
@@ -88,7 +88,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _trace_summary(
                 workflow_mode="terminal",
                 direct_vs_delegate_branch="fail_close",
-                selected_capability="none",
+                selected_tool="none",
                 selected_tools=(),
                 handoff={},
                 handoff_chain=(),
@@ -104,17 +104,17 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         multi_step_case = _workflow_case(
             direct_vs_delegate_branch="delegate",
             workflow_mode="multi_step",
-            selected_capability="knowledge",
-            selected_tools=("retrieval.query",),
-            handoff={"target": "knowledge"},
+            selected_tool="knowledge_query",
+            selected_tools=("knowledge_query",),
+            handoff={"target": "knowledge_query"},
             handoff_chain=(
-                {"target": "knowledge", "selected_tool": "retrieval.query"},
-                {"target": "notice", "payload_kind": "campus_notice_get"},
+                {"target": "knowledge_query", "selected_tool": "knowledge_query"},
+                {"target": "campus_notice_get", "payload_kind": "campus_notice_get"},
             ),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
                 {
-                    "tool_name": "retrieval.query",
+                    "tool_name": "knowledge_query",
                     "result_status": "completed",
                     "source_ids": ["student_rules:leave-policy"],
                 },
@@ -123,14 +123,14 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         single_step_projection = _trace_summary(
             workflow_mode="multi_step",
             direct_vs_delegate_branch="delegate",
-            selected_capability="knowledge",
-            selected_tools=("retrieval.query",),
-            handoff={"target": "knowledge"},
-            handoff_chain=({"target": "knowledge", "selected_tool": "retrieval.query"},),
+            selected_tool="knowledge_query",
+            selected_tools=("knowledge_query",),
+            handoff={"target": "knowledge_query"},
+            handoff_chain=({"target": "knowledge_query", "selected_tool": "knowledge_query"},),
             tool_argument_summary={"collection": "student_rules"},
             tool_call_summaries=(
                 {
-                    "tool_name": "retrieval.query",
+                    "tool_name": "knowledge_query",
                     "result_status": "completed",
                     "source_ids": ["student_rules:leave-policy"],
                 },
@@ -147,9 +147,9 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _workflow_case(fail_close_expected=True, fail_close_reason="policy_unavailable"),
             _trace_summary(
                 direct_vs_delegate_branch="delegate",
-                handoff={"target": "knowledge"},
-                selected_capability="knowledge",
-                selected_tools=("retrieval.query",),
+                handoff={"target": "knowledge_query"},
+                selected_tool="knowledge_query",
+                selected_tools=("knowledge_query",),
                 tool_argument_summary={"collection": "student_rules"},
                 guardrail_outcomes={"visibility": "restricted"},
                 fail_close_reason="",
@@ -197,14 +197,14 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
         self.assertIn("result_status", results.tool_result_status_correctness.reason)
         self.assertIn("source_ids", results.evidence_source_selection.reason)
 
-    def test_fails_selected_capability_mismatch_even_when_handoff_payload_matches(self) -> None:
+    def test_fails_selected_tool_mismatch_even_when_handoff_payload_matches(self) -> None:
         results = evaluate_workflow_trace_case(
             _workflow_case(),
-            _trace_summary(selected_capability="knowledge"),
+            _trace_summary(selected_tool="knowledge_query"),
         )
 
         self.assertFalse(results.handoff_correctness.passed)
-        self.assertIn("selected_capability", results.handoff_correctness.reason)
+        self.assertIn("selected_tool", results.handoff_correctness.reason)
 
     def test_fails_selected_tools_mismatch_even_when_arguments_match(self) -> None:
         results = evaluate_workflow_trace_case(
@@ -304,11 +304,11 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
             _trace_summary(
                 direct_vs_delegate_branch="multi_step",
                 workflow_mode="multi_step",
-                selected_capability="knowledge",
-                selected_tools=("retrieval.query",),
+                selected_tool="knowledge_query",
+                selected_tools=("knowledge_query",),
                 handoff_chain=(
-                    {"target": "notice", "payload_kind": "campus_notice_get"},
-                    {"target": "knowledge", "payload_kind": "rag_request"},
+                    {"target": "campus_notice_get", "payload_kind": "campus_notice_get"},
+                    {"target": "knowledge_query", "payload_kind": "rag_request"},
                 ),
                 context_projections=(
                     {
@@ -322,12 +322,12 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                         "safety": {"max_chars": 1600, "fields_present": ["title"]},
                     },
                 ),
-                capability_invocations=(
+                tool_invocations=(
                     {
                         "invocation_id": "agent-invocation:notice:campus_notice_get",
                         "workflow_run_ref": "run-test",
                         "step_id": "handoff:notice:campus_notice_get",
-                        "capability_id": "notice",
+                        "tool_id": "campus_notice_discover",
                         "status": "completed",
                     },
                     {
@@ -335,7 +335,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                         "parent_invocation_id": "agent-invocation:notice:campus_notice_get",
                         "workflow_run_ref": "run-test",
                         "step_id": "handoff:knowledge:rag_request",
-                        "capability_id": "knowledge",
+                        "tool_id": "knowledge_query",
                         "status": "completed",
                         "projection_ids": ["proj-notice-001"],
                     },
@@ -364,14 +364,14 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                 "planning_outcome": "preplanned",
                                 "direct_vs_delegate_branch": "delegate",
                                 "workflow_mode": "single_step",
-                                "handoff": {"target": "campus_services"},
+                                "handoff": {"target": "transport_schedule_lookup"},
                                 "handoff_chain": [
                                     {
-                                        "target": "campus_services",
+                                        "target": "transport_schedule_lookup",
                                         "selected_tool": "transport_schedule_lookup",
                                     }
                                 ],
-                                "selected_capability": "campus_services",
+                                "selected_tool": "transport_schedule_lookup",
                                 "selected_tools": ["transport_schedule_lookup"],
                                 "tool_argument_summary": {
                                     "payload_kind": "transport_schedule_lookup"
@@ -393,12 +393,12 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
                                         "retry_count": 0,
                                     },
                                 ],
-                                "capability_invocations": [
+                                "tool_invocations": [
                                     {
                                         "invocation_id": "agent-invocation:campus_services:1",
                                         "workflow_run_ref": "single_step:campus_services:transport_schedule_lookup",
                                         "step_id": "handoff:campus_services:transport_schedule_lookup",
-                                        "capability_id": "campus_services",
+                                        "tool_id": "transport_schedule_lookup",
                                         "status": "completed",
                                     }
                                 ],
@@ -447,7 +447,7 @@ class WorkflowTraceGateEvaluatorTestPart02(unittest.TestCase):
 
         self.assertEqual(case.expectation.direct_vs_delegate_branch, "delegate")
         self.assertEqual(case.expectation.workflow_mode, "single_step")
-        self.assertEqual(case.expectation.selected_capability, "campus_services")
+        self.assertEqual(case.expectation.selected_tool, "transport_schedule_lookup")
         self.assertEqual(
             case.expectation.selected_tools,
             ("transport_schedule_lookup",),

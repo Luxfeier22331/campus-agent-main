@@ -29,7 +29,7 @@ func (e qdrantRAGLookupExecutor) rerankPoints(
 	}
 	path := rerankPathFromProviderConfig(rerankConfig)
 	if path == "" {
-		return nil, errors.New("reranker_failed: rerank capability path is not configured")
+		return nil, errors.New("reranker_failed: rerank tool path is not configured")
 	}
 	documents := make([]string, 0, len(points))
 	for _, point := range points {
@@ -95,7 +95,7 @@ func (e qdrantRAGLookupExecutor) resolveRerankProviderConfig(
 }
 
 func rerankPathFromProviderConfig(snapshot providerConfigSnapshot) string {
-	rerank, ok := snapshot.CapabilityConfig["rerank"].(map[string]any)
+	rerank, ok := snapshot.ToolConfig["rerank"].(map[string]any)
 	if !ok {
 		return ""
 	}

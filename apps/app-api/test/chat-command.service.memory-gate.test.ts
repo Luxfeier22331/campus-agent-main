@@ -4,23 +4,23 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	createTelemetryMock,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
-function createCompletedExecutionClient(): CapabilityExecutionClient {
+function createCompletedExecutionClient(): ToolExecutionClient {
 	return {
 		execute: vi.fn().mockResolvedValue({
 			answerText: "可以，先看培养方案和学院通知。",
 			error: null,
 			followUpQuestion: "",
 			result: {},
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "completed",
 			traceId: "trace_0002",
 		}),
@@ -44,7 +44,7 @@ describe("chat command service memory gate projection", () => {
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			profileMemoryStore,
 		});
 
@@ -52,7 +52,7 @@ describe("chat command service memory gate projection", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我之后主要关注保研材料",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
@@ -94,7 +94,7 @@ describe("chat command service memory gate projection", () => {
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			profileMemoryStore,
 			telemetry,
 		});
@@ -103,7 +103,7 @@ describe("chat command service memory gate projection", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "我之后主要关注保研材料",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",

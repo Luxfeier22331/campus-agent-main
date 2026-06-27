@@ -15,7 +15,7 @@ class CheckDocsFrontmatterTrackedTest(unittest.TestCase):
     def test_docs_markdown_files_include_all_docs_and_skip_non_docs(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            architecture_doc = root / "docs" / "architecture" / "target-architecture.md"
+            architecture_doc = root / "docs" / "architecture" / "target.md"
             architecture_doc.parent.mkdir(parents=True)
             architecture_doc.write_text(
                 "---\ndoc_type: architecture\n---\n# Target\n", encoding="utf-8"
@@ -32,7 +32,7 @@ class CheckDocsFrontmatterTrackedTest(unittest.TestCase):
     def test_audit_reports_missing_required_docs_fields(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            doc = root / "docs" / "contracts" / "capability-execution.md"
+            doc = root / "docs" / "contracts" / "tool-execution.md"
             doc.parent.mkdir(parents=True)
             doc.write_text(
                 "---\n"
@@ -41,7 +41,7 @@ class CheckDocsFrontmatterTrackedTest(unittest.TestCase):
                 "created: 2026-06-13\n"
                 "updated: 2026-06-13\n"
                 "---\n"
-                "# Capability Execution\n",
+                "# Tool Execution\n",
                 encoding="utf-8",
             )
 
@@ -49,11 +49,11 @@ class CheckDocsFrontmatterTrackedTest(unittest.TestCase):
                 audit_docs_frontmatter(root=root),
                 (
                     DocsFrontmatterIssue(
-                        path="docs/contracts/capability-execution.md",
+                        path="docs/contracts/tool-execution.md",
                         message="missing required frontmatter field: truth_scope",
                     ),
                     DocsFrontmatterIssue(
-                        path="docs/contracts/capability-execution.md",
+                        path="docs/contracts/tool-execution.md",
                         message="missing required frontmatter field: owner_boundary",
                     ),
                 ),

@@ -139,8 +139,8 @@ func (s *InMemoryRunProjectionStore) FailRunProjection(
 	}
 	run.Status = DurableRunStatusFailed
 	run.TerminalReason = request.TerminalReason
-	if request.SelectedCapability != "" {
-		run.SelectedCapability = request.SelectedCapability
+	if request.SelectedTool != "" {
+		run.SelectedTool = request.SelectedTool
 	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusFailed, request.Now)
@@ -176,8 +176,8 @@ func (s *InMemoryRunProjectionStore) CompleteRunProjection(
 	run.Status = DurableRunStatusCompleted
 	run.TerminalReason = request.TerminalReason
 	run.FinalResponseRef = request.FinalResponseRef
-	if request.SelectedCapability != "" {
-		run.SelectedCapability = request.SelectedCapability
+	if request.SelectedTool != "" {
+		run.SelectedTool = request.SelectedTool
 	}
 	run.UpdatedAt = request.Now
 	recordDurableRunStatusTimestamp(&run, DurableRunStatusCompleted, request.Now)

@@ -116,7 +116,7 @@ deploy 依赖后删除 package。
 
 ## 相关文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-browser-experience-architecture.md`
 - `docs/architecture/system/identity-platform-architecture.md`

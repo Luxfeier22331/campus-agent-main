@@ -15,30 +15,30 @@ class IntentEvalRunnerTest(unittest.TestCase):
                 IntentCase(
                     case_id="intent-knowledge-scholarship",
                     user_goal="奖学金怎么申请？",
-                    requested_capability="knowledge",
-                    expected_capability="knowledge",
+                    requested_tool="knowledge_query",
+                    expected_tool="knowledge_query",
                     expected_task_kind="knowledge_lookup",
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="knowledge",
+                    expected_target="knowledge_query",
                 ),
                 IntentCase(
                     case_id="intent-notice-candidate",
                     user_goal="民族学本科人才培养方案总学分要求是多少？",
-                    requested_capability="knowledge",
-                    expected_capability="knowledge",
+                    requested_tool="knowledge_query",
+                    expected_tool="knowledge_query",
                     expected_task_kind="knowledge_lookup",
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="knowledge",
+                    expected_target="knowledge_query",
                 ),
                 IntentCase(
                     case_id="intent-place-closed",
                     user_goal="图书馆在哪里",
-                    requested_capability="place_lookup",
-                    expected_capability="place_lookup",
+                    requested_tool="place_lookup",
+                    expected_tool="place_lookup",
                     expected_task_kind="place_lookup",
                     expected_launch_state="closed",
                     expected_next_action="out_of_scope",
@@ -54,7 +54,7 @@ class IntentEvalRunnerTest(unittest.TestCase):
         self.assertEqual(report.overall_exact_match_rate, 1.0)
         self.assertEqual(report.critical_gate_pass_rate, 1.0)
         self.assertEqual(
-            report.confusion["capability"],
+            report.confusion["tool"],
             {
                 "knowledge->knowledge": 2,
                 "place_lookup->place_lookup": 1,
@@ -67,13 +67,13 @@ class IntentEvalRunnerTest(unittest.TestCase):
                 IntentCase(
                     case_id="intent-place-closed-mismatch",
                     user_goal="图书馆在哪里",
-                    requested_capability="place_lookup",
-                    expected_capability="place_lookup",
+                    requested_tool="place_lookup",
+                    expected_tool="place_lookup",
                     expected_task_kind="place_lookup",
                     expected_launch_state="open",
                     expected_next_action="delegate",
                     expected_scope_class="in_scope",
-                    expected_target="knowledge",
+                    expected_target="knowledge_query",
                     critical=True,
                 ),
             )
@@ -88,14 +88,14 @@ class IntentEvalRunnerTest(unittest.TestCase):
         case = IntentCase(
             case_id="intent-explicit-scope",
             user_goal="library hours",
-            requested_capability="knowledge",
+            requested_tool="knowledge_query",
             requested_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
-            expected_capability="knowledge",
+            expected_tool="knowledge_query",
             expected_task_kind="knowledge_lookup",
             expected_launch_state="open",
             expected_next_action="delegate",
             expected_scope_class="in_scope",
-            expected_target="knowledge",
+            expected_target="knowledge_query",
         )
 
         report = run_intent_cases((case,))

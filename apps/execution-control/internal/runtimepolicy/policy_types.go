@@ -36,24 +36,11 @@ type Context struct {
 }
 
 type Request struct {
-	EffectiveCapability string
-	CapabilitySource    string
+	ToolAdmissionTarget string
 	UserGoal            string
 	HasRequestedScope   bool
 	RequestedScope      Scope
 	Context             Context
-}
-
-type CapabilityResolutionRequest struct {
-	RequestedCapability string
-	UserGoal            string
-	HasRequestedScope   bool
-	VersionQueryMode    string
-}
-
-type CapabilityResolution struct {
-	EffectiveCapability string
-	Source              string
 }
 
 type Decision struct {
@@ -129,7 +116,7 @@ func (p ToolPolicy) Map() map[string]any {
 }
 
 type RoutingFrame struct {
-	Capability             string
+	Target                 string
 	TaskKind               string
 	DomainCandidates       []string
 	MissingSlots           []string
@@ -159,7 +146,8 @@ func (f RoutingFrame) Map() map[string]any {
 		resolvedSlots[key] = value
 	}
 	return map[string]any{
-		"capability":               f.Capability,
+		"tool":                     f.Target,
+		"target":                   f.Target,
 		"task_kind":                f.TaskKind,
 		"domain_candidates":        append([]string(nil), f.DomainCandidates...),
 		"missing_slots":            append([]string(nil), f.MissingSlots...),

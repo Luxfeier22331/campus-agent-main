@@ -115,8 +115,8 @@ func TestHindsightRecallQueryIncludesConfirmedSessionSlots(t *testing.T) {
 	}
 
 	_, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		RequestedCapability: "knowledge",
-		RunID:               "run-hindsight-recall-slots",
+		RequestedTool: "knowledge_query",
+		RunID:         "run-hindsight-recall-slots",
 		SessionSlots: map[string]string{
 			"target_year": "2026",
 			"topic":       "保研材料",
@@ -154,12 +154,12 @@ func TestHindsightRecallUsesBankRecallAndProjectsBoundedFactsOnly(t *testing.T) 
 	}
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		RequestedCapability: "knowledge",
-		RunID:               "run-hindsight-recall",
-		TenantID:            "tenant-main",
-		ThreadID:            "conv-hindsight-recall",
-		UserGoal:            "我如何准备保研材料？",
-		UserID:              "user-executor",
+		RequestedTool: "knowledge_query",
+		RunID:         "run-hindsight-recall",
+		TenantID:      "tenant-main",
+		ThreadID:      "conv-hindsight-recall",
+		UserGoal:      "我如何准备保研材料？",
+		UserID:        "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)
@@ -201,7 +201,7 @@ func TestHindsightRecallUsesBankRecallAndProjectsBoundedFactsOnly(t *testing.T) 
 
 func TestHindsightContextBlockRespectsRuneBudget(t *testing.T) {
 	items := []memoryruntime.ContextItem{{
-		Capability:  "knowledge",
+		Tool:        "knowledge_query",
 		CompactText: "保研材料",
 		MemoryID:    "fact-001",
 		MemoryType:  "experience",

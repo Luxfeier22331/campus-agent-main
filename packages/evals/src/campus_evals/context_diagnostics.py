@@ -5,11 +5,11 @@ import json
 from pathlib import Path
 
 from campus_contracts import (
-    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
+    ToolResponse,
 )
 from campus_shared import load_repo_env
 
@@ -201,8 +201,8 @@ def _build_projection_diagnostic(
         return None
 
     execution = ExecutionResult(
-        response=CapabilityResponse(
-            capability="knowledge",
+        response=ToolResponse(
+            tool="knowledge_query",
             status="completed",
             answer_text="artifact replay answer",
             confidence="high",

@@ -12,15 +12,15 @@ updated: 2026-06-12
 
 - 架构总边界：`../architecture/domains/authenticated-notice/architecture.md`
 - source-truth
-  schema：`../data/authenticated-notice-source-truth-schema.md`
-- 当前 merged truth：`../architecture/current-architecture.md`
+  schema：`../data/authenticated-notice.md`
+- 当前 merged truth：`../architecture/current.md`
 - 通用执行态入口：`README.md`
 
 ## 长期边界与决策
 
 - `../architecture/domains/authenticated-notice/architecture.md`
 - `../contracts/campus-notice-runtime-contract.md`
-- `../data/authenticated-notice-source-truth-schema.md`
+- `../data/authenticated-notice.md`
 - `../decisions/adr-0024-authenticated-notice-source-channel.md`
 - `../decisions/adr-0025-authenticated-notice-async-staged-closeout.md`
 - `../decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spati

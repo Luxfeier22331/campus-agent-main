@@ -8,11 +8,11 @@
 			"split": "release_gate",
 			"expected": {
 				"terminal_outcome": "completed",
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"direct_answer": false,
 				"requires_clarification": false,
 				"fail_close_reason": "",
-				"forbidden_capabilities": ["campus_services"]
+				"forbidden_tools": ["campus_services"]
 			}
 		},
 		{
@@ -21,11 +21,11 @@
 			"split": "smoke",
 			"expected": {
 				"terminal_outcome": "completed",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"direct_answer": true,
 				"requires_clarification": false,
 				"fail_close_reason": "",
-				"forbidden_capabilities": ["knowledge", "campus_services", "notice", "navigation"]
+				"forbidden_tools": ["knowledge", "campus_services", "notice", "navigation"]
 			}
 		},
 		{
@@ -34,11 +34,11 @@
 			"split": "regression_locked",
 			"expected": {
 				"terminal_outcome": "clarification",
-				"selected_capability": "none",
+				"selected_tool": "none",
 				"direct_answer": false,
 				"requires_clarification": true,
 				"fail_close_reason": "",
-				"forbidden_capabilities": ["campus_services"]
+				"forbidden_tools": ["campus_services"]
 			}
 		}
 	]

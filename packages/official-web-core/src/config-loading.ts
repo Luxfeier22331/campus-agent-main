@@ -194,7 +194,7 @@ export function loadOfficialWebConfig(
 			consumerFamilies: asArray(consumerDenominatorPayload.consumer_families).map((item) => ({
 				consumerFamily: asConsumerFamily(item.consumer_family),
 				ownerSurface: asString(item.owner_surface),
-				ownerCapabilityOrRuntime: asString(item.owner_capability_or_runtime),
+				ownerToolOrRuntime: asString(item.owner_tool_or_runtime),
 				materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
 				pageFamilies: asStringArray(item.page_families).map(asProjectionPageFamily),
 				titleKeywords: asStringArray(item.title_keywords),
@@ -282,7 +282,7 @@ function loadTargetInventoryEntry(item: Record<string, unknown>) {
 		inventoryOnly: Boolean(item.inventory_only),
 		materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
 		notes: asString(item.notes),
-		ownerCapabilityOrRuntime: asString(item.owner_capability_or_runtime),
+		ownerToolOrRuntime: asString(item.owner_tool_or_runtime),
 		ownerSurface: asString(item.owner_surface),
 		previewStatus: asString(item.preview_status),
 		releaseBlockers: asStringArray(item.release_blockers),

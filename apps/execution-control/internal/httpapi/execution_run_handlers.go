@@ -53,10 +53,10 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
 		return
 	}
-	visibleCapabilities, err := s.visibleCapabilitiesForRun(run.RequestedCapability)
+	visibleToolNames, err := s.visibleToolNamesForRun(run.RequestedTool)
 	if err != nil {
-		setOutcome(response, "capability_not_open")
-		writeError(response, http.StatusConflict, "capability_not_open", err.Error(), false)
+		setOutcome(response, "tool_not_open")
+		writeError(response, http.StatusConflict, "tool_not_open", err.Error(), false)
 		return
 	}
 	created, err := s.runProjectionStore.CreateRun(request.Context(), run)
@@ -96,14 +96,14 @@ func (s *Server) handleExecutionRunCreate(response http.ResponseWriter, request 
 		writeError(response, http.StatusInternalServerError, "execution_run_event_failed", err.Error(), true)
 		return
 	}
-	workflowInput, err := s.workflowInputForQueuedRun(body, queued, visibleCapabilities)
+	workflowInput, err := s.workflowInputForQueuedRun(body, queued, visibleToolNames)
 	if err != nil {
 		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "execution_workflow_input_invalid")
 		writeError(response, http.StatusBadRequest, "execution_workflow_input_invalid", err.Error(), false)
 		return
 	}
-	if err := s.temporalStarter.StartCapabilityExecutionWorkflow(request.Context(), workflowInput); err != nil {
+	if err := s.temporalStarter.StartToolExecutionWorkflow(request.Context(), workflowInput); err != nil {
 		_ = s.runProjectionStore.DeleteRun(context.Background(), queued.RunID)
 		setOutcome(response, "temporal_workflow_start_failed")
 		writeError(
@@ -155,48 +155,60 @@ func (s *Server) appendExecutionRunStartEvents(
 func (s *Server) workflowInputForQueuedRun(
 	rawBody json.RawMessage,
 	run execution.DurableRun,
-	visibleCapabilities []string,
-) (temporalruntime.CapabilityExecutionWorkflowInput, error) {
+	visibleToolNames []string,
+) (temporalruntime.ToolExecutionWorkflowInput, error) {
 	payloadHash := sha256.Sum256(rawBody)
 	workflowID := "campus-agent.chat." + strings.TrimSpace(run.RunID)
-	return temporalruntime.CapabilityExecutionWorkflowInput{
+	return temporalruntime.ToolExecutionWorkflowInput{
 		ConversationID: run.ConversationID,
 		Namespace:      s.config.TemporalNamespace,
 		PayloadSHA256:  hex.EncodeToString(payloadHash[:]),
 		PolicyVersions: map[string]string{
 			"intent_policy": strings.TrimSpace(s.config.IntentPolicyPath),
 		},
-		RequestID:           run.RequestID,
-		RequestedCapability: strings.TrimSpace(run.RequestedCapability),
-		RunID:               run.RunID,
-		TaskQueue:           defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
-		TraceID:             run.TraceID,
-		TurnID:              run.TurnID,
-		VisibleCapabilities: append([]string{}, visibleCapabilities...),
-		WorkflowID:          workflowID,
+		RequestID:        run.RequestID,
+		RequestedTool:    strings.TrimSpace(run.RequestedTool),
+		RunID:            run.RunID,
+		TaskQueue:        defaultString(strings.TrimSpace(s.config.TemporalTaskQueue), temporalruntime.WorkflowTaskQueue),
+		TraceID:          run.TraceID,
+		TurnID:           run.TurnID,
+		VisibleToolNames: append([]string{}, visibleToolNames...),
+		WorkflowID:       workflowID,
 	}, nil
 }
 
-func (s *Server) visibleCapabilitiesForRun(requestedCapability string) ([]string, error) {
-	normalized := strings.TrimSpace(requestedCapability)
+func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) {
+	normalized := strings.TrimSpace(requestedTool)
 	switch normalized {
 	case "":
-		capabilities := []string{"knowledge"}
-		for _, capability := range []string{"campus_services", "notice", "navigation"} {
-			if s.config.CapabilityOpen(capability) {
-				capabilities = append(capabilities, capability)
+		tools := []string{"knowledge_query"}
+		for _, toolName := range []string{
+			"transport_schedule_lookup",
+			"campus_notice_change_set_lookup",
+			"campus_notice_discover",
+			"campus_notice_period_summary",
+		} {
+			if s.config.ToolOpen(toolName) {
+				tools = append(tools, toolName)
 			}
 		}
-		return capabilities, nil
-	case "knowledge":
-		return []string{"knowledge"}, nil
-	case "campus_services", "notice", "navigation":
-		if !s.config.CapabilityOpen(normalized) {
-			return nil, fmt.Errorf("capability %s is not open in runtime profile", normalized)
+		return tools, nil
+	case "knowledge_query":
+		return []string{"knowledge_query"}, nil
+	case "transport_schedule_lookup":
+		if !s.config.ToolOpen("transport_schedule_lookup") {
+			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime profile")
+		}
+		return []string{"transport_schedule_lookup"}, nil
+	case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
+		if !s.config.ToolOpen(normalized) {
+			return nil, fmt.Errorf("tool %s is not open in runtime profile", normalized)
 		}
 		return []string{normalized}, nil
+	case "place_lookup":
+		return nil, fmt.Errorf("navigation tools are not admitted by execution-control")
 	default:
-		return nil, fmt.Errorf("capability %s is not admitted by execution-control", normalized)
+		return nil, fmt.Errorf("requested tool %s is not admitted by execution-control", normalized)
 	}
 }
 
@@ -263,9 +275,9 @@ func (s *Server) handleExecutionRunCancel(
 		writeError(response, http.StatusInternalServerError, "execution_run_query_failed", err.Error(), true)
 		return
 	}
-	if err := s.temporalStarter.CancelCapabilityExecutionWorkflow(
+	if err := s.temporalStarter.CancelToolExecutionWorkflow(
 		request.Context(),
-		temporalruntime.CapabilityExecutionWorkflowCancelInput{
+		temporalruntime.ToolExecutionWorkflowCancelInput{
 			Reason:     reason,
 			RunID:      run.RunID,
 			WorkflowID: "campus-agent.chat." + run.RunID,

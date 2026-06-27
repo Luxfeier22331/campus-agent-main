@@ -34,7 +34,7 @@ updated: 2026-04-28
 - source-channel
   边界：`docs/architecture/domains/authenticated-notice/architecture.md`
 - notice source-truth
-  contract：`docs/data/authenticated-notice-source-truth-schema.md`
+  contract：`docs/data/authenticated-notice.md`
 - auth-window
   执行步骤：`docs/runbooks/authenticated-notice-file-release-auth-window-runbook.md`
 - downstream readiness：`docs/reference/authenticated-notice-file-release-owner-r

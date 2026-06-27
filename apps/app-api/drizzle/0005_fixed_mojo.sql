@@ -7,7 +7,7 @@ CREATE TABLE "operator"."metric_rollup" (
     "bucket_end" timestamp with time zone NOT NULL,
     "surface" text NOT NULL,
     "selected_target" text,
-    "requested_capability" text,
+    "requested_tool" text,
     "principal_type" text NOT NULL,
     "collection" text,
     "model_name" text,

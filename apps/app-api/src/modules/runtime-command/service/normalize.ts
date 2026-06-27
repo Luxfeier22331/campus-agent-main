@@ -1,16 +1,16 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
 import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
-import type { CapabilityExecutionResponse, RequestedScope } from "../../integration";
+import type { RequestedScope, ToolExecutionResponse } from "../../integration";
 import {
 	normalizeVersionQuery,
 	type VersionQuery,
 	VersionQueryValidationError,
 } from "../../version-query";
-import { resolveRequestedCapabilityForSurface } from "./capability-policy";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
 import { resultEvidenceSources } from "./normalize-structured-parts";
+import { resolveRequestedToolForSurface } from "./tool-policy";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
 
 export {
@@ -31,7 +31,7 @@ export function defaultGenerateId(prefix: string): string {
 export function defaultComputeFingerprint(input: {
 	conversationDiscriminator: string;
 	prompt: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }): string {
@@ -40,7 +40,7 @@ export function defaultComputeFingerprint(input: {
 			JSON.stringify({
 				conversationDiscriminator: input.conversationDiscriminator,
 				prompt: input.prompt,
-				requestedCapability: input.requestedCapability,
+				requestedTool: input.requestedTool,
 				requestedScope: input.requestedScope,
 				versionQuery: input.versionQuery,
 			}),
@@ -75,7 +75,7 @@ function collapseAssistantTextWhitespace(text: string): string {
 }
 
 export function sanitizePublicAssistantText(input: {
-	status: CapabilityExecutionResponse["status"];
+	status: ToolExecutionResponse["status"];
 	text: string;
 }): string {
 	const normalized = normalizeString(input.text);
@@ -191,8 +191,8 @@ export function resolveValidatedPayload(
 		});
 	}
 
-	const requestedCapability = resolveRequestedCapabilityForSurface({
-		requestedCapability: payload.requestedCapability,
+	const requestedTool = resolveRequestedToolForSurface({
+		requestedTool: payload.requestedTool,
 		surface: input.surface,
 	});
 
@@ -215,7 +215,7 @@ export function resolveValidatedPayload(
 	return {
 		conversationId,
 		prompt,
-		requestedCapability,
+		requestedTool,
 		requestedScope,
 		versionQuery,
 	};

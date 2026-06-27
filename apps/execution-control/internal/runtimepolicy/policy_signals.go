@@ -35,29 +35,29 @@ func isTargetedPoliticalPersuasion(normalizedGoal string, policy IntentPolicyArt
 	return hasWriting && hasInfluence
 }
 
-func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
-	if signal := matchStructuredTransportScheduleCandidate(normalizedGoal, policy); signal != "" {
+func matchToolReadModelCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if signal := matchTransportScheduleToolCandidate(normalizedGoal, policy); signal != "" {
 		return signal
 	}
-	if signal := firstMatch(normalizedGoal, policy.Signals("structured_notice")); signal != "" {
+	if signal := firstMatch(normalizedGoal, policy.Signals("tool_notice")); signal != "" {
 		return signal
 	}
 	return ""
 }
 
 func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	return matchStructuredTransportScheduleCandidate(normalizedGoal, policy) != ""
+	return matchTransportScheduleToolCandidate(normalizedGoal, policy) != ""
 }
 
 func IsTransportScheduleLookupQueryForPlanning(
 	normalizedGoal string,
 	policy IntentPolicyArtifact,
 ) bool {
-	return matchStructuredTransportScheduleCandidate(normalizedGoal, policy) != ""
+	return matchTransportScheduleToolCandidate(normalizedGoal, policy) != ""
 }
 
-func matchStructuredTransportScheduleCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
-	signal := firstMatch(normalizedGoal, policy.Signals("structured_transport"))
+func matchTransportScheduleToolCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	signal := firstMatch(normalizedGoal, policy.Signals("tool_transport"))
 	if signal == "" {
 		return ""
 	}
@@ -68,7 +68,7 @@ func matchStructuredTransportScheduleCandidate(normalizedGoal string, policy Int
 }
 
 func isTransportScheduleLookupQuery(normalizedGoal string, policy IntentPolicyArtifact) bool {
-	if containsAny(normalizedGoal, policy.Signals("structured_transport_boarding_status")) {
+	if containsAny(normalizedGoal, policy.Signals("tool_transport_boarding_status")) {
 		return true
 	}
 	for _, group := range []string{

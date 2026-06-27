@@ -200,7 +200,7 @@ func validateCancelOutcome(value CancelOutcome) error {
 		CancelOutcomeNotRequested,
 		CancelOutcomeRequestedBeforeStart,
 		CancelOutcomeActivityContextCanceled,
-		CancelOutcomeRuntimeCancelDelivered,
+		CancelOutcomeDelivered,
 		CancelOutcomeProviderConnectionAborted,
 		CancelOutcomeProviderBackgroundCancelled,
 		CancelOutcomeCompletedBeforeCancel,
@@ -216,7 +216,6 @@ func validateTimeoutOutcome(value TimeoutOutcome) error {
 	case "",
 		TimeoutOutcomeNotTimedOut,
 		TimeoutOutcomeActivityTimeout,
-		TimeoutOutcomeRuntimeTimeout,
 		TimeoutOutcomeProviderTimeout,
 		TimeoutOutcomeWorkflowTimeout:
 		return nil

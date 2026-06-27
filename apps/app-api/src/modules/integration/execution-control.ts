@@ -1,18 +1,3 @@
-export type {
-	CapabilityExecutionContextProjection,
-	CapabilityExecutionConversationContext,
-	CapabilityExecutionInput,
-	CapabilityExecutionObservability,
-	CapabilityExecutionPreviousCapabilityResultRef,
-	CapabilityExecutionPreviousEvidenceRef,
-	CapabilityExecutionPromptTrace,
-	CapabilityExecutionResponse,
-	CapabilityExecutionSelectedNoticeRef,
-	CapabilityExecutionSessionSlot,
-	CapabilityExecutionSessionSummary,
-	CapabilityExecutionWorkflowTraceSummary,
-	RequestedScope,
-} from "./capability-execution-types";
 export {
 	createExecutionControlProviderConfigClient,
 	type ExecutionControlEmbeddingCompatibilityInput,
@@ -54,3 +39,18 @@ export {
 	probeExecutionControlReady,
 } from "./execution-control-transport";
 export { parseExecutionFinalizationResponsePayload } from "./execution-finalization-response";
+export type {
+	RequestedScope,
+	ToolExecutionContextProjection,
+	ToolExecutionConversationContext,
+	ToolExecutionInput,
+	ToolExecutionObservability,
+	ToolExecutionPreviousEvidenceRef,
+	ToolExecutionPreviousToolResultRef,
+	ToolExecutionPromptTrace,
+	ToolExecutionResponse,
+	ToolExecutionSelectedNoticeRef,
+	ToolExecutionSessionSlot,
+	ToolExecutionSessionSummary,
+	ToolExecutionWorkflowTraceSummary,
+} from "./tool-execution-types";

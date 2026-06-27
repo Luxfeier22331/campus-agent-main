@@ -732,21 +732,16 @@ function summarizeWorkflowTrace(trajectory: RuntimeStepTrajectory): WorkflowTrac
 	const traceSteps = (trajectory.steps ?? []).map((step) => {
 		const stepId = requireStepString(step, "stepId", "step_id");
 		const status = requireStepString(step, "status");
-		const selectedCapability = optionalStepString(
-			step,
-			"selectedCapability",
-			"selected_capability",
-		);
+		const selectedTool = optionalStepString(step, "selectedTool", "selected_tool");
 		return {
-			...(selectedCapability ? { selected_capability: selectedCapability } : {}),
+			...(selectedTool ? { selected_tool: selectedTool } : {}),
 			status,
 			step_id: stepId,
 		};
 	});
-	const selectedCapability =
-		traceSteps.find((step) => step.selected_capability)?.selected_capability ?? "none";
+	const selectedTool = traceSteps.find((step) => step.selected_tool)?.selected_tool ?? "none";
 	return {
-		selected_capability: selectedCapability,
+		selected_tool: selectedTool,
 		trace_steps: traceSteps,
 	};
 }

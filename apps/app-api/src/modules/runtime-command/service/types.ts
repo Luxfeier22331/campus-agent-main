@@ -1,9 +1,9 @@
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { ChatConversation, ChatConversationStore } from "../../chat";
 import type {
-	CapabilityExecutionResponse,
 	ExecutionControlRuntimeClient,
 	RequestedScope,
+	ToolExecutionResponse,
 } from "../../integration";
 import type { ProfileMemoryStore } from "../../profile-memory";
 import type { RuntimeRunPhase } from "../../runtime-run";
@@ -15,7 +15,7 @@ export const NEW_CONVERSATION_FINGERPRINT_SCOPE = "__new__";
 export interface ChatCommandPayload {
 	conversationId?: unknown;
 	prompt?: unknown;
-	requestedCapability?: unknown;
+	requestedTool?: unknown;
 	requestedScope?: unknown;
 	versionQuery?: unknown;
 }
@@ -41,7 +41,7 @@ export interface ChatCommandResponse {
 		conversation: ReturnType<typeof import("../../chat").toConversationResponse>;
 		result: ChatCommandResult;
 	};
-	execution?: CapabilityExecutionResponse;
+	execution?: ToolExecutionResponse;
 	requestId: string;
 	traceId: string;
 }
@@ -130,7 +130,7 @@ export interface ChatCommandServiceDependencies {
 	computeFingerprint?: (input: {
 		conversationDiscriminator: string;
 		prompt: string;
-		requestedCapability: string | null;
+		requestedTool: string | null;
 		requestedScope: RequestedScope | null;
 		versionQuery: VersionQuery | null;
 	}) => string;
@@ -150,7 +150,7 @@ export interface ChatCommandServiceDependencies {
 		record(input: {
 			errorCode?: string | null;
 			requestId: string;
-			selectedCapability?: string | null;
+			selectedTool?: string | null;
 			status?: string | null;
 			surface?: string | null;
 			traceId: string;
@@ -161,7 +161,7 @@ export interface ChatCommandServiceDependencies {
 export interface ValidatedChatCommandPayload {
 	conversationId: string | null;
 	prompt: string;
-	requestedCapability: string | null;
+	requestedTool: string | null;
 	requestedScope: RequestedScope | null;
 	versionQuery: VersionQuery | null;
 }

@@ -13,22 +13,22 @@ Current status:
   and `POST /internal/execution/runs/:runId/cancel`.
 - Owns request body limits, JSON parsing, `bearer` / `trusted-worker` caller
   auth, strict environment parsing, request projection, Temporal command/query/
-  cancel, lifecycle registry, explicit cancel, and global / per-lane execution
+  cancel, lifecycle registry, explicit cancel, and global / per-group execution
   admission.
-- Infers deterministic effective `requested_capability` and execution lane for
-  common navigation, campus-services, notice, and knowledge requests when the
-  caller omits an explicit capability.
-- Starts Temporal `CapabilityExecutionWorkflow` and executes the current primary
-  agent graph through worker roles:
+- Keeps missing `requested_tool` as a compatibility hint rather than a
+  routing default; ordinary chat is routed by `agent.primary` over the admitted
+  tool set.
+- Starts Temporal `ToolExecutionWorkflow` and executes the current primary
+  agent graph through Temporal activity task queues:
   `context.memory_recall -> agent.primary -> finalization.write`.
   `agent.primary` is polled by `activity-worker-agent` and calls
   `apps/agent-runtime`, which uses OpenAI Agents SDK for the model-facing tool
   loop and direct/no-tool final output. The retained deterministic support path
-  still contains `plan.route -> capability branch`; the `knowledge` branch runs
+  still contains `plan.route -> tool branch`; the `knowledge` branch runs
   `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
   evidence.selection -> synthesis -> grounding.verify`.
 - Reports Go-owned `/readyz` runtime health for Temporal, run projection store,
-  RAG lookup/synthesis, prompt pricing gate, capability gates and worker pollers.
+  RAG lookup/synthesis, prompt pricing gate, tool gates and worker pollers.
 - Exposes Go-owned Prometheus-style runtime counters at `/metrics`.
 - Keeps metrics route labels bounded; unknown routes are reported as
   `/__unknown__` instead of raw URL paths.
@@ -41,13 +41,16 @@ Current status:
 - Owns Go RAG lookup via Qdrant native adapter and Go provider-backed synthesis;
   provider usage, estimated cost, cancel outcome and timeout outcome are written
   to sanitized step attempt/result projection.
-- Owns deterministic runtime planning in `internal/structuredplanning`,
-  including RAG DTO projection and structured campus-services / notice payload
-  projection; `internal/execution` adapts request projection into current
-  runtime decisions.
+- Retired Python handoff env and env breaker env are rejected by config parsing;
+  they are not serving compatibility knobs.
+- Owns deterministic request projection in `internal/execution` and typed tool
+  dispatch policy in `internal/runtimepolicy`; `agent.primary` / agent-runtime
+  selects concrete tools from the v4 tool registry.
+- Retired handoff v6 handoff artifacts may remain for offline/eval compatibility
+  tests; they are not an active online serving compatibility path.
 - Owns deterministic runtime policy in `internal/runtimepolicy`, including
   product scope gate, high-risk approval / reject gate, context follow-up
-  preflight, query-enabled scope admission, and structured tool policy version.
+  preflight, query-enabled scope admission, and tool policy version.
   Runtime policy decisions are projected into run metadata and summarized in
   Go-owned metrics, OTel attributes, and execution audit events without
   including raw user text.
@@ -67,28 +70,29 @@ Current status:
   not by fabricating an answer.
 - Owns the structured tool policy summary. Python only validates that the
   preplanned payload kind matches the Go-provided `allowed_tools`.
-- Hosts the structured query runtime foundation for campus services and notice
-  capabilities. `transport_schedule_lookup` can resolve projection-backed schedule
+- Hosts the tool read model runtime foundation for campus services and notice
+  tools. `transport_schedule_lookup` can resolve projection-backed schedule
   snapshot metadata, route clarification, departures, service windows,
   timetables, and temporary suspension summaries. `campus_notice_discover` /
   `campus_notice_get` read the internal notice PG read model and S3-compatible
   derived canonical bodies. This does not make a tool model-visible unless
-  `tool-catalog.v1` and `workflow-artifacts.v2` both admit that producer.
-- When `campus_services`, `navigation`, or `notice` is explicitly opened, deterministic
-  structured payloads run as typed Temporal activities and write sanitized
-  projections. `app-api` remains the browser-facing answer/status/event surface.
-- Owns bounded FIFO execution admission with queue full / lane queue full /
-  queue timeout / lane queue timeout / draining outcomes, `Retry-After` hints,
+  `tools.v4` exposes that tool and the runtime profile opens it.
+- When concrete tools such as `transport_schedule_lookup` or
+  `campus_notice_discover` are explicitly opened, deterministic structured
+  payloads run as typed Temporal activities and write sanitized projections.
+  `app-api` remains the browser-facing answer/status/event surface.
+- Owns bounded FIFO execution admission with queue full / group queue full /
+  queue timeout / group queue timeout / draining outcomes, `Retry-After` hints,
   and graceful shutdown drain.
 - Repo-local `Phase 1-7` implementation is in place:
-  cancellation semantics, per-lane admission, Go-owned observability, local
+  cancellation semantics, per-group admission, Go-owned observability, local
   compose smoke, Python parity rerun, and runback docs are all landed.
-- Repo-local `Phase 8-12` implementation is in place: the structured query runtime
+- Repo-local `Phase 8-12` implementation is in place: the tool read model runtime
   foundation and transport schedule query kernel are landed without opening
   `campus_services` product serving.
-- The retired Python semantic worker has been removed from the active
-  workspace. Historical code is recoverable only through git history and is not
-  part of readiness aggregation or worker topology.
+- Python `apps/supervisor-agent-worker` has been removed from the active
+  workspace. Historical handoff code is recoverable only through git history and
+  is not part of readiness aggregation or worker topology.
 - Repo-local lifecycle streaming is owned by `app-api` over projection/event
   reads. `execution-control` does not expose the retired lifecycle answer SSE
   endpoint.
@@ -98,13 +102,16 @@ Current admission boundary:
 - Temporal task queues own durable workflow/activity scheduling. The legacy
   in-process answer queue no longer participates in online serving.
 - `EXECUTION_CONTROL_RUNTIME_CONFIG_PATH` points at the execution-control runtime
-  profile. Admission budgets, lane budgets, artifact paths, OTel enablement,
+  profile. Admission budgets, admission groups, artifact paths, OTel enablement,
   execution audit enablement, RAG budgets, personal-memory query defaults, and
   worker profiles are profile-owned.
-- Current lanes are `rag`, `navigation`, `campus_services`, `notice`, and
-  `default`.
+- Current admission groups are `rag`, `navigation`, `campus_services`, `notice`,
+  and `default`.
 - `active_answers == max_concurrent_answers` does not by itself make `/readyz`
   degraded if the queue can still accept short bursts.
+- Retired handoff settings and retired Python worker settings fail closed in
+  online execution-control config. Do not use them as local or staging runtime
+  inputs.
 - The runtime profile points at the Go-owned query-serving scope allowlist,
   intent policy artifact, and online provider pricing catalog. `/readyz` fails
   closed when any required artifact is missing or when an admitted online model
@@ -118,30 +125,29 @@ Current cancellation boundary:
 - Activity cancel/timeout is projected through step attempts. Go lookup/provider
   adapters must use cancellable context and record whether downstream work was
   aborted, timed out, completed before cancel, or remained `abort_unproven`.
-- Old request-id cancel route and Python cooperative runtime cancel are retired
+- Old request-id cancel route and Python cooperative execution cancel are retired
   from online serving.
 
-Current structured query runtime boundary:
+Current tool read model runtime boundary:
 
 - Internal query routes require `x-execution-query-auth`.
-- Structured product serving gates for `campus_services` and `notice` are
-  closed by default. Runtime profile `open_capabilities` is the Go-owned
-  allowlist for opening those capabilities after eval / product admission
-  evidence exists. It accepts `campus_services`, `navigation`, or `notice`;
-  wildcard values such as `*` or `all` are rejected.
+- Structured product serving tools are closed by default. Runtime profile
+  `open_tools` is the Go-owned allowlist for exposing concrete tools after eval
+  / product admission evidence exists. Wildcard values such as `*` or `all` are
+  rejected.
 - `EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth
   and is injected by the execution runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by the
-  current campus-services structured runtime: transport-schedule read model,
+  current campus-services tool read model runtime: transport-schedule read model,
   release catalog/current pointer, and published
   `campus_services_ops.releases` snapshots. Database reachability is necessary
   for those internal query surfaces but is not the primary-agent model-visible
   opening gate.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
-- `EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime
+- `EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339` pins trusted runtime
   time for deterministic tests; production should normally omit it.
-- Runtime profile `structured_query_timeout_ms` bounds internal query execution.
+- Runtime profile `tool_read_model_timeout_ms` bounds internal query execution.
 - `EXECUTION_CONTROL_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads
   from object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
@@ -161,21 +167,21 @@ Current structured query runtime boundary:
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
 - Typed Temporal activities use the same projection-backed query runtime after
-  the structured capability opening gate admits the request.
-- `/readyz` reports `capability_gates` so operators can see whether
-  `campus_services` / `notice` are still closed, and `/metrics` reports
-  capability gate open / closed decisions.
+  the structured tool opening gate admits the request.
+- `/readyz` reports `tool_gates` so operators can see whether
+  `transport_schedule_lookup` / notice tools are still closed, and `/metrics` reports
+  tool gate open / closed decisions.
 - `/readyz` degrades if `campus_services` or `notice` is opened before its
-  required structured runtime dependencies are configured, and if any opened
-  capability is missing its required Temporal activity task queue poller.
+  required tool read model runtime dependencies are configured, and if any opened
+  tool is missing its required Temporal activity task queue poller.
 
 Current observability boundary:
 
 - `/metrics` is an internal runtime surface, not part of the `app-api` contract.
 - Current Go-owned counters distinguish admission decisions, queue depth,
   queue wait, lifecycle final states, Temporal command/query/cancel, task queue
-  readiness, RAG lookup/synthesis outcomes, structured query outcomes,
-  structured capability gate decisions, bounded runtime policy decision
+  readiness, RAG lookup/synthesis outcomes, tool read model outcomes,
+  structured tool gate decisions, bounded runtime policy decision
   summaries and aggregate request outcomes.
 - `EXECUTION_CONTROL_METRICS_BEARER_TOKEN` can protect `/metrics` when the surface
   is reachable outside a trusted local network; local development leaves it
@@ -191,12 +197,12 @@ Current observability boundary:
   into Temporal activity projection.
 - Execution audit backflow is disabled by default. When enabled, Go
   `apps/execution-control` sends only safe runtime event summaries for admission
-  rejection, cancel, runtime failure, and timeout to `app-api`; it never includes
+  rejection, cancel, activity failure, and timeout to `app-api`; it never includes
   raw `user_goal`, prompt, answer, transcript, auth material, retrieval payload,
   or provider response. The runtime decision summary is limited to low-cardinality
   labels such as scope gate, policy gate, context preflight, routing next action,
-  planning outcome, selected capability/tool, terminal outcome, and fail-close
-  reason.
+  planning outcome, selected tool plus legacy selected-tool projection label,
+  terminal outcome, and fail-close reason.
 - `/readyz` reports `execution_audit_runtime`, and `/metrics` reports enabled,
   configured, emitted, and failed counters/gauges. `/readyz` degrades when
   execution audit is enabled but missing its ingest URL or shared secret.
@@ -227,14 +233,9 @@ export EXECUTION_CONTROL_RUN_PROJECTION_DATABASE_URL=postgresql://postgres:postg
 export EXECUTION_CONTROL_TEMPORAL_ADDRESS=127.0.0.1:7233
 export EXECUTION_CONTROL_TEMPORAL_NAMESPACE=campus-agent-local
 export EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=local:workflow-worker:001
-export EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=local:activity-context:001
-export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=local:activity-knowledge-plan:001
-export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=local:activity-knowledge-retrieval:001
-export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=local:activity-knowledge-synthesis:001
-export EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=local:activity-campus-services:001
-export EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=local:activity-notice:001
-export EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=local:activity-navigation:001
-export EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=local:activity-finalization:001
+export EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=local:activity-core:001
+export EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=local:activity-agent:001
+export EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=local:activity-knowledge:001
 export QDRANT_URL=https://127.0.0.1:6333
 export QDRANT_QUERY_API_KEY=qdrant-local-readonly-secret
 export QDRANT_TLS_CA_CERT_PATH=/srv/docker/campus-agent/staging/qdrant/tls/ca.pem
@@ -242,7 +243,7 @@ export EMBEDDING_BASE_URL=https://api.openai.com/v1
 export EMBEDDING_API_KEY=
 export EMBEDDING_MODEL=text-embedding-3-small
 export CAMPUS_SHARED_POSTGRES_URL=
-export EXECUTION_CONTROL_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
+export EXECUTION_CONTROL_TOOL_READ_MODEL_TRUSTED_TIME_RFC3339=
 export INTERNAL_NOTICE_READ_MODEL_DATABASE_URL=
 export INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model
 export EXECUTION_CONTROL_NOTICE_BODY_OBJECT_STORE_ENDPOINT=
@@ -360,9 +361,9 @@ curl -i -H 'content-type: application/json' \
   "trace_id": "trace-local-smoke-001",
   "owner_user_id": "student-001",
   "surface": "local-smoke",
-  "requested_capability": "knowledge",
-  "selected_capability": "knowledge",
-  "lane": "rag",
+  "requested_tool": "knowledge_query",
+  "selected_tool": "knowledge_query",
+  "execution_group": "rag",
   "runtime_versions": {
     "contract": "temporal-execution-control-v1"
   },
@@ -380,9 +381,9 @@ curl -i -H 'content-type: application/json' \
       }
     },
     "handoff": {
-      "target": "rag-tool",
+      "target": "knowledge_query",
       "payload_kind": "rag_request",
-      "allowed_tools": ["retrieval.query"],
+      "allowed_tools": ["knowledge_query"],
       "payload": {
         "query_text": "hello"
       }
@@ -406,10 +407,10 @@ JSON
   http://127.0.0.1:27051/internal/execution/runs
 ```
 
-The `retrieval.query` sample above is the retained deterministic support-path
-handoff shape. The primary model-facing SDK path exposes `knowledge_query` as the
-workflow-signal tool; `retrieval.query` remains knowledge-internal / closed.
+The sample above uses `knowledge_query` as the retained deterministic support-path
+workflow signal. Internal retrieval remains knowledge-owned and is not registered
+or exposed as a separate tool.
 
 Detailed local smoke / cutover / runback steps:
 
-- [execution-control-local-runtime-smoke.md](../../docs/runbooks/execution-control-local-runtime-smoke.md)
+- [local-runtime-smoke.md](../../docs/runbooks/local-runtime-smoke.md)

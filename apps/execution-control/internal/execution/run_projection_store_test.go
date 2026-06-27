@@ -19,7 +19,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		TraceID:        "trace-001",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      createdAt,
 		Metadata:       map[string]any{"source": "test"},
 	}
@@ -48,7 +48,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		RequestID:      "req-002",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      createdAt.Add(time.Second),
 	})
 	if !errors.Is(err, ErrConversationActiveRun) {
@@ -85,7 +85,7 @@ func TestInMemoryRunProjectionStoreCreatesRunsWithConversationActiveRunLock(t *t
 		RequestID:      "req-003",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      createdAt.Add(6 * time.Second),
 	}); err != nil {
 		t.Fatalf("create run after terminal active lock release: %v", err)
@@ -111,7 +111,7 @@ func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.
 		RequestID:      "req-001",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      now,
 	})
 	if err != nil {
@@ -182,14 +182,14 @@ func TestInMemoryRunProjectionStoreRejectsInvalidRunStateTransitions(t *testing.
 	}
 }
 
-func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing.T) {
+func TestInMemoryRunProjectionStoreCompletesRunWithSelectedTool(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 8, 0, 0, time.UTC)
-	createRunProjectionForTest(t, store, "run-complete-selected-capability", "conv-complete-selected-capability", now)
+	createRunProjectionForTest(t, store, "run-complete-selected-tool", "conv-complete-selected-tool", now)
 	if _, err := store.TransitionRun(
 		ctx,
-		"run-complete-selected-capability",
+		"run-complete-selected-tool",
 		DurableRunStatusQueued,
 		"",
 		now.Add(time.Second),
@@ -198,7 +198,7 @@ func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing
 	}
 	if _, err := store.TransitionRun(
 		ctx,
-		"run-complete-selected-capability",
+		"run-complete-selected-tool",
 		DurableRunStatusAdmitted,
 		"",
 		now.Add(2*time.Second),
@@ -207,7 +207,7 @@ func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing
 	}
 	if _, err := store.TransitionRun(
 		ctx,
-		"run-complete-selected-capability",
+		"run-complete-selected-tool",
 		DurableRunStatusRunning,
 		"",
 		now.Add(3*time.Second),
@@ -216,28 +216,28 @@ func TestInMemoryRunProjectionStoreCompletesRunWithSelectedCapability(t *testing
 	}
 
 	completed, err := store.CompleteRunProjection(ctx, DurableRunCompleteRequest{
-		FinalResponseRef:   "projection://runs/run-complete-selected-capability/finalization/write",
-		Now:                now.Add(4 * time.Second),
-		RunID:              "run-complete-selected-capability",
-		SelectedCapability: "knowledge",
-		TerminalReason:     DurableTerminalReasonAnswerCompleted,
+		FinalResponseRef: "projection://runs/run-complete-selected-tool/finalization/write",
+		Now:              now.Add(4 * time.Second),
+		RunID:            "run-complete-selected-tool",
+		SelectedTool:     "knowledge_query",
+		TerminalReason:   DurableTerminalReasonAnswerCompleted,
 	})
 	if err != nil {
 		t.Fatalf("complete run projection: %v", err)
 	}
-	if completed.SelectedCapability != "knowledge" {
-		t.Fatalf("selected capability = %q, want knowledge", completed.SelectedCapability)
+	if completed.SelectedTool != "knowledge_query" {
+		t.Fatalf("selected tool = %q, want knowledge_query", completed.SelectedTool)
 	}
 }
 
-func TestInMemoryRunProjectionStoreFailsRunWithSelectedCapability(t *testing.T) {
+func TestInMemoryRunProjectionStoreFailsRunWithSelectedTool(t *testing.T) {
 	store := NewInMemoryRunProjectionStore()
 	ctx := context.Background()
 	now := time.Date(2026, 6, 4, 8, 9, 0, 0, time.UTC)
-	createRunProjectionForTest(t, store, "run-fail-selected-capability", "conv-fail-selected-capability", now)
+	createRunProjectionForTest(t, store, "run-fail-selected-tool", "conv-fail-selected-tool", now)
 	if _, err := store.TransitionRun(
 		ctx,
-		"run-fail-selected-capability",
+		"run-fail-selected-tool",
 		DurableRunStatusQueued,
 		"",
 		now.Add(time.Second),
@@ -245,17 +245,17 @@ func TestInMemoryRunProjectionStoreFailsRunWithSelectedCapability(t *testing.T) 
 		t.Fatalf("queue run projection: %v", err)
 	}
 	if _, err := store.FailRunProjection(ctx, DurableRunFailRequest{
-		RunID: "run-fail-selected-capability",
+		RunID: "run-fail-selected-tool",
 		Now:   now.Add(2 * time.Second),
 	}); !errors.Is(err, ErrInvalidDurableRun) {
 		t.Fatalf("fail without terminal reason error = %v, want ErrInvalidDurableRun", err)
 	}
 
 	failed, err := store.FailRunProjection(ctx, DurableRunFailRequest{
-		Now:                now.Add(3 * time.Second),
-		RunID:              "run-fail-selected-capability",
-		SelectedCapability: "knowledge",
-		TerminalReason:     DurableTerminalReasonProviderUnavailable,
+		Now:            now.Add(3 * time.Second),
+		RunID:          "run-fail-selected-tool",
+		SelectedTool:   "knowledge_query",
+		TerminalReason: DurableTerminalReasonProviderUnavailable,
 	})
 	if err != nil {
 		t.Fatalf("fail run projection: %v", err)
@@ -266,20 +266,20 @@ func TestInMemoryRunProjectionStoreFailsRunWithSelectedCapability(t *testing.T) 
 	if failed.TerminalReason != DurableTerminalReasonProviderUnavailable {
 		t.Fatalf("terminal reason = %q, want provider_unavailable", failed.TerminalReason)
 	}
-	if failed.SelectedCapability != "knowledge" {
-		t.Fatalf("selected capability = %q, want knowledge", failed.SelectedCapability)
+	if failed.SelectedTool != "knowledge_query" {
+		t.Fatalf("selected tool = %q, want knowledge_query", failed.SelectedTool)
 	}
 	if failed.CompletedAt.IsZero() {
 		t.Fatal("failed run should record completed_at")
 	}
 	if _, err := store.CreateRun(ctx, DurableRun{
 		RunID:          "run-after-failed-terminal",
-		ConversationID: "conv-fail-selected-capability",
+		ConversationID: "conv-fail-selected-tool",
 		TurnID:         "turn-after-failed-terminal",
 		RequestID:      "req-after-failed-terminal",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      now.Add(4 * time.Second),
 	}); err != nil {
 		t.Fatalf("create run after failed terminal active lock release: %v", err)
@@ -433,7 +433,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		RunID:                "run-steps",
 		ConversationID:       "conv-steps",
 		StepKind:             "planning",
-		Capability:           "structured",
+		Tool:                 "structured",
 		Status:               "completed",
 		TaskQueue:            "campus-agent.workflow",
 		WorkerID:             "staging:workflow:001",
@@ -500,12 +500,12 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 		ProjectionRef:        "runtime.agent_run_steps/step-planning",
 		CreatedAt:            now.Add(2 * time.Second),
 		PayloadSchemaVersion: "step-result-v1",
-		SanitizedPayload:     map[string]any{"selected_capability": "rag"},
+		SanitizedPayload:     map[string]any{"selected_tool": "rag"},
 	})
 	if err != nil {
 		t.Fatalf("upsert step result: %v", err)
 	}
-	result.SanitizedPayload["selected_capability"] = "mutated"
+	result.SanitizedPayload["selected_tool"] = "mutated"
 
 	steps, err := store.ListRunSteps(ctx, "run-steps")
 	if err != nil {
@@ -541,7 +541,7 @@ func TestInMemoryRunProjectionStorePersistsStepTrajectory(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list step results: %v", err)
 	}
-	if len(results) != 1 || results[0].SanitizedPayload["selected_capability"] != "rag" {
+	if len(results) != 1 || results[0].SanitizedPayload["selected_tool"] != "rag" {
 		t.Fatalf("results = %#v, want defensive persisted result", results)
 	}
 }
@@ -561,7 +561,7 @@ func createRunProjectionForTest(
 		RequestID:      runID + "-request",
 		OwnerUserID:    "user-001",
 		Surface:        "campus-web",
-		Lane:           DurableLaneRAG,
+		TaskQueue:      "campus-agent.workflow",
 		CreatedAt:      now,
 	}); err != nil {
 		t.Fatalf("create run projection %s: %v", runID, err)

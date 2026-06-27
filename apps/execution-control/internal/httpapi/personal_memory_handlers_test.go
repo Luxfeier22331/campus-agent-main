@@ -163,7 +163,7 @@ func TestProfileMemoryRecallEndpointRecallsHindsightMemory(t *testing.T) {
 		http.MethodPost,
 		"/internal/memory/personal/graph:recall",
 		strings.NewReader(`{
-			"requested_capability":"knowledge",
+			"requested_tool":"knowledge_query",
 			"run_id":"run-hindsight-live-recall",
 			"tenant_id":"tenant-main",
 			"thread_id":"conv-hindsight-live-recall",

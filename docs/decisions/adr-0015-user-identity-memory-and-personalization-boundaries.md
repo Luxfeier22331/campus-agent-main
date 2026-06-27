@@ -20,14 +20,14 @@ Memory Index` 仅保留为已 superseded 的历史桥接记录，不再作为当
 实现或目标架构引用。本文继续冻结 account / session、user-scoped memory binding、raw
 state 不跨边界、个人 memory 不进入 institutional index 等约束。
 
-本文不再冻结受限文档、学生 / 教职工差异化 capability 权限、approval / HITL 或
+本文不再冻结受限文档、学生 / 教职工差异化 tool 权限、approval / HITL 或
 state-changing tools。相关旧口径已由当前产品定位与 account / operator / memory supporting
 architecture 收窄。
 
-本文早期提到的 Python `apps/supervisor-agent-worker` 与 `packages/knowledge-capability`
+本文早期提到的 Python `apps/supervisor-agent-worker` 与旧 Python knowledge runtime package
 已从 active workspace 删除；相关 online execution / memory / retrieval 边界以
-`docs/architecture/current-architecture.md` 与
-`docs/architecture/system/python-capability-boundaries.md` 为准。
+`docs/architecture/current.md` 与
+`docs/architecture/system/python-boundaries.md` 为准。
 
 ## 背景
 
@@ -44,7 +44,7 @@ architecture 收窄。
 
 - 把 Worker / edge 侧身份材料误当成最终 actor truth
 - 把“用户曾经说过的话”直接当成身份、source truth 或能力开放依据
-- 让 profile memory 打开未成熟 capability、放宽证据要求或覆盖 fail-close
+- 让 profile memory 打开未成熟 tool、放宽证据要求或覆盖 fail-close
 - 把 institutional knowledge 与个人记忆塞进同一 retrieval truth store
 - 让 `supervisor` / `knowledge` 跨边界直接读取 raw auth、raw memory 或 raw conversation
   state
@@ -58,7 +58,7 @@ architecture 收窄。
 - account / session truth 由 `apps/app-api` 拥有
 - browser cookie、Access JWT、Worker admission 或 edge trust material 只属于
   runtime-boundary input
-- `apps/execution-control` 与 `packages/knowledge-capability` 只消费 `app-api`
+- `apps/execution-control` 与 tool/runtime packages 只消费 `app-api`
   投影后的 typed actor context
 
 这意味着：
@@ -83,15 +83,15 @@ architecture 收窄。
 - `session memory` 是对话连续性所需的短期 truth
 - `institutional knowledge` 是回答事实依据的主真相源
 
-普通用户共享同一组已开放、成熟、只读的 campus capabilities。本文不定义学生 / 教职工 / 院系之间的普通问答 capability
+普通用户共享同一组已开放、成熟、只读的 campus tools。本文不定义学生 / 教职工 / 院系之间的普通问答 tool
 权限差异。
 
-## 决策 3：memory 不得伪造 source truth 或 capability opening truth
+## 决策 3：memory 不得伪造 source truth 或 tool opening truth
 
 ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下硬约束：
 
 - 用户自述、模型推断、session summary 或 inferred memory 不得升级为 source truth、
-  capability opening truth、operator access truth 或 fail-close override。
+  tool opening truth、operator access truth 或 fail-close override。
 
 允许的影响范围：
 
@@ -104,8 +104,8 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 
 不允许的影响范围：
 
-- capability 是否开放
-- surface 是否允许某 capability
+- tool 是否开放
+- surface 是否允许某 tool
 - source trust 是否放宽
 - evidence requirement 是否降低
 - fail-close 是否绕过
@@ -113,7 +113,7 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 - 跨 corpus 放开或未开放 collection 的静默路由
 
 `ADR-0034` 的受限文档授权模型已 supersede，不再作为当前主问答产品目标。本文只冻结 memory
-不得伪造 account / session、source truth、capability opening 或 fail-close truth。
+不得伪造 account / session、source truth、tool opening 或 fail-close truth。
 
 ## 决策 4：跨边界只传 typed projection，不传 raw state
 
@@ -123,7 +123,7 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 
 - actor id 或 stable principal id
 - session validity / caller class / quota posture summary
-- surface capability posture summary
+- surface tool posture summary
 - bounded memory recall packet / compact memory refs
 - memory source type / score / staleness summary
 - session summary / confirmed slots
@@ -175,7 +175,7 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 - memory item id / hash
 - memory source type
 - clarification reason
-- capability / source posture summary
+- tool / source posture summary
 
 长期默认不允许落盘：
 
@@ -186,8 +186,8 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 
 ## 决策 8：文档分层关系
 
-- `docs/architecture/product-positioning.md` 负责主问答产品边界与非目标
-- `docs/architecture/target-architecture.md` 负责 repo 级 account / memory /
+- `docs/architecture/product.md` 负责主问答产品边界与非目标
+- `docs/architecture/target.md` 负责 repo 级 account / memory /
   knowledge truth 分层
 - `docs/architecture/system/identity-and-authorization-architecture.md`
   负责 account / session、operator access、quota 与 memory binding supporting
@@ -226,14 +226,14 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
   personal context 当作能力开放或 source truth
 - `knowledge` 可以利用 typed personal context 优化 retrieval-specific planning，但不能绕过
   admitted source / runtime profile / evidence constraints
-- retrieval 与 workflow path 消费的 source / capability posture 必须来自 app-layer /
+- retrieval 与 workflow path 消费的 source / tool posture 必须来自 app-layer /
   execution-control projection，而不是 raw token claims 或 memory 推断
 - memory 系统与 RAG 系统的 join 点必须数据最小化；online path 消费 bounded
   `memory.recall` packet，不建设 v1 强审计图谱
 
 ## 相关文档
 
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/architecture/system/product-runtime-architecture.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/execution-agent-layer-architecture.md`

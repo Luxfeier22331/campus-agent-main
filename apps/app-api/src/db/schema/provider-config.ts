@@ -11,8 +11,8 @@ import {
 
 import type {
 	ProviderConfigActor,
-	ProviderConfigCapability,
-	ProviderConfigCapabilityConfig,
+	ProviderConfigFeature,
+	ProviderConfigFeatureConfig,
 	ProviderConfigSecretRef,
 	ProviderConfigValidationResult,
 } from "../../modules/provider-config/types";
@@ -25,10 +25,8 @@ export const providerConfigConnections = providerConfig.table(
 		connectionId: text("connection_id").primaryKey(),
 		provider: text("provider").notNull(),
 		baseUrl: text("base_url").notNull(),
-		capabilitiesJson: jsonb("capabilities_json").$type<ProviderConfigCapability[]>().notNull(),
-		capabilityConfigJson: jsonb("capability_config_json")
-			.$type<ProviderConfigCapabilityConfig>()
-			.notNull(),
+		featuresJson: jsonb("features_json").$type<ProviderConfigFeature[]>().notNull(),
+		featureConfigJson: jsonb("feature_config_json").$type<ProviderConfigFeatureConfig>().notNull(),
 		apiKeySecretJson: jsonb("api_key_secret_json").$type<ProviderConfigSecretRef>().notNull(),
 		revision: integer("revision").notNull(),
 		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),

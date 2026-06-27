@@ -2,19 +2,19 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreValidationSuite(): void {
-	it("passes explicit versionQuery through validation, capability execution, and request writes", async () => {
+	it("passes explicit versionQuery through validation, tool execution, and request writes", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "2024 版学生手册中图书馆开放到 21:30。",
 				error: null,
@@ -24,7 +24,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 						sources: [{ doc_id: "handbook:library-hours:v2024" }],
 					},
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -34,7 +34,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		await service.submit({
@@ -99,7 +99,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn(),
 			}),
 		});

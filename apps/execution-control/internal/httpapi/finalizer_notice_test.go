@@ -6,10 +6,10 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 )
 
-func TestFinalizeCapabilityResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
-	response, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
+	response, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "notice",
+			"tool":               "campus_notice_get",
 			"status":             "completed",
 			"answer_text":        "已找到官方通知链接，请以原文为准。",
 			"follow_up_question": "",
@@ -29,10 +29,10 @@ func TestFinalizeCapabilityResponseDoesNotInferNoticeGetAsSelectedTool(t *testin
 				ContextPreflightState: "resolved",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedCapability:    "notice",
+				SelectedTool:          "",
 			},
 			Handoff: &execution.RuntimeHandoff{
-				Capability:   "notice",
+				ToolTarget:   "campus_notice_get",
 				PayloadKind:  "campus_notice_get",
 				Payload:      map[string]any{"notice_id": "notice:muc-spring-break-2026"},
 				AllowedTools: []string{},
@@ -49,7 +49,7 @@ func TestFinalizeCapabilityResponseDoesNotInferNoticeGetAsSelectedTool(t *testin
 	}
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
 	if !ok || len(selectedTools) != 0 {
-		t.Fatalf("selected_tools = %#v, want no capability-facing selected tool", selectedTools)
+		t.Fatalf("selected_tools = %#v, want no tool-facing selected tool", selectedTools)
 	}
 	toolSummary, ok := traceSummary["tool_argument_summary"].(map[string]any)
 	if !ok {
@@ -77,10 +77,10 @@ func TestFinalizeCapabilityResponseDoesNotInferNoticeGetAsSelectedTool(t *testin
 	}
 }
 
-func TestFinalizeCapabilityResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *testing.T) {
-	response, err := finalizeCapabilityResponse(
+func TestFinalizeAgentToolResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *testing.T) {
+	response, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "notice",
+			"tool":               "campus_notice_period_summary",
 			"status":             "completed",
 			"answer_text":        "4 月上旬奖学金通知共有两条，均为申请和答辩安排。",
 			"follow_up_question": "",
@@ -99,7 +99,6 @@ func TestFinalizeCapabilityResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *t
 				ContextPreflightState: "not_follow_up",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedCapability:    "notice",
 				SelectedTool:          "campus_notice_period_summary",
 			},
 			WorkflowRun: &execution.WorkflowRun{
@@ -107,7 +106,7 @@ func TestFinalizeCapabilityResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *t
 				Branch: "delegate",
 				State:  execution.WorkflowStateCompleted,
 				HandoffChain: []execution.HandoffStep{{
-					Capability:   "notice",
+					ToolTarget:   "campus_notice_period_summary",
 					PayloadKind:  "campus_notice_period_summary",
 					AllowedTools: []string{"campus_notice_period_summary"},
 					SelectedTool: "campus_notice_period_summary",
@@ -143,7 +142,7 @@ func TestFinalizeCapabilityResponseMarksNoticePeriodSummaryAsAnswerArtifact(t *t
 	}
 }
 
-func TestFinalizeCapabilityResponseUsesRecordedNoticeMultiStepWorkflowRun(t *testing.T) {
+func TestFinalizeAgentToolResponseUsesRecordedNoticeMultiStepWorkflowRun(t *testing.T) {
 	workflowRun := execution.WorkflowRun{
 		RunID:  "run-multi-001",
 		Mode:   execution.WorkflowModeMultiStep,
@@ -151,57 +150,57 @@ func TestFinalizeCapabilityResponseUsesRecordedNoticeMultiStepWorkflowRun(t *tes
 		State:  execution.WorkflowStateCompleted,
 		HandoffChain: []execution.HandoffStep{
 			{
-				Capability:   "notice",
+				ToolTarget:   "campus_notice_get",
 				PayloadKind:  "campus_notice_get",
 				AllowedTools: []string{},
 				SelectedTool: "",
 			},
 			{
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				PayloadKind:  "rag_request",
-				AllowedTools: []string{"retrieval.query"},
-				SelectedTool: "retrieval.query",
+				AllowedTools: []string{"knowledge_query"},
+				SelectedTool: "knowledge_query",
 			},
 		},
 		Steps: []execution.WorkflowStep{
 			{
-				StepID:       "capability:notice:campus_notice_get",
+				StepID:       "tool:notice:campus_notice_get",
 				SpanKind:     "handoff",
-				Capability:   "notice",
+				ToolTarget:   "campus_notice_get",
 				Outcome:      "completed",
 				ResultStatus: "completed",
 			},
 			{
-				StepID:       "capability:knowledge:rag_request",
+				StepID:       "tool:knowledge:rag_request",
 				SpanKind:     "handoff",
-				Capability:   "knowledge",
+				ToolTarget:   "knowledge_query",
 				Outcome:      "completed",
 				ResultStatus: "completed",
 			},
 		},
 		ToolCallSummaries: []execution.ToolCallSummary{
 			{
-				ToolCallID:        "run-multi-001:capability:knowledge:rag_request",
+				ToolCallID:        "run-multi-001:tool:knowledge:rag_request",
 				WorkflowRunRef:    "run-multi-001",
-				StepID:            "capability:knowledge:rag_request",
+				StepID:            "tool:knowledge:rag_request",
 				LifecycleState:    "completed",
 				ResultProjection:  "bounded_summary",
 				RawResultIncluded: false,
-				ToolName:          "retrieval.query",
-				Capability:        "knowledge",
+				ToolName:          "knowledge_query",
+				ToolTarget:        "knowledge_query",
 				ResultStatus:      "completed",
 				ArgumentSummary: map[string]any{
 					"payload_kind":  "campus_notice_get",
-					"selected_tool": "retrieval.query",
+					"selected_tool": "knowledge_query",
 					"notice_id":     "notice:muc-spring-break-2026",
 				},
 				SourceIDs: []string{"handbook:rule-001"},
 			},
 		},
 	}
-	response, err := finalizeCapabilityResponse(
+	response, err := finalizeAgentToolResponse(
 		map[string]any{
-			"capability":         "knowledge",
+			"tool":               "knowledge_query",
 			"status":             "completed",
 			"answer_text":        "这条通知可按学生手册相关规定理解。",
 			"follow_up_question": "",
@@ -211,22 +210,21 @@ func TestFinalizeCapabilityResponseUsesRecordedNoticeMultiStepWorkflowRun(t *tes
 					"sources": []any{map[string]any{"doc_id": "handbook:rule-001"}},
 				},
 			},
-			"capability_observability": map[string]any{
-				"selected_tool": "retrieval.query",
+			"tool_observability": map[string]any{
+				"selected_tool": "knowledge_query",
 			},
 		},
 		"trace-finalizer-multi-step",
 		executionFinalizerContext{
 			Branch:       "multi_step",
-			SelectedTool: "retrieval.query",
+			SelectedTool: "knowledge_query",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
 				ScopeGateDecision:     "delegate",
 				PolicyGateDecision:    "delegate",
 				ContextPreflightState: "resolved",
 				RoutingNextAction:     "delegate",
 				PlanningOutcome:       "preplanned",
-				SelectedCapability:    "knowledge",
-				SelectedTool:          "retrieval.query",
+				SelectedTool:          "knowledge_query",
 			},
 			WorkflowRun: &workflowRun,
 		},
@@ -242,19 +240,19 @@ func TestFinalizeCapabilityResponseUsesRecordedNoticeMultiStepWorkflowRun(t *tes
 	if !ok || len(handoffChain) != 2 {
 		t.Fatalf("handoff_chain = %#v, want two handoffs", traceSummary["handoff_chain"])
 	}
-	if handoffChain[0]["capability"] != "notice" || handoffChain[1]["capability"] != "knowledge" {
+	if handoffChain[0]["tool"] != "campus_notice_get" || handoffChain[1]["tool"] != "knowledge_query" {
 		t.Fatalf("handoff_chain = %#v, want notice -> rag", handoffChain)
 	}
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
-	if !ok || len(selectedTools) != 1 || selectedTools[0] != "retrieval.query" {
+	if !ok || len(selectedTools) != 1 || selectedTools[0] != "knowledge_query" {
 		t.Fatalf("selected_tools = %#v, want retrieval query only", traceSummary["selected_tools"])
 	}
 	toolCallSummaries, ok := traceSummary["tool_call_summaries"].([]map[string]any)
 	if !ok || len(toolCallSummaries) != 1 {
 		t.Fatalf("tool_call_summaries = %#v, want one recorded tool summary", traceSummary["tool_call_summaries"])
 	}
-	if toolCallSummaries[0]["tool_name"] != "retrieval.query" ||
-		toolCallSummaries[0]["step_id"] != "capability:knowledge:rag_request" {
+	if toolCallSummaries[0]["tool_name"] != "knowledge_query" ||
+		toolCallSummaries[0]["step_id"] != "tool:knowledge:rag_request" {
 		t.Fatalf("tool_call_summaries[0] = %#v, want recorded rag tool summary", toolCallSummaries[0])
 	}
 }

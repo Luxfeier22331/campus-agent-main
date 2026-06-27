@@ -40,11 +40,11 @@ func primaryAgentReplanReason(agent ExecutePrimaryAgentActivityOutput) string {
 	return "bounded_replan_after_primary_agent_failed"
 }
 
-func workflowFailureAllowsReplan(step CapabilityBranchStep, err error) bool {
+func workflowFailureAllowsReplan(step ToolBranchStep, err error) bool {
 	if err == nil {
 		return false
 	}
-	if step.Capability == "knowledge" {
+	if step.ToolTarget == "knowledge_query" {
 		return true
 	}
 	failure := sanitizeWorkflowFailure(err)
@@ -64,12 +64,12 @@ func failCloseReasonFromWorkflowFailure(failure string) string {
 	return strings.TrimSpace(remainder)
 }
 
-func reasonForReplanFailure(step CapabilityBranchStep, err error) string {
-	if step.Capability == "knowledge" {
+func reasonForReplanFailure(step ToolBranchStep, err error) string {
+	if step.ToolTarget == "knowledge_query" {
 		return "knowledge_branch_failed"
 	}
 	if step.ToolName != "" {
 		return "typed_tool_failed"
 	}
-	return "capability_branch_failed"
+	return "tool_branch_failed"
 }

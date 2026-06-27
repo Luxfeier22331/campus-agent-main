@@ -89,7 +89,7 @@ campus-web composer
 -> app-api attachment metadata
 -> /api/chat/requests/stream text + attachment_refs
 -> execution-control bounded attachment projection
--> agent.primary / typed capability / provider-facing activity
+-> agent.primary / typed tool / provider-facing activity
 -> finalization.write
 ```
 
@@ -144,7 +144,7 @@ runtime-only metadata 不得进入 prompt。
 
 ### 6.1 前端 composer
 
-- 附件入口只在后端 capability ready 时展示。
+- 附件入口只在后端 tool-ready 时展示。
 - 添加附件后必须显示上传进度、成功状态或错误状态。
 - 发送消息前，所有附件必须处于 `ready` 状态。
 - 不支持的 MIME、过大文件或超过数量限制时，前端应阻止并展示用户可理解错误。
@@ -187,7 +187,7 @@ execution-control 应把附件作为本轮 run context 的一个 typed slice，�
 - primary agent 接收附件摘要、可见类型和可用能力提示。
 - provider-facing activity 根据 provider profile 决定是否构造 `input_image` 或 `input_file`。
 - provider 不支持图片/文件输入时，返回 typed unsupported/fail-close 结果。
-- step projection 记录附件数量、类型、处理状态、provider capability 和失败原因，不记录 raw 内容。
+- step projection 记录附件数量、类型、处理状态、provider input support 和失败原因，不记录 raw 内容。
 
 ### 6.5 图片处理
 

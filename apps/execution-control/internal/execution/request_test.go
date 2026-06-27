@@ -37,8 +37,8 @@ func TestParseAnswerRequestProjectsBearerRequestIntoExecutionPayload(t *testing.
 	if request.RequestID != "req-001" {
 		t.Fatalf("request id = %q, want req-001", request.RequestID)
 	}
-	if request.Lane != "rag" {
-		t.Fatalf("lane = %q, want rag", request.Lane)
+	if request.TaskQueue != "campus-agent.workflow" {
+		t.Fatalf("task_queue = %q, want campus-agent.workflow", request.TaskQueue)
 	}
 
 	payload := decodeExecutionPayload(t, request.Payload)
@@ -264,7 +264,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T
 			"user_goal":"那大一能不能申请？",
 			"conversation_id":"conv_transfer_001",
 			"request_id":"req-trusted-worker-conversation-context",
-			"requested_capability":"knowledge",
+			"requested_tool":"knowledge_query",
 			"tenant_id":"tenant-main",
 			"context":{
 				"actor":{
@@ -317,11 +317,11 @@ func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T
 							"snippet":"学生申请转专业应符合学校规定的年级、成绩、名额及学院审核要求。"
 						}
 					],
-					"previous_capability_results":[
+					"previous_tool_results":[
 						{
 							"request_id":"req_previous_services",
 							"run_id":"run_previous_services",
-							"capability":"campus_services",
+							"tool":"transport_schedule_lookup",
 							"result_kind":"final_response",
 							"projection_ref":"projection://runs/run_previous_services/finalization",
 							"content_hash":"sha256:previous-service-result",
@@ -331,7 +331,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T
 					],
 					"session_state":{"confirmed_slots":[{"name":"policy_topic","value":"转专业","confirmed":true}],"turn_count":3},
 					"visibility":{
-						"model_visible":["current_user_message","recent_turns","previous_answer_summary","previous_evidence_refs","previous_capability_results","session_state"],
+						"model_visible":["current_user_message","recent_turns","previous_answer_summary","previous_evidence_refs","previous_tool_results","session_state"],
 						"runtime_only":["schema_version","conversation_id","user_message_id","parent_message_id","memory_recall","source_attribution","budget","truncation"]
 					},
 					"memory_recall":{"gate_field":"context.memory.enabled","owner":"execution-control","runtime":"hindsight"},
@@ -369,11 +369,11 @@ func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T
 	if !ok || len(evidenceRefs) != 1 {
 		t.Fatalf("previous_evidence_refs = %#v, want one ref", conversation["previous_evidence_refs"])
 	}
-	capabilityResults, ok := conversation["previous_capability_results"].([]any)
-	if !ok || len(capabilityResults) != 1 {
-		t.Fatalf("previous_capability_results = %#v, want one ref", conversation["previous_capability_results"])
+	toolResults, ok := conversation["previous_tool_results"].([]any)
+	if !ok || len(toolResults) != 1 {
+		t.Fatalf("previous_tool_results = %#v, want one ref", conversation["previous_tool_results"])
 	}
-	result := expectExecutionRecord(t, capabilityResults[0], "previous_capability_results[0]")
+	result := expectExecutionRecord(t, toolResults[0], "previous_tool_results[0]")
 	if result["projection_ref"] != "projection://runs/run_previous_services/finalization" {
 		t.Fatalf("projection_ref = %v", result["projection_ref"])
 	}
@@ -396,7 +396,7 @@ func TestParseAnswerRequestRejectsConversationContextIdentityMismatch(t *testing
 					"current_user_message":{"role":"user","content":"那大一能不能申请？"},
 					"recent_turns":[],
 					"previous_evidence_refs":[],
-					"previous_capability_results":[],
+					"previous_tool_results":[],
 					"session_state":{"confirmed_slots":[],"turn_count":1},
 					"visibility":{"model_visible":["current_user_message"],"runtime_only":["budget"]},
 					"memory_recall":{"gate_field":"context.memory.enabled","owner":"execution-control","runtime":"hindsight"},
@@ -477,14 +477,14 @@ func TestParseAnswerRequestRejectsInvalidSafetyIdentifier(t *testing.T) {
 	}
 }
 
-func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T) {
+func TestParseAnswerRequestMapsForwardToolHintsToTaskQueues(t *testing.T) {
 	tests := []struct {
 		name       string
-		capability string
-		wantLane   string
+		toolTarget string
+		wantQueue  string
 	}{
-		{name: "campus services", capability: "campus_services", wantLane: "campus_services"},
-		{name: "notice", capability: "notice", wantLane: "notice"},
+		{name: "campus services", toolTarget: "transport_schedule_lookup", wantQueue: "campus-agent.workflow"},
+		{name: "notice", toolTarget: "campus_notice_discover", wantQueue: "campus-agent.workflow"},
 	}
 
 	for _, tt := range tests {
@@ -492,8 +492,8 @@ func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T)
 			request, httpErr := ParseAnswerRequest(
 				json.RawMessage(`{
 					"user_goal":"校车时刻表",
-					"request_id":"req-forward-capability",
-					"requested_capability":"`+tt.capability+`"
+					"request_id":"req-forward-tool",
+					"requested_tool":"`+tt.toolTarget+`"
 				}`),
 				map[string]string{
 					"authorization": "Bearer secret-token",
@@ -508,23 +508,23 @@ func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T)
 			if httpErr != nil {
 				t.Fatalf("unexpected http error: %#v", httpErr)
 			}
-			if request.Lane != tt.wantLane {
-				t.Fatalf("lane = %q, want %q", request.Lane, tt.wantLane)
+			if request.TaskQueue != tt.wantQueue {
+				t.Fatalf("task_queue = %q, want %q", request.TaskQueue, tt.wantQueue)
 			}
 			payload := decodeExecutionPayload(t, request.Payload)
-			if payload["requested_capability"] != tt.capability {
-				t.Fatalf("requested_capability = %v, want %q", payload["requested_capability"], tt.capability)
+			if payload["requested_tool"] != tt.toolTarget {
+				t.Fatalf("requested_tool = %v, want %q", payload["requested_tool"], tt.toolTarget)
 			}
 		})
 	}
 }
 
-func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T) {
+func TestParseAnswerRequestRejectsRetiredAcademicCalendarTool(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"今天第几教学周",
 			"request_id":"req-retired-academic-calendar",
-			"requested_capability":"academic_calendar"
+			"requested_tool":"academic_calendar"
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
@@ -537,7 +537,7 @@ func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T
 	)
 
 	if httpErr == nil {
-		t.Fatal("expected retired academic_calendar capability to fail closed")
+		t.Fatal("expected retired academic_calendar tool to fail closed")
 		return
 	}
 	if httpErr.Code != "invalid_request" {
@@ -545,7 +545,7 @@ func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T
 	}
 }
 
-func TestParseAnswerRequestKeepsOrdinaryChatCapabilityNeutralBeforePrimaryAgent(t *testing.T) {
+func TestParseAnswerRequestKeepsOrdinaryChatToolNeutralBeforePrimaryAgent(t *testing.T) {
 	tests := []struct {
 		name     string
 		userGoal string
@@ -580,7 +580,7 @@ func TestParseAnswerRequestKeepsOrdinaryChatCapabilityNeutralBeforePrimaryAgent(
 		t.Run(tt.name, func(t *testing.T) {
 			rawBody, err := json.Marshal(map[string]string{
 				"user_goal":  tt.userGoal,
-				"request_id": "req-infer-capability",
+				"request_id": "req-infer-tool",
 			})
 			if err != nil {
 				t.Fatalf("marshal body: %v", err)
@@ -600,18 +600,18 @@ func TestParseAnswerRequestKeepsOrdinaryChatCapabilityNeutralBeforePrimaryAgent(
 			if httpErr != nil {
 				t.Fatalf("unexpected http error: %#v", httpErr)
 			}
-			if request.RequestedCapability != "" {
-				t.Fatalf("requested capability = %q, want empty before primary agent", request.RequestedCapability)
+			if request.RequestedTool != "" {
+				t.Fatalf("requested tool = %q, want empty before primary agent", request.RequestedTool)
 			}
-			if request.Lane != "default" {
-				t.Fatalf("lane = %q, want default before primary agent", request.Lane)
+			if request.TaskQueue != "campus-agent.workflow" {
+				t.Fatalf("task_queue = %q, want campus-agent.workflow before primary agent", request.TaskQueue)
 			}
 			payload := decodeExecutionPayload(t, request.Payload)
-			if _, ok := payload["requested_capability"]; ok {
-				t.Fatalf("ordinary chat must not project requested_capability before primary agent: %#v", payload)
+			if _, ok := payload["requested_tool"]; ok {
+				t.Fatalf("ordinary chat must not project requested_tool before primary agent: %#v", payload)
 			}
-			if payload["effective_capability"] != "" {
-				t.Fatalf("effective_capability = %v, want empty before primary agent", payload["effective_capability"])
+			if payload["effective_tool"] != "" {
+				t.Fatalf("effective_tool = %v, want empty before primary agent", payload["effective_tool"])
 			}
 		})
 	}

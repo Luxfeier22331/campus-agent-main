@@ -11,7 +11,7 @@ from campus_evals.eval_profile_gate import (
     run_document_quality_profile_gate,
     run_eval_operations_governance_profile_gate,
     run_online_answer_path_profile_gate,
-    run_tool_family_denominator_profile_gate,
+    run_tool_denominator_profile_gate,
 )
 from campus_evals.eval_profile_gate_loading import _load_json
 from campus_evals.eval_profile_gate_models import EvalProfileGateReport
@@ -21,8 +21,8 @@ def online_answer_path_main(argv: Sequence[str] | None = None) -> int:
     return _profile_main("online_answer_path", argv)
 
 
-def tool_family_denominator_main(argv: Sequence[str] | None = None) -> int:
-    return _profile_main("tool_family_denominator", argv)
+def tool_denominator_main(argv: Sequence[str] | None = None) -> int:
+    return _profile_main("tool_denominator", argv)
 
 
 def document_quality_main(argv: Sequence[str] | None = None) -> int:
@@ -75,8 +75,8 @@ def _run_profile_from_args(
             observations_path=observations_path,
             collect_runtime=bool(args.collect_runtime),
         )
-    if profile_id == "tool_family_denominator":
-        return run_tool_family_denominator_profile_gate(
+    if profile_id == "tool_denominator":
+        return run_tool_denominator_profile_gate(
             output_dir=output_dir,
             cases_path=cases_path,
             observations_path=observations_path,
@@ -135,5 +135,5 @@ __all__ = [
     "document_quality_main",
     "eval_operations_governance_main",
     "online_answer_path_main",
-    "tool_family_denominator_main",
+    "tool_denominator_main",
 ]

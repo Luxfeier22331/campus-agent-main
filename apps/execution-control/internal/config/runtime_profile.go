@@ -20,12 +20,11 @@ type runtimeConfigProfile struct {
 	IntentPolicyPath         *string                         `json:"intent_policy_path,omitempty"`
 	ProviderPricingPath      *string                         `json:"provider_pricing_path,omitempty"`
 	QueryServingScopesPath   *string                         `json:"query_serving_scopes_path,omitempty"`
-	StructuredQueryTimeoutMS *int                            `json:"structured_query_timeout_ms,omitempty"`
-	OpenCapabilities         []string                        `json:"open_capabilities,omitempty"`
+	ToolReadModelTimeoutMS   *int                            `json:"tool_read_model_timeout_ms,omitempty"`
+	OpenTools                []string                        `json:"open_tools,omitempty"`
 	MultiStepWorkflowEnabled *bool                           `json:"multi_step_workflow_enabled,omitempty"`
 	OTel                     *runtimeConfigProfileOTel       `json:"otel,omitempty"`
 	ExecutionAudit           *runtimeConfigProfileAudit      `json:"execution_audit,omitempty"`
-	LaneBudgets              map[string]runtimeProfileBudget `json:"lane_budgets,omitempty"`
 	RAG                      *runtimeConfigProfileRAG        `json:"rag,omitempty"`
 	PersonalMemory           *runtimeConfigProfileMemory     `json:"personal_memory,omitempty"`
 	WorkerProfiles           map[string]runtimeProfileWorker `json:"worker_profiles,omitempty"`
@@ -50,12 +49,6 @@ type runtimeConfigProfileAudit struct {
 	URL          *string `json:"url,omitempty"`
 	SharedSecret *string `json:"shared_secret,omitempty"`
 	TimeoutMS    *int    `json:"timeout_ms,omitempty"`
-}
-
-type runtimeProfileBudget struct {
-	MaxConcurrent  *int `json:"max_concurrent,omitempty"`
-	QueueCapacity  *int `json:"queue_capacity,omitempty"`
-	QueueTimeoutMS *int `json:"queue_timeout_ms,omitempty"`
 }
 
 type runtimeConfigProfileRAG struct {
@@ -130,7 +123,7 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 		{"queue_timeout_ms", profile.QueueTimeoutMS},
 		{"request_timeout_ms", profile.RequestTimeoutMS},
 		{"shutdown_grace_ms", profile.ShutdownGraceMS},
-		{"structured_query_timeout_ms", profile.StructuredQueryTimeoutMS},
+		{"tool_read_model_timeout_ms", profile.ToolReadModelTimeoutMS},
 	}
 	for _, item := range requiredInts {
 		if item.value == nil {
@@ -153,8 +146,8 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 			return fmt.Errorf("execution-control runtime profile missing required field %s", item.name)
 		}
 	}
-	if profile.OpenCapabilities == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field open_capabilities")
+	if profile.OpenTools == nil {
+		return fmt.Errorf("execution-control runtime profile missing required field open_tools")
 	}
 	if profile.MultiStepWorkflowEnabled == nil {
 		return fmt.Errorf("execution-control runtime profile missing required field multi_step_workflow_enabled")
@@ -163,9 +156,6 @@ func validateRuntimeConfigProfileCompleteness(profile runtimeConfigProfile) erro
 		return err
 	}
 	if err := validateRuntimeConfigProfileAuditCompleteness(profile.ExecutionAudit); err != nil {
-		return err
-	}
-	if err := validateRuntimeConfigProfileLaneCompleteness(profile.LaneBudgets); err != nil {
 		return err
 	}
 	if err := validateRuntimeConfigProfileRAGCompleteness(profile.RAG); err != nil {
@@ -235,36 +225,6 @@ func validateRuntimeConfigProfileAuditCompleteness(value *runtimeConfigProfileAu
 	}
 	if value.TimeoutMS == nil {
 		return fmt.Errorf("execution-control runtime profile missing required field execution_audit.timeout_ms")
-	}
-	return nil
-}
-
-func validateRuntimeConfigProfileLaneCompleteness(values map[string]runtimeProfileBudget) error {
-	if values == nil {
-		return fmt.Errorf("execution-control runtime profile missing required field lane_budgets")
-	}
-	for _, lane := range laneNames {
-		budget, ok := values[lane]
-		if !ok {
-			return fmt.Errorf("execution-control runtime profile missing required lane_budgets.%s", lane)
-		}
-		required := []struct {
-			name  string
-			value *int
-		}{
-			{"max_concurrent", budget.MaxConcurrent},
-			{"queue_capacity", budget.QueueCapacity},
-			{"queue_timeout_ms", budget.QueueTimeoutMS},
-		}
-		for _, item := range required {
-			if item.value == nil {
-				return fmt.Errorf(
-					"execution-control runtime profile missing required lane_budgets.%s.%s",
-					lane,
-					item.name,
-				)
-			}
-		}
 	}
 	return nil
 }
@@ -355,7 +315,7 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 	applyString(&values.IntentPolicyPath, profile.IntentPolicyPath)
 	applyString(&values.ProviderPricingPath, profile.ProviderPricingPath)
 	applyString(&values.QueryServingScopesPath, profile.QueryServingScopesPath)
-	applyInt(&values.StructuredQueryTimeoutMS, profile.StructuredQueryTimeoutMS)
+	applyInt(&values.ToolReadModelTimeoutMS, profile.ToolReadModelTimeoutMS)
 	if profile.OTel != nil {
 		applyString(&values.OTelEndpoint, profile.OTel.Endpoint)
 		applyString(&values.OTelMetricsEndpoint, profile.OTel.MetricsEndpoint)
@@ -400,32 +360,6 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		applyInt(&values.PersonalMemoryRecallMaxChars, profile.PersonalMemory.RecallMaxChars)
 	}
 	return values
-}
-
-func applyRuntimeConfigProfileLaneBudgets(
-	budgets map[string]LaneBudget,
-	profile runtimeConfigProfile,
-) (map[string]LaneBudget, error) {
-	for lane, override := range profile.LaneBudgets {
-		current, ok := budgets[lane]
-		if !ok {
-			return nil, fmt.Errorf("runtime profile lane_budgets contains unsupported lane %q", lane)
-		}
-		applyInt(&current.MaxConcurrent, override.MaxConcurrent)
-		applyInt(&current.QueueCapacity, override.QueueCapacity)
-		applyInt(&current.QueueTimeoutMS, override.QueueTimeoutMS)
-		if current.MaxConcurrent <= 0 {
-			return nil, fmt.Errorf("runtime profile lane %s max_concurrent must be positive", lane)
-		}
-		if current.QueueCapacity < 0 {
-			return nil, fmt.Errorf("runtime profile lane %s queue_capacity must be non-negative", lane)
-		}
-		if current.QueueTimeoutMS <= 0 {
-			return nil, fmt.Errorf("runtime profile lane %s queue_timeout_ms must be positive", lane)
-		}
-		budgets[lane] = current
-	}
-	return budgets, nil
 }
 
 func applyRuntimeConfigProfileWorkerProfiles(
@@ -495,7 +429,7 @@ func rejectRuntimeProfileOwnedEnvSettings() error {
 		"EXECUTION_CONTROL_REQUEST_BODY_LIMIT_BYTES",
 		"EXECUTION_CONTROL_SHUTDOWN_GRACE_MS",
 		"EXECUTION_CONTROL_QUERY_SERVING_SCOPES_PATH",
-		"EXECUTION_CONTROL_OPEN_CAPABILITIES",
+		"EXECUTION_CONTROL_OPEN_TOOLS",
 		"EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED",
 		"EXECUTION_CONTROL_OTEL_ENABLED",
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_ENDPOINT",
@@ -530,11 +464,8 @@ func rejectRuntimeProfileOwnedEnvSettings() error {
 			return fmt.Errorf("%s is retired; use EXECUTION_CONTROL_RUNTIME_CONFIG_PATH", name)
 		}
 	}
-	for _, lane := range laneNames {
-		prefix := "EXECUTION_CONTROL_LANE_" + strings.ToUpper(lane) + "_"
-		if err := rejectEnvPrefix(prefix); err != nil {
-			return err
-		}
+	if err := rejectEnvPrefix("EXECUTION_CONTROL_LANE_"); err != nil {
+		return err
 	}
 	for _, role := range []string{
 		"WORKFLOW",

@@ -10,7 +10,7 @@ from unittest.mock import patch
 from scripts.execution_control_process_smoke import build_process_smoke_plan
 
 _PROFILE_OWNED_ENV_KEYS = {
-    "EXECUTION_CONTROL_OPEN_CAPABILITIES",
+    "EXECUTION_CONTROL_OPEN_TOOLS",
     "EXECUTION_CONTROL_MULTI_STEP_WORKFLOW_ENABLED",
     "EXECUTION_CONTROL_OTEL_ENABLED",
     "EXECUTION_CONTROL_EXECUTION_AUDIT_ENABLED",
@@ -40,7 +40,7 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
             self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
             profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
             runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
-            self.assertEqual(runtime_profile["open_capabilities"], ["notice"])
+            self.assertEqual(runtime_profile["open_tools"], ["campus_notice_discover"])
             self.assertFalse(runtime_profile["otel"]["enabled"])
             self.assertFalse(runtime_profile["execution_audit"]["enabled"])
 
@@ -59,7 +59,7 @@ class ExecutionControlProcessSmokePlanTest(unittest.TestCase):
             self.assertTrue(_RETIRED_PROMPT_ENV_KEYS.isdisjoint(env))
             profile_path = Path(env["EXECUTION_CONTROL_RUNTIME_CONFIG_PATH"])
             runtime_profile = json.loads(profile_path.read_text(encoding="utf-8"))
-            self.assertEqual(runtime_profile["open_capabilities"], ["campus_services"])
+            self.assertEqual(runtime_profile["open_tools"], ["transport_schedule_lookup"])
             self.assertTrue(runtime_profile["multi_step_workflow_enabled"])
 
 

@@ -45,18 +45,18 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "full_body_forbidden must be true"):
             NoticeDisplayPolicy(full_body_forbidden=False)
 
-    def test_agent_request_rejects_notice_get_as_capability_facing_allowed_tool(self) -> None:
+    def test_agent_request_rejects_notice_get_as_tool_facing_allowed_tool(self) -> None:
         with self.assertRaisesRegex(ValueError, "unsupported allowed_tool: campus_notice_get"):
-            CapabilityRequest(
-                capability="notice",
+            ToolRequest(
+                tool="campus_notice_get",
                 user_goal="打开这条通知",
                 payload=CampusNoticeGetPayload(notice_id="notice:muc-spring-break-2026"),
                 allowed_tools=("campus_notice_get",),  # type: ignore[arg-type]
             )
 
     def test_agent_request_accepts_transport_schedule_payload(self) -> None:
-        request = CapabilityRequest(
-            capability="campus_services",
+        request = ToolRequest(
+            tool="transport_schedule_lookup",
             user_goal="校车下一班几点",
             payload=TransportScheduleLookupPayload(
                 query_text="校车下一班几点",
@@ -80,9 +80,9 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
             },
         )
 
-    def test_capability_response_serializes_notice_get_result_shape(self) -> None:
-        response = CapabilityResponse(
-            capability="knowledge",
+    def test_tool_response_serializes_notice_get_result_shape(self) -> None:
+        response = ToolResponse(
+            tool="knowledge_query",
             status="completed",
             answer_text="这是当前可确认的春假通知正文。",
             confidence="high",
@@ -118,8 +118,8 @@ class ContractModelsServicesAndNoticeSuitePart02(unittest.TestCase):
 
     def test_agent_request_rejects_missing_payload(self) -> None:
         with self.assertRaises(TypeError):
-            CapabilityRequest(  # type: ignore[call-arg]
-                capability="knowledge",
+            ToolRequest(  # type: ignore[call-arg]
+                tool="knowledge_query",
                 user_goal="library hours",
             )
 

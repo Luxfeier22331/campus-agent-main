@@ -27,15 +27,9 @@ def _execution_control_required_env() -> list[str]:
         "EXECUTION_CONTROL_TEMPORAL_TASK_QUEUE=campus-agent.workflow",
         "EXECUTION_CONTROL_TEMPORAL_WORKER_IDENTITY=staging:execution-control:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_WORKER_IDENTITY=staging:workflow-worker:001",
-        "EXECUTION_CONTROL_TEMPORAL_CONTEXT_WORKER_IDENTITY=staging:activity-context:001",
+        "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY=staging:activity-core:001",
         "EXECUTION_CONTROL_TEMPORAL_AGENT_WORKER_IDENTITY=staging:activity-agent:001",
-        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY=staging:activity-knowledge-plan:001",
-        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY=staging:activity-knowledge-retrieval:001",
-        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY=staging:activity-knowledge-synthesis:001",
-        "EXECUTION_CONTROL_TEMPORAL_CAMPUS_SERVICES_WORKER_IDENTITY=staging:activity-campus-services:001",
-        "EXECUTION_CONTROL_TEMPORAL_NOTICE_WORKER_IDENTITY=staging:activity-notice:001",
-        "EXECUTION_CONTROL_TEMPORAL_NAVIGATION_WORKER_IDENTITY=staging:activity-navigation:001",
-        "EXECUTION_CONTROL_TEMPORAL_FINALIZATION_WORKER_IDENTITY=staging:activity-finalization:001",
+        "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY=staging:activity-knowledge:001",
         "EXECUTION_CONTROL_TEMPORAL_WORKFLOW_ID_SALT=workflow-salt",
         "EXECUTION_CONTROL_TEMPORAL_START_TIMEOUT_MS=5000",
     ]
@@ -44,7 +38,7 @@ def _execution_control_required_env() -> list[str]:
 def _write_execution_control_runtime_profile(
     repo_root: Path,
     *,
-    open_capabilities: list[str] | None = None,
+    open_tools: list[str] | None = None,
     execution_audit_enabled: bool = False,
 ) -> None:
     _write(
@@ -52,7 +46,7 @@ def _write_execution_control_runtime_profile(
         json.dumps(
             {
                 "schema_version": "campus_execution_control_runtime_profile.v1",
-                "open_capabilities": open_capabilities or [],
+                "open_tools": open_tools or [],
                 "execution_audit": {"enabled": execution_audit_enabled},
             }
         )
@@ -168,16 +162,12 @@ class DoctorEnvTest(unittest.TestCase):
                 "EXECUTION_CONTROL_TEMPORAL_ADDRESS",
             )
             self.assertEqual(
-                required["temporal_knowledge_plan_worker_identity"]["resolved_key"],
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_PLAN_WORKER_IDENTITY",
+                required["temporal_knowledge_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_WORKER_IDENTITY",
             )
             self.assertEqual(
-                required["temporal_knowledge_retrieval_worker_identity"]["resolved_key"],
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_RETRIEVAL_WORKER_IDENTITY",
-            )
-            self.assertEqual(
-                required["temporal_knowledge_synthesis_worker_identity"]["resolved_key"],
-                "EXECUTION_CONTROL_TEMPORAL_KNOWLEDGE_SYNTHESIS_WORKER_IDENTITY",
+                required["temporal_core_worker_identity"]["resolved_key"],
+                "EXECUTION_CONTROL_TEMPORAL_CORE_WORKER_IDENTITY",
             )
             self.assertEqual(
                 optional["internal_query_shared_secret"]["resolved_key"],
@@ -186,8 +176,8 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertEqual(status["providers"], {})
             self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
             self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
-            self.assertTrue(status["conditions"]["structured_runtime_contract"]["ready"])
-            self.assertFalse(status["conditions"]["structured_runtime_contract"]["required"])
+            self.assertTrue(status["conditions"]["tool_read_model_runtime_contract"]["ready"])
+            self.assertFalse(status["conditions"]["tool_read_model_runtime_contract"]["required"])
             self.assertTrue(status["conditions"]["notice_runtime_contract"]["ready"])
             self.assertFalse(status["conditions"]["notice_runtime_contract"]["required"])
             self.assertTrue(status["conditions"]["otel_axiom_collector_endpoint_contract"]["ready"])
@@ -248,17 +238,7 @@ class DoctorEnvTest(unittest.TestCase):
             )
             self.assertFalse(status["settings"]["required"]["temporal_address"]["present"])
             self.assertFalse(
-                status["settings"]["required"]["temporal_knowledge_plan_worker_identity"]["present"]
-            )
-            self.assertFalse(
-                status["settings"]["required"]["temporal_knowledge_retrieval_worker_identity"][
-                    "present"
-                ]
-            )
-            self.assertFalse(
-                status["settings"]["required"]["temporal_knowledge_synthesis_worker_identity"][
-                    "present"
-                ]
+                status["settings"]["required"]["temporal_knowledge_worker_identity"]["present"]
             )
 
     def test_collect_env_doctor_status_execution_control_enforces_execution_audit_when_enabled(
@@ -291,7 +271,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertIn("EXECUTION_CONTROL_EXECUTION_AUDIT_URL", condition["error"])
             self.assertIn("EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET", condition["error"])
 
-    def test_collect_env_doctor_status_execution_control_enforces_structured_runtime_when_opened(
+    def test_collect_env_doctor_status_execution_control_enforces_tool_read_model_runtime_when_opened(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -307,7 +287,7 @@ class DoctorEnvTest(unittest.TestCase):
                 + "\n",
             )
             _write_execution_control_runtime_profile(
-                repo_root, open_capabilities=["campus_services"]
+                repo_root, open_tools=["transport_schedule_lookup"]
             )
 
             with patch.dict(os.environ, {}, clear=True):
@@ -317,7 +297,7 @@ class DoctorEnvTest(unittest.TestCase):
                 )
 
             self.assertFalse(status["overall_ready"])
-            condition = status["conditions"]["structured_runtime_contract"]
+            condition = status["conditions"]["tool_read_model_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
             self.assertIn("EXECUTION_CONTROL_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
@@ -340,7 +320,10 @@ class DoctorEnvTest(unittest.TestCase):
                 )
                 + "\n",
             )
-            _write_execution_control_runtime_profile(repo_root, open_capabilities=["notice"])
+            _write_execution_control_runtime_profile(
+                repo_root,
+                open_tools=["campus_notice_discover"],
+            )
 
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(

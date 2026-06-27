@@ -11,7 +11,7 @@ func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error
 			WorkflowTaskPollers: 2,
 			WorkflowTaskSlots:   16,
 		},
-		"activity-context": {
+		"activity-core": {
 			ActivitySlots:       8,
 			ActivityTaskPollers: 2,
 		},
@@ -19,32 +19,8 @@ func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error
 			ActivitySlots:       4,
 			ActivityTaskPollers: 2,
 		},
-		"activity-knowledge-plan": {
-			ActivitySlots:       16,
-			ActivityTaskPollers: 2,
-		},
-		"activity-knowledge-retrieval": {
-			ActivitySlots:       values.RAGRetrievalMaxConcurrent,
-			ActivityTaskPollers: 2,
-		},
-		"activity-knowledge-synthesis": {
-			ActivitySlots:       values.RAGSynthesisMaxConcurrent,
-			ActivityTaskPollers: 1,
-		},
-		"activity-campus-services": {
-			ActivitySlots:       8,
-			ActivityTaskPollers: 2,
-		},
-		"activity-notice": {
-			ActivitySlots:       8,
-			ActivityTaskPollers: 2,
-		},
-		"activity-navigation": {
-			ActivitySlots:       8,
-			ActivityTaskPollers: 2,
-		},
-		"activity-finalization": {
-			ActivitySlots:       8,
+		"activity-knowledge": {
+			ActivitySlots:       maxInt(8, values.RAGRetrievalMaxConcurrent+values.RAGSynthesisMaxConcurrent+2),
 			ActivityTaskPollers: 2,
 		},
 	}
@@ -62,4 +38,11 @@ func readWorkerProfilesStrict(values envValues) (map[string]WorkerProfile, error
 
 func envRoleName(role string) string {
 	return strings.ToUpper(strings.ReplaceAll(strings.TrimSpace(role), "-", "_"))
+}
+
+func maxInt(left int, right int) int {
+	if left > right {
+		return left
+	}
+	return right
 }

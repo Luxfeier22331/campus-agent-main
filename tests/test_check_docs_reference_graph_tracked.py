@@ -14,7 +14,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
     def test_active_doc_rejects_historical_reference_without_context(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            active = root / "docs" / "architecture" / "current-architecture.md"
+            active = root / "docs" / "architecture" / "current.md"
             historical = root / "docs" / "reference" / "old-contract.md"
             active.parent.mkdir(parents=True)
             historical.parent.mkdir(parents=True)
@@ -48,7 +48,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
                 audit_docs_reference_graph(root=root),
                 (
                     DocsReferenceGraphIssue(
-                        path="docs/architecture/current-architecture.md",
+                        path="docs/architecture/current.md",
                         target="docs/reference/old-contract.md",
                         message="active document references historical document without historical context",
                     ),
@@ -58,7 +58,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
     def test_active_doc_rejects_missing_markdown_reference(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            active = root / "docs" / "architecture" / "current-architecture.md"
+            active = root / "docs" / "architecture" / "current.md"
             active.parent.mkdir(parents=True)
             active.write_text(
                 "---\n"
@@ -78,7 +78,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
                 audit_docs_reference_graph(root=root),
                 (
                     DocsReferenceGraphIssue(
-                        path="docs/architecture/current-architecture.md",
+                        path="docs/architecture/current.md",
                         target="docs/architecture/system/missing-owner.md",
                         message="active document references missing markdown file",
                     ),
@@ -210,7 +210,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
     def test_active_doc_allows_superseded_adr_with_historical_context(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
-            active = root / "docs" / "architecture" / "target-architecture.md"
+            active = root / "docs" / "architecture" / "target.md"
             superseded = root / "docs" / "decisions" / "adr-0001-old.md"
             active.parent.mkdir(parents=True)
             superseded.parent.mkdir(parents=True)

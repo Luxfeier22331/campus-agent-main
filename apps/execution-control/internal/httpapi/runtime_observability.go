@@ -11,14 +11,13 @@ import (
 
 func (s *Server) recordRuntimeDecision(request execution.AnswerExecutionRequest) {
 	s.metrics.RecordRuntimeDecision(observability.RuntimeDecisionLabels{
-		Capability:            request.RequestedCapability,
-		Lane:                  request.Lane,
+		Target:                request.RequestedTool,
+		TaskQueue:             request.TaskQueue,
 		ScopeGate:             request.RuntimeDecisions.ScopeGateDecision,
 		PolicyGate:            request.RuntimeDecisions.PolicyGateDecision,
 		ContextPreflightState: request.RuntimeDecisions.ContextPreflightState,
 		RoutingNextAction:     request.RuntimeDecisions.RoutingNextAction,
 		PlanningOutcome:       request.RuntimeDecisions.PlanningOutcome,
-		SelectedCapability:    request.RuntimeDecisions.SelectedCapability,
 		SelectedTool:          request.RuntimeDecisions.SelectedTool,
 		TerminalOutcome:       request.RuntimeDecisions.TerminalOutcome,
 		FailCloseReason:       request.RuntimeDecisions.FailCloseReason,
@@ -35,8 +34,8 @@ func runtimeTelemetryEvent(
 	event.PolicyGateDecision = request.RuntimeDecisions.PolicyGateDecision
 	event.RoutingNextAction = request.RuntimeDecisions.RoutingNextAction
 	event.ScopeGateDecision = request.RuntimeDecisions.ScopeGateDecision
-	event.SelectedCapability = request.RuntimeDecisions.SelectedCapability
 	event.SelectedTool = request.RuntimeDecisions.SelectedTool
+	event.TaskQueue = request.RuntimeDecisions.TaskQueue
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason
 	event.UserID = request.OwnerUserID
@@ -66,7 +65,6 @@ func runtimeAuditEvent(
 	event.PolicyGateDecision = request.RuntimeDecisions.PolicyGateDecision
 	event.RoutingNextAction = request.RuntimeDecisions.RoutingNextAction
 	event.ScopeGateDecision = request.RuntimeDecisions.ScopeGateDecision
-	event.SelectedCapability = request.RuntimeDecisions.SelectedCapability
 	event.SelectedTool = request.RuntimeDecisions.SelectedTool
 	event.TerminalOutcome = request.RuntimeDecisions.TerminalOutcome
 	event.FailCloseReason = request.RuntimeDecisions.FailCloseReason

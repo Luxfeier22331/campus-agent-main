@@ -9,9 +9,9 @@ on:
         type: choice
         options:
           - campus-services-product-path
-          - multi-agent-runtime-contract
+          - tool-runtime-contract
           - online-answer-path
-          - tool-family-denominator
+          - tool-denominator
           - tool-routing-product-path
           - document-quality
           - authz-privacy
@@ -131,7 +131,7 @@ jobs:
 
       - name: Capability execution contract generation check
         run: |
-          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.generate_capability_execution_contracts --check
+          env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m scripts.generate_tool_execution_contracts --check
 
       - name: Eval accept
         id: accept

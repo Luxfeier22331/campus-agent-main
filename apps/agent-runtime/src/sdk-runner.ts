@@ -537,7 +537,6 @@ function isToolExecutionResult(value: unknown): value is ToolExecutionResult {
 		candidate !== undefined &&
 		(candidate.status === "completed" || candidate.status === "failed") &&
 		typeof candidate.toolName === "string" &&
-		typeof candidate.capability === "string" &&
 		typeof candidate.payloadKind === "string" &&
 		(candidate.argumentsJson === undefined ||
 			recordFromUnknown(candidate.argumentsJson) !== undefined) &&

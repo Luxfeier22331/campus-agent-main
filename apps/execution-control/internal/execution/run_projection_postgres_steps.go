@@ -23,14 +23,14 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 	_, err = s.pool.Exec(
 		ctx,
 		`insert into runtime.agent_run_steps (
-			step_id, run_id, conversation_id, step_kind, capability, parent_step_id,
+			step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
 			status, task_queue, worker_id, started_at, completed_at, updated_at,
 			payload_schema_version, sanitized_payload_json
 		) values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 		on conflict (run_id, step_id) do update set
 			conversation_id = excluded.conversation_id,
 			step_kind = excluded.step_kind,
-			capability = excluded.capability,
+			tool = excluded.tool,
 			parent_step_id = excluded.parent_step_id,
 			status = excluded.status,
 			task_queue = excluded.task_queue,
@@ -44,7 +44,7 @@ func (s *PostgresRunProjectionStore) UpsertRunStep(
 		step.RunID,
 		step.ConversationID,
 		step.StepKind,
-		step.Capability,
+		step.Tool,
 		step.ParentStepID,
 		step.Status,
 		step.TaskQueue,
@@ -221,7 +221,7 @@ func (s *PostgresRunProjectionStore) ListRunSteps(
 ) ([]RunStepProjection, error) {
 	rows, err := s.pool.Query(
 		ctx,
-		`select step_id, run_id, conversation_id, step_kind, capability, parent_step_id,
+		`select step_id, run_id, conversation_id, step_kind, tool, parent_step_id,
 			status, task_queue, worker_id, started_at, completed_at, updated_at,
 			payload_schema_version, sanitized_payload_json
 		from runtime.agent_run_steps
@@ -340,7 +340,7 @@ func scanRunStepProjection(row pgx.Row) (RunStepProjection, error) {
 		&step.RunID,
 		&step.ConversationID,
 		&step.StepKind,
-		&step.Capability,
+		&step.Tool,
 		&step.ParentStepID,
 		&step.Status,
 		&step.TaskQueue,

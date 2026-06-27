@@ -27,7 +27,7 @@ updated: 2026-04-12
 当前应优先阅读：
 
 - `docs/runbooks/ingestion-control-clean-target-runbook.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 
 旧 historical donor intake runbook 正文只通过 git history 追溯，不再保留

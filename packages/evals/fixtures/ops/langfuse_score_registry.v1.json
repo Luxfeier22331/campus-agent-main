@@ -277,7 +277,7 @@
 			"owner": "packages/evals",
 			"eval_kinds": ["agent_eval"],
 			"value_range": [0, 1],
-			"description": "Agent selected the expected capability/tool and avoided forbidden ones.",
+			"description": "Agent selected the expected tool/tool and avoided forbidden ones.",
 			"release_gate": false
 		},
 		{

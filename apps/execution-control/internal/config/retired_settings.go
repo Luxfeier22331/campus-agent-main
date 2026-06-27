@@ -56,6 +56,7 @@ func rejectRetiredPromptRuntimeSettings() error {
 		"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS",
 		"PROMPT_STRICT_STRUCTURED_OUTPUTS",
 		"EXECUTION_PROMPT_MODEL",
+		"SUPERVISOR_PROMPT_MODEL",
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
@@ -93,6 +94,26 @@ func rejectRetiredPredecessorMemorySettings() error {
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {
 			return fmt.Errorf("%s is retired; use PERSONAL_MEMORY_* for Hindsight", name)
+		}
+	}
+	return nil
+}
+
+func rejectRetiredPythonBridgeSettings() error {
+	retired := []string{
+		"SUPERVISOR_AGENT_WORKER_BASE_URL",
+		"SUPERVISOR_AGENT_WORKER_SHARED_SECRET",
+		"SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES",
+		"SUPERVISOR_AGENT_WORKER_TIMEOUT_MS",
+		"SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_FAILURE_THRESHOLD",
+		"EXECUTION_CONTROL_BRIDGE_BREAKER_OPEN_MS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_MAX_ATTEMPTS",
+		"EXECUTION_CONTROL_BRIDGE_RETRY_BASE_MS",
+	}
+	for _, name := range retired {
+		if strings.TrimSpace(os.Getenv(name)) != "" {
+			return fmt.Errorf("%s is retired; use app-api provider config plus Go execution runtime", name)
 		}
 	}
 	return nil

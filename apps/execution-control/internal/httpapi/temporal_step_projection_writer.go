@@ -18,7 +18,7 @@ type temporalStepProjection struct {
 	ActivityID            string
 	ActivityType          string
 	Attempt               int
-	Capability            string
+	Tool                  string
 	CancelOutcome         execution.CancelOutcome
 	CompletedAt           time.Time
 	DurationMS            int64
@@ -86,7 +86,7 @@ func (s *Server) projectTemporalStep(ctx context.Context, projection temporalSte
 		RunID:                projection.Run.RunID,
 		ConversationID:       projection.Run.ConversationID,
 		StepKind:             projection.StepKind,
-		Capability:           projection.Capability,
+		Tool:                 projection.Tool,
 		Status:               projection.Status,
 		TaskQueue:            projection.TaskQueue,
 		WorkerID:             projection.WorkerID,
@@ -203,7 +203,6 @@ func temporalStepObservationEvent(projection temporalStepProjection) telemetry.E
 		RequestID:             strings.TrimSpace(projection.Run.RequestID),
 		RunID:                 strings.TrimSpace(projection.Run.RunID),
 		ScheduleToStart:       time.Duration(projection.ScheduleToStartMS) * time.Millisecond,
-		SelectedCapability:    firstNonEmptyText(projection.Capability, projection.Run.SelectedCapability),
 		SelectedTool:          temporalStepSelectedTool(projection),
 		Status:                strings.TrimSpace(projection.Status),
 		StepID:                strings.TrimSpace(projection.StepID),

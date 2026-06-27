@@ -16,23 +16,31 @@ RemoteContentSuspicionLabel = Literal[
 ]
 DelegateStatus = Literal["completed", "needs_clarification", "no_answer", "error"]
 ConfidenceLevel = Literal["high", "medium", "low"]
-CapabilityID = Literal[
-    "knowledge",
-    "navigation",
-    "campus_services",
-    "notice",
-]
-CapabilityToolName = Literal[
+ToolID = Literal[
+    "knowledge_query",
+    "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
     "campus_notice_period_summary",
+    "campus_notice_get",
 ]
-RequestedCapability = Literal[
-    "knowledge",
-    "navigation",
-    "campus_services",
-    "notice",
+ToolName = Literal[
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
+    "campus_notice_get",
+]
+RequestedTool = Literal[
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
 ]
 ExecutionStatus = Literal[
     "completed",
@@ -144,23 +152,31 @@ DEFAULT_REVISION_TRACK = "source-faithful"
 DEFAULT_SOURCE_CHANNEL = "pdf_ocr"
 ALLOWED_DELEGATE_STATUSES = ("completed", "needs_clarification", "no_answer", "error")
 ALLOWED_CONFIDENCE_LEVELS = ("high", "medium", "low")
-ALLOWED_CAPABILITY_IDS = (
-    "knowledge",
-    "navigation",
-    "campus_services",
-    "notice",
-)
-ALLOWED_CAPABILITY_TOOL_NAMES = (
+ALLOWED_TOOL_IDS = (
+    "knowledge_query",
+    "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
     "campus_notice_change_set_lookup",
     "campus_notice_period_summary",
+    "campus_notice_get",
 )
-ALLOWED_REQUESTED_CAPABILITIES = (
-    "knowledge",
-    "navigation",
-    "campus_services",
-    "notice",
+ALLOWED_TOOL_NAMES = (
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
+    "campus_notice_get",
+)
+ALLOWED_REQUESTED_TOOLS = (
+    "knowledge_query",
+    "place_lookup",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+    "campus_notice_change_set_lookup",
+    "campus_notice_period_summary",
 )
 ALLOWED_EXECUTION_STATUSES = (
     "completed",

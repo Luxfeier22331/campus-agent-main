@@ -18,12 +18,12 @@ function durableRun(overrides: Partial<ExecutionControlRun> = {}): ExecutionCont
 		createdAt: "2026-06-04T01:02:03.000Z",
 		failCloseReason: "",
 		finalResponseRef: "",
-		lane: "rag",
+		taskQueue: "campus-agent.workflow",
 		ownerUserId: "user_01HQ",
 		requestId: "req_01HQ",
-		requestedCapability: "knowledge",
+		requestedTool: "knowledge_query",
 		runId: "run_01HQ",
-		selectedCapability: "knowledge",
+		selectedTool: "knowledge_query",
 		startedAt: "",
 		status: "running",
 		streamingStartedAt: "",
@@ -338,7 +338,7 @@ describe("runtime run service", () => {
 			],
 			steps: [
 				{
-					capability: "any",
+					tool: "any",
 					completedAt: "2026-06-04T01:02:05.000Z",
 					conversationId: "conv_01HQ",
 					parentStepId: "",
@@ -411,7 +411,7 @@ describe("runtime run service", () => {
 			},
 			steps: [
 				{
-					capability: "any",
+					tool: "any",
 					completedAt: "2026-06-04T01:02:05.000Z",
 					conversationId: "conv_01HQ",
 					parentStepId: "",

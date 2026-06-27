@@ -68,7 +68,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: "accepted",
 					surface: input.surface,
@@ -113,18 +113,19 @@ export function createAppTelemetry(
 		async recordExecutionAuditEvent(input) {
 			await runTelemetryAsyncSideEffectWithoutRequestFailure(() =>
 				runtimeEventSink.emit({
+					activity_duration_ms: input.activityDurationMs,
 					decision: input.decision,
 					duration_ms: input.durationMs,
 					failure_kind: input.failureKind,
 					http_status: input.httpStatus,
-					lane: input.lane,
+					task_queue: input.taskQueue,
 					queue_wait_ms: input.queueWaitMs,
 					retryable: input.retryable,
 					...buildRuntimeEventEnvelope(
 						{
 							eventType: input.eventType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							status: input.status,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -187,7 +188,7 @@ export function createAppTelemetry(
 							eventType: "projection.enqueued",
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							requestedScope: input.requestedScope,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -202,7 +203,7 @@ export function createAppTelemetry(
 			runTelemetrySideEffectWithoutRequestFailure(() => {
 				applyRequestTags({
 					principalType: input.actor.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: input.status,
 					surface: input.surface,
@@ -226,7 +227,7 @@ export function createAppTelemetry(
 							eventType: "request.accepted",
 							principalType: input.actor.principalType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							requestedScope: input.requestedScope,
 							status: input.status,
 							surface: input.surface,
@@ -243,9 +244,9 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
-					selectedCapability: input.selectedCapability,
+					selectedTool: input.selectedTool,
 					status: input.status,
 					surface: input.surface,
 					traceId: input.traceId,
@@ -256,7 +257,7 @@ export function createAppTelemetry(
 					requestedScope: input.requestedScope,
 					resolvedScope: input.resolvedScope,
 					safetyIdentifier: input.safetyIdentifier,
-					selectedCapability: input.selectedCapability,
+					selectedTool: input.selectedTool,
 				});
 			});
 
@@ -275,9 +276,9 @@ export function createAppTelemetry(
 							eventType: "request.finalized",
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							requestedScope: input.requestedScope,
-							selectedCapability: input.selectedCapability,
+							selectedTool: input.selectedTool,
 							status: input.status,
 							surface: input.surface,
 							traceId: input.traceId,
@@ -293,7 +294,7 @@ export function createAppTelemetry(
 				applyRequestTags({
 					errorCode: input.errorCode,
 					principalType: input.principalType,
-					requestedCapability: input.requestedCapability,
+					requestedTool: input.requestedTool,
 					requestedScope: input.requestedScope,
 					status: "error",
 					surface: input.surface,
@@ -318,7 +319,7 @@ export function createAppTelemetry(
 							eventType: "request.transport_error",
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							requestedScope: input.requestedScope,
 							status: "error",
 							surface: input.surface,
@@ -350,9 +351,9 @@ export function createAppTelemetry(
 							occurredAt: input.sampledAt,
 							principalType: input.principalType,
 							requestId: input.requestId,
-							requestedCapability: input.requestedCapability,
+							requestedTool: input.requestedTool,
 							requestedScopeSummary: input.requestedScopeSummary,
-							selectedCapability: input.selectedCapability,
+							selectedTool: input.selectedTool,
 							surface: input.surface,
 							traceId: input.traceId,
 						},

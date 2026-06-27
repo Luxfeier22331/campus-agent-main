@@ -1,6 +1,6 @@
 ---
 doc_type: architecture
-truth_scope: capability
+truth_scope: execution
 owner_boundary: retrieval-runtime-seam
 status: active
 created: 2026-04-02
@@ -21,26 +21,26 @@ updated: 2026-06-05
 补充约束：
 
 - 当前 merged truth 的 query-enabled surface 以
-  `docs/architecture/current-architecture.md` 为准
-- 顶层 capability routing 与 surface capability policy 不在本文维护；统一看
-  `docs/architecture/system/capability-routing-and-admission-architecture.md`
+  `docs/architecture/current.md` 为准
+- 顶层 tool routing 与 surface tool policy 不在本文维护；统一看
+  `docs/architecture/system/tool-routing.md`
 - 本文负责解释 retrieval / serving 模型、internal surface 类别与长期版本查询边界，不维护 phase 顺序或
   rollout closeout
-- durable typed-tool agentic RAG 的 target truth 另见
+- durable typed-tool retrieval graph 的 target truth 另见
   `docs/architecture/system/agentic-retrieval-architecture.md`
 
-## Knowledge-Family Position
+## Knowledge Query Position
 
-本文只描述 capability routing 已进入 knowledge-family path 之后的 retrieval / serving
+本文只描述 tool routing 已进入 `knowledge_query` path 之后的 retrieval / serving
 truth。
 
 固定规则：
 
 - 顶层产品入口不先判 retrieval `scope`
-- 只有当 Execution Agent Layer 已把请求路由到 knowledge-family path 后，`requested_scope`、version
+- 只有当 Execution Agent Layer 已把请求路由到 `knowledge_query` path 后，`requested_scope`、version
   mode、retrieval planning 才开始成立
 - `transport_schedule_lookup`、`campus_notice_discover`、internal selected notice
-  resolve (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability
+  resolve (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 tool
   不应再被误读成 retrieval scope 的旁支；它们默认是 typed domain tools /
   projection-backed internal query service，只有需要语义 specialist 时才进入
   agent-as-tool
@@ -85,7 +85,7 @@ truth。
 - embedding model or dimension changes must pass release/vector compatibility
   before activation; query-time retrieval must fail closed on mismatch
 
-这里的 `agent` 默认指 knowledge-family `knowledge` specialist，而不是顶层 capability router。
+这里的 `agent` 默认指 `knowledge_query` specialist，而不是顶层 tool router。
 
 ## Current Baseline Vs Target Agentic Retrieval
 
@@ -110,7 +110,7 @@ truth。
 
 ## Current Retrieval Pipeline
 
-knowledge-family 内部的 retrieval path 固定拆成：
+knowledge tool 内部的 retrieval path 固定拆成：
 
 `query framing -> scope / version admission -> retrieval planning -> multi-step
 execution -> rerank / merge / dedupe -> evidence shaping`
@@ -133,7 +133,7 @@ evidence selection -> synthesis -> grounding`
 补充约束：
 
 - planner-first target 不改变 serving truth owner
-- retrieval runtime 仍不拥有产品级 capability admission
+- retrieval runtime 仍不拥有产品级 tool admission
 - live branch 只允许进入 admitted source channel
 - synthesis 不得补齐 missing retrieval/tool result；evidence verifier 决定 replan /
   clarification / fail-close
@@ -304,9 +304,9 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - production observation 集成边界固定在 runtime adapter，不进入 deleted Python
   retrieval package；retrieval runtime seam 只暴露 `RetrievalObservationSink` /
   `build_retrieval_observation_event_sink()` 这种注入 seam；online path 由 Go
-  `activity-worker-knowledge-retrieval` / `execution-control` runtime adapter 负责把
+  `activity-worker-knowledge` / `execution-control` runtime adapter 负责把
   `retrieval.runtime_observation` 转成 OTel-compatible log/event、derived metrics 或
-  backend-specific export。Python bridge 只允许保留 offline / eval / historical sink。
+  backend-specific export。Python handoff 只允许保留 offline / eval / historical sink。
 - OTel bridge 的默认映射是 log/event first：event name
   `retrieval.runtime_observation`，attributes 至少包含 `request_id`、`plan_id`、`step_id`、
   `scope.corpus`、`scope.collection`、`query_mode`、`retrieval_mode`、`terminal_state`、
@@ -334,7 +334,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - collection / entity / family filter
 
 `major`、`cohort`、`program`、recent goal 等 personalization signal 只允许影响
-applicability / preference / clarification，不得静默改写 source truth 或 capability
+applicability / preference / clarification，不得静默改写 source truth 或 tool
 opening truth。
 
 长期 target 里，这些 filter 仍然必须：
@@ -420,10 +420,10 @@ session state 为准。
   bucket replay
 - 不自动提升成默认公开 query-serving collection
 
-## Structured Runtime Internal Surfaces
+## Tool Read Model Internal Surfaces
 
-部分 runtime capability 长期不走 generic retrieval surface，而走 projection-backed
-structured query seam。
+部分 runtime tool 长期不走 generic retrieval surface，而走 projection-backed
+tool read model seam。
 
 当前已冻结方向包括：
 
@@ -431,7 +431,7 @@ structured query seam。
   - `transport_schedule_lookup`
   - generic service status、service guide、contact directory、service process 与
     academic calendar 不属于当前 campus-services model-visible runtime surface
-  - 这些 structured runtime seam 的领域边界、projection owner 与 fail-close 规则统一看
+  - 这些 tool read model seam 的领域边界、projection owner 与 fail-close 规则统一看
     `docs/architecture/domains/campus-services/architecture.md`
 - notice family
   - `campus_notice_discover`
@@ -445,10 +445,10 @@ structured query seam。
   query-enabled collection
 - future internal query service 只读 projection / normalized truth，不读
   query-disabled retrieval alias
-- structured runtime surface 与 `fresh_news` 一类 retrieval surface 可以并存，但不能互相冒充
+- tool read model surface 与 `fresh_news` 一类 retrieval surface 可以并存，但不能互相冒充
 - structured campus-services runtime 不回退成 `service_catalog` reopening、generic
   retrieval alias 或 raw source scan
-- 在长期 multi-capability / agent-as-tool workflow 中，structured runtime surface
+- 在长期 multi-tool / agent-as-tool workflow 中，tool read model surface
   可以向 `knowledge` 提供 bounded context projection，例如 notice context、
   service facts、schedule baseline 或 place context；这些 projection 只能辅助
   retrieval framing / grounding validation，
@@ -465,11 +465,11 @@ structured query seam。
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
-- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/architecture/current.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/architecture/system/agentic-retrieval-architecture.md`
 - `docs/architecture/domains/campus-services/architecture.md`
-- `docs/architecture/target-architecture.md`
+- `docs/architecture/target.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`
 - `docs/decisions/adr-0021-institution-scoped-entity-alias-governance.md`

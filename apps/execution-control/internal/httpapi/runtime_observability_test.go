@@ -15,7 +15,7 @@ func TestRuntimeTelemetryEventIncludesLangfuseSessionAndUser(t *testing.T) {
 			ConversationID: "conv-observability-001",
 			OwnerUserID:    "user-observability-001",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				SelectedCapability: "knowledge",
+				SelectedTool: "knowledge_query",
 			},
 		},
 	)
@@ -26,8 +26,8 @@ func TestRuntimeTelemetryEventIncludesLangfuseSessionAndUser(t *testing.T) {
 	if event.UserID != "user-observability-001" {
 		t.Fatalf("user id = %q, want user-observability-001", event.UserID)
 	}
-	if event.SelectedCapability != "knowledge" {
-		t.Fatalf("selected capability = %q, want knowledge", event.SelectedCapability)
+	if event.SelectedTool != "knowledge_query" {
+		t.Fatalf("selected tool = %q, want knowledge_query", event.SelectedTool)
 	}
 }
 
@@ -45,7 +45,7 @@ func TestServerRuntimeTelemetryEventAddsReleaseAndEnvironment(t *testing.T) {
 			ConversationID: "conv-observability-001",
 			OwnerUserID:    "user-observability-001",
 			RuntimeDecisions: execution.RuntimeDecisionSummary{
-				SelectedCapability: "knowledge",
+				SelectedTool: "knowledge_query",
 			},
 		},
 	)

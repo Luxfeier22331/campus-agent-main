@@ -44,8 +44,8 @@ export function validateOfficialWebConsumerTargets(input: {
 	for (const rule of bundle.consumerDenominator.consumerFamilies) {
 		assertNonEmpty(rule.ownerSurface, `consumerDenominator ${rule.consumerFamily} ownerSurface`);
 		assertNonEmpty(
-			rule.ownerCapabilityOrRuntime,
-			`consumerDenominator ${rule.consumerFamily} ownerCapabilityOrRuntime`,
+			rule.ownerToolOrRuntime,
+			`consumerDenominator ${rule.consumerFamily} ownerToolOrRuntime`,
 		);
 		if (rule.pageFamilies.length === 0) {
 			throw new Error(`consumerDenominator ${rule.consumerFamily} must define pageFamilies`);

@@ -15,9 +15,9 @@ export type EmbeddingProviderRole =
 	| "rag_query_embedding";
 export type RerankProviderRole = "rag_reranker";
 export type ProviderConfigRole = EmbeddingProviderRole | PromptProviderRole | RerankProviderRole;
-export type ProviderConfigCapability = "embedding" | "prompt" | "rerank";
+export type ProviderConfigFeature = "embedding" | "prompt" | "rerank";
 
-export type ProviderConfigCapabilityConfig = Record<string, unknown>;
+export type ProviderConfigFeatureConfig = Record<string, unknown>;
 
 export interface ProviderConfigSecretRef {
 	ciphertext: string;
@@ -55,8 +55,8 @@ export interface ProviderConfigActor {
 export interface ProviderConfigConnection {
 	apiKeySecret: ProviderConfigSecretRef;
 	baseUrl: string;
-	capabilities: ProviderConfigCapability[];
-	capabilityConfig: ProviderConfigCapabilityConfig;
+	features: ProviderConfigFeature[];
+	featureConfig: ProviderConfigFeatureConfig;
 	connectionId: string;
 	createdAt: string;
 	createdBy: ProviderConfigActor;
@@ -68,8 +68,8 @@ export interface ProviderConfigConnection {
 
 export interface ProviderConfigConnectionSummary {
 	baseUrl: string;
-	capabilities: ProviderConfigCapability[];
-	capabilityConfig: ProviderConfigCapabilityConfig;
+	features: ProviderConfigFeature[];
+	featureConfig: ProviderConfigFeatureConfig;
 	connectionId: string;
 	createdAt: string;
 	provider: string;
@@ -105,7 +105,7 @@ export interface ProviderConfigProfileSummary {
 export interface ProviderConfigRuntimeSnapshot {
 	api_key: string;
 	base_url: string;
-	capability_config?: ProviderConfigCapabilityConfig;
+	feature_config?: ProviderConfigFeatureConfig;
 	dimensions?: number;
 	kind: ProviderConfigKind;
 	model: string;
@@ -150,7 +150,7 @@ export interface ProviderConfigUpdatePayload {
 export interface ProviderConfigValidatorInput {
 	apiKey: string;
 	baseUrl: string;
-	capabilityConfig: ProviderConfigCapabilityConfig;
+	featureConfig: ProviderConfigFeatureConfig;
 	dimensions: number | null;
 	model: string;
 	provider: string;
@@ -176,16 +176,16 @@ export interface ProviderConfigValidators {
 export interface ProviderConfigConnectionCreatePayload {
 	apiKey?: unknown;
 	baseUrl?: unknown;
-	capabilities?: unknown;
-	capabilityConfig?: unknown;
+	features?: unknown;
+	featureConfig?: unknown;
 	provider?: unknown;
 }
 
 export interface ProviderConfigConnectionUpdatePayload {
 	apiKey?: unknown;
 	baseUrl?: unknown;
-	capabilities?: unknown;
-	capabilityConfig?: unknown;
+	features?: unknown;
+	featureConfig?: unknown;
 	provider?: unknown;
 }
 

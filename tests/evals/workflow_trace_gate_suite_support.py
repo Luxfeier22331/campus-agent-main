@@ -38,17 +38,17 @@ def _trace_summary(**overrides):
         "planning_outcome": "direct_structured_tool",
         "workflow_mode": "single_step",
         "direct_vs_delegate_branch": "direct",
-        "handoff": {"target": "campus_services", "mode": "structured_runtime"},
+        "handoff": {"target": "transport_schedule_lookup", "mode": "tool_read_model"},
         "handoff_chain": (),
-        "capability_invocations": (
+        "tool_invocations": (
             {
                 "invocation_id": "agent-invocation:campus_services:1",
                 "workflow_run_ref": "single_step:campus_services:transport_schedule_lookup",
-                "capability_id": "campus_services",
+                "tool_id": "transport_schedule_lookup",
                 "status": "completed",
             },
         ),
-        "selected_capability": "campus_services",
+        "selected_tool": "transport_schedule_lookup",
         "selected_tools": ("transport_schedule_lookup",),
         "answer_artifact_projection_ids": ("proj-answer-001",),
         "answer_artifact_kinds": ("schedule_baseline",),
@@ -122,10 +122,10 @@ def _workflow_case(**expectation_overrides) -> WorkflowTraceCase:
     expectation_defaults = {
         "direct_vs_delegate_branch": "direct",
         "workflow_mode": "single_step",
-        "selected_capability": "campus_services",
+        "selected_tool": "transport_schedule_lookup",
         "selected_tools": ("transport_schedule_lookup",),
         "expected_answer_artifact_kinds": ("schedule_baseline",),
-        "handoff": {"target": "campus_services"},
+        "handoff": {"target": "transport_schedule_lookup"},
         "handoff_chain": (),
         "tool_argument_summary": {
             "service_key": "transport_commute",

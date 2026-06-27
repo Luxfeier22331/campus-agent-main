@@ -142,7 +142,7 @@ func TestEmitterPreservesIncomingTraceParent(t *testing.T) {
 		},
 	)
 
-	if err := emitter.Emit(ctx, Event{Name: "agent.runtime.started"}); err != nil {
+	if err := emitter.Emit(ctx, Event{Name: "agent.primary.started"}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
 	}
 
@@ -193,6 +193,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 
 	if err := emitter.Emit(context.Background(), Event{
+		ActivityDuration:      25 * time.Millisecond,
 		ContextPreflightState: "not_follow_up",
 		CanonicalIndexTruth:   "true",
 		CandidateCount:        3,
@@ -202,9 +203,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		ActivityType:          "WriteFinalization",
 		Duration:              50 * time.Millisecond,
 		FailureCode:           "timeout",
-		Lane:                  "rag",
+		CancelDeliveryStatus:  "accepted",
 		Name:                  "answer.failed",
-		Outcome:               "execution_control_timeout",
+		Outcome:               "execution_timeout",
 		PlanID:                "rag:regulations:student_rules:historical",
 		PlanningOutcome:       "not_preplanned",
 		PolicyGateDecision:    "out_of_scope",
@@ -215,7 +216,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		ReferenceCount:        2,
 		RetrievalMode:         "indexed",
 		RequestID:             "req-attrs",
-		RequestedCapability:   "knowledge",
+		RequestedTool:         "knowledge_query",
 		RunID:                 "run-attrs",
 		RoutingNextAction:     "out_of_scope",
 		ScopeGateDecision:     "out_of_scope",
@@ -241,6 +242,8 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 	}
 	attrs := spans[0].Attributes()
 	allowed := map[string]bool{
+		"activity_duration_ms":                  true,
+		"cancel_delivery_status":                true,
 		"context_preflight_state":               true,
 		"canonical_index_truth":                 true,
 		"candidate_count":                       true,
@@ -263,7 +266,6 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"langfuse.observation.cost_details":     true,
 		"langfuse.observation.metadata.step_id": true,
 		"deployment.environment":                true,
-		"lane":                                  true,
 		"outcome":                               true,
 		"plan_id":                               true,
 		"planning_outcome":                      true,
@@ -277,10 +279,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"reference_count":                       true,
 		"retrieval_mode":                        true,
 		"request_id":                            true,
-		"requested_capability":                  true,
+		"requested_tool":                        true,
 		"run_id":                                true,
 		"routing_next_action":                   true,
-		"selected_capability":                   true,
 		"selected_tool":                         true,
 		"scope_gate_decision":                   true,
 		"status":                                true,
@@ -316,6 +317,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		"terminal_state":          "failed_closed",
 		"step_id":                 "retrieval.indexed_lookup",
 		"fail_close_reason":       "product_scope_boundary",
+		"cancel_delivery_status":  "accepted",
 		"activity_type":           "WriteFinalization",
 		"projection_ref":          "projection://runs/run-attrs/finalization/write",
 		"status":                  "completed",
@@ -442,7 +444,7 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		RequestID:             "req-langfuse-001",
 		RunID:                 "run-langfuse-001",
 		TraceID:               "trace-langfuse-001",
-		SelectedCapability:    "knowledge",
+		SelectedTool:          "knowledge_query",
 		DeploymentEnvironment: "staging",
 	}); err != nil {
 		t.Fatalf("Emit returned error: %v", err)
@@ -461,11 +463,11 @@ func TestEmitterAddsLangfuseTraceSessionAttributes(t *testing.T) {
 		"langfuse.session.id":    "conv-langfuse-001",
 		"langfuse.user.id":       "user-langfuse-001",
 		"langfuse.release":       "release-2026-06-18",
-		"langfuse.trace.tags":    "surface:execution-control,capability:knowledge,env:staging",
+		"langfuse.trace.tags":    "surface:execution-control,target:knowledge_query,env:staging",
 		"request_id":             "req-langfuse-001",
 		"run_id":                 "run-langfuse-001",
 		"trace_id":               "trace-langfuse-001",
-		"selected_capability":    "knowledge",
+		"selected_tool":          "knowledge_query",
 		"deployment.environment": "staging",
 	}
 	for key, want := range expectedValues {

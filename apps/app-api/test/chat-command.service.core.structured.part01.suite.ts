@@ -5,7 +5,7 @@ import {
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	expectNoInternalLocators,
 	type FinalizeRequestWrite,
@@ -20,7 +20,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			now: () => new Date("2026-03-28T08:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText:
 						"第四学期有合同法、人格权法、侵权责任法。 [program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4#program_semester_facts:法学（民族实验班）本科人才培养方案:semester-4:source-faithful:sha256:test:chunk-0001]",
@@ -38,7 +38,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 							],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0002",
 				}),

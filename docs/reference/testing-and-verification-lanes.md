@@ -12,7 +12,7 @@ updated: 2026-06-20
 
 这份文档只固定当前仓库的验证入口语义，不重复：
 
-- 长期架构边界：`docs/architecture/target-architecture.md`
+- 长期架构边界：`docs/architecture/target.md`
 - `app-api` Worker 形态：`docs/architecture/system/product-runtime-architecture.md`
 - 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
   `STATE.md`

@@ -90,12 +90,12 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   `smoke`、`regression_locked`、`release_gate` 与 `error_gate` 固定 case
   集；`release_gate` 继续服务 live gate，`smoke` / `regression_locked` 负责 repo-tracked
   常设回归样本
-- `TraceExpectation.expected_capability` 固定断言 raw capability；如需 report /
-  display / family wording，使用 `expected_capability_family`，不要再把两种语义混成单个 handoff
-  字段
+- `TraceExpectation.expected_tool` 固定断言 historical tool projection
+  value；report / display wording 必须由 projection label 派生，不再维护
+  `expected_tool_domain` 这类第二套断言字段
 - handbook / curriculum 的 retrieval annotation template 现在都需要与各自 qrels case
   inventory 保持一一对应，避免人工标注模板和 canonical qrels 漂移
-- deterministic runner 现在接受 `CapabilityResponse` 与 `ExecutionResponse`
+- deterministic runner 现在接受 `ToolResponse` 与 `ExecutionResponse`
   两种执行结果；execution-only 终态额外覆盖 `approval_required_accuracy` /
   `rejection_accuracy`
 - `ragas`、OpenAI graders 或其他 judge/scorer 只能作为 `packages/evals` 之后的 supplemental
@@ -138,11 +138,11 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
 - online answer main-path eval 固定在
   `packages/evals/fixtures/e2e/online_answer_path/main_path_cases.v1.json` 与
   `campus_evals.online_answer_path_eval`；它维护 `online-answer-path` 默认产品级主链路问题集，
-  覆盖 admission、memory recall、primary-agent routing、capability execution、
+  覆盖 admission、memory recall、primary-agent routing、tool execution、
   source-truth grounding、durable resume、finalization contract 与 operator backflow；
   不把 RAG qrels 当成完整 E2E truth，也不保存 raw transcript 或 provider raw response。
   默认 release profile 只执行 `release_gate` / `regression_locked` split；`known_gap`、
-  `blocked_capability`、`structured_tool_later`、`clarification` 与 `fail_closed`
+  `blocked_tool`、`structured_tool_later`、`clarification` 与 `fail_closed`
   留在全量问题集，必须通过显式 cases path 运行离线 profile 复盘
 - legacy online answer product-path fixture 保留在
   `packages/evals/fixtures/e2e/online_answer_path/product_path_cases.v1.json`；它只能通过显式
@@ -150,7 +150,7 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
 - tool-routing product-path eval 固定在
   `packages/evals/fixtures/tools/routing/product_path_cases.v1.json` 与
   `campus_evals.tool_routing_product_path`；它用自然语言 user goal 评估 selected tool、
-  terminal outcome、argument summary 与 response contract，和 tool-family denominator
+  terminal outcome、argument summary 与 response contract，和 tool denominator
   的读模型/工具结果覆盖保持分离
 - answer-quality contract eval 固定在
   `packages/evals/fixtures/e2e/answer_quality_cases.v1.json` 与
@@ -160,9 +160,9 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   `rag/institutional_rules/answer_quality_cases.v1.json` 额外检查 required / forbidden
   source title and URL identity；该 fixture 当前覆盖 42 条 admitted 校级 title，确保校级制度回答
   不能由 `scoped_rules` 路径或 scoped-rule promotion URL 满足
-- campus-services / notice tool-family denominator 固定在
-  `packages/evals/fixtures/tools/family_denominators.v1.json` 与
-  `campus_evals.tool_family_denominator`；它覆盖 `transport_schedule_lookup`、
+- campus-services / notice tool denominator 固定在
+  `packages/evals/fixtures/tools/denominators.v1.json` 与
+  `campus_evals.tool_denominator`；它覆盖 `transport_schedule_lookup`、
   `campus_notice_discover` 与 internal selected notice resolve 的 `campus_notice_get`。
   其中 `campus_notice_get` 不是 provider/SDK tool denominator，只验证 source-card /
   bounded-summary / authorization fail-close posture；failure class 固定为 routing error、
@@ -175,7 +175,7 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
 - restricted/authz/privacy eval 固定在
   `packages/evals/fixtures/e2e/authz_privacy_cases.v1.json` 与
   `campus_evals.authz_privacy_eval`；它覆盖 restricted deny、policy unavailable、
-  capability closed 与 artifact minimization，forbidden raw key guard 也覆盖 restricted/raw
+  tool closed 与 artifact minimization，forbidden raw key guard 也覆盖 restricted/raw
   payload keys
 - agentic retrieval plan / freshness eval 固定在
   `packages/evals/fixtures/e2e/agentic_retrieval_plan_cases.v1.json` 与
@@ -229,17 +229,17 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   campus-services-product-path`；v2 artifact 用 `open_candidate` /
   `keep_closed` profile 区分正式开放工具和 later-wave 工具。当前只有
   `transport_schedule_lookup` 是 opened campus-services tool。
-- `multi-agent-runtime-contract` gate 是 capability execution runtime contract
+- `tool-runtime-contract` gate 是 tool runtime contract
   的确定性组合 gate，入口为：`uv run --all-packages python -m scripts.eval_gate
-  accept --profile multi-agent-runtime-contract`；它组合 workflow trace eval、
-  tool-family denominator、online-answer product-path eval、capability execution
+  accept --profile tool-runtime-contract`；它组合 workflow trace eval、
+  tool denominator、online-answer product-path eval、legacy-named execution wire
   schema/generated artifact 同步检查，以及 execution-control / app-api / panel
   targeted test lanes。该 gate 不启动本地 live process，不运行 Docker smoke，不修改 serving
   admission，不引入 Agents SDK，也不产生 operator observability live case-results publish
   dry-run artifact。真实产品路径 E2E 使用
   `online-answer-path --collect-runtime` 和后续 online answer acceptance lane。
-- `multi-agent-live-smoke` 是历史 direct-process live gate alias。Python
-  semantic worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
+- `tool-live-smoke` 是历史 direct-process live gate alias。Python
+  supervisor worker 已从 active workspace 删除后，它不再描述当前 live process 拓扑；
   当前 runtime smoke 应以 `execution-control` / `agent-runtime` / typed activity
   workers / `app-api` 的目标 runbook 和 affected test lane 为准。历史 workflow trace
   replay fixture 可继续作为 eval 输入，但不得要求恢复旧 Python semantic process。
@@ -247,34 +247,35 @@ fixture id，再由 loader 引用该 id；不要在 loader 里手写 fixture 目
   release acceptance、golden retrieval qrels 与 answer-quality contract 仍保留为
   repo-owned fixture / artifact truth；`eval_coverage_gate_artifacts` 通过
   `release_acceptance_result` 消费这些结果，而不是调度旧 Python live runner。
-- `multi-agent-runtime-contract` 额外固定 cross-language capability execution fixture
-  matrix：`tests/fixtures/capability_execution_contract/` 的 valid / invalid 样本必须同时被
-  Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
+- `tool-runtime-contract` 额外固定 cross-language execution wire fixture
+  matrix：`tests/fixtures/tool_execution_contract/` 的 valid / invalid 样本必须同时被
+  Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
   验证 `snake_case` strict wire、execution contract version、enum、extra-field rejection、
   cancel / timeout / execution unavailable terminal semantics。
 - online-answer / agent main-path eval 使用 `agent_runtime_eval_projection.v1`
-  检查 first decision 的 direct/no-tool、capability-required、clarification、reject
-  与 fail-close branch、selected capability / tool 以及 fail-close reason；
+  检查 first decision 的 direct/no-tool、tool-required、clarification、reject
+  与 fail-close branch、selected tool 以及兼容 `selected_tool` field、
+  fail-close reason；
   `workflow_trace_summary` 只保留为 bounded display compatibility summary，不作为
   canonical eval source。panel targeted lane 只允许消费 app-api sanitized projection，
   并对 raw bridge / provider / prompt key 做非暴露断言。
-- `multi-agent-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
-  tool-family case 与 16 条 online-answer product-path case。知识类 student_rules /
-  curriculum_plan 仍通过 `retrieval.query` + `collection` 参数建模，不拆成入口 agent
-  可直接调用的 flat tool。
+- `tool-runtime-contract` denominator 当前覆盖 12 条 workflow trace case、28 条
+  tool denominator case 与 16 条 online-answer product-path case。知识类
+  student_rules / curriculum_plan 仍通过 `knowledge_query` + collection-scoped
+  retrieval internals 参数建模，不拆成入口 agent 可直接调用的 flat tool。
 - `workflow_trace_summary.workflow_mode` 现在是 canonical enum：
   `terminal`、`single_step`、`multi_step`。当前 live runtime 已验证 terminal 与 single-step
   execution shapes，
   并新增受 gate 保护的首条 `multi_step` profile：selected notice context + knowledge
-  follow-through，执行 internal selected notice resolve -> `knowledge retrieval.query`。
+  follow-through，执行 internal selected notice resolve -> `knowledge_query`。
   workflow trace gate 会拒绝把单个 handoff projection 伪装成 `multi_step`；completed
   `multi_step` 至少需要两段 handoff chain，并且需要 cross-step context 的路径必须提供
   `workflow_trace_summary.context_projections` sanitized summary。resume 与 semantic
   retry/replan 仍需独立 eval denominator。
 - eval profile registry 固定在 `campus_evals.profile_registry`。`scripts.eval_gate audit`
   会校验 registry runner、GitHub Actions dispatch choices、operations policy、denominator
-  registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些
-  surface。
+  registry、tool denominator fixture coverage 与 profile fixture smoke；新增 profile
+  时必须同步这些 surface。
 
 eval coverage operator snapshot：
 
@@ -463,18 +464,18 @@ gate 与 shared workflow trace runtime gate。后续缺口不再是 artifact/gat
     `multi_step` trace 必须至少有两段 handoff chain，避免把当前单 handoff projection
     冒充成多步 workflow
 - `first_decision_branch`
-  - 验证 direct/no-tool terminal、structured tool、capability-required 与 fail-close
+  - 验证 direct/no-tool terminal、structured tool、tool-required 与 fail-close
     分支是否命中 expected truth；legacy `direct_vs_delegate_branch` 字段只作为
     workflow trace compatibility summary 保留，不再表示 Python delegate path
 - `tool_argument_precision`
   - 验证 selected tools、retrieval plan、structured lookup subtype、source channel、temporal
     scope、doc / version / service id 等参数是否精确
 - `handoff_correctness`
-  - 验证 selected capability、`CapabilityRequest` 的 capability family、target、
+  - 验证 selected tool、legacy `ToolRequest` compatibility target、
     allowed tools、context resolution、missing slots 与 policy reason 是否和
     case truth 对齐
 - `agent_escalation_fail_close`
-  - 验证 capability closed、scope disabled、policy unavailable、missing context、ambiguous
+  - 验证 tool closed、scope disabled、policy unavailable、missing context、ambiguous
     follow-up 与 unauthorized visibility 的 terminal outcome
 
 这些 suite 的 canonical truth 仍属于 repo-owned fixtures / artifacts；OpenAI Evals /
@@ -497,9 +498,9 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   tests.evals.test_retrieval_benchmark`
 - `uv run --all-packages python -m unittest tests.evals.test_golden_cases
   tests.evals.test_retrieval_benchmark tests.evals.test_supplemental_adapters`
-- `uv run --all-packages python -m unittest
-  tests.agent.test_knowledge_capability
-  tests.evals.test_golden_cases tests.evals.test_retrieval_benchmark`
+- Historical supervisor / agent Python worker test lanes have been removed from
+  the active workspace; current runtime verification uses execution-control,
+  agent-runtime, and eval package gates.
 - `curriculum` live benchmark 也复用同一 scorer，只需将 `--qrels` 切换为
   `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`
 - `uv run --all-packages python -m unittest tests.evals.test_intent_eval`
@@ -507,9 +508,9 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m scripts.intent_gate --suite synthetic_exploratory
   --report-only --output .tmp/evals/intent-synthetic-exploratory.json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  multi-agent-runtime-contract --json`
+  tool-runtime-contract --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  tool-family-denominator --observations-path <observations.json> --json`
+  tool-denominator --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`
 - `uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix
@@ -519,7 +520,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m scripts.eval_gate audit --json`
 - `uv run --all-packages python -m unittest
   tests.evals.online_answer_path_eval_suite
-  tests.evals.tool_family_denominator_suite
+  tests.evals.tool_denominator_suite
   tests.evals.document_quality_eval_suite
   tests.evals.authz_privacy_eval_suite`
 - `uv run --all-packages python -m unittest tests.evals.case_governance_suite
@@ -540,7 +541,7 @@ observation-backed profile gate CLI：
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   online-answer-path --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
-  tool-family-denominator --observations-path <observations.json> --json`
+  tool-denominator --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   document-quality --observations-path <observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile

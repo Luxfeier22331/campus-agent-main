@@ -23,18 +23,18 @@ const (
 )
 
 type providerConfigSnapshot struct {
-	APIKey           string         `json:"api_key"`
-	BaseURL          string         `json:"base_url"`
-	CapabilityConfig map[string]any `json:"capability_config,omitempty"`
-	Dimensions       int            `json:"dimensions,omitempty"`
-	Kind             string         `json:"kind"`
-	Model            string         `json:"model"`
-	ProfileID        string         `json:"profile_id"`
-	Provider         string         `json:"provider"`
-	Revision         int            `json:"revision"`
-	Role             string         `json:"role"`
-	TimeoutMS        int            `json:"timeout_ms"`
-	Transport        string         `json:"transport"`
+	APIKey     string         `json:"api_key"`
+	BaseURL    string         `json:"base_url"`
+	ToolConfig map[string]any `json:"tool_config,omitempty"`
+	Dimensions int            `json:"dimensions,omitempty"`
+	Kind       string         `json:"kind"`
+	Model      string         `json:"model"`
+	ProfileID  string         `json:"profile_id"`
+	Provider   string         `json:"provider"`
+	Revision   int            `json:"revision"`
+	Role       string         `json:"role"`
+	TimeoutMS  int            `json:"timeout_ms"`
+	Transport  string         `json:"transport"`
 }
 
 type providerConfigResolver interface {

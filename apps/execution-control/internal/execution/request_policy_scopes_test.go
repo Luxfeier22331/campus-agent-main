@@ -109,7 +109,7 @@ func TestParseAnswerRequestClarifiesUnsupportedCampusServicesSubtype(t *testing.
 		json.RawMessage(`{
 			"user_goal":"校园卡余额怎么查",
 			"request_id":"req-campus-services-missing-subtype",
-			"requested_capability":"campus_services"
+			"requested_tool":"transport_schedule_lookup"
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
@@ -124,8 +124,8 @@ func TestParseAnswerRequestClarifiesUnsupportedCampusServicesSubtype(t *testing.
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if request.StructuredHandoff != nil {
-		t.Fatalf("unsupported campus service subtype must not preplan capability: %#v", request.StructuredHandoff)
+	if request.ToolHandoff != nil {
+		t.Fatalf("unsupported campus service subtype must not preplan toolTarget: %#v", request.ToolHandoff)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
@@ -225,7 +225,7 @@ func TestParseAnswerRequestProjectsRuntimePolicyForMissingNoticeFollowUpContext(
 		json.RawMessage(`{
 			"user_goal":"这条通知详情",
 			"request_id":"req-missing-notice-context",
-			"requested_capability":"notice"
+			"requested_tool":"campus_notice_discover"
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
@@ -271,7 +271,7 @@ func TestParseAnswerRequestRejectsDisabledKnowledgeScopeInGo(t *testing.T) {
 		json.RawMessage(`{
 			"user_goal":"谁负责宿舍报修？",
 			"request_id":"req-disabled-scope",
-			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
+			"requested_scope":{"corpus":"transport_schedule_lookup","collection":"service_catalog"}
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
@@ -292,11 +292,11 @@ func TestParseAnswerRequestRejectsDisabledKnowledgeScopeInGo(t *testing.T) {
 	}
 }
 
-func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeLane(t *testing.T) {
+func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeTool(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"比较新旧春假通知差异",
-			"request_id":"req-versioned-structured-query",
+			"request_id":"req-versioned-tool-read-model",
 			"version_query":{"mode":"compare","version_id":"notice:2025","compare_to_version_id":"notice:2026"}
 		}`),
 		map[string]string{
@@ -312,15 +312,15 @@ func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeLane(t *tes
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if request.RequestedCapability != "knowledge" {
-		t.Fatalf("requested capability = %q, want knowledge", request.RequestedCapability)
+	if request.RequestedTool != "knowledge_query" {
+		t.Fatalf("requested tool = %q, want knowledge_query", request.RequestedTool)
 	}
-	if request.Lane != "rag" {
-		t.Fatalf("lane = %q, want rag", request.Lane)
+	if request.TaskQueue != "campus-agent.workflow" {
+		t.Fatalf("task_queue = %q, want campus-agent.workflow", request.TaskQueue)
 	}
 	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["requested_capability"] != "knowledge" {
-		t.Fatalf("projected requested_capability = %v, want knowledge", payload["requested_capability"])
+	if payload["requested_tool"] != "knowledge_query" {
+		t.Fatalf("projected requested_tool = %v, want knowledge_query", payload["requested_tool"])
 	}
 }
 
@@ -329,8 +329,8 @@ func TestParseAnswerRequestRejectsNonQueryableScopeForCampusServicesMixedEnvelop
 		json.RawMessage(`{
 			"user_goal":"校车时刻表",
 			"request_id":"req-scope-on-campus-services",
-			"requested_capability":"campus_services",
-			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
+			"requested_tool":"transport_schedule_lookup",
+			"requested_scope":{"corpus":"transport_schedule_lookup","collection":"service_catalog"}
 		}`),
 		map[string]string{
 			"authorization": "Bearer secret-token",
@@ -346,17 +346,17 @@ func TestParseAnswerRequestRejectsNonQueryableScopeForCampusServicesMixedEnvelop
 		t.Fatal("expected non-queryable requested_scope to fail for campus_services")
 		return
 	}
-	if httpErr.Code != "disallowed_knowledge_scope" {
-		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
 	}
 }
 
 func TestParseAnswerRequestRejectsCampusServicesTransportNoticeKnowledgeGrounding(t *testing.T) {
-	request, httpErr := ParseAnswerRequest(
+	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"这条班车通知依据学生手册哪条规定？",
 			"request_id":"req-campus-services-transport-notice-pilot",
-			"requested_capability":"campus_services",
+			"requested_tool":"transport_schedule_lookup",
 			"requested_scope":{"corpus":"regulations","collection":"student_rules"},
 			"context":{
 				"actor":{
@@ -392,39 +392,20 @@ func TestParseAnswerRequestRejectsCampusServicesTransportNoticeKnowledgeGroundin
 		},
 	)
 
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
+	if httpErr == nil {
+		t.Fatal("expected requested_scope on transport tool to fail closed")
 	}
-	if request.RequestedCapability != "campus_services" {
-		t.Fatalf("requested capability = %q, want campus_services", request.RequestedCapability)
-	}
-	if request.WorkflowMode != "" {
-		t.Fatalf("workflow mode = %q, want empty terminal workflow mode before finalizer", request.WorkflowMode)
-	}
-	if len(request.PlannedHandoffs) != 0 {
-		t.Fatalf("planned handoff count = %d, want 0", len(request.PlannedHandoffs))
-	}
-	if request.StructuredHandoff != nil {
-		t.Fatalf("structured handoff = %#v, want nil terminal path", request.StructuredHandoff)
-	}
-	if request.TerminalEnvelope == nil {
-		t.Fatal("terminal envelope must be present")
-	}
-	if request.TerminalEnvelope["status"] != "no_answer" {
-		t.Fatalf("terminal status = %v, want no_answer", request.TerminalEnvelope["status"])
-	}
-	observability := expectExecutionRecord(t, request.TerminalEnvelope["observability"], "terminal_envelope.observability")
-	if observability["policy_reason"] != "selected_notice_target_surface_ineligible_for_knowledge_followthrough" {
-		t.Fatalf("observability.policy_reason = %v", observability["policy_reason"])
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
 	}
 }
 
-func TestParseAnswerRequestRejectsVersionQueryForForwardCapabilities(t *testing.T) {
+func TestParseAnswerRequestRejectsVersionQueryForForwardTools(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"找一下历史通知",
 			"request_id":"req-version-on-notice",
-			"requested_capability":"notice",
+			"requested_tool":"campus_notice_discover",
 			"version_query":{"mode":"historical","version_id":"v1:notice"}
 		}`),
 		map[string]string{
@@ -451,7 +432,7 @@ func TestParseAnswerRequestRejectsVersionQueryForPlaceLookup(t *testing.T) {
 		json.RawMessage(`{
 			"user_goal":"图书馆在哪里",
 			"request_id":"req-version-on-place-lookup",
-			"requested_capability":"place_lookup",
+			"requested_tool":"place_lookup",
 			"version_query":{"mode":"historical","version_id":"v1:library-location"}
 		}`),
 		map[string]string{

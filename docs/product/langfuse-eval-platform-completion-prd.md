@@ -717,7 +717,7 @@ P2 完成标准：
 
 - [ADR-0059 Langfuse Observability And Eval Platform](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
 - [Langfuse Observability And Eval Architecture](../architecture/system/langfuse-observability-and-eval-architecture.md)
-- [Langfuse Runtime Observability Contract](../contracts/langfuse-runtime-observability-contract.md)
+- [Langfuse Runtime Observability Contract](../contracts/langfuse-runtime.md)
 - [Runtime OTel Collector Pipeline](../runbooks/runtime-otel-collector-pipeline.md)
 - [Eval Release Gate Automation](../runbooks/eval-release-gate-automation.md)
 - [Langfuse Scores Overview](https://langfuse.com/docs/evaluation/scores/overview)

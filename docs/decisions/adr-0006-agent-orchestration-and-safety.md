@@ -15,9 +15,9 @@ updated: 2026-06-12
 ## Terminology superseded
 
 本文早期使用的 `supervisor-led orchestration` 在当前目标态中映射为
-`execution-control` 内的 Execution Agent Layer + `CapabilityExecutionWorkflow`。
+`execution-control` 内的 Execution Agent Layer + `ToolExecutionWorkflow`。
 `supervisor` 不再作为 active architecture concept；历史代码、旧 ADR 标题与
-offline bridge 语境中的旧名不改变本文决策的 agent / capability 边界。
+offline bridge 语境中的旧名不改变本文决策的 agent / tool 边界。
 
 ## 目标
 
@@ -25,7 +25,7 @@ offline bridge 语境中的旧名不改变本文决策的 agent / capability 边
 
 - 哪些编排模式是长期允许的
 - 何时应该新增 agent，何时不应该
-- 不可信数据在多 agent / 多 capability 系统中如何隔离
+- 不可信数据在多 agent / 多 tool 系统中如何隔离
 - trace、eval 与 release gate 应处在什么边界上
 
 ## 非目标
@@ -37,7 +37,7 @@ offline bridge 语境中的旧名不改变本文决策的 agent / capability 边
 - 某个 agent 的 prompt、tool 列表或具体实现
 - 某次迭代的 workflow 细节、阈值或上线节奏
 - retrieval backend、vector store 或 object storage 的具体产品更换计划
-- approval / HITL、预约、提交、支付、工单等状态变更 capability
+- approval / HITL、预约、提交、支付、工单等状态变更 tool
 
 这些内容应分别进入 phase ADR、实施计划、运行时配置或后续代码设计，而不是写死在长期编排规则中。
 
@@ -48,14 +48,14 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 
 边界固定如下：
 
-- `code orchestration` 负责 admission、source / capability gate、timeout /
+- `code orchestration` 负责 admission、source / tool gate、timeout /
   retry、deterministic stop condition、结构化输入输出校验、审计与 trace 投影
 - `LLM orchestration` 负责意图框定、开放式任务拆解、query rewriting、evidence
   synthesis、clarification / refusal wording 与其他非确定性推理
 
 长期约束：
 
-- source truth、capability readiness、tool admission、fail-close 与不可逆动作门禁优先由
+- source truth、tool readiness、tool admission、fail-close 与不可逆动作门禁优先由
   code orchestration 承担
 - LLM 可以参与决策建议，但不应独占高风险控制权
 - 不将整个系统冻结成一次性 declarative graph / DSL 作为唯一编排真相源
@@ -87,7 +87,7 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 长期准入条件至少包括：
 
 - 它拥有稳定、可重复、可命名的单一职责边界
-- 它对应独立的 downstream capability、tool / permission boundary 或状态边界
+- 它对应独立的 downstream tool、tool / permission boundary 或状态边界
 - 把该能力继续塞在现有 supervisor 或现有 agent 内，已经造成 prompt / context / tool overload 或边界混乱
 - `packages/evals` 中已有足够证据表明拆分能提升质量、可观测性或安全性
 
@@ -122,12 +122,12 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 
 当前规则如下：
 
-- 不把 approval-required capability 当成 active product surface。
+- 不把 approval-required tool 当成 active product surface。
 - 不为尚未接受的状态变更能力预留用户可见 tool 语义。
-- 当前 trace / eval / release gate 只需要覆盖 read-only capability routing、typed
+- 当前 trace / eval / release gate 只需要覆盖 read-only tool routing、typed
   tool execution、evidence、fail-close、timeout / cancel 与 finalization。
 
-如果未来产品明确接受状态变更 capability，必须新建 ADR，并显式冻结：
+如果未来产品明确接受状态变更 tool，必须新建 ADR，并显式冻结：
 
 - human approval / operator intervention 边界
 - audit、rollback 与 cancellation 语义
@@ -143,7 +143,7 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 - 新 agent
 - 新 routing rule
 - 新 handoff 路径
-- 新 typed tool / capability branch
+- 新 typed tool / tool branch
 
 至少需要覆盖：
 
@@ -155,14 +155,14 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 
 ## 决策 7：文档分层关系
 
-- `docs/architecture/target-architecture.md` 负责长期编排边界、角色分工与系统形态
+- `docs/architecture/target.md` 负责长期编排边界、角色分工与系统形态
 - `docs/architecture/system/execution-agent-layer-architecture.md` 负责 Execution
   Agent Layer 如何承接这些长期规则
-- `docs/architecture/system/agent-framework-boundary-architecture.md` 负责当前
+- `docs/architecture/system/agent-framework.md` 负责当前
   model-facing SDK runtime 边界
 - `./adr-0015-user-identity-memory-and-personalization-boundaries.md`
   负责 account / memory / personalization 如何作为 typed context 进入编排，而不稀释
-  capability readiness、source truth 或 fail-close 边界
+  tool readiness、source truth 或 fail-close 边界
 - `docs/architecture/system/data-plane-architecture.md`
   负责 phase-1 数据平面约束，以及对象存储 + registry + Qdrant
   组合理由

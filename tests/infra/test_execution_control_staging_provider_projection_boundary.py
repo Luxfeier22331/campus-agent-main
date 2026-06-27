@@ -98,9 +98,9 @@ class ExecutionControlStagingProviderProjectionBoundaryTest(unittest.TestCase):
 
         for service in (
             "execution-control",
+            "activity-worker-core",
             "activity-worker-agent",
-            "activity-worker-knowledge-retrieval",
-            "activity-worker-knowledge-synthesis",
+            "activity-worker-knowledge",
         ):
             with self.subTest(service=service):
                 block = _compose_service_block(compose, service)

@@ -220,7 +220,7 @@ def collect_hindsight_memory_runtime_observations(
             client,
             "/internal/memory/personal/graph:recall",
             {
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "run_id": run_id + "-recall",
                 "tenant_id": resolved.tenant_id,
                 "thread_id": thread_id + "-recall",
@@ -238,7 +238,7 @@ def collect_hindsight_memory_runtime_observations(
             client,
             "/internal/memory/personal/graph:recall",
             {
-                "requested_capability": "knowledge",
+                "requested_tool": "knowledge_query",
                 "run_id": run_id + "-isolation",
                 "tenant_id": resolved.tenant_id,
                 "thread_id": thread_id + "-isolation",

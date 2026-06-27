@@ -19,22 +19,22 @@ func sortedStringKeys[V any](items map[string]V) []string {
 	return keys
 }
 
-func sortedLaneDecisionKeys(items map[laneDecisionKey]uint64) []laneDecisionKey {
-	keys := make([]laneDecisionKey, 0, len(items))
+func sortedGroupDecisionKeys(items map[groupDecisionKey]uint64) []groupDecisionKey {
+	keys := make([]groupDecisionKey, 0, len(items))
 	for key := range items {
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(left int, right int) bool {
-		if keys[left].Lane != keys[right].Lane {
-			return keys[left].Lane < keys[right].Lane
+		if keys[left].Group != keys[right].Group {
+			return keys[left].Group < keys[right].Group
 		}
 		return keys[left].Decision < keys[right].Decision
 	})
 	return keys
 }
 
-func sortedStructuredQueryKeys(items map[structuredQueryKey]uint64) []structuredQueryKey {
-	keys := make([]structuredQueryKey, 0, len(items))
+func sortedToolReadModelKeys(items map[toolReadModelKey]uint64) []toolReadModelKey {
+	keys := make([]toolReadModelKey, 0, len(items))
 	for key := range items {
 		keys = append(keys, key)
 	}
@@ -50,14 +50,14 @@ func sortedStructuredQueryKeys(items map[structuredQueryKey]uint64) []structured
 	return keys
 }
 
-func sortedCapabilityGateKeys(items map[capabilityGateKey]uint64) []capabilityGateKey {
-	keys := make([]capabilityGateKey, 0, len(items))
+func sortedToolGateKeys(items map[toolGateKey]uint64) []toolGateKey {
+	keys := make([]toolGateKey, 0, len(items))
 	for key := range items {
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(left int, right int) bool {
-		if keys[left].Capability != keys[right].Capability {
-			return keys[left].Capability < keys[right].Capability
+		if keys[left].Tool != keys[right].Tool {
+			return keys[left].Tool < keys[right].Tool
 		}
 		if keys[left].Gate != keys[right].Gate {
 			return keys[left].Gate < keys[right].Gate
@@ -92,11 +92,11 @@ func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDec
 		keys = append(keys, key)
 	}
 	sort.Slice(keys, func(left int, right int) bool {
-		if keys[left].Capability != keys[right].Capability {
-			return keys[left].Capability < keys[right].Capability
+		if keys[left].Target != keys[right].Target {
+			return keys[left].Target < keys[right].Target
 		}
-		if keys[left].Lane != keys[right].Lane {
-			return keys[left].Lane < keys[right].Lane
+		if keys[left].TaskQueue != keys[right].TaskQueue {
+			return keys[left].TaskQueue < keys[right].TaskQueue
 		}
 		if keys[left].ScopeGate != keys[right].ScopeGate {
 			return keys[left].ScopeGate < keys[right].ScopeGate
@@ -113,9 +113,6 @@ func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDec
 		if keys[left].PlanningOutcome != keys[right].PlanningOutcome {
 			return keys[left].PlanningOutcome < keys[right].PlanningOutcome
 		}
-		if keys[left].SelectedCapability != keys[right].SelectedCapability {
-			return keys[left].SelectedCapability < keys[right].SelectedCapability
-		}
 		if keys[left].SelectedTool != keys[right].SelectedTool {
 			return keys[left].SelectedTool < keys[right].SelectedTool
 		}
@@ -127,7 +124,7 @@ func sortedRuntimeDecisionKeys(items map[runtimeDecisionKey]uint64) []runtimeDec
 	return keys
 }
 
-func sortedAdmissionLaneNames(items map[string]AdmissionLaneSnapshot) []string {
+func sortedAdmissionGroupNames(items map[string]AdmissionGroupSnapshot) []string {
 	keys := make([]string, 0, len(items))
 	for key := range items {
 		keys = append(keys, key)

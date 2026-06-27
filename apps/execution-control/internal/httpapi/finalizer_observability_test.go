@@ -4,7 +4,7 @@ import "testing"
 
 func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleTraceRefs(t *testing.T) {
 	observability := buildStructuredExecutionObservability(
-		"campus_services",
+		"transport_schedule_lookup",
 		"completed",
 		map[string]any{
 			"subject_query":        "丰台校区通勤班车在哪里上车",
@@ -34,7 +34,7 @@ func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleTraceRe
 
 func TestBuildStructuredExecutionObservabilityDoesNotInferSelectedToolFromResultShape(t *testing.T) {
 	observability := buildStructuredExecutionObservability(
-		"campus_services",
+		"transport_schedule_lookup",
 		"completed",
 		map[string]any{
 			"subject_query": "丰台校区通勤班车在哪里上车",
@@ -53,7 +53,7 @@ func TestBuildStructuredExecutionObservabilityDoesNotInferSelectedToolFromResult
 
 func TestBuildStructuredExecutionObservabilitySummarizesTransportScheduleFailClose(t *testing.T) {
 	observability := buildStructuredExecutionObservability(
-		"campus_services",
+		"transport_schedule_lookup",
 		"no_answer",
 		map[string]any{
 			"subject_query":       "图书馆今天开门吗",
@@ -99,7 +99,7 @@ func TestBuildRagExecutionObservabilitySeparatesRuntimeErrorFromEvidenceUnsuppor
 				"model_execution_state": "rag_sdk_runtime_failed",
 			},
 		},
-		"retrieval.query",
+		"knowledge_query",
 	)
 
 	if observability["semantic_outcome"] != "runtime_error" {

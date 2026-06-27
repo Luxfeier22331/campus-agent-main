@@ -13,7 +13,7 @@ export function registerWorkerReadinessSuite() {
 							auth: "ready",
 							database: "ready",
 							officialWebHandoff: "not_configured",
-							operatorBridge: "configured",
+							operatorSurface: "configured",
 							authShellOrigin: "configured",
 							executionControl: "ready",
 						},
@@ -35,7 +35,7 @@ export function registerWorkerReadinessSuite() {
 				fetch: async () => createHtmlShellResponse(),
 			},
 			OPERATOR_CONSOLE_APP_NAME: "campus-agent-v2-operator-console",
-			OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+			OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 			OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 			OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 		};
@@ -67,7 +67,7 @@ export function registerWorkerReadinessSuite() {
 				appApiBinding: "configured",
 				appApiRuntime: "ready",
 				assets: "configured",
-				operatorBridge: "configured",
+				operatorSurface: "configured",
 			},
 			runtime_api_base_url: "https://app-api.internal",
 			protected_hostname: "operator-console.example.com",
@@ -113,7 +113,7 @@ export function registerWorkerReadinessSuite() {
 				ASSETS: {
 					fetch: async () => createHtmlShellResponse(),
 				},
-				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 				OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 			},
 		);
@@ -144,7 +144,7 @@ export function registerWorkerReadinessSuite() {
 				ASSETS: {
 					fetch: async () => createHtmlShellResponse(),
 				},
-				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 				OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 				ACCESS_TEAM_DOMAIN: "https://team.cloudflareaccess.com",
@@ -185,7 +185,7 @@ export function registerWorkerReadinessSuite() {
 				ASSETS: {
 					fetch: async () => createHtmlShellResponse(),
 				},
-				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 				OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 				ACCESS_TEAM_DOMAIN: "http://team-readyz.cloudflareaccess.com",
@@ -226,7 +226,7 @@ export function registerWorkerReadinessSuite() {
 				ASSETS: {
 					fetch: async () => createHtmlShellResponse(),
 				},
-				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 				OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 				ACCESS_TEAM_DOMAIN: "http://127.0.0.1:27062",
@@ -267,7 +267,7 @@ export function registerWorkerReadinessSuite() {
 				ASSETS: {
 					fetch: async () => createHtmlShellResponse(),
 				},
-				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+				OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-internal-secret",
 				OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
 				OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
 				ACCESS_TEAM_DOMAIN: "https://team-readyz.cloudflareaccess.com",

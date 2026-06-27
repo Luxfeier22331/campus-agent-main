@@ -2,7 +2,7 @@
 	"schema_version": 1,
 	"case_family": "online_answer_main_path.v1",
 	"updated_at": "2026-06-25",
-	"description": "Product-level online answer main-path regression set. Cases pin admission, memory recall, routing, capability execution, source-truth grounding, and finalization contracts without binding to retrieval internals. Default release collection runs only release_gate/regression_locked cases; blocked_capability, structured_tool_later, known_gap, clarification, and fail_closed cases remain full-suite truth until their runtime evidence path is explicitly admitted.",
+	"description": "Product-level online answer main-path regression set. Cases pin admission, memory recall, routing, tool execution, source-truth grounding, and finalization contracts without binding to retrieval internals. Default release collection runs only release_gate/regression_locked cases; blocked_tool, structured_tool_later, known_gap, clarification, and fail_closed cases remain full-suite truth until their runtime evidence path is explicitly admitted.",
 	"cases": [
 		{
 			"case_id": "main-student-rules-transfer-policy",
@@ -10,7 +10,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -20,7 +20,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -38,7 +38,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -48,7 +48,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -66,7 +66,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -76,7 +76,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -94,7 +94,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -104,7 +104,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -122,7 +122,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -132,7 +132,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -150,7 +150,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -160,7 +160,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -178,7 +178,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -188,7 +188,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -206,7 +206,7 @@
 			"domain": "student_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules", "curriculum/curriculum_plan"],
@@ -216,7 +216,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -234,7 +234,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -244,7 +244,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -262,7 +262,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -272,7 +272,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -290,7 +290,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -300,7 +300,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -318,7 +318,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -328,7 +328,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -346,7 +346,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -356,7 +356,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -374,7 +374,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -384,7 +384,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -402,7 +402,7 @@
 			"domain": "curriculum_plan",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -412,7 +412,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -430,7 +430,7 @@
 			"domain": "curriculum_plan",
 			"split": "clarification",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan"],
@@ -440,7 +440,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -458,7 +458,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -471,7 +471,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -489,7 +489,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -502,7 +502,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -520,7 +520,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -533,7 +533,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -551,7 +551,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -564,7 +564,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -582,7 +582,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -595,7 +595,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -613,7 +613,7 @@
 			"domain": "institutional_rules",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["regulations/institutional_rules"],
@@ -623,7 +623,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -641,7 +641,7 @@
 			"domain": "official_web",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference", "official_web/fresh_news"],
@@ -651,7 +651,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -669,7 +669,7 @@
 			"domain": "official_web",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -679,7 +679,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -697,7 +697,7 @@
 			"domain": "official_web",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -707,7 +707,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -725,7 +725,7 @@
 			"domain": "official_web",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/fresh_news"],
@@ -735,7 +735,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -753,7 +753,7 @@
 			"domain": "official_web",
 			"split": "release_gate",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -763,7 +763,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -781,7 +781,7 @@
 			"domain": "official_web",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "fail_closed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference", "official_web/fresh_news"],
@@ -791,7 +791,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -807,9 +807,9 @@
 			"case_id": "main-notice-spring-break-summary",
 			"user_utterance": "最近关于春假的通知总结一下",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice"],
@@ -819,7 +819,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -835,9 +835,9 @@
 			"case_id": "main-notice-time-window",
 			"user_utterance": "上周教务处发了哪些通知？",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice"],
@@ -847,7 +847,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -863,9 +863,9 @@
 			"case_id": "main-notice-original-link",
 			"user_utterance": "找一下那条春假通知原文链接",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice"],
@@ -875,7 +875,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -891,9 +891,9 @@
 			"case_id": "main-notice-financial-aid",
 			"user_utterance": "最近奖助学金通知有哪些？",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice"],
@@ -903,7 +903,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -919,9 +919,9 @@
 			"case_id": "main-notice-exam-arrangement",
 			"user_utterance": "期末考试安排相关通知帮我找一下",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice"],
@@ -931,7 +931,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -947,9 +947,9 @@
 			"case_id": "main-notice-private-scope",
 			"user_utterance": "我的学院最近有没有发实习通知？",
 			"domain": "notice",
-			"split": "blocked_capability",
+			"split": "blocked_tool",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice", "personal_memory"],
@@ -959,7 +959,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -977,7 +977,7 @@
 			"domain": "campus_services",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -987,7 +987,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1005,7 +1005,7 @@
 			"domain": "campus_services",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -1015,7 +1015,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1033,7 +1033,7 @@
 			"domain": "campus_services",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -1043,7 +1043,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1061,7 +1061,7 @@
 			"domain": "campus_services",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -1071,7 +1071,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1089,7 +1089,7 @@
 			"domain": "campus_services",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -1099,7 +1099,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1117,7 +1117,7 @@
 			"domain": "ambiguity",
 			"split": "structured_tool_later",
 			"expected": {
-				"selected_capability": "campus_services",
+				"selected_tool": "transport_schedule_lookup",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["official_web/stable_reference"],
@@ -1127,7 +1127,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.campus_services",
+						"tool.campus_services",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1145,7 +1145,7 @@
 			"domain": "memory_personalization",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["personal_memory", "curriculum/curriculum_plan"],
@@ -1155,7 +1155,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1173,7 +1173,7 @@
 			"domain": "memory_personalization",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -1187,7 +1187,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1205,7 +1205,7 @@
 			"domain": "memory_personalization",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": [
@@ -1219,7 +1219,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1237,7 +1237,7 @@
 			"domain": "memory_personalization",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "notice",
+				"selected_tool": "campus_notice_discover",
 				"terminal_outcome": "completed",
 				"source_truth": {
 					"expected_collections": ["personal_memory", "authenticated_notice"],
@@ -1247,7 +1247,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.notice",
+						"tool.notice",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1265,7 +1265,7 @@
 			"domain": "memory_personalization",
 			"split": "known_gap",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["personal_memory", "curriculum/curriculum_plan"],
@@ -1275,7 +1275,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1292,7 +1292,7 @@
 			"domain": "ambiguity",
 			"split": "clarification",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["personal_memory"],
@@ -1314,7 +1314,7 @@
 			"domain": "ambiguity",
 			"split": "clarification",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan", "regulations/student_rules"],
@@ -1324,7 +1324,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1341,7 +1341,7 @@
 			"domain": "ambiguity",
 			"split": "clarification",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "clarification",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan", "regulations/student_rules"],
@@ -1351,7 +1351,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1368,7 +1368,7 @@
 			"domain": "ambiguity",
 			"split": "fail_closed",
 			"expected": {
-				"selected_capability": "identity_policy",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "fail_closed",
 				"source_truth": {
 					"expected_collections": ["identity/authorization_policy"],
@@ -1376,7 +1376,7 @@
 				},
 				"trace_contract": {
 					"required_stages": ["context.memory_recall", "plan.route", "finalization.write"],
-					"forbidden_stages": ["capability.knowledge", "capability.notice", "legacy_python_cli"]
+					"forbidden_stages": ["tool.knowledge", "tool.notice", "legacy_python_cli"]
 				},
 				"answer_contract": {
 					"answer_text_present": true,
@@ -1390,7 +1390,7 @@
 			"domain": "ambiguity",
 			"split": "fail_closed",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "fail_closed",
 				"source_truth": {
 					"expected_collections": ["curriculum/curriculum_plan", "official_web/fresh_news"],
@@ -1400,7 +1400,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]
@@ -1417,7 +1417,7 @@
 			"domain": "ambiguity",
 			"split": "fail_closed",
 			"expected": {
-				"selected_capability": "identity_policy",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "fail_closed",
 				"source_truth": {
 					"expected_collections": ["regulations/student_rules"],
@@ -1439,7 +1439,7 @@
 			"domain": "ambiguity",
 			"split": "fail_closed",
 			"expected": {
-				"selected_capability": "knowledge",
+				"selected_tool": "knowledge_query",
 				"terminal_outcome": "fail_closed",
 				"source_truth": {
 					"expected_collections": ["authenticated_notice", "official_web/fresh_news"],
@@ -1449,7 +1449,7 @@
 					"required_stages": [
 						"context.memory_recall",
 						"plan.route",
-						"capability.knowledge",
+						"tool.knowledge",
 						"finalization.write"
 					],
 					"forbidden_stages": ["legacy_python_cli"]

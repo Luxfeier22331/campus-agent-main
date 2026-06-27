@@ -9,9 +9,9 @@ import {
 	uniqueIndex,
 } from "drizzle-orm/pg-core";
 import type {
-	CapabilityExecutionModelUsageSummary,
-	CapabilityExecutionWorkflowTraceSummary,
-} from "../../modules/integration/capability-execution-types";
+	ToolExecutionModelUsageSummary,
+	ToolExecutionWorkflowTraceSummary,
+} from "../../modules/integration/tool-execution-types";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -47,11 +47,11 @@ export const requestExecution = runtime.table(
 		traceId: text("trace_id").notNull(),
 		runId: text("run_id"),
 		safetyIdentifier: text("safety_identifier"),
-		requestedCapability: text("requested_capability"),
+		requestedTool: text("requested_tool"),
 		requestedScopeJson: jsonb("requested_scope_json").$type<Record<string, unknown> | null>(),
 		versionQueryJson: jsonb("version_query_json").$type<VersionQuery | null>(),
 		resolvedScopeJson: jsonb("resolved_scope_json").$type<Record<string, unknown> | null>(),
-		selectedCapability: text("selected_capability"),
+		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
 		questionPreview: text("question_preview").notNull(),
@@ -127,13 +127,12 @@ export const requestObservabilityFact = runtime.table(
 		entitlementSnapshotId: text("entitlement_snapshot_id"),
 		policyProjectionVersion: text("policy_projection_version"),
 		policyReason: text("policy_reason"),
-		requestedCapability: text("requested_capability"),
+		requestedTool: text("requested_tool"),
 		requestedScopeSummary: text("requested_scope_summary"),
 		versionQueryMode: text("version_query_mode").$type<VersionQueryMode | null>(),
 		versionQuerySummary: text("version_query_summary"),
 		resolvedScopeSummary: text("resolved_scope_summary"),
 		collection: text("collection"),
-		selectedCapability: text("selected_capability"),
 		selectedTool: text("selected_tool"),
 		status: text("status").notNull(),
 		errorCode: text("error_code"),
@@ -166,8 +165,8 @@ export const requestObservabilityFact = runtime.table(
 		toolHistoricalDowngradeReason: text("tool_historical_downgrade_reason"),
 		workflowTraceSummaryJson: jsonb(
 			"workflow_trace_summary_json",
-		).$type<CapabilityExecutionWorkflowTraceSummary | null>(),
-		intentCapability: text("intent_capability"),
+		).$type<ToolExecutionWorkflowTraceSummary | null>(),
+		intentTool: text("intent_tool"),
 		intentTaskKind: text("intent_task_kind"),
 		intentLaunchState: text("intent_launch_state"),
 		intentNextAction: text("intent_next_action"),
@@ -190,7 +189,7 @@ export const requestObservabilityFact = runtime.table(
 		modelName: text("model_name"),
 		billableStepCount: integer("billable_step_count"),
 		modelUsageSummaryJson: jsonb("model_usage_summary_json").$type<
-			CapabilityExecutionModelUsageSummary[] | null
+			ToolExecutionModelUsageSummary[] | null
 		>(),
 		promptId: text("prompt_id"),
 		promptVersion: text("prompt_version"),
@@ -227,9 +226,9 @@ export const requestObservabilityFact = runtime.table(
 			table.surface,
 			table.startedAt,
 		),
-		selectedCapabilityStartedAtIndex: index(
-			"runtime_request_observability_selected_capability_started_at_idx",
-		).on(table.selectedCapability, table.startedAt),
+		selectedToolStartedAtIndex: index(
+			"runtime_request_observability_selected_tool_started_at_idx",
+		).on(table.selectedTool, table.startedAt),
 		principalTypeStartedAtIndex: index(
 			"runtime_request_observability_principal_type_started_at_idx",
 		).on(table.principalType, table.startedAt),

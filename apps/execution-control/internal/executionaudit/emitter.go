@@ -13,24 +13,25 @@ import (
 )
 
 type Event struct {
+	ActivityDuration      time.Duration
+	CancelDeliveryStatus  string
 	ContextPreflightState string
 	Decision              string
 	Duration              time.Duration
 	EventType             string
 	FailureKind           string
 	HTTPStatus            int
-	Lane                  string
 	OccurredAt            time.Time
 	PlanningOutcome       string
 	PolicyGateDecision    string
 	QueueWait             time.Duration
 	RequestID             string
-	RequestedCapability   string
+	RequestedTool         string
 	Retryable             bool
 	RoutingNextAction     string
 	ScopeGateDecision     string
-	SelectedCapability    string
 	SelectedTool          string
+	TaskQueue             string
 	TerminalOutcome       string
 	FailCloseReason       string
 	TraceID               string

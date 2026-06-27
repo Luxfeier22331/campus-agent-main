@@ -6,7 +6,7 @@ import { readAppAuthConfig } from "../src/config";
 import { buildRuntimeDatabaseConfig } from "../src/db/runtime";
 
 describe("app-api auth config boundary", () => {
-	it("reads auth runtime config without requiring executionClient transport or campus-web origin", () => {
+	it("reads auth runtime config without requiring execution transport or campus-web origin", () => {
 		expect(
 			readAppAuthConfig({
 				APP_API_NAME: "campus-agent-app-api",

@@ -112,12 +112,12 @@ func (s *Server) projectMemoryAppendFailure(
 	}
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "memory",
+		Tool:          "memory",
 		Run:           run,
 		Status:        "failed",
 		StepID:        "memory.append",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     now,
 		CompletedAt:   now,
@@ -236,12 +236,12 @@ func (s *Server) projectMemoryAppendResult(
 	}
 	err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
-		Capability:    "memory",
+		Tool:          "memory",
 		Run:           run,
 		Status:        output.Status,
 		StepID:        "memory.append",
 		StepKind:      "memory",
-		TaskQueue:     temporalruntime.ActivityTaskQueueContext,
+		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
 		WorkerID:      s.config.TemporalWorkerIdentity,
 		StartedAt:     now,
 		CompletedAt:   now,

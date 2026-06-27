@@ -30,7 +30,7 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "multi_agent_runtime_contract",
+			"profile_id": "tool_runtime_contract",
 			"budget": {
 				"max_cases_per_run": 100,
 				"max_provider_calls_per_run": 0
@@ -82,7 +82,7 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "tool_family_denominator",
+			"profile_id": "tool_denominator",
 			"budget": {
 				"max_cases_per_run": 60,
 				"max_provider_calls_per_run": 60

@@ -30,6 +30,6 @@ Removed surfaces:
 - Python ingestion task executor seam
 
 No compatibility wrapper or fallback command should be added for removed
-modules. Needed capabilities must be rebuilt in TS control-plane/executor tasks
+modules. Needed tools must be rebuilt in TS control-plane/executor tasks
 or Rust kernels, with Python called only as a private extraction adapter when
 the task genuinely requires it.

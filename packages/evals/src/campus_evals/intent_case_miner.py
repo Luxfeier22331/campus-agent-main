@@ -45,7 +45,7 @@ def _requires_review(record: Mapping[str, object]) -> bool:
 def _case_from_record(record: Mapping[str, object], *, user_goal: str) -> IntentCase:
     request_id = _string_field(record, "request_id") or _normalize_user_goal(user_goal)
     launch_state = _string_field(record, "intent_launch_state")
-    selected_capability = _string_field(record, "selected_capability") or "none"
+    selected_tool = _string_field(record, "selected_tool") or "none"
     tags = ["mined", "needs_review"]
     if launch_state:
         tags.append(launch_state)
@@ -58,7 +58,7 @@ def _case_from_record(record: Mapping[str, object], *, user_goal: str) -> Intent
     return IntentCase(
         case_id=f"mined-{request_id}",
         user_goal=user_goal,
-        expected_capability=_string_field(record, "intent_capability"),
+        expected_tool=_string_field(record, "intent_tool"),
         expected_task_kind=_string_field(record, "intent_task_kind"),
         expected_launch_state=launch_state,
         expected_next_action=_string_field(record, "intent_next_action"),
@@ -67,7 +67,7 @@ def _case_from_record(record: Mapping[str, object], *, user_goal: str) -> Intent
         expected_policy_reason=_string_field(record, "intent_policy_reason"),
         expected_context_resolution_state=context_state,
         expected_context_reference_type=_string_field(record, "intent_context_reference_type"),
-        expected_target=selected_capability,
+        expected_target=selected_tool,
         critical=True,
         tags=tuple(tags),
     )

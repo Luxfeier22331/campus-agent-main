@@ -11,11 +11,11 @@ func TestKnowledgeActivityOptionsUseSpecializedTaskQueues(t *testing.T) {
 		name  string
 		queue string
 	}{
-		{name: PlanRAGActivityName, queue: ActivityTaskQueueKnowledgePlan},
-		{name: RetrieveIndexedLookupActivityName, queue: ActivityTaskQueueKnowledgeRetrieval},
-		{name: SelectEvidenceActivityName, queue: ActivityTaskQueueKnowledgePlan},
-		{name: SynthesizeRAGAnswerActivityName, queue: ActivityTaskQueueKnowledgeSynthesis},
-		{name: VerifyGroundingActivityName, queue: ActivityTaskQueueKnowledgePlan},
+		{name: PlanRAGActivityName, queue: ActivityTaskQueueKnowledge},
+		{name: RetrieveIndexedLookupActivityName, queue: ActivityTaskQueueKnowledge},
+		{name: SelectEvidenceActivityName, queue: ActivityTaskQueueKnowledge},
+		{name: SynthesizeRAGAnswerActivityName, queue: ActivityTaskQueueKnowledge},
+		{name: VerifyGroundingActivityName, queue: ActivityTaskQueueKnowledge},
 	}
 	for _, check := range checks {
 		t.Run(check.name, func(t *testing.T) {

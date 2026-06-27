@@ -19,15 +19,15 @@ Superseded on 2026-06-12.
 
 当前有效口径以以下文档为准：
 
-- `docs/architecture/product-positioning.md`
-- `docs/architecture/target-architecture.md`
-- `docs/architecture/system/capability-routing-and-admission-architecture.md`
+- `docs/architecture/product.md`
+- `docs/architecture/target.md`
+- `docs/architecture/system/tool-routing.md`
 - `docs/architecture/system/identity-and-authorization-architecture.md`
 - `docs/architecture/system/memory-plane-architecture.md`
 
 当前主问答链路只面向普通用户开放成熟、只读、source-truth-ready 的校园能力。普通用户不按学生 /
-教职工 / 院系身份拆分 capability 权限；personal memory 只作为 per-user advisory
-context，不作为 source truth、capability opening、authorization 或 fail-close truth。
+教职工 / 院系身份拆分 tool 权限；personal memory 只作为 per-user advisory
+context，不作为 source truth、tool opening、authorization 或 fail-close truth。
 
 本文只保留为历史材料，用于说明以下仍有效的边界教训：
 
@@ -35,7 +35,7 @@ context，不作为 source truth、capability opening、authorization 或 fail-c
 - raw token、raw session、raw memory 与 raw source payload 不应进入 execution /
   retrieval contract。
 
-本文早期提到的 Python `apps/supervisor-agent-worker`、`packages/knowledge-capability`
+本文早期提到的 Python `apps/supervisor-agent-worker`、旧 Python knowledge package
 与 `packages/retrieval-core` 已从 active workspace 删除；不得据此恢复旧 online
 serving packages。
 
@@ -79,7 +79,7 @@ serving packages。
 - approval truth
 
 `apps/execution-control`、`apps/supervisor-agent-worker`、
-`packages/knowledge-capability` 与 `packages/retrieval-core` 只消费 typed
+旧 Python knowledge package 与 `packages/retrieval-core` 只消费 typed
 projection，不自行重建最终权限结论。
 
 ### 决策 2：restricted document authorization 采用 ABAC 为主、ownership 为辅的模型
@@ -148,7 +148,7 @@ projection，不自行重建最终权限结论。
 - conversation / message / request execution
 - profile memory / session memory
 - operator projection / operator workflow
-- approval-required capability
+- approval-required tool
 
 但不同资源类型的 filter projection 语义必须分开：
 

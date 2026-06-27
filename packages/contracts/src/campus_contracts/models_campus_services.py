@@ -4,10 +4,10 @@ from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts.models_shared import (
-    ALLOWED_CAPABILITY_TOOL_NAMES,
-    CapabilityToolName,
+    ALLOWED_TOOL_NAMES,
     ToolBusinessOutcome,
     ToolFailCloseReason,
+    ToolName,
     _validate_tool_business_outcome,
     _validate_tool_fail_close_reason,
 )
@@ -48,7 +48,7 @@ CampusServicesFacts = CampusServicesScheduleFacts
 
 @dataclass(frozen=True, slots=True)
 class CampusServicesToolResultEnvelope:
-    tool_name: CapabilityToolName | str
+    tool_name: ToolName | str
     query_kind: CampusServicesQueryKind | str
     outcome: ToolBusinessOutcome | str
     facts: CampusServicesFacts
@@ -58,14 +58,14 @@ class CampusServicesToolResultEnvelope:
     clarification_options: tuple[str, ...] = field(default_factory=tuple)
     fail_close_reason: ToolFailCloseReason | str = ""
     schema_version: str = CAMPUS_SERVICES_TOOL_RESULT_SCHEMA_VERSION
-    capability: str = "campus_services"
+    tool: str = "transport_schedule_lookup"
 
     def __post_init__(self) -> None:
         if self.schema_version != CAMPUS_SERVICES_TOOL_RESULT_SCHEMA_VERSION:
             raise ValueError("schema_version must be campus_services_tool_result.v1")
-        if self.capability != "campus_services":
-            raise ValueError("capability must be campus_services")
-        _validate_capability_tool_name(str(self.tool_name))
+        if self.tool != "transport_schedule_lookup":
+            raise ValueError("tool must be transport_schedule_lookup")
+        _validate_tool_name(str(self.tool_name))
         _validate_campus_services_query_kind(self.query_kind)
         _validate_tool_business_outcome(self.outcome)
         if self.fail_close_reason:
@@ -93,9 +93,9 @@ def _validate_campus_services_query_kind(value: str) -> None:
         raise ValueError(f"unsupported campus_services query_kind: {value}")
 
 
-def _validate_capability_tool_name(value: str) -> None:
-    if value not in ALLOWED_CAPABILITY_TOOL_NAMES:
-        raise ValueError(f"unsupported capability tool name: {value}")
+def _validate_tool_name(value: str) -> None:
+    if value not in ALLOWED_TOOL_NAMES:
+        raise ValueError(f"unsupported tool name: {value}")
 
 
 def _validate_campus_services_fact_kind(value: str) -> None:

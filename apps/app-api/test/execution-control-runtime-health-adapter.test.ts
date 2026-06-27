@@ -41,9 +41,9 @@ describe("execution control runtime health adapter", () => {
 						],
 						task_queues: [
 							"campus-agent.workflow",
-							"campus-agent.activity.context",
+							"campus-agent.activity.core",
 							"campus-agent.activity.knowledge",
-							"campus-agent.activity.finalization",
+							"campus-agent.activity.core",
 						],
 						worker_id: "staging:workflow:01",
 					},
@@ -83,9 +83,9 @@ describe("execution control runtime health adapter", () => {
 				namespace: "campus-agent-staging",
 				requiredTaskQueues: [
 					"campus-agent.workflow",
-					"campus-agent.activity.context",
+					"campus-agent.activity.core",
 					"campus-agent.activity.knowledge",
-					"campus-agent.activity.finalization",
+					"campus-agent.activity.core",
 				],
 				taskQueueGate: "pollers_required",
 				taskQueuePollers: [
@@ -134,12 +134,12 @@ describe("execution control runtime health adapter", () => {
 							},
 							{
 								healthy: false,
-								name: "campus-agent.activity.finalization",
+								name: "campus-agent.activity.core",
 								pollers: 0,
 								type: "activity",
 							},
 						],
-						task_queues: ["campus-agent.workflow", "campus-agent.activity.finalization"],
+						task_queues: ["campus-agent.workflow", "campus-agent.activity.core"],
 						worker_id: "staging:execution-control:01",
 					},
 				}),
@@ -182,7 +182,7 @@ describe("execution control runtime health adapter", () => {
 					},
 					{
 						healthy: false,
-						name: "campus-agent.activity.finalization",
+						name: "campus-agent.activity.core",
 						pollers: 0,
 					},
 				],

@@ -163,7 +163,7 @@ online serving owner：
 
 - root `.env` 的 `RERANK_*` 只作为 optional local seed 输入
 - online retrieval 不以 root `.env` 为 truth
-- provider path 属于 connection `capabilityConfig.rerank.path`，不在 execution-control env 中猜测
+- provider path 属于 connection `toolConfig.rerank.path`，不在 execution-control env 中猜测
 
 相关键：
 
@@ -291,7 +291,7 @@ Hindsight API。
 放置位置：
 
 - local/staging lifecycle generated runtime env
-- staging / production secret store 必须注入 `execution-control` 与 `activity-context`
+- staging / production secret store 必须注入 `execution-control` 与 `activity-core`
 
 获取方式：
 

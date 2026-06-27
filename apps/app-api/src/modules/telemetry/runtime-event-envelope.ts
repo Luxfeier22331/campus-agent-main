@@ -8,10 +8,10 @@ export function buildRuntimeEventEnvelope(
 		occurredAt?: string | null;
 		principalType?: string | null;
 		requestId?: string | null;
-		requestedCapability?: string | null;
+		requestedTool?: string | null;
 		requestedScope?: RequestedScope | null;
 		requestedScopeSummary?: string | null;
-		selectedCapability?: string | null;
+		selectedTool?: string | null;
 		status?: string | null;
 		surface?: string | null;
 		traceId?: string | null;
@@ -30,9 +30,9 @@ export function buildRuntimeEventEnvelope(
 		principal_type: input.principalType ?? null,
 		release: metadata.release,
 		request_id: input.requestId ?? null,
-		requested_capability: input.requestedCapability ?? null,
+		requested_tool: input.requestedTool ?? null,
 		requested_scope_summary: input.requestedScopeSummary ?? toScopeSummary(input.requestedScope),
-		selected_capability: input.selectedCapability ?? null,
+		selected_tool: input.selectedTool ?? null,
 		status: input.status ?? null,
 		surface: input.surface ?? null,
 		trace_id: input.traceId ?? null,

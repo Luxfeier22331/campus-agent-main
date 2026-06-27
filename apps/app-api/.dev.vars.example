@@ -24,11 +24,11 @@ EXECUTION_CONTROL_EVAL_TIMEOUT_MS=30000
 # Cloudflare Access service-token authentication.
 EXECUTION_CONTROL_ACCESS_CLIENT_ID=
 EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=
-# Comma-separated exact operator emails allowed through the panel bridge.
+# Comma-separated exact operator emails allowed through the operator surface.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
 # Local scripts auto-generate APP_API_INTERNAL_SHARED_SECRET in
 # `infra/local/.generated/runtime.env`; set this only when you intentionally
-# override the generated bridge secret.
+# override the generated internal shared secret.
 APP_API_INTERNAL_SHARED_SECRET=
 APP_API_DATABASE_SSLMODE=prefer
 # Required for live `official_web` control-plane smoke. This must match
@@ -47,7 +47,7 @@ SENTRY_RELEASE=app-api@dev-local
 APP_API_OTEL_INGEST_ENDPOINT=http://127.0.0.1:4318
 APP_API_OTEL_INGEST_SHARED_SECRET=
 # Optional panel deep-link templates. Placeholders are URL-encoded before use.
-# Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedCapability}, {surface}, {status}.
+# Supported placeholders: {requestId}, {traceId}, {errorCode}, {selectedTool}, {surface}, {status}.
 APP_API_OPERATOR_TRACE_LINK_TEMPLATE=
 APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 

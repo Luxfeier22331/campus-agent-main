@@ -174,6 +174,6 @@ JSON Schema、OpenAPI、fixture 与 registry 是 executable contract，可以单
 ## 关联文档
 
 - `docs/README.md`
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `.planning/PROJECT.md`
 - `.planning/WORKSTREAMS.md`

@@ -29,17 +29,15 @@ updated: 2026-06-09
   - `execution-control`
   - `agent-runtime`
   - `workflow-worker`
-  - `activity-worker-context`
+  - `activity-worker-core`
   - `activity-worker-agent`
-  - `activity-worker-knowledge-plan`
-  - `activity-worker-knowledge-retrieval`
-  - `activity-worker-knowledge-synthesis`
-  - `activity-worker-finalization`
-  - `temporal`
-- opt-in services:
-  - `activity-worker-campus-services`
-  - `activity-worker-notice`
-  - `activity-worker-navigation`
+  - `activity-worker-knowledge`
+  - `activity-worker-knowledge`
+  - `activity-worker-knowledge`
+  - `activity-worker-core`
+  - `activity-worker-core`
+  - `activity-worker-core`
+  - `activity-worker-core`
   - `worker-autoscaler`
   - `temporal-ui`
   - self-hosted Langfuse stack
@@ -87,7 +85,7 @@ updated: 2026-06-09
     `QDRANT_API_KEY`
   - 启用 execution audit 时：`EXECUTION_CONTROL_EXECUTION_AUDIT_URL`、
     `EXECUTION_CONTROL_EXECUTION_AUDIT_SHARED_SECRET`
-  - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；
+  - 打开 `campus_services` / `notice` tool 时：`CAMPUS_SHARED_POSTGRES_URL`；
     notice 还需要 object-store/read-model 依赖
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。

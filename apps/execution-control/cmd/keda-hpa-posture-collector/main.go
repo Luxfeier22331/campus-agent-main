@@ -186,15 +186,9 @@ func defaultTargets(workflowTaskQueue string) []kedaposture.Target {
 	}
 	return []kedaposture.Target{
 		workerTarget("workflow-worker", workflowQueue, autoscaler.TaskQueueKindWorkflow, 3),
-		workerTarget("activity-worker-context", temporalruntime.ActivityTaskQueueContext, autoscaler.TaskQueueKindActivity, 3),
+		workerTarget("activity-worker-core", temporalruntime.ActivityTaskQueueCore, autoscaler.TaskQueueKindActivity, 3),
 		workerTarget("activity-worker-agent", temporalruntime.ActivityTaskQueueAgent, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-knowledge-plan", temporalruntime.ActivityTaskQueueKnowledgePlan, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-knowledge-retrieval", temporalruntime.ActivityTaskQueueKnowledgeRetrieval, autoscaler.TaskQueueKindActivity, 5),
-		workerTarget("activity-worker-knowledge-synthesis", temporalruntime.ActivityTaskQueueKnowledgeSynthesis, autoscaler.TaskQueueKindActivity, 5),
-		workerTarget("activity-worker-campus-services", temporalruntime.ActivityTaskQueueCampusService, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-notice", temporalruntime.ActivityTaskQueueNotice, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-navigation", temporalruntime.ActivityTaskQueueNavigation, autoscaler.TaskQueueKindActivity, 3),
-		workerTarget("activity-worker-finalization", temporalruntime.ActivityTaskQueueFinalization, autoscaler.TaskQueueKindActivity, 3),
+		workerTarget("activity-worker-knowledge", temporalruntime.ActivityTaskQueueKnowledge, autoscaler.TaskQueueKindActivity, 5),
 	}
 }
 

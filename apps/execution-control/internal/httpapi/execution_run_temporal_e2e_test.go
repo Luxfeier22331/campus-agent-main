@@ -40,9 +40,15 @@ func TestExecutionRunHTTPStartsTemporalWorkflowAndProjectsCompletion(t *testing.
 	activities := &httpTemporalE2EActivities{store: store}
 	workers := []worker.Worker{
 		temporalruntime.NewWorkflowWorker(temporalClient, temporalruntime.WorkflowTaskQueue),
-		temporalruntime.NewContextActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueContext, activities),
+		temporalruntime.NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueCore,
+			activities,
+			activities,
+			activities,
+			worker.Options{},
+		),
 		temporalruntime.NewAgentActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
-		temporalruntime.NewFinalizationActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueFinalization, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -134,9 +140,15 @@ func TestExecutionRunHTTPCancelsTemporalWorkflowAndProjectsCancellation(t *testi
 	}
 	workers := []worker.Worker{
 		temporalruntime.NewWorkflowWorker(temporalClient, temporalruntime.WorkflowTaskQueue),
-		temporalruntime.NewContextActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueContext, activities),
+		temporalruntime.NewCoreActivityWorkerWithOptions(
+			temporalClient,
+			temporalruntime.ActivityTaskQueueCore,
+			activities,
+			activities,
+			activities,
+			worker.Options{},
+		),
 		temporalruntime.NewAgentActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueAgent, activities),
-		temporalruntime.NewFinalizationActivityWorker(temporalClient, temporalruntime.ActivityTaskQueueFinalization, activities),
 	}
 	for _, runtimeWorker := range workers {
 		if err := runtimeWorker.Start(); err != nil {
@@ -250,6 +262,20 @@ func (httpTemporalE2EActivities) PlanReplanActivity(
 	panic("PlanReplanActivity should not run in direct primary-agent HTTP E2E")
 }
 
+func (httpTemporalE2EActivities) ExecuteTypedToolActivity(
+	context.Context,
+	temporalruntime.ExecuteTypedToolActivityInput,
+) (temporalruntime.ExecuteTypedToolActivityOutput, error) {
+	panic("ExecuteTypedToolActivity should not run in direct primary-agent HTTP E2E")
+}
+
+func (httpTemporalE2EActivities) ExecuteAgentAsToolActivity(
+	context.Context,
+	temporalruntime.ExecuteAgentAsToolActivityInput,
+) (temporalruntime.ExecuteAgentAsToolActivityOutput, error) {
+	panic("ExecuteAgentAsToolActivity should not run in direct primary-agent HTTP E2E")
+}
+
 func (a httpTemporalE2EActivities) ExecutePrimaryAgentActivity(
 	ctx context.Context,
 	input temporalruntime.ExecutePrimaryAgentActivityInput,
@@ -293,11 +319,11 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
 	if _, err := a.store.CompleteRunProjection(ctx, execution.DurableRunCompleteRequest{
-		FinalResponseRef:   finalizationRef,
-		Now:                completedAt,
-		RunID:              input.RunID,
-		SelectedCapability: "primary_agent",
-		TerminalReason:     execution.DurableTerminalReasonAnswerCompleted,
+		FinalResponseRef: finalizationRef,
+		Now:              completedAt,
+		RunID:            input.RunID,
+		SelectedTool:     "primary_agent",
+		TerminalReason:   execution.DurableTerminalReasonAnswerCompleted,
 	}); err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
@@ -322,9 +348,9 @@ func (a httpTemporalE2EActivities) WriteFinalizationActivity(
 		RunID:                input.RunID,
 		ConversationID:       run.ConversationID,
 		StepKind:             "finalization",
-		Capability:           "primary_agent",
+		Tool:                 "primary_agent",
 		Status:               "completed",
-		TaskQueue:            temporalruntime.ActivityTaskQueueFinalization,
+		TaskQueue:            temporalruntime.ActivityTaskQueueCore,
 		WorkerID:             "http-temporal-e2e",
 		StartedAt:            completedAt,
 		CompletedAt:          completedAt,

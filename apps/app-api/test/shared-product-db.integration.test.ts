@@ -9,11 +9,11 @@ import { createApp } from "../src/app";
 import type { Env } from "../src/config";
 import { createPgChatConversationStore } from "../src/modules/chat";
 import type {
-	CapabilityExecutionInput,
-	CapabilityExecutionResponse,
+	ToolExecutionInput,
+	ToolExecutionResponse,
 } from "../src/modules/integration/execution-control";
 import { buildChatCommandService, createPgChatCommandStore } from "../src/modules/runtime-command";
-import { createExecutionRuntimeFromCapabilityClient } from "./chat-command.service.test-support";
+import { createExecutionRuntimeFromToolClient } from "./chat-command.service.test-support";
 import {
 	buildSharedDbIntegrationEnv,
 	convergeSharedDbForAppApiIntegration,
@@ -265,7 +265,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 		expect(createResponse.status).toBe(201);
 
 		const executionClient: {
-			execute(input: CapabilityExecutionInput): Promise<CapabilityExecutionResponse>;
+			execute(input: ToolExecutionInput): Promise<ToolExecutionResponse>;
 		} = {
 			execute: vi
 				.fn()
@@ -286,7 +286,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_eval_curriculum_01",
 				})
@@ -307,7 +307,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 							sources: [{ doc_id: "curriculum:法学（民族实验班）本科人才培养方案" }],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_eval_curriculum_02",
 				}),
@@ -316,7 +316,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api shared product DB integration", () =>
 			chatCommandService: buildChatCommandService({
 				conversationStore: createPgChatConversationStore(env),
 				store: createPgChatCommandStore(env),
-				executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+				executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 			}),
 		});
 

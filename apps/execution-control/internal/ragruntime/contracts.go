@@ -187,7 +187,7 @@ type PreviousEvidenceContextItem struct {
 }
 
 type MemoryContextItem struct {
-	Capability  string  `json:"capability"`
+	Tool        string  `json:"tool"`
 	CompactText string  `json:"compact_text"`
 	MemoryID    string  `json:"memory_id"`
 	MemoryType  string  `json:"memory_type"`

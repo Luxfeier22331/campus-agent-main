@@ -3,7 +3,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
-import type { CapabilityExecutionResponse } from "../src/modules/integration";
+import type { ToolExecutionResponse } from "../src/modules/integration";
 import {
 	buildAcceptedRequestObservabilityFact,
 	buildFinalizedRequestObservabilityFact,
@@ -48,16 +48,14 @@ function createPrincipal(): ResolvedAppPrincipal {
 	};
 }
 
-function createResponse(
-	overrides: Partial<CapabilityExecutionResponse> = {},
-): CapabilityExecutionResponse {
+function createResponse(overrides: Partial<ToolExecutionResponse> = {}): ToolExecutionResponse {
 	return {
 		answerText: "当前没有足够依据回答这个问题。",
 		error: null,
 		followUpQuestion: "",
 		observability: null,
 		result: null,
-		selectedCapability: "knowledge",
+		selectedTool: "knowledge_query",
 		status: "no_answer",
 		traceId: "trace_01HQ",
 		...overrides,
@@ -72,7 +70,7 @@ describe("request observability", () => {
 			conversationId: "conv_01HQ",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -97,7 +95,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -179,7 +177,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "student_rules",
 				corpus: "regulations",
@@ -226,7 +224,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("prefers explicit executionClient observability semantics when provided", () => {
+	it("prefers explicit execution observability semantics when provided", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-05T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -235,7 +233,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
@@ -275,7 +273,7 @@ describe("request observability", () => {
 		});
 	});
 
-	it("persists structured tool and workflow trace summaries from executionClient response", () => {
+	it("persists structured tool and workflow trace summaries from execution response", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-13T08:00:01.000Z",
 			conversationId: "conv_workflow_01HQ",
@@ -284,7 +282,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_workflow_01HQ",
-			requestedCapability: "campus_services",
+			requestedTool: "transport_schedule_lookup",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
@@ -312,7 +310,7 @@ describe("request observability", () => {
 					toolFailCloseReason: null,
 					toolHistoricalDowngradeReason: null,
 				},
-				selectedCapability: "campus_services",
+				selectedTool: "transport_schedule_lookup",
 				status: "completed",
 				workflowTraceSummary: {
 					contextResolution: {
@@ -325,7 +323,7 @@ describe("request observability", () => {
 					},
 					handoff: {
 						payload_kind: "transport_schedule_lookup",
-						target: "campus_services",
+						target: "transport_schedule_lookup",
 					},
 					handoffChain: [],
 					contextProjections: [],
@@ -339,7 +337,7 @@ describe("request observability", () => {
 					runtimeVersions: {
 						"execution-control": "test",
 					},
-					selectedCapability: "campus_services",
+					selectedTool: "transport_schedule_lookup",
 					selectedTools: ["transport_schedule_lookup"],
 					traceSteps: [],
 					toolCallSummaries: [],
@@ -357,20 +355,19 @@ describe("request observability", () => {
 		});
 
 		expect(fact).toMatchObject({
-			selectedCapability: "campus_services",
 			selectedTool: "transport_schedule_lookup",
 			toolBusinessOutcome: "resolved_current",
 			toolFailCloseReason: null,
 			toolHistoricalDowngradeReason: null,
 			workflowTraceSummary: {
 				directVsDelegateBranch: "direct",
-				selectedCapability: "campus_services",
+				selectedTool: "transport_schedule_lookup",
 				selectedTools: ["transport_schedule_lookup"],
 			},
 		});
 	});
 
-	it("projects prompt metadata and model execution state from executionClient observability", () => {
+	it("projects prompt metadata and model execution state from execution observability", () => {
 		const fact = buildFinalizedRequestObservabilityFact({
 			completedAt: "2026-04-12T08:00:01.000Z",
 			conversationId: "conv_01HQ",
@@ -379,7 +376,7 @@ describe("request observability", () => {
 			errorCode: "prompt_runtime_failed",
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -472,11 +469,11 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: null,
 			resolvedScope: null,
 			response: createResponse({
-				selectedCapability: null,
+				selectedTool: null,
 			}),
 			sourceDocIds: [],
 			startedAt: "2026-04-11T09:00:00.000Z",
@@ -491,7 +488,7 @@ describe("request observability", () => {
 			refusalClass: "out_of_scope",
 			scopeClass: "out_of_scope",
 			semanticOutcome: "out_of_scope",
-			selectedCapability: null,
+			selectedTool: null,
 		});
 	});
 
@@ -535,7 +532,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_01HQ",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -569,7 +566,7 @@ describe("request observability", () => {
 			refusalClass: "no_answer",
 			scopeClass: "in_scope",
 			semanticOutcome: "unsupported_by_evidence",
-			selectedCapability: "knowledge",
+			selectedTool: "knowledge_query",
 		});
 	});
 
@@ -582,7 +579,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_trace",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",
@@ -702,7 +699,7 @@ describe("request observability", () => {
 			errorCode: null,
 			principal: createPrincipal(),
 			requestId: "req_empty_recall",
-			requestedCapability: "knowledge",
+			requestedTool: "knowledge_query",
 			requestedScope: {
 				collection: "curriculum_plan",
 				corpus: "curriculum",

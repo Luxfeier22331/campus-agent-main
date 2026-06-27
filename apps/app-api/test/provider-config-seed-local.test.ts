@@ -31,22 +31,22 @@ describe("local provider-config seed script", () => {
 				{
 					apiKey: "llm-key",
 					baseUrl: "https://api.openai.com/v1",
-					capabilities: ["prompt"],
-					capabilityConfig: {},
+					features: ["prompt"],
+					featureConfig: {},
 					provider: "openai",
 				},
 				{
 					apiKey: "embedding-key",
 					baseUrl: "https://ai.gitee.com/v1",
-					capabilities: ["embedding"],
-					capabilityConfig: {},
+					features: ["embedding"],
+					featureConfig: {},
 					provider: "openai-compatible",
 				},
 				{
 					apiKey: "rerank-key",
 					baseUrl: "https://ai.gitee.com/v1",
-					capabilities: ["rerank"],
-					capabilityConfig: { rerank: { path: "/rerank" } },
+					features: ["rerank"],
+					featureConfig: { rerank: { path: "/rerank" } },
 					provider: "gitee",
 				},
 			]);

@@ -12,7 +12,7 @@ func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {
 		json.RawMessage(`{
 			"user_goal":"奖学金怎么申请？",
 			"request_id":"intent-eval-knowledge-001",
-			"requested_capability":"knowledge"
+			"requested_tool":"knowledge_query"
 		}`),
 		map[string]string{
 			"authorization": "Bearer intent-eval-token",
@@ -33,14 +33,14 @@ func TestObserveIntentForEvalProjectsGoRuntimePolicyAndPlanning(t *testing.T) {
 	if observed.SchemaVersion != "intent-schema-1.0.0" {
 		t.Fatalf("schema_version = %q, want intent-schema-1.0.0", observed.SchemaVersion)
 	}
-	if observed.Capability != "knowledge" {
-		t.Fatalf("capability = %q, want knowledge", observed.Capability)
+	if observed.Tool != "knowledge_query" {
+		t.Fatalf("tool = %q, want knowledge_query", observed.Tool)
 	}
-	if observed.SelectedCapability != "knowledge" {
-		t.Fatalf("selected_capability = %q, want knowledge", observed.SelectedCapability)
+	if observed.SelectedTool != "none" {
+		t.Fatalf("selected_tool = %q, want none before agent tool selection", observed.SelectedTool)
 	}
-	if observed.PlanningOutcome != "preplanned" {
-		t.Fatalf("planning_outcome = %q, want preplanned", observed.PlanningOutcome)
+	if observed.PlanningOutcome != "not_preplanned" {
+		t.Fatalf("planning_outcome = %q, want not_preplanned", observed.PlanningOutcome)
 	}
 }
 
@@ -49,7 +49,7 @@ func TestObserveIntentForEvalReportsTerminalOutcomeForClosedPlaceLookup(t *testi
 		json.RawMessage(`{
 			"user_goal":"图书馆在哪里",
 			"request_id":"intent-eval-place-closed-001",
-			"requested_capability":"place_lookup"
+			"requested_tool":"place_lookup"
 		}`),
 		map[string]string{
 			"authorization": "Bearer intent-eval-token",
@@ -64,11 +64,11 @@ func TestObserveIntentForEvalReportsTerminalOutcomeForClosedPlaceLookup(t *testi
 	if observed.NextAction != "out_of_scope" {
 		t.Fatalf("next_action = %q, want out_of_scope", observed.NextAction)
 	}
-	if observed.Capability != "place_lookup" {
-		t.Fatalf("capability = %q, want place_lookup", observed.Capability)
+	if observed.Tool != "place_lookup" {
+		t.Fatalf("tool = %q, want place_lookup", observed.Tool)
 	}
-	if observed.SelectedCapability != "none" {
-		t.Fatalf("selected_capability = %q, want none", observed.SelectedCapability)
+	if observed.SelectedTool != "none" {
+		t.Fatalf("selected_tool = %q, want none", observed.SelectedTool)
 	}
 	if observed.TerminalStatus != "no_answer" {
 		t.Fatalf("terminal_status = %q, want no_answer", observed.TerminalStatus)
@@ -80,7 +80,7 @@ func TestObserveIntentForEvalMapsInvalidEnvelopeToExecutionErrorCode(t *testing.
 		json.RawMessage(`{
 			"user_goal":"图书馆在哪里",
 			"request_id":"intent-eval-invalid-place-scope-001",
-			"requested_capability":"place_lookup",
+			"requested_tool":"place_lookup",
 			"requested_scope":{"corpus":"regulations","collection":"student_rules"}
 		}`),
 		map[string]string{

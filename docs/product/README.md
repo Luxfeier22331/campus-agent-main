@@ -35,10 +35,10 @@ HTTP contracts, data schemas, operational procedures or active work status.
 ## Use Rules
 
 - Product boundary and non-promises remain in
-  [`docs/architecture/product-positioning.md`](../architecture/product-positioning.md).
+  [`docs/architecture/product.md`](../architecture/product.md).
 
 - Current accepted implementation truth remains in
-  [`docs/architecture/current-architecture.md`](../architecture/current-architecture.md).
+  [`docs/architecture/current.md`](../architecture/current.md).
 - Runtime/API wire shape remains in [`docs/contracts/`](../contracts/).
 - A PRD may state user-facing behavior and acceptance criteria, but it must not
   redefine architecture owners, data schemas or deployment runbooks.

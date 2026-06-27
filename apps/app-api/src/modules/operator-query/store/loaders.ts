@@ -80,11 +80,11 @@ export async function loadQualityRollupRows(
 	if (filters.surface) {
 		conditions.push(eq(metricRollup.surface, filters.surface));
 	}
-	if (filters.selectedCapability) {
-		conditions.push(eq(metricRollup.selectedCapability, filters.selectedCapability));
+	if (filters.selectedTool) {
+		conditions.push(eq(metricRollup.selectedTool, filters.selectedTool));
 	}
-	if (filters.requestedCapability) {
-		conditions.push(eq(metricRollup.requestedCapability, filters.requestedCapability));
+	if (filters.requestedTool) {
+		conditions.push(eq(metricRollup.requestedTool, filters.requestedTool));
 	}
 	if (filters.principalType) {
 		conditions.push(eq(metricRollup.principalType, filters.principalType));

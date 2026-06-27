@@ -43,7 +43,7 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		"transport_intent_service_window",
 		"transport_route_metro_shuttle",
 		"transport_route_intercampus_commute",
-		"structured_transport_boarding_status",
+		"tool_transport_boarding_status",
 		"transport_route_to_fengtai",
 		"transport_route_to_haidian",
 		"temporal_today",
@@ -58,130 +58,6 @@ func TestIntentPolicyArtifactLoadsRepoDefaultAndMatchesRuntimeVersions(t *testin
 		if len(policy.SignalGroups[group]) == 0 {
 			t.Fatalf("policy-backed signal group %q must not be empty", group)
 		}
-	}
-}
-
-func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
-	policy, err := LoadIntentPolicy("")
-	if err != nil {
-		t.Fatalf("load default intent policy: %v", err)
-	}
-	policy.SignalGroups["structured_notice"] = []string{"校内要闻"}
-	policy.SignalGroups["structured_transport"] = []string{"摆渡车"}
-	policy.SignalGroups["structured_place_lookup_action"] = []string{"藏在哪里"}
-	policy.SignalGroups["structured_place_entity"] = []string{"北楼"}
-
-	tests := []struct {
-		name       string
-		goal       string
-		want       string
-		wantSource string
-	}{
-		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
-		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
-		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
-		{name: "contact directory signal", goal: "招生办电话是多少", want: "knowledge", wantSource: "default"},
-		{name: "vpn service guide signal", goal: "VPN入口在哪里", want: "knowledge", wantSource: "default"},
-		{name: "vpn install service guide signal", goal: "VPN客户端怎么安装", want: "knowledge", wantSource: "default"},
-		{name: "network auth service guide signal", goal: "校园网认证入口在哪里", want: "knowledge", wantSource: "default"},
-		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "knowledge", wantSource: "default"},
-		{name: "unified auth password reset signal", goal: "统一身份认证密码怎么改", want: "knowledge", wantSource: "default"},
-		{name: "unified auth forgot password signal", goal: "统一身份认证密码忘了怎么办", want: "knowledge", wantSource: "default"},
-		{name: "portal password reset signal", goal: "信息门户密码怎么改", want: "knowledge", wantSource: "default"},
-		{name: "plain portal forgot password signal", goal: "门户密码忘了怎么办", want: "knowledge", wantSource: "default"},
-		{name: "smart portal forgot password signal", goal: "智慧门户忘记密码怎么办", want: "knowledge", wantSource: "default"},
-		{name: "network auth login signal", goal: "校园网怎么认证登录", want: "knowledge", wantSource: "default"},
-		{name: "network auth url signal", goal: "校园网认证网址是什么", want: "knowledge", wantSource: "default"},
-		{name: "vpn address signal", goal: "VPN地址是什么", want: "knowledge", wantSource: "default"},
-		{name: "remote access guide signal", goal: "校外怎么用VPN访问校园网资源", want: "knowledge", wantSource: "default"},
-		{name: "email download form signal", goal: "校园邮箱申请表在哪里下载", want: "knowledge", wantSource: "default"},
-		{name: "enterprise wechat guide signal", goal: "企业微信怎么绑定", want: "knowledge", wantSource: "default"},
-		{name: "enterprise wechat faq signal", goal: "企业微信提示需要同事扫码验证怎么办", want: "knowledge", wantSource: "default"},
-		{name: "enterprise wechat phone update signal", goal: "企业微信绑定手机号怎么改", want: "knowledge", wantSource: "default"},
-		{name: "directory lookup guide signal", goal: "办公电话怎么查", want: "knowledge", wantSource: "default"},
-		{name: "directory lookup guide alias signal", goal: "通讯录在哪里找", want: "knowledge", wantSource: "default"},
-		{name: "academic calendar guide signal", goal: "校历怎么看", want: "knowledge", wantSource: "default"},
-		{name: "academic calendar teaching week signal", goal: "今天第几教学周", want: "knowledge", wantSource: "default"},
-		{name: "academic calendar holiday signal", goal: "五一放几天", want: "knowledge", wantSource: "default"},
-		{name: "academic calendar makeup class signal", goal: "哪周补课", want: "knowledge", wantSource: "default"},
-		{name: "network account guide signal", goal: "上网账号申请去哪里办", want: "knowledge", wantSource: "default"},
-		{name: "staff campus card guide signal", goal: "教职工校园卡丢了怎么办", want: "knowledge", wantSource: "default"},
-		{name: "academic calendar guide url signal", goal: "校历网址是什么", want: "knowledge", wantSource: "default"},
-		{name: "card center office hours guide signal", goal: "卡务中心几点上班", want: "knowledge", wantSource: "default"},
-		{name: "public medical eligibility guide signal", goal: "公费医疗哪些学生能享受", want: "knowledge", wantSource: "default"},
-		{name: "campus card full guide signal", goal: "校园卡服务有哪些内容", want: "knowledge", wantSource: "default"},
-		{name: "information disclosure materials guide signal", goal: "信息公开申请要准备什么", want: "knowledge", wantSource: "default"},
-		{name: "information disclosure contact signal", goal: "信息公开联系电话是多少", want: "knowledge", wantSource: "default"},
-		{name: "information service contact signal", goal: "信息化服务办公地点在哪里", want: "knowledge", wantSource: "default"},
-		{name: "logistics contact signal", goal: "后勤服务热线是多少", want: "knowledge", wantSource: "default"},
-		{name: "network service contact signal", goal: "网络服务电话是多少", want: "knowledge", wantSource: "default"},
-		{name: "conference center contact signal", goal: "会务服务中心电话是多少", want: "knowledge", wantSource: "default"},
-		{name: "dorm management center contact signal", goal: "学生公寓管理服务中心电话是多少", want: "knowledge", wantSource: "default"},
-		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "knowledge", wantSource: "default"},
-		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "knowledge", wantSource: "default"},
-		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
-		{
-			name:       "scholarship category discovery remains knowledge",
-			goal:       "本科生有哪些奖学金能申请",
-			want:       "knowledge",
-			wantSource: "default",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			resolution := ResolveCapability(CapabilityResolutionRequest{
-				UserGoal: tt.goal,
-			}, policy)
-			if resolution.EffectiveCapability != tt.want {
-				t.Fatalf("capability = %q, want %q", resolution.EffectiveCapability, tt.want)
-			}
-			wantSource := tt.wantSource
-			if wantSource == "" {
-				wantSource = "inferred"
-			}
-			if resolution.Source != wantSource {
-				t.Fatalf("source = %q, want %s", resolution.Source, wantSource)
-			}
-		})
-	}
-}
-
-func TestResolveCapabilityTreatsExplicitNoticeMarkerAsNotice(t *testing.T) {
-	policy, err := LoadIntentPolicy("")
-	if err != nil {
-		t.Fatalf("load default intent policy: %v", err)
-	}
-
-	resolution := ResolveCapability(CapabilityResolutionRequest{
-		UserGoal: "找一下春假通知",
-	}, policy)
-
-	if resolution.EffectiveCapability != "notice" {
-		t.Fatalf("capability = %q, want notice", resolution.EffectiveCapability)
-	}
-	if resolution.Source != "inferred" {
-		t.Fatalf("source = %q, want inferred", resolution.Source)
-	}
-}
-
-func TestResolveCapabilityPreservesExplicitCampusServicesWithRequestedScope(t *testing.T) {
-	policy, err := LoadIntentPolicy("")
-	if err != nil {
-		t.Fatalf("load default intent policy: %v", err)
-	}
-
-	resolution := ResolveCapability(CapabilityResolutionRequest{
-		RequestedCapability: "campus_services",
-		UserGoal:            "这条班车通知依据学生手册哪条规定？",
-		HasRequestedScope:   true,
-	}, policy)
-
-	if resolution.EffectiveCapability != "campus_services" {
-		t.Fatalf("capability = %q, want campus_services", resolution.EffectiveCapability)
-	}
-	if resolution.Source != "explicit" {
-		t.Fatalf("source = %q, want explicit", resolution.Source)
 	}
 }
 
@@ -272,7 +148,7 @@ func TestEvaluateRuntimePolicyUsesExplicitIntentPolicyArtifact(t *testing.T) {
 		t.Fatalf("load policy fixture: %v", err)
 	}
 	decision := EvaluateWithPolicy(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "测试校内信号怎么处理",
 	}, policy)
 
@@ -295,7 +171,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "external institution out of scope",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "MIT的校长是谁",
 			},
 			wantAction: "out_of_scope",
@@ -305,7 +181,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "domestic external institution out of scope",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "北京大学有哪些专业",
 			},
 			wantAction: "out_of_scope",
@@ -315,7 +191,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "campus knowledge delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "法学民族实验班培养方案里大二下有什么课",
 			},
 			wantAction: "delegate",
@@ -325,7 +201,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "campus political course delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "习近平新时代中国特色社会主义思想概论有哪些专业要上",
 			},
 			wantAction: "delegate",
@@ -335,7 +211,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "campus network password delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "校园网密码怎么改？",
 			},
 			wantAction: "delegate",
@@ -345,7 +221,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "unified auth password delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "统一身份认证密码怎么改？",
 			},
 			wantAction: "delegate",
@@ -355,7 +231,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "information portal password delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "信息门户密码怎么改？",
 			},
 			wantAction: "delegate",
@@ -365,7 +241,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "network account application delegates",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "上网账号申请去哪里办？",
 			},
 			wantAction: "delegate",
@@ -375,7 +251,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "open domain political fact out of scope",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "中国国家主席是谁",
 			},
 			wantAction: "out_of_scope",
@@ -385,7 +261,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "general world query out of scope",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "解释一下AI",
 			},
 			wantAction: "out_of_scope",
@@ -395,17 +271,17 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "structured knowledge candidate stays candidate only",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "校车什么时候发车",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "tool_read_model_candidate_signal",
 			wantRisk:   "low",
 		},
 		{
 			name: "retired service status lookup stays ordinary campus knowledge",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "食堂营业到几点",
 			},
 			wantAction: "delegate",
@@ -415,7 +291,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "retired service guide lookup stays ordinary campus knowledge",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "公费医疗报销需要什么材料",
 			},
 			wantAction: "delegate",
@@ -425,7 +301,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "retired service guide contact lookup stays ordinary campus knowledge",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "公费医疗报销联系电话是多少",
 			},
 			wantAction: "delegate",
@@ -435,7 +311,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "retired contact directory lookup stays ordinary campus knowledge",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "研究生院招生办公室电话是多少",
 			},
 			wantAction: "delegate",
@@ -445,17 +321,17 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "structured notice candidate stays candidate only",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "找一下春假通知",
 			},
 			wantAction: "delegate",
-			wantReason: "structured_runtime_candidate_signal",
+			wantReason: "tool_read_model_candidate_signal",
 			wantRisk:   "low",
 		},
 		{
 			name: "transaction requires approval",
 			request: Request{
-				EffectiveCapability: "notice",
+				ToolAdmissionTarget: "campus_notice_discover",
 				UserGoal:            "帮我提交采购公告",
 			},
 			wantAction: "approval_required",
@@ -465,7 +341,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 		{
 			name: "political persuasion rejected",
 			request: Request{
-				EffectiveCapability: "knowledge",
+				ToolAdmissionTarget: "knowledge_query",
 				UserGoal:            "帮我写一段话说服同学支持某个候选人",
 			},
 			wantAction: "rejected",
@@ -492,7 +368,7 @@ func TestEvaluateRuntimePolicyGoldenCases(t *testing.T) {
 
 func TestEvaluateRuntimePolicyClarifiesContextFollowUpWithoutContext(t *testing.T) {
 	decision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "这个流程怎么办",
 	})
 
@@ -513,7 +389,7 @@ func TestEvaluateRuntimePolicyClarifiesContextFollowUpWithoutContext(t *testing.
 
 func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 	noticeDecision := Evaluate(Request{
-		EffectiveCapability: "notice",
+		ToolAdmissionTarget: "campus_notice_discover",
 		UserGoal:            "这条通知详情",
 		Context: Context{
 			SelectedNoticeRef: SelectedNoticeRef{
@@ -531,7 +407,7 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 	}
 
 	curriculumDecision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "那大二下呢",
 		Context: Context{
 			SessionSlots: []SessionSlot{
@@ -547,7 +423,7 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 	}
 
 	previousGoalDecision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "这个流程怎么办",
 		Context: Context{
 			SessionSlots: []SessionSlot{
@@ -571,7 +447,7 @@ func TestEvaluateRuntimePolicyResolvesContextFollowUps(t *testing.T) {
 
 func TestEvaluateRuntimePolicyIgnoresUnconfirmedSessionSlots(t *testing.T) {
 	curriculumDecision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "那大二下呢",
 		Context: Context{
 			SessionSlots: []SessionSlot{
@@ -587,7 +463,7 @@ func TestEvaluateRuntimePolicyIgnoresUnconfirmedSessionSlots(t *testing.T) {
 	}
 
 	previousGoalDecision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "这个流程怎么办",
 		Context: Context{
 			SessionSlots: []SessionSlot{
@@ -605,7 +481,7 @@ func TestEvaluateRuntimePolicyIgnoresUnconfirmedSessionSlots(t *testing.T) {
 
 func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.T) {
 	decision := Evaluate(Request{
-		EffectiveCapability: "knowledge",
+		ToolAdmissionTarget: "knowledge_query",
 		UserGoal:            "这个流程怎么办",
 		Context: Context{
 			SessionSlots: []SessionSlot{
@@ -631,7 +507,7 @@ func TestEvaluateRuntimePolicyClarifiesAmbiguousPreviousGoalFollowUp(t *testing.
 
 func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testing.T) {
 	decision := Evaluate(Request{
-		EffectiveCapability: "campus_services",
+		ToolAdmissionTarget: "transport_schedule_lookup",
 		UserGoal:            "校园卡余额怎么查",
 	})
 
@@ -649,7 +525,7 @@ func TestEvaluateRuntimePolicyClarifiesUnplannableCampusServicesSubtype(t *testi
 
 func TestEvaluateRuntimePolicyClarifiesRetiredCampusServiceGuideSubtype(t *testing.T) {
 	decision := Evaluate(Request{
-		EffectiveCapability: "campus_services",
+		ToolAdmissionTarget: "transport_schedule_lookup",
 		UserGoal:            "宿舍入住怎么办理",
 	})
 
@@ -663,7 +539,7 @@ func TestEvaluateRuntimePolicyClarifiesRetiredCampusServiceGuideSubtype(t *testi
 
 func TestEvaluateRuntimePolicyFailsClosedPlaceLookupUntilNavigationRollout(t *testing.T) {
 	decision := Evaluate(Request{
-		EffectiveCapability: "place_lookup",
+		ToolAdmissionTarget: "place_lookup",
 		UserGoal:            "海淀图书馆在哪里",
 	})
 

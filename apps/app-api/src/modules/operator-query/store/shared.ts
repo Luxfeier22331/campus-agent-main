@@ -52,11 +52,11 @@ export function toRequestProjectionRecord(
 		questionPreview: row.questionPreview,
 		requestId: row.requestId,
 		runId: input.runId ?? null,
-		requestedCapability: row.requestedCapability ?? null,
+		requestedTool: row.requestedTool ?? null,
 		requestedScope: row.requestedScopeJson ?? null,
 		...(row.versionQueryJson ? { versionQuery: row.versionQueryJson } : {}),
 		resolvedScope: row.resolvedScopeJson ?? null,
-		selectedCapability: row.selectedCapability ?? null,
+		selectedTool: row.selectedTool ?? null,
 		sourceDocIds: row.sourceDocIdsJson ?? [],
 		startedAt: row.startedAt.toISOString(),
 		status: row.status as RequestProjectionRecord["status"],
@@ -102,7 +102,7 @@ export function toAuditListItem(
 		occurredAt: row.occurredAt.toISOString(),
 		principalType: row.principalType,
 		requestId: row.requestId,
-		selectedCapability: row.selectedCapability ?? null,
+		selectedTool: row.selectedTool ?? null,
 		status: row.status,
 		summary: row.summary,
 		surface: row.surface,
@@ -207,11 +207,11 @@ export function buildObservabilityConditions(
 	if (filters.surface) {
 		conditions.push(eq(requestObservabilityFact.surface, filters.surface));
 	}
-	if (filters.selectedCapability) {
-		conditions.push(eq(requestObservabilityFact.selectedCapability, filters.selectedCapability));
+	if (filters.selectedTool) {
+		conditions.push(eq(requestObservabilityFact.selectedTool, filters.selectedTool));
 	}
-	if (filters.requestedCapability) {
-		conditions.push(eq(requestObservabilityFact.requestedCapability, filters.requestedCapability));
+	if (filters.requestedTool) {
+		conditions.push(eq(requestObservabilityFact.requestedTool, filters.requestedTool));
 	}
 	if (filters.principalType) {
 		conditions.push(eq(requestObservabilityFact.principalType, filters.principalType));
@@ -249,11 +249,11 @@ export function buildQualityGradeConditions(
 	if (filters.surface) {
 		conditions.push(eq(qualityGradeProjection.surface, filters.surface));
 	}
-	if (filters.selectedCapability) {
-		conditions.push(eq(qualityGradeProjection.selectedCapability, filters.selectedCapability));
+	if (filters.selectedTool) {
+		conditions.push(eq(qualityGradeProjection.selectedTool, filters.selectedTool));
 	}
-	if (filters.requestedCapability) {
-		conditions.push(eq(qualityGradeProjection.requestedCapability, filters.requestedCapability));
+	if (filters.requestedTool) {
+		conditions.push(eq(qualityGradeProjection.requestedTool, filters.requestedTool));
 	}
 	if (filters.principalType) {
 		conditions.push(eq(qualityGradeProjection.principalType, filters.principalType));

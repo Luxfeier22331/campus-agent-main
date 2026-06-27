@@ -247,14 +247,12 @@ def accept_live_benchmark_profile(
         print("[accept] stage=run status=completed")
 
     repair_targets = collect_repairable_benchmark_targets(initial_run_dir)
-    selected_capability_count = len(repair_targets)
+    selected_tool_count = len(repair_targets)
     final_source_summary = initial_summary
     resolved_repair_dir: Path | None = None
-    if selected_capability_count > 0:
+    if selected_tool_count > 0:
         if verbose:
-            print(
-                f"[accept] stage=repair status=started selected_capabilities={selected_capability_count}"
-            )
+            print(f"[accept] stage=repair status=started selected_tools={selected_tool_count}")
         final_source_summary = repair_live_benchmark_profile(
             profile=profile,
             benchmark_dir=initial_run_dir,
@@ -267,7 +265,7 @@ def accept_live_benchmark_profile(
         if verbose:
             print("[accept] stage=repair status=completed")
     elif verbose:
-        print("[accept] stage=repair status=skipped selected_capabilities=0")
+        print("[accept] stage=repair status=skipped selected_tools=0")
 
     operator_publish_result = None
     if operator_observability_publish is not None:
@@ -306,7 +304,7 @@ def accept_live_benchmark_profile(
         "initial_gate_report": dict(initial_summary.get("gate_report") or {}),
         "final_gate_report": dict(final_source_summary.get("gate_report") or {}),
         "repair": {
-            "selected_capability_count": selected_capability_count,
+            "selected_tool_count": selected_tool_count,
             "applied_target_count": int(
                 dict(final_source_summary.get("repair") or {}).get("applied_target_count") or 0
             ),

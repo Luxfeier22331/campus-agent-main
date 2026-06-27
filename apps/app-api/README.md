@@ -34,7 +34,7 @@ It owns:
 It does not own:
 
 - browser-facing UI shells
-- executionClient routing or agent orchestration
+- execution routing or agent orchestration
 - panel business actions
 
 Current runtime scope:
@@ -74,8 +74,8 @@ Current runtime scope:
 Runtime hardening baseline:
 
 - `GET /readyz` now fails closed unless database binding, Better Auth origin,
-  operator allowlist, internal bridge secret, and executionClient config are all
-  present
+  operator allowlist, internal trusted caller secret, and execution-control
+  config are all present
 - end-user Better Auth email/password sign-up and sign-in are admitted only for
   configured campus email domain suffixes plus optional exact-email exceptions
 - `GET /readyz` also reports whether the optional `official_web` ingestion
@@ -84,7 +84,7 @@ Runtime hardening baseline:
   `Cache-Control: no-store`
 - Better Auth keeps origin / CSRF checks enabled and turns on production rate
   limiting
-- the Operator Console operator bridge is accepted only when allowlisted operator
+- the Operator Console operator surface is accepted only when allowlisted operator
   headers arrive with a matching internal shared secret
 - `app-api -> execution-control` uses a bounded timeout budget and typed
   invalid-response handling
@@ -115,7 +115,7 @@ Observability data policy:
 
 - allowed sink fields are correlation and governance summaries such as
   `request_id`, `trace_id`, `conversation_id`, `surface`, `status`,
-  `selected_capability`, `requested_capability`, `requested_scope_summary`,
+  `selected_tool`, `requested_tool`, `requested_scope_summary`,
   `duration_ms`, and source-doc count/summary
 - forbidden fields include raw JWT/auth headers, cookies, raw prompt/question,
   raw answer, operator email, transcript text, and long-term memory text
@@ -128,7 +128,7 @@ Observability data policy:
   sink queries. Configure optional `APP_API_OPERATOR_TRACE_LINK_TEMPLATE` and
   `APP_API_OPERATOR_ISSUE_LINK_TEMPLATE` when Operator Console should show
   Sentry / Axiom deep links for request diagnostics. Supported placeholders are
-  `{requestId}`, `{traceId}`, `{errorCode}`, `{selectedCapability}`, `{surface}`,
+  `{requestId}`, `{traceId}`, `{errorCode}`, `{selectedTool}`, `{surface}`,
   and `{status}`; values are URL-encoded before rendering.
 
 Canonical references:
@@ -149,7 +149,7 @@ Canonical references:
 - `docs/contracts/app-api-http.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
-- `docs/contracts/capability-execution.md`
+- `docs/contracts/tool-execution.md`
 - `docs/contracts/app-api-request-lifecycle.md`
 - `docs/data/app-api-schema.md`
 - `docs/data/app-api-official-web-schema.md`
@@ -305,7 +305,7 @@ Deployment minimum gate:
   is command-scoped secret material; it is not a Worker runtime variable and
   must not be committed.
 - `APP_API_OPERATOR_EMAIL_ALLOWLIST` must contain the real operator emails
-  expected to use the Operator Console bridge
+  expected to use the Operator Console trusted caller
 - `EXECUTION_CONTROL_BASE_URL` and `EXECUTION_CONTROL_SHARED_SECRET` must be present
   together; partial configuration does not produce a ready runtime
 - `EXECUTION_CONTROL_ACCESS_CLIENT_ID` and

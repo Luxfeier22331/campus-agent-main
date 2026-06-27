@@ -21,16 +21,10 @@ import (
 type Role string
 
 const (
-	RoleWorkflow           Role = "workflow"
-	RoleContext            Role = "activity-context"
-	RoleAgent              Role = "activity-agent"
-	RoleKnowledgePlan      Role = "activity-knowledge-plan"
-	RoleKnowledgeRetrieval Role = "activity-knowledge-retrieval"
-	RoleKnowledgeSynthesis Role = "activity-knowledge-synthesis"
-	RoleCampusServices     Role = "activity-campus-services"
-	RoleNotice             Role = "activity-notice"
-	RoleNavigation         Role = "activity-navigation"
-	RoleFinalization       Role = "activity-finalization"
+	RoleWorkflow  Role = "workflow"
+	RoleCore      Role = "activity-core"
+	RoleAgent     Role = "activity-agent"
+	RoleKnowledge Role = "activity-knowledge"
 )
 
 func Run(role Role) {
@@ -126,12 +120,14 @@ func buildWorker(
 			cfg.TemporalTaskQueue,
 			options,
 		), nil
-	case RoleContext:
+	case RoleCore:
 		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewContextActivityWorkerWithOptions(
+		return temporalruntime.NewCoreActivityWorkerWithOptions(
 			temporalClient,
-			temporalruntime.ActivityTaskQueueContext,
+			temporalruntime.ActivityTaskQueueCore,
 			server.TemporalContextActivities(),
+			server.TemporalTypedToolActivities(),
+			server.TemporalFinalizationActivities(),
 			options,
 		), nil
 	case RoleAgent:
@@ -142,64 +138,16 @@ func buildWorker(
 			server.TemporalAgentActivities(),
 			options,
 		), nil
-	case RoleKnowledgePlan:
+	case RoleKnowledge:
 		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewKnowledgePlanActivityWorker(
+		return temporalruntime.NewKnowledgeActivityWorkerWithOptions(
 			temporalClient,
-			temporalruntime.ActivityTaskQueueKnowledgePlan,
+			temporalruntime.ActivityTaskQueueKnowledge,
 			server.TemporalKnowledgeActivities(),
-			options,
-		), nil
-	case RoleKnowledgeRetrieval:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewKnowledgeRetrievalActivityWorker(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueKnowledgeRetrieval,
-			server.TemporalKnowledgeActivities(),
-			options,
-		), nil
-	case RoleKnowledgeSynthesis:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewKnowledgeSynthesisActivityWorker(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueKnowledgeSynthesis,
-			server.TemporalKnowledgeActivities(),
-			options,
-		), nil
-	case RoleCampusServices:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueCampusService,
-			server.TemporalTypedToolActivities(),
-			options,
-		), nil
-	case RoleNotice:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueNotice,
-			server.TemporalTypedToolActivities(),
-			options,
-		), nil
-	case RoleNavigation:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewTypedToolActivityWorkerWithOptions(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueNavigation,
-			server.TemporalTypedToolActivities(),
-			options,
-		), nil
-	case RoleFinalization:
-		server := workerTelemetry.ActivityServer()
-		return temporalruntime.NewFinalizationActivityWorker(
-			temporalClient,
-			temporalruntime.ActivityTaskQueueFinalization,
-			server.TemporalFinalizationActivities(),
 			options,
 		), nil
 	default:
-		return nil, fmt.Errorf("unsupported worker role %q", role)
+		return nil, fmt.Errorf("unsupported worker target %q", role)
 	}
 }
 
@@ -230,26 +178,14 @@ func taskQueueForRole(cfg config.Config, role Role) (string, error) {
 	switch role {
 	case RoleWorkflow:
 		return cfg.TemporalTaskQueue, nil
-	case RoleContext:
-		return temporalruntime.ActivityTaskQueueContext, nil
+	case RoleCore:
+		return temporalruntime.ActivityTaskQueueCore, nil
 	case RoleAgent:
 		return temporalruntime.ActivityTaskQueueAgent, nil
-	case RoleKnowledgePlan:
-		return temporalruntime.ActivityTaskQueueKnowledgePlan, nil
-	case RoleKnowledgeRetrieval:
-		return temporalruntime.ActivityTaskQueueKnowledgeRetrieval, nil
-	case RoleKnowledgeSynthesis:
-		return temporalruntime.ActivityTaskQueueKnowledgeSynthesis, nil
-	case RoleCampusServices:
-		return temporalruntime.ActivityTaskQueueCampusService, nil
-	case RoleNotice:
-		return temporalruntime.ActivityTaskQueueNotice, nil
-	case RoleNavigation:
-		return temporalruntime.ActivityTaskQueueNavigation, nil
-	case RoleFinalization:
-		return temporalruntime.ActivityTaskQueueFinalization, nil
+	case RoleKnowledge:
+		return temporalruntime.ActivityTaskQueueKnowledge, nil
 	default:
-		return "", fmt.Errorf("unsupported worker role %q", role)
+		return "", fmt.Errorf("unsupported worker target %q", role)
 	}
 }
 

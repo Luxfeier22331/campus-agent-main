@@ -53,7 +53,7 @@ export interface EvalDiagnosticTrajectoryOutcome {
 }
 
 export interface EvalDiagnosticTrajectoryAttribution {
-	capability: string | null;
+	tool: string | null;
 	outcome: EvalDiagnosticTrajectoryOutcome;
 	projectionRefs: string[];
 	status: EvalDiagnosticTrajectoryAttributionStatus;

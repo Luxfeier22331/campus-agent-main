@@ -76,7 +76,7 @@ function toQualityEvalCandidates(badcases: OperatorQualityBadcaseListResult) {
 			links: badcase.links,
 			requestId: badcase.requestId,
 			runId: badcase.runId,
-			selectedCapability: badcase.selectedCapability,
+			selectedTool: badcase.selectedTool,
 			summary: badcase.summary,
 			surface: badcase.surface,
 			traceId: badcase.traceId,
@@ -195,7 +195,7 @@ function summarizeStepTrajectory(trajectory: ExecutionControlRunStepTrajectory) 
 			return {
 				attemptCount: attempts.length,
 				...agentSummary,
-				capability: step.capability,
+				tool: step.tool,
 				cancelOutcome: latestAttempt?.cancelOutcome || null,
 				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
 				estimatedCostMicrousd: totalEstimatedCostMicrousd,
@@ -239,7 +239,7 @@ function materializeOperatorStepTrajectory(
 			return {
 				attemptCount: attempts.length,
 				...agentSummary,
-				capability: step.capability,
+				tool: step.tool,
 				cancelOutcome: nullableAttemptString(latestAttempt, "cancelOutcome"),
 				durationMs: positiveNumberOrNull(latestAttempt?.durationMs),
 				estimatedCostMicrousd: attempts.reduce(

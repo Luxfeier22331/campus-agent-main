@@ -25,9 +25,9 @@ updated: 2026-06-19
 ## Supported Profiles
 
 - `campus-services-product-path`
-- `multi-agent-runtime-contract`
+- `tool-runtime-contract`
 - `online-answer-path`
-- `tool-family-denominator`
+- `tool-denominator`
 - `tool-routing-product-path`
 - `document-quality`
 - `authz-privacy`
@@ -60,7 +60,7 @@ uv run --all-packages python -m scripts.eval_gate doctor \
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate accept \
-  --profile tool-family-denominator \
+  --profile tool-denominator \
   --observations-path <observations.json> \
   --json
 ```
@@ -83,8 +83,8 @@ uv run --all-packages python -m scripts.eval_gate accept \
 
 `campus-services-product-path` 聚合：
 
-- tool-family denominator 中的 service-guide / contact-directory cases
-- Go structured runtime matrix tests
+- tool denominator 中的 opened campus-services / notice tool cases
+- Go tool read model matrix tests
 - `app-api` runtime tests + typecheck
 - `campus-web` worker E2E + typecheck
 
@@ -99,10 +99,11 @@ artifact 默认写入：
 这是 `campus-services-product-path` gate 对应的固定运营契约：
 
 - rollout flag（Go-owned）：
-  - runtime profile `open_capabilities=["campus_services"]`
+  - runtime profile `open_tools=["transport_schedule_lookup"]`
 - opening 前必须同时满足：
   - gate artifact `summary.failed_checks=0`
-  - `execution-control /readyz` 中 `capability_gates.campus_services.open=true`
+  - `execution-control /readyz` 中
+    `tool_gates.transport_schedule_lookup.open=true`
   - `app-api` 与 `campus-web` `/readyz` 中
     `preflight.campusServicesProductPath.status=ready`
 - rollback 条件（任一命中即回滚）：
@@ -110,13 +111,13 @@ artifact 默认写入：
   - `/readyz preflight` 出现 `status=blocked` 或关键 check `not_ready`
   - public/chat 回答出现 source trace 泄漏（如 release id/projection internals/raw ref id）
 - rollback 操作：
-  - 从 runtime profile `open_capabilities` 移除 `campus_services` 后重新部署
-  - 复核 `/readyz` 已回到 capability gate closed
+  - 从 runtime profile `open_tools` 移除对应工具后重新部署
+  - 复核 `/readyz` 已回到 tool gate closed
 
 source trace 观察点（browser-safe）：
 
 - chat structured parts：`campus_service_trace_cards`
-- app-api request projection：`selectedCapability`、`status`、`allowed_tool`、`payload_kind`
+- app-api request projection：`selectedTool`、`status`、`allowed_tool`、`payload_kind`
 - preflight blocker：`preflight.campusServicesProductPath.blockers`
 
 ## Publish
@@ -158,7 +159,7 @@ repo 级 manual workflow 使用：
 `online-answer-path` 的真实主链路 artifact 应先由 staging collector 生成，再交给
 profile gate。默认 collector 与 profile gate 只消费
 `release_gate` / `regression_locked` case；全量 exploratory / known-gap /
-blocked-capability 复盘必须显式使用 `--cases-path` 跑离线 profile gate。当前 durable
+blocked-tool 复盘必须显式使用 `--cases-path` 跑离线 profile gate。当前 durable
 staging collector 只证明 completed release 子集，不能用于 full-suite fail-closed /
 clarification 采集：
 

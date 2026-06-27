@@ -185,7 +185,7 @@ function normalizeTrajectoryAttribution(
 ): EvalDiagnosticTrajectoryAttribution {
 	const attribution = ensureObject(value, field);
 	return {
-		capability: requiredNullableString(attribution.capability, `${field}.capability`),
+		tool: requiredNullableString(attribution.tool, `${field}.tool`),
 		outcome: normalizeTrajectoryOutcome(attribution.outcome, `${field}.outcome`),
 		projectionRefs: requiredStringArray(attribution.projectionRefs, `${field}.projectionRefs`),
 		status: normalizeTrajectoryAttributionStatus(attribution.status, `${field}.status`),

@@ -394,4 +394,4 @@ FailureRecord
 - `docs/contracts/knowledge-retrieval-plan-contract.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/data/canonical-document-reader-model.md`
-- `docs/contracts/capability-execution.md`
+- `docs/contracts/tool-execution.md`

@@ -21,7 +21,7 @@ updated: 2026-05-04
 补充约束：
 
 - 当前 merged truth 与 runtime opening posture 以
-  `docs/architecture/current-architecture.md`、`docs/domains/official-web.md` 与
+  `docs/architecture/current.md`、`docs/domains/official-web.md` 与
   `.planning/` 为准
 - 本文不维护 `fresh_news` / `news_archive` 的当前开放状态、单轮执行进度或 closeout 证据
 - `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与
@@ -128,7 +128,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - `required_evidence` 表示 selected-write release-blocking denominator；
   `optional_evidence` 表示允许以 `source_not_provided` 暴露给 operator 的 source-backed
   optional denominator
-- `hosts.json` / `seeds.json` 是 source capability registry；target source map 才是
+- `hosts.json` / `seeds.json` 是 source reachability registry；target source map 才是
   target-first collection declaration
 - 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、handoff 或
   selected-write
@@ -215,7 +215,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 ## 相关稳定文档
 
-- `docs/architecture/current-architecture.md`
+- `docs/architecture/current.md`
 - `docs/domains/official-web.md`
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`

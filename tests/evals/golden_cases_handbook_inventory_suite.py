@@ -399,8 +399,7 @@ class RunCasesHandbookInventoryTest(unittest.TestCase):
                 retrieval_called=True,
                 clarification_expected=False,
                 error_expected=False,
-                expected_capability="knowledge",
-                expected_capability_family="knowledge",
+                expected_tool="knowledge_query",
             ),
         )
         self.assertEqual(
@@ -425,8 +424,7 @@ class RunCasesHandbookInventoryTest(unittest.TestCase):
                 clarification_expected=False,
                 error_expected=False,
                 fail_closed_expected=True,
-                expected_capability="knowledge",
-                expected_capability_family="knowledge",
+                expected_tool="knowledge_query",
             ),
         )
         self.assertIn(

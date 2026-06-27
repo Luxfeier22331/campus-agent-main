@@ -26,7 +26,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 							scheduleToStartLatency: { ms: null, state: "unsupported_by_source" },
 							snapshotId: "temporal-snapshot-20260615T100000Z",
 							source: "execution-control.temporal-task-queue-sampler",
-							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueue: "campus-agent.activity.knowledge",
 							taskQueueKind: "activity",
 						},
 					],
@@ -40,7 +40,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/temporal-task-queues?taskQueue=campus-agent.activity.knowledge.retrieval&limit=10",
+					"https://app-api.internal/api/operator/runtime/temporal-task-queues?taskQueue=campus-agent.activity.knowledge&limit=10",
 				),
 			);
 
@@ -59,7 +59,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 						scheduleToStartLatency: { ms: null, state: "unsupported_by_source" },
 						snapshotId: "temporal-snapshot-20260615T100000Z",
 						source: "execution-control.temporal-task-queue-sampler",
-						taskQueue: "campus-agent.activity.knowledge.retrieval",
+						taskQueue: "campus-agent.activity.knowledge",
 						taskQueueKind: "activity",
 					},
 				],
@@ -68,7 +68,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 				filters: {
 					cursor: null,
 					limit: 10,
-					taskQueue: "campus-agent.activity.knowledge.retrieval",
+					taskQueue: "campus-agent.activity.knowledge",
 					taskQueueKind: null,
 				},
 				principal,
@@ -107,8 +107,8 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 							desiredReplicas: 2,
 							reason: "required poller floor is not met",
 							sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-							targetService: "activity-worker-knowledge-retrieval",
-							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							targetService: "activity-worker-knowledge",
+							taskQueue: "campus-agent.activity.knowledge",
 							taskQueueKind: "activity",
 						},
 					],
@@ -123,7 +123,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/decisions?targetService=activity-worker-knowledge-retrieval",
+					"https://app-api.internal/api/operator/runtime/autoscaler/decisions?targetService=activity-worker-knowledge",
 				),
 			);
 
@@ -139,8 +139,8 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 						desiredReplicas: 2,
 						reason: "required poller floor is not met",
 						sourceSnapshotId: "temporal-snapshot-20260615T100000Z",
-						targetService: "activity-worker-knowledge-retrieval",
-						taskQueue: "campus-agent.activity.knowledge.retrieval",
+						targetService: "activity-worker-knowledge",
+						taskQueue: "campus-agent.activity.knowledge",
 						taskQueueKind: "activity",
 					},
 				],
@@ -151,7 +151,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					cursor: null,
 					decision: null,
 					limit: null,
-					targetService: "activity-worker-knowledge-retrieval",
+					targetService: "activity-worker-knowledge",
 				},
 				principal,
 			});
@@ -172,7 +172,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 							errorCode: "docker_compose_scale_failed",
 							fromReplicas: 1,
 							status: "failed",
-							targetService: "activity-worker-knowledge-retrieval",
+							targetService: "activity-worker-knowledge",
 							toReplicas: 2,
 						},
 					],
@@ -187,7 +187,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/actuations?targetService=activity-worker-knowledge-retrieval&status=failed",
+					"https://app-api.internal/api/operator/runtime/autoscaler/actuations?targetService=activity-worker-knowledge&status=failed",
 				),
 			);
 
@@ -203,7 +203,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 						errorCode: "docker_compose_scale_failed",
 						fromReplicas: 1,
 						status: "failed",
-						targetService: "activity-worker-knowledge-retrieval",
+						targetService: "activity-worker-knowledge",
 						toReplicas: 2,
 					},
 				],
@@ -215,7 +215,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					decisionId: null,
 					limit: null,
 					status: "failed",
-					targetService: "activity-worker-knowledge-retrieval",
+					targetService: "activity-worker-knowledge",
 				},
 				principal,
 			});
@@ -232,8 +232,8 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 							currentReplicas: 1,
 							desiredReplicas: 2,
 							evidence: {
-								hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
-								kedaScaledObject: "activity-worker-knowledge-retrieval",
+								hpaName: "keda-hpa-activity-worker-knowledge",
+								kedaScaledObject: "activity-worker-knowledge",
 							},
 							lastScaleEventAt: "2026-06-15T10:00:06.000Z",
 							lastScaleEventId: "actuation_01",
@@ -245,9 +245,9 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 							reason: "hpa desired replicas above current replicas",
 							scalerKind: "keda_temporal",
 							scalerStatus: "healthy",
-							taskQueue: "campus-agent.activity.knowledge.retrieval",
+							taskQueue: "campus-agent.activity.knowledge",
 							taskQueueKind: "activity",
-							targetService: "activity-worker-knowledge-retrieval",
+							targetService: "activity-worker-knowledge",
 						},
 					],
 				}),
@@ -260,7 +260,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 
 			const response = await app.fetch(
 				new Request(
-					"https://app-api.internal/api/operator/runtime/autoscaler/postures?targetService=activity-worker-knowledge-retrieval&scalerStatus=healthy",
+					"https://app-api.internal/api/operator/runtime/autoscaler/postures?targetService=activity-worker-knowledge&scalerStatus=healthy",
 				),
 			);
 
@@ -272,8 +272,8 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 						currentReplicas: 1,
 						desiredReplicas: 2,
 						evidence: {
-							hpaName: "keda-hpa-activity-worker-knowledge-retrieval",
-							kedaScaledObject: "activity-worker-knowledge-retrieval",
+							hpaName: "keda-hpa-activity-worker-knowledge",
+							kedaScaledObject: "activity-worker-knowledge",
 						},
 						lastScaleEventAt: "2026-06-15T10:00:06.000Z",
 						lastScaleEventId: "actuation_01",
@@ -285,9 +285,9 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 						reason: "hpa desired replicas above current replicas",
 						scalerKind: "keda_temporal",
 						scalerStatus: "healthy",
-						taskQueue: "campus-agent.activity.knowledge.retrieval",
+						taskQueue: "campus-agent.activity.knowledge",
 						taskQueueKind: "activity",
-						targetService: "activity-worker-knowledge-retrieval",
+						targetService: "activity-worker-knowledge",
 					},
 				],
 			});
@@ -296,7 +296,7 @@ export function registerOperatorQueryRuntimeOpsSuite(): void {
 					cursor: null,
 					limit: null,
 					scalerStatus: "healthy",
-					targetService: "activity-worker-knowledge-retrieval",
+					targetService: "activity-worker-knowledge",
 				},
 				principal,
 			});

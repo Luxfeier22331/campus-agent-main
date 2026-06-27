@@ -7,11 +7,11 @@ from tempfile import TemporaryDirectory
 
 from campus_contracts import (
     ActorContext,
-    CapabilityResponse,
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
     RagResultPayload,
+    ToolResponse,
 )
 from campus_evals import (
     ExecutionResult,
@@ -88,9 +88,9 @@ def _response(
     answer_text: str = "",
     sources: tuple[EvidenceSource, ...] = (),
     follow_up_question: str = "",
-) -> CapabilityResponse:
-    return CapabilityResponse(
-        capability="knowledge",
+) -> ToolResponse:
+    return ToolResponse(
+        tool="knowledge_query",
         status=status,
         answer_text=answer_text,
         confidence="high" if status == "completed" else "low",
@@ -109,7 +109,6 @@ def _response(
 __all__ = (
     "HANDBOOK_SCOPE",
     "ActorContext",
-    "CapabilityResponse",
     "EvidenceBundle",
     "EvidenceSource",
     "ExecutionResult",
@@ -121,6 +120,7 @@ __all__ = (
     "RagResultPayload",
     "SupplementalResult",
     "TemporaryDirectory",
+    "ToolResponse",
     "TraceExpectation",
     "_completed_case",
     "_no_answer_case",

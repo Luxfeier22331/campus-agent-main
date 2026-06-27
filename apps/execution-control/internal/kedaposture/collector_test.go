@@ -16,11 +16,11 @@ func TestCollectorBuildsHealthyPostureFromDeploymentHPAAndScaledObject(t *testin
 			t.Fatalf("authorization header = %q", request.Header.Get("authorization"))
 		}
 		switch request.URL.Path {
-		case "/apis/apps/v1/namespaces/campus-agent-staging/deployments/activity-worker-knowledge-retrieval":
+		case "/apis/apps/v1/namespaces/campus-agent-staging/deployments/activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"status": map[string]any{"replicas": 1, "readyReplicas": 1},
 			})
-		case "/apis/autoscaling/v2/namespaces/campus-agent-staging/horizontalpodautoscalers/keda-hpa-activity-worker-knowledge-retrieval":
+		case "/apis/autoscaling/v2/namespaces/campus-agent-staging/horizontalpodautoscalers/keda-hpa-activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"spec": map[string]any{"minReplicas": 1, "maxReplicas": 5},
 				"status": map[string]any{
@@ -39,7 +39,7 @@ func TestCollectorBuildsHealthyPostureFromDeploymentHPAAndScaledObject(t *testin
 					"desiredReplicas": 2,
 				},
 			})
-		case "/apis/keda.sh/v1alpha1/namespaces/campus-agent-staging/scaledobjects/activity-worker-knowledge-retrieval":
+		case "/apis/keda.sh/v1alpha1/namespaces/campus-agent-staging/scaledobjects/activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"metadata": map[string]any{"annotations": map[string]any{}},
 				"status": map[string]any{
@@ -54,7 +54,7 @@ func TestCollectorBuildsHealthyPostureFromDeploymentHPAAndScaledObject(t *testin
 				},
 			})
 		case "/api/v1/namespaces/campus-agent-staging/events":
-			if request.URL.Query().Get("fieldSelector") != "involvedObject.name=activity-worker-knowledge-retrieval" {
+			if request.URL.Query().Get("fieldSelector") != "involvedObject.name=activity-worker-knowledge" {
 				t.Fatalf("field selector = %q", request.URL.Query().Get("fieldSelector"))
 			}
 			writeJSON(t, response, map[string]any{"items": []map[string]any{}})
@@ -76,11 +76,11 @@ func TestCollectorBuildsHealthyPostureFromDeploymentHPAAndScaledObject(t *testin
 		Targets: []Target{{
 			MaxReplicas:   5,
 			MinReplicas:   1,
-			Name:          "activity-worker-knowledge-retrieval",
+			Name:          "activity-worker-knowledge",
 			QueueKind:     autoscaler.TaskQueueKindActivity,
-			ScaledObject:  "activity-worker-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
-			TargetService: "activity-worker-knowledge-retrieval",
+			ScaledObject:  "activity-worker-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
+			TargetService: "activity-worker-knowledge",
 		}},
 	})
 	if err != nil {
@@ -176,7 +176,7 @@ func TestCollectorMarksPausedScaledObject(t *testing.T) {
 }
 
 func TestCollectorMarksKEDAFallbackEventDegraded(t *testing.T) {
-	server := httptest.NewServer(healthyK8sPostureHandler(t, "activity-worker-knowledge-retrieval", []map[string]any{{
+	server := httptest.NewServer(healthyK8sPostureHandler(t, "activity-worker-knowledge", []map[string]any{{
 		"reason":        "ScaledObjectFallbackActivated",
 		"type":          "Warning",
 		"message":       "fallback active for temporal scaler",
@@ -184,7 +184,7 @@ func TestCollectorMarksKEDAFallbackEventDegraded(t *testing.T) {
 	}}))
 	defer server.Close()
 
-	postures := collectSinglePosture(t, server, "activity-worker-knowledge-retrieval")
+	postures := collectSinglePosture(t, server, "activity-worker-knowledge")
 	posture := postures[0]
 	if posture.ScalerStatus != autoscaler.ScalerStatusDegraded ||
 		posture.Reason != "keda_fallback_active" {
@@ -202,7 +202,7 @@ func TestCollectorMarksKEDAFallbackEventDegraded(t *testing.T) {
 }
 
 func TestCollectorMarksKEDAMetricFailureEventDegraded(t *testing.T) {
-	server := httptest.NewServer(healthyK8sPostureHandler(t, "activity-worker-knowledge-retrieval", []map[string]any{{
+	server := httptest.NewServer(healthyK8sPostureHandler(t, "activity-worker-knowledge", []map[string]any{{
 		"reason":    "KEDAMetricSourceFailed",
 		"type":      "Warning",
 		"message":   "temporal metric source failed",
@@ -210,7 +210,7 @@ func TestCollectorMarksKEDAMetricFailureEventDegraded(t *testing.T) {
 	}}))
 	defer server.Close()
 
-	postures := collectSinglePosture(t, server, "activity-worker-knowledge-retrieval")
+	postures := collectSinglePosture(t, server, "activity-worker-knowledge")
 	posture := postures[0]
 	if posture.ScalerStatus != autoscaler.ScalerStatusDegraded ||
 		posture.Reason != "keda_metric_source_failed" {
@@ -224,11 +224,11 @@ func TestCollectorMarksKEDAMetricFailureEventDegraded(t *testing.T) {
 func TestCollectorFailsClosedWhenEventsCannotBeRead(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		switch request.URL.Path {
-		case "/apis/apps/v1/namespaces/campus-agent-staging/deployments/activity-worker-knowledge-retrieval":
+		case "/apis/apps/v1/namespaces/campus-agent-staging/deployments/activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"status": map[string]any{"replicas": 1, "readyReplicas": 1},
 			})
-		case "/apis/autoscaling/v2/namespaces/campus-agent-staging/horizontalpodautoscalers/keda-hpa-activity-worker-knowledge-retrieval":
+		case "/apis/autoscaling/v2/namespaces/campus-agent-staging/horizontalpodautoscalers/keda-hpa-activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"spec": map[string]any{"minReplicas": 1, "maxReplicas": 5},
 				"status": map[string]any{
@@ -242,7 +242,7 @@ func TestCollectorFailsClosedWhenEventsCannotBeRead(t *testing.T) {
 					"desiredReplicas": 1,
 				},
 			})
-		case "/apis/keda.sh/v1alpha1/namespaces/campus-agent-staging/scaledobjects/activity-worker-knowledge-retrieval":
+		case "/apis/keda.sh/v1alpha1/namespaces/campus-agent-staging/scaledobjects/activity-worker-knowledge":
 			writeJSON(t, response, map[string]any{
 				"metadata": map[string]any{"annotations": map[string]any{}},
 				"status": map[string]any{
@@ -274,11 +274,11 @@ func TestCollectorFailsClosedWhenEventsCannotBeRead(t *testing.T) {
 		Targets: []Target{{
 			MaxReplicas:   5,
 			MinReplicas:   1,
-			Name:          "activity-worker-knowledge-retrieval",
+			Name:          "activity-worker-knowledge",
 			QueueKind:     autoscaler.TaskQueueKindActivity,
-			ScaledObject:  "activity-worker-knowledge-retrieval",
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
-			TargetService: "activity-worker-knowledge-retrieval",
+			ScaledObject:  "activity-worker-knowledge",
+			TaskQueue:     "campus-agent.activity.knowledge",
+			TargetService: "activity-worker-knowledge",
 		}},
 	})
 	if err == nil {
@@ -357,7 +357,7 @@ func collectSinglePosture(t *testing.T, server *httptest.Server, name string) []
 			Name:          name,
 			QueueKind:     autoscaler.TaskQueueKindActivity,
 			ScaledObject:  name,
-			TaskQueue:     "campus-agent.activity.knowledge.retrieval",
+			TaskQueue:     "campus-agent.activity.knowledge",
 			TargetService: name,
 		}},
 	})

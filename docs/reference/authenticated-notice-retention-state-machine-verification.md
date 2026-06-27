@@ -13,7 +13,7 @@ updated: 2026-04-30
 它不定义新的 consumer admission，也不替代：
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/data/authenticated-notice.md`
 - `docs/contracts/campus-notice-runtime-contract.md`
 
 ## 验证步骤

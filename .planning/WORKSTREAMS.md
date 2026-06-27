@@ -32,7 +32,7 @@ operator truth or release acceptance criteria.
 | --- | --- | --- |
 | Product Plane | `campus-web` including `/docs/*`, `operator-console-web`, shared `app-api` | Product surface, auth/session, request projection, or browser contract changes |
 | Execution Plane | `execution-control`, Temporal workflows, run/step projection, readiness | Workflow topology, projection schema, execution ingress, cancel semantics, or worker readiness changes |
-| Capability Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or capability evidence changes |
+| Tool Plane | RAG, navigation, notice, campus services, semantic worker | New typed tool/activity, agent-as-tool boundary, routing/admission, or tool evidence changes |
 | Data Plane | ingestion, object storage, Qdrant, source truth, read models | Source family admission, ingestion release, query-enabled surface, ACL, or data-plane transport changes |
 | Ops / QA | staging, release gates, observability, deploy hygiene | Staging closeout, release smoke, ingress, secrets, evidence, or monitoring changes |
 
@@ -54,7 +54,7 @@ status as current project truth.
   the primary agent SDK loop:
   direct/no-tool turns finalize from `agent.primary`; knowledge turns use
   `knowledge_query` to enter the Go RAG graph. Ordinary chat with missing
-  `requested_capability` now stays capability-neutral and lets `agent.primary`
+  `requested_tool` now remains an absent legacy hint and lets `agent.primary`
   choose within the admitted visible tool set. Model-selected campus-services /
   notice read-only tools now project success / fail-close results as normalized
   `sdk_tool.execute.<tool>.<index>` tool steps. Clarification and out-of-scope
@@ -73,14 +73,14 @@ status as current project truth.
 - Ops signal: worker autoscaler remains an operations-plane proof. It reads
   Temporal/task queue metrics and downstream budgets, outputs desired replicas,
   and never writes workflow/run/event/terminal state.
-- Capability-plane signal: notice, navigation and campus-services capabilities
+- Tool-plane signal: notice, navigation and campus-services tools
   should continue as typed activity/tool contracts, not entry-level agents.
-- Capability-plane signal: campus services P1 now has an app-api
+- Tool-plane signal: campus services P1 now has an app-api
   operator-maintained source channel base:
   manual attestations, bounded transport overrides, preview,
   publish release snapshot, audit events, and execution-control consumption of
   published current-effective release snapshots. Remaining staging/runtime proof
-  and capability-opening work belong to capability/ops tracking, not main-chain
+  and tool-opening work belong to tool/ops tracking, not main-chain
   completion.
 - Product-plane signal: conversation attachment upload is now captured as a
   proposed PRD in `docs/product/conversation-attachment-upload-prd.md`. It is a
@@ -89,13 +89,12 @@ status as current project truth.
   evidence path or long-term personal file library. Until the backend contract
   and execution projection are implemented, the browser attachment entry must
   remain hidden or fail closed.
-- Capability-plane signal: dining published projection may later be exposed to
+- Tool-plane signal: dining published projection may later be exposed to
   the Q&A path as a read-only `campus_services` typed tool such as
   `dining_lookup`. It must read app-api-owned published dining projection, not
   Lark / Feishu Base, raw dining draft, release candidate, source observation or
-  floorplan SVG assets. This is a future capability expansion signal, not a
-  current implementation gap until a ToolSpec / CapabilitySpec / contract is
-  accepted.
+  floorplan SVG assets. This is a future tool expansion signal, not a
+  current implementation gap until a ToolSpec / contract is accepted.
 - Document reader appendix / form downloads are deferred backlog, not part of
   the current docs hardening closeout. Current reader delivery renders appendix
   tables as reader sections/blocks. Future work should expose "download original
@@ -108,7 +107,7 @@ status as current project truth.
   outcome allow-list: `provider_timeout`, `tool_handler_failed`,
   `provider_connection_aborted`, `tool_executor_not_configured`, and
   `transient_internal_query_failed` can replan once inside the same visible
-  capability/tool set; deterministic semantic/policy/contract/admission failures
+  tool set; deterministic semantic/policy/contract/admission failures
   and unclassified failures fail closed.
 - Ops signal: remote deploy worktrees must remain clean pinned deploy checkouts;
   secrets and runtime env belong to ops/Docker-managed config, not repo checkout
@@ -126,7 +125,7 @@ Scope rules:
 - Include only gaps where an active doc or contract defines a target behavior and
   current code does not yet close that behavior.
 - Exclude staging proof, release evidence, content-quality maturity, product
-  opening decisions, and capability families intentionally kept closed unless
+  opening decisions, and tools intentionally kept closed unless
   they require code to become available.
 - Exclude old-document contradictions once the owning doc has been corrected.
 
@@ -140,14 +139,14 @@ Current active implementation gaps:
 Current non-gaps after the doc audit:
 
 - Main answer chain completion is judged by the generic execution skeleton, not
-  by every capability's content maturity or product opening.
+  by every tool's content maturity or product opening.
 - Explicit personal memory upsert / disable / owner-disable and post-finalization
   inferred memory update are implemented through
   `app-api -> execution-control -> Qdrant`; candidate confirmation UI / strong
   governance remains later product work, not a current main-chain gap.
-- Campus-services current model-visible scope is limited to transport schedule
-  / status. Generic service guide, contact directory and process lookup surfaces
-  are not active backlog signals until they are redesigned.
+- Campus-services read-only contracts can exist without being model-visible.
+  Current model-visible campus-services exposure is limited by `tools.v4` and
+  runtime profile `open_tools`; `service_process_lookup` remains later-wave.
 - Notice content maturity and manual校对 work are data / quality work, not a
   generic main-chain implementation gap.
 - Go RAG `grounding.verify` is current evidence-integrity verification, not

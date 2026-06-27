@@ -48,25 +48,25 @@ Current default posture:
 
 ## Deterministic Product-Path Gates
 
-`multi-agent-runtime-contract` is the deterministic acceptance gate for the
-capability execution runtime contract. Run it with:
+`tool-runtime-contract` is the deterministic acceptance gate for the tool
+runtime contract. Run it with:
 
 ```bash
 uv run --all-packages python -m scripts.eval_gate accept \
-  --profile multi-agent-runtime-contract \
-  --output-dir .tmp/evals/multi-agent-runtime-contract-smoke \
+  --profile tool-runtime-contract \
+  --output-dir .tmp/evals/tool-runtime-contract-smoke \
   --json
 ```
 
 The gate covers:
 
-- capability execution schema/generated artifact drift check
-- cross-language capability execution fixture matrix for Python bridge, Go runtime
+- execution schema/generated artifact drift check
+- cross-language execution fixture matrix for Go runtime
   and TypeScript app-api adapter
 - workflow trace evaluator and fixture denominator
-- tool-family denominator evaluator and fixture denominator
+- tool denominator evaluator and fixture denominator
 - online-answer product-path evaluator, including sanitized
-  `workflow_trace_summary` replay against selected capability, branch and fail-close
+  `workflow_trace_summary` replay against selected tool, branch and fail-close
   reason
 - targeted execution-control, app-api and operator-console-web test lanes, including
   panel raw bridge/provider/prompt key non-exposure checks
@@ -75,14 +75,14 @@ The gate does not start local live processes, does not run Docker smoke, does
 not mutate serving admission, does not introduce an Agents SDK runtime, and does
 not produce live case-results artifacts for operator publish dry-run.
 
-`multi-agent-product-path` is retained as a deprecated alias for compatibility.
-True product-path runtime E2E should use `online-answer-path
+`multi-agent-product-path` is rejected as a removed profile. True product-path
+runtime E2E should use `online-answer-path
 --collect-runtime` and the online answer acceptance backlog.
 
 Failure handling:
 
-- capability execution contract generation failure: update
-  `docs/contracts/schemas/capability-execution.openapi.yaml` first, then regenerate
+- execution contract generation failure: update
+  `docs/contracts/schemas/tool-execution.openapi.yaml` first, then regenerate
   artifacts with `pnpm contracts:generate`
 - strict fixture matrix failure: update the canonical schema, generated artifacts
   and fixture truth together; do not special-case one language runtime
@@ -90,7 +90,7 @@ Failure handling:
   semantics or sanitized artifact contract first
 - execution-control/app-api/panel targeted lane failure: fix the owning runtime
   surface before rerunning the gate
-- missing or malformed `multi-agent-runtime-contract-gate.json`: treat as a gate
+- missing or malformed `tool-runtime-contract-gate.json`: treat as a gate
   implementation failure
 
 Before a release-gate run, audit registry, workflow dispatch choices, operations

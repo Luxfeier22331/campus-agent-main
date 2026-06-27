@@ -10,7 +10,7 @@ from campus_evals.authz_privacy_eval import AuthzPrivacyObservation
 from campus_evals.document_quality_eval import DocumentQualityObservation
 from campus_evals.eval_operations_governance import EvalOperationsObservation
 from campus_evals.online_answer_path_eval import OnlineAnswerPathObservation
-from campus_evals.tool_family_denominator import ToolObservation
+from campus_evals.tool_denominator import ToolObservation
 
 
 def _request_correlation_mapping(value: object) -> dict[str, object]:
@@ -34,9 +34,7 @@ def _load_online_answer_observations(
             case_id=_required_string(item.get("case_id"), "case_id"),
             request_id=_required_string(item.get("request_id"), "request_id"),
             trace_id=_required_string(item.get("trace_id"), "trace_id"),
-            selected_capability=_required_string(
-                item.get("selected_capability"), "selected_capability"
-            ),
+            selected_tool=_required_string(item.get("selected_tool"), "selected_tool"),
             terminal_status=_required_string(item.get("terminal_status"), "terminal_status"),
             semantic_outcome=_required_string(
                 item.get("semantic_outcome"),
@@ -180,11 +178,11 @@ def _online_answer_observation_from_response(
     execution = payload.get("execution") if isinstance(payload.get("execution"), dict) else {}
     request_id = str(result.get("requestId") or response.headers.get("x-request-id") or "")
     trace_id = str(result.get("traceId") or response.headers.get("x-trace-id") or "")
-    selected_capability = str(
-        execution.get("selectedCapability")
-        or execution.get("selected_capability")
-        or result.get("selectedCapability")
-        or result.get("selected_capability")
+    selected_tool = str(
+        execution.get("selectedTool")
+        or execution.get("selected_tool")
+        or result.get("selectedTool")
+        or result.get("selected_tool")
         or "none"
     )
     terminal_status = str(execution.get("status") or result.get("status") or "")
@@ -199,7 +197,7 @@ def _online_answer_observation_from_response(
         case_id=case_id,
         request_id=request_id,
         trace_id=trace_id,
-        selected_capability=selected_capability,
+        selected_tool=selected_tool,
         terminal_status=terminal_status,
         semantic_outcome=_semantic_outcome_from_status(
             terminal_status=terminal_status,

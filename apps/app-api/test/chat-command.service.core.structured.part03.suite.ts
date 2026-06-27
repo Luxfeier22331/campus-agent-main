@@ -2,19 +2,19 @@ import { expect, it, vi } from "vitest";
 
 import {
 	buildChatCommandService,
-	type CapabilityExecutionClient,
 	createCommandStore,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
+	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 	it("persists navigation place cards into assistant structured parts", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const executionClient: CapabilityExecutionClient = {
+		const executionClient: ToolExecutionClient = {
 			execute: vi.fn().mockResolvedValue({
 				answerText: "图书馆在海淀校区主教学区西侧，靠近校医院。",
 				error: null,
@@ -48,7 +48,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 						place_id: "muc.haidian.library",
 					},
 				},
-				selectedCapability: "navigation",
+				selectedTool: "place_lookup",
 				status: "completed",
 				traceId: "trace_0002",
 			}),
@@ -59,7 +59,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			now: () => new Date("2026-04-11T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient(executionClient),
+			executionRuntime: createExecutionRuntimeFromToolClient(executionClient),
 		});
 
 		const response = await service.submit({
@@ -108,7 +108,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "计算机类培养方案要求学生完成对应课程模块和毕业要求。",
 					error: null,
@@ -213,7 +213,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 							],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0002",
 				}),
@@ -363,7 +363,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			now: () => new Date("2026-04-27T09:00:00.000Z"),
 			conversationStore,
 			store,
-			executionRuntime: createExecutionRuntimeFromCapabilityClient({
+			executionRuntime: createExecutionRuntimeFromToolClient({
 				execute: vi.fn().mockResolvedValue({
 					answerText: "转专业申请需要按规定提交材料并完成审核。",
 					error: null,
@@ -388,7 +388,7 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 							],
 						},
 					},
-					selectedCapability: "knowledge",
+					selectedTool: "knowledge_query",
 					status: "completed",
 					traceId: "trace_0003",
 				}),

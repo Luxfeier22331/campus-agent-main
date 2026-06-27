@@ -20,7 +20,7 @@ var supportedArtifactProjectionStatuses = map[string]struct{}{
 }
 
 var supportedArtifactVisibilities = map[string]struct{}{
-	"capability_private":    {},
+	"tool_private":          {},
 	"operator_safe_summary": {},
 	"finalizer_input":       {},
 }
@@ -36,19 +36,19 @@ var supportedRequiredInputPrefixes = []string{
 }
 
 type WorkflowArtifactRegistry struct {
-	SchemaVersion         string                      `json:"schema_version"`
-	RegistryVersion       string                      `json:"registry_version"`
-	VisibilityValues      []string                    `json:"visibility_values"`
-	SupportStatusValues   []string                    `json:"support_status_values"`
-	ForbiddenRawKeyTokens []string                    `json:"forbidden_raw_key_tokens"`
-	Artifacts             []WorkflowArtifact          `json:"artifacts"`
-	Bindings              []WorkflowCapabilityBinding `json:"bindings"`
+	SchemaVersion         string                `json:"schema_version"`
+	RegistryVersion       string                `json:"registry_version"`
+	VisibilityValues      []string              `json:"visibility_values"`
+	SupportStatusValues   []string              `json:"support_status_values"`
+	ForbiddenRawKeyTokens []string              `json:"forbidden_raw_key_tokens"`
+	Artifacts             []WorkflowArtifact    `json:"artifacts"`
+	Bindings              []WorkflowToolBinding `json:"bindings"`
 }
 
 type WorkflowArtifact struct {
 	Kind                     string   `json:"kind"`
 	DisplayName              string   `json:"display_name"`
-	OwnerCapability          string   `json:"owner_capability"`
+	OwnerToolBoundary        string   `json:"owner_tool_boundary"`
 	ProducerTools            []string `json:"producer_tools"`
 	SourceTruthOwner         string   `json:"source_truth_owner"`
 	Visibility               string   `json:"visibility"`
@@ -62,18 +62,18 @@ type WorkflowArtifact struct {
 	Notes                    string   `json:"notes"`
 }
 
-type WorkflowCapabilityBinding struct {
-	BindingID       string   `json:"binding_id"`
-	OwnerCapability string   `json:"owner_capability"`
-	ToolName        string   `json:"tool_name"`
-	Produces        []string `json:"produces"`
-	Consumes        []string `json:"consumes"`
-	RequiredInputs  []string `json:"required_inputs"`
-	StateChanging   bool     `json:"state_changing"`
-	OpeningGate     string   `json:"opening_gate"`
-	EvalDenominator []string `json:"eval_denominator"`
-	Priority        int      `json:"priority"`
-	Notes           string   `json:"notes"`
+type WorkflowToolBinding struct {
+	BindingID         string   `json:"binding_id"`
+	OwnerToolBoundary string   `json:"owner_tool_boundary"`
+	ToolName          string   `json:"tool_name"`
+	Produces          []string `json:"produces"`
+	Consumes          []string `json:"consumes"`
+	RequiredInputs    []string `json:"required_inputs"`
+	StateChanging     bool     `json:"state_changing"`
+	OpeningGate       string   `json:"opening_gate"`
+	EvalDenominator   []string `json:"eval_denominator"`
+	Priority          int      `json:"priority"`
+	Notes             string   `json:"notes"`
 }
 
 func LoadWorkflowArtifactRegistry(registryPath string) (WorkflowArtifactRegistry, error) {
@@ -163,11 +163,8 @@ func (a WorkflowArtifact) Validate(globalRawTokens map[string]struct{}) error {
 	if strings.TrimSpace(a.DisplayName) == "" {
 		return fmt.Errorf("%s display_name must not be empty", a.Kind)
 	}
-	if strings.TrimSpace(a.OwnerCapability) == "" {
-		return fmt.Errorf("%s owner_capability must not be empty", a.Kind)
-	}
-	if !SupportedCapability(a.OwnerCapability) && a.OwnerCapability != "execution-control" {
-		return fmt.Errorf("%s owner_capability is unsupported: %s", a.Kind, a.OwnerCapability)
+	if strings.TrimSpace(a.OwnerToolBoundary) == "" {
+		return fmt.Errorf("%s owner_tool_boundary must not be empty", a.Kind)
 	}
 	if strings.TrimSpace(a.SourceTruthOwner) == "" {
 		return fmt.Errorf("%s source_truth_owner must not be empty", a.Kind)
@@ -222,24 +219,6 @@ func (r WorkflowArtifactRegistry) RegisteredKindOrAlias(kind string) bool {
 	return ok
 }
 
-func ValidateCapabilitySpecProjectionKindsAgainstArtifacts(
-	capabilityRegistry CapabilitySpecRegistry,
-	artifactRegistry WorkflowArtifactRegistry,
-) error {
-	for _, capability := range capabilityRegistry.Capabilities {
-		for _, kind := range capability.ContextProjectionKinds {
-			if !artifactRegistry.RegisteredKindOrAlias(kind) {
-				return fmt.Errorf(
-					"capability spec %s context_projection_kind %q is outside workflow artifact registry",
-					capability.ID,
-					kind,
-				)
-			}
-		}
-	}
-	return nil
-}
-
 func ValidateToolSpecProducerToolsAgainstArtifacts(
 	toolRegistry ToolSpecRegistry,
 	artifactRegistry WorkflowArtifactRegistry,
@@ -250,15 +229,6 @@ func ValidateToolSpecProducerToolsAgainstArtifacts(
 			if !ok {
 				return fmt.Errorf("%s producer tool is missing from ToolSpec: %s", artifact.Kind, toolName)
 			}
-			if tool.OwnerCapability != artifact.OwnerCapability {
-				return fmt.Errorf(
-					"%s producer tool %s owner = %s, want %s",
-					artifact.Kind,
-					toolName,
-					tool.OwnerCapability,
-					artifact.OwnerCapability,
-				)
-			}
 			if !tool.ReadOnly {
 				return fmt.Errorf("%s producer tool %s must be read_only", artifact.Kind, toolName)
 			}
@@ -267,8 +237,7 @@ func ValidateToolSpecProducerToolsAgainstArtifacts(
 	return nil
 }
 
-func ValidateCapabilityBindings(
-	capabilityRegistry CapabilitySpecRegistry,
+func ValidateWorkflowArtifactBindings(
 	toolRegistry ToolSpecRegistry,
 	artifactRegistry WorkflowArtifactRegistry,
 ) error {
@@ -277,34 +246,17 @@ func ValidateCapabilityBindings(
 		artifactsByKind[artifact.Kind] = artifact
 	}
 	seenBindingIDs := map[string]struct{}{}
-	openProducers := map[string]WorkflowCapabilityBinding{}
+	openProducers := map[string]WorkflowToolBinding{}
 	for _, binding := range artifactRegistry.Bindings {
 		if _, exists := seenBindingIDs[binding.BindingID]; exists {
-			return fmt.Errorf("workflow capability binding duplicate binding_id: %s", binding.BindingID)
+			return fmt.Errorf("workflow tool binding duplicate binding_id: %s", binding.BindingID)
 		}
 		seenBindingIDs[binding.BindingID] = struct{}{}
-		capability, ok := capabilityRegistry.CapabilityByID(binding.OwnerCapability)
-		if !ok {
-			return fmt.Errorf(
-				"%s owner_capability is missing from capability spec: %s",
-				binding.BindingID,
-				binding.OwnerCapability,
-			)
-		}
 		if _, ok := supportedBindingOpeningGates[binding.OpeningGate]; !ok {
 			return fmt.Errorf(
 				"%s opening_gate is unsupported: %s",
 				binding.BindingID,
 				binding.OpeningGate,
-			)
-		}
-		if binding.OpeningGate == "open" && (!capability.Active || capability.OpeningGate != "open") {
-			return fmt.Errorf(
-				"%s opening_gate=open requires active/open capability spec %s, got active=%t opening_gate=%s",
-				binding.BindingID,
-				binding.OwnerCapability,
-				capability.Active,
-				capability.OpeningGate,
 			)
 		}
 		if binding.StateChanging {
@@ -322,24 +274,9 @@ func ValidateCapabilityBindings(
 					binding.ToolName,
 				)
 			}
-			if tool.OwnerCapability != binding.OwnerCapability {
-				return fmt.Errorf(
-					"%s tool owner=%s, want %s",
-					binding.BindingID,
-					tool.OwnerCapability,
-					binding.OwnerCapability,
-				)
-			}
 			if !tool.ReadOnly {
 				return fmt.Errorf(
 					"%s tool %s must be read_only",
-					binding.BindingID,
-					binding.ToolName,
-				)
-			}
-			if binding.OpeningGate == "open" && !tool.Active {
-				return fmt.Errorf(
-					"%s open binding tool %s must be active",
 					binding.BindingID,
 					binding.ToolName,
 				)
@@ -403,20 +340,14 @@ func ValidateModelVisibleToolArtifactGate(
 	tool ToolSpec,
 	artifactRegistry WorkflowArtifactRegistry,
 ) error {
-	if tool.Surface != "structured_handoff" {
-		return fmt.Errorf("%s model-visible tool must use structured_handoff surface", tool.Name)
-	}
-	if !tool.Active || !tool.ReadOnly || tool.effectiveRuntimePosture() != "typed_activity_admitted" {
+	if tool.Exposure != "model_visible" || !tool.ReadOnly {
 		return fmt.Errorf(
-			"%s model-visible tool must be active read-only typed_activity_admitted",
+			"%s model-visible tool must be model_visible and read_only",
 			tool.Name,
 		)
 	}
-	if !tool.effectiveFunctionSchema().Available || !tool.effectiveFunctionSchema().Strict {
-		return fmt.Errorf("%s model-visible tool must have strict function schema", tool.Name)
-	}
 	for _, binding := range artifactRegistry.Bindings {
-		if binding.ToolName != tool.Name || binding.OwnerCapability != tool.OwnerCapability {
+		if binding.ToolName != tool.Name {
 			continue
 		}
 		if binding.OpeningGate != "open" {
@@ -429,15 +360,6 @@ func ValidateModelVisibleToolArtifactGate(
 			artifact, ok := artifactRegistry.ArtifactByKind(producedKind)
 			if !ok {
 				return fmt.Errorf("%s produces unknown artifact %s", binding.BindingID, producedKind)
-			}
-			if artifact.OwnerCapability != tool.OwnerCapability {
-				return fmt.Errorf(
-					"%s produces artifact %s owner=%s, want %s",
-					binding.BindingID,
-					producedKind,
-					artifact.OwnerCapability,
-					tool.OwnerCapability,
-				)
 			}
 			if artifact.CurrentProjectionSupport != "supported_go_runtime" {
 				return fmt.Errorf(

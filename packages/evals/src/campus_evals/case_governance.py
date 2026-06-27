@@ -49,7 +49,7 @@ _FORBIDDEN_DENOMINATOR_TRUTH_KEYS = {
 class DenominatorRegistryEntry:
     surface_id: str
     domain_owner: str
-    capability_family: str
+    tool_surface: str
     admission_state: str
     truth_scope: str
     authors_domain_truth: bool
@@ -113,9 +113,7 @@ def validate_denominator_registry(payload: dict[str, object]) -> DenominatorRegi
         entry = DenominatorRegistryEntry(
             surface_id=_required_string(raw_entry.get("surface_id"), "surface_id"),
             domain_owner=_required_string(raw_entry.get("domain_owner"), "domain_owner"),
-            capability_family=_required_string(
-                raw_entry.get("capability_family"), "capability_family"
-            ),
+            tool_surface=_required_string(raw_entry.get("tool_surface"), "tool_surface"),
             admission_state=_required_string(raw_entry.get("admission_state"), "admission_state"),
             truth_scope=_required_string(raw_entry.get("truth_scope"), "truth_scope"),
             authors_domain_truth=bool(raw_entry.get("authors_domain_truth")),
