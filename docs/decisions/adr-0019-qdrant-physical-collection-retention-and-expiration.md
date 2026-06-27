@@ -131,6 +131,6 @@ updated: 2026-06-01
 
 - `docs/architecture/system/data-plane-architecture.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
-- `docs/runbooks/archive/python-ingestion-worker/index-release-runbook.md`
+- `docs/runbooks/temporal-self-host-operations.md`
 - `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 - `docs/decisions/adr-0014-versioned-document-serving-and-history-query.md`

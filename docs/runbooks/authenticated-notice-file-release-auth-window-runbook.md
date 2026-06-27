@@ -20,8 +20,8 @@ updated: 2026-04-18
 - `docs/reference/authenticated-notice-file-release-export-contract.md` 的导出契约
 - `docs/runbooks/ingestion-control-clean-target-runbook.md` 的 ingestion task
   admission / closeout 路径
-- `docs/runbooks/archive/python-ingestion-worker/` 中的 historical replay /
-  preparation 旧证据
+- historical replay / preparation 旧证据；旧正文已退出 branch tip，需要追溯时通过
+  git history 恢复具体片段
 
 ## 适用范围
 

@@ -171,12 +171,11 @@ release/index。
 ## Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `git history authenticated-notice regulation consumption workstream`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
-- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
-  tial-review-boundary.md`
-- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md
+- `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spatial-review-boundary.md`
+- `docs/decisions/adr-0032-internal-notice-notice-family-stratified-admission.md`
   `
 - `docs/decisions/adr-0033-internal-notice-pdf-cloud-ocr-default.md`

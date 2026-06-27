@@ -44,8 +44,8 @@ source-truth schema。
   contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
 - shared replay / rebuild
   boundary：`docs/architecture/system/data-plane-architecture.md`
-- `internal_notice` historical offline preparation
-  strategy：`docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `internal_notice` PDF chunking / OCR
+  strategy：`docs/reference/internal-notice-pdf-chunks.md`
 - restricted document center artifact
   contract：`docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - restricted
@@ -613,9 +613,8 @@ notice source-truth 不等于逻辑 document 真相。
 
 如需定义 `campus_notices/internal_notice` 的 parent notice / attachment lane
 split、cleanup、chunk-preparation 与 release gate，固定查看
-`docs/runbooks/ingestion-control-clean-target-runbook.md`；旧 Python worker
-preparation 证据位于
-`docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`。
+`docs/runbooks/ingestion-control-clean-target-runbook.md`。旧 Python worker
+preparation 正文已退出 branch tip；需要追溯时通过 git history 恢复具体片段。
 
 ## Async Staged Closeout Integration
 
@@ -637,8 +636,8 @@ decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
 - source channel
   运行边界：`docs/architecture/domains/authenticated-notice/architecture.md`
 - shared source-truth principles：`docs/architecture/system/data-plane-architecture.md`
-- `internal_notice` historical offline preparation
-  strategy：`docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `internal_notice` PDF chunking / OCR
+  strategy：`docs/reference/internal-notice-pdf-chunks.md`
 - restricted document center artifact
   contract：`docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - restricted authorization：`docs/decisions/adr-0022-campus-identity-and-restrict

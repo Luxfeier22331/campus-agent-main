@@ -56,6 +56,13 @@ observable:
   the same narrow capability.
 - ADRs keep their historical lifecycle. Do not delete or rename ADRs only to
   satisfy short-name cleanup; supersede them when the decision changes.
+- Archive directories are not long-term garbage drawers. Historical full text
+  stays tracked only when it still carries unique retained evidence or
+  migration value. If the remaining value is traceability, use git history
+  instead of keeping a branch-tip body or redirect stub.
+- The documentation inventory is a compact governance snapshot, not a
+  hand-maintained mirror of every Markdown file. It should record counts,
+  cleanup rules and hotspots rather than duplicate the full tree.
 
 ## Truth Classes
 
@@ -363,6 +370,9 @@ without `truth_scope` and `owner_boundary`.
   it.
 - Preserve historical reference/runbook value by marking it `historical` or
   moving it under `archive/`, not by leaving it on the default reading path.
+- Delete historical archive bodies that no longer carry unique retained
+  evidence or migration value. Use git history for traceability instead of
+  keeping tracked redirect stubs.
 - Do not restore tracked planning archive trees. Recover only specific durable
   facts into active docs.
 - Prefer deleting stale cross-type summaries over maintaining compatibility

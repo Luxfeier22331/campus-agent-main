@@ -28,10 +28,9 @@ promotion/materialization 的 acceptance truth。
 相关文档：
 
 - `docs/reference/institutional-regulations-offline-inventory.md`
-- `docs/runbooks/archive/python-ingestion-worker/internal-notice-policy-regulation-promotion-runbook.md`
-- `docs/runbooks/archive/python-ingestion-worker/internal-notice-regulation-target-quality-acceptance-runbook.md
-  `
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
+- 旧 Python promotion runbook 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。
 
 ## Scope Boundary
 

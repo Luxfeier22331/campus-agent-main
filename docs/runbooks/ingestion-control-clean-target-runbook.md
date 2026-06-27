@@ -69,11 +69,6 @@ adapters directly.
 
 ## Historical Instructions
 
-Historical Python worker runbooks were moved under:
-
-```text
-docs/runbooks/archive/python-ingestion-worker/
-docs/reference/archive/python-ingestion-worker/
-```
-
-Those files are evidence only. They are not current operating instructions.
+Historical Python worker runbook bodies have left branch tip. They are not
+current operating instructions; recover specific old fragments through git
+history only when they need to be promoted into current docs.

@@ -25,7 +25,7 @@ Current canonical entry points are:
 - `docs/contracts/app-api-official-web-http.md`
 - `docs/contracts/app-api-official-web-run-lifecycle.md`
 - `docs/policies/official-web-crawl-policy.md`
-- `docs/runbooks/official-web-source-truth-projection-replay.md`
+- `docs/runbooks/ingestion-control-clean-target-runbook.md`
 - `docs/reference/official-web-eval.md`
 
 ## Archived Snapshot Summary

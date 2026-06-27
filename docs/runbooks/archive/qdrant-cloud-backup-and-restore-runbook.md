@@ -15,8 +15,7 @@ object-store snapshot direction from ADR-0020.
 
 The active staging and early-production path is:
 
-- `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
-- `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
+- `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`
 
 Do not use Qdrant Cloud Standard automatic backups or Free tier
 snapshot-to-object-storage as the default backup path for current staging or
@@ -31,7 +30,7 @@ ADR-0020 assumed two cloud paths:
 - Free tier collection snapshots uploaded into the derived bucket under
   `{corpus}/backups/{collection}/{release_id}/{backup_id}/...`.
 
-That assumption is no longer current. ADR-0045 supersedes it with a
+That assumption is no longer current. ADR-0052 supersedes it with a
 self-hosted single-node Qdrant deployment and qdrant-native snapshots archived
 on the server filesystem plus an off-host copy.
 
@@ -57,5 +56,4 @@ The cleanup command only deletes object keys listed in the generated
 ## References
 
 - Superseded ADR: `docs/decisions/adr-0020-qdrant-cloud-backup-restore-and-object-store-transition.md`
-- Active ADR: `docs/decisions/adr-0045-self-hosted-single-node-qdrant-and-native-backups.md`
-- Active runbook: `docs/runbooks/self-hosted-qdrant-native-backup-runbook.md`
+- Active ADR: `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`

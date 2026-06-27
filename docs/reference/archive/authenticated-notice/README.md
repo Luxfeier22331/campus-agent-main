@@ -17,11 +17,9 @@ updated: 2026-04-20
 当前 canonical 入口已经收回到：
 
 - `docs/domains/authenticated-notice.md`
-- `docs/architecture/authenticated-notice-source-architecture.md`
-- `docs/architecture/authenticated-notice-source-truth-contract.md`
-- `docs/runbooks/authenticated-notice-source-truth-replay-runbook.md`
-- `docs/runbooks/authenticated-notice-async-staged-closeout-runbook.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/architecture/domains/authenticated-notice/architecture.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/runbooks/ingestion-control-clean-target-runbook.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 
 ## Archived Plans

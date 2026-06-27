@@ -83,8 +83,9 @@ updated: 2026-06-13
 
 - `archive/README.md`
   - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
-- `archive/python-ingestion-worker/`
-  - historical Python ingestion worker runbook；只用于追溯旧链路，不是当前操作入口。
 - `archive/qdrant-cloud-backup-and-restore-runbook.md`
   - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
     self-hosted single-node Qdrant native snapshots。
+
+旧 Python ingestion worker runbook 正文已退出 branch tip；需要追溯旧链路时通过
+git history 恢复具体片段，再提升到当前 runbook 或 architecture 文档。

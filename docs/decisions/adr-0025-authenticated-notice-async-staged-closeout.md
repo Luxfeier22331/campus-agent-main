@@ -165,4 +165,4 @@ promoter 的职责固定为：
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/architecture/system/data-plane-architecture.md`
-- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-async-staged-closeout-runbook.md`
+- `docs/runbooks/ingestion-control-clean-target-runbook.md`

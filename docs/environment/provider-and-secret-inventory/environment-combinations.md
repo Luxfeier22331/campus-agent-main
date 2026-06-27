@@ -111,4 +111,7 @@ uv run --all-packages python -m scripts.link_worktree_app_local_env \
   official-account-collector/.env.example)
 - [../../runbooks/provider-secret-governance.md](../../runbooks/provider-secret-govern
   ance.md)
-- historical [../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md](../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md)
+- Local Docker Postgres recovery uses
+  `uv run --all-packages python -m scripts.restore_local_postgres_dev --execute`.
+  Old Python ingestion worker recovery runbook text is recovered through git
+  history only.

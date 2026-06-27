@@ -141,9 +141,9 @@ Attachment note:
 
 Visual reference audit note:
 
-- `src/visual-ref-audit.ts` is read-only: it scans notice detail HTML and writes a
-  candidate report, but it does not download image bytes, upload objects, write
-  run ledger rows, or import source truth
+- `src/visual-ref-audit.ts` is read-only: it scans notice detail HTML and writes
+  a candidate report, but it does not download image bytes, upload objects,
+  write run ledger rows, or import source truth
 - default output path is
   `.tmp/authenticated-notice-visual-audit/<timestamp>/visual-reference-candidates.json`
 - by default non-selected audit scans at most `50` notice details; override with

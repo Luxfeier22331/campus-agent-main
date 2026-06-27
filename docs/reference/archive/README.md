@@ -15,9 +15,6 @@ updated: 2026-04-20
 
 - `authenticated-notice/README.md`
 - `official-web/README.md`
-- `python-ingestion-worker/`
-  - historical Python ingestion worker reference materials removed from active
-    reference surface.
 
 ## Incident / Snapshot Archive
 
@@ -27,3 +24,5 @@ updated: 2026-04-20
 
 - 需要当前 baseline、当前 contract 或当前 acceptance 指标时，回到 `../README.md`
 - 需要追溯历史演进、旧验证快照或旧阅读入口时，再进入本 archive namespace
+- 旧 Python ingestion worker reference 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。

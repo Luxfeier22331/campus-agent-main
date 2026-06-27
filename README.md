@@ -176,8 +176,8 @@ canonical artifacts / reader assets in object storage
 - sync manifest 指向的对象存储 reader assets
 - 对应环境的 app-api operator database 与对象存储读取配置
 
-旧 document-reader 发布、导入、构建和验收流程已归档，见 historical
-[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/archive/python-ingestion-worker/document-reader-publish-and-docs-deploy-runbook.md)。
+旧 document-reader 发布、导入、构建和验收流程已退出 branch tip；需要追溯时通过
+git history 恢复具体片段，再提升到当前 runbook 或 data contract。
 不要提交 repo-root `var/`、`apps/campus-web/doc_build/`、`apps/campus-web/public/docs/`
 或 `apps/campus-web/public/static/` 中的本地生成产物。
 

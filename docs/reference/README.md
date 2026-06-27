@@ -62,13 +62,11 @@ updated: 2026-06-13
 - `archive/authenticated-notice/restricted-document-center-artifact-contract.md`
   - historical；只保留 document-center artifact 分层旧口径，不再是 active target
     contract。
-- `archive/python-ingestion-worker/`
-  - historical Python ingestion worker reference materials, including old
-    file-release owner recovery readiness and internal-notice offline
-    preparation notes.
 
 补充规则：
 
 - historical 材料优先按领域或问题域集中到 `archive/` 子目录，而不是继续平铺在 `reference/` 根层
 - 已被并入 canonical 文档的 historical redirect notes 不再继续占据默认 root namespace
 - 需要追溯旧材料时，优先从 `archive/README.md` 与对应 archive hub 进入
+- 旧 Python ingestion worker reference 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。

@@ -56,8 +56,3 @@ updated: 2026-06-12
 - `../reference/institutional-regulations-promotion-quality-acceptance.md`
 - `../reference/institutional-regulations-offline-inventory.md`
 - `../reference/internal-notice-pdf-chunks.md`
-
-## Historical Ingestion References
-
-- `../runbooks/archive/python-ingestion-worker/`
-- `../reference/archive/python-ingestion-worker/`

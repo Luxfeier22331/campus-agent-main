@@ -123,6 +123,7 @@ native PDF extraction 仍可存在，但职责固定收窄为：
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-quality-acceptance.md`
-- `docs/runbooks/archive/python-ingestion-worker/authenticated-notice-source-truth-replay-runbook.md`
+- `docs/data/authenticated-notice-source-truth-schema.md`
+- `docs/reference/internal-notice-pdf-chunks.md`
+- 旧 offline-preparation 与 replay 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。

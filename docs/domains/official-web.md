@@ -38,8 +38,9 @@ Documentation ownership rules remain in `../documentation-architecture.md`.
 
 - `../runbooks/official-web-dynamic-shell-discovery.md`
 - `../runbooks/ingestion-control-clean-target-runbook.md`
-- historical Python ingestion worker runbooks:
-  `../runbooks/archive/python-ingestion-worker/`
+- historical Python ingestion worker runbook bodies have left branch tip. Use
+  git history when a specific old collector smoke or projection replay fragment
+  must be recovered.
 
 ## Reference And Policy
 

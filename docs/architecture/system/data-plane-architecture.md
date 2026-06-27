@@ -500,7 +500,7 @@ registry / control-plane database 与对象存储长期分层。
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/domains/transport.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/internal-notice-pdf-chunks.md`
 
 为准。
 
@@ -571,4 +571,4 @@ closeout 的执行模型；ADR-0026 进一步把 executor 升级为 batch-leased
 - `docs/decisions/adr-0029-ipv4-session-pooler-postgres-connectivity.md`
 - `docs/data/authenticated-notice-source-truth-schema.md`
 - `docs/architecture/system/file-asset-loader-architecture.md`
-- `docs/reference/archive/python-ingestion-worker/internal-notice-offline-preparation-strategy.md`
+- `docs/reference/internal-notice-pdf-chunks.md`

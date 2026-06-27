@@ -145,10 +145,9 @@ Current non-gaps after the doc audit:
   inferred memory update are implemented through
   `app-api -> execution-control -> Qdrant`; candidate confirmation UI / strong
   governance remains later product work, not a current main-chain gap.
-- Campus-services read-only contracts can exist without being model-visible.
-  Current model-visible campus-services exposure is limited by
-  `tool-catalog.v1` and `workflow-artifacts.v2`; `service_process_lookup`
-  remains later-wave.
+- Campus-services current model-visible scope is limited to transport schedule
+  / status. Generic service guide, contact directory and process lookup surfaces
+  are not active backlog signals until they are redesigned.
 - Notice content maturity and manual校对 work are data / quality work, not a
   generic main-chain implementation gap.
 - Go RAG `grounding.verify` is current evidence-integrity verification, not
@@ -164,6 +163,5 @@ Deferred signals that must not be treated as active implementation gaps:
   are satisfied.
 - Navigation map/route/current-location product opening after spatial truth and
   map surface work resumes.
-- `service_process_lookup` later-wave admission while it remains `keep_closed`.
 - Production storage, panel consumption, or release-evidence consumption of
   `retrieval.runtime_observation`.

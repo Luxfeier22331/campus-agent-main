@@ -356,9 +356,10 @@ Hindsight API。
 
 如果使用本地 Docker Postgres：
 
-- 使用 historical [../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md](../../runbooks/archive/python-ingestion-worker/local-postgres-dev-recovery-runbook.md)
-- 或直接执行 `uv run --all-packages python -m scripts.restore_local_postgres_dev
-  - -execute`
+- 执行 `uv run --all-packages python -m scripts.restore_local_postgres_dev
+  --execute`
+- 旧 Python ingestion worker recovery runbook 正文已退出 branch tip；需要追溯时通过
+  git history 恢复具体片段。
 
 说明：
 
