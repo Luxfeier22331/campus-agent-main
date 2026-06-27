@@ -266,7 +266,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 					parameters: {
 						type: "object",
 						additionalProperties: false,
-						required: ["query_text"],
+						required: ["query_text", "intent"],
 						properties: {
 							query_text: { type: "string", minLength: 1 },
 							intent: {
@@ -292,7 +292,7 @@ describe("OpenAI Agents SDK runner adapter", () => {
 		expect(toolParameterSchema).toMatchObject({
 			type: "object",
 			additionalProperties: false,
-			required: ["query_text"],
+			required: ["query_text", "intent"],
 		});
 	});
 
