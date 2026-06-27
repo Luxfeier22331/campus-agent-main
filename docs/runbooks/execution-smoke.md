@@ -39,18 +39,11 @@ execution origin 为准。
   - `agent-runtime`
   - `activity-worker-agent`
   - `activity-worker-knowledge`
-  - `activity-worker-knowledge`
-  - `activity-worker-knowledge`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `worker-autoscaler`
   - Temporal
-- `activity-worker-campus-services`、`activity-worker-notice`、
-  `activity-worker-navigation`、`worker-autoscaler`、`temporal-ui` 与
-  self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在对应 capability
-  opening、ops proof、UI 排障或 eval/trace UI 会话中显式 opt-in。
+- `worker-autoscaler`、`temporal-task-queue-sampler`、`temporal-ui` 与
+  self-hosted Langfuse stack 不属于默认 smoke runtime。它们只在 ops proof、
+  UI 排障或 eval/trace UI 会话中显式 opt-in。模型可见工具由 `tools.v4` 与
+  execution-control runtime profile 控制，不再通过额外 worker 进程打开。
 - `execution-control` 不作为 public staging surface；machine ingress 固定为
   `https://execution-control-staging.mucwiki-edge.link`
 - `app-api-staging` 必须配置 execution-control Access service-token credentials 与
@@ -84,14 +77,12 @@ infra/local/staging/status-execution-control-staging.sh --check
 
 - `infra/local/staging/status-execution-control-staging.sh --check` 返回 `0`
 - 默认 `docker compose ps` 不包含 `langfuse-*`、`temporal-ui`、
-  `activity-worker-campus-services`、`activity-worker-notice`、
-  `activity-worker-navigation`。
+  `temporal-task-queue-sampler` 或 `worker-autoscaler`。
 
 按需入口：
 
 ```bash
 infra/local/staging/start-execution-control-staging.sh --with-ui
-infra/local/staging/start-execution-control-staging.sh --with-structured-capabilities
 infra/local/staging/start-execution-control-staging.sh --with-langfuse
 infra/local/staging/status-execution-control-staging.sh --check --require-langfuse
 infra/local/staging/stop-execution-control-langfuse.sh

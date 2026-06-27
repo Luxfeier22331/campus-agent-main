@@ -143,9 +143,6 @@ infra/local/staging/start-execution-control-staging.sh
 # 同时打开 Temporal UI
 infra/local/staging/start-execution-control-staging.sh --with-ui
 
-# 同时打开 closed structured capability workers
-infra/local/staging/start-execution-control-staging.sh --with-structured-capabilities
-
 # 同时打开 self-hosted Langfuse stack
 infra/local/staging/start-execution-control-staging.sh --with-langfuse
 

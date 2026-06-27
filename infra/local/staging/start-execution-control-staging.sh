@@ -8,10 +8,11 @@ source "${script_dir}/execution-control-staging-common.sh"
 
 usage() {
   cat >&2 <<'EOF'
-Usage: start-execution-control-staging.sh [--with-langfuse] [--with-ui] [--with-structured-capabilities]
+Usage: start-execution-control-staging.sh [--with-langfuse] [--with-ui]
 
-Default starts only the main answer serving runtime. Langfuse self-host,
-Temporal UI, and closed structured capability workers are opt-in.
+Default starts only the main answer serving runtime. Langfuse self-host and
+Temporal UI are opt-in. Model-visible tools are controlled by tools.v4 and the
+execution-control runtime profile, not by extra worker processes.
 EOF
 }
 
@@ -22,9 +23,6 @@ while (( $# > 0 )); do
       ;;
     --with-ui)
       execution_control_staging_enable_compose_profile "ui"
-      ;;
-    --with-structured-capabilities)
-      execution_control_staging_enable_compose_profile "structured-tools"
       ;;
     -h | --help)
       usage

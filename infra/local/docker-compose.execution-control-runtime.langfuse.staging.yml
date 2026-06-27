@@ -10,7 +10,7 @@ services:
       traefik.http.routers.langfuse-staging.tls: "true"
       traefik.http.services.langfuse-staging.loadbalancer.server.port: "3000"
     networks:
-      - supervisor-runtime
+      - execution-runtime
       - proxy
 
 networks:

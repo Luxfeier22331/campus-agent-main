@@ -32,15 +32,11 @@ updated: 2026-06-09
   - `activity-worker-core`
   - `activity-worker-agent`
   - `activity-worker-knowledge`
-  - `activity-worker-knowledge`
-  - `activity-worker-knowledge`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `activity-worker-core`
-  - `worker-autoscaler`
-  - `temporal-ui`
-  - self-hosted Langfuse stack
+  - `temporal`
+  - run projection store and authenticated private data-plane dependencies
+  - opt-in `temporal-ui`
+  - opt-in self-hosted Langfuse stack
+  - opt-in ops-proof `worker-autoscaler`
 - ingress:
   - machine-local reverse proxy 指向 `execution-control:8000`
 - upstream contract:

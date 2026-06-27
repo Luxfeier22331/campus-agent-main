@@ -62,8 +62,8 @@ taxonomy names as active architecture.
 
 Rules:
 
-- `capability`, `tool_family`, `runtime family` and `worker_role` are retired
-  or implementation-scoped labels. They may appear only in historical,
+- Legacy capability taxonomy, family taxonomy and deployment-role labels are
+  retired or implementation-scoped. They may appear only in historical,
   migration or compatibility context.
 - Internal query functions and tool-internal functions are not model-visible
   unless admitted by the tool registry and opened by the runtime profile.

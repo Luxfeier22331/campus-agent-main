@@ -84,21 +84,21 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
                 self.assertNotIn("while true", service_block)
                 self.assertNotIn('sleep "$${', service_block)
 
-    def test_default_runtime_compose_keeps_heavy_and_closed_surfaces_opt_in(
+    def test_default_runtime_compose_keeps_heavy_surfaces_opt_in(
         self,
     ) -> None:
         compose_file = ROOT / "infra/local/docker-compose.execution-control-runtime.yml"
         compose_source = compose_file.read_text(encoding="utf-8")
 
-        for service_name, profile in (
-            ("temporal-ui", "ui"),
-            ("activity-worker-campus-services", "structured-tools"),
-            ("activity-worker-notice", "structured-tools"),
-            ("activity-worker-navigation", "structured-tools"),
+        service_block = _compose_service_block(compose_source, "temporal-ui")
+        self.assertIn('profiles: ["ui"]', service_block)
+        for retired_service in (
+            "activity-worker-campus-services",
+            "activity-worker-notice",
+            "activity-worker-navigation",
         ):
-            with self.subTest(service=service_name):
-                service_block = _compose_service_block(compose_source, service_name)
-                self.assertIn(f'profiles: ["{profile}"]', service_block)
+            with self.subTest(retired_service=retired_service):
+                self.assertNotIn(f"  {retired_service}:", compose_source)
 
     def test_staging_helper_exposes_explicit_ops_proof_command(self) -> None:
         core_script = (STAGING_DIR / "execution-control-staging-core.sh").read_text(
@@ -385,7 +385,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
             repo_env="",
             staging_env="\n".join(
                 (
-                    "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES=ui:structured-tools",
+                    "EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES=ui",
                     "EXECUTION_CONTROL_STAGING_COMPOSE_FILES=/runtime/base.yml:/runtime/staging.yml",
                     "STAGING_INGESTION_SHARED_POSTGRES_URL=postgresql://runtime@staging-db.example.com:5432/campus_agent",
                     "STAGING_INGESTION_DOCUMENT_REGISTRY_DATABASE_URL=postgresql://registry@staging-registry.example.com:5432/campus_agent",
@@ -413,7 +413,7 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         projected = json.loads(result.stdout)
         self.assertEqual(
             projected["EXECUTION_CONTROL_STAGING_COMPOSE_PROFILES"],
-            "ui:structured-tools",
+            "ui",
         )
         self.assertEqual(
             projected["EXECUTION_CONTROL_STAGING_COMPOSE_FILES"],
@@ -472,11 +472,9 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
 
         for required_service in (
             '"agent-runtime"',
+            '"activity-worker-core"',
             '"activity-worker-agent"',
-            '"activity-worker-knowledge-plan"',
-            '"activity-worker-knowledge-retrieval"',
-            '"activity-worker-knowledge-synthesis"',
-            '"activity-worker-finalization"',
+            '"activity-worker-knowledge"',
         ):
             with self.subTest(required_service=required_service):
                 self.assertIn(required_service, command_body)
@@ -512,8 +510,8 @@ class ExecutionControlStagingDeployBoundaryTest(unittest.TestCase):
         self.assertIn("execution_control_staging_enable_langfuse_compose", script)
         self.assertIn("--with-ui", script)
         self.assertIn('"ui"', script)
-        self.assertIn("--with-structured-capabilities", script)
-        self.assertIn('"structured-tools"', script)
+        self.assertNotIn("--with-structured-capabilities", script)
+        self.assertNotIn('"structured-tools"', script)
 
     def test_status_requires_explicit_langfuse_check(self) -> None:
         script = (STAGING_DIR / "status-execution-control-staging.sh").read_text(encoding="utf-8")
