@@ -29,7 +29,6 @@ REQUIRED_CI_SCRIPT_VALUES = {
 }
 
 REQUIRED_WORKFLOW_SCRIPT_CALLS = {
-    ".github/workflows/repo-guard.yml": ("pnpm ci:repo-guard",),
     ".github/workflows/lint.yml": (
         "pnpm ci:repo-static",
         "pnpm ci:intent",
@@ -41,6 +40,16 @@ REQUIRED_GOLANGCI_LINT_INSTALL = (
     "go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.11.4"
 )
 REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
+REQUIRED_WORKFLOW_CONCURRENCY = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
+MANUAL_ONLY_WORKFLOWS = (".github/workflows/eval-release-gate.yml",)
+MANUAL_ONLY_IF_PRESENT_WORKFLOWS = (".github/workflows/public-docs-rolling-publish.yml",)
+PATH_FILTERED_JOBS = {
+    ".github/workflows/lint.yml": {
+        "execution-control-go": "go",
+        "intent-release-gate": "intent",
+        "langfuse-integration": "langfuse",
+    }
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +102,10 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
         issues.extend(_audit_package_manager_versions(base, root_pnpm_version))
         issues.extend(_audit_workflow_pnpm_versions(base, root_pnpm_version))
     issues.extend(_audit_workflow_script_calls(base))
+    issues.extend(_audit_workflow_concurrency(base))
+    issues.extend(_audit_manual_only_workflows(base))
+    issues.extend(_audit_public_docs_publish_workflow(base))
+    issues.extend(_audit_path_filtered_jobs(base))
     issues.extend(_audit_repo_static_lane_tooling(base))
     issues.extend(_audit_langfuse_lane_tooling(base))
     issues.extend(_audit_go_lane_tooling(base))
@@ -173,6 +186,159 @@ def _audit_workflow_script_calls(root: Path) -> tuple[CiWorkflowContractIssue, .
                     CiWorkflowContractIssue(
                         path=workflow_relpath,
                         message=f"workflow does not call required script: {required_call}",
+                    )
+                )
+    return tuple(issues)
+
+
+def _audit_workflow_concurrency(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_relpath in REQUIRED_WORKFLOW_CONCURRENCY:
+        workflow_path = root / workflow_relpath
+        if not workflow_path.exists():
+            continue
+        workflow = _read_yaml(workflow_path)
+        concurrency = workflow.get("concurrency")
+        if not isinstance(concurrency, dict):
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath,
+                    message="workflow must configure concurrency to cancel superseded runs",
+                )
+            )
+            continue
+        if concurrency.get("cancel-in-progress") is not True:
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath,
+                    message="workflow concurrency must set cancel-in-progress: true",
+                )
+            )
+    return tuple(issues)
+
+
+def _audit_manual_only_workflows(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_relpath in MANUAL_ONLY_WORKFLOWS:
+        workflow_path = root / workflow_relpath
+        if not workflow_path.exists():
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath, message="required workflow is missing"
+                )
+            )
+            continue
+        issues.extend(_audit_manual_only_workflow(root, workflow_path))
+    for workflow_relpath in MANUAL_ONLY_IF_PRESENT_WORKFLOWS:
+        workflow_path = root / workflow_relpath
+        if workflow_path.exists():
+            issues.extend(_audit_manual_only_workflow(root, workflow_path))
+    return tuple(issues)
+
+
+def _audit_manual_only_workflow(
+    root: Path, workflow_path: Path
+) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow = _read_yaml(workflow_path)
+    relpath = workflow_path.relative_to(root).as_posix()
+    triggers = _workflow_triggers(workflow)
+    issues: list[CiWorkflowContractIssue] = []
+    if "workflow_dispatch" not in triggers:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=relpath,
+                message="manual-only workflow must expose workflow_dispatch",
+            )
+        )
+    automatic_triggers = sorted(trigger for trigger in triggers if trigger != "workflow_dispatch")
+    if automatic_triggers:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=relpath,
+                message=(
+                    "manual-only workflow must not define automatic triggers: "
+                    + ", ".join(automatic_triggers)
+                ),
+            )
+        )
+    return tuple(issues)
+
+
+def _audit_public_docs_publish_workflow(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/public-docs-rolling-publish.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return ()
+    run_text = "\n".join(
+        str(step.get("run") or "") for step in _workflow_steps(_read_yaml(workflow_path))
+    )
+    forbidden_tokens = (
+        "deploy:staging",
+        " apps/campus-web deploy",
+        "pnpm --dir apps/campus-web deploy",
+    )
+    if any(token in run_text for token in forbidden_tokens):
+        return (
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="public docs manual workflow must stay build-only and must not deploy",
+            ),
+        )
+    return ()
+
+
+def _audit_path_filtered_jobs(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    issues: list[CiWorkflowContractIssue] = []
+    for workflow_relpath, jobs_to_outputs in PATH_FILTERED_JOBS.items():
+        workflow_path = root / workflow_relpath
+        if not workflow_path.exists():
+            continue
+        workflow = _read_yaml(workflow_path)
+        jobs = workflow.get("jobs")
+        if not isinstance(jobs, dict):
+            continue
+        changes_job = jobs.get("changes")
+        if not isinstance(changes_job, dict):
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath,
+                    message="lint workflow must define a changes job for path-filtered heavy lanes",
+                )
+            )
+            continue
+        outputs = changes_job.get("outputs")
+        if not isinstance(outputs, dict):
+            outputs = {}
+        for job_name, output_name in jobs_to_outputs.items():
+            if output_name not in outputs:
+                issues.append(
+                    CiWorkflowContractIssue(
+                        path=workflow_relpath,
+                        message=f"changes job must expose {output_name} output for {job_name}",
+                    )
+                )
+            job = jobs.get(job_name)
+            if not isinstance(job, dict):
+                issues.append(
+                    CiWorkflowContractIssue(
+                        path=workflow_relpath,
+                        message=f"workflow is missing path-filtered job: {job_name}",
+                    )
+                )
+                continue
+            expected_if = f"needs.changes.outputs.{output_name} == 'true'"
+            if job.get("needs") != "changes":
+                issues.append(
+                    CiWorkflowContractIssue(
+                        path=workflow_relpath,
+                        message=f"{job_name} must depend on the changes job",
+                    )
+                )
+            if str(job.get("if") or "").strip() != expected_if:
+                issues.append(
+                    CiWorkflowContractIssue(
+                        path=workflow_relpath,
+                        message=f"{job_name} must be gated by {expected_if}",
                     )
                 )
     return tuple(issues)
@@ -297,6 +463,19 @@ def _workflow_steps(workflow: dict[str, Any]) -> tuple[dict[str, Any], ...]:
             continue
         steps.extend(step for step in raw_steps if isinstance(step, dict))
     return tuple(steps)
+
+
+def _workflow_triggers(workflow: dict[str, Any]) -> set[str]:
+    raw_triggers = workflow.get(True)
+    if raw_triggers is None:
+        raw_triggers = workflow.get("on")
+    if isinstance(raw_triggers, str):
+        return {raw_triggers}
+    if isinstance(raw_triggers, list):
+        return {str(trigger) for trigger in raw_triggers}
+    if isinstance(raw_triggers, dict):
+        return {str(trigger) for trigger in raw_triggers}
+    return set()
 
 
 def _pnpm_version(package_manager: str) -> str:

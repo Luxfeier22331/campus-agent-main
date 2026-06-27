@@ -83,6 +83,113 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             issues,
         )
 
+    def test_audit_requires_superseded_run_cancellation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1", include_concurrency=False)
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/lint.yml",
+                message="workflow must configure concurrency to cancel superseded runs",
+            ),
+            issues,
+        )
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/repo-guard.yml",
+                message="workflow must configure concurrency to cancel superseded runs",
+            ),
+            issues,
+        )
+
+    def test_audit_requires_public_docs_publish_to_be_manual_only(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1", public_docs_schedule=True)
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/public-docs-rolling-publish.yml",
+                message="manual-only workflow must not define automatic triggers: schedule",
+            ),
+            issues,
+        )
+
+    def test_audit_forbids_public_docs_workflow_deploy_commands(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1", public_docs_deploy=True)
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/public-docs-rolling-publish.yml",
+                message="public docs manual workflow must stay build-only and must not deploy",
+            ),
+            issues,
+        )
+
+    def test_audit_requires_heavy_lanes_to_be_path_filtered(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            (root / ".github/workflows").mkdir(parents=True)
+            (root / "package.json").write_text(
+                json.dumps(
+                    {
+                        "packageManager": "pnpm@10.26.1",
+                        "scripts": _required_scripts(),
+                    }
+                ),
+                encoding="utf-8",
+            )
+            _write_minimal_workflows(root, pnpm_version="10.26.1", include_path_filters=False)
+
+            issues = audit_ci_workflow_contracts(root=root)
+
+        self.assertIn(
+            CiWorkflowContractIssue(
+                path=".github/workflows/lint.yml",
+                message="lint workflow must define a changes job for path-filtered heavy lanes",
+            ),
+            issues,
+        )
+
     def test_audit_requires_langfuse_integration_check_lane(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
@@ -298,6 +405,10 @@ def _write_minimal_workflows(
     include_langfuse_job: bool = True,
     install_langfuse_dependencies: bool = True,
     setup_repo_static_uv: bool = True,
+    include_concurrency: bool = True,
+    include_path_filters: bool = True,
+    public_docs_schedule: bool = False,
+    public_docs_deploy: bool = False,
 ) -> None:
     go_lint_install_steps = (
         (
@@ -310,9 +421,52 @@ def _write_minimal_workflows(
     langfuse_install_steps = (
         ("      - run: pnpm install --frozen-lockfile",) if install_langfuse_dependencies else ()
     )
+    repo_static_uv_steps = ("      - uses: astral-sh/setup-uv@v6",) if setup_repo_static_uv else ()
+    concurrency_lines = (
+        (
+            "concurrency:",
+            "  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}",
+            "  cancel-in-progress: true",
+        )
+        if include_concurrency
+        else ()
+    )
+    changes_job = (
+        (
+            "  changes:",
+            "    outputs:",
+            "      go: ${{ steps.filter.outputs.go }}",
+            "      intent: ${{ steps.filter.outputs.intent }}",
+            "      langfuse: ${{ steps.filter.outputs.langfuse }}",
+            "    steps:",
+            "      - id: filter",
+            "        run: |",
+            '          echo go=true >> "$GITHUB_OUTPUT"',
+            '          echo intent=true >> "$GITHUB_OUTPUT"',
+            '          echo langfuse=true >> "$GITHUB_OUTPUT"',
+        )
+        if include_path_filters
+        else ()
+    )
+    intent_job_gate = (
+        ("    needs: changes", "    if: needs.changes.outputs.intent == 'true'")
+        if include_path_filters
+        else ()
+    )
+    langfuse_job_gate = (
+        ("    needs: changes", "    if: needs.changes.outputs.langfuse == 'true'")
+        if include_path_filters
+        else ()
+    )
+    go_job_gate = (
+        ("    needs: changes", "    if: needs.changes.outputs.go == 'true'")
+        if include_path_filters
+        else ()
+    )
     langfuse_job_steps = (
         (
             "  langfuse-integration:",
+            *langfuse_job_gate,
             "    steps:",
             "      - uses: pnpm/action-setup@v4",
             "        with:",
@@ -323,12 +477,13 @@ def _write_minimal_workflows(
         if include_langfuse_job
         else ()
     )
-    repo_static_uv_steps = ("      - uses: astral-sh/setup-uv@v6",) if setup_repo_static_uv else ()
     (root / ".github/workflows/lint.yml").write_text(
         "\n".join(
             (
                 "name: lint",
+                *concurrency_lines,
                 "jobs:",
+                *changes_job,
                 "  repo-static:",
                 "    steps:",
                 *repo_static_uv_steps,
@@ -338,6 +493,7 @@ def _write_minimal_workflows(
                 "      - run: uv sync --all-packages --dev",
                 f"      - run: {lint_run}",
                 "  intent-release-gate:",
+                *intent_job_gate,
                 "    steps:",
                 "      - uses: pnpm/action-setup@v4",
                 "        with:",
@@ -345,6 +501,7 @@ def _write_minimal_workflows(
                 "      - run: pnpm ci:intent",
                 *langfuse_job_steps,
                 "  execution-control-go:",
+                *go_job_gate,
                 "    steps:",
                 "      - uses: pnpm/action-setup@v4",
                 "        with:",
@@ -360,10 +517,43 @@ def _write_minimal_workflows(
         "\n".join(
             (
                 "name: repo-guard",
+                *concurrency_lines,
                 "jobs:",
                 "  docs-and-collaboration-guard:",
                 "    steps:",
-                "      - run: pnpm ci:repo-guard",
+                "      - run: uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration tests.test_package_script_policy -q",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    public_docs_triggers = (
+        (
+            "on:",
+            "  schedule:",
+            "    - cron: '7 4,10,16,22 * * *'",
+            "  workflow_dispatch:",
+        )
+        if public_docs_schedule
+        else ("on:", "  workflow_dispatch:")
+    )
+    public_docs_command = (
+        "pnpm --dir apps/campus-web deploy"
+        if public_docs_deploy
+        else "pnpm --dir apps/campus-web build"
+    )
+    (root / ".github/workflows/public-docs-rolling-publish.yml").write_text(
+        "\n".join(
+            (
+                "name: public-docs-rolling-publish",
+                *public_docs_triggers,
+                "jobs:",
+                "  publish:",
+                "    steps:",
+                "      - uses: pnpm/action-setup@v4",
+                "        with:",
+                f"          version: {pnpm_version}",
+                f"      - run: {public_docs_command}",
                 "",
             )
         ),

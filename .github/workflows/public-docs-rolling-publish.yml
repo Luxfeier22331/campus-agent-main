@@ -1,0 +1,82 @@
+name: public-docs-rolling-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target campus-web docs environment
+        required: true
+        default: prod
+        type: choice
+        options:
+          - prod
+          - staging
+      dry_run:
+        description: Must remain true; this workflow does not deploy
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+concurrency:
+  group: public-docs-rolling-publish-${{ inputs.environment || 'prod' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment || 'prod' }}
+    env:
+      OBJECT_STORE_ACCESS_KEY: ${{ secrets.OBJECT_STORE_ACCESS_KEY }}
+      OBJECT_STORE_ENDPOINT: ${{ vars.OBJECT_STORE_ENDPOINT }}
+      OBJECT_STORE_REGION: ${{ vars.OBJECT_STORE_REGION }}
+      OBJECT_STORE_SECRET_KEY: ${{ secrets.OBJECT_STORE_SECRET_KEY }}
+      OBJECT_STORE_BUCKET_DERIVED: ${{ vars.OBJECT_STORE_BUCKET_DERIVED }}
+      OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.OBJECT_STORE_DERIVED_ACCESS_KEY }}
+      OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.OBJECT_STORE_DERIVED_SECRET_KEY }}
+      STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_ACCESS_KEY }}
+      STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED: ${{ vars.STAGING_INGESTION_OBJECT_STORE_BUCKET_DERIVED }}
+      STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_ACCESS_KEY }}
+      STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_DERIVED_SECRET_KEY }}
+      STAGING_INGESTION_OBJECT_STORE_ENDPOINT: ${{ vars.STAGING_INGESTION_OBJECT_STORE_ENDPOINT }}
+      STAGING_INGESTION_OBJECT_STORE_REGION: ${{ vars.STAGING_INGESTION_OBJECT_STORE_REGION }}
+      STAGING_INGESTION_OBJECT_STORE_SECRET_KEY: ${{ secrets.STAGING_INGESTION_OBJECT_STORE_SECRET_KEY }}
+      STAGING_APP_API_OPERATOR_DATABASE_URL: ${{ secrets.STAGING_APP_API_OPERATOR_DATABASE_URL }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_APPEARANCE }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION: ${{ vars.STAGING_CAMPUS_AUTH_TURNSTILE_EXECUTION }}
+      STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY: ${{ secrets.STAGING_CAMPUS_AUTH_TURNSTILE_SITE_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.26.1
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build campus docs surface
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.dry_run }}" != "true" ]; then
+            echo "This workflow is manual-only and build-only. Run the repo-owned campus-web deploy command from a controlled release shell for deployment."
+            exit 1
+          fi
+
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            if [ "${{ inputs.environment }}" = "staging" ]; then
+              pnpm --dir apps/campus-web build:staging
+            else
+              pnpm --dir apps/campus-web build
+            fi
+          fi
