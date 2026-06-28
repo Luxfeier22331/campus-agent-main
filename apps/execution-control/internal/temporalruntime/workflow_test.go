@@ -94,7 +94,7 @@ func TestToolExecutionWorkflowExecutesPrimaryAgentBranch(t *testing.T) {
 		}),
 	).Return(
 		AppendConversationMemoryActivityOutput{
-			AppendedMessageCount: 2,
+			AppendedMessageCount: 1,
 			PayloadSHA256:        "memory-append-hash",
 			RunID:                "run-workflow-001",
 			SchemaVersion:        "memory_conversation_append_result_v1",

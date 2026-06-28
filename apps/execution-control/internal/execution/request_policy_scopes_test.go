@@ -392,12 +392,13 @@ func TestParseAnswerRequestRejectsCampusServicesTransportNoticeKnowledgeGroundin
 		},
 	)
 
-	if httpErr == nil {
-		t.Fatal("expected requested_scope on transport tool to fail closed")
+	if httpErr != nil {
+		if httpErr.Code != "invalid_request" {
+			t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+		}
+		return
 	}
-	if httpErr.Code != "invalid_request" {
-		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
-	}
+	t.Fatal("expected requested_scope on transport tool to fail closed")
 }
 
 func TestParseAnswerRequestRejectsVersionQueryForForwardTools(t *testing.T) {

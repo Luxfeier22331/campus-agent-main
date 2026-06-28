@@ -10,12 +10,14 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/temporal"
 )
 
 func (s *Server) AppendConversationMemoryActivity(
 	ctx context.Context,
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
+	recordTemporalActivityHeartbeat(ctx, "memory.append.started")
 	run, err := s.temporalActivityRunAllowTerminal(ctx, input.RunID, input.TraceID)
 	if err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
@@ -64,6 +66,8 @@ func (s *Server) AppendConversationMemoryActivity(
 		}
 		return output, projectErr
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.append.request_ready")
+	recordTemporalActivityHeartbeat(ctx, "memory.append.call_hindsight")
 	result, err := s.personalMemoryExecutor.AppendConversationTurn(ctx, request)
 	if err != nil {
 		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "hindsight_append_failed", err)
@@ -72,6 +76,7 @@ func (s *Server) AppendConversationMemoryActivity(
 		}
 		return output, projectErr
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
 		PayloadSHA256:        result.PayloadSHA256,
@@ -83,6 +88,7 @@ func (s *Server) AppendConversationMemoryActivity(
 	if err == nil {
 		s.recordPersonalMemoryOperation("append", output.Status, "none", startedAt, output.AppendedMessageCount, 0)
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.append.completed")
 	return output, err
 }
 
@@ -127,6 +133,13 @@ func (s *Server) projectMemoryAppendFailure(
 		Payload:       payload,
 	}); err != nil {
 		return temporalruntime.AppendConversationMemoryActivityOutput{}, err
+	}
+	if memoryFailureKindIsNonRetryable(failureKind) {
+		return temporalruntime.AppendConversationMemoryActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			cause.Error(),
+			failureKind,
+			cause,
+		)
 	}
 	return output, nil
 }

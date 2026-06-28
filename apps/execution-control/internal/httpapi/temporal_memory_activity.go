@@ -13,6 +13,7 @@ func (s *Server) MemoryRecallActivity(
 	ctx context.Context,
 	input temporalruntime.MemoryRecallActivityInput,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
+	recordTemporalActivityHeartbeat(ctx, "memory.recall.started")
 	run, err := s.temporalActivityRun(ctx, input.RunID, input.TraceID)
 	if err != nil {
 		return temporalruntime.MemoryRecallActivityOutput{}, err
@@ -48,6 +49,7 @@ func (s *Server) MemoryRecallActivity(
 		s.recordPersonalMemoryOperation("recall", "failed", "memory_recall_request_invalid", startedAt, 0, 0)
 		return s.failMemoryRecallActivity(ctx, run, "memory_recall_request_invalid", err)
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.recall.request_ready")
 	if err := s.projectTemporalStep(ctx, temporalStepProjection{
 		Attempt:       1,
 		Tool:          request.RequestedTool,
@@ -68,11 +70,13 @@ func (s *Server) MemoryRecallActivity(
 		s.recordPersonalMemoryOperation("recall", "failed", "projection_failed", startedAt, 0, 0)
 		return temporalruntime.MemoryRecallActivityOutput{}, err
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.recall.call_hindsight")
 	result, err := s.recallPersonalMemory(ctx, request)
 	if err != nil {
 		s.recordPersonalMemoryOperation("recall", "failed", "memory_recall_failed", startedAt, 0, 0)
 		return s.failMemoryRecallActivity(ctx, run, "memory_recall_failed", err)
 	}
+	recordTemporalActivityHeartbeat(ctx, "memory.recall.project_result")
 	if err := s.replaceTemporalMemoryMetadata(ctx, run, func(metadata map[string]any) {
 		metadata["memory_ref"] = result.MemoryRef
 		metadata["recall_result"] = result
@@ -114,6 +118,7 @@ func (s *Server) MemoryRecallActivity(
 		result.SelectedMemoryCount,
 		result.SelectedMemoryChars,
 	)
+	recordTemporalActivityHeartbeat(ctx, "memory.recall.completed")
 	return temporalruntime.MemoryRecallActivityOutput{
 		ContextBlock:        result.ContextBlock,
 		MemoryRef:           result.MemoryRef,

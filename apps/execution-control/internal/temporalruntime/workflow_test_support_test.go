@@ -99,7 +99,7 @@ func (Activities) AppendConversationMemoryActivity(
 	input AppendConversationMemoryActivityInput,
 ) (AppendConversationMemoryActivityOutput, error) {
 	return AppendConversationMemoryActivityOutput{
-		AppendedMessageCount: 2,
+		AppendedMessageCount: 1,
 		PayloadSHA256:        "memory-append-hash",
 		RunID:                input.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",

@@ -286,6 +286,10 @@
 - `ToolSpec`、contract 或 JSON Schema 的存在不等于 model-visible；primary
   agent 可见工具必须同时被 `tools.v4`、`tool-function-schemas.v1` 和
   `workflow-artifacts.v2` 以当前 runtime posture 打开
+- Hindsight personal memory 只能由 `apps/execution-control` 通过 Temporal activity
+  和 sanitized projection 消费；不得把 Hindsight MCP、Hindsight direct tools、raw
+  bank/document id 或 raw payload 加入 primary agent model-visible tool catalog、
+  app-api product contract 或 browser-facing response
 - campus services 的当前 model-visible 范围只包含 `transport_schedule_lookup`；
   generic service status、service guide、contact directory、academic calendar 与
   dining lookup 在正式 admission 前不得顺手打开

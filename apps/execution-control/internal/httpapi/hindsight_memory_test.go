@@ -80,9 +80,9 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 		t.Fatalf("metadata = %#v", item.Metadata)
 	}
 	if !strings.Contains(item.Content, `"role":"user"`) ||
-		!strings.Contains(item.Content, `"role":"assistant"`) ||
+		strings.Contains(item.Content, `"role":"assistant"`) ||
 		!strings.Contains(item.Content, "我之后主要关注保研材料") ||
-		!strings.Contains(item.Content, "好的，我会结合保研材料准备这个目标。") {
+		strings.Contains(item.Content, "好的，我会结合保研材料准备这个目标。") {
 		t.Fatalf("content = %q", item.Content)
 	}
 	for _, wantTag := range []string{
@@ -96,10 +96,10 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 			t.Fatalf("tags = %#v, want %q", item.Tags, wantTag)
 		}
 	}
-	if result.AppendedMessageCount != 2 ||
+	if result.AppendedMessageCount != 1 ||
 		result.Status != "accepted" ||
 		result.ThreadID != "conv-hindsight-append" ||
-		result.UserID != wantBankID ||
+		result.UserID != "user-executor" ||
 		result.PayloadSHA256 == "" {
 		t.Fatalf("append result = %#v", result)
 	}
@@ -194,8 +194,47 @@ func TestHindsightRecallUsesBankRecallAndProjectsBoundedFactsOnly(t *testing.T) 
 	if result.Provider != "hindsight" || result.RetrievalMode != "recall" {
 		t.Fatalf("runtime source = provider %q mode %q", result.Provider, result.RetrievalMode)
 	}
-	if result.UserID != wantBankID {
-		t.Fatalf("result user id = %q, want bank id", result.UserID)
+	if result.UserID != "user-executor" {
+		t.Fatalf("result user id = %q, want product user id", result.UserID)
+	}
+}
+
+func TestHindsightRecallAppliesRecallLimitBeforeProjection(t *testing.T) {
+	client := &fakeHindsightClient{
+		recallResponse: hindsightRecallResponse{
+			Results: []hindsightRecallResult{
+				{ID: "fact-001", Text: "第一条记忆", Type: "experience", OccurredEnd: "2026-06-16T10:00:00Z"},
+				{ID: "fact-002", Text: "第二条记忆", Type: "experience", OccurredEnd: "2026-06-16T10:01:00Z"},
+				{ID: "fact-003", Text: "第三条记忆", Type: "experience", OccurredEnd: "2026-06-16T10:02:00Z"},
+			},
+		},
+	}
+	executor := hindsightExecutor{
+		client:       client,
+		ownerSalt:    "test-salt",
+		recallLimit:  2,
+		recallMaxLen: 2500,
+	}
+
+	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
+		RequestedTool: "knowledge_query",
+		RunID:         "run-hindsight-recall-limit",
+		TenantID:      "tenant-main",
+		ThreadID:      "conv-hindsight-recall-limit",
+		UserGoal:      "我如何准备保研材料？",
+		UserID:        "user-executor",
+	})
+	if err != nil {
+		t.Fatalf("recall: %v", err)
+	}
+	if len(result.Items) != 2 || result.SelectedMemoryCount != 2 {
+		t.Fatalf("items = %#v count=%d, want 2 items", result.Items, result.SelectedMemoryCount)
+	}
+	if result.Items[0].MemoryID != "fact-001" || result.Items[1].MemoryID != "fact-002" {
+		t.Fatalf("items = %#v, want first two recall results", result.Items)
+	}
+	if strings.Contains(result.ContextBlock, "第三条记忆") {
+		t.Fatalf("context block includes item past recall limit: %q", result.ContextBlock)
 	}
 }
 

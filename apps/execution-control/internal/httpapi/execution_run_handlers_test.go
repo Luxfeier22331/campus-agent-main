@@ -88,6 +88,7 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	store := execution.NewInMemoryRunProjectionStore()
 	starter := &fakeTemporalStarter{}
 	server := newWorkerAuthServerForTest()
+	server.config.PersonalMemoryTimeoutSeconds = 10
 	attachRunProjectionStoreForHandlerTest(server, store)
 	server.temporalStarter = starter
 
@@ -146,6 +147,9 @@ func TestExecutionRunCreateQueuesProjectionAndStartsTemporalWorkflow(t *testing.
 	}
 	if starter.input.PayloadSHA256 == "" {
 		t.Fatal("workflow input payload hash is required")
+	}
+	if starter.input.PersonalMemoryTimeoutSeconds != 10 {
+		t.Fatalf("personal memory timeout = %v, want 10s from runtime profile config", starter.input.PersonalMemoryTimeoutSeconds)
 	}
 	if strings.Contains(starter.input.PayloadSHA256, "hello") {
 		t.Fatalf("workflow payload hash must not contain raw prompt: %q", starter.input.PayloadSHA256)

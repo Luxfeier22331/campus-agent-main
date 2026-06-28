@@ -58,9 +58,21 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
 - Completed-turn append uses Hindsight async retain and returns `accepted` after
   Hindsight accepts the write request. It must not claim `completed` graph
   materialization.
+- Completed-turn append only sends the user message as Hindsight extractable
+  memory content by default. Assistant answers remain finalization projection,
+  not graph-extraction input.
 - Append failures are post-answer side-effect failures: finalization is not
   failed, but `memory.append` must be projected as failed and counted by
   bounded-label personal-memory metrics.
+- Hindsight official OpenAI Agents direct tools and MCP server are not exposed to
+  the primary agent. The repo uses Hindsight as the substrate behind
+  execution-control and Temporal, then passes bounded memory instructions/context
+  to the OpenAI Agents SDK loop.
+- Memory activities have a dedicated Temporal activity policy: timeout is
+  governed by `personal_memory.timeout_seconds` with a 90 second default,
+  heartbeat timeout is 30 seconds, deterministic config/request/projection
+  failures are non-retryable, and transient Hindsight transport failures use the
+  bounded retry policy.
 
 Retired:
 
@@ -108,6 +120,9 @@ context after recall.
 Hindsight service internals, Postgres / pgvector and its LLM / embedding
 providers are deployment internals. `campus-agent` code and contracts do not
 integrate with those internals directly.
+Hindsight bank ids, document ids, async operation ids, raw recall/retain payloads
+and Hindsight API credentials must not appear in model-visible tools,
+browser-facing responses, app-api product contracts or `packages/contracts`.
 
 Hindsight LLM / embedding provider configuration is governed by app-api
 provider-config active profiles and projected through the local
@@ -136,3 +151,6 @@ is delegated to Hindsight.
   truths and hides consistency failures.
 - Keep provider-backed extraction as a fallback: rejected because it preserves the
   retired contract and would let serving silently drift away from Hindsight behavior.
+- Expose Hindsight MCP or `create_hindsight_tools()` directly to the primary
+  agent: rejected because it bypasses execution-control admission, Temporal
+  lifecycle, sanitized projection, RTBF and multi-student isolation boundaries.

@@ -120,16 +120,18 @@ personal_memory_embedding
 user request
 -> app-api creates execution run without PG memory full injection
 -> execution-control starts ToolExecutionWorkflow
--> first Execution Agent decision determines whether memory/tool context is needed
--> Temporal context.memory_recall activity
+-> Temporal context.memory_recall activity when context.memory.enabled=true
 -> Hindsight recall scoped to actor bank
 -> bounded memory context
--> planning / RAG / deterministic tools
+-> OpenAI Agents primary loop / planning / RAG / deterministic tools
 -> sanitized run step projection
 ```
 
 `memory.recall` 是 neutral execution step，不属于 RAG worker 的私有前置逻辑；
-目标态也不要求每个 product identity / no-tool direct answer 都先做 memory recall。
+当前 online path 在 `context.memory.enabled=true` 时先执行 bounded recall，再把结果作为
+advisory instruction context 传给 primary agent。primary agent 不拥有 Hindsight tool，也不
+先决定是否直连 Hindsight。gate 缺失或为 false 时不会 recall；因此不是每个 product
+identity / no-tool direct answer 都必然先做 memory recall。
 
 `context.memory.enabled` 是 recall gate。gate 缺失或为 false 时
 `context.memory_recall` 必须投影为 skipped，不调用 Hindsight，也不向 primary agent /
@@ -145,6 +147,18 @@ user_id
 user_goal
 requested_tool
 session_slots
+```
+
+Hindsight recall 参数由 execution-control 固定治理：
+
+```text
+budget = mid
+trace = false
+tags = scope:private
+tags_match = all_strict
+types = experience, world
+max_tokens = personal_memory.recall_max_chars
+result_limit = personal_memory.recall_limit
 ```
 
 recall result 只投影 sanitized context：
@@ -195,6 +209,9 @@ PG profile memory item 全量注入来推断 gate。
 completed-turn append 对 Hindsight 使用 async retain，因此成功语义是 `accepted`，不是
 `completed`。append 属于 final answer 后置 side-effect；Hindsight/config/request 失败不反向
 失败最终回答，但必须写入 `memory.append` failed step projection 并进入 metrics。
+auto append 默认只把用户消息作为 Hindsight extractable memory content；assistant answer
+只作为 finalization projection，不进入 Hindsight graph extraction。显式 profile memory
+仍由用户产品命令写入。
 
 append projection 只记录：
 
@@ -210,6 +227,15 @@ failure_kind
 
 不得在 projection、Temporal activity result 或 eval artifact 中保存 raw transcript、
 provider raw response、tool raw payload、Hindsight raw payload 或 unrestricted notes。
+Hindsight bank id、conversation document id、profile document id 与 async
+operation id 属于 internal runtime ref，不得进入 browser-facing profile memory
+response 或 model-visible context；sanitized projection 只允许保留 product
+`thread_id`、hash、count、status 和 bounded compact text。
+
+Memory activities 使用独立 Temporal activity policy：`StartToCloseTimeout` 来自
+`personal_memory.timeout_seconds`，默认 90 秒；`HeartbeatTimeout` 为 30 秒；外部 Hindsight
+I/O 前后必须 heartbeat。配置缺失、请求 invalid、projection invalid 等 deterministic
+fail-close 类错误标记为 non-retryable；网络、429、5xx 等瞬时错误按 bounded retry 处理。
 
 execution-control `/metrics` 暴露 personal memory 的 bounded-label 指标：
 
@@ -301,6 +327,11 @@ Hindsight posture：
 - Hindsight LLM / embedding provider env 来自本地 provider projection artifact 中的
   `hindsight_llm` 与 `hindsight_embedding`；不得从 root `LLM_*` / `EMBEDDING_*`
   serving fallback 隐式继承，也不得在热路径回读 app-api。
+- Hindsight 官方 OpenAI Agents integration 提供 direct tools / memory instructions，MCP
+  server 也可以让模型直接读写 memory。`campus-agent` 只采纳 bounded memory
+  instructions 形态，不采纳 direct Hindsight tools / MCP exposure：Hindsight API
+  credential、bank id、document id、retain / recall tool surface 与 raw payload 不进入
+  model-visible tool catalog、browser response、app-api 或 `packages/contracts`。
 - `activity-agent` / `activity-knowledge` 不要求 Hindsight 配置；它们消费的是
   bounded memory context，不拥有 memory substrate。
 
@@ -326,6 +357,8 @@ Memory Plane 不是：
 
 - Do not reintroduce PG all-memory injection into chat submit.
 - Do not make app-api call Hindsight API or private vector store directly.
+- Do not expose Hindsight MCP or direct Hindsight tools in the primary agent
+  model-visible tool catalog.
 - Do not reintroduce `personal_memory_extraction` or `personal_memory_embedding`.
 - Do not let RAG / provider adapters write long-term memory inline during answer
   synthesis.

@@ -9,13 +9,14 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
+const defaultPersonalMemoryActivityTimeoutSeconds = 90
+
 func ToolExecutionWorkflow(
 	ctx workflow.Context,
 	input ToolExecutionWorkflowInput,
 ) (ToolExecutionWorkflowResult, error) {
 	activityOptions := defaultActivityOptions()
-	contextOptions := activityOptions
-	contextOptions.TaskQueue = ActivityTaskQueueCore
+	contextOptions := memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds)
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	var memory MemoryRecallActivityOutput
 	requestedTool := input.RequestedTool
@@ -84,8 +85,7 @@ func executeMemoryAppend(
 	input ToolExecutionWorkflowInput,
 	requestedTool string,
 ) {
-	contextOptions := activityOptions
-	contextOptions.TaskQueue = ActivityTaskQueueCore
+	contextOptions := memoryActivityOptions(activityOptions, input.PersonalMemoryTimeoutSeconds)
 	contextCtx := workflow.WithActivityOptions(ctx, contextOptions)
 	appendInput := AppendConversationMemoryActivityInput{
 		RequestID:     input.RequestID,
@@ -142,6 +142,30 @@ func primaryAgentActivityOptions(base workflow.ActivityOptions) workflow.Activit
 	options := base
 	options.TaskQueue = ActivityTaskQueueAgent
 	options.StartToCloseTimeout = 180 * time.Second
+	return options
+}
+
+func memoryActivityOptions(base workflow.ActivityOptions, timeoutSeconds float64) workflow.ActivityOptions {
+	options := base
+	options.TaskQueue = ActivityTaskQueueCore
+	timeout := time.Duration(timeoutSeconds * float64(time.Second))
+	if timeout <= 0 {
+		timeout = defaultPersonalMemoryActivityTimeoutSeconds * time.Second
+	}
+	options.StartToCloseTimeout = timeout
+	options.HeartbeatTimeout = 30 * time.Second
+	options.RetryPolicy = &temporal.RetryPolicy{
+		InitialInterval:    time.Second,
+		BackoffCoefficient: 2,
+		MaximumInterval:    10 * time.Second,
+		MaximumAttempts:    3,
+		NonRetryableErrorTypes: []string{
+			"memory_append_request_invalid",
+			"memory_projection_invalid",
+			"memory_recall_request_invalid",
+			"personal_memory_not_configured",
+		},
+	}
 	return options
 }
 

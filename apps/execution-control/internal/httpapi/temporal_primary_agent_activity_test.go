@@ -351,7 +351,8 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for agent runtime delta")
 	}
-	var deltaEvent *execution.DurableRunEvent
+	var deltaEvent execution.DurableRunEvent
+	deltaEventFound := false
 	deadline := time.Now().Add(time.Second)
 	for time.Now().Before(deadline) {
 		events, err := store.ListRunEvents(context.Background(), "run-primary-agent-live-streaming")
@@ -360,16 +361,17 @@ func TestExecutePrimaryAgentActivityProjectsAnswerDeltaBeforeRuntimeCompleted(t 
 		}
 		for index := range events {
 			if events[index].EventType == execution.DurableRunEventTypeRunAnswerDelta {
-				deltaEvent = &events[index]
+				deltaEvent = events[index]
+				deltaEventFound = true
 				break
 			}
 		}
-		if deltaEvent != nil {
+		if deltaEventFound {
 			break
 		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	if deltaEvent == nil {
+	if !deltaEventFound {
 		events, err := store.ListRunEvents(context.Background(), "run-primary-agent-live-streaming")
 		if err != nil {
 			t.Fatalf("list run events: %v", err)

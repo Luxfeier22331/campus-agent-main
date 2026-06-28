@@ -240,7 +240,7 @@ func (httpTemporalE2EActivities) AppendConversationMemoryActivity(
 	input temporalruntime.AppendConversationMemoryActivityInput,
 ) (temporalruntime.AppendConversationMemoryActivityOutput, error) {
 	return temporalruntime.AppendConversationMemoryActivityOutput{
-		AppendedMessageCount: 2,
+		AppendedMessageCount: 1,
 		PayloadSHA256:        "memory-append-hash",
 		RunID:                input.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",

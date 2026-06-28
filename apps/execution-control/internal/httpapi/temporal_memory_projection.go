@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/memoryruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/ragruntime"
 	"github.com/MUC-WIKI/campus-agent/apps/execution-control/internal/temporalruntime"
+	"go.temporal.io/sdk/temporal"
 )
 
 func memoryRecallRequestForRun(
@@ -138,20 +140,61 @@ func (s *Server) failMemoryRecallActivity(
 	failureKind string,
 	cause error,
 ) (temporalruntime.MemoryRecallActivityOutput, error) {
-	_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+	if memoryFailureKindIsNonRetryable(failureKind) {
+		_, err := s.failTemporalRunStep(ctx, run, temporalStepFailureProjection{
+			Tool:          "memory",
+			FailureKind:   failureKind,
+			ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
+			ResultKind:    "activity_failure",
+			StepID:        "memory.recall",
+			StepKind:      "memory",
+			TaskQueue:     temporalruntime.ActivityTaskQueueCore,
+			Payload: map[string]any{
+				"failure_kind": failureKind,
+				"message":      cause.Error(),
+			},
+		}, cause)
+		return temporalruntime.MemoryRecallActivityOutput{}, temporal.NewNonRetryableApplicationError(
+			cause.Error(),
+			failureKind,
+			err,
+		)
+	}
+	now := time.Now().UTC()
+	if err := s.projectTemporalStep(ctx, temporalStepProjection{
+		Attempt:       1,
 		Tool:          "memory",
-		FailureKind:   failureKind,
-		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
-		ResultKind:    "activity_failure",
+		Run:           run,
+		Status:        "failed",
 		StepID:        "memory.recall",
 		StepKind:      "memory",
 		TaskQueue:     temporalruntime.ActivityTaskQueueCore,
+		WorkerID:      s.config.TemporalWorkerIdentity,
+		StartedAt:     now,
+		CompletedAt:   now,
+		UpdatedAt:     now,
+		ResultKind:    "activity_failure",
+		ProjectionRef: temporalProjectionRef(run.RunID, "memory/recall"),
 		Payload: map[string]any{
 			"failure_kind": failureKind,
 			"message":      cause.Error(),
 		},
-	}, cause)
-	return temporalruntime.MemoryRecallActivityOutput{}, err
+	}); err != nil {
+		return temporalruntime.MemoryRecallActivityOutput{}, err
+	}
+	return temporalruntime.MemoryRecallActivityOutput{}, cause
+}
+
+func memoryFailureKindIsNonRetryable(failureKind string) bool {
+	switch strings.TrimSpace(failureKind) {
+	case "memory_append_request_invalid",
+		"memory_projection_invalid",
+		"memory_recall_request_invalid",
+		"personal_memory_not_configured":
+		return true
+	default:
+		return false
+	}
 }
 
 func memoryContextForRAG(run execution.DurableRun) ([]ragruntime.MemoryContextItem, string) {

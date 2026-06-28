@@ -58,8 +58,8 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	if err != nil {
 		t.Fatalf("append conversation memory: %v", err)
 	}
-	if output.Status != "accepted" || output.AppendedMessageCount != 2 {
-		t.Fatalf("append output = %#v, want accepted append of user+assistant", output)
+	if output.Status != "accepted" || output.AppendedMessageCount != 1 {
+		t.Fatalf("append output = %#v, want accepted append of user-only graph content", output)
 	}
 	if executor.seenAppend.UserID != "user-executor" {
 		t.Fatalf("user id = %q, want user-executor", executor.seenAppend.UserID)
@@ -217,7 +217,7 @@ func TestAppendConversationMemoryActivityProjectionDoesNotStoreConversationText(
 	if payload["user_message"] != nil || payload["assistant_message"] != nil {
 		t.Fatalf("memory append projection leaked conversation text: %#v", payload)
 	}
-	if payload["appended_message_count"] != float64(2) && payload["appended_message_count"] != 2 {
+	if payload["appended_message_count"] != float64(1) && payload["appended_message_count"] != 1 {
 		t.Fatalf("payload = %#v, want appended count", payload)
 	}
 }

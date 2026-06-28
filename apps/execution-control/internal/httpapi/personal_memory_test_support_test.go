@@ -56,7 +56,7 @@ func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 		return memoryruntime.AppendConversationTurnResult{}, f.appendErr
 	}
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: 2,
+		AppendedMessageCount: 1,
 		RunID:                request.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",
 		Status:               "accepted",

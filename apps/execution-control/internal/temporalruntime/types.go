@@ -3,18 +3,19 @@ package temporalruntime
 import "time"
 
 type ToolExecutionWorkflowInput struct {
-	ConversationID   string            `json:"conversation_id"`
-	Namespace        string            `json:"namespace"`
-	PayloadSHA256    string            `json:"payload_sha256"`
-	PolicyVersions   map[string]string `json:"policy_versions"`
-	RequestID        string            `json:"request_id"`
-	RequestedTool    string            `json:"requested_tool"`
-	RunID            string            `json:"run_id"`
-	TaskQueue        string            `json:"task_queue"`
-	TraceID          string            `json:"trace_id"`
-	TurnID           string            `json:"turn_id"`
-	VisibleToolNames []string          `json:"visible_tool_names"`
-	WorkflowID       string            `json:"workflow_id"`
+	ConversationID               string            `json:"conversation_id"`
+	Namespace                    string            `json:"namespace"`
+	PayloadSHA256                string            `json:"payload_sha256"`
+	PolicyVersions               map[string]string `json:"policy_versions"`
+	PersonalMemoryTimeoutSeconds float64           `json:"personal_memory_timeout_seconds"`
+	RequestID                    string            `json:"request_id"`
+	RequestedTool                string            `json:"requested_tool"`
+	RunID                        string            `json:"run_id"`
+	TaskQueue                    string            `json:"task_queue"`
+	TraceID                      string            `json:"trace_id"`
+	TurnID                       string            `json:"turn_id"`
+	VisibleToolNames             []string          `json:"visible_tool_names"`
+	WorkflowID                   string            `json:"workflow_id"`
 }
 
 type ToolExecutionWorkflowResult struct {

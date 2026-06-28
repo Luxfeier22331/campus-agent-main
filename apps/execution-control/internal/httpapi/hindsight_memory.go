@@ -195,7 +195,7 @@ func (e hindsightExecutor) Recall(
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
-	items := hindsightContextItems(response.Results, request.RequestedTool)
+	items := hindsightContextItems(response.Results, request.RequestedTool, e.recallLimit)
 	result := memoryruntime.RecallResult{
 		ContextBlock:  hindsightContextBlock(items, e.recallMaxLen),
 		Items:         items,
@@ -205,7 +205,7 @@ func (e hindsightExecutor) Recall(
 		RunID:         request.RunID,
 		SchemaVersion: "memory_recall_result_v1",
 		ThreadID:      request.ThreadID,
-		UserID:        bankID,
+		UserID:        strings.TrimSpace(request.UserID),
 	}
 	return memoryruntime.FinalizeRecallResult(result)
 }
@@ -242,12 +242,12 @@ func (e hindsightExecutor) AppendConversationTurn(
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: 2,
+		AppendedMessageCount: appendedHindsightConversationTurnCount(request),
 		RunID:                request.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",
 		Status:               "accepted",
 		ThreadID:             request.ThreadID,
-		UserID:               bankID,
+		UserID:               strings.TrimSpace(request.UserID),
 	})
 }
 
@@ -524,7 +524,12 @@ func fromHindsightSDKRecallResponse(response *hindsight.RecallResponse) hindsigh
 func encodeHindsightConversationTurn(request memoryruntime.AppendConversationTurnRequest) (string, error) {
 	turns := []hindsightConversationTurn{
 		{Content: strings.TrimSpace(request.UserMessage), Role: "user"},
-		{Content: strings.TrimSpace(request.AssistantMessage), Role: "assistant"},
+	}
+	if !request.IgnoreAssistantForGraph {
+		turns = append(turns, hindsightConversationTurn{
+			Content: strings.TrimSpace(request.AssistantMessage),
+			Role:    "assistant",
+		})
 	}
 	encoded, err := json.Marshal(turns)
 	if err != nil {
@@ -533,12 +538,23 @@ func encodeHindsightConversationTurn(request memoryruntime.AppendConversationTur
 	return string(encoded), nil
 }
 
+func appendedHindsightConversationTurnCount(request memoryruntime.AppendConversationTurnRequest) int {
+	if request.IgnoreAssistantForGraph {
+		return 1
+	}
+	return 2
+}
+
 func hindsightContextItems(
 	results []hindsightRecallResult,
 	tool string,
+	limit int,
 ) []memoryruntime.ContextItem {
 	items := make([]memoryruntime.ContextItem, 0, len(results))
 	for _, result := range results {
+		if limit > 0 && len(items) >= limit {
+			break
+		}
 		if strings.TrimSpace(result.ID) == "" || strings.TrimSpace(result.Text) == "" {
 			continue
 		}
