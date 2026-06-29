@@ -134,6 +134,23 @@ const LEGACY_COLUMN_RENAMES = [
 		toColumn: "selected_tool",
 	},
 ];
+const LEGACY_INDEX_RENAMES = [
+	{
+		fromIndex: "operator_metric_rollup_domain_capability_bucket_idx",
+		qualifiedName: "operator.metric_rollup",
+		toIndex: "operator_metric_rollup_domain_tool_bucket_idx",
+	},
+	{
+		fromIndex: "runtime_request_observability_selected_capability_started_at_idx",
+		qualifiedName: "runtime.request_observability_fact",
+		toIndex: "runtime_request_observability_selected_tool_started_at_idx",
+	},
+	{
+		fromIndex: "runtime_request_observability_selected_target_started_at_idx",
+		qualifiedName: "runtime.request_observability_fact",
+		toIndex: "runtime_request_observability_selected_tool_started_at_idx",
+	},
+];
 const CRAWL_RUNS_SITE_SCHEDULER_INDEX = "official_web_crawl_runs_site_scheduler_idx";
 
 function quoteIdentifier(identifier) {
@@ -223,8 +240,64 @@ function collectMissingColumns(inventory, expectedTables) {
 	);
 }
 
+function collectExtraIndexes(inventory, expectedTables) {
+	const extraIndexes = [];
+
+	for (const [qualifiedName, table] of inventory.tables.entries()) {
+		const expectedTable = expectedTables.get(qualifiedName);
+		if (!expectedTable) {
+			continue;
+		}
+
+		for (const indexName of table.indexes.keys()) {
+			if (!expectedTable.indexes.has(indexName)) {
+				extraIndexes.push({
+					indexName,
+					qualifiedName,
+				});
+			}
+		}
+	}
+
+	return extraIndexes.sort(
+		(left, right) =>
+			left.qualifiedName.localeCompare(right.qualifiedName) ||
+			left.indexName.localeCompare(right.indexName),
+	);
+}
+
+function collectMissingIndexes(inventory, expectedTables) {
+	const missingIndexes = [];
+
+	for (const [qualifiedName, expectedTable] of expectedTables.entries()) {
+		const actualTable = inventory.tables.get(qualifiedName);
+		if (!actualTable) {
+			continue;
+		}
+
+		for (const indexName of expectedTable.indexes.keys()) {
+			if (!actualTable.indexes.has(indexName)) {
+				missingIndexes.push({
+					indexName,
+					qualifiedName,
+				});
+			}
+		}
+	}
+
+	return missingIndexes.sort(
+		(left, right) =>
+			left.qualifiedName.localeCompare(right.qualifiedName) ||
+			left.indexName.localeCompare(right.indexName),
+	);
+}
+
 function columnKey(qualifiedName, columnName) {
 	return `${qualifiedName}.${columnName}`;
+}
+
+function indexKey(qualifiedName, indexName) {
+	return `${qualifiedName}.${indexName}`;
 }
 
 function collectLegacyColumnResolutions(inventory, expectedTables) {
@@ -256,6 +329,59 @@ function collectLegacyColumnResolutions(inventory, expectedTables) {
 		(left, right) =>
 			left.qualifiedName.localeCompare(right.qualifiedName) ||
 			left.fromColumn.localeCompare(right.fromColumn),
+	);
+}
+
+function collectLegacyIndexResolutions(inventory, expectedTables) {
+	const resolutions = [];
+	const groupedRenames = new Map();
+
+	for (const item of LEGACY_INDEX_RENAMES) {
+		const key = indexKey(item.qualifiedName, item.toIndex);
+		const existing = groupedRenames.get(key);
+		if (existing) {
+			existing.fromIndexes.push(item.fromIndex);
+			continue;
+		}
+		groupedRenames.set(key, {
+			fromIndexes: [item.fromIndex],
+			qualifiedName: item.qualifiedName,
+			toIndex: item.toIndex,
+		});
+	}
+
+	for (const item of groupedRenames.values()) {
+		const actualTable = inventory.tables.get(item.qualifiedName);
+		const expectedTable = expectedTables.get(item.qualifiedName);
+		const expectedIndex = expectedTable?.indexes.get(item.toIndex);
+		if (!(actualTable && expectedIndex)) {
+			continue;
+		}
+		if (actualTable.indexes.has(item.toIndex)) {
+			continue;
+		}
+		const fromIndex = item.fromIndexes.find((candidate) => actualTable.indexes.has(candidate));
+		if (fromIndex) {
+			resolutions.push({
+				fromIndex,
+				kind: "rename_legacy_index",
+				qualifiedName: item.qualifiedName,
+				toIndex: item.toIndex,
+			});
+			continue;
+		}
+		resolutions.push({
+			indexSpec: expectedIndex,
+			kind: "create_missing_index",
+			qualifiedName: item.qualifiedName,
+			toIndex: item.toIndex,
+		});
+	}
+
+	return resolutions.sort(
+		(left, right) =>
+			left.qualifiedName.localeCompare(right.qualifiedName) ||
+			left.toIndex.localeCompare(right.toIndex),
 	);
 }
 
@@ -351,6 +477,30 @@ function buildCopyLegacyColumnOperation(qualifiedName, fromColumn, toColumn) {
 	};
 }
 
+function buildRenameIndexOperation(qualifiedName, fromIndex, toIndex) {
+	const [schema] = qualifiedName.split(".", 2);
+	return {
+		fromIndex,
+		kind: "rename_index",
+		qualifiedName,
+		statement: `alter index if exists ${quoteIdentifier(schema)}.${quoteIdentifier(fromIndex)} rename to ${quoteIdentifier(toIndex)}`,
+		toIndex,
+	};
+}
+
+function buildCreateIndexOperation(qualifiedName, indexSpec) {
+	const [schema, table] = qualifiedName.split(".", 2);
+	const columns = indexSpec.columns.map((column) => quoteIdentifier(column)).join(", ");
+	const unique = indexSpec.unique ? "unique " : "";
+	const method = indexSpec.method ?? "btree";
+	return {
+		indexName: indexSpec.name,
+		kind: "create_index",
+		qualifiedName,
+		statement: `create ${unique}index ${quoteIdentifier(indexSpec.name)} on ${quoteIdentifier(schema)}.${quoteIdentifier(table)} using ${method} (${columns})`,
+	};
+}
+
 function buildDeleteJournalRowOperation(hash) {
 	return {
 		hash,
@@ -380,6 +530,7 @@ export function buildSharedDatabaseDriftReconcilePlan({
 }) {
 	const expectedTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
 	const legacyColumnResolutions = collectLegacyColumnResolutions(inventory, expectedTables);
+	const legacyIndexResolutions = collectLegacyIndexResolutions(inventory, expectedTables);
 	const resolvedExtraColumnKeys = new Set(
 		legacyColumnResolutions.map((item) => columnKey(item.qualifiedName, item.fromColumn)),
 	);
@@ -393,6 +544,20 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	);
 	const missingColumns = collectMissingColumns(inventory, expectedTables).filter(
 		(item) => !resolvedMissingColumnKeys.has(columnKey(item.qualifiedName, item.columnName)),
+	);
+	const resolvedExtraIndexKeys = new Set(
+		legacyIndexResolutions
+			.filter((item) => item.kind === "rename_legacy_index")
+			.map((item) => indexKey(item.qualifiedName, item.fromIndex)),
+	);
+	const resolvedMissingIndexKeys = new Set(
+		legacyIndexResolutions.map((item) => indexKey(item.qualifiedName, item.toIndex)),
+	);
+	const extraIndexes = collectExtraIndexes(inventory, expectedTables).filter(
+		(item) => !resolvedExtraIndexKeys.has(indexKey(item.qualifiedName, item.indexName)),
+	);
+	const missingIndexes = collectMissingIndexes(inventory, expectedTables).filter(
+		(item) => !resolvedMissingIndexKeys.has(indexKey(item.qualifiedName, item.indexName)),
 	);
 	const extraTables = collectExtraTables(inventory, expectedTables);
 	const missingTables = collectMissingTables(inventory, expectedTables);
@@ -436,6 +601,14 @@ export function buildSharedDatabaseDriftReconcilePlan({
 		operations.push(buildDropColumnOperation(item.qualifiedName, item.fromColumn));
 	}
 
+	for (const item of legacyIndexResolutions) {
+		if (item.kind === "rename_legacy_index") {
+			operations.push(buildRenameIndexOperation(item.qualifiedName, item.fromIndex, item.toIndex));
+			continue;
+		}
+		operations.push(buildCreateIndexOperation(item.qualifiedName, item.indexSpec));
+	}
+
 	for (const item of extraColumns) {
 		const allowedColumns = readAllowedExtraColumns(item.qualifiedName);
 		if (!allowedColumns.has(item.columnName)) {
@@ -460,6 +633,18 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	for (const item of missingColumns) {
 		unresolvedSchemaDriftReasons.push(
 			`Missing column from current repo truth: ${item.qualifiedName}.${item.columnName}`,
+		);
+	}
+
+	for (const item of extraIndexes) {
+		unresolvedSchemaDriftReasons.push(
+			`Unknown extra index outside current repo truth: ${item.qualifiedName}.${item.indexName}`,
+		);
+	}
+
+	for (const item of missingIndexes) {
+		unresolvedSchemaDriftReasons.push(
+			`Missing index from current repo truth: ${item.qualifiedName}.${item.indexName}`,
 		);
 	}
 
@@ -506,7 +691,10 @@ export function buildSharedDatabaseDriftReconcilePlan({
 			extraTables.length > 0 ||
 			missingColumns.length > 0 ||
 			missingTables.length > 0 ||
+			extraIndexes.length > 0 ||
+			missingIndexes.length > 0 ||
 			legacyColumnResolutions.length > 0 ||
+			legacyIndexResolutions.length > 0 ||
 			orphanedJournalRows.length > 0 ||
 			pendingMigrationTags.length > 0,
 		extraColumns,
@@ -514,8 +702,11 @@ export function buildSharedDatabaseDriftReconcilePlan({
 			qualifiedName,
 			rowCount: extraTableRowCounts.get(qualifiedName) ?? 0,
 		})),
+		extraIndexes,
 		legacyColumnResolutions,
+		legacyIndexResolutions,
 		missingColumns,
+		missingIndexes,
 		missingTables,
 		nonEmptyDriftTables,
 		operations,
@@ -641,9 +832,12 @@ function formatPlan(plan) {
 			blockedReasons: plan.blockedReasons,
 			driftDetected: plan.driftDetected,
 			extraColumns: plan.extraColumns,
+			extraIndexes: plan.extraIndexes,
 			extraTables: plan.extraTables,
 			legacyColumnResolutions: plan.legacyColumnResolutions,
+			legacyIndexResolutions: plan.legacyIndexResolutions,
 			missingColumns: plan.missingColumns,
+			missingIndexes: plan.missingIndexes,
 			missingTables: plan.missingTables,
 			nonEmptyDriftTables: plan.nonEmptyDriftTables,
 			operations: plan.operations.map((operation) => {
