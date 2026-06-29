@@ -46,6 +46,24 @@ interface DropTableOperationProjection {
 	statement: string;
 }
 
+interface ExpectedTableProjection {
+	schema: string;
+	table: string;
+	columns: Array<{
+		name: string;
+		notNull: boolean;
+		primaryKey: boolean;
+		type: string;
+	}>;
+	constraints: string[];
+	indexes: Array<{
+		name: string;
+		columns: string[];
+		method: string | null;
+		unique: boolean | null;
+	}>;
+}
+
 function isDropTableOperation<T extends { kind: string }>(
 	operation: T,
 ): operation is T & DropTableOperationProjection {
@@ -78,6 +96,38 @@ function buildTableFromExpected(qualifiedName: string) {
 
 function buildAllExpectedTables() {
 	return [...latestSpecs.keys()].map((qualifiedName) => buildTableFromExpected(qualifiedName));
+}
+
+function tableName(table: ExpectedTableProjection) {
+	return `${table.schema}.${table.table}`;
+}
+
+function withLegacyColumn(
+	table: ExpectedTableProjection,
+	input: { fromColumn: string; keepTarget?: boolean; toColumn: string },
+) {
+	const targetColumn = table.columns.find((column) => column.name === input.toColumn);
+	if (!targetColumn) {
+		throw new Error(`Missing expected column ${tableName(table)}.${input.toColumn}`);
+	}
+
+	return {
+		...table,
+		columns: [
+			...table.columns.filter((column) => input.keepTarget || column.name !== input.toColumn),
+			{
+				...targetColumn,
+				name: input.fromColumn,
+			},
+		],
+	};
+}
+
+function withLegacyColumns(
+	table: ExpectedTableProjection,
+	renames: Array<{ fromColumn: string; keepTarget?: boolean; toColumn: string }>,
+) {
+	return renames.reduce((currentTable, rename) => withLegacyColumn(currentTable, rename), table);
 }
 
 describe("shared database drift reconciliation", () => {
@@ -488,5 +538,111 @@ describe("shared database drift reconciliation", () => {
 		expect(
 			plan.operations.filter((operation) => operation.kind === "insert_journal_row"),
 		).toHaveLength(6);
+	});
+
+	it("repairs known legacy capability and provider column names without dropping data", () => {
+		const legacyTables = buildAllExpectedTables().map((table) => {
+			switch (tableName(table)) {
+				case "operator.request_projection":
+					return withLegacyColumns(table, [
+						{ fromColumn: "requested_capability", toColumn: "requested_tool" },
+						{ fromColumn: "selected_capability", toColumn: "selected_tool" },
+					]);
+				case "provider_config.connections":
+					return withLegacyColumns(table, [
+						{ fromColumn: "capabilities_json", toColumn: "features_json" },
+						{ fromColumn: "capability_config_json", toColumn: "feature_config_json" },
+					]);
+				case "runtime.request_observability_fact":
+					return withLegacyColumns(table, [
+						{ fromColumn: "intent_capability", toColumn: "intent_tool" },
+						{ fromColumn: "requested_capability", toColumn: "requested_tool" },
+						{
+							fromColumn: "selected_capability",
+							keepTarget: true,
+							toColumn: "selected_tool",
+						},
+					]);
+				default:
+					return table;
+			}
+		});
+		const staleHashRows = migrationContext.migrations
+			.filter(
+				(migration) =>
+					migration.tag !== "0035_tool_naming" &&
+					migration.tag !== "0046_provider_config_connections",
+			)
+			.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			}));
+		const inventory = makeInventory({
+			journalRows: staleHashRows,
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: legacyTables,
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.legacyColumnResolutions).toEqual(
+			expect.arrayContaining([
+				{
+					fromColumn: "requested_capability",
+					kind: "rename_legacy_column",
+					qualifiedName: "operator.request_projection",
+					toColumn: "requested_tool",
+				},
+				{
+					fromColumn: "capabilities_json",
+					kind: "rename_legacy_column",
+					qualifiedName: "provider_config.connections",
+					toColumn: "features_json",
+				},
+				{
+					fromColumn: "selected_capability",
+					kind: "merge_drop_legacy_column",
+					qualifiedName: "runtime.request_observability_fact",
+					toColumn: "selected_tool",
+				},
+			]),
+		);
+		expect(plan.missingColumns).toEqual([]);
+		expect(plan.extraColumns).toEqual([]);
+		expect(plan.operations.filter((operation) => operation.kind === "rename_column")).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					fromColumn: "requested_capability",
+					qualifiedName: "operator.request_projection",
+					toColumn: "requested_tool",
+				}),
+				expect.objectContaining({
+					fromColumn: "capabilities_json",
+					qualifiedName: "provider_config.connections",
+					toColumn: "features_json",
+				}),
+			]),
+		);
+		expect(plan.operations.filter((operation) => operation.kind === "copy_legacy_column")).toEqual([
+			expect.objectContaining({
+				fromColumn: "selected_capability",
+				qualifiedName: "runtime.request_observability_fact",
+				toColumn: "selected_tool",
+			}),
+		]);
+		expect(plan.pendingMigrationTags).toEqual([
+			"0035_tool_naming",
+			"0046_provider_config_connections",
+		]);
+		expect(
+			plan.operations
+				.filter((operation) => operation.kind === "insert_journal_row")
+				.map((operation) => "tag" in operation && operation.tag),
+		).toEqual(["0035_tool_naming", "0046_provider_config_connections"]);
 	});
 });

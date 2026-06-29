@@ -52,6 +52,88 @@ const RECONCILABLE_EXTRA_COLUMNS = new Map([
 	["operator.official_web_run_projection", new Set(["run_intent"])],
 	["runtime.request_execution", new Set(["actor_campus_scope", "actor_groups_json"])],
 ]);
+const LEGACY_COLUMN_RENAMES = [
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "operator.metric_rollup",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "operator.metric_rollup",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "operator.quality_badcase_projection",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "operator.quality_grade_projection",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "operator.quality_grade_projection",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "operator.request_audit_projection",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "operator.request_audit_projection",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "operator.request_projection",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "operator.request_projection",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "capabilities_json",
+		qualifiedName: "provider_config.connections",
+		toColumn: "features_json",
+	},
+	{
+		fromColumn: "capability_config_json",
+		qualifiedName: "provider_config.connections",
+		toColumn: "feature_config_json",
+	},
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "runtime.request_execution",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "runtime.request_execution",
+		toColumn: "selected_tool",
+	},
+	{
+		fromColumn: "intent_capability",
+		qualifiedName: "runtime.request_observability_fact",
+		toColumn: "intent_tool",
+	},
+	{
+		fromColumn: "requested_capability",
+		qualifiedName: "runtime.request_observability_fact",
+		toColumn: "requested_tool",
+	},
+	{
+		fromColumn: "selected_capability",
+		qualifiedName: "runtime.request_observability_fact",
+		toColumn: "selected_tool",
+	},
+];
 const CRAWL_RUNS_SITE_SCHEDULER_INDEX = "official_web_crawl_runs_site_scheduler_idx";
 
 function quoteIdentifier(identifier) {
@@ -141,6 +223,42 @@ function collectMissingColumns(inventory, expectedTables) {
 	);
 }
 
+function columnKey(qualifiedName, columnName) {
+	return `${qualifiedName}.${columnName}`;
+}
+
+function collectLegacyColumnResolutions(inventory, expectedTables) {
+	const resolutions = [];
+
+	for (const item of LEGACY_COLUMN_RENAMES) {
+		const actualTable = inventory.tables.get(item.qualifiedName);
+		const expectedTable = expectedTables.get(item.qualifiedName);
+		if (!(actualTable && expectedTable?.columns.has(item.toColumn))) {
+			continue;
+		}
+
+		const sourceExists = actualTable.columns.has(item.fromColumn);
+		if (!sourceExists) {
+			continue;
+		}
+
+		resolutions.push({
+			fromColumn: item.fromColumn,
+			kind: actualTable.columns.has(item.toColumn)
+				? "merge_drop_legacy_column"
+				: "rename_legacy_column",
+			qualifiedName: item.qualifiedName,
+			toColumn: item.toColumn,
+		});
+	}
+
+	return resolutions.sort(
+		(left, right) =>
+			left.qualifiedName.localeCompare(right.qualifiedName) ||
+			left.fromColumn.localeCompare(right.fromColumn),
+	);
+}
+
 function collectExtraTables(inventory, expectedTables) {
 	const extraTables = [];
 
@@ -211,6 +329,28 @@ function buildDropColumnOperation(qualifiedName, columnName) {
 	};
 }
 
+function buildRenameColumnOperation(qualifiedName, fromColumn, toColumn) {
+	const [schema, table] = qualifiedName.split(".", 2);
+	return {
+		fromColumn,
+		kind: "rename_column",
+		qualifiedName,
+		statement: `alter table ${quoteIdentifier(schema)}.${quoteIdentifier(table)} rename column ${quoteIdentifier(fromColumn)} to ${quoteIdentifier(toColumn)}`,
+		toColumn,
+	};
+}
+
+function buildCopyLegacyColumnOperation(qualifiedName, fromColumn, toColumn) {
+	const [schema, table] = qualifiedName.split(".", 2);
+	return {
+		fromColumn,
+		kind: "copy_legacy_column",
+		qualifiedName,
+		statement: `update ${quoteIdentifier(schema)}.${quoteIdentifier(table)} set ${quoteIdentifier(toColumn)} = ${quoteIdentifier(fromColumn)} where ${quoteIdentifier(toColumn)} is null and ${quoteIdentifier(fromColumn)} is not null`,
+		toColumn,
+	};
+}
+
 function buildDeleteJournalRowOperation(hash) {
 	return {
 		hash,
@@ -239,14 +379,28 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	migrationContext,
 }) {
 	const expectedTables = buildExpectedTableSpecs(migrationContext.latestSnapshot);
-	const extraColumns = collectExtraColumns(inventory, expectedTables);
-	const missingColumns = collectMissingColumns(inventory, expectedTables);
+	const legacyColumnResolutions = collectLegacyColumnResolutions(inventory, expectedTables);
+	const resolvedExtraColumnKeys = new Set(
+		legacyColumnResolutions.map((item) => columnKey(item.qualifiedName, item.fromColumn)),
+	);
+	const resolvedMissingColumnKeys = new Set(
+		legacyColumnResolutions
+			.filter((item) => item.kind === "rename_legacy_column")
+			.map((item) => columnKey(item.qualifiedName, item.toColumn)),
+	);
+	const extraColumns = collectExtraColumns(inventory, expectedTables).filter(
+		(item) => !resolvedExtraColumnKeys.has(columnKey(item.qualifiedName, item.columnName)),
+	);
+	const missingColumns = collectMissingColumns(inventory, expectedTables).filter(
+		(item) => !resolvedMissingColumnKeys.has(columnKey(item.qualifiedName, item.columnName)),
+	);
 	const extraTables = collectExtraTables(inventory, expectedTables);
 	const missingTables = collectMissingTables(inventory, expectedTables);
 	const orphanedJournalRows = collectOrphanedJournalRows(inventory, migrationContext);
 	const pendingMigrations = collectPendingMigrations(inventory, migrationContext);
 	const pendingMigrationTags = pendingMigrations.map((migration) => migration.tag);
 	const blockedReasons = [];
+	const unresolvedSchemaDriftReasons = [];
 	const operations = [];
 
 	const orderedExtraTables = [...extraTables].sort(
@@ -256,7 +410,9 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	);
 	for (const qualifiedName of orderedExtraTables) {
 		if (!RECONCILABLE_EXTRA_TABLES.has(qualifiedName)) {
-			blockedReasons.push(`Unknown extra table outside current repo truth: ${qualifiedName}`);
+			unresolvedSchemaDriftReasons.push(
+				`Unknown extra table outside current repo truth: ${qualifiedName}`,
+			);
 			continue;
 		}
 
@@ -267,10 +423,23 @@ export function buildSharedDatabaseDriftReconcilePlan({
 
 	let crawlRunsNeedsIndexRebuild = false;
 
+	for (const item of legacyColumnResolutions) {
+		if (item.kind === "rename_legacy_column") {
+			operations.push(
+				buildRenameColumnOperation(item.qualifiedName, item.fromColumn, item.toColumn),
+			);
+			continue;
+		}
+		operations.push(
+			buildCopyLegacyColumnOperation(item.qualifiedName, item.fromColumn, item.toColumn),
+		);
+		operations.push(buildDropColumnOperation(item.qualifiedName, item.fromColumn));
+	}
+
 	for (const item of extraColumns) {
 		const allowedColumns = readAllowedExtraColumns(item.qualifiedName);
 		if (!allowedColumns.has(item.columnName)) {
-			blockedReasons.push(
+			unresolvedSchemaDriftReasons.push(
 				`Unknown extra column outside current repo truth: ${item.qualifiedName}.${item.columnName}`,
 			);
 			continue;
@@ -285,21 +454,17 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	}
 
 	for (const qualifiedName of missingTables) {
-		blockedReasons.push(`Missing table from current repo truth: ${qualifiedName}`);
+		unresolvedSchemaDriftReasons.push(`Missing table from current repo truth: ${qualifiedName}`);
 	}
 
 	for (const item of missingColumns) {
-		blockedReasons.push(
+		unresolvedSchemaDriftReasons.push(
 			`Missing column from current repo truth: ${item.qualifiedName}.${item.columnName}`,
 		);
 	}
 
-	const hasSchemaDrift =
-		extraColumns.length > 0 ||
-		extraTables.length > 0 ||
-		missingColumns.length > 0 ||
-		missingTables.length > 0;
-	if (pendingMigrationTags.length > 0 && hasSchemaDrift) {
+	blockedReasons.push(...unresolvedSchemaDriftReasons);
+	if (pendingMigrationTags.length > 0 && unresolvedSchemaDriftReasons.length > 0) {
 		blockedReasons.push(`Pending repo migrations not applied: ${pendingMigrationTags.join(", ")}`);
 	}
 
@@ -321,7 +486,7 @@ export function buildSharedDatabaseDriftReconcilePlan({
 		operations.push(buildDeleteJournalRowOperation(row.hash));
 	}
 
-	if (pendingMigrationTags.length > 0 && !hasSchemaDrift) {
+	if (pendingMigrationTags.length > 0 && unresolvedSchemaDriftReasons.length === 0) {
 		for (const migration of pendingMigrations) {
 			operations.push(buildInsertJournalRowOperation(migration));
 		}
@@ -341,6 +506,7 @@ export function buildSharedDatabaseDriftReconcilePlan({
 			extraTables.length > 0 ||
 			missingColumns.length > 0 ||
 			missingTables.length > 0 ||
+			legacyColumnResolutions.length > 0 ||
 			orphanedJournalRows.length > 0 ||
 			pendingMigrationTags.length > 0,
 		extraColumns,
@@ -348,6 +514,7 @@ export function buildSharedDatabaseDriftReconcilePlan({
 			qualifiedName,
 			rowCount: extraTableRowCounts.get(qualifiedName) ?? 0,
 		})),
+		legacyColumnResolutions,
 		missingColumns,
 		missingTables,
 		nonEmptyDriftTables,
@@ -421,6 +588,21 @@ async function writeBackupArtifacts({ backupDir, client, inventory, plan }) {
 		);
 	}
 
+	for (const legacyColumn of plan.legacyColumnResolutions ?? []) {
+		const backupColumns =
+			legacyColumn.kind === "merge_drop_legacy_column"
+				? [legacyColumn.fromColumn, legacyColumn.toColumn]
+				: [legacyColumn.fromColumn];
+		const rows = await readColumnBackupRows(client, legacyColumn.qualifiedName, backupColumns);
+		await writeFile(
+			join(
+				resolvedBackupDir,
+				`${legacyColumn.qualifiedName.replace(".", "__")}__${legacyColumn.fromColumn}.legacy-column.json`,
+			),
+			`${JSON.stringify(rows, null, 2)}\n`,
+		);
+	}
+
 	if (plan.orphanedJournalRows.length > 0) {
 		await writeFile(
 			join(resolvedBackupDir, "drizzle__app_api_migrations.orphaned.json"),
@@ -460,6 +642,7 @@ function formatPlan(plan) {
 			driftDetected: plan.driftDetected,
 			extraColumns: plan.extraColumns,
 			extraTables: plan.extraTables,
+			legacyColumnResolutions: plan.legacyColumnResolutions,
 			missingColumns: plan.missingColumns,
 			missingTables: plan.missingTables,
 			nonEmptyDriftTables: plan.nonEmptyDriftTables,
