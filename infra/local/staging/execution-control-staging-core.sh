@@ -550,7 +550,22 @@ execution_control_staging_ensure_run_projection_store_schema() {
 }
 
 execution_control_staging_reconcile_hindsight_postgres_password() {
+  local attempt
   local hindsight_password="${HINDSIGHT_POSTGRES_PASSWORD:?HINDSIGHT_POSTGRES_PASSWORD is required}"
+
+  for ((attempt = 1; attempt <= 60; attempt += 1)); do
+    if execution_control_staging_compose exec \
+      -T \
+      hindsight-postgres \
+      pg_isready -q -U hindsight -d hindsight; then
+      break
+    fi
+    sleep 2
+  done
+  if (( attempt > 60 )); then
+    echo "Timed out waiting for hindsight-postgres to accept local connections." >&2
+    return 1
+  fi
 
   printf "%s\n" "ALTER ROLE hindsight PASSWORD :'password';" |
     execution_control_staging_compose exec \
