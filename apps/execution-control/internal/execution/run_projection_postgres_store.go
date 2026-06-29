@@ -142,6 +142,53 @@ create table if not exists runtime.agent_runs (
 	metadata_json jsonb not null default '{}'::jsonb
 );
 
+do $$
+begin
+	if exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'requested_capability'
+	) and not exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'requested_tool'
+	) then
+		alter table runtime.agent_runs rename column requested_capability to requested_tool;
+	end if;
+	if exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'selected_capability'
+	) and not exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'selected_tool'
+	) then
+		alter table runtime.agent_runs rename column selected_capability to selected_tool;
+	end if;
+	if exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'lane'
+	) and not exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_runs'
+			and column_name = 'task_queue'
+	) then
+		alter table runtime.agent_runs rename column lane to task_queue;
+	end if;
+end $$;
+
+alter table runtime.agent_runs add column if not exists requested_tool text not null default '';
+alter table runtime.agent_runs add column if not exists selected_tool text not null default '';
+alter table runtime.agent_runs add column if not exists task_queue text not null default '';
+
 create table if not exists runtime.agent_run_events (
 	event_id text primary key,
 	run_id text not null references runtime.agent_runs(run_id) on delete cascade,
@@ -173,6 +220,25 @@ create table if not exists runtime.agent_run_steps (
 	created_at timestamptz not null default now(),
 	primary key (run_id, step_id)
 );
+
+do $$
+begin
+	if exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_run_steps'
+			and column_name = 'capability'
+	) and not exists (
+		select 1 from information_schema.columns
+		where table_schema = 'runtime'
+			and table_name = 'agent_run_steps'
+			and column_name = 'tool'
+	) then
+		alter table runtime.agent_run_steps rename column capability to tool;
+	end if;
+end $$;
+
+alter table runtime.agent_run_steps add column if not exists tool text not null default '';
 
 create table if not exists runtime.agent_step_attempts (
 	attempt_id text primary key,

@@ -72,6 +72,24 @@ func TestPostgresRunProjectionStoreSchemaIncludesProjectionTablesOnly(t *testing
 	}
 }
 
+func TestPostgresRunProjectionStoreSchemaMigratesLegacyCapabilityColumns(t *testing.T) {
+	requiredSnippets := []string{
+		"requested_capability",
+		"requested_tool",
+		"selected_capability",
+		"selected_tool",
+		"column_name = 'lane'",
+		"rename column lane to task_queue",
+		"column_name = 'capability'",
+		"rename column capability to tool",
+	}
+	for _, snippet := range requiredSnippets {
+		if !strings.Contains(runProjectionSchemaSQL, snippet) {
+			t.Fatalf("run projection schema legacy migration missing %q", snippet)
+		}
+	}
+}
+
 func TestPostgresStepAttemptInsertPlaceholdersMatchArguments(t *testing.T) {
 	insertSQL := stepAttemptInsertSQLForTest(t)
 	placeholderPattern := regexp.MustCompile(`\$(\d+)`)
