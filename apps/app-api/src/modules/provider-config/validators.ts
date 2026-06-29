@@ -56,7 +56,7 @@ function promptValidationResponseLooksUsable(transport: string, payload: unknown
 		const message = recordFromUnknown(recordFromUnknown(choice)?.message);
 		return promptValidationStructuredContentLooksUsable(message?.content);
 	}
-	return promptValidationStructuredContentLooksUsable(responsesOutputText(record.output));
+	return promptValidationResponsesPayloadLooksUsable(record);
 }
 
 function promptValidationStructuredContentLooksUsable(value: unknown): boolean {
@@ -72,19 +72,38 @@ function promptValidationStructuredContentLooksUsable(value: unknown): boolean {
 	}
 }
 
+function promptValidationResponsesPayloadLooksUsable(record: Record<string, unknown>): boolean {
+	if (!responsesStatusLooksSdkCompatible(record.status)) {
+		return false;
+	}
+	return promptValidationStructuredContentLooksUsable(
+		responsesOutputTextFromSdkCompatibleOutput(record.output),
+	);
+}
+
+function responsesStatusLooksSdkCompatible(value: unknown): boolean {
+	return value === "in_progress" || value === "completed" || value === "incomplete";
+}
+
 function recordFromUnknown(value: unknown): Record<string, unknown> | undefined {
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: undefined;
 }
 
-function responsesOutputText(outputValue: unknown): string | undefined {
+function responsesOutputTextFromSdkCompatibleOutput(outputValue: unknown): string | undefined {
 	if (!Array.isArray(outputValue)) {
 		return undefined;
 	}
 	for (const itemValue of outputValue) {
 		const item = recordFromUnknown(itemValue);
-		if (item?.type !== "message" || !Array.isArray(item.content)) {
+		if (item?.type !== "message") {
+			if (item?.type === "function_call" && !responsesStatusLooksSdkCompatible(item.status)) {
+				return undefined;
+			}
+			continue;
+		}
+		if (!responsesStatusLooksSdkCompatible(item.status) || !Array.isArray(item.content)) {
 			continue;
 		}
 		for (const partValue of item.content) {

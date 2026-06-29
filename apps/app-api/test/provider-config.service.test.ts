@@ -24,6 +24,7 @@ describe("provider config service", () => {
 						{
 							content: [{ text: '{"status":"ok"}', type: "output_text" }],
 							role: "assistant",
+							status: "completed",
 							type: "message",
 						},
 					],
@@ -85,6 +86,46 @@ describe("provider config service", () => {
 					output: [
 						{
 							content: [{ text: "ok", type: "output_text" }],
+							role: "assistant",
+							status: "completed",
+							type: "message",
+						},
+					],
+					status: "completed",
+				}),
+				{ headers: { "content-type": "application/json" }, status: 200 },
+			)) as typeof fetch;
+		try {
+			await expect(
+				defaultValidatePromptProvider({
+					apiKey: "provider-key",
+					baseUrl: "https://provider.example/v1",
+					dimensions: null,
+					featureConfig: {},
+					model: "gpt-compatible",
+					provider: "openai-compatible",
+					role: "primary_agent",
+					timeoutMs: 30000,
+					transport: "responses",
+				}),
+			).resolves.toMatchObject({
+				errorCode: "prompt_response_shape_invalid",
+				ok: false,
+				status: "failed",
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+		}
+	});
+
+	it("rejects responses prompt providers that omit SDK-required output item status", async () => {
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async () =>
+			new Response(
+				JSON.stringify({
+					output: [
+						{
+							content: [{ text: '{"status":"ok"}', type: "output_text" }],
 							role: "assistant",
 							type: "message",
 						},
