@@ -107,7 +107,7 @@ PY
 execution_control_staging_ensure_self_hosted_data_plane_dependencies() {
   execution_control_staging_ensure_data_plane_network
   if execution_control_staging_requires_local_postgres_dependency; then
-    execution_control_staging_postgres_compose up -d
+    execution_control_staging_postgres_compose up -d postgres
   fi
   if execution_control_staging_requires_local_minio_dependency; then
     execution_control_staging_ensure_local_minio_volume
