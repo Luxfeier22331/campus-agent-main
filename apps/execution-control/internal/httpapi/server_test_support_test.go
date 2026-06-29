@@ -107,6 +107,20 @@ func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	})
 }
 
+func (readyPersonalMemoryExecutor) OperationStatus(
+	_ context.Context,
+	request memoryruntime.PersonalMemoryOperationStatusRequest,
+) (memoryruntime.PersonalMemoryOperationStatusResult, error) {
+	return memoryruntime.FinalizePersonalMemoryOperationStatusResult(
+		memoryruntime.PersonalMemoryOperationStatusResult{
+			OperationID:   request.OperationID,
+			SchemaVersion: "memory_operation_status_result_v1",
+			Status:        "completed",
+			UserID:        request.UserID,
+		},
+	)
+}
+
 func (readyPersonalMemoryExecutor) UpsertProfileMemoryItem(
 	_ context.Context,
 	request memoryruntime.UpsertProfileMemoryItemRequest,

@@ -167,6 +167,7 @@ describe("chat command context envelope assembly", () => {
 			current_user_message: {
 				role: "user",
 				content: "那大一能不能申请？",
+				created_at: "2026-06-21T00:01:00.000Z",
 			},
 			previous_answer_summary: "转专业通常需要满足成绩、名额、学院审核等条件。",
 			previous_evidence_refs: [

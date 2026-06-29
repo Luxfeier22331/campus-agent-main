@@ -249,6 +249,18 @@
 			"secret": false,
 			"retired": true
 		},
+		"PERSONAL_MEMORY_RECALL_MAX_TOKENS": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
+		"PERSONAL_MEMORY_CONTEXT_CHAR_BUDGET": {
+			"owner": "execution-control-runtime-profile",
+			"scopes": [],
+			"secret": false,
+			"retired": true
+		},
 		"RAG_SYNTHESIS_MODEL": {
 			"owner": "local-provider-seed",
 			"scopes": ["root"],

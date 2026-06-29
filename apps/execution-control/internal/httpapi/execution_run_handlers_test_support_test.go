@@ -86,6 +86,11 @@ func createHTTPAPIQueuedDurableRunForTest(
 				"authorization": map[string]any{
 					"retrieval_filter": publicRetrievalFilterForTest(),
 				},
+				"conversation": map[string]any{
+					"current_user_message": map[string]any{
+						"created_at": now.UTC().Format(time.RFC3339),
+					},
+				},
 			},
 			"runtime_decisions": map[string]any{
 				"runtime_decision_summary": map[string]any{},

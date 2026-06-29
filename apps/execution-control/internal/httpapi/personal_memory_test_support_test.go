@@ -7,14 +7,15 @@ import (
 )
 
 type fakePersonalMemoryExecutor struct {
-	appendErr          error
-	appendCount        int
-	recallCount        int
-	seenAppend         memoryruntime.AppendConversationTurnRequest
-	seenOwnerDisable   memoryruntime.DisableProfileMemoryOwnerRequest
-	seenProfileDisable memoryruntime.DisableProfileMemoryItemRequest
-	seenProfileUpsert  memoryruntime.UpsertProfileMemoryItemRequest
-	seenRequest        memoryruntime.RecallRequest
+	appendErr           error
+	appendCount         int
+	recallCount         int
+	seenAppend          memoryruntime.AppendConversationTurnRequest
+	seenOperationStatus memoryruntime.PersonalMemoryOperationStatusRequest
+	seenOwnerDisable    memoryruntime.DisableProfileMemoryOwnerRequest
+	seenProfileDisable  memoryruntime.DisableProfileMemoryItemRequest
+	seenProfileUpsert   memoryruntime.UpsertProfileMemoryItemRequest
+	seenRequest         memoryruntime.RecallRequest
 }
 
 func (f *fakePersonalMemoryExecutor) HealthCheck(context.Context) error {
@@ -25,6 +26,9 @@ func (f *fakePersonalMemoryExecutor) Recall(
 	_ context.Context,
 	request memoryruntime.RecallRequest,
 ) (memoryruntime.RecallResult, error) {
+	if err := memoryruntime.ValidateRecallRequest(request); err != nil {
+		return memoryruntime.RecallResult{}, err
+	}
 	f.recallCount++
 	f.seenRequest = request
 	return memoryruntime.RecallResult{
@@ -50,6 +54,9 @@ func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
 	request memoryruntime.AppendConversationTurnRequest,
 ) (memoryruntime.AppendConversationTurnResult, error) {
+	if err := memoryruntime.ValidateAppendConversationTurnRequest(request); err != nil {
+		return memoryruntime.AppendConversationTurnResult{}, err
+	}
 	f.appendCount++
 	f.seenAppend = request
 	if f.appendErr != nil {
@@ -57,12 +64,39 @@ func (f *fakePersonalMemoryExecutor) AppendConversationTurn(
 	}
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
 		AppendedMessageCount: 1,
+		HindsightOperationID: "op-test-append",
 		RunID:                request.RunID,
 		SchemaVersion:        "memory_conversation_append_result_v1",
 		Status:               "accepted",
 		ThreadID:             request.ThreadID,
 		UserID:               request.UserID,
 	})
+}
+
+func (f *fakePersonalMemoryExecutor) OperationStatus(
+	_ context.Context,
+	request memoryruntime.PersonalMemoryOperationStatusRequest,
+) (memoryruntime.PersonalMemoryOperationStatusResult, error) {
+	if err := memoryruntime.ValidatePersonalMemoryOperationStatusRequest(request); err != nil {
+		return memoryruntime.PersonalMemoryOperationStatusResult{}, err
+	}
+	f.seenOperationStatus = request
+	retryCount := 1
+	return memoryruntime.FinalizePersonalMemoryOperationStatusResult(
+		memoryruntime.PersonalMemoryOperationStatusResult{
+			CompletedAt:    "2026-06-16T10:00:04Z",
+			CreatedAt:      "2026-06-16T10:00:00Z",
+			OperationID:    request.OperationID,
+			OperationType:  "retain",
+			Progress:       map[string]any{"stage": "completed", "processed": 1, "total": 1},
+			ResultMetadata: map[string]any{"items_count": 1},
+			RetryCount:     &retryCount,
+			SchemaVersion:  "memory_operation_status_result_v1",
+			Status:         "completed",
+			UpdatedAt:      "2026-06-16T10:00:04Z",
+			UserID:         request.UserID,
+		},
+	)
 }
 
 func (f *fakePersonalMemoryExecutor) UpsertProfileMemoryItem(

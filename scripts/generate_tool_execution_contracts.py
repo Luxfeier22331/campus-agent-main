@@ -138,7 +138,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tconversation_id: string;\n"
         "\tuser_message_id: string;\n"
         "\tparent_message_id?: string | null;\n"
-        '\tcurrent_user_message: { role: "user"; content: string };\n'
+        '\tcurrent_user_message: { role: "user"; content: string; created_at: string };\n'
         "\trecent_turns: SafeRecord[];\n"
         "\tprevious_answer_summary?: string | null;\n"
         "\tprevious_evidence_refs: SafeRecord[];\n"

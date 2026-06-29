@@ -38,10 +38,11 @@ func TestHindsightHTTPClientUsesBearerAuthorizationAndHealthEndpoint(t *testing.
 func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 	client := &fakeHindsightClient{}
 	executor := hindsightExecutor{
-		client:       client,
-		ownerSalt:    "test-salt",
-		recallLimit:  8,
-		recallMaxLen: 2500,
+		client:            client,
+		ownerSalt:         "test-salt",
+		recallLimit:       8,
+		recallMaxTokens:   2500,
+		contextCharBudget: 2500,
 	}
 
 	result, err := executor.AppendConversationTurn(context.Background(), memoryruntime.AppendConversationTurnRequest{
@@ -52,6 +53,7 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 		ThreadID:                "conv-hindsight-append",
 		UserID:                  "user-executor",
 		UserMessage:             "我之后主要关注保研材料",
+		UserMessageCreatedAt:    "2026-06-16T10:00:00Z",
 	})
 	if err != nil {
 		t.Fatalf("append: %v", err)
@@ -59,6 +61,9 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 	wantBankID := "hindsight_bank_951609b8dfa813820b216c9ef9e76465"
 	if client.retainedBankID != wantBankID {
 		t.Fatalf("bank id = %q, want %q", client.retainedBankID, wantBankID)
+	}
+	if client.ensuredBankID != wantBankID {
+		t.Fatalf("ensured bank id = %q, want %q", client.ensuredBankID, wantBankID)
 	}
 	wantDocumentID := "conversation:1bc60525b25178205e174cdc146d0e59"
 	if len(client.retainedItems) != 1 {
@@ -73,6 +78,9 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 	}
 	if item.Context != "campus assistant completed conversation turn" {
 		t.Fatalf("context = %q", item.Context)
+	}
+	if item.Timestamp != "2026-06-16T10:00:00Z" {
+		t.Fatalf("timestamp = %q, want user message timestamp", item.Timestamp)
 	}
 	if item.Metadata["run_id"] != "run-hindsight-append" ||
 		item.Metadata["thread_id"] != "conv-hindsight-append" ||
@@ -97,6 +105,7 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 		}
 	}
 	if result.AppendedMessageCount != 1 ||
+		result.HindsightOperationID != "op-test-retain" ||
 		result.Status != "accepted" ||
 		result.ThreadID != "conv-hindsight-append" ||
 		result.UserID != "user-executor" ||
@@ -108,15 +117,17 @@ func TestHindsightAppendCompletedTurnRetainsConversationDocument(t *testing.T) {
 func TestHindsightRecallQueryIncludesConfirmedSessionSlots(t *testing.T) {
 	client := &fakeHindsightClient{}
 	executor := hindsightExecutor{
-		client:       client,
-		ownerSalt:    "test-salt",
-		recallLimit:  5,
-		recallMaxLen: 2500,
+		client:            client,
+		ownerSalt:         "test-salt",
+		recallLimit:       5,
+		recallMaxTokens:   2500,
+		contextCharBudget: 2500,
 	}
 
 	_, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		RequestedTool: "knowledge_query",
-		RunID:         "run-hindsight-recall-slots",
+		QueryTimestamp: "2026-06-16T10:00:00Z",
+		RequestedTool:  "knowledge_query",
+		RunID:          "run-hindsight-recall-slots",
 		SessionSlots: map[string]string{
 			"target_year": "2026",
 			"topic":       "保研材料",
@@ -147,19 +158,21 @@ func TestHindsightRecallUsesBankRecallAndProjectsBoundedFactsOnly(t *testing.T) 
 		},
 	}
 	executor := hindsightExecutor{
-		client:       client,
-		ownerSalt:    "test-salt",
-		recallLimit:  5,
-		recallMaxLen: 2500,
+		client:            client,
+		ownerSalt:         "test-salt",
+		recallLimit:       5,
+		recallMaxTokens:   2500,
+		contextCharBudget: 2500,
 	}
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		RequestedTool: "knowledge_query",
-		RunID:         "run-hindsight-recall",
-		TenantID:      "tenant-main",
-		ThreadID:      "conv-hindsight-recall",
-		UserGoal:      "我如何准备保研材料？",
-		UserID:        "user-executor",
+		QueryTimestamp: "2026-06-16T10:00:00Z",
+		RequestedTool:  "knowledge_query",
+		RunID:          "run-hindsight-recall",
+		TenantID:       "tenant-main",
+		ThreadID:       "conv-hindsight-recall",
+		UserGoal:       "我如何准备保研材料？",
+		UserID:         "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)
@@ -168,9 +181,13 @@ func TestHindsightRecallUsesBankRecallAndProjectsBoundedFactsOnly(t *testing.T) 
 	if client.recallBankID != wantBankID {
 		t.Fatalf("recall bank id = %q, want %q", client.recallBankID, wantBankID)
 	}
+	if client.ensuredBankID != wantBankID {
+		t.Fatalf("ensured bank id = %q, want %q", client.ensuredBankID, wantBankID)
+	}
 	if client.recallRequest.Query != "我如何准备保研材料？" ||
 		client.recallRequest.Budget != "mid" ||
 		client.recallRequest.MaxTokens != 2500 ||
+		client.recallRequest.QueryTimestamp != "2026-06-16T10:00:00Z" ||
 		client.recallRequest.Trace {
 		t.Fatalf("recall request = %#v", client.recallRequest)
 	}
@@ -210,19 +227,21 @@ func TestHindsightRecallAppliesRecallLimitBeforeProjection(t *testing.T) {
 		},
 	}
 	executor := hindsightExecutor{
-		client:       client,
-		ownerSalt:    "test-salt",
-		recallLimit:  2,
-		recallMaxLen: 2500,
+		client:            client,
+		ownerSalt:         "test-salt",
+		recallLimit:       2,
+		recallMaxTokens:   2500,
+		contextCharBudget: 2500,
 	}
 
 	result, err := executor.Recall(context.Background(), memoryruntime.RecallRequest{
-		RequestedTool: "knowledge_query",
-		RunID:         "run-hindsight-recall-limit",
-		TenantID:      "tenant-main",
-		ThreadID:      "conv-hindsight-recall-limit",
-		UserGoal:      "我如何准备保研材料？",
-		UserID:        "user-executor",
+		QueryTimestamp: "2026-06-16T10:00:00Z",
+		RequestedTool:  "knowledge_query",
+		RunID:          "run-hindsight-recall-limit",
+		TenantID:       "tenant-main",
+		ThreadID:       "conv-hindsight-recall-limit",
+		UserGoal:       "我如何准备保研材料？",
+		UserID:         "user-executor",
 	})
 	if err != nil {
 		t.Fatalf("recall: %v", err)
@@ -273,6 +292,9 @@ func TestHindsightUpsertProfileMemoryItemRetainsProfileDocument(t *testing.T) {
 	if client.retainedBankID != wantBankID {
 		t.Fatalf("bank id = %q, want %q", client.retainedBankID, wantBankID)
 	}
+	if client.ensuredBankID != wantBankID {
+		t.Fatalf("ensured bank id = %q, want %q", client.ensuredBankID, wantBankID)
+	}
 	if len(client.retainedItems) != 1 {
 		t.Fatalf("retained item count = %d, want 1", len(client.retainedItems))
 	}
@@ -283,6 +305,9 @@ func TestHindsightUpsertProfileMemoryItemRetainsProfileDocument(t *testing.T) {
 		item.Metadata["canonical_subject"] != "answer_style" ||
 		item.Metadata["memory_id"] != "mem_01HQ" {
 		t.Fatalf("profile item = %#v", item)
+	}
+	if item.Timestamp != "2026-06-16T10:00:00Z" {
+		t.Fatalf("timestamp = %q, want updated_at timestamp", item.Timestamp)
 	}
 	if client.retainedAsync {
 		t.Fatal("profile upsert async = true, want sync confirmation")
@@ -341,15 +366,61 @@ func TestHindsightDeleteProfileMemoryOwnerDeletesUserBank(t *testing.T) {
 	}
 }
 
+func TestHindsightOperationStatusDerivesScopedBankAndOmitsRawPayload(t *testing.T) {
+	retryCount := 1
+	client := &fakeHindsightClient{
+		operationStatus: hindsightOperationStatus{
+			CompletedAt:    "2026-06-16T10:00:04Z",
+			CreatedAt:      "2026-06-16T10:00:00Z",
+			OperationID:    "op-test-retain",
+			OperationType:  "retain",
+			ResultMetadata: map[string]any{"items_count": 1},
+			RetryCount:     &retryCount,
+			Status:         "completed",
+			UpdatedAt:      "2026-06-16T10:00:04Z",
+		},
+	}
+	executor := hindsightExecutor{client: client, ownerSalt: "test-salt"}
+
+	result, err := executor.OperationStatus(context.Background(), memoryruntime.PersonalMemoryOperationStatusRequest{
+		OperationID: "op-test-retain",
+		TenantID:    "tenant-main",
+		UserID:      "user-executor",
+	})
+	if err != nil {
+		t.Fatalf("operation status: %v", err)
+	}
+	wantBankID := "hindsight_bank_951609b8dfa813820b216c9ef9e76465"
+	if client.operationStatusBankID != wantBankID {
+		t.Fatalf("operation status bank id = %q, want %q", client.operationStatusBankID, wantBankID)
+	}
+	if client.operationStatusOperationID != "op-test-retain" {
+		t.Fatalf("operation id = %q", client.operationStatusOperationID)
+	}
+	if result.SchemaVersion != "memory_operation_status_result_v1" ||
+		result.OperationID != "op-test-retain" ||
+		result.OperationType != "retain" ||
+		result.Status != "completed" ||
+		result.UserID != "user-executor" ||
+		result.RetryCount == nil ||
+		*result.RetryCount != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.ResultMetadata["items_count"] != 1 {
+		t.Fatalf("result metadata = %#v", result.ResultMetadata)
+	}
+}
+
 func TestNewPersonalMemoryExecutorCreatesHindsightExecutor(t *testing.T) {
 	executor, err := newPersonalMemoryExecutor(config.Config{
-		PersonalMemoryAPISecret:      "hindsight-secret",
-		PersonalMemoryBaseURL:        "http://hindsight-api:8000",
-		PersonalMemoryOwnerSalt:      "owner-salt",
-		PersonalMemoryRecallLimit:    8,
-		PersonalMemoryRecallMaxChars: 2500,
-		PersonalMemoryRuntime:        "hindsight",
-		PersonalMemoryTimeoutSeconds: 10,
+		PersonalMemoryAPISecret:         "hindsight-secret",
+		PersonalMemoryBaseURL:           "http://hindsight-api:8000",
+		PersonalMemoryOwnerSalt:         "owner-salt",
+		PersonalMemoryRecallLimit:       8,
+		PersonalMemoryRecallMaxTokens:   2500,
+		PersonalMemoryContextCharBudget: 2500,
+		PersonalMemoryRuntime:           "hindsight",
+		PersonalMemoryTimeoutSeconds:    10,
 	}, nil)
 	if err != nil {
 		t.Fatalf("new personal memory executor: %v", err)
@@ -361,16 +432,60 @@ func TestNewPersonalMemoryExecutorCreatesHindsightExecutor(t *testing.T) {
 
 func TestNewPersonalMemoryExecutorRejectsRetiredPredecessorRuntime(t *testing.T) {
 	_, err := newPersonalMemoryExecutor(config.Config{
-		PersonalMemoryAPISecret:      "zep-secret",
-		PersonalMemoryBaseURL:        "http://zep-ce-api:8000",
-		PersonalMemoryOwnerSalt:      "owner-salt",
-		PersonalMemoryRecallLimit:    8,
-		PersonalMemoryRecallMaxChars: 2500,
-		PersonalMemoryRuntime:        "zep_ce",
-		PersonalMemoryTimeoutSeconds: 10,
+		PersonalMemoryAPISecret:         "zep-secret",
+		PersonalMemoryBaseURL:           "http://zep-ce-api:8000",
+		PersonalMemoryOwnerSalt:         "owner-salt",
+		PersonalMemoryRecallLimit:       8,
+		PersonalMemoryRecallMaxTokens:   2500,
+		PersonalMemoryContextCharBudget: 2500,
+		PersonalMemoryRuntime:           "zep_ce",
+		PersonalMemoryTimeoutSeconds:    10,
 	}, nil)
 	if err == nil || !strings.Contains(err.Error(), "unsupported personal memory runtime") {
 		t.Fatalf("error = %v, want retired runtime rejection", err)
+	}
+}
+
+func TestHindsightHTTPClientOperationStatusOmitsPayload(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/v1/default/banks/bank-01/operations/op-retain-01" {
+			t.Fatalf("path = %q", request.URL.Path)
+		}
+		if got := request.URL.Query().Get("include_payload"); got != "false" {
+			t.Fatalf("include_payload = %q, want false", got)
+		}
+		response.Header().Set("Content-Type", "application/json")
+		response.WriteHeader(http.StatusOK)
+		_, _ = response.Write([]byte(`{
+			"operation_id":"op-retain-01",
+			"status":"completed",
+			"operation_type":"retain",
+			"created_at":"2026-06-16T10:00:00Z",
+			"updated_at":"2026-06-16T10:00:04Z",
+			"completed_at":"2026-06-16T10:00:04Z",
+			"retry_count":1,
+			"progress":{"stage":"completed","at":"2026-06-16T10:00:04Z","processed":1,"total":1},
+			"result_metadata":{"items_count":1}
+		}`))
+	}))
+	defer server.Close()
+
+	client := newHindsightHTTPClient(hindsightClientOptions{
+		apiSecret: "hindsight-secret",
+		baseURL:   server.URL,
+	})
+	result, err := client.OperationStatus(context.Background(), "bank-01", "op-retain-01")
+	if err != nil {
+		t.Fatalf("operation status: %v", err)
+	}
+	if result.OperationID != "op-retain-01" ||
+		result.Status != "completed" ||
+		result.OperationType != "retain" ||
+		result.RetryCount == nil ||
+		*result.RetryCount != 1 ||
+		result.Progress["processed"] != 1 ||
+		result.ResultMetadata["items_count"] != float64(1) {
+		t.Fatalf("operation status response = %#v", result)
 	}
 }
 
@@ -393,7 +508,7 @@ func TestHindsightHTTPClientRetainPayload(t *testing.T) {
 		}
 		response.Header().Set("Content-Type", "application/json")
 		response.WriteHeader(http.StatusOK)
-		_, _ = response.Write([]byte(`{"success":true,"bank_id":"bank-01","items_count":1,"async":true}`))
+		_, _ = response.Write([]byte(`{"success":true,"bank_id":"bank-01","items_count":1,"async":true,"operation_id":"op-retain-01"}`))
 	}))
 	defer server.Close()
 
@@ -401,7 +516,7 @@ func TestHindsightHTTPClientRetainPayload(t *testing.T) {
 		apiSecret: "hindsight-secret",
 		baseURL:   server.URL,
 	})
-	err := client.RetainMemories(context.Background(), "bank-01", hindsightRetainRequest{
+	result, err := client.RetainMemories(context.Background(), "bank-01", hindsightRetainRequest{
 		Async: boolPtr(true),
 		Items: []hindsightMemoryItem{{
 			Content:    "hello",
@@ -412,35 +527,62 @@ func TestHindsightHTTPClientRetainPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("retain: %v", err)
 	}
+	if result.OperationID != "op-retain-01" || !result.Async || result.ItemsCount != 1 {
+		t.Fatalf("retain response = %#v", result)
+	}
 }
 
 type fakeHindsightClient struct {
-	deletedBankID         string
-	deletedDocumentBankID string
-	deletedDocumentID     string
-	recallBankID          string
-	recallRequest         hindsightRecallRequest
-	recallResponse        hindsightRecallResponse
-	retainedAsync         bool
-	retainedBankID        string
-	retainedItems         []hindsightMemoryItem
+	deletedBankID              string
+	deletedDocumentBankID      string
+	deletedDocumentID          string
+	ensuredBankID              string
+	operationStatus            hindsightOperationStatus
+	operationStatusBankID      string
+	operationStatusOperationID string
+	recallBankID               string
+	recallRequest              hindsightRecallRequest
+	recallResponse             hindsightRecallResponse
+	retainedAsync              bool
+	retainedBankID             string
+	retainedItems              []hindsightMemoryItem
 }
 
 func (f *fakeHindsightClient) HealthCheck(context.Context) error {
 	return nil
 }
 
+func (f *fakeHindsightClient) EnsureBank(_ context.Context, bankID string) error {
+	f.ensuredBankID = bankID
+	return nil
+}
+
+func (f *fakeHindsightClient) OperationStatus(
+	_ context.Context,
+	bankID string,
+	operationID string,
+) (hindsightOperationStatus, error) {
+	f.operationStatusBankID = bankID
+	f.operationStatusOperationID = operationID
+	return f.operationStatus, nil
+}
+
 func (f *fakeHindsightClient) RetainMemories(
 	_ context.Context,
 	bankID string,
 	request hindsightRetainRequest,
-) error {
+) (hindsightRetainResponse, error) {
 	f.retainedBankID = bankID
 	if request.Async != nil {
 		f.retainedAsync = *request.Async
 	}
 	f.retainedItems = append([]hindsightMemoryItem{}, request.Items...)
-	return nil
+	return hindsightRetainResponse{
+		Async:       f.retainedAsync,
+		ItemsCount:  len(request.Items),
+		OperationID: "op-test-retain",
+		Success:     true,
+	}, nil
 }
 
 func (f *fakeHindsightClient) RecallMemories(

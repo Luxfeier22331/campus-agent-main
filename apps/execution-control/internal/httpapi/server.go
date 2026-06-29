@@ -479,6 +479,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryAppend(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:recall":
 		s.handleProfileMemoryRecall(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:status":
+		s.handleProfileMemoryOperationStatus(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
 		s.handleProfileMemoryItemDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":

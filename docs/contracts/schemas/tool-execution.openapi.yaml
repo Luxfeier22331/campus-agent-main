@@ -943,11 +943,15 @@ components:
           required:
             - role
             - content
+            - created_at
           properties:
             role:
               const: user
             content:
               type: string
+            created_at:
+              type: string
+              format: date-time
         recent_turns:
           type: array
           items:

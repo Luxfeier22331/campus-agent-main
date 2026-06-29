@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net/http"
 	"sort"
 	"strings"
 	"time"
@@ -32,6 +31,10 @@ type personalMemoryExecutor interface {
 		memoryruntime.DisableProfileMemoryItemRequest,
 	) (memoryruntime.ProfileMemoryItemResult, error)
 	HealthCheck(context.Context) error
+	OperationStatus(
+		context.Context,
+		memoryruntime.PersonalMemoryOperationStatusRequest,
+	) (memoryruntime.PersonalMemoryOperationStatusResult, error)
 	Recall(context.Context, memoryruntime.RecallRequest) (memoryruntime.RecallResult, error)
 	UpsertProfileMemoryItem(
 		context.Context,
@@ -42,16 +45,19 @@ type personalMemoryExecutor interface {
 type hindsightClient interface {
 	DeleteBank(context.Context, string) error
 	DeleteDocument(context.Context, string, string) error
+	EnsureBank(context.Context, string) error
 	HealthCheck(context.Context) error
+	OperationStatus(context.Context, string, string) (hindsightOperationStatus, error)
 	RecallMemories(context.Context, string, hindsightRecallRequest) (hindsightRecallResponse, error)
-	RetainMemories(context.Context, string, hindsightRetainRequest) error
+	RetainMemories(context.Context, string, hindsightRetainRequest) (hindsightRetainResponse, error)
 }
 
 type hindsightExecutor struct {
-	client       hindsightClient
-	ownerSalt    string
-	recallLimit  int
-	recallMaxLen int
+	client            hindsightClient
+	ownerSalt         string
+	recallLimit       int
+	recallMaxTokens   int
+	contextCharBudget int
 }
 
 type hindsightHTTPClient struct {
@@ -72,23 +78,56 @@ type hindsightRetainRequest struct {
 	Items        []hindsightMemoryItem `json:"items"`
 }
 
+type hindsightRetainResponse struct {
+	Async        bool
+	ItemsCount   int
+	OperationID  string
+	OperationIDs []string
+	Success      bool
+}
+
+type hindsightOperationStatus struct {
+	ChildOperations []hindsightChildOperationStatus `json:"child_operations,omitempty"`
+	CompletedAt     string                          `json:"completed_at,omitempty"`
+	CreatedAt       string                          `json:"created_at,omitempty"`
+	ErrorMessage    string                          `json:"error_message,omitempty"`
+	NextRetryAt     string                          `json:"next_retry_at,omitempty"`
+	OperationID     string                          `json:"operation_id"`
+	OperationType   string                          `json:"operation_type,omitempty"`
+	Progress        map[string]any                  `json:"progress,omitempty"`
+	ResultMetadata  map[string]any                  `json:"result_metadata,omitempty"`
+	RetryCount      *int                            `json:"retry_count,omitempty"`
+	Status          string                          `json:"status"`
+	UpdatedAt       string                          `json:"updated_at,omitempty"`
+}
+
+type hindsightChildOperationStatus struct {
+	ErrorMessage  string `json:"error_message,omitempty"`
+	ItemsCount    *int   `json:"items_count,omitempty"`
+	OperationID   string `json:"operation_id"`
+	Status        string `json:"status"`
+	SubBatchIndex *int   `json:"sub_batch_index,omitempty"`
+}
+
 type hindsightMemoryItem struct {
 	Content    string            `json:"content"`
 	Context    string            `json:"context,omitempty"`
 	DocumentID string            `json:"document_id,omitempty"`
 	Metadata   map[string]string `json:"metadata,omitempty"`
 	Tags       []string          `json:"tags,omitempty"`
+	Timestamp  string            `json:"timestamp,omitempty"`
 	UpdateMode string            `json:"update_mode,omitempty"`
 }
 
 type hindsightRecallRequest struct {
-	Budget    string   `json:"budget,omitempty"`
-	MaxTokens int      `json:"max_tokens,omitempty"`
-	Query     string   `json:"query"`
-	Tags      []string `json:"tags,omitempty"`
-	TagsMatch string   `json:"tags_match,omitempty"`
-	Trace     bool     `json:"trace,omitempty"`
-	Types     []string `json:"types,omitempty"`
+	Budget         string   `json:"budget,omitempty"`
+	MaxTokens      int      `json:"max_tokens,omitempty"`
+	Query          string   `json:"query"`
+	QueryTimestamp string   `json:"query_timestamp,omitempty"`
+	Tags           []string `json:"tags,omitempty"`
+	TagsMatch      string   `json:"tags_match,omitempty"`
+	Trace          bool     `json:"trace,omitempty"`
+	Types          []string `json:"types,omitempty"`
 }
 
 type hindsightRecallResponse struct {
@@ -126,6 +165,23 @@ func newHindsightHTTPClient(options hindsightClientOptions) hindsightHTTPClient 
 	}
 }
 
+func hindsightRetainMission() string {
+	return strings.Join([]string{
+		"Store only durable private student-assistant memory that helps future campus conversations.",
+		"Prefer user-declared preferences, recurring academic planning needs, campus context, aliases, and stable constraints.",
+		"Do not treat memory as authoritative policy or source truth.",
+	}, " ")
+}
+
+func hindsightRetainCustomInstructions() string {
+	return strings.Join([]string{
+		"Extract concise facts useful for future campus assistant personalization.",
+		"Keep facts private to the scoped user bank.",
+		"Do not store credentials, tokens, raw account identifiers, authentication data, medical/legal/financial secrets, or exact transcript text unless explicitly declared by the user as durable preference/context.",
+		"Do not extract facts that conflict with official campus policy/source truth; memory may personalize routing and wording but must not override verified sources.",
+	}, " ")
+}
+
 func newPersonalMemoryExecutor(
 	cfg config.Config,
 	_ providerConfigResolver,
@@ -152,9 +208,13 @@ func newHindsightMemoryExecutor(cfg config.Config) (personalMemoryExecutor, erro
 	if limit <= 0 {
 		limit = 8
 	}
-	maxLen := cfg.PersonalMemoryRecallMaxChars
-	if maxLen <= 0 {
-		maxLen = 2500
+	recallMaxTokens := cfg.PersonalMemoryRecallMaxTokens
+	if recallMaxTokens <= 0 {
+		recallMaxTokens = 2500
+	}
+	contextCharBudget := cfg.PersonalMemoryContextCharBudget
+	if contextCharBudget <= 0 {
+		contextCharBudget = 2500
 	}
 	return hindsightExecutor{
 		client: newHindsightHTTPClient(hindsightClientOptions{
@@ -162,9 +222,10 @@ func newHindsightMemoryExecutor(cfg config.Config) (personalMemoryExecutor, erro
 			baseURL:   cfg.PersonalMemoryBaseURL,
 			timeout:   timeout,
 		}),
-		ownerSalt:    strings.TrimSpace(cfg.PersonalMemoryOwnerSalt),
-		recallLimit:  limit,
-		recallMaxLen: maxLen,
+		ownerSalt:         strings.TrimSpace(cfg.PersonalMemoryOwnerSalt),
+		recallLimit:       limit,
+		recallMaxTokens:   recallMaxTokens,
+		contextCharBudget: contextCharBudget,
 	}, nil
 }
 
@@ -175,6 +236,38 @@ func (e hindsightExecutor) HealthCheck(ctx context.Context) error {
 	return e.client.HealthCheck(ctx)
 }
 
+func (e hindsightExecutor) OperationStatus(
+	ctx context.Context,
+	request memoryruntime.PersonalMemoryOperationStatusRequest,
+) (memoryruntime.PersonalMemoryOperationStatusResult, error) {
+	if err := memoryruntime.ValidatePersonalMemoryOperationStatusRequest(request); err != nil {
+		return memoryruntime.PersonalMemoryOperationStatusResult{}, err
+	}
+	bankID := e.scopedBankID(request.TenantID, request.UserID)
+	status, err := e.client.OperationStatus(ctx, bankID, request.OperationID)
+	if err != nil {
+		return memoryruntime.PersonalMemoryOperationStatusResult{}, err
+	}
+	return memoryruntime.FinalizePersonalMemoryOperationStatusResult(
+		memoryruntime.PersonalMemoryOperationStatusResult{
+			ChildOperations: operationStatusChildren(status.ChildOperations),
+			CompletedAt:     status.CompletedAt,
+			CreatedAt:       status.CreatedAt,
+			ErrorMessage:    status.ErrorMessage,
+			NextRetryAt:     status.NextRetryAt,
+			OperationID:     status.OperationID,
+			OperationType:   status.OperationType,
+			Progress:        status.Progress,
+			ResultMetadata:  status.ResultMetadata,
+			RetryCount:      status.RetryCount,
+			SchemaVersion:   "memory_operation_status_result_v1",
+			Status:          status.Status,
+			UpdatedAt:       status.UpdatedAt,
+			UserID:          strings.TrimSpace(request.UserID),
+		},
+	)
+}
+
 func (e hindsightExecutor) Recall(
 	ctx context.Context,
 	request memoryruntime.RecallRequest,
@@ -183,21 +276,25 @@ func (e hindsightExecutor) Recall(
 		return memoryruntime.RecallResult{}, err
 	}
 	bankID := e.scopedBankID(request.TenantID, request.UserID)
+	if err := e.client.EnsureBank(ctx, bankID); err != nil {
+		return memoryruntime.RecallResult{}, err
+	}
 	response, err := e.client.RecallMemories(ctx, bankID, hindsightRecallRequest{
-		Budget:    "mid",
-		MaxTokens: e.recallMaxLen,
-		Query:     hindsightRecallQuery(request),
-		Tags:      []string{"scope:private"},
-		TagsMatch: "all_strict",
-		Trace:     false,
-		Types:     []string{"experience", "world"},
+		Budget:         "mid",
+		MaxTokens:      e.recallMaxTokens,
+		Query:          hindsightRecallQuery(request),
+		QueryTimestamp: strings.TrimSpace(request.QueryTimestamp),
+		Tags:           []string{"scope:private"},
+		TagsMatch:      "all_strict",
+		Trace:          false,
+		Types:          []string{"experience", "world"},
 	})
 	if err != nil {
 		return memoryruntime.RecallResult{}, err
 	}
 	items := hindsightContextItems(response.Results, request.RequestedTool, e.recallLimit)
 	result := memoryruntime.RecallResult{
-		ContextBlock:  hindsightContextBlock(items, e.recallMaxLen),
+		ContextBlock:  hindsightContextBlock(items, e.contextCharBudget),
 		Items:         items,
 		MemoryRef:     temporalProjectionRef(request.RunID, "memory/recall"),
 		Provider:      "hindsight",
@@ -218,12 +315,15 @@ func (e hindsightExecutor) AppendConversationTurn(
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
 	bankID := e.scopedBankID(request.TenantID, request.UserID)
+	if err := e.client.EnsureBank(ctx, bankID); err != nil {
+		return memoryruntime.AppendConversationTurnResult{}, err
+	}
 	documentID := e.conversationDocumentID(bankID, request.ThreadID)
 	content, err := encodeHindsightConversationTurn(request)
 	if err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
-	if err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
+	retainResponse, err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
 		Async:        boolPointer(true),
 		DocumentTags: hindsightDocumentTags(request.TenantID, bankID, documentID, "conversation"),
 		Items: []hindsightMemoryItem{{
@@ -236,18 +336,27 @@ func (e hindsightExecutor) AppendConversationTurn(
 				"thread_id": strings.TrimSpace(request.ThreadID),
 			},
 			Tags:       hindsightDocumentTags(request.TenantID, bankID, documentID, "conversation"),
+			Timestamp:  strings.TrimSpace(request.UserMessageCreatedAt),
 			UpdateMode: "append",
 		}},
-	}); err != nil {
+	})
+	if err != nil {
 		return memoryruntime.AppendConversationTurnResult{}, err
 	}
+	if strings.TrimSpace(retainResponse.OperationID) == "" && len(retainResponse.OperationIDs) == 0 {
+		return memoryruntime.AppendConversationTurnResult{}, errors.New(
+			"hindsight async retain returned no operation id",
+		)
+	}
 	return memoryruntime.FinalizeAppendConversationTurnResult(memoryruntime.AppendConversationTurnResult{
-		AppendedMessageCount: appendedHindsightConversationTurnCount(request),
-		RunID:                request.RunID,
-		SchemaVersion:        "memory_conversation_append_result_v1",
-		Status:               "accepted",
-		ThreadID:             request.ThreadID,
-		UserID:               strings.TrimSpace(request.UserID),
+		AppendedMessageCount:  appendedHindsightConversationTurnCount(request),
+		HindsightOperationID:  strings.TrimSpace(retainResponse.OperationID),
+		HindsightOperationIDs: append([]string{}, retainResponse.OperationIDs...),
+		RunID:                 request.RunID,
+		SchemaVersion:         "memory_conversation_append_result_v1",
+		Status:                "accepted",
+		ThreadID:              request.ThreadID,
+		UserID:                strings.TrimSpace(request.UserID),
 	})
 }
 
@@ -286,8 +395,11 @@ func (e hindsightExecutor) UpsertProfileMemoryItem(
 		return memoryruntime.ProfileMemoryItemResult{}, err
 	}
 	bankID := e.scopedBankID(request.TenantID, request.UserID)
+	if err := e.client.EnsureBank(ctx, bankID); err != nil {
+		return memoryruntime.ProfileMemoryItemResult{}, err
+	}
 	documentID := hindsightProfileDocumentID(request.MemoryID)
-	if err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
+	if _, err := e.client.RetainMemories(ctx, bankID, hindsightRetainRequest{
 		Async:        boolPointer(false),
 		DocumentTags: hindsightProfileTags(request.TenantID, bankID),
 		Items: []hindsightMemoryItem{{
@@ -301,6 +413,7 @@ func (e hindsightExecutor) UpsertProfileMemoryItem(
 				"tenant_id":         strings.TrimSpace(request.TenantID),
 			},
 			Tags:       hindsightProfileTags(request.TenantID, bankID),
+			Timestamp:  strings.TrimSpace(request.UpdatedAt),
 			UpdateMode: "replace",
 		}},
 	}); err != nil {
@@ -369,156 +482,6 @@ func (e hindsightExecutor) conversationDocumentID(bankID string, threadID string
 		strings.TrimSpace(e.ownerSalt) + ":" + strings.TrimSpace(bankID) + ":" + strings.TrimSpace(threadID),
 	))
 	return "conversation:" + hex.EncodeToString(sum[:])[:32]
-}
-
-func (c hindsightHTTPClient) HealthCheck(ctx context.Context) error {
-	_, response, err := c.client.MonitoringAPI.HealthEndpointHealthGet(ctx).Execute()
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	return requireHindsightSuccess(response, "health")
-}
-
-func (c hindsightHTTPClient) RetainMemories(
-	ctx context.Context,
-	bankID string,
-	request hindsightRetainRequest,
-) error {
-	payload := hindsight.RetainRequest{
-		Async:        request.Async,
-		DocumentTags: append([]string{}, request.DocumentTags...),
-		Items:        make([]hindsight.MemoryItem, 0, len(request.Items)),
-	}
-	for _, item := range request.Items {
-		payload.Items = append(payload.Items, toHindsightSDKMemoryItem(item))
-	}
-	_, response, err := c.client.MemoryAPI.
-		RetainMemories(ctx, strings.TrimSpace(bankID)).
-		RetainRequest(payload).
-		Execute()
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	return requireHindsightSuccess(response, "retain memories")
-}
-
-func (c hindsightHTTPClient) RecallMemories(
-	ctx context.Context,
-	bankID string,
-	request hindsightRecallRequest,
-) (hindsightRecallResponse, error) {
-	payload := hindsight.NewRecallRequest(strings.TrimSpace(request.Query))
-	if strings.TrimSpace(request.Budget) != "" {
-		budget := hindsight.Budget(strings.TrimSpace(request.Budget))
-		payload.Budget = &budget
-	}
-	if request.MaxTokens > 0 {
-		maxTokens := int32(request.MaxTokens)
-		payload.MaxTokens = &maxTokens
-	}
-	trace := request.Trace
-	payload.Trace = &trace
-	payload.Tags = append([]string{}, request.Tags...)
-	if strings.TrimSpace(request.TagsMatch) != "" {
-		tagsMatch := strings.TrimSpace(request.TagsMatch)
-		payload.TagsMatch = &tagsMatch
-	}
-	payload.Types = append([]string{}, request.Types...)
-	responseBody, response, err := c.client.MemoryAPI.
-		RecallMemories(ctx, strings.TrimSpace(bankID)).
-		RecallRequest(*payload).
-		Execute()
-	if err != nil {
-		return hindsightRecallResponse{}, err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	if err := requireHindsightSuccess(response, "recall memories"); err != nil {
-		return hindsightRecallResponse{}, err
-	}
-	return fromHindsightSDKRecallResponse(responseBody), nil
-}
-
-func (c hindsightHTTPClient) DeleteDocument(ctx context.Context, bankID string, documentID string) error {
-	_, response, err := c.client.DocumentsAPI.
-		DeleteDocument(ctx, strings.TrimSpace(bankID), strings.TrimSpace(documentID)).
-		Execute()
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	return requireHindsightSuccess(response, "delete document")
-}
-
-func (c hindsightHTTPClient) DeleteBank(ctx context.Context, bankID string) error {
-	_, response, err := c.client.BanksAPI.
-		DeleteBank(ctx, strings.TrimSpace(bankID)).
-		Execute()
-	if err != nil {
-		return err
-	}
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	return requireHindsightSuccess(response, "delete bank")
-}
-
-func requireHindsightSuccess(response *http.Response, operation string) error {
-	if response == nil {
-		return fmt.Errorf("hindsight %s returned no response", operation)
-	}
-	if response.StatusCode < http.StatusOK || response.StatusCode > http.StatusAccepted {
-		return fmt.Errorf("hindsight %s failed with status %d", operation, response.StatusCode)
-	}
-	return nil
-}
-
-func toHindsightSDKMemoryItem(item hindsightMemoryItem) hindsight.MemoryItem {
-	output := hindsight.MemoryItem{
-		Content:  strings.TrimSpace(item.Content),
-		Metadata: copyStringMap(item.Metadata),
-		Tags:     append([]string{}, item.Tags...),
-	}
-	if strings.TrimSpace(item.Context) != "" {
-		output.SetContext(strings.TrimSpace(item.Context))
-	}
-	if strings.TrimSpace(item.DocumentID) != "" {
-		output.SetDocumentId(strings.TrimSpace(item.DocumentID))
-	}
-	if strings.TrimSpace(item.UpdateMode) != "" {
-		output.SetUpdateMode(strings.TrimSpace(item.UpdateMode))
-	}
-	return output
-}
-
-func fromHindsightSDKRecallResponse(response *hindsight.RecallResponse) hindsightRecallResponse {
-	if response == nil {
-		return hindsightRecallResponse{}
-	}
-	results := make([]hindsightRecallResult, 0, len(response.Results))
-	for _, item := range response.Results {
-		results = append(results, hindsightRecallResult{
-			DocumentID:    item.GetDocumentId(),
-			ID:            strings.TrimSpace(item.Id),
-			MentionedAt:   item.GetMentionedAt(),
-			Metadata:      copyStringMap(item.Metadata),
-			OccurredEnd:   item.GetOccurredEnd(),
-			OccurredStart: item.GetOccurredStart(),
-			Tags:          append([]string{}, item.Tags...),
-			Text:          strings.TrimSpace(item.Text),
-			Type:          item.GetType(),
-		})
-	}
-	return hindsightRecallResponse{Results: results}
 }
 
 func encodeHindsightConversationTurn(request memoryruntime.AppendConversationTurnRequest) (string, error) {
@@ -635,8 +598,9 @@ func EnsurePersonalMemoryRuntime(ctx context.Context, cfg config.Config) error {
 
 func hindsightConfigSummary(cfg config.Config) map[string]any {
 	return map[string]any{
-		"context_char_budget": cfg.PersonalMemoryRecallMaxChars,
+		"context_char_budget": cfg.PersonalMemoryContextCharBudget,
 		"data_plane":          "hindsight_self_host",
+		"recall_max_tokens":   cfg.PersonalMemoryRecallMaxTokens,
 		"thread_owner":        "execution-control",
 	}
 }
@@ -667,6 +631,17 @@ func copyStringMap(input map[string]string) map[string]string {
 		return nil
 	}
 	output := make(map[string]string, len(input))
+	for key, value := range input {
+		output[key] = value
+	}
+	return output
+}
+
+func copyAnyMap(input map[string]any) map[string]any {
+	if len(input) == 0 {
+		return nil
+	}
+	output := make(map[string]any, len(input))
 	for key, value := range input {
 		output[key] = value
 	}

@@ -44,6 +44,7 @@ export function buildToolExecutionContextProjection(input: {
 	authorization: ResolvedAppPrincipal["authorization"];
 	conversation: ChatConversation;
 	currentUserMessageContent: string;
+	currentUserMessageCreatedAt: string;
 	currentUserMessageId: string;
 	memory?: { enabled: boolean } | null;
 	previousToolResults?: ToolExecutionPreviousToolResultRef[];
@@ -60,6 +61,7 @@ export function buildToolExecutionContextProjection(input: {
 		conversation: buildConversationContextProjection({
 			conversation: input.conversation,
 			currentUserMessageContent: input.currentUserMessageContent,
+			currentUserMessageCreatedAt: input.currentUserMessageCreatedAt,
 			currentUserMessageId: input.currentUserMessageId,
 			previousToolResults: input.previousToolResults ?? [],
 			session,
@@ -72,6 +74,7 @@ export function buildToolExecutionContextProjection(input: {
 function buildConversationContextProjection(input: {
 	conversation: ChatConversation;
 	currentUserMessageContent: string;
+	currentUserMessageCreatedAt: string;
 	currentUserMessageId: string;
 	previousToolResults: ToolExecutionPreviousToolResultRef[];
 	session: ReturnType<typeof buildExecutionSessionProjection>;
@@ -113,6 +116,7 @@ function buildConversationContextProjection(input: {
 		currentUserMessage: {
 			role: "user",
 			content: input.currentUserMessageContent,
+			createdAt: input.currentUserMessageCreatedAt,
 		},
 		memoryRecall: {
 			gateField: "context.memory.enabled",

@@ -150,6 +150,46 @@ func (s *Server) handleProfileMemoryRecall(response http.ResponseWriter, request
 	writeJSON(response, http.StatusAccepted, bodyOut)
 }
 
+func (s *Server) handleProfileMemoryOperationStatus(response http.ResponseWriter, request *http.Request) {
+	if !s.internalWorkerAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Internal worker authorization failed.", false)
+		return
+	}
+	body, ok := s.readJSONBody(response, request)
+	if !ok {
+		return
+	}
+	var input memoryruntime.PersonalMemoryOperationStatusRequest
+	if err := json.Unmarshal(body, &input); err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", "Profile memory operation status request is invalid.", false)
+		return
+	}
+	if err := memoryruntime.ValidatePersonalMemoryOperationStatusRequest(input); err != nil {
+		setOutcome(response, "invalid_request")
+		writeError(response, http.StatusBadRequest, "invalid_request", err.Error(), false)
+		return
+	}
+	executor, ok := s.profileMemoryExecutorForCommand(response)
+	if !ok {
+		return
+	}
+	startedAt := time.Now().UTC()
+	ctx, cancel := contextWithPersonalMemoryTimeout(s, request)
+	defer cancel()
+	result, err := executor.OperationStatus(ctx, input)
+	if err != nil {
+		s.recordPersonalMemoryOperation("operation_status", "failed", "profile_memory_operation_status_failed", startedAt, 0, 0)
+		setOutcome(response, "profile_memory_operation_status_failed")
+		writeError(response, http.StatusBadGateway, "profile_memory_operation_status_failed", err.Error(), true)
+		return
+	}
+	s.recordPersonalMemoryOperation("operation_status", result.Status, "none", startedAt, 1, 0)
+	setOutcome(response, "profile_memory_operation_status")
+	writeJSON(response, http.StatusOK, result)
+}
+
 func (s *Server) handleProfileMemoryItemDisable(response http.ResponseWriter, request *http.Request) {
 	if !s.internalWorkerAuthorized(request) {
 		setOutcome(response, "unauthorized")

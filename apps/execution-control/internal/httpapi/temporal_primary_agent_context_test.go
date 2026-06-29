@@ -25,11 +25,15 @@ func TestExecutePrimaryAgentActivitySendsFinalModelContextFromConversationEnvelo
 		ragHandoffForDurableWorkerTest("那大一能不能申请？"),
 	)
 	setExecutionPayloadConversationContextForRunTest(t, store, "run-primary-agent-context", map[string]any{
-		"schema_version":          "conversation_context.v1",
-		"conversation_id":         "conv-primary-agent-context",
-		"user_message_id":         "msg_user_003",
-		"parent_message_id":       "msg_assistant_002",
-		"current_user_message":    map[string]any{"role": "user", "content": "那大一能不能申请？"},
+		"schema_version":    "conversation_context.v1",
+		"conversation_id":   "conv-primary-agent-context",
+		"user_message_id":   "msg_user_003",
+		"parent_message_id": "msg_assistant_002",
+		"current_user_message": map[string]any{
+			"role":       "user",
+			"content":    "那大一能不能申请？",
+			"created_at": "2026-06-12T10:31:00Z",
+		},
 		"previous_answer_summary": "上一轮围绕转专业申请条件回答。",
 		"previous_evidence_refs": []any{
 			map[string]any{

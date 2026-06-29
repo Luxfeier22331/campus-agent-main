@@ -294,7 +294,7 @@ func TestParseAnswerRequestProjectsTrustedWorkerConversationContext(t *testing.T
 					"conversation_id":"conv_transfer_001",
 					"user_message_id":"msg_user_003",
 					"parent_message_id":"msg_assistant_002",
-					"current_user_message":{"role":"user","content":"那大一能不能申请？"},
+					"current_user_message":{"role":"user","content":"那大一能不能申请？","created_at":"2026-06-21T00:00:12Z"},
 					"recent_turns":[
 						{"role":"user","message_id":"msg_user_001","content":"转专业条件是什么？","created_at":"2026-06-21T00:00:00Z"},
 						{"role":"assistant","message_id":"msg_assistant_002","summary":"上一轮回答的是转专业申请条件。","created_at":"2026-06-21T00:00:08Z"}
@@ -393,7 +393,7 @@ func TestParseAnswerRequestRejectsConversationContextIdentityMismatch(t *testing
 					"schema_version":"conversation_context.v1",
 					"conversation_id":"conv_inner",
 					"user_message_id":"msg_user_003",
-					"current_user_message":{"role":"user","content":"那大一能不能申请？"},
+					"current_user_message":{"role":"user","content":"那大一能不能申请？","created_at":"2026-06-21T00:00:12Z"},
 					"recent_turns":[],
 					"previous_evidence_refs":[],
 					"previous_tool_results":[],

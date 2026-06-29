@@ -153,7 +153,8 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
     "runtime": "hindsight",
     "timeout_seconds": 7,
     "recall_limit": 4,
-    "recall_max_chars": 900
+    "recall_max_tokens": 900,
+    "context_char_budget": 900
   },
   "worker_profiles": {
     "activity-knowledge": {
@@ -209,7 +210,8 @@ func TestLoadFromEnvReadsRuntimeConfigProfile(t *testing.T) {
 		cfg.PersonalMemoryRuntime != "hindsight" ||
 		cfg.PersonalMemoryTimeoutSeconds != 7 ||
 		cfg.PersonalMemoryRecallLimit != 4 ||
-		cfg.PersonalMemoryRecallMaxChars != 900 ||
+		cfg.PersonalMemoryRecallMaxTokens != 900 ||
+		cfg.PersonalMemoryContextCharBudget != 900 ||
 		cfg.WorkerProfiles["activity-knowledge"].ActivitySlots != 3 {
 		t.Fatalf("unexpected config from runtime profile: %#v", cfg)
 	}
@@ -236,6 +238,8 @@ func TestLoadFromEnvRejectsRuntimeProfileOwnedPersonalMemoryEnv(t *testing.T) {
 		{"PERSONAL_MEMORY_TIMEOUT_SECONDS", "10"},
 		{"PERSONAL_MEMORY_RECALL_LIMIT", "8"},
 		{"PERSONAL_MEMORY_RECALL_MAX_CHARS", "2500"},
+		{"PERSONAL_MEMORY_RECALL_MAX_TOKENS", "2500"},
+		{"PERSONAL_MEMORY_CONTEXT_CHAR_BUDGET", "2500"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(tc.name, tc.value)

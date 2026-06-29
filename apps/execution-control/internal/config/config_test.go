@@ -192,7 +192,8 @@ func TestFromEnvUsesExecutionDefaults(t *testing.T) {
 		cfg.PersonalMemoryOwnerSalt != "" ||
 		cfg.PersonalMemoryTimeoutSeconds != 10 ||
 		cfg.PersonalMemoryRecallLimit != 8 ||
-		cfg.PersonalMemoryRecallMaxChars != 2500 ||
+		cfg.PersonalMemoryRecallMaxTokens != 2500 ||
+		cfg.PersonalMemoryContextCharBudget != 2500 ||
 		cfg.EmbeddingDimensions != 0 {
 		t.Fatalf("unexpected local personal memory defaults: %#v", cfg)
 	}

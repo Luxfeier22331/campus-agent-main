@@ -70,10 +70,11 @@ type runtimeConfigProfileRAGSynthesisGeneration struct {
 }
 
 type runtimeConfigProfileMemory struct {
-	Runtime        *string  `json:"runtime,omitempty"`
-	TimeoutSeconds *float64 `json:"timeout_seconds,omitempty"`
-	RecallLimit    *int     `json:"recall_limit,omitempty"`
-	RecallMaxChars *int     `json:"recall_max_chars,omitempty"`
+	Runtime           *string  `json:"runtime,omitempty"`
+	TimeoutSeconds    *float64 `json:"timeout_seconds,omitempty"`
+	RecallLimit       *int     `json:"recall_limit,omitempty"`
+	RecallMaxTokens   *int     `json:"recall_max_tokens,omitempty"`
+	ContextCharBudget *int     `json:"context_char_budget,omitempty"`
 }
 
 type runtimeProfileWorker struct {
@@ -292,7 +293,8 @@ func validateRuntimeConfigProfileMemoryCompleteness(value *runtimeConfigProfileM
 		value *int
 	}{
 		{"recall_limit", value.RecallLimit},
-		{"recall_max_chars", value.RecallMaxChars},
+		{"recall_max_tokens", value.RecallMaxTokens},
+		{"context_char_budget", value.ContextCharBudget},
 	}
 	for _, item := range requiredInts {
 		if item.value == nil {
@@ -357,7 +359,8 @@ func applyRuntimeConfigProfileValues(values envValues, profile runtimeConfigProf
 		applyString(&values.PersonalMemoryRuntime, profile.PersonalMemory.Runtime)
 		applyFloat64(&values.PersonalMemoryTimeoutSeconds, profile.PersonalMemory.TimeoutSeconds)
 		applyInt(&values.PersonalMemoryRecallLimit, profile.PersonalMemory.RecallLimit)
-		applyInt(&values.PersonalMemoryRecallMaxChars, profile.PersonalMemory.RecallMaxChars)
+		applyInt(&values.PersonalMemoryRecallMaxTokens, profile.PersonalMemory.RecallMaxTokens)
+		applyInt(&values.PersonalMemoryContextCharBudget, profile.PersonalMemory.ContextCharBudget)
 	}
 	return values
 }
@@ -458,6 +461,8 @@ func rejectRuntimeProfileOwnedEnvSettings() error {
 		"PERSONAL_MEMORY_TIMEOUT_SECONDS",
 		"PERSONAL_MEMORY_RECALL_LIMIT",
 		"PERSONAL_MEMORY_RECALL_MAX_CHARS",
+		"PERSONAL_MEMORY_RECALL_MAX_TOKENS",
+		"PERSONAL_MEMORY_CONTEXT_CHAR_BUDGET",
 	}
 	for _, name := range retired {
 		if strings.TrimSpace(os.Getenv(name)) != "" {

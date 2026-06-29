@@ -55,8 +55,10 @@ PERSONAL_MEMORY_OWNER_SALT
 ```
 
 `personal_memory.runtime`、`personal_memory.timeout_seconds`、
-`personal_memory.recall_limit` 与 `personal_memory.recall_max_chars` 由
-execution-control runtime profile 管理，不再通过 env 配置。
+`personal_memory.recall_limit`、`personal_memory.recall_max_tokens` 与
+`personal_memory.context_char_budget` 由 execution-control runtime profile 管理，不再通过
+env 配置。`recall_max_tokens` 只传给 Hindsight recall `max_tokens`；
+`context_char_budget` 只限制本仓库投给 agent / RAG 的本地 context block。
 
 Hindsight API 使用 `HINDSIGHT_API_TENANT_EXTENSION` /
 `HINDSIGHT_API_TENANT_API_KEY` 做 service-to-service auth；`PERSONAL_MEMORY_API_SECRET`
@@ -146,8 +148,12 @@ tenant_id
 user_id
 user_goal
 requested_tool
+query_timestamp
 session_slots
 ```
+
+`query_timestamp` 必须来自 app-api accepted user message 的
+`context.conversation.current_user_message.created_at`，不能在 execution-control 内用当前时间猜测。
 
 Hindsight recall 参数由 execution-control 固定治理：
 
@@ -157,9 +163,14 @@ trace = false
 tags = scope:private
 tags_match = all_strict
 types = experience, world
-max_tokens = personal_memory.recall_max_chars
+max_tokens = personal_memory.recall_max_tokens
 result_limit = personal_memory.recall_limit
 ```
+
+每次 recall 前 execution-control 必须通过 Hindsight bank create/update 语义确保
+scoped bank 具备 student-assistant retain mission、custom retain instructions、
+custom extraction mode，并关闭 observations。observations / memory influence tracing
+不作为 v1 产品链路能力。
 
 recall result 只投影 sanitized context：
 
@@ -233,6 +244,11 @@ auto append 默认只把用户消息作为 Hindsight extractable memory content�
 只作为 finalization projection，不进入 Hindsight graph extraction。显式 profile memory
 仍由用户产品命令写入。
 
+completed-turn retain item 必须带 `timestamp =
+context.conversation.current_user_message.created_at`。显式 profile memory retain item
+必须带 `timestamp = updated_at`。Hindsight async retain response 必须返回 operation id；
+缺失 operation id 视为 append failure，不得把未追踪的 async side effect 标记为 accepted。
+
 append projection 只记录：
 
 ```text
@@ -252,6 +268,11 @@ operation id 属于 internal runtime ref，不得进入 browser-facing profile m
 response 或 model-visible context；sanitized projection 只允许保留 product
 `thread_id`、hash、count、status 和 bounded compact text。
 
+operation id 可保存在 execution-control run metadata 的 `temporal_memory.append_operation`
+中，用于 worker/internal 诊断。`/internal/memory/personal/operations:status` 只接受 worker
+auth，按 tenant/user 派生 bank id，并以 Hindsight operations API 查询状态且 `include_payload=false`；
+该 endpoint 不返回 Hindsight task payload、raw retain payload 或 transcript。
+
 Memory activities 使用独立 Temporal activity policy：`StartToCloseTimeout` 来自
 `personal_memory.timeout_seconds`，默认 90 秒；`HeartbeatTimeout` 为 30 秒；外部 Hindsight
 I/O 前后必须 heartbeat。配置缺失、请求 invalid、projection invalid 等 deterministic
@@ -268,9 +289,10 @@ campus_execution_control_personal_memory_selected_chars_count{operation}
 
 这些指标不得包含 user id、tenant id、run id、conversation id、memory id 或 raw text。
 
-`/internal/memory/personal/turns:append` 与 `/internal/memory/personal/graph:recall`
-只服务 internal worker / runtime smoke。它们用于 Hindsight live gate 直接验证 append、recall
-和 user isolation，不是 browser-facing API，也不替代 Temporal production workflow。
+`/internal/memory/personal/turns:append`、`/internal/memory/personal/graph:recall`
+与 `/internal/memory/personal/operations:status` 只服务 internal worker / runtime
+smoke。它们用于 Hindsight live gate 直接验证 append、recall、async operation status 和
+user isolation，不是 browser-facing API，也不替代 Temporal production workflow。
 
 ### Explicit Profile Memory
 
@@ -343,7 +365,8 @@ Hindsight posture：
   负责生成并持久化该值。
 - `PERSONAL_MEMORY_BASE_URL`、`PERSONAL_MEMORY_API_SECRET` 与
   `PERSONAL_MEMORY_OWNER_SALT` 是 deployment projection，不是开发者手工配置项；
-  `runtime`、timeout 与 recall limits 由 execution-control runtime profile 管理。
+  `runtime`、timeout、recall token budget 与 context char budget 由
+  execution-control runtime profile 管理。
 - Hindsight LLM / embedding provider env 来自本地 provider projection artifact 中的
   `hindsight_llm` 与 `hindsight_embedding`；不得从 root `LLM_*` / `EMBEDDING_*`
   serving fallback 隐式继承，也不得在热路径回读 app-api。
@@ -352,6 +375,8 @@ Hindsight posture：
   instructions 形态，不采纳 direct Hindsight tools / MCP exposure：Hindsight API
   credential、bank id、document id、retain / recall tool surface 与 raw payload 不进入
   model-visible tool catalog、browser response、app-api 或 `packages/contracts`。
+  如果 Hindsight deployment 暴露 MCP endpoint，它必须停留在 service 内网 / ops-only
+  debug boundary，不得被 app-api、campus-web、agent-runtime 或 OpenAI Agents SDK 注册为工具。
 - `activity-agent` / `activity-knowledge` 不要求 Hindsight 配置；它们消费的是
   bounded memory context，不拥有 memory substrate。
 

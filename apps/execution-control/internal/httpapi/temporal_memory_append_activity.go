@@ -77,6 +77,23 @@ func (s *Server) AppendConversationMemoryActivity(
 		return output, projectErr
 	}
 	recordTemporalActivityHeartbeat(ctx, "memory.append.project_result")
+	if err := s.replaceTemporalMemoryMetadata(ctx, run, func(metadata map[string]any) {
+		metadata["append_operation"] = map[string]any{
+			"operation_id":   result.HindsightOperationID,
+			"operation_ids":  append([]string{}, result.HindsightOperationIDs...),
+			"operation_type": "retain",
+			"payload_sha256": result.PayloadSHA256,
+			"run_id":         run.RunID,
+			"status":         result.Status,
+			"thread_id":      result.ThreadID,
+		}
+	}); err != nil {
+		output, projectErr := s.projectMemoryAppendFailure(ctx, run, "projection_failed", err)
+		if projectErr == nil {
+			s.recordPersonalMemoryOperation("append", "failed", "projection_failed", startedAt, 0, 0)
+		}
+		return output, projectErr
+	}
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
 		PayloadSHA256:        result.PayloadSHA256,
@@ -157,6 +174,9 @@ func memoryAppendRequestForRun(
 	if userMessage == "" {
 		return memoryruntime.AppendConversationTurnRequest{}, fmt.Errorf("memory append user_goal is required")
 	}
+	userMessageCreatedAt := strings.TrimSpace(optionalStringFromAny(
+		nestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
+	))
 	assistantMessage, err := finalAnswerTextForRun(ctx, store, run)
 	if err != nil {
 		return memoryruntime.AppendConversationTurnRequest{}, err
@@ -175,6 +195,7 @@ func memoryAppendRequestForRun(
 		ThreadID:                run.ConversationID,
 		UserID:                  userID,
 		UserMessage:             userMessage,
+		UserMessageCreatedAt:    userMessageCreatedAt,
 	}
 	if err := memoryruntime.ValidateAppendConversationTurnRequest(request); err != nil {
 		return memoryruntime.AppendConversationTurnRequest{}, err

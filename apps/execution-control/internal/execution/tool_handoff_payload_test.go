@@ -61,7 +61,7 @@ func TestToolHandoffPayloadProjectsWorkflowContextWithoutRawContextLeak(t *testi
 				"schema_version":"conversation_context.v1",
 				"conversation_id":"conv-001",
 				"user_message_id":"msg-user-002",
-				"current_user_message":{"role":"user","content":"这个依据哪条？"},
+				"current_user_message":{"role":"user","content":"这个依据哪条？","created_at":"2026-06-16T10:00:00Z"},
 				"recent_turns":[],
 				"previous_evidence_refs":[],
 				"previous_tool_results":[],

@@ -44,6 +44,7 @@ export function toToolExecutionContext(context: ToolExecutionContextProjection) 
 						current_user_message: {
 							role: context.conversation.currentUserMessage.role,
 							content: context.conversation.currentUserMessage.content,
+							created_at: context.conversation.currentUserMessage.createdAt,
 						},
 						recent_turns: context.conversation.recentTurns.map((turn) => ({
 							role: turn.role,

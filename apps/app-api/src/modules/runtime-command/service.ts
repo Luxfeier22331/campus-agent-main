@@ -342,6 +342,7 @@ export function buildChatCommandService(
 				authorization: context.input.principal.authorization,
 				conversation: context.conversation,
 				currentUserMessageContent: context.validatedPayload.prompt,
+				currentUserMessageCreatedAt: context.acceptedAt,
 				currentUserMessageId: context.userMessageId,
 				memory: profileMemorySummary ? { enabled: profileMemorySummary.enabled } : null,
 				previousToolResults,

@@ -108,7 +108,7 @@ func parseCurrentUserMessage(raw json.RawMessage) error {
 	}
 	if err := assertSupportedFields(
 		rawMessage,
-		[]string{"role", "content"},
+		[]string{"role", "content", "created_at"},
 		"context.conversation.current_user_message",
 		"unsupported current user message fields are not allowed: %s",
 	); err != nil {
@@ -124,6 +124,13 @@ func parseCurrentUserMessage(raw json.RawMessage) error {
 	_, err = requireString(
 		rawMessage["content"],
 		"context.conversation.current_user_message.content",
+	)
+	if err != nil {
+		return err
+	}
+	_, err = requireString(
+		rawMessage["created_at"],
+		"context.conversation.current_user_message.created_at",
 	)
 	return err
 }

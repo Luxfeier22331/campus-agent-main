@@ -68,7 +68,7 @@ export interface ConversationContextWire {
 	conversation_id: string;
 	user_message_id: string;
 	parent_message_id?: string | null;
-	current_user_message: { role: "user"; content: string };
+	current_user_message: { role: "user"; content: string; created_at: string };
 	recent_turns: SafeRecord[];
 	previous_answer_summary?: string | null;
 	previous_evidence_refs: SafeRecord[];

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 )
 
 var ErrInvalidMemoryProjection = errors.New("invalid memory runtime projection")
@@ -14,13 +15,14 @@ var ErrInvalidMemoryProjection = errors.New("invalid memory runtime projection")
 const MaxCompactTextBytes = 1200
 
 type RecallRequest struct {
-	RequestedTool string            `json:"requested_tool"`
-	RunID         string            `json:"run_id"`
-	SessionSlots  map[string]string `json:"session_slots,omitempty"`
-	TenantID      string            `json:"tenant_id"`
-	ThreadID      string            `json:"thread_id"`
-	UserGoal      string            `json:"user_goal"`
-	UserID        string            `json:"user_id"`
+	RequestedTool  string            `json:"requested_tool"`
+	QueryTimestamp string            `json:"query_timestamp"`
+	RunID          string            `json:"run_id"`
+	SessionSlots   map[string]string `json:"session_slots,omitempty"`
+	TenantID       string            `json:"tenant_id"`
+	ThreadID       string            `json:"thread_id"`
+	UserGoal       string            `json:"user_goal"`
+	UserID         string            `json:"user_id"`
 }
 
 type ContextItem struct {
@@ -63,17 +65,20 @@ type AppendConversationTurnRequest struct {
 	ThreadID                string `json:"thread_id"`
 	UserID                  string `json:"user_id"`
 	UserMessage             string `json:"user_message"`
+	UserMessageCreatedAt    string `json:"user_message_created_at"`
 }
 
 type AppendConversationTurnResult struct {
-	AppendedMessageCount int      `json:"appended_message_count"`
-	MessageUUIDs         []string `json:"message_uuids,omitempty"`
-	PayloadSHA256        string   `json:"payload_sha256"`
-	RunID                string   `json:"run_id"`
-	SchemaVersion        string   `json:"schema_version"`
-	Status               string   `json:"status"`
-	ThreadID             string   `json:"thread_id"`
-	UserID               string   `json:"user_id"`
+	AppendedMessageCount  int      `json:"appended_message_count"`
+	HindsightOperationID  string   `json:"-"`
+	HindsightOperationIDs []string `json:"-"`
+	MessageUUIDs          []string `json:"message_uuids,omitempty"`
+	PayloadSHA256         string   `json:"payload_sha256"`
+	RunID                 string   `json:"run_id"`
+	SchemaVersion         string   `json:"schema_version"`
+	Status                string   `json:"status"`
+	ThreadID              string   `json:"thread_id"`
+	UserID                string   `json:"user_id"`
 }
 
 type UpsertProfileMemoryItemRequest struct {
@@ -97,6 +102,37 @@ type DisableProfileMemoryOwnerRequest struct {
 	TenantID  string `json:"tenant_id,omitempty"`
 	UpdatedAt string `json:"updated_at"`
 	UserID    string `json:"user_id"`
+}
+
+type PersonalMemoryOperationStatusRequest struct {
+	OperationID string `json:"operation_id"`
+	TenantID    string `json:"tenant_id,omitempty"`
+	UserID      string `json:"user_id"`
+}
+
+type PersonalMemoryOperationStatusResult struct {
+	ChildOperations []PersonalMemoryChildOperationStatus `json:"child_operations,omitempty"`
+	CompletedAt     string                               `json:"completed_at,omitempty"`
+	CreatedAt       string                               `json:"created_at,omitempty"`
+	ErrorMessage    string                               `json:"error_message,omitempty"`
+	NextRetryAt     string                               `json:"next_retry_at,omitempty"`
+	OperationID     string                               `json:"operation_id"`
+	OperationType   string                               `json:"operation_type,omitempty"`
+	Progress        map[string]any                       `json:"progress,omitempty"`
+	ResultMetadata  map[string]any                       `json:"result_metadata,omitempty"`
+	RetryCount      *int                                 `json:"retry_count,omitempty"`
+	SchemaVersion   string                               `json:"schema_version"`
+	Status          string                               `json:"status"`
+	UpdatedAt       string                               `json:"updated_at,omitempty"`
+	UserID          string                               `json:"user_id"`
+}
+
+type PersonalMemoryChildOperationStatus struct {
+	ErrorMessage  string `json:"error_message,omitempty"`
+	ItemsCount    *int   `json:"items_count,omitempty"`
+	OperationID   string `json:"operation_id"`
+	Status        string `json:"status"`
+	SubBatchIndex *int   `json:"sub_batch_index,omitempty"`
 }
 
 type ProfileMemoryItemResult struct {
@@ -133,21 +169,28 @@ func ValidateRecallRequest(request RecallRequest) error {
 	if strings.TrimSpace(request.RequestedTool) == "" {
 		return fmt.Errorf("%w: requested_tool is required", ErrInvalidMemoryProjection)
 	}
+	if err := validateRFC3339Timestamp("query_timestamp", request.QueryTimestamp); err != nil {
+		return err
+	}
 	return nil
 }
 
 func ValidateAppendConversationTurnRequest(request AppendConversationTurnRequest) error {
 	required := map[string]string{
-		"assistant_message": request.AssistantMessage,
-		"run_id":            request.RunID,
-		"thread_id":         request.ThreadID,
-		"user_id":           request.UserID,
-		"user_message":      request.UserMessage,
+		"assistant_message":       request.AssistantMessage,
+		"run_id":                  request.RunID,
+		"thread_id":               request.ThreadID,
+		"user_id":                 request.UserID,
+		"user_message":            request.UserMessage,
+		"user_message_created_at": request.UserMessageCreatedAt,
 	}
 	for field, value := range required {
 		if strings.TrimSpace(value) == "" {
 			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
 		}
+	}
+	if err := validateRFC3339Timestamp("user_message_created_at", request.UserMessageCreatedAt); err != nil {
+		return err
 	}
 	return nil
 }
@@ -167,6 +210,19 @@ func ValidateUpsertProfileMemoryItemRequest(request UpsertProfileMemoryItemReque
 	}
 	if len([]byte(request.CompactText)) > MaxCompactTextBytes {
 		return fmt.Errorf("%w: compact_text exceeds limit", ErrInvalidMemoryProjection)
+	}
+	if err := validateRFC3339Timestamp("updated_at", request.UpdatedAt); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validateRFC3339Timestamp(field string, value string) error {
+	if strings.TrimSpace(value) == "" {
+		return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+	}
+	if _, err := time.Parse(time.RFC3339, strings.TrimSpace(value)); err != nil {
+		return fmt.Errorf("%w: %s must be RFC3339", ErrInvalidMemoryProjection, field)
 	}
 	return nil
 }
@@ -190,6 +246,21 @@ func ValidateDisableProfileMemoryOwnerRequest(request DisableProfileMemoryOwnerR
 	required := map[string]string{
 		"updated_at": request.UpdatedAt,
 		"user_id":    request.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	return nil
+}
+
+func ValidatePersonalMemoryOperationStatusRequest(
+	request PersonalMemoryOperationStatusRequest,
+) error {
+	required := map[string]string{
+		"operation_id": request.OperationID,
+		"user_id":      request.UserID,
 	}
 	for field, value := range required {
 		if strings.TrimSpace(value) == "" {
@@ -305,6 +376,33 @@ func FinalizeProfileMemoryOwnerDisableResult(
 		return ProfileMemoryOwnerDisableResult{}, err
 	}
 	result.PayloadSHA256 = hash
+	return result, nil
+}
+
+func FinalizePersonalMemoryOperationStatusResult(
+	result PersonalMemoryOperationStatusResult,
+) (PersonalMemoryOperationStatusResult, error) {
+	if strings.TrimSpace(result.SchemaVersion) == "" {
+		result.SchemaVersion = "memory_operation_status_result_v1"
+	}
+	if strings.TrimSpace(result.OperationID) == "" {
+		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
+			"%w: operation_id is required",
+			ErrInvalidMemoryProjection,
+		)
+	}
+	if strings.TrimSpace(result.Status) == "" {
+		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
+			"%w: status is required",
+			ErrInvalidMemoryProjection,
+		)
+	}
+	if strings.TrimSpace(result.UserID) == "" {
+		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
+			"%w: user_id is required",
+			ErrInvalidMemoryProjection,
+		)
+	}
 	return result, nil
 }
 

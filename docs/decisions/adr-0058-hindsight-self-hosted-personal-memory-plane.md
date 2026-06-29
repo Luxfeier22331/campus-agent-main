@@ -55,9 +55,20 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
 - `context.memory.enabled` gates both recall and append. Missing or false gates
   skip Hindsight calls and project skipped `memory.recall` / `memory.append`
   steps.
+- Recall uses `query_timestamp` from app-api's accepted user message
+  `context.conversation.current_user_message.created_at`. Completed-turn retain
+  uses that same user-message timestamp, and explicit profile retain uses the
+  profile command `updated_at`.
+- Hindsight bank create/update is executed before recall, completed-turn retain
+  and explicit profile retain so the scoped bank has the student-assistant retain
+  mission, custom retain instructions, custom extraction mode and observations
+  disabled.
 - Completed-turn append uses Hindsight async retain and returns `accepted` after
   Hindsight accepts the write request. It must not claim `completed` graph
   materialization.
+- Async retain must return an operation id. The id is internal runtime metadata
+  only; execution-control may query it through an internal worker-auth operation
+  status endpoint with Hindsight `include_payload=false`.
 - Completed-turn append only sends the user message as Hindsight extractable
   memory content by default. Assistant answers remain finalization projection,
   not graph-extraction input.
@@ -111,8 +122,10 @@ PERSONAL_MEMORY_OWNER_SALT
 ```
 
 `personal_memory.runtime`、`personal_memory.timeout_seconds`、
-`personal_memory.recall_limit` 与 `personal_memory.recall_max_chars` 由
-execution-control runtime profile 管理。
+`personal_memory.recall_limit`、`personal_memory.recall_max_tokens` 与
+`personal_memory.context_char_budget` 由 execution-control runtime profile 管理。
+`recall_max_tokens` is the Hindsight recall token budget; `context_char_budget`
+is the local bounded context block budget.
 
 `activity-knowledge` does not require Hindsight config; it consumes bounded memory
 context after recall.
@@ -123,6 +136,8 @@ integrate with those internals directly.
 Hindsight bank ids, document ids, async operation ids, raw recall/retain payloads
 and Hindsight API credentials must not appear in model-visible tools,
 browser-facing responses, app-api product contracts or `packages/contracts`.
+The internal operation-status path must not request or return Hindsight task
+payloads.
 
 Hindsight LLM / embedding provider configuration is governed by app-api
 provider-config active profiles and projected through the local

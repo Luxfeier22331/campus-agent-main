@@ -233,6 +233,11 @@ func createMemoryAppendRunForTest(
 	t.Helper()
 	contextProjection := map[string]any{
 		"actor": map[string]any{"user_id": "user-executor"},
+		"conversation": map[string]any{
+			"current_user_message": map[string]any{
+				"created_at": now.Format(time.RFC3339),
+			},
+		},
 	}
 	if memoryEnabled != nil {
 		contextProjection["memory"] = map[string]any{"enabled": *memoryEnabled}

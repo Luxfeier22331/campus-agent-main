@@ -107,6 +107,7 @@ export interface ToolExecutionConversationContext {
 	conversationId: string;
 	currentUserMessage: {
 		content: string;
+		createdAt: string;
 		role: "user";
 	};
 	memoryRecall: {

@@ -129,7 +129,8 @@ func TestProfileMemoryAppendEndpointAddsCompletedTurn(t *testing.T) {
 			"tenant_id":"tenant-main",
 			"thread_id":"conv-hindsight-live-smoke",
 			"user_id":"user_01HQ",
-			"user_message":"我主要关注丰台校区培养方案"
+			"user_message":"我主要关注丰台校区培养方案",
+			"user_message_created_at":"2026-06-16T10:00:00Z"
 		}`),
 	)
 	request.Header.Set("x-worker-origin-auth", "secret")
@@ -168,6 +169,7 @@ func TestProfileMemoryRecallEndpointRecallsHindsightMemory(t *testing.T) {
 			"tenant_id":"tenant-main",
 			"thread_id":"conv-hindsight-live-recall",
 			"user_goal":"丰台校区培养方案怎么查？",
+			"query_timestamp":"2026-06-16T10:00:00Z",
 			"user_id":"user_01HQ"
 		}`),
 	)
@@ -189,6 +191,46 @@ func TestProfileMemoryRecallEndpointRecallsHindsightMemory(t *testing.T) {
 		executor.seenRequest.UserID != "user_01HQ" ||
 		executor.seenRequest.UserGoal != "丰台校区培养方案怎么查？" {
 		t.Fatalf("seen recall = %#v", executor.seenRequest)
+	}
+}
+
+func TestProfileMemoryOperationStatusEndpointReturnsInternalStatusOnly(t *testing.T) {
+	executor := &fakePersonalMemoryExecutor{}
+	server := newWorkerAuthServerForTest()
+	server.personalMemoryExecutor = executor
+	server.personalMemoryErr = nil
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/memory/personal/operations:status",
+		strings.NewReader(`{
+			"operation_id":"op-test-retain",
+			"tenant_id":"tenant-main",
+			"user_id":"user_01HQ"
+		}`),
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+	response := httptest.NewRecorder()
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s, want 200", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["schema_version"] != "memory_operation_status_result_v1" ||
+		body["operation_id"] != "op-test-retain" ||
+		body["operation_type"] != "retain" ||
+		body["status"] != "completed" ||
+		body["user_id"] != "user_01HQ" {
+		t.Fatalf("body = %#v", body)
+	}
+	if _, ok := body["task_payload"]; ok {
+		t.Fatalf("operation status leaked raw task payload: %#v", body)
+	}
+	if executor.seenOperationStatus.OperationID != "op-test-retain" ||
+		executor.seenOperationStatus.TenantID != "tenant-main" ||
+		executor.seenOperationStatus.UserID != "user_01HQ" {
+		t.Fatalf("seen operation status = %#v", executor.seenOperationStatus)
 	}
 }
 

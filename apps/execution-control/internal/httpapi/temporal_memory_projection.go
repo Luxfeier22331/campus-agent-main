@@ -25,6 +25,9 @@ func memoryRecallRequestForRun(
 	if userGoal == "" {
 		return memoryruntime.RecallRequest{}, errors.New("memory recall user_goal is required")
 	}
+	queryTimestamp := strings.TrimSpace(optionalStringFromAny(
+		nestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
+	))
 	tool := strings.TrimSpace(requestedTool)
 	if tool == "" {
 		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
@@ -38,13 +41,14 @@ func memoryRecallRequestForRun(
 		run.OwnerUserID,
 	)
 	request := memoryruntime.RecallRequest{
-		RequestedTool: tool,
-		RunID:         run.RunID,
-		SessionSlots:  memorySessionSlotsFromPayload(payload),
-		TenantID:      firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
-		ThreadID:      run.ConversationID,
-		UserGoal:      userGoal,
-		UserID:        userID,
+		RequestedTool:  tool,
+		QueryTimestamp: queryTimestamp,
+		RunID:          run.RunID,
+		SessionSlots:   memorySessionSlotsFromPayload(payload),
+		TenantID:       firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),
+		ThreadID:       run.ConversationID,
+		UserGoal:       userGoal,
+		UserID:         userID,
 	}
 	if err := memoryruntime.ValidateRecallRequest(request); err != nil {
 		return memoryruntime.RecallRequest{}, err

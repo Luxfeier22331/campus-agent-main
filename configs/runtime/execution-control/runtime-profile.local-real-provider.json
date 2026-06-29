@@ -47,6 +47,7 @@
 		"runtime": "hindsight",
 		"timeout_seconds": 90,
 		"recall_limit": 8,
-		"recall_max_chars": 2500
+		"recall_max_tokens": 2500,
+		"context_char_budget": 2500
 	}
 }

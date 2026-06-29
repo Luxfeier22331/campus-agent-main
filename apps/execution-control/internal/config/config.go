@@ -105,7 +105,8 @@ type Config struct {
 	PersonalMemoryOwnerSalt             string
 	PersonalMemoryTimeoutSeconds        float64
 	PersonalMemoryRecallLimit           int
-	PersonalMemoryRecallMaxChars        int
+	PersonalMemoryRecallMaxTokens       int
+	PersonalMemoryContextCharBudget     int
 	EmbeddingProvider                   string
 	EmbeddingBaseURL                    string
 	EmbeddingAPIKey                     string
@@ -201,7 +202,8 @@ type envValues struct {
 	PersonalMemoryOwnerSalt             string `env:"PERSONAL_MEMORY_OWNER_SALT"`
 	PersonalMemoryTimeoutSeconds        float64
 	PersonalMemoryRecallLimit           int
-	PersonalMemoryRecallMaxChars        int
+	PersonalMemoryRecallMaxTokens       int
+	PersonalMemoryContextCharBudget     int
 	EmbeddingProvider                   string `env:"EMBEDDING_PROVIDER"`
 	EmbeddingBaseURL                    string `env:"EMBEDDING_BASE_URL"`
 	EmbeddingAPIKey                     string `env:"EMBEDDING_API_KEY"`
@@ -400,7 +402,8 @@ func LoadFromEnvForRole(runtimeRole string) (Config, error) {
 		PersonalMemoryOwnerSalt:             strings.TrimSpace(values.PersonalMemoryOwnerSalt),
 		PersonalMemoryTimeoutSeconds:        values.PersonalMemoryTimeoutSeconds,
 		PersonalMemoryRecallLimit:           values.PersonalMemoryRecallLimit,
-		PersonalMemoryRecallMaxChars:        values.PersonalMemoryRecallMaxChars,
+		PersonalMemoryRecallMaxTokens:       values.PersonalMemoryRecallMaxTokens,
+		PersonalMemoryContextCharBudget:     values.PersonalMemoryContextCharBudget,
 		EmbeddingProvider:                   strings.TrimSpace(values.EmbeddingProvider),
 		EmbeddingBaseURL:                    strings.TrimRight(strings.TrimSpace(values.EmbeddingBaseURL), "/"),
 		EmbeddingAPIKey:                     strings.TrimSpace(values.EmbeddingAPIKey),
@@ -466,8 +469,11 @@ func validateEnvValues(values envValues, runtimeProfile string, otelEnabled bool
 	if values.PersonalMemoryRecallLimit <= 0 {
 		return fmt.Errorf("runtime profile personal_memory.recall_limit must be a positive integer")
 	}
-	if values.PersonalMemoryRecallMaxChars <= 0 {
-		return fmt.Errorf("runtime profile personal_memory.recall_max_chars must be a positive integer")
+	if values.PersonalMemoryRecallMaxTokens <= 0 {
+		return fmt.Errorf("runtime profile personal_memory.recall_max_tokens must be a positive integer")
+	}
+	if values.PersonalMemoryContextCharBudget <= 0 {
+		return fmt.Errorf("runtime profile personal_memory.context_char_budget must be a positive integer")
 	}
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("runtime profile otel.sample_ratio must be a number between 0 and 1")

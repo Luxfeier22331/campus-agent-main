@@ -274,7 +274,13 @@
 		"PersonalMemory": {
 			"type": "object",
 			"additionalProperties": false,
-			"required": ["runtime", "timeout_seconds", "recall_limit", "recall_max_chars"],
+			"required": [
+				"runtime",
+				"timeout_seconds",
+				"recall_limit",
+				"recall_max_tokens",
+				"context_char_budget"
+			],
 			"properties": {
 				"runtime": {
 					"const": "hindsight"
@@ -287,7 +293,11 @@
 					"type": "integer",
 					"minimum": 1
 				},
-				"recall_max_chars": {
+				"recall_max_tokens": {
+					"type": "integer",
+					"minimum": 1
+				},
+				"context_char_budget": {
 					"type": "integer",
 					"minimum": 1
 				}
