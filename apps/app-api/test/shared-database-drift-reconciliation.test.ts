@@ -741,4 +741,43 @@ describe("shared database drift reconciliation", () => {
 			}),
 		]);
 	});
+
+	it("does not treat primary key backing indexes as unknown drift", () => {
+		const table = buildTableFromExpected("runtime.request_execution");
+		const tables = buildAllExpectedTables().map((expectedTable) => {
+			if (tableName(expectedTable) !== "runtime.request_execution") {
+				return expectedTable;
+			}
+			return {
+				...table,
+				constraints: [...table.constraints, "request_execution_pkey"],
+				indexes: [
+					...table.indexes,
+					{
+						columns: ["request_id"],
+						method: "btree",
+						name: "request_execution_pkey",
+						unique: true,
+					},
+				],
+			};
+		});
+		const inventory = makeInventory({
+			journalRows: migrationContext.migrations.map((migration) => ({
+				createdAt: migration.folderMillis,
+				hash: migration.hash,
+			})),
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables,
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.extraIndexes).toEqual([]);
+	});
 });

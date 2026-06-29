@@ -250,6 +250,9 @@ function collectExtraIndexes(inventory, expectedTables) {
 		}
 
 		for (const indexName of table.indexes.keys()) {
+			if (table.constraints.has(indexName)) {
+				continue;
+			}
 			if (!expectedTable.indexes.has(indexName)) {
 				extraIndexes.push({
 					indexName,
