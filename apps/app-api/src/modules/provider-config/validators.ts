@@ -56,14 +56,7 @@ function promptValidationResponseLooksUsable(transport: string, payload: unknown
 		const message = recordFromUnknown(recordFromUnknown(choice)?.message);
 		return promptValidationStructuredContentLooksUsable(message?.content);
 	}
-	const outputItem = Array.isArray(record.output) ? record.output[0] : undefined;
-	const output = recordFromUnknown(outputItem);
-	return (
-		output?.type === "message" &&
-		(output.status === "in_progress" ||
-			output.status === "completed" ||
-			output.status === "incomplete")
-	);
+	return promptValidationStructuredContentLooksUsable(responsesOutputText(record.output));
 }
 
 function promptValidationStructuredContentLooksUsable(value: unknown): boolean {
@@ -83,6 +76,25 @@ function recordFromUnknown(value: unknown): Record<string, unknown> | undefined 
 	return value !== null && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: undefined;
+}
+
+function responsesOutputText(outputValue: unknown): string | undefined {
+	if (!Array.isArray(outputValue)) {
+		return undefined;
+	}
+	for (const itemValue of outputValue) {
+		const item = recordFromUnknown(itemValue);
+		if (item?.type !== "message" || !Array.isArray(item.content)) {
+			continue;
+		}
+		for (const partValue of item.content) {
+			const part = recordFromUnknown(partValue);
+			if (part?.type === "output_text" && typeof part.text === "string") {
+				return part.text;
+			}
+		}
+	}
+	return undefined;
 }
 
 function promptValidationUrl(input: Parameters<ProviderConfigValidators["validatePrompt"]>[0]) {
@@ -115,8 +127,21 @@ function promptValidationPayload(input: Parameters<ProviderConfigValidators["val
 	}
 	return {
 		input: "provider config validation",
-		max_output_tokens: 8,
+		max_output_tokens: 128,
 		model: input.model,
+		text: {
+			format: {
+				name: "provider_config_validation",
+				schema: {
+					additionalProperties: false,
+					properties: { status: { const: "ok", type: "string" } },
+					required: ["status"],
+					type: "object",
+				},
+				strict: true,
+				type: "json_schema",
+			},
+		},
 	};
 }
 
