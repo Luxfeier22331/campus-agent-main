@@ -23,9 +23,8 @@ updated: 2026-05-07
 - handbook validation 的通过条件与诊断指标
 - 何时允许继续调整预算
 
-本文不重复 source-level OCR normalization 与 split-manifest 设计；这些内容以 [student-handbook
--normalization-strategy.md](../reference/student-handbook-normalization-strategy
-.md) 为准。
+本文同时冻结 handbook 当前 source normalization、split 与 chunking gate 的稳定不变量；
+不保留旧 prototype strategy reference 作为当前 truth。
 
 ## 适用范围
 
@@ -89,6 +88,15 @@ canonical.md / document-units.jsonl -> chunks`
 
 chunking 只消费单篇逻辑文档的 `document-units.jsonl`，不直接消费 provider payload、raw PDF 或整本
 handbook markdown。
+
+Source-level normalization 固定为：
+
+- raw PDF / provider response 只作为 upstream replay/provenance 输入
+- `layout-elements.jsonl` 是 provider-agnostic layout truth
+- `split-manifest` 冻结从同一 source asset 到多篇逻辑 handbook document 的边界
+- `document_id`、`version_id` 与 canonical metadata 在逻辑文档层生成
+- downstream rebuild 默认从 source truth、canonical document artifact 或
+  `document-units` 继续，不把 provider payload 重新提升为 canonical rebuild owner
 
 固定 unit 集合：
 
@@ -467,16 +475,8 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 
 ## 相关真相源
 
-- [configs/ingestion/regulations/student_rules/runtime-profile.json](../../confi
-  gs/ingestion/regulations/student_rules/runtime-profile.json)
-- [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs
-  /ingestion/regulations/student_rules/chunk-profile.json)
-- [docs/reference/student-handbook-normalization-strategy.md](../reference/stude
-  nt-handbook-normalization-strategy.md)
-- [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages
-  /ingestion-core/src/campus_ingestion_core/chunking.py)
-- [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/
-  ingestion-core/src/campus_ingestion_core/process.py)
-- [packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validatio
-  n.py](../../packages/ingestion-core/src/campus_ingestion_core/handbook_chunkin
-  g_validation.py)
+- [configs/ingestion/regulations/student_rules/runtime-profile.json](../../configs/ingestion/regulations/student_rules/runtime-profile.json)
+- [configs/ingestion/regulations/student_rules/chunk-profile.json](../../configs/ingestion/regulations/student_rules/chunk-profile.json)
+- [packages/ingestion-core/src/campus_ingestion_core/chunking.py](../../packages/ingestion-core/src/campus_ingestion_core/chunking.py)
+- [packages/ingestion-core/src/campus_ingestion_core/process.py](../../packages/ingestion-core/src/campus_ingestion_core/process.py)
+- [packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py](../../packages/ingestion-core/src/campus_ingestion_core/handbook_chunking_validation.py)

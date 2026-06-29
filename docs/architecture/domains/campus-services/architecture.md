@@ -58,29 +58,12 @@ Fixed constraints:
 - `notice` owns notice discovery/change-set tools; campus services may consume
   admitted notice-derived transport overrides only through bounded projections
 
-## Transport Schedule
+## Transport Schedule Boundary
 
-`transport_schedule_lookup` reads `campus_services/transport_schedule`.
-
-It answers:
-
-- route direction and route family clarification
-- first/next/last departure
-- departure lists and timetable views
-- service window and temporary suspension summary
-- boarding stop references used by the UI/status page
-
-The data plane is:
-
-- `configs/ingestion/campus_services/transport_schedule/`
-- `campus_services_projection_bundle.v1`
-- PostgreSQL release catalog, current pointer and typed read model
-- Go `apps/execution-control` internal query runtime
-
-The status page consumes a materialized transport status projection from the
-same current release through
-`GET /internal/projections/campus-services/transport-schedule/status`; it must
-not call `transport_schedule_lookup`.
+The current campus-services runtime only opens the transport timetable
+surface. Its canonical human design doc is `docs/domains/transport.md`; this
+architecture document only owns the campus-services runtime boundary and
+opening gate.
 
 ## Opening Rule
 

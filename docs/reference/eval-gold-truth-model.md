@@ -111,8 +111,9 @@ candidate review manifest，不能直接写入 golden truth。
 
 ## Structured / Product / Privacy Denominator Truth
 
-`Phase 8-13` 新增的 eval family 不 author domain truth，也不替代 runtime owner。它们只固定
-denominator expectation、sanitized observation shape 与 deterministic verdict：
+Observation-backed deterministic eval family 不 author domain truth，也不替代
+runtime owner。它们只固定 denominator expectation、sanitized observation shape
+与 deterministic verdict：
 
 - `online_answer_path`
   - truth 来源是产品路径 case expectation：request / trace correlation、selected tool、
@@ -141,6 +142,42 @@ denominator expectation、sanitized observation shape 与 deterministic verdict�
   - truth 来源是 eval-owned operations policy：budget、timeout、retry、pacing、breaker、
     retention、gate mode、failure disposition、quarantine readmission 与 version summary
   - operations policy 只治理 eval runtime，不 author domain case truth
+
+## Official Web Eval Baseline
+
+`official_web` serving surface 的 eval baseline 只记录 denominator 和 accepted
+snapshot，不证明 runtime opening。Serving/opening policy 属于
+`docs/architecture/domains/official-web/architecture.md`。
+
+Stable reference 当前 baseline：
+
+- split manifest:
+  `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
+- retrieval qrels:
+  `packages/evals/fixtures/rag/official_web_stable_reference/retrieval_qrels.json`
+- deterministic release-gate cases:
+  `packages/evals/src/campus_evals/scenarios.py`
+- retrieval denominator: `4` cases (`3` positive, `1` no-hit)
+- deterministic release gate: `5` cases (`3` completed, `2` expected fail-close)
+
+Fresh news 当前 baseline：
+
+- split manifest:
+  `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
+- retrieval qrels:
+  `packages/evals/fixtures/rag/official_web_fresh_news/retrieval_qrels.json`
+- deterministic seed cases:
+  `packages/evals/src/campus_evals/scenarios.py`
+- retrieval denominator: `8` exact-title seed cases
+- deterministic seed denominator: `8` exact-title seed cases
+- accepted physical collection:
+  `official_web_fresh_news__r20260404_222909`
+- accepted retrieval metrics: `hit_at_1 = 1.0`, `hit_at_3 = 1.0`,
+  `recall_at_5 = 1.0`, `doc_hit_at_1 = 1.0`,
+  `doc_recall_at_5 = 1.0`, `forbidden_hit_rate = 0.0`
+
+Fresh news baseline 只覆盖 exact-title seed validation，不覆盖 `今天`、`最新`
+或 `最近` 这类 freshness-sensitive asks。
 
 ## 当前字段语义
 

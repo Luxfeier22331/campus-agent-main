@@ -20,7 +20,7 @@ updated: 2026-04-12
 边界：
 
 - live rebuild 与线上 collection 验收步骤仍以
-  `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md` 为准
+  `docs/runbooks/rag-release.md` 为准
 - 本文不承担当前执行状态板
 - 本文不把单次 `.tmp` 目录提升为默认 canonical 入口
 
@@ -161,8 +161,6 @@ updated: 2026-04-12
 
 repo-tracked 自动化基线：
 
-- `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
-  tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 - `env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m unittest
   tests.evals.test_retrieval_benchmark tests.evals.test_golden_cases`
 

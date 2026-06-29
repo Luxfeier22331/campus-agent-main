@@ -211,4 +211,4 @@ repair rerun 只允许针对 transient infra failure：
 - deterministic retrieval / workflow / error gate 指标见
   [`student-handbook-eval-metrics.md`](../reference/student-handbook-eval-metrics.md)
 - live rebuild 与 handbook serving collection 验收见
-  [`student-handbook-hybrid-rebuild-checklist.md`](../runbooks/student-handbook-hybrid-rebuild-checklist.md)
+  [`rag-release.md`](../runbooks/rag-release.md)

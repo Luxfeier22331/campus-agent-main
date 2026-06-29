@@ -129,7 +129,7 @@ updated: 2026-06-01
 
 这项决策 complements：
 
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/reference/runtime-serving-and-index-terms.md`
 - `docs/runbooks/temporal-self-host-operations.md`
 - `docs/decisions/adr-0052-self-hosted-single-node-qdrant-and-native-backups.md`

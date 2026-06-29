@@ -21,11 +21,11 @@ updated: 2026-06-14
 
 它不负责：
 
-- student public HTTP 字段，见 `docs/contracts/app-api-dining-http.md`
-- ops HTTP 字段，见 `docs/contracts/app-api-dining-ops-http.md`
-- logical schema 字段，见 `docs/data/dining-operations-schema.md`
+- student public HTTP 字段，见 `docs/contracts/app-api/dining.md`
+- ops HTTP 字段，见 `docs/contracts/app-api/dining-ops.md`
+- logical schema 字段，见 `docs/data/dining.md`
 - Operator Console operations surface，当前实现见
-  `docs/architecture/system/operator-console-operations-architecture.md`
+  `docs/architecture/system/operator-console.md`
 
 ## Core Conclusion
 
@@ -69,12 +69,12 @@ The domain intentionally separates physical window, stall assignment, and menu o
 This allows operators to update stall display data or price references without
 rewriting physical space truth.
 
-## Floorplan SVG Architecture
+## Floorplan
 
-Dining floorplans use SVG as the canonical visual map asset for floor/window
-interaction. The SVG is not the dining business truth source.
+Dining floorplans use repo-owned versioned SVG assets as the canonical visual
+map for floor/window interaction. SVG is not dining business truth.
 
-The intended technology shape is:
+Canonical shape:
 
 ```text
 repo SVG asset -> build-time SVG validation/sanitization
@@ -85,25 +85,6 @@ repo SVG asset -> build-time SVG validation/sanitization
   -> release snapshot
 campus-web / operator console dining workspace -> sanitized inline SVG renderer
 ```
-
-Library choices:
-
-- `fast-xml-parser` is the build-time SVG XML parser/builder for validation,
-  safe SVG reconstruction and anchor extraction.
-- The sanitizer is dining-owned allowlist logic executed before a static
-  floorplan enters the manifest. Generic SVG optimizers or browser DOM
-  sanitizers do not define the security boundary.
-- `svgo` is optional optimization only. It must preserve `id` and
-  `data-dining-*` attributes if introduced.
-- `react-zoom-pan-pinch` is the React viewport interaction library for
-  student-facing and operator-facing inline SVG pan/zoom. It does not own SVG
-  validation, sanitization, anchor extraction or dining data.
-- `@tanstack/react-table` owns the operator anchor inventory table behavior.
-- `react-hook-form`, `@hookform/resolvers` and `zod` own the operator detail
-  editor form state and validation.
-- `konva`, `react-konva`, `fabric`, `d3` and map/navigation frameworks are not
-  the primary dining floorplan technology. They are only appropriate if the
-  product explicitly becomes an online drawing editor or a navigation map.
 
 SVG assets must expose stable anchors:
 
@@ -124,9 +105,7 @@ The SVG may contain visual structure, labels, entrances, seating areas and
 semantic roles. It must not contain menu, price, sale status, release status or
 operator-only data.
 
-SVG floorplans are repo-owned versioned static assets. A floorplan replacement
-is an application release, not an operator draft edit. Each accepted SVG has a
-generated manifest entry containing:
+Each accepted SVG has a generated manifest entry containing:
 
 - `floorplanId`
 - `hallId`
@@ -147,21 +126,19 @@ inline so they can select, highlight and center a specific anchor. Rendering SVG
 through `<img>` is insufficient for anchor-level interaction because the page
 cannot access the SVG DOM.
 
-Operator Console dining workspace is a floorplan-backed dining data workspace.
-The current implementation surface is `apps/operator-console-web`:
+Implementation choices:
 
-- render the repo-versioned floor SVG as read-only structure
-- list manifest anchors
-- preview sanitized inline SVG
-- select an anchor by clicking the SVG
-- bind the anchor to a dining window
-- edit window, stall profile, menu item and menu offering draft data
-- create release candidates from a specific draft version
-- show validation blockers and warnings before approval
-- approve, publish now, schedule publish, cancel candidate and inspect release
-  history
-- block candidate publish when required window bindings reference missing or
-  duplicate anchors
+- `fast-xml-parser` owns build-time SVG parse/build and anchor extraction.
+- dining-owned allowlist sanitizer owns the build-time security boundary.
+- `svgo` is optional optimization only and must preserve `id` and
+  `data-dining-*` attributes.
+- `react-zoom-pan-pinch` owns inline SVG pan/zoom interaction.
+- `@tanstack/react-table` owns the operator anchor inventory table behavior.
+- `react-hook-form`, `@hookform/resolvers` and `zod` own operator form state
+  and validation.
+- Drawing/map libraries such as Konva, Fabric, D3 or MapLibre are not primary
+  dining floorplan technology unless the product becomes an online drawing
+  editor or navigation map.
 
 ## Release Lifecycle
 
@@ -288,7 +265,8 @@ observation captured
 
 Observation does not become student-visible data until a future explicit
 operator command writes draft data and a release is explicitly published. The
-current worktree does not implement observation listing, apply, or reject routes.
+current implementation does not expose observation listing, apply, or reject
+routes.
 
 ## Navigation Boundary
 

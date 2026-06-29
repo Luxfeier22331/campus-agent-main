@@ -296,11 +296,11 @@ timetable truth、service-status truth、notice truth 或 retrieval evidence tru
 ## Related Stable Docs
 
 - `docs/architecture/target.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/execution-agent-layer.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/retrieval-serving.md`
 - `docs/decisions/adr-0005-campus-services-taxonomy.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

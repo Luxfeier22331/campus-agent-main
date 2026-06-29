@@ -1,10 +1,10 @@
 ---
 doc_type: architecture
 truth_scope: execution
-owner_boundary: docs/architecture/system/prompt-and-instruction
+owner_boundary: docs/architecture/system
 status: active
 created: 2026-04-05
-updated: 2026-06-13
+updated: 2026-06-28
 ---
 
 # Prompt And Instruction Architecture
@@ -13,35 +13,255 @@ updated: 2026-06-13
 
 ## Document Boundary
 
-This file is the stable prompt/instruction architecture index. It owns the
-document boundary and reading order only. Prompt runtime baseline, assembly
-rules and rollout/observability details live in split supporting docs.
+This document owns prompt and instruction supporting architecture for
+`campus-agent`.
 
-## Split Documents
+It answers:
 
-- `prompt-and-instruction/current-runtime-baseline.md`
-  - Current runtime baseline: accepted baseline, stance, ownership and posture
-- `prompt-and-instruction/assembly-and-assets.md`
-  - Assembly and assets: instruction hierarchy, system prompt blueprint, prompt families and asset placement
-- `prompt-and-instruction/safety-observability-and-rollout.md`
-  - Safety, observability and rollout: zones, packets, eval and rollout posture
+- how system/developer/task/evidence instructions are layered
+- which prompt facts are owned by code, agent runtime and RAG runtime
+- which content is trusted or untrusted during model execution
+- what prompt changes must prove before release
 
-## Index-Owned Baseline
+It does not own:
 
-## 文档边界
+- vendor SDK call details or model choice
+- one-off prompt wording
+- retrieval serving scope, tool opening or source-truth admission
+- active workstream status
 
-本文冻结 `campus-agent` 的 prompt / instruction supporting architecture。
+## Core Posture
 
-它回答的是：
+`campus-agent` uses:
 
-- Execution Agent Layer-led execution path 应该如何分层设计 system / developer / task instructions
-- 哪些内容必须继续由代码拥有，哪些内容适合交给 prompt
-- prompt assets 在 repo 中由谁拥有、如何版本化、如何进入 eval / release gate
-- retrieval evidence、personalization、observability 与 prompt 之间的边界如何固定
+```text
+code-first orchestration + prompt-scoped reasoning
+```
 
-它不负责：
+Code owns boundary, auth, policy, serving truth, tool opening, deterministic
+stop conditions, schema validation and finalization. Prompt owns semantic
+judgement, clarification wording, grounded answer wording and bounded
+explanation inside code-owned truth.
 
-- 某个 vendor SDK 的具体调用方式
-- 某个模型版本的最终选型
-- 某次迭代的具体 prompt 文案
-- retrieval / serving / tool-opening truth 的产品级决策
+Prompt must not replace:
+
+- current query-enabled scope
+- runtime profile / serving alias / release manifest
+- fail-close deny path
+- tool readiness / opening gate
+- source-trust / freshness gate
+- policy, scope or grounding truth
+
+## Runtime Baseline
+
+Current accepted baseline:
+
+- Go `apps/execution-control` owns intent framing, routing, policy,
+  first-decision activity scheduling, deterministic terminal envelopes and
+  sanitized finalization/projection.
+- `apps/agent-runtime` owns primary-agent SDK instructions, model-visible strict
+  tool schemas, tool-call loop, direct/no-tool final output and SDK trace
+  normalization.
+- Go-owned knowledge / RAG runtime owns knowledge-path role instructions, typed
+  task packet, typed evidence packet, provider-facing validation,
+  normalization, usage/cost extraction and model execution diagnostics.
+- `apps/app-api` owns encrypted provider-config profiles and operator mutation
+  APIs. It exposes internal active provider snapshots for explicit projection
+  sync jobs, but does not assemble product-path prompts.
+
+Fixed constraints:
+
+- Online serving consumes explicit provider-config projection artifacts, not
+  ad-hoc provider env fallback.
+- Active RAG prompt execution no longer uses Python worker-local executor.
+- Provider `refusal`, `incomplete`, schema failure and content-filter outcomes
+  fail closed instead of being treated as schema-valid success.
+- Deterministic-first protected paths such as high-structure curriculum answers
+  must not regress to prompt-first behavior.
+
+## Assembly Model
+
+Runtime assembly order:
+
+```text
+repo-global developer invariants
+-> package-owned role prompt
+-> typed trusted task packet
+-> untrusted user input
+-> untrusted evidence packet
+-> strict structured output contract
+-> code-side finalization
+```
+
+Repo-global invariants stay thin and stable:
+
+```text
+You are an institution-scoped campus assistant.
+Never override policy, tool-opening, serving-surface, or scope truth supplied
+by code and typed packets.
+Never use open-world knowledge to fill institution-specific gaps.
+If the request is ambiguous, not opened, unsupported, or not grounded by
+evidence, abstain or ask for clarification.
+Return only schema-compliant output. Code-side finalization is authoritative.
+```
+
+That block only fixes product posture and the rule that prompt is not a
+boundary. It does not own routing, tool opening, retrieval planning, evidence
+selection or answer finalization.
+
+## Trusted And Untrusted Zones
+
+Trusted zone may contain:
+
+- role instructions
+- hard invariants
+- typed task fields
+- output contract
+- explicit safe summaries
+
+Untrusted zone may contain:
+
+- retrieved snippets
+- external web text
+- user free text
+- imported notice or memory text
+- operator annotations
+
+Rules:
+
+- User text and retrieval snippets never enter developer instructions.
+- Evidence snippets must not be written in instruction voice.
+- External observations and memory text are always untrusted content.
+- Prompt templates should use explicit structural labels such as `<role>`,
+  `<invariants>`, `<task>`, `<evidence>` and `<output_contract>`.
+
+## Packet Contracts
+
+Task packet is generated by code, not inferred by the model. It may carry:
+
+- request / language / task identity
+- resolved scope or selected tool
+- allowed and forbidden actions
+- response constraints
+- output schema identity
+- RAG-local fields such as query plan kind, clarification reason,
+  citation expectation or semantic outcome hint
+
+Evidence packet is structured, not a raw text dump. It may carry:
+
+- document identity and source title
+- structural path and detail label
+- snippet or safe summary
+- source rank or content role
+- domain-specific canonical ids
+
+Forbidden packet inputs:
+
+- raw registry rows
+- raw auth provider payload
+- raw JWT / cookies / headers
+- hidden internal memory
+- full prompt history dump
+
+## Prompt Families
+
+Each agent owns prompt family + mode, not a single mega prompt.
+
+Current primary-agent direct/no-tool terminal path is owned by
+`apps/agent-runtime` and finalized by Go `execution-control`. It can produce
+direct answer, clarification, out-of-scope and unsupported outcomes without
+adding a separate synthetic `assistant_intro` or `product_meta` prompt family.
+
+Knowledge path prompt families:
+
+- `rag_answer_v1`
+- `rag_clarify_v1`
+- `rag_no_answer_v1`
+- `rag_unsupported_v1`
+
+Possible future RAG families, only when a concrete workstream opens them:
+
+- `rag_rewrite_v1`
+- `rag_compare_answer_v1`
+- `rag_historical_answer_v1`
+
+Full agentic retrieval, if opened later, uses planner / clarification /
+synthesis / semantic verification families. Planner prompt only outputs typed
+retrieval plans inside admitted scope and cannot return final user answers.
+
+## Result Semantics
+
+Prompt-facing and operator/eval vocabulary must preserve distinct outcomes:
+
+- `grounded_answer`
+- `needs_clarification`
+- `unsupported_by_evidence`
+- `out_of_scope`
+- `policy_refusal`
+- `tool_not_ready`
+- `source_truth_unavailable`
+
+These outcomes must not collapse into a generic `no_answer`. User-facing text
+may hide internal tool names, but sanitized projection and eval truth must keep
+the structured reason.
+
+Policy, scope and grounding remain separate:
+
+- policy gate decides whether the request may be handled
+- scope gate decides whether it belongs to current product/tool surface
+- grounding gate decides whether admitted evidence supports the answer
+
+Retrieval miss is not an out-of-scope verdict. Political or sensitive topic
+keywords are not policy verdicts by themselves.
+
+## Safety And Observability
+
+Default observability records prompt/runtime metadata, not raw prompt bodies:
+
+- model / provider identity
+- request and run identity
+- mode and output schema version
+- provider response id
+- terminal envelope kind
+- citation count
+- grounding / policy verdict
+
+Do not record by default:
+
+- raw full prompt
+- raw answer
+- raw transcript
+- raw snippet dump
+- raw long-term memory
+
+Debug payloads require explicit opt-in, redaction and minimization. They are not
+long-term log truth.
+
+## Eval And Release Gate
+
+Prompt and LLM I/O changes are release-relevant. They must pass:
+
+- schema gate: variables are present and output satisfies strict schema
+- policy gate: refusal, out-of-scope, unsupported, tool-not-ready and
+  source-unavailable are separated correctly
+- quality gate: grounding, citations, wording and ambiguity handling remain
+  acceptable
+
+Post-LLM validation must include schema, citation, grounding, boundary and
+freshness checks where applicable. Claim-level semantic grounding remains
+badcase/eval-driven hardening, not a default Python online gate.
+
+## External Reference Posture
+
+External prompt / structured-output / agent safety guidance informs this
+document, but does not override repo source-of-truth architecture, contracts or
+schemas.
+
+Stable internal neighbors:
+
+- `docs/architecture/current.md`
+- `docs/architecture/system/execution-agent-layer.md`
+- `docs/architecture/system/agent-framework.md`
+- `docs/architecture/system/retrieval-serving.md`
+- `docs/architecture/system/ops-observability.md`
+- `docs/decisions/adr-0060-agent-llm-io-contract.md`

@@ -32,9 +32,9 @@ promote/release 约束冻结为 repo truth，避免后续继续从零散 helper�
 
 - source channel 边界：`docs/architecture/domains/official-web/architecture.md`
 - serving / news retrieval
-  语义：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+  语义：`docs/architecture/domains/official-web/architecture.md`
 - projection / release lifecycle:
-  `docs/runbooks/ingestion-control-clean-target-runbook.md`
+  `docs/runbooks/ingestion-control-clean-target.md`
 
 ## 适用范围
 

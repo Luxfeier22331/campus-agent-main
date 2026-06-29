@@ -129,8 +129,8 @@ knowledge answers.
 
 ## Related Documents
 
-- `execution-agent-layer-architecture.md`
+- `execution-agent-layer.md`
 - `agent-framework.md`
 - `tool-routing.md`
-- `agentic-retrieval-architecture.md`
+- `agentic-retrieval.md`
 - `../../contracts/README.md`

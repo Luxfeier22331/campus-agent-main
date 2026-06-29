@@ -52,6 +52,11 @@ current pointer.
 The status page must not call `transport_schedule_lookup`; it renders the
 materialized status projection for the current published timetable.
 
+The browser-facing app-api route is only a public, cacheable facade over the
+self-host internal projection endpoint. It must not expose execution-control
+`result_envelope`, raw notice body, internal object locators or non-URL
+provenance refs.
+
 ## Tool
 
 `transport_schedule_lookup` answers intent-first timetable questions:

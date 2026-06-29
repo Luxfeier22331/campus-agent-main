@@ -18,7 +18,7 @@ updated: 2026-06-15
 - handbook embedding / chunking 的运行真相仍以
   `docs/policies/student-handbook-chunking-and-validation-policy.md` 为准
 - retrieval runtime truth 以
-  `docs/architecture/system/retrieval-serving-architecture.md` 为准
+  `docs/architecture/system/retrieval-serving.md` 为准
 - 本文早期对 Python knowledge / retrieval package owner 的表述已由
   `docs/architecture/system/python-boundaries.md` 局部 supersede；当前 online
   retrieval runtime 收口为 Go-owned execution-control / repo-owned DTO + Qdrant native
@@ -93,4 +93,4 @@ updated: 2026-06-15
 - 把 retrieval-core 内部 sparse 本地算分误认为长期 accepted shape
 
 当前 retrieval baseline 应以本文和
-`docs/architecture/system/retrieval-serving-architecture.md` 为准。
+`docs/architecture/system/retrieval-serving.md` 为准。

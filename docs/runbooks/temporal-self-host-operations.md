@@ -135,6 +135,55 @@ Release evidence must cover:
 Evidence must not contain raw prompt, raw answer, raw provider response, cookie,
 authorization header, raw source body, or object-store credentials.
 
+## Staging Durable Runtime Proof
+
+Run the durable cutover preflight before treating execution-control staging as
+Temporal-ready. The command reads only the ops-owned staging runtime env and the
+current process env; it must not deploy, mutate remote state, or print secret
+values:
+
+```bash
+uv run --all-packages python \
+  -m scripts.check_run_projection_store_cutover_preflight --json
+```
+
+`CLOUDFLARE_API_TOKEN` stays in the deploy shell process env and must not be
+written into the checkout. On `nc-arm-6c` non-login SSH shells, first confirm
+`pnpm` and `uv` are on `PATH`; the current host paths are
+`/usr/local/bin/pnpm` and `/home/deploy/.local/bin/uv`.
+
+Before runtime proof, confirm schema install/check evidence exists and reports
+`passed=true`, `schema_ready=true`, and `store=postgres`:
+
+```bash
+jq . .tmp/execution-control-staging/evidence/run-projection-schema-install.json
+jq . .tmp/execution-control-staging/evidence/run-projection-schema-check.json
+```
+
+Run the repo-owned Temporal-ready HTTP proof against deployed
+execution-control. It only reads `/readyz` and requires the projection store and
+Temporal runtime to be explicitly healthy:
+
+```bash
+execution_control_url="${STAGING_EXECUTION_CONTROL_BASE_URL:-http://127.0.0.1:27051}"
+go run ./cmd/temporal-runtime-http-proof \
+  --execution-control-url "$execution_control_url" \
+  --shared-secret "$EXECUTION_CONTROL_SHARED_SECRET" \
+  --evidence-path "$evidence_dir/execution-control-temporal-http-proof.json"
+```
+
+If machine ingress or app-api public deploy credentials are unavailable, local
+Temporal proof can validate the isolated staging directory substrate only:
+
+```bash
+infra/local/staging/proof-execution-control-temporal-runtime-staging.sh
+```
+
+That local proof cannot replace deployed
+`campus-staging -> app-api-staging -> execution-control -> Temporal`
+reconnect evidence. The proof passes only when `/readyz` reports both
+`run_projection_store.healthy=true` and `temporal_runtime.healthy=true`.
+
 ## Worker Autoscaler Proof
 
 ### Docker Compose Transitional Proof

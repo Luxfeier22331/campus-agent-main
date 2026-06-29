@@ -117,9 +117,9 @@ deploy 依赖后删除 package。
 ## 相关文档
 
 - `docs/architecture/current.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/identity-browser-experience-architecture.md`
-- `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
-- `docs/contracts/app-api-federation-http.md`
-- `docs/contracts/app-api-identity-platform-http.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/identity-browser.md`
+- `docs/architecture/system/identity-platform.md`
+- `docs/architecture/system/mucwiki-login.md`
+- `docs/contracts/app-api/federation.md`
+- `docs/contracts/app-api/identity.md`

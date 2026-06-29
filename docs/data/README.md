@@ -13,21 +13,21 @@ canonical truth”“哪些只是 projection carrier”。
 
 ## Runtime / App Schema
 
-- `app-api-schema.md`
-  - `app-api-schema/auth-chat-docs-profile.md`
-  - `app-api-schema/runtime.md`
-  - `app-api-schema/operator.md`
-- `app-api-official-web-schema.md`
-- `dining-operations-schema.md`
-- `identity-platform-schema.md`
-- `durable-agent-runtime-schema.md`
-- `canonical-document-reader-model.md`
+- `app-api/README.md`
+  - `app-api/auth-chat-docs-profile.md`
+  - `app-api/runtime.md`
+  - `app-api/operator.md`
+- `app-api/official-web.md`
+- `dining.md`
+- `identity-platform.md`
+- `durable-runtime.md`
+- `document-reader.md`
 
 ## Source-Channel Source-Truth Schema
 
-- `official-web-source-truth-schema.md`
+- `official-web.md`
 - `authenticated-notice.md`
-- `campus-services-ops-source-truth-schema.md`
+- `campus-services-ops.md`
 - `wechat-official.md`
 
 班车时刻表能力的人类 source/update/storage truth 已收口到
@@ -36,15 +36,15 @@ canonical truth”“哪些只是 projection carrier”。
 
 ## Navigation / Entity Data
 
-- `campus-navigation-place-catalog.md`
+- `place-catalog.md`
 
 ## Retrieval Activity / Evidence Data
 
-- `retrieval-query-activity-model.md`
+- `retrieval-activity.md`
 
 ## Infra Ownership
 
-- `shared-postgres-ownership.md`
+- `postgres-ownership.md`
 
 ## 使用规则
 

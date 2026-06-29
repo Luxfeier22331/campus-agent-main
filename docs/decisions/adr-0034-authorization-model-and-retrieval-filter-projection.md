@@ -189,8 +189,8 @@ authorization projection 边界不得通过恢复这些旧 package 实现。
 
 ## Historical Related Docs
 
-- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/architecture/target.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/retrieval-serving.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

@@ -30,7 +30,7 @@ updated: 2026-04-25
 - `docs/runbooks/execution-ops.md`
 - `docs/runbooks/execution-ops.md`
 - `docs/runbooks/execution-smoke.md`
-- `docs/runbooks/worker-observability-smoke-runbook.md`
+- `docs/runbooks/worker-observability-smoke.md`
 
 ## 核心结论
 
@@ -235,9 +235,9 @@ post-deploy verification 的长期 closure 固定为：
 
 ## 相关稳定文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/runbooks/execution-ops.md`
-- `docs/runbooks/worker-observability-smoke-runbook.md`
+- `docs/runbooks/worker-observability-smoke.md`
 - `docs/architecture/system/k8s-runtime.md`
 - `docs/environment/README.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`

@@ -50,8 +50,7 @@ Optional service env:
 
 Canonical override template:
 
-- [`env/commands/legacy-office-conversion-service.env.example`](../../env/comman
-  ds/legacy-office-conversion-service.env.example)
+- [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
 
 ## Local Bootstrap
 

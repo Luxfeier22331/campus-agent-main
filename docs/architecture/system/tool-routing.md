@@ -78,7 +78,7 @@ execution finalization`
 
 当前 repo 仍保持以下 current / implementation truth：
 
-- 公开 chat posture 曾长期以 `knowledge` 为默认主路径；当前 worktree 已接入
+- 公开 chat posture 曾长期以 `knowledge` 为默认主路径；当前 accepted path 已接入
   `agent.primary`，且 Go `execution-control`
   已停止把缺失 `requested_tool` 默认写成 `knowledge_query`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
@@ -218,7 +218,7 @@ session / actor / surface context、repo-global invariants、allowed tool set
 - first decision 的 direct/no-tool terminal outcome 必须进入 sanitized
   projection、workflow trace summary 或等价 operator-safe projection，不能只作为
   transient prompt text 存在
-- 当前 worktree 已把 first decision 接入 `agent.primary`，且
+- 当前 accepted path 已把 first decision 接入 `agent.primary`，且
   `execution-control` 已停止把缺失 `requested_tool` 默认写成 `knowledge_query`。
   目标态应向 OpenAI Agents SDK primary agent 暴露 workflow 裁剪后的 visible
   tool set，由模型决定
@@ -366,9 +366,9 @@ surface policy 只区分产品入口，不表达学生 / 教职工 / 院系之�
 
 在当前 repo 里，这意味着：
 
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/retrieval-serving.md`
   只描述 `knowledge_query` 内部 retrieval truth
-- `docs/architecture/system/agentic-retrieval-architecture.md`
+- `docs/architecture/system/agentic-retrieval.md`
   只描述 `knowledge_query` 的 target-state planner/executor shape
 
 ## Clarification Split
@@ -461,11 +461,11 @@ tool routing 不是纯 prompt 细节，必须进入长期 observability / eval t
 ## 相关稳定文档
 
 - `docs/architecture/product.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/execution-agent-layer.md`
 - `docs/architecture/system/tool-runtime.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
-- `docs/architecture/system/agentic-retrieval-architecture.md`
+- `docs/architecture/system/retrieval-serving.md`
+- `docs/architecture/system/agentic-retrieval.md`
 - `docs/contracts/tool-execution.md`（legacy-named execution wire contract）
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`（historical

@@ -107,21 +107,16 @@ class DurableRuntimeCutoverPreflightTest(unittest.TestCase):
         self.assertTrue(SCRIPT.exists())
 
     def test_staging_runbook_uses_current_preflight_cli_shape(self) -> None:
-        runbook = (
-            REPO_ROOT
-            / "docs"
-            / "runbooks"
-            / "execution-control-staging"
-            / "durable-runtime-proof.md"
-        ).read_text()
+        runbook = (REPO_ROOT / "docs" / "runbooks" / "temporal-self-host-operations.md").read_text()
 
         self.assertIn(
-            "uv run --all-packages python -m scripts.check_run_projection_store_cutover_preflight --json",
+            "uv run --all-packages python \\\n"
+            "  -m scripts.check_run_projection_store_cutover_preflight --json",
             runbook,
         )
         self.assertNotIn("pnpm durable:cutover:preflight", runbook)
         self.assertIn("CLOUDFLARE_API_TOKEN", runbook)
-        self.assertIn("PATH=/home/deploy/.local/bin:/usr/local/bin:/usr/bin:/bin", runbook)
+        self.assertIn("/home/deploy/.local/bin/uv", runbook)
 
     def test_rejects_missing_cloudflare_token_and_durable_data_plane_env(self) -> None:
         result = run_preflight(

@@ -83,7 +83,7 @@ status as current project truth.
   and tool-opening work belong to tool/ops tracking, not main-chain
   completion.
 - Product-plane signal: conversation attachment upload is now captured as a
-  proposed PRD in `docs/product/conversation-attachment-upload-prd.md`. It is a
+  proposed PRD in `docs/product/attachments.md`. It is a
   per-message user-provided image/document context feature for `campus-web` Q&A,
   not an institution RAG ingestion path, notice/source-truth path, release
   evidence path or long-term personal file library. Until the backend contract

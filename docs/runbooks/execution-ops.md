@@ -4,173 +4,229 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-24
-updated: 2026-06-13
+updated: 2026-06-29
 ---
 
 # Execution Control Staging Operations
 
 <!-- markdownlint-disable MD013 -->
 
-## Document Boundary
+## Boundary
 
-This file is the stable staging operations index for execution-control. It
-owns the current truth summary and links to executable procedure groups.
+This runbook owns staging deploy, ingress, daily operations, recovery and triage
+for the current execution-control + Temporal Docker Compose baseline. It does
+not define production substrate, product request truth or Temporal proof
+semantics.
 
-## Split Documents
+Related owner docs:
 
-- `execution-control-staging/deploy-and-ingress.md`
-  - Deploy and ingress: checkout, secrets, install, proxy and startup steps
-- `execution-control-staging/daily-operations-and-recovery.md`
-  - Daily operations and recovery: health, cold start, logs and triage
-- `execution-control-staging/durable-runtime-proof.md`
-  - Durable runtime proof: durable proof and autoscaler dry-run evidence
+- current topology: `../architecture/current.md`
+- K8s/KEDA target runtime: `../architecture/system/k8s-runtime.md`
+- Temporal substrate proof: `temporal-self-host-operations.md`
+- product-path smoke: `execution-smoke.md`
 
-## Index-Owned Baseline
+## Deploy Checkout And Secrets
 
-## 文档边界
+`/srv/apps/campus-agent` is a deploy checkout, not a development worktree.
+Staging deploys must checkout a pinned release SHA and stay clean.
 
-这份 runbook 只回答当前 canonical staging execution upstream 的运维真相：
-
-- 当前 repo-owned staging execution runtime 是：
-  - `otel-collector`
-  - `execution-control`
-  - `workflow-worker`
-  - `activity-worker-core`
-  - `agent-runtime`
-  - `activity-worker-agent`
-  - `activity-worker-knowledge`
-- `worker-autoscaler`
-  - explicit Docker Compose transitional autoscaler proof command
-  - not part of default serving startup
-- `execution-control` 不作为 public staging surface 存在；用户、浏览器、panel、docs
-  与 chat 只进入 browser surface 或 `app-api`
-- `execution-control` 是 app-api-only trusted machine upstream。当前 machine
-  ingress 是 `https://execution-control-staging.mucwiki-edge.link`，由
-  Cloudflare proxied DNS、Cloudflare Access service-token policy 与 VM origin
-  reverse proxy 承接
-
-它不覆盖 browser smoke 证据采集；那部分统一看
-`execution-smoke.md`。
-它也不作为通用 Linux server 部署文档；server handoff 见
-`execution-control-server-handoff.md`。
-
-## 当前真相
-
-- `apps/execution-control` staging deploy substrate 必须由 live env / ingress /
-  projection evidence 证明；本文的 Compose runtime 是 local / transitional
-  operations baseline，production target deploy substrate 已由 ADR-0056 收口为
-  Kubernetes + KEDA
-- `app-api` 是唯一 product/API gateway；`execution-control` 不进入用户可见 endpoint
-  list，也不作为 QA public endpoint
-- 当前 repo-owned staging execution runtime：
-  - `infra/local/docker-compose.execution-control-runtime.yml`
-  - `otel-collector`
-    - repo-owned runtime telemetry fan-out
-    - local OTLP ingress `4317/4318`
-    - health check `13133`
-  - `execution-control`
-    - `trusted-worker`
-    - `127.0.0.1:27051`
-    - `/healthz` `/readyz` `/metrics`
-    - Temporal-backed execution run command/query seam：
-      `/internal/execution/runs`,
-      `/internal/execution/runs/:runId`,
-      `/internal/execution/runs/:runId/events`,
-      `/internal/execution/runs/:runId/steps`,
-      `/internal/execution/runs/:runId/cancel`
-    - PG-backed sanitized projection store：run store、events、step projection
-      artifacts for app-api / panel / eval reads
-    - Temporal workflow/activity workers for execution scheduling and retry
-  - `workflow-worker`
-    - Temporal workflow task poller for `campus-agent.workflow`
-  - `activity-worker-core`
-    - Go-owned context activity poller for `campus-agent.activity.core`
-    - owns neutral memory recall, typed tool activities and finalization
-      projection before/after tool routing
-  - `agent-runtime`
-    - Node/TypeScript model-facing primary agent runtime based on OpenAI
-      Agents SDK
-    - exposes only internal `/internal/agent-runs` behind the bridge shared secret
-  - `activity-worker-agent`
-    - Go-owned primary agent activity poller for `campus-agent.activity.agent`
-    - calls `agent-runtime` and projects SDK selected tools, typed tool
-      success/fail-close results, usage and trace refs
-  - `activity-worker-knowledge`
-    - Go-owned RAG planning, retrieval, evidence selection, synthesis and
-      grounding poller for `campus-agent.activity.knowledge`
-  - `worker-autoscaler`
-    - explicit Docker Compose dry-run / apply evidence producer behind the
-      `ops-proof` Compose profile; it does not write workflow/run/step/event or
-      terminal state, and it is not started by the normal staging serving
-      command.
-  - `temporal-task-queue-sampler`
-    - explicit `ops-proof` evidence producer that samples Temporal task queues
-      and updates bounded operator runtime current projections.
-  - `temporal`
-    - self-hosted Temporal frontend/history/matching/worker service
-    - dedicated Temporal Postgres persistence / visibility store
-  - `temporal-ui`
-    - local-only operator UI
-    - behind the `ui` Compose profile; not started by default
-  - self-hosted Langfuse stack
-    - optional eval / trace UI runtime
-    - not part of default staging serving startup; start with
-      `infra/local/staging/start-execution-control-staging.sh --with-langfuse`
-      only when a session needs the self-host UI and ClickHouse-backed trace
-      store
-- machine ingress：
-  - hostname: `execution-control-staging.mucwiki-edge.link`
-  - Cloudflare DNS: proxied A/AAAA/CNAME 指向 staging VM
-  - Cloudflare Access application: only service-token policy
-  - VM reverse proxy: `443` -> `127.0.0.1:27051`
-  - app-api 调用时同时带 Cloudflare Access service token 与
-    `x-worker-origin-auth` shared secret；两者缺任一都必须 fail closed
-- shared staging `app-api`：
-  - `<https://api-staging.mucwiki-edge.link`>
-- canonical staging host：`nc-arm-6c`, repo path `/srv/apps/campus-agent`
-- 常驻机制：
-  - Docker Compose runtime: `infra/local/staging/start-execution-control-staging.sh`
-  - strict health check:
-    `infra/local/staging/status-execution-control-staging.sh --check`
-  - lifecycle lock: `.tmp/execution-control-staging/lifecycle.lock`
-
-默认启动只拉起主问答 serving runtime。按需入口：
+Required deploy shell env:
 
 ```bash
-# 主链路 serving runtime
-infra/local/staging/start-execution-control-staging.sh
-
-# 同时打开 Temporal UI
-infra/local/staging/start-execution-control-staging.sh --with-ui
-
-# 同时打开 self-hosted Langfuse stack
-infra/local/staging/start-execution-control-staging.sh --with-langfuse
-
-# 只停止 Langfuse 重服务，保留 volumes 和主链路
-infra/local/staging/stop-execution-control-langfuse.sh
+export EXECUTION_CONTROL_STAGING_EXPECTED_SHA=<release-sha>
+export EXECUTION_CONTROL_STAGING_EXPECTED_REF=origin/develop
 ```
 
-以上是当前 `nc-arm-6c` staging host 特定形态，不代表 production substrate。
+`start/status/preflight` fail closed when:
 
-当前 staging execution runtime 口径：
+- expected SHA or ref is missing
+- `HEAD` differs from the pinned SHA
+- tracked files are dirty
+- repo-local `.env`, `.env.staging.local` or `apps/app-api/.dev.vars` exists in
+  the deploy checkout
+- untracked files are outside the allowed staging regex
+- the ops-owned runtime env file is missing
 
-- staging 必须证明 Temporal-backed execution path、run projection store、
-  workflow worker、primary agent runtime/worker、RAG activity worker、finalization
-  activity worker 与 app-api execution runtime ready。
-- staging 不再使用 PG lease worker loop / recovery loop 作为 online serving path；旧 lease
-  表只允许作为 historical migration artifact 存在。
-- ADR-0047 时代的 scheduler / recovery / lane worker label 只作为历史 target role
-  label 存在；target execution substrate 已由 ADR-0048 收口为
-  `execution-control` + Temporal workflow/activity worker pools。
-- staging 的 Docker Compose、origin reverse proxy、Cloudflare DNS 与 Cloudflare Access
-  只负责部署与连接；不拥有 workflow history、task queue、run projection、event 或
-  terminal truth。
-- Temporal task queue sampler 与 worker autoscaler 是显式 ops proof，不是常驻
-  serving loop。需要采集 proof 时运行
-  `infra/local/staging/run-execution-control-ops-proof.sh`；默认
-  `start-execution-control-staging.sh` 不启动它们。
-- K8s/KEDA target runtime 的 deployment 和 autoscaling 设计见
-  `../architecture/system/k8s-runtime.md`；本 runbook 在
-  切换前继续描述当前 Docker Compose staging baseline。
-- Redis 不参与 canonical execution queue。若以后用于 wakeup / fanout / cache，丢失或重启不得影响
-  execution workflow / run projection / step projection / event truth。
+If the deploy checkout is dirty, stop the runtime if needed, quarantine the
+directory, clone a clean checkout, then deploy the pinned SHA. Do not run a
+destructive git reset in the polluted deploy directory and continue.
+
+Runtime env and secret files live outside the repo checkout:
+
+```text
+/srv/docker/campus-agent/staging/env/runtime.env
+/srv/docker/campus-agent/staging/secrets/*.secret
+```
+
+High-sensitivity values should move to Compose `secrets:` where supported.
+Values still injected through `runtime.env` must not be copied into the repo.
+
+## Runtime Env Shape
+
+Canonical staging reads `EXECUTION_CONTROL_STAGING_ENV_FILE`, defaulting to
+`/srv/docker/campus-agent/staging/env/runtime.env`.
+
+Required external inputs include:
+
+- execution-control machine ingress URL, Cloudflare Access service-token id and
+  secret
+- staging app-api smoke auth secret
+- shared, document-registry and raw-asset registry Postgres URLs plus operator
+  URLs
+- staging S3-compatible object-store endpoint, bucket, region and credentials
+- staging embedding endpoint and key
+- Cloudflare Access team domain and policy audience
+
+The lifecycle projects internal runtime values for execution-control,
+agent-runtime, Temporal, Hindsight, Qdrant, metrics and audit. Do not hand-write
+internal bridge URLs, Temporal passwords, generated Qdrant keys, Hindsight
+secrets or runtime release identity in canonical staging env.
+
+Retired `EXECUTION_CONTROL_DURABLE_WORKER_LOOP_*` and
+`EXECUTION_CONTROL_DURABLE_RECOVERY_LOOP_*` env keys are invalid in active
+staging runtime.
+
+## Ingress
+
+Cloudflare must expose only the machine ingress hostname:
+
+```text
+execution-control-staging.mucwiki-edge.link
+```
+
+Required posture:
+
+- DNS record is proxied to the staging VM
+- Cloudflare Access application is bound to the hostname
+- Access policy allows only service-token callers
+- VM origin proxy listens on `443` and reverse-proxies only to
+  `127.0.0.1:27051`
+- container ports are not directly exposed to the public internet
+
+Unauthenticated requests must be rejected by Cloudflare Access. Authenticated
+requests must include both Access service-token headers and
+`x-worker-origin-auth`.
+
+## Start And Status
+
+Common commands:
+
+```bash
+infra/local/staging/start-execution-control-staging.sh
+infra/local/staging/start-execution-control-staging.sh --with-ui
+infra/local/staging/start-execution-control-staging.sh --with-langfuse
+infra/local/staging/stop-execution-control-langfuse.sh
+infra/local/staging/status-execution-control-staging.sh --check
+```
+
+Canonical runtime shape:
+
+- compose project: `campus-execution-control-staging`
+- host port: `27051`
+- runtime dir: `.tmp/execution-control-staging`
+- compose file: `infra/local/docker-compose.execution-control-runtime.yml`
+
+Default runtime includes execution-control, workflow worker,
+activity-worker-core, agent-runtime, activity-worker-agent,
+activity-worker-knowledge, Temporal, projection store and data-plane
+dependencies. Temporal UI, Langfuse stack, task-queue sampler and
+worker-autoscaler are opt-in proof or diagnosis components, not default serving
+loop requirements.
+
+Before `docker compose up`, the lifecycle runs preflight and installs/checks the
+run projection schema. Schema evidence is written under:
+
+```text
+.tmp/execution-control-staging/evidence/
+```
+
+## Strict Health
+
+Run:
+
+```bash
+infra/local/staging/status-execution-control-staging.sh --check
+```
+
+Strict check must prove:
+
+- expected compose services are running
+- local `/healthz`, `/readyz` and `/metrics` are reachable with required auth
+- `/readyz` reports healthy run projection store and Temporal runtime
+- RAG lookup/synthesis and prompt config gates are healthy
+- unauthenticated machine ingress is rejected by Cloudflare Access
+- authenticated machine ingress reaches execution-control `/readyz`
+- `api-staging` reports `auth`, `database`, `executionControl` and
+  `executionRuntime` ready
+
+This proves runtime readiness, not autoscaler proof. Worker autoscaler and task
+queue sampler evidence live in `temporal-self-host-operations.md`.
+
+## Recovery
+
+Canonical cold start:
+
+```bash
+cd /srv/apps/campus-agent
+infra/local/staging/stop-execution-control-staging.sh
+infra/local/staging/start-execution-control-staging.sh
+until infra/local/staging/status-execution-control-staging.sh --check; do
+  sleep 2
+done
+```
+
+If an old dev-backed runtime is running, stop it before starting canonical
+runtime. Do not restore the removed Python public ingress fallback.
+
+Logs live under `.tmp/execution-control-staging/logs/`. The main files are:
+
+- `execution-control.log`
+- `workflow-worker.log`
+- `activity-worker-core.log`
+- `agent-runtime.log`
+- `activity-worker-agent.log`
+- `activity-worker-knowledge.log`
+- `otel-collector.log`
+- `otel-collector.recent.log`
+
+Log rotation is owned by the staging lifecycle. Ops proof output belongs in the
+current evidence directory, not in long-lived service logs.
+
+## Triage
+
+If compose services are not running, inspect the service logs and run:
+
+```bash
+infra/local/staging/preflight-execution-control-staging.sh
+COMPOSE_PROJECT_NAME=campus-execution-control-staging \
+EXECUTION_CONTROL_HOST_PORT=27051 \
+docker compose -f infra/local/docker-compose.execution-control-runtime.yml ps
+```
+
+If local `/readyz` is degraded, load the staging env and run:
+
+```bash
+source infra/local/staging/execution-control-staging-common.sh
+execution_control_staging_load_env >/dev/null
+execution_control_staging_uv_run --all-packages \
+  python -m scripts.doctor_env execution-control --json
+curl -sS -H "x-worker-origin-auth: ${API_WORKER_SHARED_SECRET}" \
+  http://127.0.0.1:27051/readyz
+```
+
+If machine ingress fails, check Cloudflare DNS, Access application, service-token
+policy and origin proxy before changing runtime code.
+
+If app-api readiness fails while local execution-control is healthy, check
+`https://api-staging.mucwiki-edge.link/readyz` and verify app-api Worker secrets
+for execution-control Access service-token credentials and shared secret.
+
+## RAG Release Manifest Recovery
+
+Use manifest recovery only when Qdrant is healthy, the serving alias points at
+the intended physical collection, a native snapshot exists, and readiness is
+blocked only because the derived object store lacks the matching
+`index-release.json`.
+
+Recovery must be an admitted ingestion-control task. Do not bypass a failed
+ingestion release with ad hoc object edits.

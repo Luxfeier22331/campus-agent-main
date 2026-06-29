@@ -115,10 +115,9 @@ promotion/materialization 的 acceptance truth。
 - embedding / Qdrant write
 - release / alias publish
 
-当前 Phase 8 closeout 已补充 target-side chunk preparation 的 local-only
-acceptance evidence，但 stop point 仍未提升到 release / alias publish。冻结证据见：
-
-- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+target-side chunk preparation 已有 local-only acceptance 证据，但 stop point 仍未提升到
+release / alias publish。一次性 evidence path 不再作为 branch-tip tracked truth；需要追溯旧
+local-only proof 时通过 git history 恢复具体片段，再提升到当前 owner 文档或 runbook。
 
 ### 6. Repo-local acceptance 必须使用隔离 snapshot root
 

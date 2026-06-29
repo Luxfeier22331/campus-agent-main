@@ -780,7 +780,7 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
   operator access 或 account/session truth
 
 Memory Plane 的 Hindsight runtime、online recall、写入链路与 Temporal 参与点，统一看
-`system/memory-plane-architecture.md`。本文只保留目标 repo 级 owner 与 advisory-context
+`system/memory-plane.md`。本文只保留目标 repo 级 owner 与 advisory-context
 约束。
 
 ## 长期 retrieval / serving 形态

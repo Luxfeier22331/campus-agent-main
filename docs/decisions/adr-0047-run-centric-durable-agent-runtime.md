@@ -217,19 +217,19 @@ agent-as-tool 参与 typed step。
 
 直接结果如下：
 
-- 新增 `docs/architecture/system/durable-agent-runtime-architecture.md`
+- 新增 `docs/architecture/system/durable-runtime.md`
 - `target.md` 必须把 run + step-centric run projection 写为
   production execution shape
 - `current.md` 当时需要明确已具备 run-level durable baseline，同时列出
   step-level ledger、task-queue split、per-tool worker pool 与 autoscaler 差距
-- `durable-agent-runtime-architecture.md` 必须区分 durable run / step store、scheduler、
+- `durable-runtime.md` 必须区分 durable run / step store、scheduler、
   lease coordinator、worker task queues 与 process-local limiter
 - `tool-runtime.md` 必须区分 tools-first domain execution
-- `product-runtime-architecture.md` 必须把 browser streaming 改写成 run event subscription
+- `product-runtime.md` 必须把 browser streaming 改写成 run event subscription
   语义
 - `tool-routing.md` 必须把 admission 拆成 surface、
   identity/quota、run admission、execution lease admission
-- `agentic-retrieval-architecture.md` 必须把 RAG 写成 durable typed-tool retrieval graph
+- `agentic-retrieval.md` 必须把 RAG 写成 durable typed-tool retrieval graph
 
 ## 非目标
 

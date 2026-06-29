@@ -730,13 +730,12 @@ Sentry、Axiom、Collector 或 OpenTelemetry SDK。
 
 ## 相关稳定文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-observability.md`
-- `docs/data/app-api-schema.md`
-- `docs/domains/operator-observability.md`
+- `docs/contracts/app-api/README.md`
+- `docs/contracts/app-api/observability.md`
+- `docs/data/app-api/README.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`

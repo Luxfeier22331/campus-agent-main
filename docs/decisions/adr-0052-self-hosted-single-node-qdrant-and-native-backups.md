@@ -116,8 +116,8 @@ collection snapshot 本身不承担 alias truth；alias binding 必须来自 man
 
 ## Migration From ADR-0020
 
-ADR-0020 标记为 superseded。旧 `qdrant-cloud-backup-and-restore-runbook.md`
-保留为 historical cloud/free-tier reference。
+ADR-0020 标记为 superseded。旧 `qdrant-cloud-backup.md` 正文已退出 branch
+tip；需要追溯 cloud/free-tier 操作背景时通过 git history 恢复具体片段。
 
 新的 active staging data-plane runbook 为：
 

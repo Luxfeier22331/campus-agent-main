@@ -85,7 +85,7 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
                 ),
             )
 
-    def test_active_doc_ignores_absolute_external_markdown_path(self) -> None:
+    def test_active_doc_rejects_local_legacy_repo_absolute_markdown_path(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:
             root = Path(tempdir)
             active = root / "docs" / "reference" / "normalization.md"
@@ -105,7 +105,46 @@ class CheckDocsReferenceGraphTrackedTest(unittest.TestCase):
                 encoding="utf-8",
             )
 
-            self.assertEqual(audit_docs_reference_graph(root=root), ())
+            self.assertEqual(
+                audit_docs_reference_graph(root=root),
+                (
+                    DocsReferenceGraphIssue(
+                        path="docs/reference/normalization.md",
+                        target="/home/reptilian/code/campusRag/docs/rag/schema.md",
+                        message="active document references local absolute repo path",
+                    ),
+                ),
+            )
+
+    def test_active_doc_rejects_split_from_mega_doc_process_marker(self) -> None:
+        with tempfile.TemporaryDirectory() as tempdir:
+            root = Path(tempdir)
+            active = root / "docs" / "contracts" / "app-api" / "operator.md"
+            active.parent.mkdir(parents=True)
+            active.write_text(
+                "---\n"
+                "doc_type: contract\n"
+                "truth_scope: product\n"
+                "owner_boundary: docs/contracts\n"
+                "status: active\n"
+                "created: 2026-06-14\n"
+                "updated: 2026-06-14\n"
+                "---\n"
+                "# Operator\n\n"
+                "Split from the former mega-doc during documentation SoT cleanup.\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                audit_docs_reference_graph(root=root),
+                (
+                    DocsReferenceGraphIssue(
+                        path="docs/contracts/app-api/operator.md",
+                        target="Split from the former mega-doc",
+                        message="active document contains documentation migration process marker",
+                    ),
+                ),
+            )
 
     def test_active_doc_ignores_glob_and_placeholder_markdown_patterns(self) -> None:
         with tempfile.TemporaryDirectory() as tempdir:

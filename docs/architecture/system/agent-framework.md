@@ -100,7 +100,7 @@ The following are not default campus answer-path tools:
 
 ## Related Documents
 
-- `execution-agent-layer-architecture.md`
+- `execution-agent-layer.md`
 - `tool-runtime.md`
 - `prompt.md`
-- `durable-agent-runtime-architecture.md`
+- `durable-runtime.md`

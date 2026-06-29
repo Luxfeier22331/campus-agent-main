@@ -4,346 +4,80 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-06-20
+updated: 2026-06-28
 ---
 # Testing And Verification Lanes
 
-## 文档边界
-
-这份文档只固定当前仓库的验证入口语义，不重复：
-
-- 长期架构边界：`docs/architecture/target.md`
-- `app-api` Worker 形态：`docs/architecture/system/product-runtime-architecture.md`
-- 当前 phase 状态：`.planning/PROJECT.md`、`.planning/WORKSTREAMS.md` 与对应 workstream
-  `STATE.md`
-
-## 仓库级 lane
-
-### Repo Guard Lane
-
-命令：
-
-```bash
-pnpm repo:guard
-```
-
-语义：
-
-- 这是 repo collaboration / docs structure / workspace layout 的快速 guard
-- CI 中通过 `pnpm ci:repo-guard` 调用同一入口
-- 它不替代静态 lint、typecheck、test、build、coverage 或 E2E
-- 它不能作为 runtime 行为、业务正确性、测试覆盖率或上线验收证据
-
-### Repo Lint Lane
-
-命令：
-
-```bash
-pnpm repo:static
-```
-
-语义：
-
-- 这是仓库级静态规范检查入口，不替代 typecheck、test 或 build
-- CI 中通过 `pnpm ci:repo-static` 调用同一入口
-- JS/TS 与 JSON/JSONC config 侧使用 Biome，默认检查当前 worktree live
-  files：`apps/`、`packages/`、`configs/`、`scripts/`、`tests/` 下的 tracked +
-  untracked 文件，以及 repo-owned root JSON/JSONC config（如
-  `package.json`、`turbo.json`、`biome.jsonc`、`.markdownlint-cli2.jsonc`）；默认忽略
-  unknown file types
-- Markdown 侧通过 repo-owned runner 调用 `markdownlint-cli2`，覆盖当前 worktree 中的 root
-  live docs、`.github/pull_request_template.md`、长期 `docs/**` source-of-truth
-  文档，以及 `apps/` / `packages/` / `configs/` 的手写 live markdown；默认排除 archive /
-  historical plan 文档、vendor、`node_modules` 与 scratch markdown
-- campus-web docs reader 侧通过 `node apps/campus-web/scripts/build-published-reader-docs.mjs`
-  覆盖当前 Rspress-powered `/docs/*` reader build；该命令是消费端，运行前必须先用
-  `node scripts/prepare-campus-docs-reader-build.mjs` 准备
-  `var/public-docs-sync-manifest.json` 并验证对象存储 reader assets；feature worktree
-  中先运行 local env link 命令，并确保 root worktree 已有 ignored
-  `env/commands/campus-docs-reader-build.env`；完整 product build 仍走
-  `pnpm --dir apps/campus-web build`。
-
-```bash
-uv run --all-packages python -m scripts.link_worktree_app_local_env \
-  --repo-root "$PWD"
-```
-
-- `pnpm repo:static` 内部继续运行 tracked repo baseline 审计，用于确保 repo-owned
-  text-like surface 都被某个 lint lane 接管；它不扩到未跟踪文件
-- Java 侧当前仅覆盖 `apps/legacy-office-conversion-service/src/**/*.java`，通过
-  repo-owned Python wrapper 调用 Docker `lint` target，并在容器内执行 `mvn
-  spotless:check`；默认检查当前 worktree 文件，不承担 Checkstyle / PMD / SpotBugs 这类更强规则治理
-- EditorConfig 侧使用 `editorconfig-checker`，覆盖 repo dotfile
-  config（`.editorconfig`、`.gitignore`、`.gitattributes`）；该 lane 通过 repo-owned
-  wrapper 检查当前 worktree 中未被其他 lint 入口覆盖的 dotfile surface
-- env example 侧使用 repo-owned Python checker，覆盖当前 worktree 的 `*.env.example` 与
-  `*.dev.vars.example`，默认排除 `.planning/` 与 `vendor/`；当前要求 `KEY=VALUE` 结构、key
-  命名合法且不重复，并禁止 comment / value 尾随空白或 value 前后空白；仍不做跨文件一致性治理
-- `pnpm repo:static` 内部的 HTML checker 对当前 worktree 的 `*.html` 做 `html5lib`
-  解析与最小文档结构校验；当前要求存在 `<!doctype html>`、单一 `html/head/body`，以及非空 `<title>`；默认排除
-  `.planning/`、临时目录、vendor 与 `node_modules`
-- YAML 侧通过 repo-owned runner 调用 `pre-commit` 的 `check-yaml` hook，检查当前 worktree
-  YAML files，默认排除 `.planning/`
-- TOML 侧使用 repo-owned Python checker，对当前 worktree `*.toml` 做 `tomllib` 结构校验
-- shell 侧使用 repo-owned Python checker，对当前 worktree `*.sh` 做 `bash -n` 语法校验
-- PowerShell 继续保留为 supplemental lane，不并入默认 `pnpm repo:static`
-- XML 侧使用 repo-owned Python checker，对当前 worktree `*.xml` 做 well-formedness 结构校验
-- JSONL 侧使用 repo-owned Python checker，对当前 worktree `*.jsonl` 做逐行 JSON object
-  校验，并对 repo 当前已承诺的 sample 形状做最小 schema
-  守卫：`provider-result*.jsonl`、`layout-elements*.jsonl`、`*.structured.jsonl`
-  必须保留对应核心字段；当前仍不扩成通用 schema 平台
-- SQL 侧使用 repo-owned Python wrapper 调用 `sqlfluff parse --dialect postgres`，对当前
-  worktree `*.sql` 做可解析性校验；当前不承担 SQL 风格治理
-- Dockerfile 侧使用 repo-owned Python wrapper 调用 `hadolint`，覆盖当前 worktree
-  Dockerfile surface，并已并入默认 `pnpm repo:static`
-- lock integrity 侧通过 repo-owned checker 校验所有 repo-owned lockfile 真相：
-  - `pnpm-lock:lint` 校验 root workspace `pnpm-lock.yaml`，并对当前 worktree app-local
-    `pnpm-lock.yaml` 执行隔离 `frozen-lockfile` 校验
-  - app-local `pnpm-lock.yaml` 不允许 `workspace:` dependency specifier；如果 app-local
-    runtime 需要 repo-owned package，必须使用可被隔离 lockfile 解析的 `file:../../packages/...`
-    specifier，或移除 app-local lockfile 作为 truth
-  - `uv-lock:lint` 通过 `uv lock --check --offline` 校验 repo root `uv.lock` 是否仍与当前
-    Python dependency truth 同步
-- app-local `pnpm-lock.yaml` 当前视为 repo-owned truth；若对应 app 的 `package.json`
-  变化，lockfile 必须同步刷新
-- Python 侧使用 Ruff，同时承担 import 排序与格式检查；当前 repo 默认门禁包含 `W` 与 `B904`
-- CI workflow contract 侧通过 `pnpm ci:config:lint` 校验 root packageManager、app/package
-  packageManager、GitHub Actions pnpm 版本与 workflow 调用的 `ci:*` lane 是否一致
-- 生成物、vendor 和 planning/runtime 噪音目录不进入默认 lint 面
-
-### Python Baseline
-
-命令：
-
-```bash
-uv run --all-packages python -m unittest discover -s tests -t .
-```
-
-语义：
-
-- 这是仓库级 Python 基线验证入口
-- Python 侧继续独立运行在 `uv` / `unittest` 链路，不并入 `pnpm` / `vitest`
-
-### JS/TS Stable Gate
-
-命令：
-
-```bash
-pnpm web:typecheck
-pnpm web:test
-pnpm web:build
-pnpm ci:web-graph:full
-```
-
-语义：
-
-- 这是仓库级 JS/TS 默认稳定门禁
-- `pnpm ci:web-graph:full` 是完整 JS/TS graph 入口，等价于 `pnpm web:check`；该入口同样使用
-  Turbo `--concurrency=2`
-- 面向 `develop` 的增量验证使用一次性 Turbo 命令，例如
-  `TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concurrency=2`；
-  repo root 不再维护 affected graph 的脚本别名
-- `pnpm web:test` 表示各 app 的默认稳定测试 lane，不等于“所有可能的 JS/TS 测试”
-- 当前它包含：
-  - `apps/app-api` 的 `test:node`
-  - `apps/campus-web` 的 `test:worker`
-  - `apps/operator-console-web` 的 `test:worker`
-
-### JS/TS Worker Lane
-
-命令：
-
-```bash
-pnpm web:test:worker
-```
-
-语义：
-
-- 这是显式 Worker runtime lane
-- 用于补跑 Worker shell、route admission、runtime readiness 与绑定契约
-- 当前它覆盖：
-  - `apps/app-api` 的 `test:worker`
-  - `apps/campus-web` 的 `test:worker`
-  - `apps/operator-console-web` 的 `test:worker`
-
-### JS/TS Integration Lane
-
-命令：
-
-```bash
-pnpm web:test:integration
-```
-
-语义：
-
-- 这是显式外部依赖 integration lane
-- 当前仅映射到 `apps/app-api` 的 `test:shared-db-integration`
-- 它不属于默认 `pnpm web:test` 门禁
-- 该 lane 会显式检查 shared DB bootstrap / adoption 是否仍与 repo-owned snapshot 收敛；如果连接到的
-  shared DB 已漂移，会 fail-close
-- 该 lane 不验证 `official_web` collector lifecycle，也不要求
-  `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
-- 当前 repo 的 repair 入口是 `node apps/app-api/scripts/run-with-local-env.mjs node
-  ./scripts/reconcile-shared-db-drift.mjs --json`
-
-### Execution-Control Temporal Lane
-
-Temporal 官方 Go SDK testing guidance 把 E2E 定义为：运行 Temporal Server 和
-Worker，再由 Client 启动并交互 Workflow；同时建议多数测试保持在 integration
-层，并使用 test server 覆盖 Worker 场景。
-
-默认 Go lane：
-
-```bash
-cd apps/execution-control && go test ./...
-```
-
-语义：
-
-- 覆盖 Go package 的默认 unit / integration tests
-- 包含 `testsuite.TestWorkflowEnvironment` 下的 workflow logic tests、
-  Activity failure / retry / non-retryable failure tests、HTTP handler tests 与
-  projection tests
-- 不启动真实 Temporal Server，因此不等价于 Temporal E2E
-
-Tagged Temporal E2E lane：
-
-```bash
-cd apps/execution-control && \
-  go test -tags temporal_e2e ./internal/temporalruntime \
-    -run TestTemporalDevServer -count=1
-
-cd apps/execution-control && \
-  go test -tags temporal_e2e ./internal/httpapi \
-    -run TestExecutionRunHTTP -count=1
-```
-
-语义：
-
-- 使用 Temporal Go SDK test server / dev server 启动真实 Temporal service
-- 启动 repo-owned workflow worker 与 split activity workers
-- 从 Temporal Client 或真实 HTTP handler 启动 / 取消
-  `CapabilityExecutionWorkflow`
-- 检查 Temporal history 中的 completed / canceled event，以及 knowledge branch 的
-  RAG activity completion
-- HTTP lane 同时检查 `execution-control` run projection 中的 completed / canceled
-  terminal state、run events 与 `finalization.write` step projection
-
-该 lane 当前覆盖：
-
-- direct primary-agent happy path：memory recall -> primary agent ->
-  finalization -> memory append
-- knowledge branch happy path：primary agent selects `knowledge_query` 后进入
-  `rag.plan -> retrieval.indexed_lookup -> retrieval.expand_or_rescue ->
-  evidence.selection -> synthesis -> grounding.verify -> finalization.write`
-- workflow cancel：agent activity running 时由 starter cancel，Temporal history 进入
-  canceled
-- HTTP command seam：`POST /internal/execution/runs` 经真实 handler start Temporal
-  workflow，并投影 completed run
-- HTTP cancel seam：`POST /internal/execution/runs/:runId/cancel` 取消 Temporal
-  workflow，并投影 canceled run
-
-该 lane 当前不覆盖：
-
-- typed capability branch 的 full E2E；当前 top-level workflow 不把 ordinary chat
-  默认改写为 typed capability，也不应假装已覆盖
-- 真实 provider、真实 Qdrant、真实 Postgres、真实 object store 或真实 staging ingress
-- Operator Console / eval 读取路径；这些仍由 staging release lane 和 projection tests 证明
-
-### E2E QA Release Lane
-
-入口：
-
-```bash
-docs/runbooks/e2e-qa-release-runbook.md
-```
-
-语义：
-
-- 这是上线前真实 staging 验收 lane，不替代 unit、typecheck、build、lint 或 integration lane
-- 它只在真实 staging deployment、真实 auth/session、真实 browser surface、真实 data plane 与真实
-  observability sink 均存在时执行
-- 当前默认目标环境是 `mucwiki-edge.link` staging；`campus.muc.wiki` production custom-hostname
-  path 不属于当前 gate
-- 它串联 repo preflight、execution runtime readiness、public surface health、chat E2E、
-  docs gated smoke、Operator Console Access smoke、browser QA、Sentry/Axiom sink verification
-  与 data-plane sanity
-- 证据必须落盘到 `var/staging-evidence/<timestamp>-e2e-qa-release/`
-- 它不能使用 fallback、兜底、best-effort、silent recovery、`--expect-result-kind any` 或跳过
-  Access / auth / readyz 的方式标绿
-- Browser QA 可以由 repo-owned Playwright runner 生成 evidence，但仍必须使用真实
-  staging deployment、真实 session / Access state 与真实 network path
-- Sentry closure 默认查询 Explore `spans`；issue-list endpoint 权限不足不是 staging
-  observability blocker
-
-对应 runbook：
-
-- `docs/runbooks/e2e-qa-release-runbook.md`
-- `docs/runbooks/templates/e2e-qa-release-artifact-template.md`
-
-Browser runner 入口：
-
-```bash
-node apps/app-api/scripts/run-with-staging-smoke-env.mjs \
-  --cwd apps/campus-web \
-  pnpm exec tsx ./scripts/staging-browser-e2e.ts \
-    --evidence-dir "$E2E_QA_EVIDENCE_DIR"
-
-node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
-  --storage-state "$OPERATOR_CONSOLE_STORAGE_STATE" \
-  --evidence-dir "$E2E_QA_EVIDENCE_DIR"
-```
-
-语义：
-
-- campus runner 通过 app-api staging smoke endpoint 铸造真实 session，打开 campus
-  shell、chat 和 docs reader，并落盘 screenshots 与 `campus-browser-e2e.json`
-- operator runner 使用已登录 human operator 的 Playwright storage state，打开
-  panel domain matrix，并拒绝直接访问 execution-control、Temporal、PG、Sentry 或 Axiom
-- 这些 runner 是真实 staging browser E2E，不属于默认 `pnpm web:test`
-
-## app-api lane 语义
-
-`apps/app-api` 同时承载 Node 业务逻辑测试与 Worker runtime 测试，因此 lane 明确拆分：
+## Boundary
+
+This document names the stable verification lanes and their meaning. It does not
+replace architecture, app-local README commands, release runbooks or CI
+configuration.
+
+## Repo Lanes
+
+- `pnpm repo:guard`
+  - Fast collaboration / docs structure / workspace layout guard.
+  - Not a lint, build, test, runtime or release proof.
+- `pnpm repo:static`
+  - Repo-wide static gate for live tracked surfaces: docs, configs, env examples,
+    JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, Biome, Ruff format
+    checks and decomposition guard.
+  - Not a typecheck, unit test, integration test or E2E proof.
+- `uv run --all-packages python -m unittest discover -s tests -t .`
+  - Repo Python baseline through `uv` / `unittest`.
+- `pnpm web:typecheck`, `pnpm web:test`, `pnpm web:build`,
+  `pnpm ci:web-graph:full`
+  - JS/TS stable graph checks.
+  - `pnpm web:test` is the stable default lane, not all Worker / integration
+    tests.
+- `pnpm web:test:worker`
+  - Explicit Worker runtime lane for app-api, campus-web and
+    operator-console-web.
+- `pnpm web:test:integration`
+  - Explicit external dependency integration lane; currently app-api shared DB
+    integration.
+
+## App / Runtime Lanes
 
 - `pnpm --dir apps/app-api test`
-  - 默认稳定 gate，等价于 `pnpm --dir apps/app-api test:node`
-- `pnpm --dir apps/app-api test:all`
-  - app-owned 聚合入口，统一运行本地非 DB Vitest projects（`node` + `worker`）
+  - App-api default Node lane.
 - `pnpm --dir apps/app-api test:worker`
-  - 显式 Worker runtime lane
+  - App-api Worker runtime lane.
 - `pnpm --dir apps/app-api test:shared-db-integration`
-  - 显式 shared Postgres / Better Auth integration lane
-- `pnpm --dir apps/app-api test:official-web-shared-db-integration`
-  - 显式 `official_web` collector lifecycle shared DB lane；只有在
-    official-web collector control plane 进入本次 rollout / smoke 范围时运行
-  - 该 lane 需要 `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN`
+  - Shared Postgres / Better Auth integration lane.
+- `pnpm --dir apps/campus-web test`
+  - Campus-web Worker lane.
+- `pnpm --dir apps/operator-console-web test`
+  - Operator-console-web Worker lane.
+- `cd apps/execution-control && go test ./...`
+  - Go unit / integration lane using package tests and Temporal test
+    environment where applicable.
+- `cd apps/execution-control && go test -tags temporal_e2e ...`
+  - Explicit Temporal dev-server / test-server lane. It is not part of the
+    default Go lane.
 
-对应配置文件：
+## Release / Staging Lanes
 
-- `apps/app-api/vitest.config.mts`
-  - Vitest projects 编排入口
-- `apps/app-api/vitest.node.config.mts`
-  - Node 默认稳定 lane
-- `apps/app-api/vitest.worker.config.mts`
-  - Worker runtime lane
-- `apps/app-api/vitest.shared-db.config.mts`
-  - shared DB integration lane
-- `apps/app-api/vitest.official-web-shared-db.config.mts`
-  - `official_web` collector lifecycle shared DB lane
+- `docs/runbooks/e2e-qa-release.md`
+  - Real staging release QA. It requires real deployment, auth/session, browser
+    surfaces, data plane and observability sinks.
+  - It must not use fallback expectations, skipped auth, skipped readyz or
+    `--expect-result-kind any` to pass.
+- `docs/runbooks/rag-release.md`
+  - Fresh RAG collection release / rebuild acceptance for current query-serving
+    collections.
+- `docs/runbooks/execution-smoke.md`
+  - Execution-control staging smoke.
+- `docs/runbooks/worker-observability-smoke.md`
+  - Forward Worker observability preflight / post-deploy smoke.
 
-## 单一 Worker app 语义
+## Rules
 
-`apps/campus-web` 与 `apps/operator-console-web` 当前都只有单一 Worker test lane，因此：
-
-- `pnpm --dir apps/campus-web test` 等价于 `pnpm --dir apps/campus-web
-  test:worker`
-- `pnpm --dir apps/operator-console-web test` 等价于 `pnpm --dir
-  apps/operator-console-web test:worker`
-
-## 当前约束
-
-- 不要把 Node、Worker、Python 合并成一套单 runtime 测试链路
-- 不要把显式 integration lane 混入默认稳定 gate
-- 仓库级 JS/TS 验证优先走 repo root `pnpm` + `turbo` 入口；app-local 命令只用于聚焦单 app
-- Worker lane 在某些受限环境中可能需要允许本地监听端口
+- Run the smallest lane that proves the changed surface, then broader repo gates
+  when the change crosses boundaries.
+- Do not treat release evidence as main-chain architecture completion.
+- Do not treat static/lint success as runtime correctness.
+- Do not mix integration lanes into the default stable gate unless the changed
+  surface requires external dependency proof.
+- Record exact commands in PRs and final handoff; do not write "should pass".

@@ -250,9 +250,9 @@ canonical golden/eval truth 必须同步遵守：
 
 - `docs/architecture/target.md` 只记录 alias/entity resolution 的 owner
   boundary
-- `docs/architecture/system/execution-agent-layer-architecture.md` 负责 agent 对
+- `docs/architecture/system/execution-agent-layer.md` 负责 agent 对
   alias/entity resolution 的长期职责
-- `docs/architecture/system/retrieval-serving-architecture.md` 负责 retrieval 如何消费
+- `docs/architecture/system/retrieval-serving.md` 负责 retrieval 如何消费
   canonical entity/filter truth
 - `docs/reference/eval-gold-truth-model.md` 负责 family alias / partial-answer 的
   golden truth authoring 规则

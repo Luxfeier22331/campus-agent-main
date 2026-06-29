@@ -11,8 +11,8 @@
 - `docs/architecture/current.md`
 - `.planning/PROJECT.md`
 
-只有在你需要接手当前 worktree 的执行现场、恢复上一个协作者的上下文时，再读 `.planning/WORKSTREAMS.md` 和对应
-`.planning/workstreams/<slug>/STATE.md`。
+只有在需要判断当前 backlog signals 或并发 workstream 入口时，再读 `.planning/WORKSTREAMS.md`。
+具体执行现场由 GSD SDK / Codex native session 承接，不从 tracked phase 目录恢复。
 
 ## 分支与合流
 
@@ -47,11 +47,10 @@ gsd-sdk query workstream.complete <workstream-slug> --raw --cwd "$PWD"
 
 - plain `codex` 用于普通讨论、代码评审、架构辨析、问答和执行，不再进入 repo 自建
   terminal-result contract
-- tracked planning truth 继续留在 `.planning/WORKSTREAMS.md` 与
-  `.planning/workstreams/<slug>/`
+- tracked planning truth 只保留 `.planning/PROJECT.md` 与 `.planning/WORKSTREAMS.md`
 - 本地会话状态、执行记录和临时上下文不写回 tracked planning 文档
-- 需要恢复某条线时，先读 `.planning/workstreams/<slug>/README.md` 与 `STATE.md`，再用
-  GSD SDK 切换 active workstream
+- 需要恢复某条线时，先用 GSD SDK 查询 workstream registry / status / progress，再回到
+  对应 docs、ADR、contract、runbook 或 git history 提取 durable facts
 
 完整命令与恢复流程见 `docs/runbooks/workstream-gsd-sdk-workflow.md`。
 
@@ -94,11 +93,10 @@ pnpm web:build
 - `docs/` 记录共享、可长期引用的真相
 - `.planning/PROJECT.md` 记录当前项目级范围与关键决策
 - `.planning/WORKSTREAMS.md` 记录 repo 级 active / deferred / backlog workstream 总览
-- `.planning/workstreams/<slug>/STATE.md` 记录单条 workstream 的 `now / next /
-  blockers / continuity`
-- `.planning/runtime/` 只保存 gitignored 的本地 operator scratch 与 session pointer
-  辅助状态；不承载 repo-owned workstream harness、claim lease 或 heartbeat truth
-- `docs/plans/` 记录仍有前向指导价值的计划，不承担 merged truth
+- GSD SDK / Codex native session 记录 live workstream/session state
+- git history 只用于追溯已删除 planning archive；需要的结论必须提升到当前 owner 文档
+- 不恢复 `.planning/workstreams`、`.planning/quick`、`.planning/milestones`、
+  `docs/plans` 或 repo-owned terminal-result / heartbeat / hook harness
 
 如果你在改这些内容：
 

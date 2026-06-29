@@ -23,7 +23,7 @@ Personal Memory Plane.
 本 ADR 只保留为 historical background。不得把本文中的 Qdrant collection、
 `personal_memory_v1`、repo-owned extraction prompt / embedding 或 inferred memory
 update 路径作为当前实现、目标架构或新代码引用。当前 personal memory truth 以 ADR-0058
-与 `docs/architecture/system/memory-plane-architecture.md` 为准。
+与 `docs/architecture/system/memory-plane.md` 为准。
 
 ## 背景
 
@@ -138,8 +138,8 @@ ADR-0015 仍保留 identity / authorization / raw-state minimization 决策。
 
 ## 相关文档
 
-- `docs/architecture/system/memory-plane-architecture.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/durable-agent-runtime-architecture.md`
+- `docs/architecture/system/memory-plane.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/durable-runtime.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0048-temporal.md`

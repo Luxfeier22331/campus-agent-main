@@ -32,7 +32,7 @@ Qdrant collections, extraction prompts, embedding profiles or dedupe logic.
 The chosen substrate is no longer current. Current personal memory truth is:
 
 - `docs/decisions/adr-0058-hindsight-self-hosted-personal-memory-plane.md`
-- `docs/architecture/system/memory-plane-architecture.md`
+- `docs/architecture/system/memory-plane.md`
 
 ## Historical Consequences
 

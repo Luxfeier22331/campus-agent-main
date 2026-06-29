@@ -154,7 +154,7 @@ activity workers 和 `app-api` projection boundary 承接。
 
 ## 相关文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/architecture/target.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/execution-agent-layer.md`
 - `docs/architecture/system/ops-observability.md`

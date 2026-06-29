@@ -61,45 +61,45 @@
 - `docs/architecture/product.md`
 - `docs/architecture/current.md`
 - `docs/architecture/target.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/execution-agent-layer.md`
 - `docs/architecture/system/tool-runtime.md`
 - `docs/architecture/system/agent-framework.md`
 - `docs/architecture/system/tool-routing.md`
-- `docs/architecture/system/durable-agent-runtime-architecture.md`
-- `docs/architecture/system/agentic-retrieval-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/durable-runtime.md`
+- `docs/architecture/system/agentic-retrieval.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/prompt.md`
 - `docs/architecture/system/k8s-runtime.md`
-- `docs/architecture/system/langfuse-observability-and-eval-architecture.md`
-- `docs/architecture/system/document-site-architecture.md`
-- `docs/architecture/system/operator-console-operations-architecture.md`
+- `docs/architecture/system/langfuse.md`
+- `docs/architecture/system/document-site.md`
+- `docs/architecture/system/operator-console.md`
 - `docs/architecture/system/code-organization.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/identity-browser-experience-architecture.md`
-- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
-- `docs/architecture/system/memory-plane-architecture.md`
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/identity-platform.md`
+- `docs/architecture/system/identity-browser.md`
+- `docs/architecture/system/mucwiki-login.md`
+- `docs/architecture/system/memory-plane.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/architecture/domains/campus-services/architecture.md`
 - `docs/architecture/domains/dining/architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/data/official-web-source-truth-schema.md`
+- `docs/data/official-web.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
 - `docs/data/wechat-official.md`
-- `docs/data/identity-platform-schema.md`
+- `docs/data/identity-platform.md`
 - `docs/contracts/campus-notice-runtime-contract.md`
-- `docs/contracts/app-api-identity-platform-http.md`
-- `docs/contracts/app-api-federation-http.md`
-- `docs/contracts/app-api-document-reader-http.md`
-- `docs/contracts/app-api-operator-ops-http.md`
-- `docs/contracts/app-api-dining-http.md`
-- `docs/contracts/app-api-dining-ops-http.md`
+- `docs/contracts/app-api/identity.md`
+- `docs/contracts/app-api/federation.md`
+- `docs/contracts/app-api/document-reader.md`
+- `docs/contracts/app-api/operator-ops.md`
+- `docs/contracts/app-api/dining.md`
+- `docs/contracts/app-api/dining-ops.md`
 - `docs/contracts/langfuse-runtime.md`
-- `docs/data/dining-operations-schema.md`
-- `docs/reference/authenticated-notice-file-release-export-contract.md`
+- `docs/data/dining.md`
+- `docs/contracts/authenticated-notice-file-release-export.md`
 - `docs/decisions/adr-0002-local-minio-conventions.md`
 - `docs/decisions/adr-0007-phase1-retrieval-baseline-update.md`
 - `docs/decisions/adr-0011-operator-console-worker-runtime.md`
@@ -467,7 +467,7 @@ TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concur
 - 不要把“担心腐烂”当成替代验证证据的理由
 - 当提出某种设计风险时，应尽可能区分：文档事实、代码事实，以及你的推断
 - 上线前真实 staging E2E closeout 走
-  `docs/runbooks/e2e-qa-release-runbook.md`；该 runbook 是 release QA 总入口，
+  `docs/runbooks/e2e-qa-release.md`；该 runbook 是 release QA 总入口，
   不替代 unit / typecheck / build，也不能用 fallback、兜底、
   `--expect-result-kind any` 或跳过 Access / auth / readyz 的方式标绿
 

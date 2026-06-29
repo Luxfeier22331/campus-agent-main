@@ -169,4 +169,4 @@ notice processing runs。
 
 ## 相关文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`

@@ -60,9 +60,9 @@ observable:
   stays tracked only when it still carries unique retained evidence or
   migration value. If the remaining value is traceability, use git history
   instead of keeping a branch-tip body or redirect stub.
-- The documentation inventory is a compact governance snapshot, not a
-  hand-maintained mirror of every Markdown file. It should record counts,
-  cleanup rules and hotspots rather than duplicate the full tree.
+- Documentation governance lives here. Do not add a second tracked inventory,
+  cleanup ledger or mirror of the Markdown tree; counts and cleanup history
+  belong in tooling output and git history.
 
 ## Truth Classes
 
@@ -270,10 +270,9 @@ A large document is owner-clean when:
 - it is not carrying active work status, release proof or staging closeout unless
   it is an operational runbook
 
-Large but owner-clean documents should be marked in the documentation inventory
-with `keep_large_owner_truth`. That action means the document was reviewed and
-should not be split only to reduce line count. Future additions still need to
-respect the same owner boundary.
+Large but owner-clean documents may remain large without a separate inventory
+entry. The review result is the document itself staying owner-clean at branch
+tip; future additions still need to respect the same owner boundary.
 
 If a large document mixes truth classes, split the mixed section into the owning
 document class before adding new content. Do not leave durable docs with
@@ -385,9 +384,9 @@ updated: YYYY-MM-DD
 ---
 ```
 
-Existing docs may keep their current frontmatter until the Phase 5 migration,
-but new docs should not introduce new ambiguous `doc_type: architecture`
-without `truth_scope` and `owner_boundary`.
+Existing docs may keep their current frontmatter until touched for durable
+content changes, but new docs should not introduce ambiguous `doc_type:
+architecture` without `truth_scope` and `owner_boundary`.
 
 ## Migration Rules
 
@@ -399,6 +398,9 @@ without `truth_scope` and `owner_boundary`.
 - Delete historical archive bodies that no longer carry unique retained
   evidence or migration value. Use git history for traceability instead of
   keeping tracked redirect stubs.
+- Do not keep branch-tip cleanup ledgers or inventory snapshots. When a cleanup
+  leaves durable rules behind, promote those rules into this document; otherwise
+  let the cleanup be discoverable through git history.
 - Do not restore tracked planning archive trees. Recover only specific durable
   facts into active docs.
 - Prefer deleting stale cross-type summaries over maintaining compatibility
@@ -409,4 +411,3 @@ without `truth_scope` and `owner_boundary`.
 
 - `docs/decisions/adr-0038-documentation-information-architecture-and-lifecycle.md`
 - `docs/decisions/adr-0039-reference-and-runbook-historical-lifecycle.md`
-- `docs/reference/documentation-inventory.md`

@@ -17,16 +17,14 @@ updated: 2026-05-04
 - collector、`app-api`、object storage、`ingestion-control` 如何分层
 - crawl policy、source-truth contract 与 operator/control-plane surface 各自属于谁
 - `official_web` 如何接入 shared product/runtime architecture
+- `official_web` 如何执行 freshness / incremental crawling
+- 官网稳定参考、时效新闻与历史新闻应如何拆分 serving surface
 
 补充约束：
 
 - 当前 merged truth 与 runtime opening posture 以
-  `docs/architecture/current.md`、`docs/domains/official-web.md` 与
-  `.planning/` 为准
+  `docs/architecture/current.md` 与 `.planning/` 为准
 - 本文不维护 `fresh_news` / `news_archive` 的当前开放状态、单轮执行进度或 closeout 证据
-- `fresh_news` / `news_archive` 的长期 opening criteria、default consumer posture 与
-  freshness gate 统一看
-  `docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
 
 ## Core Topology
 
@@ -158,11 +156,10 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 - crawl policy：`docs/policies/official-web-crawl-policy.md`
 - source-truth
-  contract：`docs/data/official-web-source-truth-schema.md`
-- repo-level data-plane contract：`docs/architecture/system/data-plane-architecture.md`
-- shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
-- serving split / news retrieval strategy：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
-- freshness / incremental crawling strategy：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
+  contract：`docs/data/official-web.md`
+- repo-level data-plane contract：`docs/architecture/system/data-plane.md`
+- shared file asset loader：`docs/architecture/system/file-asset-loader.md`
+- official-web freshness、serving split 与 news retrieval strategy：本文
 
 ## Control-Plane Ownership
 
@@ -206,6 +203,93 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - `official_web/news_archive` 只允许服务显式历史查询、operator、评测或分析用途
 - news surface 的 query opening policy 属于 serving/runtime contract，不属于 collector
 
+## Freshness And Incremental Crawling
+
+`official_web` 的长期目标不是偶发全量 crawl，而是可持续的新鲜度闭环：
+
+- `baseline` lane：低频广覆盖，发现新栏目、结构变化、迁移、删除与长期静态页面变化。
+- `hot` lane：高频窄范围，覆盖 listing pages、最近新发现 detail pages、
+  feed/sitemap 最近变更信号与高变更页面。
+- `repair` lane：失败恢复和异常复查，覆盖 timeout、5xx、parser failure、中断 run
+  或 audit 要求复抓的页面。
+
+长期运行形态固定为：
+
+```text
+external scheduler
+-> collector Docker run
+-> object storage + app-api official_web control plane
+-> ingestion-control incremental execution
+-> document registry / structured projection
+```
+
+页面新鲜度与变化判定的 durable truth 归 `apps/app-api` control plane 所有，不归：
+
+- collector 本地缓存
+- object storage 目录扫描
+- `apps/ingestion-control` 内部 task 状态
+
+collector 通过 `POST /api/official-web/plans:resolve` 从 `app-api` materialize
+lane-aware dynamic workset。`hostFilter` 只允许缩小已准入的 target workset，不能替代
+target admission。
+
+下游 ingestion handoff 只由 page-level observation 中的 `new`、`changed`、
+`deleted` 驱动。HTTP `304`、仅 body hash 变化、仅 fetch metadata 变化或
+`fetch_failed` 不触发下游重处理。条件请求、sitemap/RSS hint 和 listing diff
+只服务 discovery / priority / observation，不替代变化真相。
+
+责任边界：
+
+- scheduler 决定 lane、时间与预算；collector 不内置 cron。
+- collector 执行 fetch / normalize / artifact upload，产出 `new / changed / deleted /
+  not_modified / fetch_failed` 摘要。
+- `app-api` 持有 run ledger、page/url freshness state、dynamic planner、observation
+  truth、handoff outbox 与 operator query surface。
+- `ingestion-control` 只消费 terminal run 的 `new / changed / deleted` 集合，不扫描对象存储
+  反推 freshness。
+- 少量动态壳页走独立 browser-capable provider lane，不污染主 HTML crawl lane。
+
+## Serving And News Retrieval
+
+`official_web` 是统一 source channel，不是单一默认官网知识库。下游 serving 必须按语义拆分：
+
+- `official_web/stable_reference`
+- `official_web/fresh_news`
+- `official_web/news_archive`
+
+核心规则：
+
+- `stable_reference` 可进入默认 institutional knowledge RAG。
+- `fresh_news` 面向新闻、公告、活动、讲座、媒体报道等时效内容，默认通过 owning
+  tool/runtime policy 消费，不作为 `knowledge` 自动升级面。
+- `news_archive` 只服务显式历史查询、operator、评测或分析用途，不参与 recent-news 默认回填。
+- 官网页面如果承载正式规章、制度、手册、培养方案正文或等价规范性事实，下游应进入
+  `regulations/*` 或 `curriculum/*`，不得复制成 `official_web/regulation` /
+  `official_web/curriculum`。
+- contact、办事指南与流程说明当前不提升为 repo-owned service/process/contact runtime；只能作为
+  `stable_reference` 或 wiki 上游来源。
+
+时效 query 的固定策略：
+
+- “今天 / 最新 / 最近 / 刚刚”不能只凭本地 `is_current=true` 回答。
+- 如果 local freshness 满足阈值，可以回答。
+- 如果 local freshness 不满足阈值，应由 owning tool/runtime 执行 bounded live assist 或
+  fail-close。
+- bounded live assist 只能命中 admitted `official_web` source channel；target selection
+  必须显式冻结。
+- 不允许用旧新闻、`latest_url`、listing snippet 或措辞润色伪装成当前事实。
+
+opening guardrails：
+
+- 不把 `official_web/*` 整体开放为默认 query-serving。
+- 不把 `fresh_news` 开成 `knowledge` 默认消费面。
+- 不把 `listing_page` projection 当成正式新闻问答证据。
+- 不用 seed import、单次 qrels、hot-lane crawl 频率或本地回答样例证明 runtime opening。
+- `fresh_news` 需要 article-detail evidence、freshness gate、routing split 与 stale
+  fail-close 共同成立。
+- `news_archive` 必须 `query_enabled_by_default=false`，只服务 explicit historical /
+  operator / analysis / eval 场景。
+
 ## Forbidden Shapes
 
 - 不把 collector 内嵌进 `apps/ingestion-control` 或 Python adapter worker
@@ -216,8 +300,6 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 ## 相关稳定文档
 
 - `docs/architecture/current.md`
-- `docs/domains/official-web.md`
-- `docs/contracts/app-api-official-web-http.md`
-- `docs/contracts/app-api-official-web-run-lifecycle.md`
-- `docs/data/app-api-official-web-schema.md`
+- `docs/contracts/app-api/official-web.md`
+- `docs/data/app-api/official-web.md`
 - `docs/decisions/adr-0018-app-api-official-web-control-plane-ownership.md`

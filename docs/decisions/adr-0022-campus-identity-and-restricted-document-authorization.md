@@ -22,8 +22,8 @@ Superseded on 2026-06-12.
 - `docs/architecture/product.md`
 - `docs/architecture/target.md`
 - `docs/architecture/system/tool-routing.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/memory-plane-architecture.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/memory-plane.md`
 
 当前主问答链路只面向普通用户开放成熟、只读、source-truth-ready 的校园能力。普通用户不按学生 /
 教职工 / 院系身份拆分 tool 权限；personal memory 只作为 per-user advisory
@@ -251,11 +251,11 @@ projection，不自行重建最终权限结论。
 
 这项决策 complements：
 
-- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/retrieval-serving-architecture.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/retrieval-serving.md`
 
 ## 历史外部依据
 

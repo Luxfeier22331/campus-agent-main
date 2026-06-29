@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/runbooks
 status: active
 created: 2026-04-12
-updated: 2026-06-13
+updated: 2026-06-28
 ---
 # Runbooks
 
@@ -13,14 +13,14 @@ updated: 2026-06-13
 
 ## Core Deploy / Smoke / Release
 
-- `e2e-qa-release-runbook.md`
+- `e2e-qa-release.md`
   - 上线前真实 staging E2E QA 总入口；串联 repo preflight、runtime readiness、
     public surfaces、chat、docs、panel、observability、data-plane sanity 与 evidence closeout。
 - `execution-ops.md`
   - 当前 execution-control + Temporal staging runtime 运维入口。
-- `forward-worker-surface-smoke-runbook.md`
-- `develop-main-release-runbook.md`
-- `ingestion-control-clean-target-runbook.md`
+- `forward-worker-smoke.md`
+- `develop-main-release.md`
+- `ingestion-control-clean-target.md`
   - 当前 ingestion/data-plane operational 入口；旧 Python collection worker
     runbook 已归档。
 
@@ -29,24 +29,19 @@ updated: 2026-06-13
 - `workstream-gsd-sdk-workflow.md`
   - 当前 workstream / Codex 协作总入口；具体决策见
     `../decisions/adr-0046-gsd-sdk-and-codex-native-workflow.md`。
-- `public-product-path-safety-ops-runbook.md`
+- `public-product-safety.md`
 
 ## Environment-Specific Smoke / Evidence
 
 - `execution-ops.md`
-  - `execution-control-staging/deploy-and-ingress.md`
-  - `execution-control-staging/daily-operations-and-recovery.md`
-  - `execution-control-staging/durable-runtime-proof.md`
+  - execution-control staging deploy、ingress、daily operations、recovery 与 triage。
 - `execution-smoke.md`
 - `temporal-self-host-operations.md`
   - self-hosted Temporal substrate 运维入口；覆盖 persistence backup、namespace
     bootstrap、worker identity、task queue poller evidence、failure-mode evidence
     与 autoscaler posture / Docker Compose transitional proof。
-- `execution-control-server-handoff.md`
 - `runtime-otel-collector-pipeline.md`
-- `worker-observability-smoke-runbook.md`
-- `templates/e2e-qa-release-artifact-template.md`
-- `templates/worker-observability-smoke-artifact-template.md`
+- `worker-observability-smoke.md`
 
 ## Local Infra / Recovery
 
@@ -56,36 +51,31 @@ updated: 2026-06-13
 
 ## Authenticated Notice / Internal Notice
 
-- `authenticated-notice-file-release-auth-window-runbook.md`
-- `ingestion-control-clean-target-runbook.md`
+- `notice-release-auth-window.md`
+- `ingestion-control-clean-target.md`
   - authenticated notice / internal notice 的 ingestion task lifecycle 入口；
     replay、closeout、promotion、cleanup 等旧 Python worker 操作只保留 archive
     证据。
 
 ## Official Web
 
-- `official-web-dynamic-shell-discovery.md`
-- `ingestion-control-clean-target-runbook.md`
+- `ingestion-control-clean-target.md`
   - official-web ingestion / release task lifecycle 入口；旧 collector smoke 与
     source-truth projection replay runbook 已归档。
 
 ## Collection rebuild checklists
 
-- `student-handbook-hybrid-rebuild-checklist.md`
-- `curriculum-plan-hybrid-rebuild-checklist.md`
+- `rag-release.md`
+  - current RAG collection rebuild / release acceptance entry for
+    `student_rules` and `curriculum_plan`
 
 ## Eval / Acceptance automation
 
 - `eval-release-gate-automation.md`
 - `eval-operations-governance.md`
 
-## Historical / Comparison Archive
+## Historical Material
 
-- `archive/README.md`
-  - historical runbook、legacy path redirect 与已退出默认执行面的旧模板已统一下沉到 archive namespace
-- `archive/qdrant-cloud-backup-and-restore-runbook.md`
-  - historical Qdrant Cloud / Free tier backup reference；当前默认方案已切换到
-    self-hosted single-node Qdrant native snapshots。
-
-旧 Python ingestion worker runbook 正文已退出 branch tip；需要追溯旧链路时通过
-git history 恢复具体片段，再提升到当前 runbook 或 architecture 文档。
+旧 Qdrant Cloud backup、Python ingestion worker runbook 和其他只剩追溯价值的
+runbook 正文已退出 branch tip；需要旧链路时通过 git history 恢复具体片段，再提升到当前
+runbook 或 architecture 文档。

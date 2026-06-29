@@ -25,7 +25,6 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck(
             "docs reference graph", (py, "-m", "scripts.check_docs_reference_graph_tracked")
         ),
-        StaticCheck("docs inventory", (py, "-m", "scripts.check_docs_inventory_tracked")),
         StaticCheck("lint coverage", (py, "-m", "scripts.check_lint_coverage_tracked")),
         StaticCheck("decomposition", (py, "-m", "scripts.check_decomposition_tracked")),
         StaticCheck("java tracked files", (py, "-m", "scripts.check_java_tracked")),

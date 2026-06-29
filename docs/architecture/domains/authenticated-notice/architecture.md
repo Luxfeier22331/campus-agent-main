@@ -283,12 +283,12 @@ document center 旧设想已退役，不属于当前主问答产品目标。
   `docs/contracts/app-api-notice.md`
 - notice discover/get runtime seam：`docs/contracts/campus-notice-runtime-contract.md`
 - file-release collector export contract：
-  `docs/reference/authenticated-notice-file-release-export-contract.md`
+  `docs/contracts/authenticated-notice-file-release-export.md`
 - shared file asset loader：
-  `docs/architecture/system/file-asset-loader-architecture.md`
-- shared data-plane invariants：`docs/architecture/system/data-plane-architecture.md`
+  `docs/architecture/system/file-asset-loader.md`
+- shared data-plane invariants：`docs/architecture/system/data-plane.md`
 - account / operator access / memory binding：
-  `docs/architecture/system/identity-and-authorization-architecture.md`
+  `docs/architecture/system/identity-authz.md`
 
 ## Writing Rules
 

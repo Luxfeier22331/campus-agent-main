@@ -109,11 +109,11 @@ generic infra console、sink explorer 或直接数据源浏览器。
 
 ## 相关文档
 
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/architecture/system/ops-observability.md`
-- `docs/architecture/system/operator-console-operations-architecture.md`
-- `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-operator-ops-http.md`
-- `docs/contracts/app-api-dining-ops-http.md`
+- `docs/architecture/system/operator-console.md`
+- `docs/contracts/app-api/README.md`
+- `docs/contracts/app-api/operator-ops.md`
+- `docs/contracts/app-api/dining-ops.md`
 - `docs/decisions/adr-0011-operator-console-worker-runtime.md`
 - `docs/decisions/adr-0049-campus-ops-control-plane.md`

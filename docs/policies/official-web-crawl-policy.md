@@ -31,8 +31,8 @@ admission、robots/sitemap、frontier、重试与节流 policy。
 
 - source channel 边界：`docs/architecture/domains/official-web/architecture.md`
 - freshness /
-  增量采集：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
-- source-truth schema：`docs/data/official-web-source-truth-schema.md`
+  增量采集：`docs/architecture/domains/official-web/architecture.md`
+- source-truth schema：`docs/data/official-web.md`
 
 ## 目标
 
@@ -175,6 +175,27 @@ collector 应按以下顺序发现 URL：
 
 - repo 的 scope truth 是显式 host allowlist，不是顶级域名通配
 - `same-domain` 适合“全部子域都可抓”的场景，不适合作为本仓库长期默认边界
+
+### Dynamic Shell Discovery
+
+Browser-assisted discovery is allowed only for host policies that explicitly
+declare `dynamic_shell_discovery`.
+
+Fixed rules:
+
+- shell pages remain `dynamic_shell_page` / `manual_review`
+- browser discovery only discovers same-origin list/detail URLs that can be
+  re-fetched by the normal static crawl lane
+- promoted URLs re-enter the existing request queue with `manual_requeue`
+  semantics
+- `manual_requeue` URLs must not expand into a generic navigation frontier
+- promoted pages still need static HTML fetch + extraction before they can
+  become source-truth candidates
+
+Host config may declare engine, waits, max promoted URLs, allowed/ignored
+request URL patterns, promoted URL patterns and selector/response wait
+patterns. If a promoted URL is denied by host policy, fix the host policy; do
+not add extractor-specific host hacks.
 
 ## URL Canonicalization
 
@@ -396,6 +417,9 @@ collector 可以使用 Crawlee 的 autoscaling，但必须在 host policy 上限
 - 不在本文决定每个 host 的具体阈值数值
 - 不在本文定义 block-level 正文抽取算法
 - 不在本文定义下游 collection projection
+- 不保留 host-specific pilot runbooks；pilot observations must be promoted
+  into host policy or source-channel architecture before they count as current
+  truth
 
 ## 参考
 

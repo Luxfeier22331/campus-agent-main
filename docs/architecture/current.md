@@ -390,25 +390,25 @@ document/index release`
 - 当前架构：本文
 - 目标架构：`docs/architecture/target.md`
 - 产品/runtime supporting
-  architecture：`docs/architecture/system/product-runtime-architecture.md`
+  architecture：`docs/architecture/system/product-runtime.md`
 - Execution Agent Layer supporting
-  architecture：`docs/architecture/system/execution-agent-layer-architecture.md`
+  architecture：`docs/architecture/system/execution-agent-layer.md`
 - prompt/instruction supporting
   architecture：`docs/architecture/system/prompt.md`
 - account / operator access / memory binding supporting
-  architecture：`docs/architecture/system/identity-and-authorization-architecture.md`
+  architecture：`docs/architecture/system/identity-authz.md`
 - identity platform supporting
-  architecture：`docs/architecture/system/identity-platform-architecture.md`
+  architecture：`docs/architecture/system/identity-platform.md`
 - identity browser experience supporting
-  architecture：`docs/architecture/system/identity-browser-experience-architecture.md`
+  architecture：`docs/architecture/system/identity-browser.md`
 - future muc.wiki federation supporting
-  architecture：`docs/architecture/system/federation-and-mucwiki-login-architecture.md`
+  architecture：`docs/architecture/system/mucwiki-login.md`
 - retrieval / serving supporting
-  architecture：`docs/architecture/system/retrieval-serving-architecture.md`
+  architecture：`docs/architecture/system/retrieval-serving.md`
 - data plane supporting
-  architecture：`docs/architecture/system/data-plane-architecture.md`
+  architecture：`docs/architecture/system/data-plane.md`
 - shared file asset supporting
-  architecture：`docs/architecture/system/file-asset-loader-architecture.md`
+  architecture：`docs/architecture/system/file-asset-loader.md`
 - campus services tool read model runtime supporting
   architecture：`docs/architecture/domains/campus-services/architecture.md`
 - `official_web` supporting

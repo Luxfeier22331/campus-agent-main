@@ -17,18 +17,18 @@ HTTP contracts, data schemas, operational procedures or active work status.
 
 ## Active PRDs
 
-- [account-registration-legal-consent-prd.md](./account-registration-legal-consent-prd.md)
+- [legal-consent.md](./legal-consent.md)
   - registration terms/privacy consent, legal pages and sign-up admission
-- [conversation-attachment-upload-prd.md](./conversation-attachment-upload-prd.md)
+- [attachments.md](./attachments.md)
   - proposed conversation attachment upload, per-message image/document context,
     storage boundary and fail-closed semantics
-- [langfuse-eval-platform-completion-prd.md](./langfuse-eval-platform-completion-prd.md)
+- [langfuse-evals.md](./langfuse-evals.md)
   - Langfuse eval platform completion for trace evidence, score publishing,
     datasets, experiments and RAG parameter evals
-- [multi-turn-context-and-rag-followup-prd.md](./multi-turn-context-and-rag-followup-prd.md)
+- [run-context.md](./run-context.md)
   - run context envelope, RAG follow-up resolution, previous evidence proof
     reuse and context-quality evals
-- [observability-orchestration-repair-prd.md](./observability-orchestration-repair-prd.md)
+- [operator-diagnosis.md](./operator-diagnosis.md)
   - observability orchestration repair across OTel Collector, Sentry, Axiom,
     Temporal, Langfuse and operator projections
 

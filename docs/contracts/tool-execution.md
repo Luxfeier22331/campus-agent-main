@@ -16,15 +16,15 @@ Temporal-backed `ToolExecutionWorkflow` 与 tool activity workers。
 
 它补充但不替代以下文档：
 
-- shared product topology：`docs/architecture/system/product-runtime-architecture.md`
-- `app-api` runtime 边界：`docs/architecture/system/product-runtime-architecture.md`
+- shared product topology：`docs/architecture/system/product-runtime.md`
+- `app-api` runtime 边界：`docs/architecture/system/product-runtime.md`
 - Execution Agent Layer / execution engine
-  边界：`docs/architecture/system/execution-agent-layer-architecture.md`
+  边界：`docs/architecture/system/execution-agent-layer.md`
 - tool routing / admission supporting
   truth：`docs/architecture/system/tool-routing.md`
-- 产品层 HTTP contract：`docs/contracts/app-api-http.md`
-- request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
-- durable agent runtime contract：`docs/contracts/durable-agent-runtime-contract.md`
+- 产品层 HTTP contract：`docs/contracts/app-api/README.md`
+- request lifecycle：`docs/contracts/app-api/request-lifecycle.md`
+- durable agent runtime contract：`docs/contracts/durable-runtime.md`
 - execution admission
   ownership：`docs/decisions/adr-0017-supervisor-internal-execution-admission.md`
 - tool-routed execution 与 surface tool policy：
@@ -74,7 +74,7 @@ wrapper，避免把 execution runtime truth 泄漏进共享 tool contract 包。
 Run projection compatibility note：
 
 - 本文冻结的是 current internal tool execution transport
-- `docs/contracts/durable-agent-runtime-contract.md` 冻结 forward production run /
+- `docs/contracts/durable-runtime.md` 冻结 forward production run /
   event / lease contract
 - run projection cutover 不能通过在本 schema 中塞入 vendor queue、worker process
   state 或 transient stream state 来替代 run store
@@ -289,7 +289,7 @@ token cost 已停止。
 ## Tool Read Model Internal Runtime
 
 The execution-control-owned internal query service contract for typed tools
-lives in `tool-read-model-internal-runtime.md`. This parent
+lives in `tool-read-model.md`. This parent
 contract owns the `app-api -> execution-control` run command/query seam; it does
 not redefine every tool-local internal query endpoint.
 

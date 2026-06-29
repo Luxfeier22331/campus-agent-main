@@ -215,6 +215,6 @@ redaction 与字段裁剪。
 ## 相关文档
 
 - `docs/architecture/target.md`
-- `docs/architecture/system/durable-agent-runtime-architecture.md`
+- `docs/architecture/system/durable-runtime.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0015-user-identity-memory-and-personalization-boundaries.md`

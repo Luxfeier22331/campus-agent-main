@@ -17,9 +17,9 @@ tool-local readiness.
 ## Question Routing
 
 - Product surfaces, browser shells and shared app-api runtime:
-  - `product-runtime-architecture.md`
+  - `product-runtime.md`
 - Main answer chain and Execution Agent Layer ownership:
-  - `execution-agent-layer-architecture.md`
+  - `execution-agent-layer.md`
 - Tool routing, surface admission and visible tool set:
   - `tool-routing.md`
 - Typed tool, deterministic query function and agent-as-tool runtime:
@@ -27,39 +27,36 @@ tool-local readiness.
 - Agent framework / OpenAI Agents SDK boundary:
   - `agent-framework.md`
 - Temporal, durable run/event/step projection, cancel, timeout and resume:
-  - `durable-agent-runtime-architecture.md`
+  - `durable-runtime.md`
 - Kubernetes execution-control substrate and KEDA/HPA worker autoscaling target:
   - `k8s-runtime.md`
 - Prompt, system instruction and provider-facing prompt ownership:
   - `prompt.md`
-  - `prompt-and-instruction/current-runtime-baseline.md`
-  - `prompt-and-instruction/assembly-and-assets.md`
-  - `prompt-and-instruction/safety-observability-and-rollout.md`
 - Personal memory recall and memory lifecycle:
-  - `memory-plane-architecture.md`
+  - `memory-plane.md`
 - Retrieval serving and RAG-family internal planning:
-  - `retrieval-serving-architecture.md`
-  - `agentic-retrieval-architecture.md`
+  - `retrieval-serving.md`
+  - `agentic-retrieval.md`
 - Data-plane owner boundaries:
-  - `data-plane-architecture.md`
+  - `data-plane.md`
 - Operator/eval/badcase/release diagnostic projection:
   - `ops-observability.md`
 - Langfuse LLM observability / eval platform boundary:
-  - `langfuse-observability-and-eval-architecture.md`
+  - `langfuse.md`
 - Code organization, decomposition and package ownership:
   - `code-organization.md`
 - Runtime delivery, readiness and release hardening architecture:
   - `runtime-release.md`
 - Document site and file asset architecture:
-  - `document-site-architecture.md`
-  - `file-asset-loader-architecture.md`
+  - `document-site.md`
+  - `file-asset-loader.md`
 - Identity, authorization and account boundary:
-  - `identity-and-authorization-architecture.md`
-  - `identity-platform-architecture.md`
-  - `identity-browser-experience-architecture.md`
-  - `federation-and-mucwiki-login-architecture.md`
+  - `identity-authz.md`
+  - `identity-platform.md`
+  - `identity-browser.md`
+  - `mucwiki-login.md`
 - Operator Console operations domain and current implementation boundary:
-  - `operator-console-operations-architecture.md`
+  - `operator-console.md`
 - Retired or offline Python boundary:
   - `python-boundaries.md`
 

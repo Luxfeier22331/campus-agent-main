@@ -10,8 +10,6 @@ This directory holds the repo-tracked config scaffolding for the
   the same reviewed source
 - `split-manifest.candidate.gaps.json`: audit summary for unmatched or retired
   legacy canonical documents
-- `split-manifest.candidate.gap-triage.md`: triage notes for the retired legacy
-  umbrella document
 - `chunk-profile.json`: chunking/runtime profile record for this collection
 - `retrieval-profile.json`: retrieval/runtime profile record for this collection
 - `samples/`: real document-level sample outputs for chunking and manual review
@@ -94,5 +92,10 @@ Notes:
   from `raw_asset_id + raw_version_id + page_start/page_end`.
 - `split-manifest.candidate.v1.json` remains as a review companion artifact and
   should keep the same document inventory as the formal manifest.
+- `split-manifest.candidate.gaps.json` retains the machine-readable audit
+  summary for unmatched / retired legacy canonical documents. Human triage notes
+  for the old umbrella-title gap have been removed from branch tip; the stable
+  retained conclusion is that `各类课程教学计划` is a retired synthetic umbrella
+  label and must not re-enter the formal split manifest.
 - `samples/index.json` is inspection-only metadata; it should point to the moved
   `configs/ingestion/curriculum/curriculum_plan/samples/...` paths.

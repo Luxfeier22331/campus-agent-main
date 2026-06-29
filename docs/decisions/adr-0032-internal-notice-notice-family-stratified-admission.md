@@ -221,7 +221,6 @@ portal `notice_type` 只允许作为粗 prior，不允许充当最终 family tru
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
-- `docs/reference/archive/authenticated-notice/README.md`
 - `docs/reference/institutional-regulations-promotion-quality-acceptance.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`

@@ -189,16 +189,16 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 - `docs/architecture/product.md` 负责主问答产品边界与非目标
 - `docs/architecture/target.md` 负责 repo 级 account / memory /
   knowledge truth 分层
-- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-authz.md`
   负责 account / session、operator access、quota 与 memory binding supporting
   architecture
-- `docs/architecture/system/memory-plane-architecture.md` 负责 Hindsight self-host
+- `docs/architecture/system/memory-plane.md` 负责 Hindsight self-host
   Personal Memory Plane、`memory.recall` runtime 消费链路与 Temporal 参与点
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`
   负责 account、operator access 与 memory ownership 所在的 app boundary
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/execution-agent-layer.md`
   负责 Execution Agent Layer 如何消费 typed account / memory projection
-- `docs/architecture/system/agentic-retrieval-architecture.md` 负责 retrieval-specific
+- `docs/architecture/system/agentic-retrieval.md` 负责 retrieval-specific
   personalization 与 `RagIntentFrame`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`
   是 superseded historical background，仅作历史参考
@@ -234,9 +234,9 @@ ADR-0058 允许 memory 进入 bounded online recall。本文继续冻结以下�
 ## 相关文档
 
 - `docs/architecture/target.md`
-- `docs/architecture/system/product-runtime-architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/product-runtime.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/execution-agent-layer.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0034-authorization-model-and-retrieval-filter-projection.md`

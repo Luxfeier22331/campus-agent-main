@@ -187,7 +187,7 @@ restricted rollout 边界
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/data-plane.md`
 - historical background:
   `docs/decisions/adr-0022-campus-identity-and-restricted-document-authorization.md`
 - `git history restricted-document rollout workstream`

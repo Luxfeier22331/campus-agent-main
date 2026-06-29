@@ -20,7 +20,7 @@ updated: 2026-04-20
 边界：
 
 - live rebuild、collection schema、points count 与 query 验收步骤仍以
-  `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md` 为准
+  `docs/runbooks/rag-release.md` 为准
 - 本文不承担当前执行状态板
 - 本文不长期暴露 `.tmp` artifact 路径
 

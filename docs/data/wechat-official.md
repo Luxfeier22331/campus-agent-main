@@ -211,10 +211,10 @@ The source-truth layer must not contain:
 Those fields belong to projection, document registry, chunking, authorization,
 or serving stages.
 
-## Phase 4 Projection Handoff
+## Notice Projection Handoff
 
-Phase 4 admits an offline notice-consumption projection lane for this source
-channel:
+This source channel is admitted into an offline notice-consumption projection
+lane:
 
 - source family: `wechat_public_notice`
 - source corpus/collection: `campus_notices/wechat_public_notice`
@@ -237,8 +237,8 @@ suppressed audit row with:
 - `consumption_status = "no_adoption"`
 - dedupe evidence in `role_metadata`
 
-Phase 4 may emit read-model rows through the unified notice family runtime, but
-only rows with captured body and completed multimodal requirements are
+Projection may emit read-model rows through the unified notice family runtime,
+but only rows with captured body and completed multimodal requirements are
 queryable:
 
 - retained rows with `bodyState = "captured"` may materialize canonical notice

@@ -207,7 +207,7 @@ serving seed bucket 不保存 Qdrant `.snapshot`。
 - 这组字段的语义是 retrieval pre-filter projection carrier，不是长期 canonical authorization
   truth
 - 长期授权词汇与 projection vocabulary 以 `ADR-0022` 和
-  `docs/architecture/system/identity-and-authorization-architecture.md` 为准
+  `docs/architecture/system/identity-authz.md` 为准
 
 以下字段必须在 raw asset registry 中显式存在：
 

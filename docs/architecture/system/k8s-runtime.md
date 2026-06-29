@@ -349,7 +349,7 @@ This architecture relies on these current upstream tools:
 ## Related Documents
 
 - `docs/architecture/target.md`
-- `docs/architecture/system/durable-agent-runtime-architecture.md`
+- `docs/architecture/system/durable-runtime.md`
 - `docs/architecture/system/runtime-release.md`
 - `docs/contracts/operator-runtime.md`
 - `docs/decisions/adr-0056-k8s-keda.md`

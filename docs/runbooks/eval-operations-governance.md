@@ -141,7 +141,7 @@ Missing version fields are reported as version drift.
 ## Artifact-Derived Observations
 
 Operations governance observations should be derived from real eval artifacts
-where possible. For Phase 8-13 observation-backed profiles, use
+where possible. For observation-backed deterministic profiles, use
 `scripts.eval_gate accept --profile <profile> --observations-path <file>` to
 write `profile-report.json`, then pass those artifacts into
 `eval-operations-governance` via repeated `--artifact-path`.

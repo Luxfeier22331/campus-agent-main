@@ -19,7 +19,7 @@ source-truth schema。
 
 `file_release` 当前 export contract 另见：
 
-- `docs/reference/authenticated-notice-file-release-export-contract.md`
+- `docs/contracts/authenticated-notice-file-release-export.md`
 
 它回答的是：
 
@@ -41,15 +41,13 @@ source-truth schema。
 - source-channel
   运行边界：`docs/architecture/domains/authenticated-notice/architecture.md`
 - `file_release` collector-owned export
-  contract：`docs/reference/authenticated-notice-file-release-export-contract.md`
+  contract：`docs/contracts/authenticated-notice-file-release-export.md`
 - shared replay / rebuild
-  boundary：`docs/architecture/system/data-plane-architecture.md`
+  boundary：`docs/architecture/system/data-plane.md`
 - `internal_notice` PDF chunking / OCR
   strategy：`docs/reference/internal-notice-pdf-chunks.md`
-- restricted document center artifact
-  contract：`docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - restricted
-  rollout：`docs/architecture/system/identity-and-authorization-architecture.md`
+  rollout：`docs/architecture/system/identity-authz.md`
 
 ## 目标
 
@@ -247,6 +245,18 @@ authenticated notice 采集必须把“增量游标”和“内容版本”分�
 admission。它只决定本条 notice 在 source capture / import 阶段是否需要 attachment bytes；
 真正进入 notice read model、campus services、regulations 或 unsupported 仍由 downstream
 consumer admission manifest 决定。
+
+长期保留的 retention 结论如下：
+
+- attachment policy 必须由 notice-first route 派生，不能由文件类型、附件数量或旧
+  `attachment_processing_policy=process` 直接派生。
+- 正文已经覆盖当前 notice card / discover 目标时，附件默认保持 `metadata_only`；表单、名单、指南、
+  二维码、压缩包、图片或 office 文件不会自动成为 required bytes。
+- `candidate_service_fact` 只表示 notice 可能贡献校园服务事实。只有当目标 materializer 证明某个
+  attachment 承载 required fact gap 时，该 ref 才能进入 `fetch_to_quarantine` 或 required
+  owner path。
+- `candidate_document_owner` 需要显式 downstream admission。没有表单中心、service guide、
+  regulation 或其他 owner target 时，owner-like attachment 仍保持 metadata-only relation。
 
 ## Block Rows Canonical 字段
 
@@ -613,7 +623,7 @@ notice source-truth 不等于逻辑 document 真相。
 
 如需定义 `campus_notices/internal_notice` 的 parent notice / attachment lane
 split、cleanup、chunk-preparation 与 release gate，固定查看
-`docs/runbooks/ingestion-control-clean-target-runbook.md`。旧 Python worker
+`docs/runbooks/ingestion-control-clean-target.md`。旧 Python worker
 preparation 正文已退出 branch tip；需要追溯时通过 git history 恢复具体片段。
 
 ## Async Staged Closeout Integration
@@ -635,11 +645,9 @@ decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
 
 - source channel
   运行边界：`docs/architecture/domains/authenticated-notice/architecture.md`
-- shared source-truth principles：`docs/architecture/system/data-plane-architecture.md`
+- shared source-truth principles：`docs/architecture/system/data-plane.md`
 - `internal_notice` PDF chunking / OCR
   strategy：`docs/reference/internal-notice-pdf-chunks.md`
-- restricted document center artifact
-  contract：`docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
 - restricted authorization：`docs/decisions/adr-0022-campus-identity-and-restrict
   ed-document-authorization.md`
 - object storage key 约定：`docs/decisions/adr-0002-local-minio-conventions.md`

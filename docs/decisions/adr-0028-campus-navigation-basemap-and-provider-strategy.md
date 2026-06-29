@@ -206,5 +206,5 @@ renderer 选型。
 
 - `docs/architecture/domains/navigation/architecture.md`
 - `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/architecture/system/product-runtime.md`

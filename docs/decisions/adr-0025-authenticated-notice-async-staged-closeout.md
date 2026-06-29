@@ -164,5 +164,5 @@ promoter 的职责固定为：
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
-- `docs/architecture/system/data-plane-architecture.md`
-- `docs/runbooks/ingestion-control-clean-target-runbook.md`
+- `docs/architecture/system/data-plane.md`
+- `docs/runbooks/ingestion-control-clean-target.md`

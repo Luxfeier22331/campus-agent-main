@@ -138,7 +138,7 @@ build structured projection release
 
 这项决策 complements：
 
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/architecture/target.md`
 - `docs/domains/transport.md`
 - `docs/decisions/adr-0042-tool-routing.md`

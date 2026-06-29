@@ -117,8 +117,8 @@ canonical chain。
 
 ## Complementary Docs
 
-- `docs/data/shared-postgres-ownership.md`
-- `docs/architecture/system/data-plane-architecture.md`
+- `docs/data/postgres-ownership.md`
+- `docs/architecture/system/data-plane.md`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md`

@@ -51,11 +51,11 @@ planning status.
 - "How does a cross-domain runtime or owner boundary work?" -> `system/`
 - "How does one domain or tool boundary work?" -> `domains/`
 - "Where is official-web source truth?" ->
-  `../data/official-web-source-truth-schema.md`
+  `../data/official-web.md`
 - "Where is authenticated notice source truth?" ->
   `../data/authenticated-notice.md`
 - "Where is dining operations data truth?" ->
-  `../data/dining-operations-schema.md`
+  `../data/dining.md`
 
 ## Use Rules
 

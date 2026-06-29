@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: docs/environment
 status: active
 created: 2026-04-20
-updated: 2026-04-20
+updated: 2026-06-28
 ---
 # Environment Ownership And Overrides
 
@@ -27,8 +27,8 @@ updated: 2026-04-20
 
 相关文档：
 
-- `provider-and-secret-inventory.md`
-- `deploy-and-eval-readiness.md`
+- `providers.md`
+- `readiness.md`
 - `../runbooks/provider-secret-governance.md`
 
 ## Layering Rules
@@ -60,44 +60,34 @@ closeout / rebuild / release command env 不再作为 tracked fallback surface�
 
 ### Repo root shared env
 
-- [`.env.example`](/home/reptilian/code/campus-agent/.env.example)
+- [`.env.example`](../../.env.example)
   - shared Postgres runtime / operator DSN handles only
 
 ### App-local env
 
-- [`apps/app-api/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/app-
-  api/.dev.vars.example)
+- [`apps/app-api/.dev.vars.example`](../../apps/app-api/.dev.vars.example)
   - `app-api` Worker runtime string env
-- [`apps/app-api/.env.example`](/home/reptilian/code/campus-agent/apps/app-api/.
-  env.example)
+- [`apps/app-api/.env.example`](../../apps/app-api/.env.example)
   - `app-api` Wrangler / Drizzle process env
-- [`apps/campus-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/campus
-  -web/.dev.vars.example)
+- [`apps/campus-web/.dev.vars.example`](../../apps/campus-web/.dev.vars.example)
   - `campus-web` Worker runtime string env
-- [`apps/authenticated-notice-collector/.env.example`](/home/reptilian/code/cam
-  pus-agent/apps/authenticated-notice-collector/.env.example)
+- [`apps/authenticated-notice-collector/.env.example`](../../apps/authenticated-notice-collector/.env.example)
   - `authenticated-notice-collector` portal auth、collector ledger/lease、source-bucket
     runtime env
-- [`apps/official-web-collector/.env.example`](/home/reptilian/code/campus-agent
-  /apps/official-web-collector/.env.example)
+- [`apps/official-web-collector/.env.example`](../../apps/official-web-collector/.env.example)
   - `official-web-collector` control-plane 与 source-bucket runtime env
-- [`apps/wechat-official-account-collector/.env.example`](/home/reptilian/code/c
-  ampus-agent/apps/wechat-official-account-collector/.env.example)
+- [`apps/wechat-official-account-collector/.env.example`](../../apps/wechat-official-account-collector/.env.example)
   - `wechat-official-account-collector` FeedWe credentials、control-plane 与 source-bucket
     runtime env
-- [`apps/operator-console-web/.dev.vars.example`](/home/reptilian/code/campus-age
-  nt/apps/operator-console-web/.dev.vars.example)
+- [`apps/operator-console-web/.dev.vars.example`](../../apps/operator-console-web/.dev.vars.example)
   - `operator-console-web` Worker string env
-- [`infra/otel/collector.env.example`](/home/reptilian/code/campus-agent/infra/
-  otel/collector.env.example)
+- [`infra/otel/collector.env.example`](../../infra/otel/collector.env.example)
   - local/staging OTel collector process env
 
 ### Command-scoped override
 
-- [`env/commands/execution-control-runtime.env.example`](/home/reptilian/code/campus-ag
-  ent/env/commands/execution-control-runtime.env.example)
-- [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/
-  code/campus-agent/env/commands/legacy-office-conversion-service.env.example)
+- [`env/commands/execution-control-runtime.env.example`](../../env/commands/execution-control-runtime.env.example)
+- [`env/commands/legacy-office-conversion-service.env.example`](../../env/commands/legacy-office-conversion-service.env.example)
 
 ## Override Rules
 
@@ -153,4 +143,4 @@ not copy secrets between worktrees.
 - `docs/runbooks/provider-secret-governance.md`
 - `docs/runbooks/local-runtime-smoke.md`
 - `docs/runbooks/legacy-office-conversion-runtime.md`
-- `docs/runbooks/worker-observability-smoke-runbook.md`
+- `docs/runbooks/worker-observability-smoke.md`

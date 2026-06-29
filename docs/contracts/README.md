@@ -12,47 +12,38 @@ updated: 2026-06-26
 
 ## App API 核心 contract
 
-- `app-api-http.md`
-  - `app-api-http/system-auth-profile-memory.md`
-  - `app-api-http/chat.md`
-  - `app-api-http/operator.md`
-- `app-api-chat-conversation-http.md`
-- `app-api-eval-benchmark-http.md`
-- `app-api-document-reader-http.md`
-- `document-reader-publish-contract.md`
-- `app-api-error-model.md`
-- `app-api-request-lifecycle.md`
+- `app-api/README.md`
+  - `app-api/system-auth-memory.md`
+  - `app-api/chat.md`
+  - `app-api/operator.md`
+- `app-api/chat.md`
+- `app-api/eval-benchmark.md`
+- `eval-artifact.md`
+- `app-api/document-reader.md`
+- `document-reader-publish.md`
+- `app-api/error.md`
+- `app-api/request-lifecycle.md`
 - `tool-execution.md`
-- `app-api-identity-platform-http.md`
-- `app-api-federation-http.md`
-- `app-api-operator-ops-http.md`
-- `app-api-dining-http.md`
-- `app-api-dining-ops-http.md`
-- `tool-read-model-internal-runtime.md`
-- `durable-agent-runtime-contract.md`
+- `app-api/identity.md`
+- `app-api/federation.md`
+- `app-api/operator-ops.md`
+- `app-api/dining.md`
+- `app-api/dining-ops.md`
+- `tool-read-model.md`
+- `durable-runtime.md`
 - `operator-runtime.md`
 - `langfuse-runtime.md`
 
 ## Operator / Official Web contract
 
-- `app-api-campus-services-ops-http.md`
+- `app-api/campus-services-ops.md`
 - `app-api-notice.md`
-- `app-api-observability.md`
-  - `app-api-observability/eval-and-overview.md`
-  - `app-api-observability/requests-and-quality.md`
-  - `app-api-observability/request-detail.md`
-  - `app-api-observability/quality.md`
-  - `app-api-observability/governance-safety-cost-audit.md`
-  - `app-api-observability/internal-ingest.md`
-- `app-api-official-web-http.md`
-  - `app-api-official-web-http/collector-command-endpoints.md`
-  - `app-api-official-web-http/operator-query-endpoints.md`
-  - `app-api-official-web-http/internal-projection-ingest.md`
-- `app-api-official-web-run-lifecycle.md`
+- `app-api/observability.md`
+- `app-api/official-web.md`
 
 ## Navigation contract
 
-- `navigation-place-finding-contract.md`
+- `place-finding.md`
 
 ## Campus services contract
 
@@ -63,10 +54,11 @@ updated: 2026-06-26
 ## Notice runtime contract
 
 - `campus-notice-runtime-contract.md`
+- `authenticated-notice-file-release-export.md`
 
 ## Retrieval internal contract
 
-- `knowledge-retrieval-plan-contract.md`
+- `retrieval-plan.md`
 
 ## Machine-readable schemas
 

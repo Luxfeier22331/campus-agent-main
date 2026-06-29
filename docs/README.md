@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-23
+updated: 2026-06-29
 ---
 
 # Docs
@@ -21,10 +21,11 @@ class owns a fact.
   - [architecture/product.md](./architecture/product.md)
 - Feature-level product requirements:
   - [product/README.md](./product/README.md)
-  - [product/account-registration-legal-consent-prd.md](./product/account-registration-legal-consent-prd.md)
-  - [product/conversation-attachment-upload-prd.md](./product/conversation-attachment-upload-prd.md)
-  - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
-  - [product/multi-turn-context-and-rag-followup-prd.md](./product/multi-turn-context-and-rag-followup-prd.md)
+  - [product/legal-consent.md](./product/legal-consent.md)
+  - [product/attachments.md](./product/attachments.md)
+  - [product/langfuse-evals.md](./product/langfuse-evals.md)
+  - [product/run-context.md](./product/run-context.md)
+  - [product/operator-diagnosis.md](./product/operator-diagnosis.md)
 - Current accepted merged truth:
   - [architecture/current.md](./architecture/current.md)
 - Long-term architecture invariants:
@@ -32,14 +33,16 @@ class owns a fact.
 - Documentation truth classes and conflict resolution:
   - [documentation-architecture.md](./documentation-architecture.md)
 - Main question-answer chain semantics:
-  - [architecture/system/execution-agent-layer-architecture.md](./architecture/system/execution-agent-layer-architecture.md)
+  - [architecture/system/execution-agent-layer.md](./architecture/system/execution-agent-layer.md)
   - [architecture/system/tool-routing.md](./architecture/system/tool-routing.md)
+  - [contracts/app-api/chat.md](./contracts/app-api/chat.md)
   - [architecture/current.md](./architecture/current.md)
 - Durable execution, Temporal, run/event/step projection, resume and cancel:
-  - [architecture/system/durable-agent-runtime-architecture.md](./architecture/system/durable-agent-runtime-architecture.md)
+  - [architecture/system/durable-runtime.md](./architecture/system/durable-runtime.md)
+  - [contracts/durable-runtime.md](./contracts/durable-runtime.md)
 - Langfuse LLM observability and eval platform:
-  - [product/langfuse-eval-platform-completion-prd.md](./product/langfuse-eval-platform-completion-prd.md)
-  - [architecture/system/langfuse-observability-and-eval-architecture.md](./architecture/system/langfuse-observability-and-eval-architecture.md)
+  - [product/langfuse-evals.md](./product/langfuse-evals.md)
+  - [architecture/system/langfuse.md](./architecture/system/langfuse.md)
   - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
   - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
@@ -62,26 +65,25 @@ class owns a fact.
   - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
 - Account center, identity product projection and federation boundary:
-  - [architecture/system/identity-platform-architecture.md](./architecture/system/identity-platform-architecture.md)
-  - [architecture/system/identity-browser-experience-architecture.md](./architecture/system/identity-browser-experience-architecture.md)
-  - [architecture/system/federation-and-mucwiki-login-architecture.md](./architecture/system/federation-and-mucwiki-login-architecture.md)
-  - [contracts/app-api-identity-platform-http.md](./contracts/app-api-identity-platform-http.md)
-  - [contracts/app-api-federation-http.md](./contracts/app-api-federation-http.md)
-  - [data/identity-platform-schema.md](./data/identity-platform-schema.md)
+  - [architecture/system/identity-platform.md](./architecture/system/identity-platform.md)
+  - [architecture/system/identity-browser.md](./architecture/system/identity-browser.md)
+  - [architecture/system/mucwiki-login.md](./architecture/system/mucwiki-login.md)
+  - [contracts/app-api/identity.md](./contracts/app-api/identity.md)
+  - [contracts/app-api/federation.md](./contracts/app-api/federation.md)
+  - [data/identity-platform.md](./data/identity-platform.md)
 - campus-web docs reader, Rspress delivery and Q&A source-card jumps:
-  - [architecture/system/document-site-architecture.md](./architecture/system/document-site-architecture.md)
-  - [contracts/app-api-document-reader-http.md](./contracts/app-api-document-reader-http.md)
+  - [architecture/system/document-site.md](./architecture/system/document-site.md)
+  - [domains/source-card.md](./domains/source-card.md)
+  - [contracts/app-api/document-reader.md](./contracts/app-api/document-reader.md)
   - [decisions/adr-0051-campus-docs-rspress-reader-surface.md](./decisions/adr-0051-campus-docs-rspress-reader-surface.md)
 - Operator Console and dining map/menu/release operations:
   - [decisions/adr-0055-unified-operator-console-surface.md](./decisions/adr-0055-unified-operator-console-surface.md)
-  - [architecture/system/operator-console-operations-architecture.md](./architecture/system/operator-console-operations-architecture.md)
+  - [architecture/system/operator-console.md](./architecture/system/operator-console.md)
   - [architecture/domains/dining/architecture.md](./architecture/domains/dining/architecture.md)
-  - [contracts/app-api-operator-ops-http.md](./contracts/app-api-operator-ops-http.md)
-  - [contracts/app-api-dining-http.md](./contracts/app-api-dining-http.md)
-  - [contracts/app-api-dining-ops-http.md](./contracts/app-api-dining-ops-http.md)
-  - [data/dining-operations-schema.md](./data/dining-operations-schema.md)
-- MUC Campus Q&A frontend design reference:
-  - [reference/muc-campus-qa-frontend-design/](./reference/muc-campus-qa-frontend-design/)
+  - [contracts/app-api/operator-ops.md](./contracts/app-api/operator-ops.md)
+  - [contracts/app-api/dining.md](./contracts/app-api/dining.md)
+  - [contracts/app-api/dining-ops.md](./contracts/app-api/dining-ops.md)
+  - [data/dining.md](./data/dining.md)
 
 ## Documentation Areas
 
@@ -94,7 +96,7 @@ class owns a fact.
 - [architecture/domains/README.md](./architecture/domains/README.md)
   - domain / tool architecture boundaries
 - [domains/README.md](./domains/README.md)
-  - cross-document domain hub
+  - narrow human capability docs and direct owner routing
 - [contracts/README.md](./contracts/README.md)
   - contract truth for HTTP, runtime and tool seams
 - [data/README.md](./data/README.md)

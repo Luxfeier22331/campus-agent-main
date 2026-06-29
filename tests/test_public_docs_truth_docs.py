@@ -28,7 +28,7 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
             encoding="utf-8"
         )
         product_runtime = (
-            REPO_ROOT / "docs" / "architecture" / "system" / "product-runtime-architecture.md"
+            REPO_ROOT / "docs" / "architecture" / "system" / "product-runtime.md"
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("apps/public-docs", readme)

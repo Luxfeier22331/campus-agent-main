@@ -88,11 +88,11 @@ product data and sanitized run/event/step projection, not the execution queue.
 
 | Area | Owner Boundary | Primary SoT |
 | --- | --- | --- |
-| Product Plane | `campus-web`, browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime-architecture.md` |
-| Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-agent-runtime-architecture.md` |
+| Product Plane | `campus-web`, browser surfaces, product API, auth/session, request projection | `docs/architecture/system/product-runtime.md` |
+| Execution Plane | `execution-control`, Temporal, projection store, worker topology | `docs/architecture/system/durable-runtime.md` |
 | Tool Plane | RAG, navigation, notice, campus services, semantic worker | `docs/architecture/system/tool-runtime.md` |
-| Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane-architecture.md` |
-| Ops / QA | staging, release gates, observability, smoke evidence | `docs/runbooks/e2e-qa-release-runbook.md` |
+| Data Plane | Ingestion, object storage, Qdrant, source truth, read models | `docs/architecture/system/data-plane.md` |
+| Ops / QA | staging, release gates, observability, smoke evidence | `docs/runbooks/e2e-qa-release.md` |
 
 This file is a `planning_work_map`. It can point to current facts and work
 signals, but it does not override architecture, contract, data, ADR or runbook

@@ -199,6 +199,5 @@ offline executor / release task runtime 的表述只作为历史背景保留。
 ## 相关文档
 
 - `docs/architecture/domains/official-web/architecture.md`
-- `docs/contracts/app-api-official-web-http.md`
-- `docs/contracts/app-api-official-web-run-lifecycle.md`
-- `docs/data/app-api-official-web-schema.md`
+- `docs/contracts/app-api/official-web.md`
+- `docs/data/app-api/official-web.md`

@@ -201,7 +201,7 @@ workflow signal 并进入对应 workflow path。
 - primary-agent-first tool routing 与 surface tool
   policy：`docs/architecture/system/tool-routing.md`
 - 产品/runtime supporting
-  architecture：`docs/architecture/system/product-runtime-architecture.md`
+  architecture：`docs/architecture/system/product-runtime.md`
 - 导航 / wayfinding
   长期能力边界：`docs/architecture/domains/navigation/architecture.md`
 - 文档 truth class 与冲突裁决：`docs/documentation-architecture.md`

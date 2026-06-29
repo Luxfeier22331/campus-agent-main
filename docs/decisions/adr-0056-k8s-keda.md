@@ -156,7 +156,7 @@ app-api internal HTTP seam。
 
 - `docs/architecture/system/k8s-runtime.md` 成为
   execution-control K8s / KEDA target supporting architecture。
-- `docs/architecture/system/durable-agent-runtime-architecture.md` 的 autoscaling
+- `docs/architecture/system/durable-runtime.md` 的 autoscaling
   boundary 必须解释 KEDA/HPA 是目标 production controller。
 - `docs/contracts/operator-runtime.md` 必须允许
   `actuatorKind=keda_hpa` 的 target projection，同时保留 Docker Compose actuation 为当前

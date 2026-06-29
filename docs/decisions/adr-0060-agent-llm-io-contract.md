@@ -185,12 +185,10 @@ confidence 或 generic no-answer。
 
 ## 相关文档
 
-- `docs/architecture/system/prompt-and-instruction/assembly-and-assets.md`
-- `docs/architecture/system/prompt-and-instruction/current-runtime-baseline.md`
-- `docs/architecture/system/prompt-and-instruction/safety-observability-and-rollout.md`
+- `docs/architecture/system/prompt.md`
 - `docs/architecture/system/agent-framework.md`
 - `docs/architecture/system/tool-runtime.md`
-- `docs/architecture/system/execution-agent-layer-architecture.md`
+- `docs/architecture/system/execution-agent-layer.md`
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0042-tool-routing.md`
 - `docs/decisions/adr-0048-temporal.md`

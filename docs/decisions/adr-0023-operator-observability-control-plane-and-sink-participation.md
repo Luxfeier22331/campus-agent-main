@@ -301,10 +301,10 @@ updated: 2026-04-03
 ## 相关文档
 
 - `docs/architecture/system/ops-observability.md`
-- `docs/architecture/system/product-runtime-architecture.md`
+- `docs/architecture/system/product-runtime.md`
 - `docs/decisions/adr-0010-observability-and-telemetry-stack.md`
 - `docs/decisions/adr-0016-app-api-request-projection-and-operator-console-query-ownership.
   md`
-- `docs/contracts/app-api-http.md`
-- `docs/contracts/app-api-observability.md`
-- `docs/data/app-api-schema.md`
+- `docs/contracts/app-api/README.md`
+- `docs/contracts/app-api/observability.md`
+- `docs/data/app-api/README.md`

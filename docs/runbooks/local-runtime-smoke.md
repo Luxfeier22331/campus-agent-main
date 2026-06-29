@@ -308,7 +308,7 @@ JSON
 - 响应体包含 `status=queued`
 - 不出现 retired legacy answer transport fallback
 
-## Step 5. Inspect Metrics And Logs
+## Step 4. Inspect Metrics And Logs
 
 再次拉取：
 
@@ -338,7 +338,7 @@ Go `apps/execution-control` 当前结构化日志最小字段：
 - 不记录 raw auth secret
 - 不记录 raw request body
 
-## Step 4. Shutdown
+## Step 5. Shutdown
 
 关闭 execution-control compose runtime：
 

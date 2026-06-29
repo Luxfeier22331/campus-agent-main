@@ -89,9 +89,9 @@ jobs:
                 langfuse:apps/app-api/src/modules/telemetry/*|\
                 langfuse:apps/app-api/src/modules/telemetry/**/*|\
                 langfuse:tests/fixtures/langfuse_trace_id_vectors.json|\
-                langfuse:docs/product/langfuse-eval-platform-completion-prd.md|\
-                langfuse:docs/architecture/system/langfuse-observability-and-eval-architecture.md|\
-                langfuse:docs/contracts/langfuse-runtime-observability-contract.md|\
+                langfuse:docs/product/langfuse-evals.md|\
+                langfuse:docs/architecture/system/langfuse.md|\
+                langfuse:docs/contracts/langfuse-runtime.md|\
                 langfuse:.github/workflows/lint.yml|\
                 langfuse:package.json|\
                 langfuse:pnpm-lock.yaml)

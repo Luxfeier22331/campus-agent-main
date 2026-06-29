@@ -1,8 +1,8 @@
 # `campus_navigation/place_catalog`
 
-当前 place-finding Wave E 的 canonical place seed。
+当前 place-finding canonical place seed。
 
-Phase 1001 source inventory / admission posture:
+Source inventory / admission posture:
 
 - `docs/reference/campus-navigation-authoritative-source-inventory.md`
 

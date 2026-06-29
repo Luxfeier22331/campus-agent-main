@@ -194,7 +194,6 @@ Accepted on 2026-04-08.
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `docs/data/authenticated-notice.md`
-- `docs/reference/archive/authenticated-notice/README.md`
 - `docs/reference/internal-notice-pdf-chunks.md`
 - `docs/decisions/adr-0024-authenticated-notice-source-channel.md`
 - `docs/decisions/adr-0027-navigation-tool-and-spatial-truth.md`

@@ -247,13 +247,12 @@ repo 级长期正确形态允许存在独立的 restricted product surface，用
 ## Historical Related Docs
 
 - `docs/architecture/domains/authenticated-notice/architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
+- `docs/architecture/system/identity-authz.md`
 - `docs/decisions/adr-0031-authenticated-notice-attachment-typed-routing-and-spa
   tial-review-boundary.md`
 - `docs/decisions/adr-0035-notice-derived-regulation-promotion-boundary.md`
 - `docs/decisions/adr-0040-regulation-work-title-and-edition-separation.md`
-- historical background:
-  `docs/reference/archive/authenticated-notice/restricted-document-center-artifact-contract.md`
-- `docs/reference/authenticated-notice-file-release-export-contract.md`
-- `docs/reference/authenticated-notice-file-release-owner-recovery-readiness-con
-  tract.md`
+- historical background summary: old authenticated-notice archive bodies are
+  available through git history; current source truth lives in
+  `docs/data/authenticated-notice.md`
+- `docs/contracts/authenticated-notice-file-release-export.md`

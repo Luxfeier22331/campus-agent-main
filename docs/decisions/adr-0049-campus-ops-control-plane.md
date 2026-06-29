@@ -157,10 +157,10 @@ graph truth。
 
 - dining operations 作为 Operator Console domain 落在当前 `apps/operator-console-web`
   实现上。
-- `docs/contracts/app-api-operator-ops-http.md` 冻结 ops cross-cutting contract。
-- `docs/contracts/app-api-dining-ops-http.md` 冻结 dining ops HTTP contract。
-- `docs/data/dining-operations-schema.md` 冻结 dining operations logical schema。
-- `docs/architecture/system/operator-console-operations-architecture.md` 冻结当前实现的
+- `docs/contracts/app-api/operator-ops.md` 冻结 ops cross-cutting contract。
+- `docs/contracts/app-api/dining-ops.md` 冻结 dining ops HTTP contract。
+- `docs/data/dining.md` 冻结 dining operations logical schema。
+- `docs/architecture/system/operator-console.md` 冻结当前实现的
   web surface boundary。
 - `docs/architecture/domains/dining/architecture.md` 冻结 dining domain boundary。
 

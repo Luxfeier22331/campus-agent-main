@@ -23,6 +23,18 @@ updated: 2026-03-27
 - 历史原型中的 `service_portal` 只作为迁移输入与历史来源参考，不作为
   `campus-agent` 的长期 corpus 名
 
+## Current Scope Note
+
+This ADR records the historical/offline taxonomy decision for campus-services
+corpus cleanup. It does not mean `service_catalog` or `contact_directory` are
+current model-visible runtime tools.
+
+Current campus-services serving scope is narrower: only the shuttle timetable
+capability is open through `transport_schedule_lookup` and the campus status
+projection. Service guide / catalog and contact-directory content are not
+current repo-maintained runtime surfaces; if they return later, they require a
+new serving design and owner contract instead of reopening this ADR directly.
+
 ## 原因
 
 - `corpus` 在本仓库里表示长期知识域，而不是来源站点或原始文件夹

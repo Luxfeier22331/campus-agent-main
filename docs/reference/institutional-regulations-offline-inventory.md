@@ -64,9 +64,9 @@ regulation，例如：
 
 ## Acceptance Evidence
 
-当前 bounded `11` 条 target 的 local-only target-side acceptance evidence 冻结在：
-
-- `var/ingestion-evidence/authenticated-notice-regulation-consumption/evidence/phase-08-acceptance-freeze/`
+当前 bounded `11` 条 target 已有 local-only target-side acceptance evidence。
+一次性 evidence path 不作为 branch-tip tracked truth；需要追溯旧 proof 时通过
+git history 恢复具体片段，再提升到当前 owner 文档或 runbook。
 
 最终通过口径：
 
@@ -105,5 +105,5 @@ regulation，例如：
 - 需要看“哪些 title 当前在哪个 target bucket”，读本文
 - 需要看 identity / provenance / materialization acceptance，读
   `institutional-regulations-promotion-quality-acceptance.md`
-- 需要看 current frontier 的 execution status，读 `.planning/WORKSTREAMS.md` 与对应
-  workstream `STATE.md`
+- 需要看 current frontier 的 execution status，读 `.planning/WORKSTREAMS.md`、
+  GSD SDK / Codex native session 与实际 runbook output

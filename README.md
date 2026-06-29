@@ -192,8 +192,7 @@ YAML/TOML、tracked shell scripts、Dockerfile surface，不进入 `.planning/`�
   es.md)
 - [runtime-serving-and-index-terms](./docs/reference/runtime-serving-and-index-t
   erms.md)
-- [forward-worker-surface-smoke-runbook](./docs/runbooks/forward-worker-surface-
-  smoke-runbook.md)
+- [forward-worker-smoke](./docs/runbooks/forward-worker-smoke.md)
 
 ## Collaboration
 

@@ -14,14 +14,19 @@ _CONTROL_MARKDOWN_PATHS = (
     ".planning/PROJECT.md",
     ".planning/WORKSTREAMS.md",
 )
-_EXEMPT_SOURCE_PATHS = {
-    "docs/reference/documentation-inventory.md",
-}
+_EXEMPT_SOURCE_PATHS: set[str] = set()
 _RETIRED_COMPATIBILITY_PATHS = {
     "docs/architecture/system/execution-and-agents-architecture.md",
 }
 _REFERENCE_PATTERN = re.compile(
     r"(?<![/\w.-])(?P<target>(?:\.{1,2}/|docs/|AGENTS\.md|README\.md)[^\s)`'\"<>]*?\.md)"
+)
+_LOCAL_ABSOLUTE_REPO_PATH_PATTERN = re.compile(
+    r"(?P<target>/home/[^\s)`'\"<>]*/code/[^\s)`'\"<>]*?\.md)"
+)
+_MIGRATION_PROCESS_MARKERS = (
+    "Split from the former mega-doc",
+    "former mega-doc",
 )
 _HISTORICAL_CONTEXT_TERMS = (
     "archive",
@@ -73,6 +78,8 @@ def audit_docs_reference_graph(*, root: Path | None = None) -> tuple[DocsReferen
         source_relative = source.relative_to(base).as_posix()
         if source_relative in _EXEMPT_SOURCE_PATHS or "/archive/" in source_relative:
             continue
+        for issue in _active_text_issues(source, source_relative=source_relative):
+            issues.append(issue)
         for reference in _references_from_file(source, base):
             if reference.target in _RETIRED_COMPATIBILITY_PATHS:
                 issues.append(
@@ -159,6 +166,30 @@ def _references_from_file(path: Path, root: Path) -> tuple[_Reference, ...]:
             if target is not None:
                 references.append(_Reference(target=target, context=context))
     return tuple(references)
+
+
+def _active_text_issues(path: Path, *, source_relative: str) -> tuple[DocsReferenceGraphIssue, ...]:
+    text = path.read_text(encoding="utf-8")
+    issues: list[DocsReferenceGraphIssue] = []
+    for match in _LOCAL_ABSOLUTE_REPO_PATH_PATTERN.finditer(text):
+        issues.append(
+            DocsReferenceGraphIssue(
+                path=source_relative,
+                target=match.group("target"),
+                message="active document references local absolute repo path",
+            )
+        )
+    for marker in _MIGRATION_PROCESS_MARKERS:
+        if marker in text:
+            issues.append(
+                DocsReferenceGraphIssue(
+                    path=source_relative,
+                    target=marker,
+                    message="active document contains documentation migration process marker",
+                )
+            )
+            break
+    return tuple(issues)
 
 
 def _split_markdown_paths(path: Path, *, source_relative: str) -> tuple[str, ...]:

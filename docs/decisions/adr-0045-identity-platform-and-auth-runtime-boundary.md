@@ -151,14 +151,14 @@ entitlement。
 
 直接结果如下：
 
-- 新增 `docs/architecture/system/identity-platform-architecture.md` 作为用户系统主架构文档
-- 新增 `docs/contracts/app-api-identity-platform-http.md` 作为 account center 的
+- 新增 `docs/architecture/system/identity-platform.md` 作为用户系统主架构文档
+- 新增 `docs/contracts/app-api/identity.md` 作为 account center 的
   product projection contract
-- 新增 `docs/data/identity-platform-schema.md` 区分 Better Auth-owned runtime tables
+- 新增 `docs/data/identity-platform.md` 区分 Better Auth-owned runtime tables
   与 app-owned identity product schema
-- 新增 `docs/architecture/system/federation-and-mucwiki-login-architecture.md` 与
-  `docs/contracts/app-api-federation-http.md` 冻结 future `muc.wiki` federation 边界
-- `docs/architecture/system/identity-and-authorization-architecture.md` 继续负责
+- 新增 `docs/architecture/system/mucwiki-login.md` 与
+  `docs/contracts/app-api/federation.md` 冻结 future `muc.wiki` federation 边界
+- `docs/architecture/system/identity-authz.md` 继续负责
   authz / memory / retrieval filter projection，不再承担完整 account product model
 
 明确不做：
@@ -170,10 +170,10 @@ entitlement。
 
 ## 相关文档
 
-- `docs/architecture/system/identity-platform-architecture.md`
-- `docs/architecture/system/identity-and-authorization-architecture.md`
-- `docs/architecture/system/identity-browser-experience-architecture.md`
-- `docs/architecture/system/federation-and-mucwiki-login-architecture.md`
-- `docs/contracts/app-api-identity-platform-http.md`
-- `docs/contracts/app-api-federation-http.md`
-- `docs/data/identity-platform-schema.md`
+- `docs/architecture/system/identity-platform.md`
+- `docs/architecture/system/identity-authz.md`
+- `docs/architecture/system/identity-browser.md`
+- `docs/architecture/system/mucwiki-login.md`
+- `docs/contracts/app-api/identity.md`
+- `docs/contracts/app-api/federation.md`
+- `docs/data/identity-platform.md`
