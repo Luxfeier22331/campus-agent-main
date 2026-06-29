@@ -731,6 +731,78 @@ describe("provider config service", () => {
 		});
 	});
 
+	it("removes active prompt profiles from runtime use when revalidation fails", async () => {
+		let validationShouldPass = true;
+		const service = buildProviderConfigService({
+			decryptSecret: (value) => value,
+			encryptSecret: (value) => value,
+			generateId: (prefix) => `${prefix}_revalidation`,
+			now: () => new Date("2026-06-16T00:00:00.000Z"),
+			store: createInMemoryProviderConfigStore(),
+			validators: {
+				async validatePrompt() {
+					return validationShouldPass
+						? { message: "prompt provider validated", ok: true, status: "passed" }
+						: {
+								errorCode: "prompt_response_shape_invalid",
+								message: "prompt provider responses response shape is not compatible.",
+								ok: false,
+								status: "failed",
+							};
+				},
+			},
+		});
+		const createdConnection = await service.createConnection({
+			payload: {
+				apiKey: "prompt-key",
+				baseUrl: "https://llm.example/v1",
+				features: ["prompt"],
+				provider: "openai",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		const createdProfile = await service.createProfile({
+			payload: {
+				connectionId: createdConnection.connection.connectionId,
+				kind: "prompt",
+				model: "gpt-runtime",
+				role: "primary_agent",
+				timeoutMs: 30000,
+				transport: "responses",
+			},
+			principal: createOperatorPrincipal(),
+		});
+		await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+		await service.activateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		validationShouldPass = false;
+		const revalidated = await service.validateProfile({
+			principal: createOperatorPrincipal(),
+			profileId: createdProfile.profile.profileId,
+		});
+
+		expect(revalidated.profile).toMatchObject({
+			active: false,
+			status: "validation_failed",
+			validation: {
+				errorCode: "prompt_response_shape_invalid",
+				ok: false,
+				status: "failed",
+			},
+		});
+		await expect(
+			service.getActiveRuntimeSnapshot({ role: "primary_agent" }),
+		).rejects.toMatchObject({
+			code: "provider_profile_missing",
+		});
+	});
+
 	it("resolves Hindsight LLM active projection snapshots", async () => {
 		const service = buildProviderConfigService({
 			decryptSecret: (value) => value,

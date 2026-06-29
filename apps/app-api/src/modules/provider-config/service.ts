@@ -185,6 +185,19 @@ export function buildProviderConfigService(
 					status: 404,
 				});
 			}
+			if (profile.status !== "active" || !profile.validation?.ok) {
+				throw routeError({
+					code: "provider_profile_not_validated",
+					details: {
+						profileId: profile.profileId,
+						role,
+						status: profile.status,
+						validationStatus: profile.validation?.status ?? null,
+					},
+					message: `Active provider profile for role ${role} is not validated for runtime use.`,
+					status: 409,
+				});
+			}
 			const connection = await requireConnection(dependencies.store, profile.connectionId);
 			return {
 				profile: runtimeSnapshotFromProfile(
@@ -274,10 +287,16 @@ export function buildProviderConfigService(
 				...validation,
 				validatedAt: validation.validatedAt ?? now().toISOString(),
 			};
+			const activeAfterValidation = current.active && withTimestamp.ok;
 			const next: ProviderConfigProfile = {
 				...current,
+				active: activeAfterValidation,
 				revision: current.revision + 1,
-				status: withTimestamp.ok ? "validated" : "validation_failed",
+				status: activeAfterValidation
+					? "active"
+					: withTimestamp.ok
+						? "validated"
+						: "validation_failed",
 				updatedAt: now().toISOString(),
 				updatedBy: actor,
 				validation: withTimestamp,
