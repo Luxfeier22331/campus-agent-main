@@ -54,7 +54,7 @@ function promptValidationResponseLooksUsable(transport: string, payload: unknown
 	if (transport === "chat_completions") {
 		const choice = Array.isArray(record.choices) ? record.choices[0] : undefined;
 		const message = recordFromUnknown(recordFromUnknown(choice)?.message);
-		return promptValidationStructuredContentLooksUsable(message?.content);
+		return promptValidationTerminalEnvelopeLooksUsable(message?.content);
 	}
 	return promptValidationResponsesPayloadLooksUsable(record);
 }
@@ -67,6 +67,19 @@ function promptValidationStructuredContentLooksUsable(value: unknown): boolean {
 		const payload = JSON.parse(value) as unknown;
 		const record = recordFromUnknown(payload);
 		return record?.status === "ok";
+	} catch {
+		return false;
+	}
+}
+
+function promptValidationTerminalEnvelopeLooksUsable(value: unknown): boolean {
+	if (typeof value !== "string" || value.trim() === "") {
+		return false;
+	}
+	try {
+		const payload = JSON.parse(value) as unknown;
+		const record = recordFromUnknown(payload);
+		return record?.kind === "answer" && typeof record.answerText === "string";
 	} catch {
 		return false;
 	}
@@ -126,16 +139,23 @@ function promptValidationUrl(input: Parameters<ProviderConfigValidators["validat
 function promptValidationPayload(input: Parameters<ProviderConfigValidators["validatePrompt"]>[0]) {
 	if (input.transport === "chat_completions") {
 		return {
-			messages: [{ content: "provider config validation", role: "user" }],
-			max_tokens: 8,
+			messages: [
+				{ content: "Return a short JSON answer matching the schema.", role: "system" },
+				{ content: "provider config validation", role: "user" },
+			],
+			max_tokens: 64,
 			model: input.model,
 			response_format: {
 				json_schema: {
-					name: "provider_config_validation",
+					name: "output",
 					schema: {
+						$schema: "http://json-schema.org/draft-07/schema#",
 						additionalProperties: false,
-						properties: { status: { const: "ok", type: "string" } },
-						required: ["status"],
+						properties: {
+							answerText: { minLength: 1, type: "string" },
+							kind: { const: "answer", type: "string" },
+						},
+						required: ["kind", "answerText"],
 						type: "object",
 					},
 					strict: true,

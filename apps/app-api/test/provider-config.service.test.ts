@@ -200,7 +200,14 @@ describe("provider config service", () => {
 			});
 			return new Response(
 				JSON.stringify({
-					choices: [{ message: { content: '{"status":"ok"}', role: "assistant" } }],
+					choices: [
+						{
+							message: {
+								content: '{"kind":"answer","answerText":"provider config validation"}',
+								role: "assistant",
+							},
+						},
+					],
 					id: "chatcmpl_compatible",
 				}),
 				{ headers: { "content-type": "application/json" }, status: 200 },
@@ -226,16 +233,26 @@ describe("provider config service", () => {
 			expect(observedRequests).toEqual([
 				{
 					body: {
-						max_tokens: 8,
-						messages: [{ content: "provider config validation", role: "user" }],
+						max_tokens: 64,
+						messages: [
+							{
+								content: "Return a short JSON answer matching the schema.",
+								role: "system",
+							},
+							{ content: "provider config validation", role: "user" },
+						],
 						model: "gpt-compatible",
 						response_format: {
 							json_schema: {
-								name: "provider_config_validation",
+								name: "output",
 								schema: {
+									$schema: "http://json-schema.org/draft-07/schema#",
 									additionalProperties: false,
-									properties: { status: { const: "ok", type: "string" } },
-									required: ["status"],
+									properties: {
+										answerText: { minLength: 1, type: "string" },
+										kind: { const: "answer", type: "string" },
+									},
+									required: ["kind", "answerText"],
 									type: "object",
 								},
 								strict: true,
