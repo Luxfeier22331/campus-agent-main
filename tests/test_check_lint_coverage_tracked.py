@@ -20,7 +20,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
         self.assertIn("package.json", candidates)
         self.assertIn("apps/campus-web/index.html", candidates)
-        self.assertIn("apps/campus-web/docs/index.md", candidates)
+        self.assertIn("apps/official-web-collector/README.md", candidates)
         self.assertIn(
             "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java",
             candidates,
@@ -44,7 +44,11 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
             ("web:lint",),
         )
         self.assertEqual(
-            lint_families_for_path("apps/campus-web/docs/index.md"),
+            lint_families_for_path("docs/reference/eval/eval_denominator_registry.v1.json"),
+            ("web:lint",),
+        )
+        self.assertEqual(
+            lint_families_for_path("apps/official-web-collector/README.md"),
             ("repo:static",),
         )
         self.assertEqual(
@@ -76,7 +80,7 @@ class CheckLintCoverageTrackedTest(unittest.TestCase):
 
     def test_lint_exclusion_reason_covers_known_deferred_surfaces(self) -> None:
         self.assertEqual(lint_exclusion_reason(".planning/PROJECT.md"), "planning_artifact")
-        self.assertIsNone(lint_exclusion_reason("apps/campus-web/docs/index.md"))
+        self.assertIsNone(lint_exclusion_reason("apps/official-web-collector/README.md"))
         self.assertIsNone(
             lint_exclusion_reason(
                 "apps/legacy-office-conversion-service/src/main/java/com/campusagent/legacyoffice/LegacyOfficeConversionService.java"

@@ -1,25 +1,19 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { scoreItemToLangfusePayload, validateLangfuseScoreReport } from "./score-report";
+import { createLangfuseEvalClient } from "./langfuse-client";
 import {
 	type JsonObject,
 	type LangfuseSettings,
-	listPaginated,
 	loadJsonObject,
-	mapping,
 	mappingList,
 	optionalString,
-	requestJson,
 	requireEqual,
 	sha256Bytes,
-	sha256Json,
 	sha256Text,
 	slug,
-	stableId,
 	stringField,
 	stringList,
-	writeJsonObject,
 } from "./shared";
 
 export function buildLangfuseDatasetItems(input: {
@@ -53,25 +47,17 @@ export async function syncLangfuseScoreConfigs(input: {
 }): Promise<JsonObject> {
 	const registry = loadJsonObject(input.registryPath);
 	const scores = mappingList(registry.scores, "registry.scores");
+	const langfuse = createLangfuseEvalClient({
+		fetchImpl: input.fetchImpl,
+		settings: input.settings,
+	});
 	const existing = new Set(
-		(
-			await listPaginated({
-				fetchImpl: input.fetchImpl,
-				path: "/api/public/score-configs",
-				settings: input.settings,
-			})
-		).map((item) => stringField(item.name, "score_config.name")),
+		(await langfuse.listScoreConfigs()).map((item) => stringField(item.name, "score_config.name")),
 	);
 	const planned = scores.filter((score) => !existing.has(stringField(score.name, "score.name")));
 	if (!input.dryRun) {
 		for (const score of planned) {
-			await requestJson({
-				body: scoreConfigPayload(score),
-				fetchImpl: input.fetchImpl,
-				method: "POST",
-				path: "/api/public/score-configs",
-				settings: input.settings,
-			});
+			await langfuse.createScoreConfig(scoreConfigPayload(score));
 		}
 	}
 	return {
@@ -95,14 +81,12 @@ export async function syncLangfuseDatasets(input: {
 	const manifest = loadJsonObject(input.manifestPath);
 	requireEqual(manifest.schema_version, "langfuse_dataset_manifest.v1", "schema_version");
 	const sourceGitHead = stringField(manifest.source_git_head, "source_git_head");
+	const langfuse = createLangfuseEvalClient({
+		fetchImpl: input.fetchImpl,
+		settings: input.settings,
+	});
 	const existingNames = new Set(
-		(
-			await listPaginated({
-				fetchImpl: input.fetchImpl,
-				path: "/api/public/v2/datasets",
-				settings: input.settings,
-			})
-		).map((item) => stringField(item.name, "dataset.name")),
+		(await langfuse.listDatasets()).map((item) => stringField(item.name, "dataset.name")),
 	);
 	const reports: JsonObject[] = [];
 	for (const dataset of mappingList(manifest.datasets, "datasets")) {
@@ -111,9 +95,8 @@ export async function syncLangfuseDatasets(input: {
 				dataset,
 				dryRun: input.dryRun,
 				existingNames,
-				fetchImpl: input.fetchImpl,
+				langfuse,
 				manifestPath: input.manifestPath,
-				settings: input.settings,
 				sourceGitHead,
 			}),
 		);
@@ -126,142 +109,21 @@ export async function syncLangfuseDatasets(input: {
 	};
 }
 
-export async function runLangfuseExperiment(input: {
-	fetchImpl?: typeof fetch;
-	manifestPath: string;
-	settings: LangfuseSettings;
-}): Promise<JsonObject> {
-	const manifest = loadJsonObject(input.manifestPath);
-	requireEqual(manifest.schema_version, "langfuse_experiment_manifest.v1", "schema_version");
-	const itemResults: JsonObject[] = [];
-	let datasetRunId = optionalString(manifest.dataset_run_id);
-	for (const item of mappingList(manifest.item_results, "item_results")) {
-		const result = { ...item };
-		if (manifest.dataset_source === "langfuse") {
-			const response = await requestJson({
-				body: {
-					datasetItemId: stringField(item.dataset_item_id, "item.dataset_item_id"),
-					datasetVersion: optionalString(manifest.dataset_version),
-					observationId: optionalString(item.observation_id),
-					runDescription: optionalString(manifest.run_description),
-					runName: stringField(manifest.run_name, "run_name"),
-					traceId: stringField(item.trace_id, "item.trace_id"),
-				},
-				fetchImpl: input.fetchImpl,
-				method: "POST",
-				path: "/api/public/dataset-run-items",
-				settings: input.settings,
-			});
-			datasetRunId = stringField(response.datasetRunId, "datasetRunId");
-			result.dataset_run_item_id = stringField(response.id, "id");
-		}
-		itemResults.push(result);
-	}
-	const artifact = experimentArtifact(manifest, itemResults, datasetRunId);
-	writeJsonObject(stringField(manifest.artifact_path, "artifact_path"), artifact);
-	const scoreReport = scoreReportFromExperimentManifest(manifest, artifact, datasetRunId);
-	writeJsonObject(stringField(manifest.score_report_path, "score_report_path"), scoreReport);
-	return {
-		...artifact,
-		artifact_path: manifest.artifact_path,
-		score_report_path: manifest.score_report_path,
-	};
-}
-
-export async function syncLangfuseAnnotationQueue(input: {
-	dryRun: boolean;
-	fetchImpl?: typeof fetch;
-	manifestPath: string;
-	settings: LangfuseSettings;
-}): Promise<JsonObject> {
-	const manifest = loadJsonObject(input.manifestPath);
-	requireEqual(manifest.schema_version, "langfuse_review_manifest.v1", "schema_version");
-	const queueId = stringField(manifest.queue_id, "queue_id");
-	let enqueued = 0;
-	let prefilled = 0;
-	for (const item of mappingList(manifest.items, "items")) {
-		const objectId = stringField(item.object_id, "items[].object_id");
-		const objectType = stringField(item.object_type, "items[].object_type");
-		if (!input.dryRun) {
-			await requestJson({
-				body: { objectId, objectType },
-				fetchImpl: input.fetchImpl,
-				method: "POST",
-				path: `/api/public/annotation-queues/${queueId}/items`,
-				settings: input.settings,
-			});
-		}
-		enqueued += 1;
-		for (const score of mappingList(item.prefill_scores ?? [], "prefill_scores")) {
-			if (!input.dryRun) {
-				await requestJson({
-					body: scoreItemToLangfusePayload({
-						...score,
-						idempotency_key: stableId("annotation", queueId, objectId, score.name),
-						observation_id: objectType === "OBSERVATION" ? objectId : null,
-						trace_id: objectType === "TRACE" ? objectId : null,
-					}),
-					fetchImpl: input.fetchImpl,
-					method: "POST",
-					path: "/api/public/scores",
-					settings: input.settings,
-				});
-			}
-			prefilled += 1;
-		}
-	}
-	return {
-		dry_run: input.dryRun,
-		enqueued: input.dryRun ? 0 : enqueued,
-		planned_enqueue: input.dryRun ? enqueued : 0,
-		planned_prefill_scores: input.dryRun ? prefilled : 0,
-		prefilled_scores: input.dryRun ? 0 : prefilled,
-		queue_id: queueId,
-		schema_version: "langfuse_review_queue_sync_report.v1",
-	};
-}
-
-export async function exportLangfuseReviewResults(input: {
-	fetchImpl?: typeof fetch;
-	manifestPath: string;
-	outputPath: string;
-	settings: LangfuseSettings;
-}): Promise<JsonObject> {
-	const manifest = loadJsonObject(input.manifestPath);
-	const queueId = stringField(manifest.queue_id, "queue_id");
-	const items = await listPaginated({
-		fetchImpl: input.fetchImpl,
-		path: `/api/public/annotation-queues/${queueId}/items`,
-		query: { status: "COMPLETED" },
-		settings: input.settings,
-	});
-	const payload = {
-		items: items.map((item) => reviewExportItem(queueId, item)),
-		queue_id: queueId,
-		schema_version: "langfuse_review_export.v1",
-	};
-	writeJsonObject(input.outputPath, payload);
-	return { ...payload, output_path: input.outputPath };
-}
-
 function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 	const caseId = stringField(item.case_id, "case_id");
-	const datasetKind = stringField(dataset.kind, "dataset.kind");
-	if (datasetKind.startsWith("agent_")) {
-		return agentInputPayload(datasetKind, dataset, item, caseId);
-	}
-	if (dataset.kind === "online_answer_path") {
+	if (dataset.kind === "answer_quality") {
 		return {
 			case_id: caseId,
 			surface_key: stringField(dataset.surface_key, "surface_key"),
-			user_goal_sha256: sha256Text(stringField(item.user_goal, "user_goal")),
 		};
 	}
-	if (dataset.kind === "context_followup") {
+	if (dataset.kind === "rag_qrels") {
+		const query = stringField(item.query, "query");
 		return {
 			case_id: caseId,
-			question_sha256: sha256Text(stringField(item.question, "question")),
+			question: query,
 			surface_key: stringField(dataset.surface_key, "surface_key"),
+			user_input: query,
 		};
 	}
 	return {
@@ -272,10 +134,6 @@ function inputPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 }
 
 function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
-	const datasetKind = stringField(dataset.kind, "dataset.kind");
-	if (datasetKind.startsWith("agent_")) {
-		return agentExpectedPayload(datasetKind, item);
-	}
 	if (dataset.kind === "answer_quality") {
 		return {
 			forbidden_claims: stringList(item.forbidden_claims),
@@ -283,101 +141,28 @@ function expectedPayload(dataset: JsonObject, item: JsonObject): JsonObject {
 			split: optionalString(item.split),
 		};
 	}
-	return { case_id: item.case_id, split: optionalString(item.split) };
-}
-
-function agentInputPayload(
-	datasetKind: string,
-	dataset: JsonObject,
-	item: JsonObject,
-	caseId: string,
-): JsonObject {
-	const base = {
-		case_id: caseId,
-		surface_key: stringField(dataset.surface_key, "surface_key"),
-	};
-	if (datasetKind === "agent_rag_answer") {
+	if (dataset.kind === "rag_qrels") {
+		const referenceContextIds = sourceDocIds(item.expected_sources, "expected_sources");
+		const forbiddenContextIds = sourceDocIds(item.forbidden_sources, "forbidden_sources");
 		return {
-			...base,
-			question_sha256: sha256Text(stringField(item.question, "question")),
-			context_ref_count: mappingList(item.context_refs ?? [], "context_refs").length,
-			rag_surface: stringField(item.surface, "surface"),
-		};
-	}
-	if (datasetKind === "agent_multiturn_memory") {
-		return {
-			...base,
-			turn_count: mappingList(item.turns ?? [], "turns").length,
-			turn_goal_hashes: mappingList(item.turns ?? [], "turns").map((turn) =>
-				sha256Text(stringField(turn.user_goal, "turn.user_goal")),
-			),
-		};
-	}
-	return {
-		...base,
-		user_goal_sha256: sha256Text(stringField(item.user_goal, "user_goal")),
-	};
-}
-
-function agentExpectedPayload(datasetKind: string, item: JsonObject): JsonObject {
-	const expected = mapping(item.expected ?? {}, "expected");
-	if (datasetKind === "agent_routing_trajectory") {
-		return {
-			direct_answer: expected.direct_answer,
-			fail_close_reason: optionalString(expected.fail_close_reason),
-			forbidden_tools: stringList(expected.forbidden_tools),
-			requires_clarification: expected.requires_clarification,
-			selected_tool: optionalString(expected.selected_tool),
-			split: optionalString(item.split),
-			terminal_outcome: optionalString(expected.terminal_outcome),
-		};
-	}
-	if (datasetKind === "agent_rag_answer") {
-		return {
-			required_facts: stringList(expected.required_facts),
-			required_source_titles: stringList(expected.required_source_titles),
-			split: optionalString(item.split),
-			status: optionalString(expected.status),
-		};
-	}
-	if (datasetKind === "agent_retrieval_planning") {
-		return {
-			decomposition: stringList(expected.decomposition),
-			fail_close_reason: optionalString(expected.fail_close_reason),
-			final_status: optionalString(expected.final_status),
-			freshness_branch: optionalString(expected.freshness_branch),
-			planned_steps: stringList(expected.planned_steps),
-			split: optionalString(item.split),
-		};
-	}
-	if (datasetKind === "agent_multiturn_memory") {
-		return {
-			final_status: optionalString(expected.final_status),
-			forbidden_tokens: safePolicyTokens(stringList(expected.forbidden_tokens)),
-			required_memory_behavior: optionalString(expected.required_memory_behavior),
-			required_tokens: stringList(expected.required_tokens),
+			case_id: item.case_id,
+			forbidden_context_ids: forbiddenContextIds,
+			metric_applicability: {
+				context_recall: referenceContextIds.length > 0,
+				id_context_precision: referenceContextIds.length > 0,
+				id_context_recall: referenceContextIds.length > 0,
+			},
+			reference_context_ids: referenceContextIds,
 			split: optionalString(item.split),
 		};
 	}
 	return { case_id: item.case_id, split: optionalString(item.split) };
 }
 
-function safePolicyTokens(tokens: string[]): string[] {
-	return tokens.map((token) => {
-		if (token === "raw_transcript") {
-			return "forbid_raw_conversation_payload";
-		}
-		if (token === "provider_raw_response") {
-			return "forbid_provider_raw_payload";
-		}
-		if (token === "raw_retrieved_snippet" || token === "retrieved_snippet") {
-			return "forbid_raw_retrieval_payload";
-		}
-		if (token === "source_body" || token === "source_body_text") {
-			return "forbid_source_body_payload";
-		}
-		return token;
-	});
+function sourceDocIds(value: unknown, field: string): string[] {
+	return mappingList(value ?? [], field)
+		.map((source) => optionalString(source.doc_id))
+		.filter((docId): docId is string => Boolean(docId));
 }
 
 function datasetItem(input: {
@@ -413,9 +198,8 @@ async function syncOneDataset(input: {
 	dataset: JsonObject;
 	dryRun: boolean;
 	existingNames: Set<string>;
-	fetchImpl?: typeof fetch;
+	langfuse: ReturnType<typeof createLangfuseEvalClient>;
 	manifestPath: string;
-	settings: LangfuseSettings;
 	sourceGitHead: string;
 }): Promise<JsonObject> {
 	const name = stringField(input.dataset.name, "datasets[].name");
@@ -431,23 +215,11 @@ async function syncOneDataset(input: {
 		sourceGitHead: input.sourceGitHead,
 	});
 	if (!(input.dryRun || input.existingNames.has(name))) {
-		await requestJson({
-			body: { name },
-			fetchImpl: input.fetchImpl,
-			method: "POST",
-			path: "/api/public/v2/datasets",
-			settings: input.settings,
-		});
+		await input.langfuse.createDataset({ name });
 	}
 	if (!input.dryRun) {
 		for (const item of desired) {
-			await requestJson({
-				body: item,
-				fetchImpl: input.fetchImpl,
-				method: "POST",
-				path: "/api/public/dataset-items",
-				settings: input.settings,
-			});
+			await input.langfuse.createDatasetItem(item);
 		}
 	}
 	return {
@@ -474,104 +246,4 @@ function scoreConfigPayload(score: JsonObject): JsonObject {
 		payload.maxValue = valueRange[1];
 	}
 	return payload;
-}
-
-function experimentArtifact(
-	manifest: JsonObject,
-	itemResults: JsonObject[],
-	datasetRunId: string | null,
-): JsonObject {
-	return {
-		aggregate_scores: mappingList(manifest.aggregate_scores, "aggregate_scores"),
-		dataset_name: stringField(manifest.dataset_name, "dataset_name"),
-		dataset_run_id: datasetRunId,
-		environment: stringField(manifest.environment, "environment"),
-		experiment_kind: stringField(manifest.experiment_kind, "experiment_kind"),
-		experiment_run_id: stringField(manifest.experiment_run_id, "experiment_run_id"),
-		item_results: itemResults,
-		release: stringField(manifest.release, "release"),
-		schema_version: "langfuse_experiment_result.v1",
-		source_git_head: stringField(manifest.source_git_head, "source_git_head"),
-		surface_key: stringField(manifest.surface_key, "surface_key"),
-		variant_id: stringField(manifest.variant_id, "variant_id"),
-		verdict: itemResults.some((item) => item.status !== "passed") ? "fail" : "pass",
-	};
-}
-
-function scoreReportFromExperimentManifest(
-	manifest: JsonObject,
-	artifact: JsonObject,
-	datasetRunId: string | null,
-): JsonObject {
-	const scoreItems: JsonObject[] = [];
-	for (const score of mappingList(artifact.aggregate_scores, "aggregate_scores")) {
-		if (datasetRunId) {
-			scoreItems.push({
-				case_id: slug(`aggregate:${score.name}`),
-				comment: optionalString(score.comment),
-				data_type: stringField(score.data_type, "score.data_type"),
-				dataset_item_id: null,
-				dataset_run_id: datasetRunId,
-				idempotency_key: stableId(
-					"lfscore",
-					manifest.experiment_run_id,
-					`aggregate:${score.name}`,
-					score.name,
-				),
-				metadata: {
-					case_id: slug(`aggregate:${score.name}`),
-					eval_kind: manifest.experiment_kind,
-					release: manifest.release,
-					schema_version: "langfuse_experiment_result.v1",
-					surface_key: manifest.surface_key,
-					variant_id: manifest.variant_id,
-				},
-				name: score.name,
-				observation_id: null,
-				session_id: null,
-				trace_id: null,
-				value: score.value,
-			});
-		}
-	}
-	return validateLangfuseScoreReport({
-		environment: manifest.environment,
-		eval_kind: manifest.experiment_kind,
-		eval_run_id: manifest.experiment_run_id,
-		expected_publish_denominator: scoreItems.length,
-		omitted_items: [],
-		profile_id: manifest.experiment_kind,
-		release: manifest.release,
-		schema_version: "langfuse_score_report.v1",
-		score_items: scoreItems,
-		source_artifact_path: manifest.artifact_path,
-		source_git_head: manifest.source_git_head,
-		source_result_denominator: scoreItems.length,
-		surface_key: manifest.surface_key,
-		variant_id: manifest.variant_id,
-	});
-}
-
-function reviewExportItem(queueId: string, item: JsonObject): JsonObject {
-	const queueItemId = stringField(item.id, "queue_item.id");
-	const scores = mappingList(item.scores ?? item.annotations ?? [], "scores")
-		.filter((score) => optionalString(score.scoreConfigId) || optionalString(score.configId))
-		.map((score) => ({
-			score_config_id: optionalString(score.scoreConfigId) ?? optionalString(score.configId),
-			score_name: optionalString(score.name),
-			value: score.value,
-		}));
-	const metadata =
-		item.metadata && typeof item.metadata === "object" ? mapping(item.metadata, "metadata") : {};
-	return {
-		case_id: optionalString(item.caseId) ?? optionalString(metadata.case_id) ?? item.objectId,
-		object_id: stringField(item.objectId, "objectId"),
-		object_type: stringField(item.objectType, "objectType"),
-		queue_id: queueId,
-		queue_item_id: queueItemId,
-		repo_backlog_candidate_id: stableId("review", queueId, queueItemId),
-		review_comment_hash: sha256Json(item.comment ?? ""),
-		reviewer_score_summary: scores,
-		score_config_ids: scores.map((score) => score.score_config_id),
-	};
 }

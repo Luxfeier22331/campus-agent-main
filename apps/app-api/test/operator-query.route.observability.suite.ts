@@ -10,19 +10,6 @@ export function registerOperatorQueryObservabilitySuite(): void {
 			const service = {
 				getById: vi.fn(),
 				getAuditById: vi.fn(),
-				getLangfuseEvalBacklinksByTraceId: vi.fn().mockResolvedValue({
-					backlinks: [
-						{
-							environment: "staging",
-							evalRunId: "ragas-smoke:2026-06-23",
-							langfuseUrl: "https://langfuse.example/project/traces/trace_01HQ",
-							release: "release-2026-06-23",
-							scoreName: "faithfulness",
-							scoreValue: 0.91,
-							traceId: "trace_01HQ",
-						},
-					],
-				}),
 				getObservabilityById: vi.fn().mockResolvedValue({
 					auditSummary: {
 						auditEventCount: 0,
@@ -166,17 +153,6 @@ export function registerOperatorQueryObservabilitySuite(): void {
 					latestTerminalCode: "completed",
 				},
 				links: {
-					langfuseEvalBacklinks: [
-						{
-							environment: "staging",
-							evalRunId: "ragas-smoke:2026-06-23",
-							langfuseUrl: "https://langfuse.example/project/traces/trace_01HQ",
-							release: "release-2026-06-23",
-							scoreName: "faithfulness",
-							scoreValue: 0.91,
-							traceId: "trace_01HQ",
-						},
-					],
 					issueFingerprint: "timeout:execution-control",
 					issueLink: "https://sentry.example/issues/123",
 					traceLink: "https://sentry.example/traces/trace_01HQ",
@@ -297,19 +273,12 @@ export function registerOperatorQueryObservabilitySuite(): void {
 				principal,
 				requestId: "req_01HQ",
 			});
-			expect(service.getLangfuseEvalBacklinksByTraceId).toHaveBeenCalledWith({
-				principal,
-				traceId: "trace_01HQ",
-			});
 		});
 
 		it("returns empty retrieved trace without mirroring supporting evidence", async () => {
 			const service = {
 				getById: vi.fn(),
 				getAuditById: vi.fn(),
-				getLangfuseEvalBacklinksByTraceId: vi.fn().mockResolvedValue({
-					backlinks: [],
-				}),
 				getObservabilityById: vi.fn().mockResolvedValue({
 					auditSummary: {
 						auditEventCount: 0,

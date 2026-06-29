@@ -44,6 +44,11 @@ class owns a fact.
   - [product/langfuse-evals.md](./product/langfuse-evals.md)
   - [architecture/system/langfuse.md](./architecture/system/langfuse.md)
   - [contracts/langfuse-runtime.md](./contracts/langfuse-runtime.md)
+  - [decisions/adr-0061-eval-runtime.md](./decisions/adr-0061-eval-runtime.md)
+  - [decisions/adr-0062-ragas-langfuse.md](./decisions/adr-0062-ragas-langfuse.md)
+  - [reference/eval.md](./reference/eval.md)
+  - [reference/eval-map.md](./reference/eval-map.md)
+  - [runbooks/eval-ragas.md](./runbooks/eval-ragas.md)
 - Kubernetes execution-control runtime and KEDA/HPA worker autoscaling target:
   - [architecture/system/k8s-runtime.md](./architecture/system/k8s-runtime.md)
 - Tool or domain readiness:

@@ -153,8 +153,9 @@ alias 不是 repo-wide 通用语义，必须带作用域。
 - retrieval runtime 只消费 canonical entity/filter truth，不拥有 alias 治理语义
 - `packages/ingestion-core` 负责构建离线派生的 canonical entity facts，例如 course facts /
   family facts / audience facts
-- `packages/evals` 负责验证 alias resolution 的 deterministic truth 与 fail-close
-  truth
+- `packages/eval-langfuse` / repo-owned eval truth 负责验证 alias resolution 的
+  deterministic truth 与 fail-close truth；旧 `packages/evals` package 已由
+  ADR-0061 退役
 
 直接含义：
 

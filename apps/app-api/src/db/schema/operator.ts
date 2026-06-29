@@ -1,9 +1,4 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-import type { EvalCoverageSnapshot } from "../../modules/operator-eval-coverage";
-import type {
-	EvalDiagnosticFailureStage,
-	EvalDiagnosticTrajectoryAttribution,
-} from "../../modules/operator-eval-diagnostic-badcases";
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
@@ -232,66 +227,6 @@ export const qualityBadcaseProjection = operator.table(
 	}),
 );
 
-export const evalCoverageSnapshot = operator.table(
-	"eval_coverage_snapshot",
-	{
-		snapshotId: text("snapshot_id").primaryKey(),
-		schemaVersion: text("schema_version").notNull(),
-		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
-		sourceGitHead: text("source_git_head").notNull(),
-		payloadJson: jsonb("payload_json").$type<EvalCoverageSnapshot>().notNull(),
-		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		generatedAtIndex: index("operator_eval_coverage_snapshot_generated_at_idx").on(
-			table.generatedAt,
-		),
-	}),
-);
-
-export const evalDiagnosticBadcaseProjection = operator.table(
-	"eval_diagnostic_badcase_projection",
-	{
-		badcaseId: text("badcase_id").primaryKey(),
-		snapshotId: text("snapshot_id").notNull(),
-		evalRunId: text("eval_run_id").notNull(),
-		sourceReportSchema: text("source_report_schema").notNull(),
-		sourceGitHead: text("source_git_head").notNull(),
-		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
-		surfaceKey: text("surface_key").notNull(),
-		caseId: text("case_id").notNull(),
-		metricName: text("metric_name").notNull(),
-		scoreMilli: integer("score_milli").notNull(),
-		thresholdMilli: integer("threshold_milli").notNull(),
-		failureStage: text("failure_stage").$type<EvalDiagnosticFailureStage>().notNull(),
-		causeClass: text("cause_class").notNull(),
-		metricFailureReason: text("metric_failure_reason").notNull(),
-		queryPreview: text("query_preview").notNull(),
-		expectedDocIdsJson: jsonb("expected_doc_ids_json").$type<string[]>().notNull(),
-		retrievedContextIdsJson: jsonb("retrieved_context_ids_json").$type<string[]>().notNull(),
-		retrievedDocIdsJson: jsonb("retrieved_doc_ids_json").$type<string[]>().notNull(),
-		supportingDocIdsJson: jsonb("supporting_doc_ids_json").$type<string[]>().notNull(),
-		supportingChunkIdsJson: jsonb("supporting_chunk_ids_json").$type<string[]>().notNull(),
-		trajectoryAttributionJson: jsonb("trajectory_attribution_json")
-			.$type<EvalDiagnosticTrajectoryAttribution>()
-			.notNull(),
-		answerShape: text("answer_shape"),
-		presentationKind: text("presentation_kind"),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		causeGeneratedAtIndex: index("operator_eval_diag_badcase_cause_generated_at_idx").on(
-			table.causeClass,
-			table.generatedAt,
-		),
-		generatedAtIndex: index("operator_eval_diag_badcase_generated_at_idx").on(table.generatedAt),
-		surfaceGeneratedAtIndex: index("operator_eval_diag_badcase_surface_generated_at_idx").on(
-			table.surfaceKey,
-			table.generatedAt,
-		),
-	}),
-);
-
 export const qualityGradeProjection = operator.table(
 	"quality_grade_projection",
 	{
@@ -345,31 +280,6 @@ export const traceBacklinkProjection = operator.table(
 		traceProjectedAtIndex: index("operator_trace_backlink_projection_trace_projected_at_idx").on(
 			table.traceId,
 			table.projectedAt,
-		),
-	}),
-);
-
-export const langfuseEvalBacklinkProjection = operator.table(
-	"langfuse_eval_backlink_projection",
-	{
-		evalBacklinkId: text("eval_backlink_id").primaryKey(),
-		traceId: text("trace_id").notNull(),
-		evalRunId: text("eval_run_id").notNull(),
-		scoreName: text("score_name").notNull(),
-		scoreValueJson: jsonb("score_value_json").$type<string | number | boolean>().notNull(),
-		release: text("release").notNull(),
-		environment: text("environment").notNull(),
-		langfuseUrl: text("langfuse_url").notNull(),
-		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
-	},
-	(table) => ({
-		traceProjectedAtIndex: index("operator_langfuse_eval_backlink_trace_projected_at_idx").on(
-			table.traceId,
-			table.projectedAt,
-		),
-		evalRunScoreIndex: index("operator_langfuse_eval_backlink_eval_score_idx").on(
-			table.evalRunId,
-			table.scoreName,
 		),
 	}),
 );

@@ -1,8 +1,6 @@
 import type { Env } from "../../config";
 import { createRuntimeDbGetter } from "../../db/runtime";
 import type { OperatorQueryStore } from "./service";
-import { createEvalCoverageStoreHandlers } from "./store/eval-coverage";
-import { createLangfuseEvalBacklinkStoreHandlers } from "./store/langfuse-eval-backlinks";
 import { createMetricStoreHandlers } from "./store/metrics";
 import { createRequestStoreHandlers } from "./store/requests";
 import type { RuntimeDbGetter } from "./store/runtime";
@@ -19,8 +17,6 @@ export function createPgOperatorQueryStore(
 	const now = input.now ?? (() => new Date());
 
 	return {
-		...createEvalCoverageStoreHandlers({ getDb, now }),
-		...createLangfuseEvalBacklinkStoreHandlers({ getDb, now }),
 		...createRequestStoreHandlers({ getDb, now }),
 		...createMetricStoreHandlers({ getDb, now }),
 		...createRuntimeOpsStoreHandlers({ getDb, now }),

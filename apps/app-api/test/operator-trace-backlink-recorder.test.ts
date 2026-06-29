@@ -7,10 +7,7 @@ import { buildOperatorTraceBacklinkRecorder } from "../src/modules/operator-obse
 describe("operator trace backlink recorder", () => {
 	it("projects configured trace and issue deep links through the app-owned command seam", async () => {
 		const commandService = {
-			ingestEvalCoverageSnapshot: vi.fn(),
-			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
-			ingestLangfuseEvalBacklinks: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
@@ -36,7 +33,7 @@ describe("operator trace backlink recorder", () => {
 			payload: {
 				backlinks: [
 					{
-						issueFingerprint: "execution_timeout:knowledge",
+						issueFingerprint: "execution_timeout:knowledge_query",
 						issueLink: "https://axiom.example/query?request=req_01HQ&error=execution_timeout",
 						requestId: "req_01HQ",
 						traceId: "trace_01HQ",
@@ -49,10 +46,7 @@ describe("operator trace backlink recorder", () => {
 
 	it("records a safe error fingerprint without requiring a sink query link", async () => {
 		const commandService = {
-			ingestEvalCoverageSnapshot: vi.fn(),
-			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
-			ingestLangfuseEvalBacklinks: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
@@ -88,10 +82,7 @@ describe("operator trace backlink recorder", () => {
 	it("does not block the request path on invalid templates or command write failures", async () => {
 		const logger = { warn: vi.fn() };
 		const commandService = {
-			ingestEvalCoverageSnapshot: vi.fn(),
-			ingestEvalDiagnosticBadcases: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
-			ingestLangfuseEvalBacklinks: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTemporalTaskQueueSnapshots: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockRejectedValue(new Error("database unavailable")),

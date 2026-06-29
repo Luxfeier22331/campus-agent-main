@@ -251,10 +251,6 @@ identity，也不证明当前 Operator Console domains 可用。
 - Shell：panel shell loads after Cloudflare Access login
 - Overview：`/observability/overview` loads and calls `/api/operator/overview`
 - Runtime Health：overview runtime card calls `/api/operator/runtime/health`
-- Eval Coverage：`/observability/eval-coverage` loads and calls
-  `/api/operator/evals/coverage`; if no eval coverage snapshot has been
-  published, the page must show `尚未发布评测覆盖快照。` instead of raw backend
-  error text
 - Requests：`/requests` loads and calls `/api/requests`
 - Provider Config：`/operations/provider-config` loads and calls
   `/api/operator/provider-config/profiles`
@@ -270,9 +266,9 @@ HTTP status 记录；不能用 service-token smoke 代替。
 
 Runtime Health is a projection owned by `app-api`; the Operator Console must not
 directly call execution-control, Temporal, PG, Sentry or Axiom during this
-browser check. Dining and eval coverage checks must use real published/seeded
-state when the release claims those domains are ready; otherwise the accepted
-evidence is the governed diagnostic state above, not synthesized frontend data.
+browser check. Dining checks must use real seeded state when the release claims
+the domain is ready; otherwise the accepted evidence is the governed diagnostic
+state above, not synthesized frontend data.
 
 使用已登录 human operator 的 Playwright storage state 后，可以运行 repo-owned
 browser E2E runner 生成 panel matrix evidence：
@@ -287,7 +283,7 @@ node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
 通过标准：
 
 - `operator-console-browser-e2e.json` 输出 `passed=true`
-- screenshots 覆盖 shell、Overview、Eval Coverage、Requests、Provider Config、
+- screenshots 覆盖 shell、Overview、Requests、Provider Config、
   Official Web、Authenticated Notices 与 Dining Operations
 - network summary 中不出现 direct execution-control、Temporal、PG、Sentry 或 Axiom URL
 - console / network blocker 为 `0`
@@ -310,7 +306,7 @@ node apps/operator-console-web/scripts/staging-browser-e2e.mjs \
 - `https://panel-staging.mucwiki-edge.link`
   - 首次访问进入 Cloudflare Access
   - Access 登录后 panel shell 可加载
-  - Overview、Runtime Health、Eval Coverage、Requests、Provider Config、
+  - Overview、Runtime Health、Requests、Provider Config、
     Official Web、Authenticated Notices 与 Dining Operations 当前域矩阵完成检查
 
 每个 surface 至少保存一份 screenshot 或可审计文字证据。console / network 明显错误必须记录。
@@ -488,13 +484,11 @@ E2E QA 通过必须同时满足：
 - Langfuse real trace evidence 通过
   `pnpm --dir packages/eval-langfuse langfuse verify-trace`，并带 request /
   run / workflow identity 比对
-- `online-answer-path` Langfuse eval score publish evidence 已落盘，且仅作为 eval
-  sink evidence
-- Langfuse closeout 通过
-  `pnpm --dir packages/eval-langfuse langfuse closeout-staging` 生成并校验
-  `langfuse-release-evidence.json`
+- 若本轮执行 Ragas eval，`ragas-score-traces` 或 `ragas-score-dataset` 输出已落盘；
+  Langfuse score 只作为 eval sink evidence
 - operator runtime task queue / autoscaler projection evidence 完整
-- eval diagnostic badcase projection 使用 operator step trajectory 且无 missing attribution
+- Langfuse Ragas score candidate projection 使用 operator step trajectory 且无
+  missing attribution
 - evidence 完整落盘到本轮目录
 
 禁止通过标准：

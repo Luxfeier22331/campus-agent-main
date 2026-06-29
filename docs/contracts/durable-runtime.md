@@ -82,7 +82,7 @@ Run id 是一次 answer execution 的 canonical durable object id。
 - 每次 run 只能有一个 terminal state
 - run 可以被查询、取消、订阅、投影和评估
 - run id 必须贯穿 workflow/activity projection、run events、final answer 与 eval
-  backlink；historical PG lease / heartbeat artifact 只作为迁移审计材料
+  trace / dataset correlation；historical PG lease / heartbeat artifact 只作为迁移审计材料
 - `request_id` 只能作为 compatibility / correlation id，不再作为 final runtime identity
 
 ### `step_id`
@@ -95,7 +95,7 @@ Step id 是 run 内 typed execution unit id。
 - Temporal workflow/activity progress 与 repo-owned projection 必须引用明确 step id；
   run-level single-step execution 也必须有 canonical root step id
 - step id 必须贯穿 step attempts、step results、tool/retrieval/synthesis events
-  与 eval backlink
+  与 eval trace / dataset correlation
 - step id 不能由 worker 临时生成后只保存在本地内存
 
 ### `trace_id`

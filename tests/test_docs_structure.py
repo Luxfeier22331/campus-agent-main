@@ -80,18 +80,9 @@ class DocsStructureTest(unittest.TestCase):
     def test_docs_plans_archive_namespace_is_removed_from_branch_tip(self) -> None:
         self.assertFalse((DOCS_ROOT / "plans").exists())
 
-    def test_archive_subdirectories_use_expected_statuses(self) -> None:
+    def test_reference_and_runbook_archive_namespaces_are_removed_from_branch_tip(self) -> None:
         for root in (DOCS_ROOT / "reference" / "archive", DOCS_ROOT / "runbooks" / "archive"):
-            self.assertTrue(root.is_dir(), root)
-            for path in sorted(root.rglob("*.md")):
-                front_matter = _read_front_matter(path)
-                if path.name == "README.md":
-                    self.assertEqual(front_matter.get("doc_type"), "index", path)
-                    self.assertIn(front_matter.get("status"), ACTIVE_ONLY_STATUSES, path)
-                    continue
-                expected_doc_type = "reference" if "reference" in path.parts else "runbook"
-                self.assertEqual(front_matter.get("doc_type"), expected_doc_type, path)
-                self.assertIn(front_matter.get("status"), {"historical"}, path)
+            self.assertFalse(root.exists(), root)
 
     def test_reference_and_runbook_root_namespaces_are_active_only(self) -> None:
         for directory_name, expected_doc_type in {
@@ -195,11 +186,13 @@ class DocsStructureTest(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("pnpm repo:static", verification_reference)
-        self.assertIn("HTML checker", verification_reference)
-        self.assertIn("tracked +", verification_reference)
-        self.assertIn("untracked 文件", verification_reference)
-        self.assertIn("PowerShell 继续保留为 supplemental lane", verification_reference)
-        self.assertIn("不并入默认 `pnpm repo:static`", verification_reference)
+        self.assertIn("Repo-wide static gate for live tracked surfaces", verification_reference)
+        self.assertIn("JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile", verification_reference)
+        self.assertIn("Biome, Ruff format", verification_reference)
+        self.assertIn("decomposition guard", verification_reference)
+        self.assertIn(
+            "Not a typecheck, unit test, integration test or E2E proof", verification_reference
+        )
 
     def test_decision_ids_are_unique(self) -> None:
         decision_ids: dict[str, Path] = {}

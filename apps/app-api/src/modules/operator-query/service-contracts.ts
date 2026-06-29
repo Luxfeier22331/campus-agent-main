@@ -18,10 +18,8 @@ import type {
 	OperatorAuditListResult,
 	OperatorCostSummaryResult,
 	OperatorCostTimeseriesResult,
-	OperatorEvalCoverageResult,
 	OperatorIntentSummaryResult,
 	OperatorIntentTimeseriesResult,
-	OperatorLangfuseEvalBacklinkResult,
 	OperatorOverviewFilters,
 	OperatorOverviewResult,
 	OperatorQualityBadcaseListFilters,
@@ -49,8 +47,6 @@ import type {
 export interface OperatorQueryStore {
 	getById(requestId: string): Promise<RequestProjectionRecord | null>;
 	getAuditById(auditEventId: string): Promise<OperatorAuditEventDetail | null>;
-	getEvalCoverage(): Promise<OperatorEvalCoverageResult | null>;
-	getLangfuseEvalBacklinksByTraceId(traceId: string): Promise<OperatorLangfuseEvalBacklinkResult>;
 	getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
 	getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
 	getQualitySummary(
@@ -79,9 +75,6 @@ export interface OperatorQueryStore {
 		filters: NormalizedOperatorQualityBadcaseListFilters,
 	): Promise<OperatorQualityBadcaseListResult>;
 	listQualityFeedbackEvalCandidates(
-		filters: NormalizedOperatorQualityBadcaseListFilters,
-	): Promise<OperatorQualityEvalCandidateListResult>;
-	listEvalDiagnosticCandidates(
 		filters: NormalizedOperatorQualityBadcaseListFilters,
 	): Promise<OperatorQualityEvalCandidateListResult>;
 	listTemporalTaskQueues(
@@ -113,11 +106,6 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		auditEventId: string;
 	}): Promise<OperatorAuditEventDetail>;
-	getEvalCoverage(input: { principal: ResolvedAppPrincipal }): Promise<OperatorEvalCoverageResult>;
-	getLangfuseEvalBacklinksByTraceId(input: {
-		principal: ResolvedAppPrincipal;
-		traceId: string;
-	}): Promise<OperatorLangfuseEvalBacklinkResult>;
 	getOverview(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;

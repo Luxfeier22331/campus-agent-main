@@ -13,14 +13,12 @@ REQUIRED_CI_SCRIPTS = (
     "repo:static",
     "ci:repo-guard",
     "ci:repo-static",
-    "ci:intent",
     "ci:langfuse",
     "ci:go",
     "ci:web-graph:full",
     "ci:config:lint",
 )
 REQUIRED_CI_SCRIPT_VALUES = {
-    "ci:intent": "uv run --all-packages python -m scripts.intent_gate",
     "ci:langfuse": (
         "pnpm --dir packages/eval-langfuse typecheck && "
         "pnpm --dir packages/eval-langfuse test && "
@@ -31,7 +29,6 @@ REQUIRED_CI_SCRIPT_VALUES = {
 REQUIRED_WORKFLOW_SCRIPT_CALLS = {
     ".github/workflows/lint.yml": (
         "pnpm ci:repo-static",
-        "pnpm ci:intent",
         "pnpm ci:langfuse",
         "pnpm ci:go",
     ),
@@ -41,12 +38,11 @@ REQUIRED_GOLANGCI_LINT_INSTALL = (
 )
 REQUIRED_UV_SETUP = "astral-sh/setup-uv@v6"
 REQUIRED_WORKFLOW_CONCURRENCY = (".github/workflows/lint.yml", ".github/workflows/repo-guard.yml")
-MANUAL_ONLY_WORKFLOWS = (".github/workflows/eval-release-gate.yml",)
+MANUAL_ONLY_WORKFLOWS = (".github/workflows/eval-ragas-score.yml",)
 MANUAL_ONLY_IF_PRESENT_WORKFLOWS = (".github/workflows/public-docs-rolling-publish.yml",)
 PATH_FILTERED_JOBS = {
     ".github/workflows/lint.yml": {
         "execution-control-go": "go",
-        "intent-release-gate": "intent",
         "langfuse-integration": "langfuse",
     }
 }
@@ -108,6 +104,7 @@ def audit_ci_workflow_contracts(*, root: Path | None = None) -> tuple[CiWorkflow
     issues.extend(_audit_path_filtered_jobs(base))
     issues.extend(_audit_repo_static_lane_tooling(base))
     issues.extend(_audit_langfuse_lane_tooling(base))
+    issues.extend(_audit_eval_ragas_score_contract(base))
     issues.extend(_audit_go_lane_tooling(base))
     return tuple(issues)
 
@@ -429,6 +426,43 @@ def _audit_langfuse_lane_tooling(root: Path) -> tuple[CiWorkflowContractIssue, .
             ),
         )
     return ()
+
+
+def _audit_eval_ragas_score_contract(root: Path) -> tuple[CiWorkflowContractIssue, ...]:
+    workflow_relpath = ".github/workflows/eval-ragas-score.yml"
+    workflow_path = root / workflow_relpath
+    if not workflow_path.exists():
+        return (
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="required workflow is missing",
+            ),
+        )
+    workflow_text = workflow_path.read_text(encoding="utf-8")
+    required = (
+        "actions/setup-python@v5",
+        REQUIRED_UV_SETUP,
+        "uv sync --all-packages --dev",
+        "pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
+        "pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",
+    )
+    issues: list[CiWorkflowContractIssue] = []
+    for snippet in required:
+        if snippet not in workflow_text:
+            issues.append(
+                CiWorkflowContractIssue(
+                    path=workflow_relpath,
+                    message=f"eval-ragas-score workflow must call: {snippet}",
+                )
+            )
+    if "--allow-failures" in workflow_text:
+        issues.append(
+            CiWorkflowContractIssue(
+                path=workflow_relpath,
+                message="eval-ragas-score workflow must not accept --allow-failures",
+            )
+        )
+    return tuple(issues)
 
 
 def _first_step_index_using(steps: list[Any], uses: str) -> int | None:

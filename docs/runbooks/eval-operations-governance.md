@@ -1,178 +1,84 @@
 ---
 doc_type: runbook
 truth_scope: eval
-owner_boundary: packages/evals
+owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-04-29
-updated: 2026-04-30
+updated: 2026-06-28
 ---
 # Eval Operations Governance
 
-This runbook freezes the operating rules for repo-owned eval profiles. It is
-about eval runtime governance only; it does not author domain truth and does not
-turn supplemental provider availability into deterministic truth.
+This runbook covers active Langfuse/Ragas eval operations. It does not author
+domain truth, define product release gates, or keep legacy profile-gate policy
+files alive.
 
 ## Source Of Truth
 
-- Machine-readable policy:
-  `packages/evals/fixtures/ops/eval_operations_profile_policy.v1.json`
-- Policy evaluator:
-  `campus_evals.eval_operations_governance`
-- Profile artifact runner:
-  `campus_evals.eval_profile_gate`
-- Denominator registry:
-  `packages/evals/fixtures/ops/eval_denominator_registry.v1.json`
+- Active eval shape: `docs/reference/eval.md`
+- Active workflow lanes: `docs/reference/eval-map.md`
+- Golden truth model: `docs/reference/eval-gold-truth-model.md`
 
-## Required Profile Fields
+The retired Python/profile-gate policy files are deleted. New operational
+checks must be implemented in `packages/eval-langfuse` or the owning runtime
+before they become active.
 
-Every eval operations profile must define:
+## Active Operations
 
-- case and provider-call budget
-- runtime timeout, retry limit, pacing and breaker policy
-- artifact and promoted-artifact retention
-- allowed gate modes
-- failure disposition labels
-- quarantine policy and readmission rule
-- required version summary fields
+Current workflow-dispatchable lanes are:
 
-## Gate Modes
+- `ragas-trace`
+- `ragas-dataset`
 
-Allowed gate modes are explicit per profile. Do not promote a profile into a PR
-hard gate unless the policy file names that mode.
+Both lanes must use safe projections from Langfuse traces or datasets, execute
+upstream Ragas through `packages/ragas-runner`, and publish `ragas.*` scores
+through `packages/eval-langfuse`.
 
-Current default posture:
+## Release Posture
 
-- `manual`: local or operator-triggered evidence
-- `scheduled`: recurring non-blocking regression evidence
-- `release_gate`: explicit release or opening evidence
+Langfuse/Ragas scores are evaluation evidence and review input. They are not a
+standalone repo-owned release gate.
 
-## Deterministic Product-Path Gates
+Release closeout remains owned by product/runtime contracts, staging E2E
+runbooks and the relevant app/package test lanes. A low Ragas score can mark
+operator coverage as `attention`; it must not silently become a hard release
+blocker without an explicit current contract.
 
-`tool-runtime-contract` is the deterministic acceptance gate for the tool
-runtime contract. Run it with:
+## Required Evidence
 
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile tool-runtime-contract \
-  --output-dir .tmp/evals/tool-runtime-contract-smoke \
-  --json
-```
+Each active eval operation must record:
 
-The gate covers:
+- selected Langfuse trace or dataset source
+- source git head
+- eval run id
+- Ragas metric names
+- scored denominator
+- omitted denominator and omission reasons
+- published / failed / validate-only status
 
-- execution schema/generated artifact drift check
-- cross-language execution fixture matrix for Go runtime
-  and TypeScript app-api adapter
-- workflow trace evaluator and fixture denominator
-- tool denominator evaluator and fixture denominator
-- online-answer product-path evaluator, including sanitized
-  `workflow_trace_summary` replay against selected tool, branch and fail-close
-  reason
-- targeted execution-control, app-api and operator-console-web test lanes, including
-  panel raw bridge/provider/prompt key non-exposure checks
+Score metadata must stay on the allowlist enforced by
+`packages/eval-langfuse/src/score-publisher.ts`; raw prompt, raw transcript,
+raw answer, provider raw response, source body, secrets and local paths are not
+allowed in published metadata.
 
-The gate does not start local live processes, does not run Docker smoke, does
-not mutate serving admission, does not introduce an Agents SDK runtime, and does
-not produce live case-results artifacts for operator publish dry-run.
+## Audit
 
-`multi-agent-product-path` is rejected as a removed profile. True product-path
-runtime E2E should use `online-answer-path
---collect-runtime` and the online answer acceptance backlog.
-
-Failure handling:
-
-- execution contract generation failure: update
-  `docs/contracts/schemas/tool-execution.openapi.yaml` first, then regenerate
-  artifacts with `pnpm contracts:generate`
-- strict fixture matrix failure: update the canonical schema, generated artifacts
-  and fixture truth together; do not special-case one language runtime
-- fixture or evaluator failure: fix the eval-owned case truth, evaluator
-  semantics or sanitized artifact contract first
-- execution-control/app-api/panel targeted lane failure: fix the owning runtime
-  surface before rerunning the gate
-- missing or malformed `tool-runtime-contract-gate.json`: treat as a gate
-  implementation failure
-
-Before a release-gate run, audit registry, workflow dispatch choices, operations
-policy coverage and fixture smoke with:
+Before relying on eval evidence for release closeout, run:
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate audit --json
+uv run --all-packages python -m scripts.langfuse_eval_audit audit --json
 ```
 
-## Failure Disposition
+The audit checks workflow dispatch choices, Langfuse publish contract, retired
+self-built eval package references, retired CLI commands, score registry shape
+and active eval-map expectations.
 
-Every failed, skipped, quarantined or repaired case must have an auditable
-disposition in the eval observation.
+## Operator Projection
 
-Accepted dispositions are profile-owned. A failed case without a disposition is
-an operations failure even if the deterministic evaluator can explain the
-technical assertion failure.
+The former app-api eval coverage and low-score diagnostic projections are
+retired. Operator observability no longer mirrors Langfuse/Ragas scoring state
+into app-api tables.
 
-## Quarantine
-
-Quarantine is not a way to hide regressions. A quarantined case requires:
-
-- profile policy allowing quarantine
-- a max quarantine window
-- a readmission rule
-- case-level readmission evidence in the observation
-
-Cases without readmission evidence must remain failed or skipped, not
-quarantined.
-
-## Retention
-
-Artifacts older than the profile retention window must be cleaned or promoted.
-Promoted artifacts use the longer promoted-artifact retention window and must be
-linked from release evidence or a phase summary.
-
-## Drift Evidence
-
-Every accepted operations observation must include all required version fields.
-The current default fields are:
-
-- `case_set_version`
-- `policy_artifact`
-- `runtime_version`
-
-Missing version fields are reported as version drift.
-
-## Artifact-Derived Observations
-
-Operations governance observations should be derived from real eval artifacts
-where possible. For observation-backed deterministic profiles, use
-`scripts.eval_gate accept --profile <profile> --observations-path <file>` to
-write `profile-report.json`, then pass those artifacts into
-`eval-operations-governance` via repeated `--artifact-path`.
-
-The derived observation reads:
-
-- `profile_id` from the profile artifact
-- `cases_run`, failure count and case dispositions from `summary` and
-  `sanitized_results`
-- runtime metrics from `summary.started_at`, `summary.finished_at`,
-  `summary.runtime_seconds`, `summary.retry_count`, `summary.provider_calls`,
-  `summary.collector_version` and `summary.runtime_profile`; artifacts with
-  `metrics_missing=true` fail operations governance
-- `version_summary` from the profile artifact
-
-To backflow correlated profile results into operator observability without
-turning `profile-report.json` into formal case-results, use:
-
-```bash
-uv run --all-packages python -m scripts.eval_gate publish-profile \
-  --profile-report <profile-report.json> \
-  --grade-source eval_profile_gate \
-  --grader-version profile@<date> \
-  --dry-run \
-  --json
-```
-
-This path publishes only `sanitized_results[]` entries with safe
-`request_correlation`; uncorrelated cases are skipped with
-`missing_request_correlation`.
-
-Do not hand-author compliant operations observations when a profile artifact
-exists. Hand-authored observations are only acceptable for unit tests and
-pre-runtime planning fixtures.
+Operator-facing eval evidence should stay in Langfuse datasets, runs, scores and
+annotation queues. App-api may still expose runtime quality badcases, negative
+feedback candidates and trace backlinks, but it does not own eval scoring or
+coverage truth.

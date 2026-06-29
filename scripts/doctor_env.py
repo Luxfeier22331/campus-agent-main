@@ -16,12 +16,6 @@ from campus_shared.provider_config import ProviderConfigResolutionError
 from scripts.doctor_env_surface_specs import SURFACE_SPECS
 from scripts.env_sync import parse_env_file
 
-EVAL_PROVIDER_CONFIG_PROJECTION_ROLES = (
-    "eval_ragas_llm",
-    "eval_ragas_embedding",
-    "eval_judge_llm",
-)
-
 
 def _collect_env_doctor_status(
     *,
@@ -56,11 +50,6 @@ def _collect_env_doctor_status(
                 for provider_name, provider_spec in spec["providers"].items()
             }
         )
-        provider_projection = _collect_provider_projection_status(
-            env=current_env,
-            surface=normalized_surface,
-        )
-
         required_settings = {
             name: (
                 _collect_object_store_credentials_status(current_env)
@@ -112,7 +101,6 @@ def _collect_env_doctor_status(
         )
         overall_ready = (
             all(status["present"] for status in providers.values())
-            and bool(provider_projection.get("ready", True))
             and all(status["present"] for status in required_settings.values())
             and all(status["ready"] for status in files.values())
             and postgres_ready
@@ -146,7 +134,7 @@ def _collect_env_doctor_status(
                 ),
             },
             "providers": providers,
-            "provider_projection": provider_projection,
+            "provider_projection": {},
             "settings": {
                 "required": required_settings,
                 "optional": optional_settings,
@@ -225,43 +213,6 @@ def _collect_shared_postgres_status(
         "repo_env_skipped_existing": repo_env_skipped_existing,
         "source": source,
         "connectivity": connectivity,
-    }
-
-
-def _collect_provider_projection_status(
-    *,
-    env: dict[str, str],
-    surface: str,
-) -> dict[str, object]:
-    if surface != "evals":
-        return {}
-    from campus_evals.provider_projection import (
-        ProviderProjectionError,
-        provider_projection_path_from_env,
-        provider_projection_status,
-    )
-
-    try:
-        path = provider_projection_path_from_env(env)
-    except ProviderProjectionError as exc:
-        return {
-            "required": True,
-            "ready": False,
-            "path": None,
-            "required_roles": list(EVAL_PROVIDER_CONFIG_PROJECTION_ROLES),
-            "profiles": {},
-            "error": str(exc),
-            "error_code": "projection_path_missing",
-        }
-    status = provider_projection_status(
-        path,
-        required_roles=EVAL_PROVIDER_CONFIG_PROJECTION_ROLES,
-    )
-    return {
-        "required": True,
-        "path": str(path),
-        "required_roles": list(EVAL_PROVIDER_CONFIG_PROJECTION_ROLES),
-        **status,
     }
 
 

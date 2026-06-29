@@ -498,6 +498,10 @@ TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concur
   contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
 - `packages/contracts`: legacy-named execution -> tool handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
-- `packages/evals`: 回归场景、基线与 smoke/eval 入口
+- `packages/eval-langfuse`: TS-owned Langfuse eval adapter；负责
+  dataset / score config sync、safe Ragas projection、score publishing 与 trace
+  verification
+- `packages/ragas-runner`: narrow Python RAGAS library execution island; accepts
+  sanitized `ragas_sample_batch.v1` and emits `ragas_score_batch.v1`
 - `packages/shared`: 轻量共享常量和 env/provider config helper；不要演变成业务逻辑、
   prompt runtime 或 provider transport 垃圾桶

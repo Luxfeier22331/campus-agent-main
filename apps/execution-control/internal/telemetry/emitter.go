@@ -23,62 +23,70 @@ import (
 )
 
 type Event struct {
-	ActivityDuration       time.Duration
-	CancelDeliveryStatus   string
-	CanonicalIndexTruth    string
-	CandidateCount         int
-	Collection             string
-	ContextPreflightState  string
-	Corpus                 string
-	CachedInputTokens      int64
-	EstimatedCostMicroUSD  int64
-	InputTokens            int64
-	ModelName              string
-	ModelProvider          string
-	Name                   string
-	OutputTokens           int64
-	RequestID              string
-	TraceID                string
-	ConversationID         string
-	UserID                 string
-	Release                string
-	DeploymentEnvironment  string
-	RequestedTool          string
-	Outcome                string
-	Decision               string
-	FailureCode            string
-	FailureKind            string
-	ActivityType           string
-	TaskQueue              string
-	ActivityAttempt        int
-	WorkflowID             string
-	StepKind               string
-	PlanID                 string
-	StatusCode             int
-	Duration               time.Duration
-	QueueWait              time.Duration
-	ScheduleToStart        time.Duration
-	ScopeGateDecision      string
-	PolicyGateDecision     string
-	RoutingNextAction      string
-	PlanningOutcome        string
-	QuerySHA256            string
-	QueryMode              string
-	ReferenceCount         int
-	RetrievalMode          string
-	RunID                  string
-	SelectedTool           string
-	StepID                 string
-	TerminalOutcome        string
-	TerminalState          string
-	FailCloseReason        string
-	Status                 string
-	ProjectionRef          string
-	TargetDocumentIDsCount int
-	TargetVersionIDsCount  int
-	Latency                time.Duration
+	ActivityDuration        time.Duration
+	CancelDeliveryStatus    string
+	CanonicalIndexTruth     string
+	CandidateCount          int
+	Collection              string
+	ContextPreflightState   string
+	Corpus                  string
+	CachedInputTokens       int64
+	EstimatedCostMicroUSD   int64
+	EvalAnswer              string
+	EvalCaseID              string
+	EvalQuestion            string
+	EvalReferenceContextIDs []string
+	EvalReferenceContexts   []string
+	EvalRetrievedContextIDs []string
+	EvalRetrievedContexts   []string
+	EvalSurfaceKey          string
+	EvalVariantID           string
+	InputTokens             int64
+	ModelName               string
+	ModelProvider           string
+	Name                    string
+	OutputTokens            int64
+	RequestID               string
+	TraceID                 string
+	ConversationID          string
+	UserID                  string
+	Release                 string
+	DeploymentEnvironment   string
+	RequestedTool           string
+	Outcome                 string
+	Decision                string
+	FailureCode             string
+	FailureKind             string
+	ActivityType            string
+	TaskQueue               string
+	ActivityAttempt         int
+	WorkflowID              string
+	StepKind                string
+	PlanID                  string
+	StatusCode              int
+	Duration                time.Duration
+	QueueWait               time.Duration
+	ScheduleToStart         time.Duration
+	ScopeGateDecision       string
+	PolicyGateDecision      string
+	RoutingNextAction       string
+	PlanningOutcome         string
+	QuerySHA256             string
+	QueryMode               string
+	ReferenceCount          int
+	RetrievalMode           string
+	RunID                   string
+	SelectedTool            string
+	StepID                  string
+	TerminalOutcome         string
+	TerminalState           string
+	FailCloseReason         string
+	Status                  string
+	ProjectionRef           string
+	TargetDocumentIDsCount  int
+	TargetVersionIDsCount   int
+	Latency                 time.Duration
 }
-
 type Status struct {
 	Enabled                   bool   `json:"enabled"`
 	ExporterConfigured        bool   `json:"exporter_configured"`
@@ -281,6 +289,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 		attribute.Int("target_version_ids_count", event.TargetVersionIDsCount),
 	}
 	attributes = append(attributes, langfuseGenerationAttributes(event)...)
+	attributes = append(attributes, evalProjectionAttributes(event)...)
 	name := strings.TrimSpace(event.Name)
 	if name == "" {
 		name = "execution.event"
@@ -298,6 +307,41 @@ func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	}
 	e.recordExport()
 	return nil
+}
+
+func evalProjectionAttributes(event Event) []attribute.KeyValue {
+	attrs := make([]attribute.KeyValue, 0, 9)
+	appendString := func(key string, value string) {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			attrs = append(attrs, attribute.String(key, trimmed))
+		}
+	}
+	appendStringSlice := func(key string, values []string) {
+		clean := cleanStringSlice(values)
+		if len(clean) > 0 {
+			attrs = append(attrs, attribute.StringSlice(key, clean))
+		}
+	}
+	appendString("eval.answer", event.EvalAnswer)
+	appendString("eval.case_id", event.EvalCaseID)
+	appendString("eval.question", event.EvalQuestion)
+	appendString("eval.surface_key", event.EvalSurfaceKey)
+	appendString("eval.variant_id", event.EvalVariantID)
+	appendStringSlice("eval.reference_context_ids", event.EvalReferenceContextIDs)
+	appendStringSlice("eval.reference_contexts", event.EvalReferenceContexts)
+	appendStringSlice("eval.retrieved_context_ids", event.EvalRetrievedContextIDs)
+	appendStringSlice("eval.retrieved_contexts", event.EvalRetrievedContexts)
+	return attrs
+}
+
+func cleanStringSlice(values []string) []string {
+	clean := make([]string, 0, len(values))
+	for _, value := range values {
+		if trimmed := strings.TrimSpace(value); trimmed != "" {
+			clean = append(clean, trimmed)
+		}
+	}
+	return clean
 }
 
 func (e *Emitter) Status() Status {

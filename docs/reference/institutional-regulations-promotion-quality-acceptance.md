@@ -1,7 +1,7 @@
 ---
 doc_type: reference
 truth_scope: eval
-owner_boundary: packages/evals
+owner_boundary: packages/eval-langfuse
 status: active
 created: 2026-04-11
 updated: 2026-04-24

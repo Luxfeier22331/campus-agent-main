@@ -381,32 +381,6 @@ export function registerInternalRoutes(input: {
 		);
 	});
 
-	input.app.post("/api/internal/operator/evals/coverage-snapshots", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestEvalCoverageSnapshot({
-				payload: await readJsonRequestBody(c.req.raw),
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/operator/evals/diagnostic-badcases", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestEvalDiagnosticBadcases({
-				payload: await readJsonRequestBody(c.req.raw),
-			}),
-		);
-	});
-
 	input.app.post("/api/internal/operator/runtime/temporal-task-queue-snapshots", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
@@ -609,19 +583,6 @@ export function registerInternalRoutes(input: {
 
 		return jsonResponse(
 			await scope.resolveOperatorObservabilityCommandService().ingestTraceBacklinks({
-				payload: await readJsonRequestBody(c.req.raw),
-			}),
-		);
-	});
-
-	input.app.post("/api/internal/operator/langfuse/eval-backlinks", async (c) => {
-		const scope = input.createRequestScope();
-		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
-			return serviceCredentialRequiredResponse();
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorObservabilityCommandService().ingestLangfuseEvalBacklinks({
 				payload: await readJsonRequestBody(c.req.raw),
 			}),
 		);

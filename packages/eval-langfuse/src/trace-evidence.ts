@@ -1,9 +1,9 @@
+import { createLangfuseEvalClient, type LangfuseEvalClient } from "./langfuse-client";
 import {
 	type JsonObject,
 	type LangfuseSettings,
 	mapping,
 	optionalString,
-	requestJson,
 	stringField,
 } from "./shared";
 
@@ -15,7 +15,6 @@ const REQUIRED_OBSERVATION_ATTRIBUTES = [
 	"fail_close_reason",
 	"projection_ref",
 	"schedule_to_start_ms",
-	"selected_tool",
 	"selected_tool",
 	"status",
 	"step_id",
@@ -52,13 +51,11 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	traceId: string;
 }): Promise<JsonObject> {
 	const traceId = stringField(input.traceId, "trace_id");
-	const trace = await requestJson({
+	const langfuse: LangfuseEvalClient = createLangfuseEvalClient({
 		fetchImpl: input.fetchImpl,
-		method: "GET",
-		path: `/api/public/traces/${traceId}`,
-		query: { fields: "core,observations" },
 		settings: input.settings,
 	});
+	const trace = await langfuse.getTrace(traceId, { fields: "core,observations" });
 	assertTraceField(trace, "id", traceId);
 	assertTraceField(trace, "name", "online-answer");
 	assertTraceField(trace, "sessionId", input.expectedSessionId);

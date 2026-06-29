@@ -9,8 +9,9 @@ updated: 2026-06-12
 ---
 # ADR-0004 评测指标体系
 
-适用范围：`campus-agent` v2 中由 `packages/evals` 维护的 retrieval、answer、workflow 与 gate
-指标
+适用范围：`campus-agent` v2 中 repo-owned retrieval、answer、workflow 与 gate 指标。
+ADR-0061 已将旧 `packages/evals` package 退役，当前 Langfuse-bound eval artifacts 由
+`packages/eval-langfuse` 承接。
 
 ## 目标
 

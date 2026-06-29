@@ -4,9 +4,14 @@ truth_scope: ops
 owner_boundary: domains/regulations
 status: active
 created: 2026-03-28
-updated: 2026-04-20
+updated: 2026-06-27
 ---
 # Student Handbook Judge Gate Policy
+
+> Historical note: the self-built judge gate policy/rubric fixtures were removed
+> from the active `packages/eval-langfuse` package. Current RAG scoring should
+> use Langfuse traces / datasets with Ragas, or an explicitly admitted mature
+> benchmark adapter.
 
 ## 目的
 
@@ -22,16 +27,10 @@ artifact 解释规则。
 
 ## Canonical Policy Source
 
-repo-tracked policy fixture：
-
-- [`packages/evals/fixtures/rag/student_rules/judge_gate_policy.json`](../../packages/evals/fixtures/rag/student_rules/judge_gate_policy.json)
-- [`packages/evals/fixtures/rag/student_rules/judge_rubrics.json`](../../packages/evals/fixtures/rag/student_rules/judge_rubrics.json)
-
-代码读取入口：
-
-- [`packages/evals/src/campus_evals/judge_gate.py`](../../packages/evals/src/campus_evals/judge_gate.py)
-- [`packages/evals/src/campus_evals/judge_adapters.py`](../../packages/evals/src/campus_evals/judge_adapters.py)
-- [`packages/evals/src/campus_evals/formal_benchmark.py`](../../packages/evals/src/campus_evals/formal_benchmark.py)
+旧 Python judge gate / adapter / formal benchmark entrypoints 已退役。旧
+repo-tracked policy fixture 也已删除；后续 judge/RAGAS scoring 必须通过
+`packages/eval-langfuse` 与 `packages/ragas-runner` 的窄执行边界，或通过明确
+admitted 的成熟 benchmark adapter 恢复。
 
 ## Policy Shape
 

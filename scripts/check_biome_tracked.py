@@ -13,6 +13,7 @@ _BIOME_TRACKED_PATHS = (
     "apps",
     "packages",
     "configs",
+    "docs/reference/eval",
     "scripts",
     "tests",
 )

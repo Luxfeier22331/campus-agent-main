@@ -29,8 +29,9 @@ Adopt Langfuse as a self-host-first LLM observability and eval platform.
   diagnostic truth.
 - Langfuse is a telemetry / eval sink and feedback workflow platform.
 - Langfuse receives sanitized OTel traces through the repo OTel Collector.
-- `packages/evals` may publish datasets, experiments and scores to Langfuse,
-  but deterministic release verdicts remain repo-owned.
+- `packages/eval-langfuse` may publish datasets, experiments and scores to
+  Langfuse, but deterministic release verdicts remain repo-owned. ADR-0061 later
+  retired the old `packages/evals` package from active eval ownership.
 - Operator Console must not query Langfuse directly. It may show app-api-owned
   sanitized backlinks in a later stage.
 - Langfuse types and provider SDKs must not leak into `packages/contracts`.
@@ -49,9 +50,8 @@ The runtime integration is enabled through explicit configuration:
   headers.
 - execution-control attaches the Temporal Go SDK OpenTelemetry interceptor to
   configured Temporal clients and workers.
-- evals expose a Langfuse score adapter for sanitized profile reports and keep
-  the adapter disabled unless base URL, public key and secret key are all
-  present.
+- eval score report generation and publishing are owned by `packages/eval-langfuse`
+  and fail closed unless base URL, public key and secret key are all present.
 - local/staging runtime compose fails closed when the Langfuse Collector
   endpoint, Basic auth header or ingestion version is missing.
 

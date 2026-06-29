@@ -15,6 +15,7 @@
 			"apps/**",
 			"packages/**",
 			"configs/**",
+			"docs/reference/eval/**",
 			"scripts/**",
 			"tests/**",
 			"!!apps/campus-web/public/vendor",

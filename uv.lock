@@ -21,7 +21,6 @@ members = [
     "campus-contracts",
     "campus-dining-floorplans",
     "campus-eval-langfuse",
-    "campus-evals",
     "campus-ingestion-contracts",
     "campus-ingestion-core",
     "campus-ingestion-kernels-rs",
@@ -30,6 +29,7 @@ members = [
     "campus-navigation-tool",
     "campus-official-web-collector",
     "campus-official-web-core",
+    "campus-ragas-runner",
     "campus-regulation-semantics",
     "campus-shared",
     "campus-wechat-official-account-core",
@@ -306,29 +306,6 @@ version = "0.1.0"
 source = { virtual = "packages/eval-langfuse" }
 
 [[package]]
-name = "campus-evals"
-version = "0.1.0"
-source = { editable = "packages/evals" }
-dependencies = [
-    { name = "campus-contracts" },
-    { name = "campus-ingestion-core" },
-    { name = "campus-regulation-semantics" },
-    { name = "campus-shared" },
-    { name = "httpx" },
-    { name = "ragas" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "campus-contracts", editable = "packages/contracts" },
-    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
-    { name = "campus-regulation-semantics", editable = "packages/regulation-semantics" },
-    { name = "campus-shared", editable = "packages/shared" },
-    { name = "httpx", specifier = ">=0.28.1" },
-    { name = "ragas", specifier = ">=0.4.3" },
-]
-
-[[package]]
 name = "campus-ingestion-contracts"
 version = "0.1.0"
 source = { editable = "packages/ingestion-contracts" }
@@ -421,6 +398,17 @@ source = { virtual = "apps/official-web-collector" }
 name = "campus-official-web-core"
 version = "0.1.0"
 source = { virtual = "packages/official-web-core" }
+
+[[package]]
+name = "campus-ragas-runner"
+version = "0.1.0"
+source = { editable = "packages/ragas-runner" }
+dependencies = [
+    { name = "ragas" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "ragas", specifier = ">=0.4.3" }]
 
 [[package]]
 name = "campus-regulation-semantics"

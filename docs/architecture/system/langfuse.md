@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-28
 ---
 # Langfuse Observability And Eval Architecture
 
@@ -19,10 +19,11 @@ The runtime chain is:
 `app-api -> execution-control -> Temporal workflow/activity workers -> OTel
 Collector -> Langfuse`
 
-The eval publishing chain is:
+The target eval platform chain is:
 
-`packages/evals -> deterministic scorer / sanitized profile report -> Langfuse
-score API`
+`Langfuse traces / datasets + repo fixture / qrels / review policy -> safe eval
+projection -> Ragas / TS eval runner -> Langfuse scores / annotation ->
+app-api sanitized projection or backlink`
 
 ## Runtime Mapping
 
@@ -51,12 +52,15 @@ Allowed fields include:
   `activity_attempt`
 - result summary: `status`, `duration_ms`, `schedule_to_start_ms`,
   `projection_ref`, `fail_close_reason`
-- RAG summary: collection, retrieval mode, candidate count, reference count,
-  citation coverage and grounding status
+- RAG summary and safe eval projection: collection, retrieval mode, candidate
+  count, reference count, citation coverage, grounding status, retrieved /
+  reference context ids and eval-safe context excerpts when explicitly admitted
 
-Forbidden fields include raw prompt, raw answer, raw transcript, raw retrieved
-snippet, provider raw response, cookies, JWT, authorization headers, API keys,
-database URLs and object-store/provider secrets.
+Forbidden fields include raw prompt, raw transcript, unrestricted source body,
+raw retrieved backend dump, provider raw response, cookies, JWT, authorization
+headers, API keys, database URLs and object-store/provider secrets. Eval-safe
+input, answer and context excerpts may be exported only through explicit
+allowlisted projection fields.
 
 ## Temporal Collaboration
 
@@ -74,14 +78,44 @@ data to the Collector; it does not write Langfuse directly.
 
 ## Eval Platform Boundary
 
-Langfuse datasets and experiments help run and compare evals. They do not own
-the repo's eval truth.
+Langfuse datasets, experiments, scores, score configs, annotation queues and
+score analytics help run, compare, review and inspect evals. They do not own the
+repo's eval truth.
 
-- `packages/evals` owns case schema, fixture loading, deterministic scoring,
-  sanitized profile reports and release verdicts.
-- `packages/evals` may publish `online-answer-path` profile results to
-  Langfuse via `/api/public/scores` using Basic Auth.
-- Langfuse stores score/review workflow artifacts.
+- `packages/eval-langfuse` owns TS Langfuse platform sync, safe Ragas
+  projection, score publishing, dataset manifests and annotation automation.
+- RAGAS follows the official Langfuse collaboration shape:
+  `Langfuse traces / datasets -> Ragas evaluation -> Langfuse scores`.
+  `packages/eval-langfuse` owns trace / dataset selection and safe projection.
+  Offline / CI runs may still use sanitized `ragas_sample_batch.v1`.
+- `packages/ragas-runner` is a narrow Python execution island for mature RAGAS
+  library scoring only. It accepts safe projection input, emits
+  `ragas_score_batch.v1`, and does not own case truth, trace selection,
+  orchestration, Langfuse publishing, provider projection or release verdicts.
+- The old `packages/evals` package is retired from active workspace ownership.
+  Langfuse-bound fixtures and qrels live under `packages/eval-langfuse/fixtures`;
+  runtime-local eval truth lives with the owning runtime testdata. Recreating
+  `packages/evals` as a fixture, runner or Python package is outside the accepted
+  eval architecture.
+- Langfuse stores dataset, experiment, score and review workflow artifacts.
+- Langfuse consumes sanitized artifacts, datasets, experiments, scores,
+  annotations, trace drill-down metadata and Ragas-safe eval projection. It must
+  not receive raw prompt, raw transcript, unrestricted source body, provider raw
+  response or secrets.
+- The repo remains the owner for canonical qrels / golden truth, business
+  contract truth, authz / privacy boundaries, sanitized app-api / operator
+  projection and fail-closed release verdicts.
+- `app-api` and Operator Console may consume only repo-owned sanitized runtime
+  and quality projections. They must not query Langfuse directly, and the old
+  eval backlink projection must not be recreated.
+- Eval lanes do not orchestrate production workflow execution. Temporal and
+  `execution-control` remain the owners for workflow history, retry, timeout,
+  signal, cancel and task queue dispatch.
 - CI gates may use Langfuse experiment output, but must fail closed when the
-  repo-owned scorer or adapter reports missing configuration or incomplete
-  results.
+  repo-owned scorer or adapter reports missing configuration, denominator drift
+  or incomplete results.
+- ADR-0061 freezes the eval runtime migration: TypeScript plus Langfuse is the
+  long-term default, the old `packages/evals` package is retired, and RAGAS is
+  isolated in `packages/ragas-runner`. ADR-0062 supersedes the earlier
+  artifact-only RAGAS input assumption and aligns RAGAS with the official
+  Langfuse trace / dataset scoring workflow.

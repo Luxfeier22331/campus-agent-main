@@ -137,7 +137,6 @@ export function registerWorkerOperatorDomainsSuitePart02() {
 					"/api/operator/audit/audit_01HQ",
 					"/api/authenticated-notices/processing",
 					"/api/authenticated-notices/run-processing",
-					"/api/operator/evals/coverage",
 					"/api/operator/quality/summary",
 					"/api/operator/cost/timeseries",
 					"/api/operator/intent/summary",

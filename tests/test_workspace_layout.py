@@ -14,10 +14,11 @@ EXPECTED_WORKSPACES = {
     "apps/operator-console-web",
     "apps/execution-control",
     "packages/contracts",
-    "packages/evals",
+    "packages/eval-langfuse",
     "packages/ingestion-core",
     "packages/navigation-tool",
     "packages/official-web-core",
+    "packages/ragas-runner",
     "packages/shared",
 }
 
@@ -37,6 +38,9 @@ class WorkspaceLayoutTest(unittest.TestCase):
 
     def test_chatkit_adapter_app_is_retired(self) -> None:
         self.assertFalse((ROOT / "apps/chatkit-adapter").exists())
+
+    def test_legacy_evals_package_is_retired(self) -> None:
+        self.assertFalse((ROOT / "packages/evals").exists())
 
     def test_contract_surface_exposes_generic_tool_request(self) -> None:
         request = ToolRequest(

@@ -1,0 +1,21 @@
+[project]
+name = "campus-ragas-runner"
+version = "0.1.0"
+description = "Isolated RAGAS scoring runner for campus-agent eval artifacts."
+requires-python = ">=3.12"
+dependencies = [
+    "ragas>=0.4.3",
+]
+
+[tool.uv]
+package = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/campus_ragas_runner"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/campus_ragas_runner", "pyproject.toml"]
+
+[build-system]
+requires = ["hatchling>=1.24.0"]
+build-backend = "hatchling.build"

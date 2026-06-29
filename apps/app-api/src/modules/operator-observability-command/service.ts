@@ -1,21 +1,8 @@
 import { AppApiRouteError } from "../../http";
 import {
-	EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION,
-	type EvalCoverageSnapshot,
-	normalizeEvalCoverageSnapshot,
-} from "../operator-eval-coverage";
-import {
-	type EvalDiagnosticBadcaseProjectionWrite,
-	normalizeEvalDiagnosticBadcasesProjection,
-} from "../operator-eval-diagnostic-badcases";
-import {
 	normalizeTemporalTaskQueueRuntimePayload,
 	type TemporalTaskQueueRuntimePayload,
 } from "../operator-runtime-observability";
-import {
-	ingestLangfuseEvalBacklinks,
-	type OperatorLangfuseEvalBacklinksPayload,
-} from "./langfuse-eval-backlinks";
 import type {
 	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
@@ -100,19 +87,10 @@ export interface OperatorTraceBacklinksPayload {
 }
 
 export interface OperatorObservabilityCommandService {
-	ingestEvalCoverageSnapshot(input: {
-		payload: unknown;
-	}): Promise<{ accepted: number; snapshotId: string }>;
-	ingestEvalDiagnosticBadcases(input: {
-		payload: unknown;
-	}): Promise<{ accepted: number; snapshotId: string }>;
 	ingestExecutionAuditEvents(input: {
 		payload: OperatorExecutionAuditEventsPayload;
 	}): Promise<{ accepted: number }>;
 	ingestGrades(input: { payload: OperatorQualityGradesPayload }): Promise<{ accepted: number }>;
-	ingestLangfuseEvalBacklinks(input: {
-		payload: OperatorLangfuseEvalBacklinksPayload;
-	}): Promise<{ accepted: number }>;
 	ingestTraceBacklinks(input: {
 		payload: OperatorTraceBacklinksPayload;
 	}): Promise<{ accepted: number }>;
@@ -399,58 +377,6 @@ export function buildOperatorObservabilityCommandService(
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
-		async ingestEvalCoverageSnapshot(input) {
-			const snapshot: EvalCoverageSnapshot = normalizeEvalCoverageSnapshot(input.payload);
-			await dependencies.store.upsertEvalCoverageSnapshot({
-				snapshot: {
-					generatedAt: snapshot.generatedAt,
-					payload: snapshot,
-					schemaVersion: EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION,
-					snapshotId: snapshot.snapshotId,
-					sourceGitHead: snapshot.sourceGitHead,
-				},
-			});
-			return { accepted: 1, snapshotId: snapshot.snapshotId };
-		},
-
-		async ingestEvalDiagnosticBadcases(input) {
-			const projection = normalizeEvalDiagnosticBadcasesProjection(input.payload);
-			const projectedAt = now().toISOString();
-			const badcases: EvalDiagnosticBadcaseProjectionWrite[] = projection.badcases.map(
-				(badcase) => ({
-					answerShape: badcase.answerShape,
-					badcaseId: badcase.badcaseId,
-					caseId: badcase.caseId,
-					causeClass: badcase.causeClass,
-					evalRunId: projection.evalRunId,
-					expectedDocIds: badcase.expectedDocIds,
-					failureStage: badcase.failureStage,
-					generatedAt: projection.generatedAt,
-					metricFailureReason: badcase.metricFailureReason,
-					metricName: badcase.metricName,
-					presentationKind: badcase.presentationKind,
-					projectedAt,
-					queryPreview: badcase.queryPreview,
-					retrievedContextIds: badcase.retrievedContextIds,
-					retrievedDocIds: badcase.retrievedDocIds,
-					scoreMilli: Math.round(badcase.score * 1000),
-					snapshotId: projection.snapshotId,
-					sourceGitHead: projection.sourceGitHead,
-					sourceReportSchema: projection.sourceReportSchema,
-					supportingChunkIds: badcase.supportingChunkIds,
-					supportingDocIds: badcase.supportingDocIds,
-					surfaceKey: badcase.surfaceKey,
-					thresholdMilli: Math.round(badcase.threshold * 1000),
-					trajectoryAttribution: badcase.trajectoryAttribution,
-				}),
-			);
-			await dependencies.store.upsertEvalDiagnosticBadcases({
-				badcases,
-				snapshotId: projection.snapshotId,
-			});
-			return { accepted: badcases.length, snapshotId: projection.snapshotId };
-		},
-
 		async ingestExecutionAuditEvents(input) {
 			const events = ensureArray<OperatorExecutionAuditEventPayloadItem>(
 				input.payload.events,
@@ -648,14 +574,6 @@ export function buildOperatorObservabilityCommandService(
 				});
 			}
 			return { accepted: writes.length };
-		},
-
-		async ingestLangfuseEvalBacklinks(input) {
-			return ingestLangfuseEvalBacklinks({
-				now,
-				payload: input.payload,
-				store: dependencies.store,
-			});
 		},
 
 		async ingestTraceBacklinks(input) {

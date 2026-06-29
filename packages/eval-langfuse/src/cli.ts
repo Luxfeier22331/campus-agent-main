@@ -2,34 +2,11 @@
 import { spawnSync } from "node:child_process";
 import { resolve } from "node:path";
 
-import {
-	buildAgentEvalCaseResults,
-	loadAgentEvalCaseSet,
-	loadAgentEvalObservations,
-	runAgentEvalStaging,
-} from "./agent-eval";
 import { checkCollectorConfig, deriveCollectorEnv } from "./collector";
-import {
-	exportLangfuseReviewResults,
-	runLangfuseExperiment,
-	syncLangfuseAnnotationQueue,
-	syncLangfuseDatasets,
-	syncLangfuseScoreConfigs,
-} from "./platform";
-import {
-	buildLangfuseReleaseEvidencePayload,
-	runLangfuseReleaseEvidenceCloseout,
-	validateLangfuseReleaseEvidenceFile,
-} from "./release-evidence";
-import {
-	buildScoreReportFromAgentEvalCaseResults,
-	buildScoreReportFromContextFollowupScoreBatch,
-	buildScoreReportFromProfileReport,
-	buildScoreReportFromRagasScoreBatch,
-	loadLangfuseScoreReport,
-	publishLangfuseScoreReport,
-} from "./score-report";
-import { type JsonObject, loadJsonObject, settingsFromEnv, writeJsonObject } from "./shared";
+import { syncLangfuseDatasets, syncLangfuseScoreConfigs } from "./platform";
+import { buildRagDatasetManifest } from "./rag-dataset-manifest";
+import { runRagasDatasetScoring, runRagasTraceScoring } from "./ragas-langfuse";
+import { type JsonObject, settingsFromEnv } from "./shared";
 import { deriveLangfuseTraceId } from "./trace";
 import { verifyLangfuseOnlineTraceEvidence } from "./trace-evidence";
 
@@ -54,113 +31,29 @@ export async function main(argv: string[]): Promise<number> {
 }
 
 async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObject> {
-	if (command === "build-score-report-from-profile") {
-		const profileReportPath = stringArg(args, "profile-report");
-		const outputPath = stringArg(args, "output");
-		const report = buildScoreReportFromProfileReport({
+	if (command === "ragas-score-traces") {
+		return runRagasTraceScoring({
 			environment: environmentFromEnv(),
-			profileReportPath,
-			profileReportPayload: loadJsonObject(profileReportPath),
-		});
-		writeJsonObject(outputPath, report);
-		return {
-			eval_run_id: report.eval_run_id,
-			expected_publish_denominator: report.expected_publish_denominator,
-			output_path: outputPath,
-			source_result_denominator: report.source_result_denominator,
-		};
-	}
-	if (command === "publish-score-report") {
-		const scoreReportPath = stringArg(args, "score-report");
-		return publishLangfuseScoreReport({
-			dryRun: Boolean(args["dry-run"]),
-			scoreReportPath,
-			scoreReportPayload: loadLangfuseScoreReport(scoreReportPath),
+			limit: numberArg(args, "limit") ?? undefined,
+			release: optionalArg(args, "release"),
+			runPythonRagasScoreBatch,
+			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
 			settings: settingsFromEnv(),
+			tag: arrayArg(args, "tag"),
+			traceName: optionalArg(args, "trace-name") ?? undefined,
 			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
-	if (command === "run-ragas-batch") {
-		const inputPath = optionalArg(args, "sample-batch") ?? stringArg(args, "input");
-		const ragasOutputPath = stringArg(args, "ragas-output");
-		const scoreReportPath = stringArg(args, "score-report");
-		runPythonRagasScoreBatch({ inputPath, outputPath: ragasOutputPath });
-		const report = buildScoreReportFromRagasScoreBatch({
+	if (command === "ragas-score-dataset") {
+		return runRagasDatasetScoring({
+			datasetName: stringArg(args, "dataset"),
+			datasetVersion: optionalArg(args, "dataset-version"),
 			environment: environmentFromEnv(),
-			ragasScoreBatchPath: ragasOutputPath,
-			ragasScoreBatchPayload: loadJsonObject(ragasOutputPath),
-		});
-		writeJsonObject(scoreReportPath, report);
-		return {
-			eval_run_id: report.eval_run_id,
-			expected_publish_denominator: report.expected_publish_denominator,
-			ragas_output_path: ragasOutputPath,
-			score_report_path: scoreReportPath,
-			source_result_denominator: report.source_result_denominator,
-		};
-	}
-	if (command === "run-context-followup-batch") {
-		const inputPath = stringArg(args, "input");
-		const contextOutputPath = stringArg(args, "context-output");
-		const scoreReportPath = stringArg(args, "score-report");
-		runPythonContextFollowupScoreBatch({ inputPath, outputPath: contextOutputPath });
-		const report = buildScoreReportFromContextFollowupScoreBatch({
-			contextFollowupScoreBatchPath: contextOutputPath,
-			contextFollowupScoreBatchPayload: loadJsonObject(contextOutputPath),
-			environment: environmentFromEnv(),
-		});
-		writeJsonObject(scoreReportPath, report);
-		return {
-			context_output_path: contextOutputPath,
-			eval_run_id: report.eval_run_id,
-			expected_publish_denominator: report.expected_publish_denominator,
-			score_report_path: scoreReportPath,
-			source_result_denominator: report.source_result_denominator,
-		};
-	}
-	if (command === "build-score-report-from-agent-eval") {
-		const inputPath = stringArg(args, "input");
-		const scoreReportPath = stringArg(args, "score-report");
-		const report = buildScoreReportFromAgentEvalCaseResults({
-			agentEvalCaseResultsPath: inputPath,
-			agentEvalCaseResultsPayload: loadJsonObject(inputPath),
-			environment: environmentFromEnv(),
-		});
-		writeJsonObject(scoreReportPath, report);
-		return {
-			eval_run_id: report.eval_run_id,
-			expected_publish_denominator: report.expected_publish_denominator,
-			score_report_path: scoreReportPath,
-			source_result_denominator: report.source_result_denominator,
-		};
-	}
-	if (command === "build-agent-eval-case-results") {
-		const casesPath = stringArg(args, "cases");
-		const observationsPath = stringArg(args, "observations");
-		const outputPath = stringArg(args, "output");
-		const payload = buildAgentEvalCaseResults({
-			caseSet: loadAgentEvalCaseSet(casesPath),
-			observations: loadAgentEvalObservations(observationsPath),
-			sourceGitHead: optionalArg(args, "source-git-head") ?? "unknown",
-			variantId: optionalArg(args, "variant-id") ?? "baseline-agent-policy-v1",
-		});
-		writeJsonObject(outputPath, payload);
-		return {
-			eval_run_id: payload.eval_run_id,
-			output_path: outputPath,
-			source_result_denominator: Array.isArray(payload.items) ? payload.items.length : 0,
-		};
-	}
-	if (command === "agent-eval-run-staging") {
-		return runAgentEvalStaging({
-			casesPath: stringArg(args, "cases"),
-			environment: environmentFromEnv(),
-			outputObservationsPath: stringArg(args, "output-observations"),
-			outputResultsPath: stringArg(args, "output-results"),
-			outputScoreReportPath: stringArg(args, "output-score-report"),
-			sourceGitHead: optionalArg(args, "source-git-head") ?? "unknown",
-			split: optionalArg(args, "split") ?? undefined,
-			variantId: optionalArg(args, "variant-id") ?? "baseline-agent-policy-v1",
+			limit: numberArg(args, "limit") ?? undefined,
+			runPythonRagasScoreBatch,
+			runtimeConfigPath: optionalArg(args, "runtime-config") ?? undefined,
+			settings: settingsFromEnv(),
+			validateOnly: Boolean(args["validate-only"]),
 		});
 	}
 	if (command === "verify-trace") {
@@ -185,7 +78,7 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			dryRun: Boolean(args["dry-run"]),
 			registryPath:
 				optionalArg(args, "registry") ??
-				resolve(import.meta.dirname, "../../evals/fixtures/ops/langfuse_score_registry.v1.json"),
+				resolve(import.meta.dirname, "../fixtures/ops/langfuse_score_registry.v1.json"),
 			settings: settingsFromEnv(),
 		});
 	}
@@ -196,57 +89,13 @@ async function handleCommand(command: string, args: ParsedArgs): Promise<JsonObj
 			settings: settingsFromEnv(),
 		});
 	}
-	if (command === "run-experiment") {
-		return runLangfuseExperiment({
-			manifestPath: stringArg(args, "experiment-manifest"),
-			settings: settingsFromEnv(),
-		});
-	}
-	if (command === "sync-annotation-queue") {
-		return syncLangfuseAnnotationQueue({
-			dryRun: Boolean(args["dry-run"]),
-			manifestPath: stringArg(args, "review-manifest"),
-			settings: settingsFromEnv(),
-		});
-	}
-	if (command === "export-review-results") {
-		return exportLangfuseReviewResults({
-			manifestPath: stringArg(args, "review-manifest"),
-			outputPath: stringArg(args, "output"),
-			settings: settingsFromEnv(),
-		});
-	}
-	if (command === "build-release-evidence") {
-		const payload = buildLangfuseReleaseEvidencePayload({
-			environment: stringArg(args, "environment"),
-			langfuseTraceId: stringArg(args, "langfuse-trace-id"),
-			productTraceId: stringArg(args, "product-trace-id"),
-			publishCommand: stringArg(args, "publish-command"),
-			publishExitCode: Number(stringArg(args, "publish-exit-code")),
-			publishOutput: loadJsonObject(stringArg(args, "publish-output")),
-			release: stringArg(args, "release"),
-			verifyCommand: stringArg(args, "verify-command"),
-			verifyExitCode: Number(stringArg(args, "verify-exit-code")),
-			verifyOutput: loadJsonObject(stringArg(args, "verify-output")),
-		});
-		writeJsonObject(stringArg(args, "output"), payload);
-		return payload;
-	}
-	if (command === "check-release-evidence") {
-		const validation = validateLangfuseReleaseEvidenceFile(stringArg(args, "evidence"));
-		if (!validation.passed) {
-			throw new Error(validation.errors.join("; "));
-		}
-		return validation as unknown as JsonObject;
-	}
-	if (command === "closeout-staging") {
-		return runLangfuseReleaseEvidenceCloseout({
-			durableChatArtifactPath: stringArg(args, "durable-chat-artifact"),
-			environment: stringArg(args, "environment"),
-			outputDir: stringArg(args, "output-dir"),
-			profileReportPath: stringArg(args, "profile-report"),
-			release: stringArg(args, "release"),
-			tags: arrayArg(args, "tag"),
+	if (command === "build-rag-dataset-manifest") {
+		const outputPath = stringArg(args, "output");
+		return buildRagDatasetManifest({
+			fixtureRoot:
+				optionalArg(args, "fixture-root") ?? resolve(import.meta.dirname, "../fixtures/rag"),
+			outputPath,
+			sourceGitHead: optionalArg(args, "source-git-head") ?? currentGitHead(),
 		});
 	}
 	if (command === "check-collector-config") {
@@ -295,51 +144,41 @@ function parseArgs(argv: string[]): ParsedArgs {
 	return parsed;
 }
 
-function runPythonRagasScoreBatch(input: { inputPath: string; outputPath: string }): void {
-	const result = spawnSync(
-		"uv",
-		[
-			"run",
-			"--all-packages",
-			"python",
-			"-m",
-			"campus_evals.ragas_score_batch",
-			"--input",
-			input.inputPath,
-			"--output",
-			input.outputPath,
-		],
-		{ encoding: "utf-8", stdio: "pipe" },
-	);
+function runPythonRagasScoreBatch(input: {
+	inputPath: string;
+	outputPath: string;
+	runtimeConfigPath?: string;
+}): void {
+	const args = [
+		"run",
+		"--package",
+		"campus-ragas-runner",
+		"python",
+		"-m",
+		"campus_ragas_runner",
+		"--input",
+		input.inputPath,
+		"--output",
+		input.outputPath,
+	];
+	if (input.runtimeConfigPath) {
+		args.push("--runtime-config", input.runtimeConfigPath);
+	}
+	const result = spawnSync("uv", args, { encoding: "utf-8", stdio: "pipe" });
 	if (result.status !== 0) {
-		throw new Error(`RAGAS score batch failed: ${(result.stderr || result.stdout || "").trim()}`);
+		throw new Error(`RAGAS scoring failed: ${(result.stderr || result.stdout || "").trim()}`);
 	}
 }
 
-function runPythonContextFollowupScoreBatch(input: {
-	inputPath: string;
-	outputPath: string;
-}): void {
-	const result = spawnSync(
-		"uv",
-		[
-			"run",
-			"--all-packages",
-			"python",
-			"-m",
-			"campus_evals.context_followup_score_batch",
-			"--input",
-			input.inputPath,
-			"--output",
-			input.outputPath,
-		],
-		{ encoding: "utf-8", stdio: "pipe" },
-	);
+function currentGitHead(): string {
+	const result = spawnSync("git", ["rev-parse", "HEAD"], {
+		encoding: "utf-8",
+		stdio: "pipe",
+	});
 	if (result.status !== 0) {
-		throw new Error(
-			`context follow-up score batch failed: ${(result.stderr || result.stdout || "").trim()}`,
-		);
+		throw new Error(`git rev-parse HEAD failed: ${(result.stderr || result.stdout || "").trim()}`);
 	}
+	return result.stdout.trim();
 }
 
 function stringArg(args: ParsedArgs, key: string): string {
@@ -361,6 +200,18 @@ function arrayArg(args: ParsedArgs, key: string): string[] {
 		return [value];
 	}
 	return [];
+}
+
+function numberArg(args: ParsedArgs, key: string): number | null {
+	const value = optionalArg(args, key);
+	if (!value) {
+		return null;
+	}
+	const parsed = Number(value);
+	if (!Number.isInteger(parsed) || parsed <= 0) {
+		throw new Error(`${key} must be a positive integer`);
+	}
+	return parsed;
 }
 
 function required(value: string | null, field: string): string {

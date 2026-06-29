@@ -5,6 +5,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ACTIVE_COMMAND_ENV_EXAMPLES = {
+    "campus-docs-reader-build.env.example",
     "legacy-office-conversion-service.env.example",
     "execution-control-runtime.env.example",
 }

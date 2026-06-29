@@ -9,7 +9,9 @@ updated: 2026-03-22
 ---
 # ADR-0003 Golden Dataset 治理规则
 
-适用范围：`campus-agent` v2 中由 `packages/evals` 维护的 golden dataset、baseline 与回归真值资产
+适用范围：`campus-agent` v2 中 repo-owned golden dataset、baseline 与回归真值资产。
+ADR-0061 已将旧 `packages/evals` package 退役，当前 Langfuse-bound truth 由
+`packages/eval-langfuse/fixtures` 承接。
 
 ## 目标
 
@@ -30,7 +32,8 @@ updated: 2026-03-22
 
 ## 决策 1：Golden Dataset 的角色
 
-- golden dataset 是 `packages/evals` 的 canonical truth asset
+- golden dataset 是 repo-owned canonical truth asset，当前 Langfuse-bound fixture
+  truth 由 `packages/eval-langfuse/fixtures` 承接
 - 它服务回归、release gate、incident backfill 与长期质量校准
 - 它不从属于 `ragas`、OpenAI graders 或其他第三方评测框架的数据格式
 - 任何 scorer/runtime 都只能消费 golden dataset，而不能反向定义它的真值结构
@@ -108,8 +111,8 @@ split 的职责边界在长期上固定，但每个 split 的样本数、命中�
   样本或辅助 synthetic expansion
 - 自动生成器产物必须经过仓库自有 schema 补全与人工/规则校验后，才能进入 canonical golden dataset
 - 不允许把自动生成器直接当作 `regression_locked` 或 release gate 的最终真值来源
-- `ragas`、OpenAI graders、自定义 Python grader 或其他 scorer 都只能作为 `packages/evals`
-  边界后的可替换实现
+- `ragas`、OpenAI graders、自定义 grader 或其他 scorer 都只能作为 repo-owned eval
+  truth 边界后的可替换实现；RAGAS 执行隔离在 `packages/ragas-runner`
 - 不允许让某个 generator/scorer 的默认输入输出格式决定仓库的 golden dataset 协议、split 语义或治理规则
 
 ## 决策 7：自动生成样本的治理边界

@@ -270,9 +270,10 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   或 schema 不匹配时，post-publish audit fail closed
 - payload indexes 必须在 collection 创建后、points upsert 前建立；filterable HNSW
   不应等到 points 写入后才补建
-- `packages/evals` 持有的 per-collection qrels scenario denominator、retrieval tuning
-  report、deterministic rerank branch report 与 sanitized runtime observation
-  backlog intake
+- repo-owned eval truth 持有的 per-collection qrels scenario denominator、retrieval
+  tuning report、deterministic rerank branch report 与 sanitized runtime observation
+  backlog intake；旧 `packages/evals` package 已退役，Langfuse-bound qrels 位于
+  `packages/eval-langfuse/fixtures`
 
 固定规则：
 
@@ -284,7 +285,8 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - reranker runtime 失败、超时或 executor 缺失时必须 fail closed，并写入
   `failure_kind=reranker_failed` 的 observation；不得返回 baseline hybrid/RRF
   candidate order 伪装成功
-- supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
+- supplemental judge / Ragas scores 只能作为 supplemental eval / diagnostic signal，不作为
+  alias publish 或 profile patch 的唯一通过依据
 - runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
   只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
 - observation sink 是显式配置的 runtime intake；sink 写入失败表示观测链路配置或存储不满足

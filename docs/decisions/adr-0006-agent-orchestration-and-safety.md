@@ -89,7 +89,8 @@ LLM，也不是把所有行为预先冻结成声明式大图。
 - 它拥有稳定、可重复、可命名的单一职责边界
 - 它对应独立的 downstream tool、tool / permission boundary 或状态边界
 - 把该能力继续塞在现有 supervisor 或现有 agent 内，已经造成 prompt / context / tool overload 或边界混乱
-- `packages/evals` 中已有足够证据表明拆分能提升质量、可观测性或安全性
+- repo-owned eval truth / `packages/eval-langfuse` 中已有足够证据表明拆分能提升质量、
+  可观测性或安全性
 
 如果这些条件不成立，则默认：
 
@@ -138,7 +139,8 @@ approval / HITL、预约、提交、支付、工单与其他状态变更 tool �
 
 ## 决策 6：编排变更进入 Release Path 前必须通过 Trace / Eval Gate
 
-以下变化在进入正式 release gate 前，必须先在 `packages/evals` 中具备可重复验证：
+以下变化在进入正式 release gate 前，必须先在 repo-owned eval truth /
+`packages/eval-langfuse` 中具备可重复验证：
 
 - 新 agent
 - 新 routing rule

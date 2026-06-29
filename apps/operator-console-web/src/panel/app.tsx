@@ -421,33 +421,6 @@ function RequestDetailPage() {
 							<ExternalSafeLink href={links?.traceLink} label="Trace" />
 							<ExternalSafeLink href={links?.issueLink} label="Issue" />
 							<Fact label="Issue Fingerprint" value={links?.issueFingerprint || "无"} />
-							<Separator />
-							<div className="space-y-2">
-								<p className="text-slate-500 text-xs">Langfuse Eval</p>
-								{links?.langfuseEvalBacklinks && links.langfuseEvalBacklinks.length > 0 ? (
-									<div className="space-y-2">
-										{links.langfuseEvalBacklinks.map((backlink) => (
-											<a
-												className="block rounded-md border border-slate-200 p-2 hover:bg-slate-50"
-												href={backlink.langfuseUrl}
-												key={`${backlink.evalRunId}:${backlink.scoreName}`}
-												rel="noreferrer"
-												target="_blank"
-											>
-												<span className="flex items-center justify-between gap-2">
-													<span className="truncate font-medium text-sm">{backlink.scoreName}</span>
-													<ExternalLink className="size-3.5 shrink-0" />
-												</span>
-												<span className="mt-1 block text-slate-500 text-xs">
-													{String(backlink.scoreValue)} · {backlink.environment}
-												</span>
-											</a>
-										))}
-									</div>
-								) : (
-									<p className="text-slate-500 text-sm">无</p>
-								)}
-							</div>
 						</CardContent>
 					</Card>
 					<Card>

@@ -232,12 +232,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
-		path: "/api/operator/evals/coverage",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
 		path: "/api/operator/intent/summary",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
@@ -329,12 +323,6 @@ export const APP_API_OPERATOR_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "GET",
 		path: "/api/operator/runtime/health",
-		callerClass: "operator-via-panel",
-		admission: "Operator Console trusted caller plus admitted operator principal",
-	},
-	{
-		method: "GET",
-		path: "/api/operator/langfuse/eval-backlinks",
 		callerClass: "operator-via-panel",
 		admission: "Operator Console trusted caller plus admitted operator principal",
 	},

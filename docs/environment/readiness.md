@@ -145,7 +145,7 @@ Readiness is a necessary gate, not release completion.
 
 - `CAMPUS_PROVIDER_CONFIG_SNAPSHOT_PATH` 指向 0600 的 provider projection artifact。
 - eval model、transport、reasoning 与 token 配置由
-  `packages/evals/fixtures/ops/eval_runtime_profiles.v1.json` 持有
+  `packages/eval-langfuse` runtime profile builders 持有
 - 临时脚本 / REPL 不自动 bootstrap `.env`
 - 需要确认 eval surface 实际可见性时，优先使用：
 
@@ -156,7 +156,7 @@ uv run --all-packages python -m scripts.doctor_env evals --json
 - repo-owned shared automation doctor 入口：
 
 ```bash
-uv run --all-packages python -m scripts.eval_gate doctor --json
+uv run --all-packages python -m scripts.langfuse_eval_audit doctor --json
 ```
 
 ## Related Runbooks

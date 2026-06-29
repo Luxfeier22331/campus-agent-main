@@ -4,151 +4,139 @@ truth_scope: product
 owner_boundary: docs/product
 status: active
 created: 2026-06-19
-updated: 2026-06-28
+updated: 2026-06-29
 ---
 
-# Langfuse Eval Platform PRD
+# Langfuse Evals
 
-## 1. 背景
+## 1. Background
 
-Langfuse 在校园问答中承担 LLM observability / eval sink 角色。它可以展示 trace、
-score、dataset、experiment 和 review 结果，但不能替代 repo-owned eval truth、
-Temporal history、app-api projection、operator backend 或 contract truth。
+Langfuse is the LLM observability and eval platform for campus-agent. It can
+hold traces, datasets, experiments, annotation workflows, scores and score
+analytics. It does not replace repo-owned fixture truth, Temporal history,
+app-api projection, operator backend contracts or release authority.
 
-本 PRD 定义 Langfuse eval 平台化的产品要求：让工程、Eval / QA 和 operator 能围绕
-同一套 sanitized eval evidence 做 trace drill-down、score 对比、dataset run、review
-和 release closeout 判断，同时保持 `packages/evals` 继续拥有 fixture、scorer、
-threshold、artifact 和 verdict。
+Eval migration is Langfuse/Ragas-first. The active product requirement is to
+let engineering, Eval / QA and operator workflows inspect the same sanitized
+eval evidence while avoiding repo-owned self-built eval frameworks.
 
-## 2. 目标
+## 2. Goals
 
-- Langfuse 可以按 request / run / workflow / eval identity 追踪在线回答质量。
-- Langfuse 可以展示 repo-computed score，而不是重新定义 eval verdict。
-- Langfuse 可以承载 dataset、experiment、annotation queue 和 review workflow。
-- RAG 参数、answer quality、runtime capacity 和 release gate score 能统一发布。
-- Operator 只消费 app-api sanitized projection 和 safe backlink，不直接查询 Langfuse。
-- Langfuse-bound payload 必须遵守 forbidden-field policy。
+- Langfuse can correlate request / run / workflow / eval identity.
+- Langfuse can store `ragas.*` scores published from repo-owned safe
+  projections.
+- Langfuse datasets can be synced from repo RAG fixtures without fabricating
+  answers or retrieved contexts.
+- Langfuse experiments and annotation queues can be used as official platform
+  workflows without repo-owned experiment or review-manifest automation.
+- Operator-facing surfaces consume only app-api sanitized projections and safe
+  runtime quality candidates; they do not query Langfuse directly.
+- Langfuse-bound payloads obey the forbidden-field policy.
 
-## 3. 非目标
+## 3. Non-Goals
 
-- 不用 Langfuse 替代 `packages/evals` 的 case schema、fixture、scorer 或 verdict。
-- 不用 Langfuse 替代 Temporal workflow history。
-- 不用 Langfuse 替代 app-api / operator projection。
-- 不让线上回答路径依赖 Langfuse 可用性。
-- 不把 Langfuse SDK、API 类型或 score schema 泄漏进 `packages/contracts`。
-- 不把 raw prompt、raw answer、transcript、retrieved snippet、source body 或 provider
-  raw response 发到 Langfuse。
+- Do not restore `packages/evals`, Python `campus_evals`,
+  `scripts.eval_gate`, broad `agent-eval`, `rag-first-stage` or `ragas-batch`
+  as active product/eval paths.
+- Do not use Langfuse as Temporal workflow history, app-api product storage,
+  operator query truth or repo contract truth.
+- Do not let online answer serving depend on Langfuse availability.
+- Do not leak Langfuse SDK/API types into `packages/contracts`.
+- Do not send raw prompts, raw answers, transcripts, retrieved snippets,
+  unrestricted source bodies, provider raw responses, auth material or secrets
+  to Langfuse.
 
-## 4. 用户与场景
+## 4. Users And Scenarios
 
-- 工程：从一次请求追踪 workflow、activity、RAG、finalization 和 provider-facing
-  observation。
-- Eval / QA：比较模型、prompt、retrieval 参数、release candidate 和 badcase 修复效果。
-- Operator：查看低分 case、review queue、annotation 结果和 safe eval backlink。
-- 产品 / 架构：查看质量趋势、回归、能力成熟度和 release risk。
+- Engineering: inspect trace, observation and score evidence for a real request
+  or materialized dataset run.
+- Eval / QA: compare RAG quality across datasets, releases and model/prompt
+  variants.
+- Operator: review runtime quality candidates and safe trace links without
+  directly depending on Langfuse as a backend.
+- Product / architecture: understand quality trend, regression risk and
+  release evidence boundaries.
 
-## 5. 产品要求
+## 5. Product Requirements
 
-### 5.1 Trace Closeout
+### 5.1 Trace And Dataset Scoring
 
-- 能用真实 chat run 生成 Langfuse release evidence。
-- 能校验 Langfuse trace 存在，并与 request / run / workflow / release identity 对齐。
-- 能区分 repo-owned observation 与 SDK / infrastructure observation。
-- repo-owned observation 必须经过 runtime contract 校验。
-- 缺 trace、缺 observation、identity drift、contract drift 或 forbidden payload 必须
-  fail closed。
+- `ragas-score-traces` selects Langfuse traces by name, tag, release and limit.
+- `ragas-score-dataset` scores only materialized Langfuse dataset items.
+- Qrels-only dataset items carry `reference_context_ids`; they must be paired
+  with safe trace/observation projection before Ragas scoring.
+- Missing trace identity, missing answer, missing retrieved contexts,
+  denominator drift or forbidden payloads must fail closed.
 
-### 5.2 Score Report
+### 5.2 Score Registry And Publishing
 
-- 所有 Langfuse score publish 必须来自 repo-owned sanitized score report。
-- Score report 必须声明 eval kind、run id、profile / surface / variant、environment、
-  release、source git head、source artifact 和 publish denominator。
-- `score_items` 只包含具备真实 Langfuse target identity 且准备发布的 score。
-- `omitted_items` 记录不能发布的 source result 及原因，不允许静默丢弃。
-- `source_result_denominator` 必须等于 `score_items + omitted_items`。
-- `expected_publish_denominator` 必须等于 `score_items`。
-- 要求完整 trace correlation 的 release profile 不允许存在 omitted item。
+- Active score names are `ragas.*`.
+- Every published score must exist in
+  `packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json`.
+- Unknown score names, invalid target identity or forbidden metadata must fail
+  closed.
+- Score publication targets Langfuse scores, not repo-owned release verdict
+  artifacts.
 
-### 5.3 Score Naming Registry
+### 5.3 Dataset Sync
 
-- Score name 必须来自 repo-owned registry。
-- 每个 score name 必须声明 owner、data type、value range / categories、适用 eval
-  kind、release gate usage 和解释。
-- Publisher 必须拒绝 registry 中不存在的 score name。
-- 禁止临时拼接、case-specific 或 provider-specific score name。
+- Repo RAG fixtures remain the source for Langfuse-bound qrels,
+  answer-quality and known-gap cases.
+- Dataset sync must preserve source fixture path, case id, source git head and
+  fixture hash.
+- Dataset sync must not invent generated answers or retrieved context text for
+  qrels-only cases.
 
-### 5.4 RAG Parameter Eval
+### 5.4 Annotation And Review
 
-- RAG first-stage 参数 eval 必须产出 sanitized candidate result、aggregate metrics 和
-  Langfuse score report。
-- 覆盖面至少包括当前 query-enabled retrieval surface。
-- 关键指标包括 doc hit、doc recall、forbidden hit、no-hit false positive、wrong version
-  hit、p95 latency 和 pass verdict。
-- 如果目标 evidence 不在 prefetch candidate 中，不能只靠增大 topK 解决；应回到 query
-  framing、chunking、embedding、BM25 analyzer 或 collection profile。
+- Langfuse annotation queues remain the official human review workflow.
+- Reviewer output can inform backlog or fixture candidates, but cannot directly
+  overwrite canonical fixture truth or release verdicts.
+- The repo no longer owns custom annotation queue sync/export commands.
 
-### 5.5 Dataset And Experiment
+### 5.5 Operator-Safe Projection
 
-- Repo fixture 是 dataset source of truth。
-- Langfuse dataset item 必须带 source fixture path、case id、source git head 和 fixture
-  hash。
-- Dataset sync 必须支持 version pinning、dry-run、archive/tombstone plan 和 sync artifact。
-- Experiment runner 必须生成 repo artifact，再把 score / dataset run item evidence 发布到
-  Langfuse。
-- CI / release gate 只信 repo artifact 的 deterministic verdict，不直接信 Langfuse UI
-  状态。
+- Operator Console does not directly query Langfuse.
+- App-api may expose runtime quality badcases, negative feedback candidates and
+  safe trace links through owned contracts.
+- The retired eval coverage / diagnostic-badcase / Langfuse backlink projection
+  paths must not be restored as product requirements.
 
-### 5.6 Annotation And Review
+## 6. Data Boundary
 
-- Low-score、failed、known-gap case 可以进入 Langfuse review queue。
-- Reviewer 标注结果只能回流为 backlog / fixture candidate，不能直接覆盖 deterministic
-  release verdict。
-- Review export artifact 必须包含 queue id、score config id、case id、review summary
-  和 repo candidate id。
+Allowed in safe eval projection:
 
-### 5.7 Operator-safe Backlink
+- trace, observation, dataset item and case identity
+- question or user input approved for eval storage
+- answer approved for eval storage
+- retrieved contexts and optional retrieved/reference context ids
+- surface, variant, release and metric applicability metadata
 
-- Operator Console 不直接查询 Langfuse。
-- app-api 只暴露 sanitized backlink summary。
-- Backlink summary 可包含 trace id、eval run id、score name、score value、release、
-  environment 和 Langfuse URL。
-- Backlink 不得包含 raw prompt、raw answer、snippet、source body、provider response 或
-  secret。
-- 缺 backlink 不影响线上回答。
+Forbidden:
 
-## 6. 数据边界
+- raw prompt, raw transcript, raw provider response
+- unrestricted source body, object-store path, retrieval backend dump
+- JWT, cookie, authorization header, API key, provider secret or database URL
 
-允许进入 Langfuse：
+## 7. Acceptance
 
-- request / trace / run / workflow / case identity
-- surface、profile、eval kind、variant、release、environment、source git head
-- counts、latency、pass/fail、categorical reason、threshold summary
+- `ragas-score-traces --validate-only` builds safe samples from Langfuse traces
+  and validates score payloads.
+- `ragas-score-dataset --validate-only` fails closed for qrels-only dataset
+  items and succeeds for materialized dataset items.
+- `sync-score-configs --dry-run` covers all active `ragas.*` scores.
+- `sync-datasets --dry-run` reports dataset changes without writing platform
+  state.
+- `verify-trace` distinguishes repo-owned observations from SDK /
+  infrastructure observations and rejects forbidden payload fields.
 
-禁止进入 Langfuse：
-
-- raw prompt、raw answer、raw transcript
-- retrieved snippet、source body、provider raw response
-- JWT、cookie、authorization header
-- API key、provider secret、database URL、object-store secret
-
-## 7. 验收标准
-
-- Trace closeout 能证明真实 Langfuse trace 与 repo request / run / workflow identity 对齐。
-- Score report schema、validator、golden fixture 和 malformed fixture 覆盖 denominator、
-  omitted item、data type、identity 和 forbidden payload。
-- Score publisher 发布数量必须等于 expected publish denominator；失败或漏发必须 fail
-  closed。
-- Score registry 能阻止未知 score name publish。
-- RAG parameter eval 能生成 candidate result artifact 和 Langfuse score report。
-- Dataset sync dry-run 能报告 created / updated / archived / unchanged / failed。
-- Experiment runner 能落盘 repo-owned artifact，并发布 item-level / aggregate score。
-- Operator 只能看到 sanitized backlink，不直接查询 Langfuse。
-- Langfuse 不可用不影响用户在线回答，但会阻断对应 release / eval closeout。
-
-## 8. 相关文档
+## 8. References
 
 - [ADR-0059 Langfuse Observability And Eval Platform](../decisions/adr-0059-langfuse-observability-and-eval-platform.md)
+- [ADR-0061 Eval Runtime](../decisions/adr-0061-eval-runtime.md)
+- [ADR-0062 Ragas And Langfuse Collaboration](../decisions/adr-0062-ragas-langfuse.md)
 - [Langfuse Architecture](../architecture/system/langfuse.md)
 - [Langfuse Runtime Contract](../contracts/langfuse-runtime.md)
-- [Eval Benchmark Artifact Contract](../contracts/eval-artifact.md)
-- [Eval Release Gate Automation](../runbooks/eval-release-gate-automation.md)
+- [Eval Reference](../reference/eval.md)
+- [Eval Map](../reference/eval-map.md)
+- [Eval Ragas Runbook](../runbooks/eval-ragas.md)

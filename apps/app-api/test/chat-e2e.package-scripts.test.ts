@@ -34,12 +34,6 @@ describe("chat e2e package scripts", () => {
 		expect(packageJson.scripts["runtime-db:proof:staging"]).toContain(
 			"run-with-staging-proof-env.mjs",
 		);
-		expect(packageJson.scripts["online-answer-path:collect:staging"]).toContain(
-			"scripts/online-answer-path-staging-collector.ts",
-		);
-		expect(packageJson.scripts["online-answer-path:collect:staging"]).toContain(
-			"run-with-staging-smoke-env.mjs",
-		);
 		expect(packageJson.scripts["chat:e2e:local-real-provider"]).toContain(
 			"scripts/chat-e2e-local-real-provider.ts",
 		);
@@ -47,6 +41,10 @@ describe("chat e2e package scripts", () => {
 
 	it("does not keep the legacy staging smoke command as a public script", () => {
 		expect(packageJson.scripts["chat:smoke:staging"]).toBeUndefined();
+	});
+
+	it("does not expose the retired self-built online answer eval collector", () => {
+		expect(packageJson.scripts["online-answer-path:collect:staging"]).toBeUndefined();
 	});
 
 	it("keeps local dev e2e as a repo-owned runtime orchestration entry", () => {

@@ -71,7 +71,7 @@ updated: 2026-06-28
 
 ## Eval / Acceptance automation
 
-- `eval-release-gate-automation.md`
+- `eval-ragas.md`
 - `eval-operations-governance.md`
 
 ## Historical Material

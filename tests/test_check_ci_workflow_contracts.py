@@ -208,7 +208,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             _write_minimal_workflows(
                 root,
                 pnpm_version="10.26.1",
-                lint_run="pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+                lint_run="pnpm ci:repo-static && pnpm ci:go",
                 include_langfuse_job=False,
             )
 
@@ -253,36 +253,6 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
                 path="package.json",
                 message=(
                     "ci:langfuse must call its underlying checker directly; "
-                    "do not route CI through removable root aliases"
-                ),
-            ),
-            issues,
-        )
-
-    def test_audit_requires_intent_lane_to_call_checker_directly(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            root = Path(tmp_dir)
-            (root / ".github/workflows").mkdir(parents=True)
-            scripts = _required_scripts()
-            scripts["ci:intent"] = "pnpm eval:intent"
-            (root / "package.json").write_text(
-                json.dumps(
-                    {
-                        "packageManager": "pnpm@10.26.1",
-                        "scripts": scripts,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            _write_minimal_workflows(root, pnpm_version="10.26.1")
-
-            issues = audit_ci_workflow_contracts(root=root)
-
-        self.assertIn(
-            CiWorkflowContractIssue(
-                path="package.json",
-                message=(
-                    "ci:intent must call its underlying checker directly; "
                     "do not route CI through removable root aliases"
                 ),
             ),
@@ -334,7 +304,7 @@ class CheckCiWorkflowContractsTest(unittest.TestCase):
             _write_minimal_workflows(
                 root,
                 pnpm_version="10.26.1",
-                lint_run="pnpm ci:repo-static && pnpm ci:intent && pnpm ci:go",
+                lint_run="pnpm ci:repo-static && pnpm ci:go",
                 install_golangci_lint=False,
             )
 
@@ -384,7 +354,6 @@ def _required_scripts() -> dict[str, str]:
         "repo:static": "pnpm web:lint",
         "ci:repo-guard": "pnpm repo:guard",
         "ci:repo-static": "pnpm repo:static",
-        "ci:intent": "uv run --all-packages python -m scripts.intent_gate",
         "ci:langfuse": (
             "pnpm --dir packages/eval-langfuse typecheck && "
             "pnpm --dir packages/eval-langfuse test && "
@@ -400,7 +369,7 @@ def _write_minimal_workflows(
     root: Path,
     *,
     pnpm_version: str,
-    lint_run: str = "pnpm ci:repo-static && pnpm ci:intent && pnpm ci:langfuse && pnpm ci:go",
+    lint_run: str = "pnpm ci:repo-static && pnpm ci:langfuse && pnpm ci:go",
     install_golangci_lint: bool = True,
     include_langfuse_job: bool = True,
     install_langfuse_dependencies: bool = True,
@@ -436,20 +405,13 @@ def _write_minimal_workflows(
             "  changes:",
             "    outputs:",
             "      go: ${{ steps.filter.outputs.go }}",
-            "      intent: ${{ steps.filter.outputs.intent }}",
             "      langfuse: ${{ steps.filter.outputs.langfuse }}",
             "    steps:",
             "      - id: filter",
             "        run: |",
             '          echo go=true >> "$GITHUB_OUTPUT"',
-            '          echo intent=true >> "$GITHUB_OUTPUT"',
             '          echo langfuse=true >> "$GITHUB_OUTPUT"',
         )
-        if include_path_filters
-        else ()
-    )
-    intent_job_gate = (
-        ("    needs: changes", "    if: needs.changes.outputs.intent == 'true'")
         if include_path_filters
         else ()
     )
@@ -492,13 +454,6 @@ def _write_minimal_workflows(
                 f"          version: {pnpm_version}",
                 "      - run: uv sync --all-packages --dev",
                 f"      - run: {lint_run}",
-                "  intent-release-gate:",
-                *intent_job_gate,
-                "    steps:",
-                "      - uses: pnpm/action-setup@v4",
-                "        with:",
-                f"          version: {pnpm_version}",
-                "      - run: pnpm ci:intent",
                 *langfuse_job_steps,
                 "  execution-control-go:",
                 *go_job_gate,
@@ -554,6 +509,25 @@ def _write_minimal_workflows(
                 "        with:",
                 f"          version: {pnpm_version}",
                 f"      - run: {public_docs_command}",
+                "",
+            )
+        ),
+        encoding="utf-8",
+    )
+    (root / ".github/workflows/eval-ragas-score.yml").write_text(
+        "\n".join(
+            (
+                "name: eval-ragas-score",
+                "on:",
+                "  workflow_dispatch:",
+                "jobs:",
+                "  eval-ragas-score:",
+                "    steps:",
+                "      - uses: actions/setup-python@v5",
+                "      - uses: astral-sh/setup-uv@v6",
+                "      - run: uv sync --all-packages --dev",
+                "      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-traces",
+                "      - run: pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset",
                 "",
             )
         ),

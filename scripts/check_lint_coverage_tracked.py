@@ -87,6 +87,7 @@ _TEXT_LIKE_SUFFIXES = {
 _WEB_LINT_PREFIXES = (
     "apps/",
     "configs/",
+    "docs/reference/eval/",
     "infra/local/scripts/",
     "packages/",
     "scripts/",

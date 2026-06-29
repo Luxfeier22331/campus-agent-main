@@ -86,6 +86,74 @@ generic RAG retrieval path.
 Example: `campus_services/transport_schedule` for the current transport
 schedule tool/status surface.
 
+- 当前 query-enabled scope 是 `regulations/student_rules`、
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference`
+- `regulations/scoped_rules` 当前仍不属于默认 query-enabled scope，也不得进入默认
+  RAG release candidate；它可以作为 `gated_asset` 进入 document-site read-model /
+  docs reader release，由 `app-api` 做 reader admission
+- `campus_services/transport_schedule` 当前是 campus-services 唯一
+  `tool_read_model_serving` collection，只能通过 admitted
+  `transport_schedule_lookup` 消费 current projection/read model，不进入 generic
+  retrieval 默认 query scope
+- `campus_services/service_status` 当前只保留 closed/internal status projection
+  prework，不承担 model-visible structured product serving
+- `calendar/academic_calendar` 当前是 offline data asset / preparation scope，不属于
+  campus-services model-visible runtime tool
+- 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
+  bridge，不应误读成长期最终 serving scope
+
+### Retrieval Qrels Fixture
+
+定义：
+
+- deterministic retrieval truth denominator lives in
+  `packages/eval-langfuse/fixtures/rag/<surface>/` qrels files. The old
+  `packages/evals/fixtures/registry.v1.json` registry has been retired.
+
+说明：
+
+- qrels fixture 以 `case_id`、query、scope、expected / forbidden source refs、authz /
+  version request overrides 表达 retrieval gate truth
+- 当前默认 query-enabled scope 必须都有 qrels fixture：
+  - `regulations/student_rules`
+  - `regulations/institutional_rules`
+  - `curriculum/curriculum_plan`
+  - `official_web/stable_reference`
+- qrels fixture 不等于 source truth、registry truth 或 release manifest；它是 eval / release
+  gate 的 denominator
+
+### Retrieval Eval Manifest
+
+定义：
+
+- qrels validation 用来 anchor document id / title 的 lightweight manifest
+
+说明：
+
+- 对有静态 split truth 的 collection，默认使用
+  `configs/ingestion/<corpus>/<collection>/split-manifest.v1.json`
+- 对 projection-derived 且没有静态 split manifest 的 scope，可使用同目录
+  `retrieval-eval-manifest.v1.json`
+- `retrieval-eval-manifest.v1.json` 只服务 deterministic qrels validation；不替代 registry
+  scope、current pointer、release manifest 或 object-store artifact truth
+
+### Retrieval Tuning Report
+
+定义：
+
+- per-collection deterministic tuning artifact。旧 Python retrieval tuning runner
+  已退役；新 tuning report 生成器必须由 TS eval lane 或 owning runtime 提供。
+
+说明：
+
+- 输入是 qrels fixture 与一个或多个 candidate run-results
+- candidate profile 可覆盖 dense / sparse prefetch、RRF 参数与 no-hit threshold
+- 输出包含 positive hit / recall / MRR、forbidden hit rate、no-hit success、version-locked
+  recall 与 `recommended_profile_patch`
+- 只有 candidate 通过 deterministic gate 时才允许产生 recommendation
+- tuning report 不自动改写 `runtime-profile.json`，也不自动扩大 query-enabled scope
+
 ## Routing Terms
 
 ### Tool Domain

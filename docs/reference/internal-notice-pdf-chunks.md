@@ -1,10 +1,10 @@
 ---
 doc_type: reference
 truth_scope: eval
-owner_boundary: packages/evals
+owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-06-27
-updated: 2026-06-27
+updated: 2026-06-28
 ---
 # Internal Notice PDF Chunks
 

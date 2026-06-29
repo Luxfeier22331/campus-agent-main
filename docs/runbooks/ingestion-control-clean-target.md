@@ -27,8 +27,8 @@ CLIs and serving seed CLIs are not active operation surfaces.
 - `packages/ingestion-kernels-rs` owns deterministic file kernels.
 - `apps/ingestion-worker` is a Python adapter island for extraction work that
   genuinely needs Python, currently legacy Office normalization.
-- Eval-owned Python verification may live under `packages/evals`; it is not an
-  ingestion fallback or collection operation surface.
+- Eval-owned Python verification must not live under `packages/evals`; it is not
+  an ingestion fallback or collection operation surface.
 
 ## Local Control Plane
 

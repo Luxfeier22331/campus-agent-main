@@ -1,6 +1,5 @@
 import type { ExecutionControlOperatorRuntimeHealth } from "../integration";
 import type { ToolExecutionWorkflowTraceSummary } from "../integration/tool-execution-types";
-import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -145,22 +144,7 @@ export interface OperatorQueryListResult {
 	};
 }
 
-export type OperatorEvalCoverageResult = EvalCoverageSnapshot;
 export type OperatorRuntimeHealthResult = ExecutionControlOperatorRuntimeHealth;
-
-export interface OperatorLangfuseEvalBacklinkRecord {
-	traceId: string;
-	evalRunId: string;
-	scoreName: string;
-	scoreValue: string | number | boolean;
-	release: string;
-	environment: string;
-	langfuseUrl: string;
-}
-
-export interface OperatorLangfuseEvalBacklinkResult {
-	backlinks: OperatorLangfuseEvalBacklinkRecord[];
-}
 
 export interface OperatorIntentObservabilitySummary {
 	tool: string | null;

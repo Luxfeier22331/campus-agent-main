@@ -1,8 +1,4 @@
 import type {
-	EvalDiagnosticFailureStage,
-	EvalDiagnosticTrajectoryAttribution,
-} from "../operator-eval-diagnostic-badcases";
-import type {
 	MetricRatio,
 	OperatorDistributionBucket,
 	OperatorOverviewWindow,
@@ -123,21 +119,6 @@ export interface OperatorQualityEvalCandidateListResult {
 			reasonCodes: string[];
 			updatedAt: string;
 		};
-		diagnostic?: {
-			answerShape: string | null;
-			caseId: string;
-			expectedDocIds: string[];
-			failureStage: EvalDiagnosticFailureStage;
-			metricFailureReason: string;
-			metricName: string;
-			presentationKind: string | null;
-			retrievedContextIds: string[];
-			retrievedDocIds: string[];
-			score: number;
-			supportingDocIds: string[];
-			threshold: number;
-			trajectoryAttribution: EvalDiagnosticTrajectoryAttribution;
-		};
 		links: {
 			traceLink: string | null;
 			issueLink: string | null;
@@ -158,7 +139,7 @@ export interface OperatorQualityEvalCandidateListResult {
 			>;
 		};
 		intake: {
-			source: "operator_badcase" | "negative_feedback" | "ragas_diagnostic";
+			source: "operator_badcase" | "negative_feedback";
 			status: "pending_review";
 			suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 			createdAt: string;

@@ -174,25 +174,6 @@ export function registerOperatorRoutes(input: {
 		);
 	});
 
-	input.app.get("/api/operator/evals/coverage", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getEvalCoverage({
-				principal: resolved.principal,
-			}),
-		);
-	});
-
 	input.app.get("/api/operator/authenticated-notices/processing", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({
@@ -695,37 +676,6 @@ export function registerOperatorRoutes(input: {
 			principal: resolved.principal,
 			requestId: c.req.param("requestId"),
 		});
-		const langfuseEvalBacklinks = await service.getLangfuseEvalBacklinksByTraceId({
-			principal: resolved.principal,
-			traceId: projection.request.traceId,
-		});
-
-		return jsonResponse({
-			...projection,
-			links: {
-				...projection.links,
-				langfuseEvalBacklinks: langfuseEvalBacklinks.backlinks,
-			},
-		});
-	});
-
-	input.app.get("/api/operator/langfuse/eval-backlinks", async (c) => {
-		const scope = input.createRequestScope();
-		const resolved = await requireOperatorPrincipal({
-			env: input.env,
-			getPrincipal: input.getPrincipal,
-			request: c.req.raw,
-			scope,
-		});
-		if (resolved.response) {
-			return resolved.response;
-		}
-
-		return jsonResponse(
-			await scope.resolveOperatorQueryService().getLangfuseEvalBacklinksByTraceId({
-				principal: resolved.principal,
-				traceId: c.req.query("traceId") ?? "",
-			}),
-		);
+		return jsonResponse(projection);
 	});
 }

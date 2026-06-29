@@ -1,0 +1,163 @@
+---
+doc_type: reference
+truth_scope: eval
+owner_boundary: packages/eval-langfuse
+status: active
+created: 2026-06-28
+updated: 2026-06-29
+---
+# Eval
+
+## Active Shape
+
+Repo-owned eval is now Langfuse/Ragas-first:
+
+- `packages/eval-langfuse` owns TypeScript adapters for Langfuse datasets,
+  traces, score config sync, dataset sync, safe Ragas projection, score
+  publishing and trace verification.
+- `packages/ragas-runner` is the only accepted Python island. It runs upstream
+  Ragas over safe JSON input produced by TypeScript.
+- `packages/eval-langfuse/fixtures/rag` keeps repo-authored RAG fixture truth
+  for Langfuse dataset/Ragas input: qrels, golden retrieval qrels,
+  answer-quality cases and known gaps.
+- Runtime behavior, workflow orchestration, authz and product contracts belong
+  to their owning apps/packages and their tests. They must not be recreated as
+  broad self-built eval frameworks.
+
+The completed platform loop is:
+
+```text
+Langfuse traces / datasets
+-> packages/eval-langfuse safe projection
+-> packages/ragas-runner upstream Ragas
+-> packages/eval-langfuse Langfuse scores
+```
+
+## Active Lanes
+
+Workflow-dispatchable eval lanes are listed in `docs/reference/eval-map.md`.
+Current active lanes are:
+
+- `ragas-trace`
+- `ragas-dataset`
+
+Both lanes follow the same closed loop:
+
+```text
+Langfuse traces/datasets
+-> packages/eval-langfuse safe RAG projection
+-> packages/ragas-runner upstream Ragas
+-> packages/eval-langfuse Langfuse scores
+```
+
+These lanes produce evaluation evidence and review candidates. They are not a
+repo-owned release gate framework.
+
+Langfuse experiments and annotation queues remain official platform workflows.
+This repo no longer owns custom experiment-manifest or review-manifest
+automation.
+
+`ragas-dataset` requires materialized dataset items. Qrels-only dataset items
+carry `reference_context_ids` but no generated answer or retrieved context text;
+they must be paired with safe trace/observation projection before Ragas scoring.
+
+## Platform Capabilities
+
+Active repo-owned Langfuse adapter capabilities are:
+
+- score config sync
+- dataset sync from repo RAG fixtures
+- RAG dataset manifest construction
+- safe trace/dataset projection into Ragas input
+- Ragas trace and materialized-dataset scoring
+- `ragas.*` score publishing back to Langfuse
+- trace identity, observation contract and forbidden-field verification
+
+Langfuse remains the eval platform and score sink. It does not own canonical
+fixture truth, product storage, Temporal history, operator query truth, repo
+contracts or release authority.
+
+## Safe Projection Boundary
+
+Ragas-bound projection may include trace/dataset identity, question/user input,
+answer, retrieved contexts, retrieved context ids, reference context ids and
+optional reference text when those fields are approved for eval storage.
+
+Forbidden fields include secrets, auth material, raw prompts, raw transcripts,
+provider raw responses, unrestricted source bodies, object-store paths and
+retrieval backend dumps.
+
+## Active Scores
+
+The active score family is `ragas.*`.
+
+Default metrics:
+
+- `ragas.faithfulness`
+- `ragas.answer_relevancy`
+- `ragas.context_precision`
+- `ragas.context_recall`
+
+Optional metrics are enabled only through Ragas runtime config:
+
+- `ragas.context_precision_without_reference`
+- `ragas.id_context_precision`
+- `ragas.id_context_recall`
+
+All score names must exist in
+`packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json` before
+publishing. Unknown score names fail closed.
+
+## Fixture Semantics
+
+Fixture `split` values in `packages/eval-langfuse/fixtures/rag` are descriptive
+dataset partitions:
+
+- `smoke`: small connectivity/projection sample
+- `curated`: reviewer-curated representative case
+- `regression`: accepted regression case
+- `known_gap`: known missing-source or unsupported-capability case
+
+`curated` and `regression` do not mean release admission. Release readiness is
+owned by product/runtime release checks and explicit staging closeout, not by a
+fixture label.
+
+## Operator Coverage Projection
+
+The old app-api eval coverage projection is retired. Do not recreate:
+
+- internal coverage snapshot ingest endpoints
+- browser-facing eval coverage endpoints
+- app-api eval coverage tables
+- app-api Ragas low-score diagnostic candidate projections
+
+Coverage and score state now belongs to Langfuse datasets/runs/scores plus the
+`packages/eval-langfuse` audit output. Operator-facing runtime quality intake
+remains under `GET /api/operator/quality/eval-candidates`, but it only exposes
+runtime monitor badcases and negative feedback candidates.
+
+## Deleted Self-Built Policy Artifacts
+
+The old repo-owned operations profile policy, denominator registry, RAG
+maturity policy/backlog and generated golden dataset matrix are retired and
+deleted. Do not recreate them as active eval truth.
+
+Also do not recreate these retired active eval surfaces:
+
+- `packages/evals`
+- Python `campus_evals`
+- `scripts.eval_gate`
+- broad `agent-eval`
+- `rag-first-stage`
+- `ragas-batch`
+- custom `run-experiment`
+- custom `sync-annotation-queue`
+- custom `export-review-results`
+- generic score report publishers or local release evidence gates
+
+The remaining active eval reference files are:
+
+- `docs/reference/eval-map.md`
+- `docs/reference/eval-gold-truth-model.md`
+- `docs/reference/eval/retrieval_qrels_denominator_policy.v1.json`
+- `docs/reference/eval/rag_known_gap_cases.v1.json`

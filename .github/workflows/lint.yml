@@ -22,7 +22,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       go: ${{ steps.filter.outputs.go }}
-      intent: ${{ steps.filter.outputs.intent }}
       langfuse: ${{ steps.filter.outputs.langfuse }}
     steps:
       - name: Checkout
@@ -67,31 +66,22 @@ jobs:
                 go:pnpm-lock.yaml)
                   return 0
                   ;;
-                intent:apps/execution-control/*|\
-                intent:apps/execution-control/**/*|\
-                intent:configs/runtime/tool-catalog.v1.json|\
-                intent:configs/runtime/workflow-artifacts.v2.json|\
-                intent:packages/contracts/schemas/runtime-*|\
-                intent:packages/evals/*|\
-                intent:packages/evals/**/*|\
-                intent:scripts/intent_gate.py|\
-                intent:scripts/intent_release_gate.py|\
-                intent:tests/evals/*intent*.py|\
-                intent:.github/workflows/lint.yml|\
-                intent:package.json|\
-                intent:pyproject.toml|\
-                intent:uv.lock)
-                  return 0
-                  ;;
                 langfuse:packages/eval-langfuse/*|\
                 langfuse:packages/eval-langfuse/**/*|\
                 langfuse:apps/app-api/scripts/check-langfuse-trace-id-vectors.ts|\
                 langfuse:apps/app-api/src/modules/telemetry/*|\
                 langfuse:apps/app-api/src/modules/telemetry/**/*|\
                 langfuse:tests/fixtures/langfuse_trace_id_vectors.json|\
+                langfuse:packages/ragas-runner/*|\
+                langfuse:packages/ragas-runner/**/*|\
                 langfuse:docs/product/langfuse-evals.md|\
                 langfuse:docs/architecture/system/langfuse.md|\
                 langfuse:docs/contracts/langfuse-runtime.md|\
+                langfuse:docs/reference/eval.md|\
+                langfuse:docs/reference/eval-map.md|\
+                langfuse:docs/runbooks/eval-ragas.md|\
+                langfuse:docs/decisions/adr-0061-eval-runtime.md|\
+                langfuse:docs/decisions/adr-0062-ragas-langfuse.md|\
                 langfuse:.github/workflows/lint.yml|\
                 langfuse:package.json|\
                 langfuse:pnpm-lock.yaml)
@@ -102,7 +92,7 @@ jobs:
             return 1
           }
 
-          for group in go intent langfuse; do
+          for group in go langfuse; do
             if matches_any "$group"; then
               echo "$group=true" >> "$GITHUB_OUTPUT"
             else
@@ -142,46 +132,6 @@ jobs:
 
       - name: Run repo static lane
         run: pnpm ci:repo-static
-
-  intent-release-gate:
-    needs: changes
-    if: needs.changes.outputs.intent == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Setup uv
-        uses: astral-sh/setup-uv@v6
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 10.26.1
-
-      - name: Sync workspace
-        run: uv sync --all-packages --dev
-
-      - name: Run deterministic intent release gate
-        run: pnpm ci:intent
-
-      - name: Upload intent gate report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: intent-release-gate
-          path: .tmp/evals/intent-release-gate.json
-          if-no-files-found: warn
 
   langfuse-integration:
     needs: changes

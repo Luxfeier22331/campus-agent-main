@@ -3,9 +3,6 @@ import { eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
-	evalCoverageSnapshot,
-	evalDiagnosticBadcaseProjection,
-	langfuseEvalBacklinkProjection,
 	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
@@ -17,8 +14,6 @@ import {
 	workerAutoscalerDecisionCurrent,
 	workerAutoscalerPosture,
 } from "../../db/schema";
-import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
-import type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
 import type {
 	TemporalTaskQueueSnapshotWrite,
 	WorkerAutoscalerActuationWrite,
@@ -72,18 +67,6 @@ export interface TraceBacklinkProjectionWrite {
 	projectedAt: string;
 }
 
-export interface LangfuseEvalBacklinkProjectionWrite {
-	evalBacklinkId: string;
-	traceId: string;
-	evalRunId: string;
-	scoreName: string;
-	scoreValue: string | number | boolean;
-	release: string;
-	environment: string;
-	langfuseUrl: string;
-	projectedAt: string;
-}
-
 export interface ExecutionAuditEventWrite {
 	eventId: string;
 	requestId: string;
@@ -104,17 +87,9 @@ export interface TemporalTaskQueueRuntimeProjectionWrite {
 export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
 	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
-	upsertEvalCoverageSnapshot(input: { snapshot: EvalCoverageProjectionWrite }): Promise<void>;
-	upsertEvalDiagnosticBadcases(input: {
-		badcases: EvalDiagnosticBadcaseProjectionWrite[];
-		snapshotId: string;
-	}): Promise<void>;
 	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTemporalTaskQueueRuntime(input: TemporalTaskQueueRuntimeProjectionWrite): Promise<void>;
 	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
-	upsertLangfuseEvalBacklinks?(input: {
-		backlinks: LangfuseEvalBacklinkProjectionWrite[];
-	}): Promise<void>;
 }
 
 function toStoredRequestObservabilitySeed(
@@ -186,69 +161,6 @@ export function createPgOperatorObservabilityCommandStore(
 				.limit(1);
 
 			return rows[0] ? toStoredRequestObservabilitySeed(rows[0]) : null;
-		},
-
-		async upsertEvalCoverageSnapshot(input) {
-			const db = await getDb();
-			await db
-				.insert(evalCoverageSnapshot)
-				.values({
-					createdAt: new Date(),
-					generatedAt: new Date(input.snapshot.generatedAt),
-					payloadJson: input.snapshot.payload,
-					schemaVersion: input.snapshot.schemaVersion,
-					snapshotId: input.snapshot.snapshotId,
-					sourceGitHead: input.snapshot.sourceGitHead,
-				})
-				.onConflictDoUpdate({
-					set: {
-						generatedAt: new Date(input.snapshot.generatedAt),
-						payloadJson: input.snapshot.payload,
-						schemaVersion: input.snapshot.schemaVersion,
-						sourceGitHead: input.snapshot.sourceGitHead,
-					},
-					target: evalCoverageSnapshot.snapshotId,
-				});
-		},
-
-		async upsertEvalDiagnosticBadcases(input) {
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				await tx
-					.delete(evalDiagnosticBadcaseProjection)
-					.where(eq(evalDiagnosticBadcaseProjection.snapshotId, input.snapshotId));
-				if (input.badcases.length === 0) {
-					return;
-				}
-				for (const badcase of input.badcases) {
-					await tx.insert(evalDiagnosticBadcaseProjection).values({
-						answerShape: badcase.answerShape,
-						badcaseId: badcase.badcaseId,
-						caseId: badcase.caseId,
-						causeClass: badcase.causeClass,
-						evalRunId: badcase.evalRunId,
-						expectedDocIdsJson: badcase.expectedDocIds,
-						failureStage: badcase.failureStage,
-						generatedAt: new Date(badcase.generatedAt),
-						metricFailureReason: badcase.metricFailureReason,
-						metricName: badcase.metricName,
-						presentationKind: badcase.presentationKind,
-						projectedAt: new Date(badcase.projectedAt),
-						queryPreview: badcase.queryPreview,
-						retrievedContextIdsJson: badcase.retrievedContextIds,
-						retrievedDocIdsJson: badcase.retrievedDocIds,
-						scoreMilli: badcase.scoreMilli,
-						snapshotId: badcase.snapshotId,
-						sourceGitHead: badcase.sourceGitHead,
-						sourceReportSchema: badcase.sourceReportSchema,
-						supportingChunkIdsJson: badcase.supportingChunkIds,
-						supportingDocIdsJson: badcase.supportingDocIds,
-						surfaceKey: badcase.surfaceKey,
-						thresholdMilli: badcase.thresholdMilli,
-						trajectoryAttributionJson: badcase.trajectoryAttribution,
-					});
-				}
-			});
 		},
 
 		async upsertQualityGrades(input) {
@@ -578,44 +490,6 @@ export function createPgOperatorObservabilityCommandStore(
 								traceLink: backlink.traceLink,
 							},
 							target: traceBacklinkProjection.requestId,
-						});
-				}
-			});
-		},
-
-		async upsertLangfuseEvalBacklinks(input) {
-			if (input.backlinks.length === 0) {
-				return;
-			}
-
-			const db = await getDb();
-			await db.transaction(async (tx) => {
-				for (const backlink of input.backlinks) {
-					await tx
-						.insert(langfuseEvalBacklinkProjection)
-						.values({
-							environment: backlink.environment,
-							evalBacklinkId: backlink.evalBacklinkId,
-							evalRunId: backlink.evalRunId,
-							langfuseUrl: backlink.langfuseUrl,
-							projectedAt: new Date(backlink.projectedAt),
-							release: backlink.release,
-							scoreName: backlink.scoreName,
-							scoreValueJson: backlink.scoreValue,
-							traceId: backlink.traceId,
-						})
-						.onConflictDoUpdate({
-							set: {
-								environment: backlink.environment,
-								evalRunId: backlink.evalRunId,
-								langfuseUrl: backlink.langfuseUrl,
-								projectedAt: new Date(backlink.projectedAt),
-								release: backlink.release,
-								scoreName: backlink.scoreName,
-								scoreValueJson: backlink.scoreValue,
-								traceId: backlink.traceId,
-							},
-							target: langfuseEvalBacklinkProjection.evalBacklinkId,
 						});
 				}
 			});

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/decisions
 status: active
 created: 2026-04-12
-updated: 2026-06-19
+updated: 2026-06-28
 ---
 # Decisions
 
@@ -32,6 +32,12 @@ updated: 2026-06-19
 - `adr-0003-golden-dataset-governance.md`
 - `adr-0004-evaluation-metrics.md`
 - `adr-0010-observability-and-telemetry-stack.md`
+- `adr-0061-eval-runtime.md`
+  - TS + Langfuse 是长期 eval runtime / platform 默认路径；Python eval gate
+    进入 transitional 退役期。
+- `adr-0062-ragas-langfuse.md`
+  - Ragas 与 Langfuse 按官方协作形态收口：Langfuse traces / datasets 经
+    repo-owned safe projection 进入 Ragas，再将 scores 写回 Langfuse。
 
 ## 核心架构与 runtime
 

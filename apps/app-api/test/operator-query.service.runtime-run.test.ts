@@ -13,7 +13,6 @@ describe("operator query service aggregate summaries", () => {
 			getAuditById: vi.fn(),
 			getCostSummary: vi.fn(),
 			getCostTimeseries: vi.fn(),
-			getEvalCoverage: vi.fn(),
 			getIntentSummary: vi.fn(),
 			getIntentTimeseries: vi.fn(),
 			getObservabilityById: vi.fn().mockResolvedValue({

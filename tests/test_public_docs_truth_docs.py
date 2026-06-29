@@ -46,11 +46,17 @@ class PublicDocsTruthDocsTest(unittest.TestCase):
     def test_campus_web_docs_copy_does_not_present_local_object_store_paths_as_product_truth(
         self,
     ) -> None:
-        docs_root = REPO_ROOT / "apps" / "campus-web" / "docs"
+        docs_sources = (
+            REPO_ROOT / "apps" / "campus-web" / "src" / "components" / "docs",
+            REPO_ROOT / "apps" / "campus-web" / "src" / "features" / "docs",
+            REPO_ROOT / "apps" / "campus-web" / "src" / "docs",
+            REPO_ROOT / "apps" / "campus-web" / "scripts",
+        )
         checked_in_docs = tuple(
             path.read_text(encoding="utf-8")
-            for path in sorted(docs_root.rglob("*"))
-            if path.suffix in {".md", ".mdx"}
+            for root in docs_sources
+            for path in sorted(root.rglob("*"))
+            if path.suffix in {".ts", ".tsx", ".mts", ".mjs"}
         )
 
         self.assertNotEqual(checked_in_docs, ())

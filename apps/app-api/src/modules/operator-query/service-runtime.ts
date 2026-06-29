@@ -97,15 +97,14 @@ function emptyQualityEvalCandidates(): OperatorQualityEvalCandidateListResult {
 function mergeQualityEvalCandidates(
 	first: OperatorQualityEvalCandidateListResult,
 	second: OperatorQualityEvalCandidateListResult,
-	third: OperatorQualityEvalCandidateListResult,
 	limit: number,
 ): OperatorQualityEvalCandidateListResult {
 	return {
-		candidates: [...first.candidates, ...second.candidates, ...third.candidates]
+		candidates: [...first.candidates, ...second.candidates]
 			.sort((a, b) => Date.parse(b.intake.createdAt) - Date.parse(a.intake.createdAt))
 			.slice(0, limit),
 		page: {
-			nextCursor: first.page.nextCursor ?? second.page.nextCursor ?? third.page.nextCursor,
+			nextCursor: first.page.nextCursor ?? second.page.nextCursor,
 		},
 	};
 }
@@ -543,34 +542,6 @@ export function buildOperatorQueryService(
 			return event;
 		},
 
-		async getEvalCoverage(input) {
-			ensureOperatorPrincipal(input.principal);
-			const snapshot = await dependencies.store.getEvalCoverage();
-			if (!snapshot) {
-				throw new AppApiRouteError({
-					code: "eval_coverage_snapshot_not_found",
-					message: "Eval coverage snapshot not found.",
-					retryable: false,
-					status: 404,
-				});
-			}
-			return snapshot;
-		},
-
-		async getLangfuseEvalBacklinksByTraceId(input) {
-			ensureOperatorPrincipal(input.principal);
-			const traceId = normalizeOptionalString(input.traceId);
-			if (!traceId) {
-				throw new AppApiRouteError({
-					code: "invalid_trace_id",
-					message: "traceId is required.",
-					retryable: false,
-					status: 400,
-				});
-			}
-			return dependencies.store.getLangfuseEvalBacklinksByTraceId(traceId);
-		},
-
 		async getOverview(input) {
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));
@@ -658,47 +629,31 @@ export function buildOperatorQueryService(
 			ensureOperatorPrincipal(input.principal);
 			const filters = normalizeQualityBadcaseListFilters(input.filters);
 			const includeBadcases =
-				filters.detectedBy !== "negative_feedback" &&
-				filters.detectedBy !== "ragas_diagnostic" &&
-				filters.status !== "pending_review";
+				filters.detectedBy !== "negative_feedback" && filters.status !== "pending_review";
 			const includeFeedback =
 				(!filters.detectedBy || filters.detectedBy === "negative_feedback") &&
 				(!filters.status || filters.status === "pending_review");
-			const includeRagasDiagnostic =
-				(!filters.detectedBy || filters.detectedBy === "ragas_diagnostic") &&
-				(!filters.status || filters.status === "pending_review");
 
-			if (includeBadcases && !includeFeedback && !includeRagasDiagnostic) {
+			if (includeBadcases && !includeFeedback) {
 				const badcases = await dependencies.store.listQualityBadcases(filters);
 				return toQualityEvalCandidates(badcases);
 			}
-			if (!includeBadcases && includeFeedback && !includeRagasDiagnostic) {
+			if (!includeBadcases && includeFeedback) {
 				return dependencies.store.listQualityFeedbackEvalCandidates(filters);
 			}
-			if (!(includeBadcases || includeFeedback) && includeRagasDiagnostic) {
-				return dependencies.store.listEvalDiagnosticCandidates(filters);
-			}
-			if (!(includeBadcases || includeFeedback || includeRagasDiagnostic)) {
+			if (!(includeBadcases || includeFeedback)) {
 				return emptyQualityEvalCandidates();
 			}
 
-			const [badcases, feedbackCandidates, ragasDiagnosticCandidates] = await Promise.all([
+			const [badcases, feedbackCandidates] = await Promise.all([
 				includeBadcases
 					? dependencies.store.listQualityBadcases(filters).then(toQualityEvalCandidates)
 					: Promise.resolve(emptyQualityEvalCandidates()),
 				includeFeedback
 					? dependencies.store.listQualityFeedbackEvalCandidates(filters)
 					: Promise.resolve(emptyQualityEvalCandidates()),
-				includeRagasDiagnostic
-					? dependencies.store.listEvalDiagnosticCandidates(filters)
-					: Promise.resolve(emptyQualityEvalCandidates()),
 			]);
-			return mergeQualityEvalCandidates(
-				badcases,
-				feedbackCandidates,
-				ragasDiagnosticCandidates,
-				filters.limit,
-			);
+			return mergeQualityEvalCandidates(badcases, feedbackCandidates, filters.limit);
 		},
 
 		async listTemporalTaskQueues(input) {

@@ -128,18 +128,7 @@ export interface RequestRuntimeStepModel {
 export interface RequestObservabilityLinks {
 	issueFingerprint: string | null;
 	issueLink: string | null;
-	langfuseEvalBacklinks?: RequestLangfuseEvalBacklink[];
 	traceLink: string | null;
-}
-
-export interface RequestLangfuseEvalBacklink {
-	environment: string;
-	evalRunId: string;
-	langfuseUrl: string;
-	release: string;
-	scoreName: string;
-	scoreValue: string | number | boolean;
-	traceId: string;
 }
 
 export interface RawRequestObservabilityResponse {

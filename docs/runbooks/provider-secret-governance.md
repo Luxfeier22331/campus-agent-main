@@ -15,7 +15,7 @@ updated: 2026-04-12
 它不重新定义：
 
 - repo-shipped Python entrypoint 的本地 bootstrap contract
-- `packages/evals` / `packages/shared` 的 provider precedence
+- `packages/eval-langfuse` / `packages/shared` 的 provider precedence
 - app/runtime topology
 
 这些代码与本地配置语义以 `docs/environment/README.md` 为准。

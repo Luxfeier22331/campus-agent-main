@@ -58,18 +58,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/internal/operator/evals/coverage-snapshots",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/evals/diagnostic-badcases",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
 		path: "/api/internal/operator/runtime/temporal-task-queue-snapshots",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
@@ -95,12 +83,6 @@ export const APP_API_MACHINE_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "POST",
-		path: "/api/internal/operator/langfuse/eval-backlinks",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

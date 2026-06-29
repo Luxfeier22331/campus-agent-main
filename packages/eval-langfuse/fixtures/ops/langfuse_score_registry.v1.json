@@ -1,0 +1,61 @@
+{
+	"schema_version": "langfuse_score_registry.v1",
+	"scores": [
+		{
+			"name": "ragas.faithfulness",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS faithfulness score for trace-level RAG evaluation. Produced by packages/ragas-runner and published by packages/eval-langfuse."
+		},
+		{
+			"name": "ragas.answer_relevancy",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS answer relevancy score for trace-level RAG evaluation. Produced by packages/ragas-runner and published by packages/eval-langfuse."
+		},
+		{
+			"name": "ragas.context_precision",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS context precision score for trace-level RAG evaluation. Produced by packages/ragas-runner and published by packages/eval-langfuse."
+		},
+		{
+			"name": "ragas.context_recall",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS context recall score for trace-level RAG evaluation. Produced by packages/ragas-runner and published by packages/eval-langfuse."
+		},
+		{
+			"name": "ragas.context_precision_without_reference",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS context precision without reference score. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
+		},
+		{
+			"name": "ragas.id_context_precision",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS ID-based context precision score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
+		},
+		{
+			"name": "ragas.id_context_recall",
+			"data_type": "NUMERIC",
+			"owner": "packages/ragas-runner",
+			"eval_kinds": ["ragas"],
+			"value_range": [0, 1],
+			"description": "RAGAS ID-based context recall score using retrieved_context_ids and reference_context_ids. Produced by packages/ragas-runner when runtime config explicitly enables the metric."
+		}
+	]
+}

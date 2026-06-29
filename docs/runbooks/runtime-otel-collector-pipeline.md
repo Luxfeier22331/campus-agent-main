@@ -174,26 +174,22 @@ OTEL_COLLECTOR_LANGFUSE_INGESTION_VERSION=4 \
 pnpm --dir packages/eval-langfuse langfuse check-collector-config --json
 ```
 
-Langfuse eval score publish smoke:
+Langfuse Ragas score smoke:
 
 ```bash
 LANGFUSE_BASE_URL=https://langfuse.internal \
 LANGFUSE_PUBLIC_KEY=<project-public-key> \
 LANGFUSE_SECRET_KEY=<project-secret-key> \
 LANGFUSE_ENVIRONMENT=staging \
-pnpm --dir packages/eval-langfuse langfuse build-score-report-from-profile \
-  --profile-report .tmp/evals/online-answer-path/profile-report.json \
-  --output .tmp/evals/online-answer-path/langfuse-score-report.json \
-  --json
-
-LANGFUSE_BASE_URL=https://langfuse.internal \
-LANGFUSE_PUBLIC_KEY=<project-public-key> \
-LANGFUSE_SECRET_KEY=<project-secret-key> \
-LANGFUSE_ENVIRONMENT=staging \
-pnpm --dir packages/eval-langfuse langfuse publish-score-report \
-  --score-report .tmp/evals/online-answer-path/langfuse-score-report.json \
+pnpm --dir packages/eval-langfuse langfuse ragas-score-traces \
+  --trace-name online-answer \
+  --limit 5 \
+  --validate-only \
   --json
 ```
+
+Use `ragas-score-dataset` for Langfuse dataset-backed scoring. Remove
+`--validate-only` only when the run should write `ragas.*` scores to Langfuse.
 
 Langfuse real trace evidence smoke:
 
@@ -231,95 +227,33 @@ closeout must include them from the staging durable reconnect artifact. This
 command is release evidence only; Langfuse remains a sink and does not become
 product truth.
 
-Langfuse release evidence closeout:
-
-```bash
-pnpm --dir packages/eval-langfuse langfuse closeout-staging \
-  --output-dir .tmp/e2e-qa/langfuse-closeout \
-  --profile-report .tmp/e2e-qa/langfuse-closeout/online-answer-path/profile-report.json \
-  --durable-chat-artifact .tmp/e2e-qa/langfuse-closeout/chat-durable-reconnect.json \
-  --environment staging \
-  --release <runtime-release-id> \
-  --tag surface:execution-control \
-  --tag target:knowledge \
-  --tag env:staging \
-  --json
-```
-
-The staging closeout command loads the repository staging env using
-`scripts/run-with-staging-smoke-env.mjs` conventions, requires canonical
-Langfuse API and `EXECUTION_CONTROL_RUNTIME_RELEASE` configuration, derives the
-Collector Langfuse OTLP endpoint/header/version, then runs the closeout runner and validates
-`langfuse-release-evidence.json`. It defaults to
-`.tmp/e2e-qa/langfuse-closeout/chat-durable-reconnect.json` and
-`.tmp/e2e-qa/langfuse-closeout/online-answer-path/profile-report.json`.
-Pass `--output-dir`, `--profile-report`, `--durable-chat-artifact`,
-`--environment`, `--release` or repeated `--tag` to override those defaults.
+Langfuse trace closeout evidence is produced by running `verify-trace` with the
+identity values from `chat-durable-reconnect.json`. The old bundled
+`closeout-staging` / `build-release-evidence` / `check-release-evidence` path
+has been retired with the artifact score-report publisher.
 
 `chat-durable-reconnect.json` is produced by
-`pnpm --dir apps/app-api chat:durable:e2e:staging`. Its
-`langfuseCloseout` block is the product-side identity source for closeout:
-`productTraceId`, `requestId`, `runId`, `workflowId`, `sessionId` and `userId`.
-Do not derive `workflowId` from `runId`; it must come from the sanitized run
-step attempt projection. If any identity flag is also passed explicitly, the
-closeout runner fails when it does not match the artifact value.
+`pnpm --dir apps/app-api chat:durable:e2e:staging`. Its `langfuseCloseout` block
+is the product-side identity source for closeout: `productTraceId`, `requestId`,
+`runId`, `workflowId`, `sessionId` and `userId`. Do not derive `workflowId` from
+`runId`; it must come from the sanitized run step attempt projection.
 
-This runs `verify-trace --json`, builds `langfuse-score-report.json`
-from the profile report, runs `publish-score-report --json`, writes
-`verify-trace.json`, `publish-score-report.json` and
-`langfuse-release-evidence.json`, then validates the final artifact before
-returning success.
-
-Manual build and check path:
+Manual trace evidence path:
 
 ```bash
-pnpm --dir packages/eval-langfuse langfuse closeout-staging \
-  --output-dir "$E2E_QA_EVIDENCE_DIR" \
-  --profile-report .tmp/evals/online-answer-path/profile-report.json \
-  --environment staging \
-  --release <runtime-release-id> \
-  --durable-chat-artifact "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json" \
-  --tag surface:execution-control \
-  --tag target:knowledge \
-  --tag env:staging
-```
-
-Manual artifact assembly path:
-
-```bash
-pnpm --dir packages/eval-langfuse langfuse build-release-evidence \
-  --output "$E2E_QA_EVIDENCE_DIR/langfuse-release-evidence.json" \
-  --environment staging \
-  --release <runtime-release-id> \
+pnpm --dir packages/eval-langfuse langfuse verify-trace \
   --product-trace-id "$(jq -er '.langfuseCloseout.productTraceId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --request-id "$(jq -er '.langfuseCloseout.requestId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --run-id "$(jq -er '.langfuseCloseout.runId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --workflow-id "$(jq -er '.langfuseCloseout.workflowId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --session-id "$(jq -er '.langfuseCloseout.sessionId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
   --user-id "$(jq -er '.langfuseCloseout.userId' "$E2E_QA_EVIDENCE_DIR/chat-durable-reconnect.json")" \
+  --release <runtime-release-id> \
   --tag surface:execution-control \
   --tag target:knowledge \
   --tag env:staging \
-  --verify-output "$E2E_QA_EVIDENCE_DIR/verify-trace.json" \
-  --verify-exit-code 0 \
-  --verify-command "pnpm --dir packages/eval-langfuse langfuse verify-trace --product-trace-id <app-api-trace-id-from-chat-request> --session-id <conversation-id> --user-id <stable-non-pii-user-id> --release <runtime-release-id> --request-id <app-api-request-id> --run-id <execution-run-id> --workflow-id <temporal-workflow-id> --tag surface:execution-control --tag target:knowledge --tag env:staging --json" \
-  --publish-output "$E2E_QA_EVIDENCE_DIR/publish-score-report.json" \
-  --publish-exit-code 0 \
-  --expected-publish-denominator "$(jq -er '.expected_publish_denominator' "$E2E_QA_EVIDENCE_DIR/langfuse-score-report.json")" \
-  --publish-command "pnpm --dir packages/eval-langfuse langfuse publish-score-report --score-report $E2E_QA_EVIDENCE_DIR/langfuse-score-report.json --json"
-
-pnpm --dir packages/eval-langfuse langfuse check-release-evidence \
-  --evidence "$E2E_QA_EVIDENCE_DIR/langfuse-release-evidence.json" \
-  --json
+  --json | tee "$E2E_QA_EVIDENCE_DIR/verify-trace.json"
 ```
-
-The JSON artifact records the product trace id, derived Langfuse trace id,
-request / run / workflow identity, `verify-trace` JSON output and
-`publish-score-report` JSON output. The builder writes only artifacts that
-pass the same checker. The checker fails closed when the real trace verifier
-output, identity values, required tags, observation count or
-`online-answer-path` score report publish output do not match the release
-evidence artifact.
 
 Collector binary validation:
 
@@ -376,14 +310,8 @@ Expected evidence:
 - `pnpm --dir packages/eval-langfuse langfuse verify-trace ... --json`
   passes for the real deployed chat request trace after the Collector fans out
   to Langfuse.
-- `pnpm --dir packages/eval-langfuse langfuse closeout-staging ...`
-  runs trace verification, generic eval score report publish and artifact
-  validation in one closeout command.
-- `pnpm --dir packages/eval-langfuse langfuse build-release-evidence ...`
-  writes the `langfuse-release-evidence.json` closeout artifact from verifier
-  and score-publish JSON outputs.
-- `pnpm --dir packages/eval-langfuse langfuse check-release-evidence ...`
-  passes for the `langfuse-release-evidence.json` closeout artifact.
+- `verify-trace.json` is saved with product trace, request, run, workflow,
+  session and user identity checked against the real deployed Langfuse trace.
 
 Collector config structural smoke:
 

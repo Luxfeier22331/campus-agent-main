@@ -1,0 +1,166 @@
+---
+doc_type: runbook
+truth_scope: eval
+owner_boundary: packages/eval-langfuse
+status: active
+created: 2026-04-23
+updated: 2026-06-29
+---
+# Eval Ragas
+
+<!-- markdownlint-disable MD013 -->
+
+## Purpose
+
+This runbook records the active Langfuse/Ragas scoring automation after
+retiring repo-owned profile gates, artifact score publishers and app-api eval
+backlink projections.
+
+Active repo commands:
+
+- `uv run --all-packages python -m scripts.langfuse_eval_audit doctor --json`
+- `uv run --all-packages python -m scripts.langfuse_eval_audit audit --json`
+- `pnpm --dir packages/eval-langfuse langfuse ragas-score-traces`
+- `pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset`
+- `pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest`
+- `pnpm --dir packages/eval-langfuse langfuse sync-score-configs`
+- `pnpm --dir packages/eval-langfuse langfuse sync-datasets`
+
+Retired paths must not be used for new automation:
+
+- `run-experiment`
+- `sync-annotation-queue`
+- `export-review-results`
+- `build-online-answer-results`
+- `build-runtime-profile-results`
+- `build-score-report-from-online-answer`
+- `build-score-report-from-runtime-profile`
+- `publish-score-report`
+- `run-ragas-scoring`
+- `build-ragas-sample-batch`
+- `closeout-staging`
+- app-api `online-answer-path:collect:staging`
+- app-api Langfuse eval backlink ingest/query routes
+- Go `cmd/intent-eval-runner`
+
+## Workflow Dispatch
+
+`.github/workflows/eval-ragas-score.yml` accepts only:
+
+- `ragas-trace`
+- `ragas-dataset`
+
+The workflow installs Node, Python and uv, then runs the selected Ragas lane.
+It uploads the JSON result artifact. It is manual, not a PR required check and
+not a repo release verdict lane.
+
+`publish_langfuse_scores=false` appends `--validate-only`; this validates
+Langfuse selection, safe projection and Ragas score conversion without writing
+scores. `publish_langfuse_scores=true` allows the command to write `ragas.*`
+scores to Langfuse.
+
+## Ragas Trace Scoring
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse \
+  ragas-score-traces \
+  --trace-name <optional-trace-name> \
+  --tag <optional-trace-tag> \
+  --release <optional-release> \
+  --limit <positive-int> \
+  --runtime-config <optional-ragas-runtime-config.json> \
+  --validate-only \
+  --json
+```
+
+The TS adapter queries Langfuse traces, extracts only eval-safe fields from
+trace/observation metadata, invokes `packages/ragas-runner`, and publishes or
+validates Langfuse score payloads.
+
+## Ragas Dataset Scoring
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse \
+  ragas-score-dataset \
+  --dataset <langfuse-dataset-name> \
+  --dataset-version <optional-version> \
+  --limit <positive-int> \
+  --runtime-config <optional-ragas-runtime-config.json> \
+  --validate-only \
+  --json
+```
+
+Dataset items must be materialized before scoring. A materialized item contains
+or links to safe RAG eval projection fields: question or `user_input`, answer,
+retrieved contexts, optional retrieved/reference context ids, trace id and
+dataset item identity.
+
+Repo qrels fixtures do not contain generated answers or retrieved context text,
+so qrels-only dataset items fail closed. They can be synced as Langfuse dataset
+truth, then materialized by a dataset run or linked trace / observation before
+`ragas-score-dataset` is invoked.
+
+## Score Config Sync
+
+The registry is:
+
+```text
+packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json
+```
+
+It currently contains active `ragas.*` score configs:
+
+- `ragas.faithfulness`
+- `ragas.answer_relevancy`
+- `ragas.context_precision`
+- `ragas.context_recall`
+- `ragas.context_precision_without_reference`
+- `ragas.id_context_precision`
+- `ragas.id_context_recall`
+
+Dry-run:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse sync-score-configs \
+  --registry packages/eval-langfuse/fixtures/ops/langfuse_score_registry.v1.json \
+  --dry-run --json
+```
+
+Remove `--dry-run` to create missing Langfuse score configs.
+
+## Dataset Manifest And Sync
+
+Build a manifest from active repo RAG fixtures:
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse \
+  build-rag-dataset-manifest \
+  --output .tmp/langfuse-rag-dataset-manifest.json \
+  --json
+```
+
+The builder includes:
+
+- qrels and golden qrels fixtures as `rag_qrels`
+- answer-quality fixtures as `answer_quality`
+
+`rag_qrels` dataset items carry query identity and `reference_context_ids`.
+They deliberately do not invent `answer` or `retrieved_contexts`.
+
+```bash
+pnpm --dir packages/eval-langfuse langfuse \
+  sync-datasets \
+  --dataset-manifest <langfuse-dataset-manifest.json> \
+  --dry-run \
+  --json
+```
+
+Dataset manifests should point at repo fixtures that can become Langfuse
+dataset items. Current accepted kinds are RAG / answer-quality / agent dataset
+shapes handled by `packages/eval-langfuse/src/platform.ts`; the retired
+`online_answer_path` profile shape is not accepted.
+
+Langfuse experiments and annotation queues remain official platform workflows.
+This repo does not maintain custom experiment-manifest or review-manifest
+automation; use Langfuse SDK/UI workflows directly when those surfaces are
+needed.

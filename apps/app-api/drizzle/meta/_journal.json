@@ -372,6 +372,20 @@
       "when": 1782256320055,
       "tag": "0052_worker_autoscaler_posture",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1782604800000,
+      "tag": "0053_retire_eval_projection_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1782691200000,
+      "tag": "0054_retire_langfuse_eval_backlink_projection",
+      "breakpoints": true
     }
   ]
 }

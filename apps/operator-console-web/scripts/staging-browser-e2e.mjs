@@ -122,7 +122,6 @@ async function main() {
 		const routes = [
 			["/", "operator-shell.png"],
 			["/observability/overview", "operator-overview.png"],
-			["/observability/eval-coverage", "operator-eval-coverage.png"],
 			["/requests", "operator-requests.png"],
 			["/operations/provider-config", "operator-provider-config.png"],
 			["/officialWebSites", "operator-official-web.png"],

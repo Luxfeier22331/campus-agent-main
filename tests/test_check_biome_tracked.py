@@ -27,6 +27,7 @@ class CheckBiomeTrackedTest(unittest.TestCase):
                 "apps",
                 "packages",
                 "configs",
+                "docs/reference/eval",
                 "scripts",
                 "tests",
             ],

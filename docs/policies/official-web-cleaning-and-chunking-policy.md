@@ -353,8 +353,9 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 
 对应 machine-checkable fixture：
 
-- `packages/evals/fixtures/official_web_muc_public_pages_current_truth_inventory
-  .json`
+- historical `official_web_muc_public_pages/current_truth_inventory` fixture
+  was removed from active `packages/eval-langfuse`; recover it from git history
+  only if the mixed inventory surface is reopened with an explicit owner
 
 ## Promote / Release Truth
 

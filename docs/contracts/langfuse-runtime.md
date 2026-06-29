@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-18
+updated: 2026-06-28
 ---
 # Langfuse Runtime Observability Contract
 
@@ -14,13 +14,15 @@ This contract defines the sanitized OTel attributes that may be exported to
 Langfuse. It does not define app-api public HTTP shape, Temporal history shape
 or `packages/contracts` DTOs.
 
-Eval score publishing uses the same boundary: `packages/evals` may write
+Eval score publishing uses the same boundary: `packages/eval-langfuse` may write
 sanitized score payloads to Langfuse, but Langfuse score schemas do not become
 repo DTOs and must not leak into `packages/contracts`.
 
-RAGAS score publishing must be based on repo-owned safe eval artifacts or golden
-dataset execution results. Langfuse traces are not a source of raw answer,
-retrieved context or reference text for RAGAS scoring.
+RAGAS score publishing may be based on Langfuse traces, Langfuse datasets,
+repo-owned safe eval artifacts or golden dataset execution results. Langfuse
+traces and datasets may act as RAGAS sample sources only through repo-owned safe
+eval projection fields; they must not expose raw prompt, raw transcript,
+unrestricted source body, provider raw response or secrets.
 
 ## Trace Attributes
 
@@ -46,15 +48,31 @@ Every Langfuse-bound workflow/activity observation should provide:
 - `task_queue`
 - `activity_attempt`
 - `selected_tool`
-- `selected_tool`
 - `status`
 - `duration_ms`
 - `schedule_to_start_ms`
 - `projection_ref`
 - `fail_close_reason`
 
-RAG observations may additionally provide safe summary counts and categorical
-states. They must not include source body text or retrieved snippets.
+RAG observations may additionally provide safe summary counts, categorical
+states and Ragas-safe eval projection fields.
+
+Ragas-safe eval projection fields are explicitly allowlisted:
+
+- `eval.case_id`
+- `eval.dataset_item_id`
+- `eval.question`
+- `eval.answer`
+- `eval.retrieved_context_ids`
+- `eval.reference_context_ids`
+- `eval.retrieved_contexts`
+- `eval.reference_contexts`
+- `eval.metric_applicability`
+
+`eval.question`, `eval.answer`, `eval.retrieved_contexts` and
+`eval.reference_contexts` must be sanitized eval text, not raw prompt,
+unrestricted source body, raw transcript or provider raw response. Prefer ids
+over text whenever ids are sufficient for the selected Ragas metric.
 
 Run context envelope observations may additionally provide:
 
@@ -77,34 +95,40 @@ RAG follow-up observations may additionally provide:
 
 ## Score Payloads
 
-`online-answer-path` profile publishing sends one boolean Langfuse score per
-correlated sanitized case result.
+Active eval publishing writes Ragas-derived numeric Langfuse scores from
+sanitized trace or dataset projections. Scores are evidence for eval review;
+they are not repo-owned release verdicts.
 
 Allowed score fields:
 
 - `traceId`
-- `name`: `<profile_id>.profile`
-- `value`: `1` for pass, `0` for fail
-- `dataType`: `BOOLEAN`
+- `observationId`
+- `datasetRunId`
+- `datasetItemId`
+- `name`: registered `ragas.*` score name
+- `value`: numeric metric value
+- `dataType`: `NUMERIC`
 - `source`: `API`
-- `environment`
-- `metadata.profile_id`
 - `metadata.case_id`
+- `metadata.eval_kind`
+- `metadata.metric_key`
+- `metadata.source_kind`
 - `metadata.request_id`
 - `metadata.case_family`
 - `metadata.schema_version`
-- `metadata.grader_version`
 - `metadata.failure_class`
 
-Uncorrelated profile results are skipped rather than guessed. Langfuse request
-failures fail the publish command; they are not downgraded to warnings.
+Uncorrelated Ragas results are skipped rather than guessed. Langfuse request
+failures fail the publish command; they are not downgraded to warnings. SDK score
+writes are flushed before the publish command returns. Score environment is
+resolved by Langfuse SDK/runtime environment configuration, not by duplicating a
+repo-owned score DTO field.
 
 ## Forbidden Payloads
 
 The following values must not be exported to Langfuse:
 
 - raw prompt
-- raw answer
 - raw transcript
 - standalone query text
 - raw retrieved snippet

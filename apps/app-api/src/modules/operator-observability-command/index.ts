@@ -1,4 +1,3 @@
-export type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
 export type { TemporalTaskQueueRuntimePayload } from "../operator-runtime-observability";
 export {
 	buildOperatorObservabilityCommandService,

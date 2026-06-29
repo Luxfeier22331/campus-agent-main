@@ -89,7 +89,6 @@ Overview and runtime:
 
 - `GET /api/operator/overview`
 - `GET /api/operator/runtime/health`
-- `GET /api/operator/evals/coverage`
 
 Request detail:
 
@@ -118,8 +117,6 @@ Internal ingest and runtime projection:
 - `POST /api/internal/operator/quality/grades`
 - `POST /api/internal/operator/trace-backlinks`
 - `POST /api/internal/execution/audit-events`
-- `POST /api/internal/operator/evals/coverage-snapshots`
-- `POST /api/internal/operator/evals/diagnostic-badcases`
 - `POST /api/internal/operator/runtime/temporal-task-queue-snapshots`
 - `GET /api/internal/operator/runtime/temporal-task-queues`
 - `GET /api/internal/operator/runtime/autoscaler/actuations`
@@ -197,21 +194,6 @@ Rules:
 - `executionRuntime.blockers` contains reason-code summaries only.
 - `temporalRuntime.taskQueuePollers` exposes task queue name, type, poller count
   and health; it is not a complete Temporal visibility API.
-
-### `GET /api/operator/evals/coverage`
-
-Returns the latest published eval coverage snapshot.
-
-Rules:
-
-- Reads only `operator.eval_coverage_snapshot`.
-- No snapshot returns `404 eval_coverage_snapshot_not_found`.
-- Deterministic readiness is based on qrels coverage, maturity gaps and last
-  gate.
-- `ragasDiagnostic` is supplemental diagnostic context and does not replace the
-  deterministic release gate.
-- The endpoint does not read `.tmp`, `.planning`, local eval artifacts or object
-  storage directly. Those inputs must first be published through internal ingest.
 
 ## Request Detail
 
@@ -489,35 +471,6 @@ Rules:
 - K8s closeout reads `worker_autoscaler_posture.v1`.
 - Query responses are operator-safe projections only.
 - Runtime projection query endpoints require `x-app-internal-auth`.
-
-### `POST /api/internal/operator/evals/coverage-snapshots`
-
-Publishes `eval_coverage_snapshot.v1` into `operator.eval_coverage_snapshot`.
-
-Rules:
-
-- Payload semantics are frozen by `docs/contracts/eval-artifact.md`.
-- Panel reads snapshots only through `GET /api/operator/evals/coverage`.
-- RAGAS diagnostic context can affect diagnostic-attention display but not the
-  deterministic release gate.
-
-### `POST /api/internal/operator/evals/diagnostic-badcases`
-
-Publishes `eval_diagnostic_badcases.v1` into
-`operator.eval_diagnostic_badcase_projection`.
-
-Rules:
-
-- Source report schema is `ragas-diagnostic-combined-report.v1`.
-- Allowed `failureStage` values include `routing`, `primary_agent`, `agent`,
-  `tool`, `typed_tool`, `retrieval`, `rerank`, `selection`,
-  `evidence_selection`, `synthesis`, `grounding`, `finalization`, `replan` and
-  `diagnostic`.
-- `trajectoryAttribution` must come from `operator_step_trajectory.v1`; missing
-  trajectory or attribution must be explicit, not inferred.
-- Query path merges these rows into `GET /api/operator/quality/eval-candidates`.
-- This endpoint does not alter deterministic gate verdicts, generate benchmark
-  artifacts or create fix tasks.
 
 ### `POST /api/internal/execution/audit-events`
 

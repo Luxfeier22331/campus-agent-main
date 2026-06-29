@@ -568,7 +568,8 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - provider-native function schema
 - OpenAI Agents SDK function tool schema / model-visible catalog
 - workflow trace / execution audit 的 sanitized projection
-- `packages/evals` tool selection、argument precision 与 fail-close denominator
+- `packages/eval-langfuse` / repo-owned eval truth 中的 tool selection、argument
+  precision 与 fail-close denominator
 
 ## 长期 routing intent governance 形态
 
@@ -584,9 +585,9 @@ prompt 内部的隐式判断。
   metrics
 - `apps/execution-control` 拥有 Execution Agent Layer routing intent framing、routing
   clarification 与 handoff semantics
-- domain agent 只拥有已选定 tool 内部的 agent clarification 与执行语义
-- `packages/evals` 拥有 intent truth dataset、runner、regression gate 与 observed-case
-  promotion 协议
+- domain agent 只拥有已选定 capability family 内部的 agent clarification 与执行语义
+- repo-owned eval truth 拥有 intent dataset、regression gate 语义与 observed-case
+  promotion 协议；具体 runner / platform automation 默认走 TS eval runtime 与 Langfuse
 
 长期 intent policy / classifier 规则必须由 repo-owned artifact 治理，而不是散落在 runtime
 源码中的匿名 signal list。该 artifact 至少固定 policy artifact schema version、runtime
@@ -648,8 +649,9 @@ suite family 固定为：
 
 观测驱动治理链路固定为：
 
-`request observability fact -> operator review / sampled grade -> intent case mining
--> packages/evals observed_regression -> release gate / version compat report`
+`request observability fact -> operator review / sampled grade -> intent case
+mining -> repo-owned observed_regression truth -> TS/Langfuse eval lane ->
+release gate / version compat report`
 
 该链路只能回流 sanitized routing / outcome / review summary，不得把 raw prompt、raw answer、
 raw transcript、auth material 或 provider raw response 作为 Operator Console truth
@@ -663,8 +665,14 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
 
 固定 owner 如下：
 
-- `packages/evals` 拥有 eval truth、case schema、runner、artifact、grader adapter、
-  release gate 与 golden / regression admission lifecycle
+- repo-owned eval truth 拥有 golden cases、qrels、case schema、review/admission
+  policy、metric semantics 与 release verdict authority
+- TS eval runtime / `packages/eval-langfuse` 拥有目标 runner、score report、
+  Langfuse platform sync、score publishing、release evidence 与 review automation
+- 旧 `packages/evals` package 已从 active workspace 退役；Langfuse-bound fixture
+  truth 已收口到 `packages/eval-langfuse/fixtures`，runtime-local truth 放在 owning
+  runtime testdata。旧 Python fixture loader、deterministic scorer 与
+  `scripts.eval_gate` release gate 已退役
 - `apps/app-api` 拥有 internal eval ingress、request correlation、quality grade /
   trace backlink ingest 与 operator-facing projection，不拥有 golden truth
 - Operator Console 只承担 operator review / triage UX；它可以发起受控 review
@@ -672,8 +680,8 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
   `operator-console-web` 或后续统一后的 operator console package。
 - `apps/execution-control` 与 domain agent 只产出 execution / trace / outcome
   facts，不写 eval truth
-- OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader、
-  trace/debug sink 或 analysis input，不成为 repo canonical eval truth
+- OpenAI Evals / graders / tracing、RAGAS、Sentry、Axiom 等外部工具只能作为 grader /
+  eval scorer、trace/debug sink 或 analysis input，不成为 repo canonical eval truth
 
 长期 eval lifecycle 固定为：
 
@@ -681,7 +689,7 @@ lifecycle。它必须和 runtime observability、operator review、golden truth 
 app-api operator candidate projection ->
 eval-owned review / dedupe / admission ->
 golden or observed regression case ->
-deterministic + supplemental gate ->
+TS/Langfuse deterministic + supplemental gate ->
 accepted artifact ->
 optional app-api grade / backlink publish ->
 operator observability rollup`
@@ -740,7 +748,8 @@ operator observability rollup`
 
 外部 agent / trace 工具可以降低 trace capture 与 grader adapter 的实现成本，但不能成为
 `workflow_trace` 的 canonical truth；repo-owned case fixture、expected truth、artifact
-projection 与 release verdict 仍由 `packages/evals` 拥有。
+projection 与 release verdict 仍由 repo-owned eval truth 拥有，目标 runner / publish
+automation 由 TS/Langfuse lane 承接。
 
 长期评分分层固定为：
 

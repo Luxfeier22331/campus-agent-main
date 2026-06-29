@@ -306,6 +306,9 @@ func (s *Server) WriteFinalizationActivity(
 	if err != nil {
 		return temporalruntime.WriteFinalizationActivityOutput{}, err
 	}
+	if err := s.emitRagasEvalProjection(ctx, run, finalizedResponse); err != nil {
+		return temporalruntime.WriteFinalizationActivityOutput{}, err
+	}
 	if err := s.appendTemporalRunEvent(ctx, execution.DurableRunEvent{
 		EventID:              run.RunID + ":finalization-completed",
 		RunID:                run.RunID,

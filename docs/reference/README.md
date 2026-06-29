@@ -17,8 +17,13 @@ updated: 2026-06-29
 - `runtime-serving-and-index-terms.md`
   - 包含 `RetrievalPlan`、`Query Activity`、`Supporting Evidence`、`Freshness Gate` 等长期术语
 - `testing-and-verification-lanes.md`
+- `eval.md`
+  - Active eval shape: Langfuse/Ragas lanes, fixture semantics and operator
+    coverage projection contract.
+- `eval-map.md`
+  - eval lane cases、observation producer、pass/fail rule 与 Langfuse score name
+    的迁移控制表；不替代 ADR-0061
 - `eval-gold-truth-model.md`
-- `golden-dataset-case-matrix.md`
 - `runtime-otel-telemetry-taxonomy.md`
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`

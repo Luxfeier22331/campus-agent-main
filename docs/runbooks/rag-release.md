@@ -67,11 +67,13 @@ projection are present, including `entitlement_groups`, `visibility_scope`,
    current serving collection is the intended release.
 1. Record collection schema, point count, payload sample and registry backlink
    sample.
-1. Run collection-specific hybrid query fixture.
-1. Run retrieval qrels scorer against explicit run results.
-1. Run deterministic workflow / status release gate and error gate where the
-   collection has scenarios.
-1. Save one sanitized release acceptance result for coverage / qrels tooling.
+1. Sync Langfuse-bound qrels / answer-quality fixtures when the denominator
+   changed.
+1. Materialize safe trace or dataset projection from the real runtime path.
+1. Run Ragas trace or materialized-dataset scoring in validate-only mode before
+   publishing scores.
+1. Save one sanitized release acceptance result for runtime-owner closeout and
+   Langfuse/Ragas evidence.
 
 Expected result artifact names:
 
@@ -82,19 +84,15 @@ Expected result artifact names:
 
 `student_rules`:
 
-- hybrid fixture:
-  `packages/evals/fixtures/rag/student_rules/hybrid_queries.json`
 - retrieval qrels:
-  `packages/evals/fixtures/rag/student_rules/retrieval_qrels.json`
+  `packages/eval-langfuse/fixtures/rag/student_rules/retrieval_qrels.json`
 - release acceptance interpretation:
   `../reference/student-handbook-eval-metrics.md`
 
 `curriculum/curriculum_plan`:
 
-- hybrid fixture:
-  `packages/evals/fixtures/rag/curriculum_plan/hybrid_queries.json`
 - retrieval qrels:
-  `packages/evals/fixtures/rag/curriculum_plan/retrieval_qrels.json`
+  `packages/eval-langfuse/fixtures/rag/curriculum_plan/retrieval_qrels.json`
 - release acceptance interpretation:
   `../reference/curriculum-plan-eval-metrics.md`
 
@@ -103,23 +101,25 @@ Expected result artifact names:
 Repo-tracked automated baseline:
 
 ```bash
-uv run --all-packages python -m unittest \
-  tests.evals.test_retrieval_benchmark \
-  tests.evals.test_golden_cases
+uv run --all-packages python -m scripts.langfuse_eval_audit audit --json
 ```
 
-Retrieval benchmark scorer:
+Ragas scoring lanes:
 
 ```bash
-uv run --all-packages python -m campus_evals.retrieval_benchmark \
-  --qrels <qrels.json> \
-  --results <run-results.json>
+pnpm --dir packages/eval-langfuse langfuse ragas-score-traces --validate-only --json
+pnpm --dir packages/eval-langfuse langfuse ragas-score-dataset \
+  --dataset <dataset-name> --validate-only --json
 ```
 
-Workflow / status deterministic gate:
+Dataset and score config sync dry-run:
 
 ```bash
-uv run --all-packages python -m unittest tests.evals.test_golden_cases
+pnpm --dir packages/eval-langfuse langfuse build-rag-dataset-manifest \
+  --output .tmp/langfuse-rag-dataset-manifest.json --json
+pnpm --dir packages/eval-langfuse langfuse sync-datasets \
+  --dataset-manifest .tmp/langfuse-rag-dataset-manifest.json --dry-run --json
+pnpm --dir packages/eval-langfuse langfuse sync-score-configs --dry-run --json
 ```
 
 ## Evidence Template
