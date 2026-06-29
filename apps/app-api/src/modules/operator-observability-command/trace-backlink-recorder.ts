@@ -1,4 +1,5 @@
 import type { Env } from "../../config";
+import { formatOperatorToolDomainBucket } from "../operator-target-labels";
 import type { OperatorObservabilityCommandService } from "./service";
 
 const TEMPLATE_PLACEHOLDER_PATTERN =
@@ -79,7 +80,10 @@ function buildIssueFingerprint(input: OperatorTraceBacklinkRecordInput): string 
 
 	return [
 		normalizeFingerprintPart(input.errorCode, "unknown_error"),
-		normalizeFingerprintPart(input.selectedTool ?? input.surface, "app_api"),
+		normalizeFingerprintPart(
+			formatOperatorToolDomainBucket(input.selectedTool) ?? input.surface,
+			"app_api",
+		),
 	].join(":");
 }
 

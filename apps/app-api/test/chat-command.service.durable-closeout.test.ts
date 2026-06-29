@@ -355,7 +355,7 @@ describe("chat command durable stream closeout", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",

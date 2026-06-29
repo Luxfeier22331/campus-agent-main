@@ -268,13 +268,13 @@ function parseTransportStatusDepartureStatus(value: string): CampusTransportDepa
 	}
 }
 
-function readRecord(value: unknown): StructuredQueryRecord | null {
+function readRecord(value: unknown): ToolReadModelRecord | null {
 	return value && typeof value === "object" && !Array.isArray(value)
-		? (value as StructuredQueryRecord)
+		? (value as ToolReadModelRecord)
 		: null;
 }
 
-function requireRecord(value: unknown, field: string): StructuredQueryRecord {
+function requireRecord(value: unknown, field: string): ToolReadModelRecord {
 	const record = readRecord(value);
 	if (!record) {
 		throw invalidTransportStatusProjection(field);
@@ -310,7 +310,7 @@ function toRouteError(error: ExecutionControlTransportError): AppApiRouteError {
 	});
 }
 
-function toRouteErrorFromEnvelope(parsed: StructuredQueryRecord, status: number): AppApiRouteError {
+function toRouteErrorFromEnvelope(parsed: ToolReadModelRecord, status: number): AppApiRouteError {
 	const envelope = parseExecutionControlErrorEnvelope(parsed, status);
 	return new AppApiRouteError({
 		code: envelope.code,

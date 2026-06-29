@@ -56,9 +56,22 @@ explicitly admitted by the data owner docs.
 pnpm install
 pnpm --dir apps/app-api dev
 pnpm --dir apps/app-api test
+pnpm --dir apps/app-api test:node
 pnpm --dir apps/app-api test:worker
+pnpm --dir apps/app-api test:shared-db-integration
+pnpm --dir apps/app-api test:official-web-shared-db-integration
 pnpm --dir apps/app-api typecheck
 ```
+
+Shared product database bootstrap and reconciliation entry points live under
+`apps/app-api/scripts/`:
+
+- `bootstrap-shared-product-with-seeds.mjs`
+- `ensure-app-auth-role-search-path.mjs`
+- `reconcile-shared-db-drift.mjs`
+- `drain-official-web-projection.ts`
+
+The fixed shared product schemas include `app_auth.*` and `chat.*`.
 
 Local Wrangler / Drizzle process env lives in `apps/app-api/.env`; Worker string
 env for local runtime lives in `apps/app-api/.dev.vars`. When root `.env`

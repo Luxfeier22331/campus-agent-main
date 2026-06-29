@@ -8,7 +8,7 @@ import {
 	createConversation,
 	createConversationStore,
 	createDeterministicIdGenerator,
-	createExecutionRuntimeFromCapabilityClient,
+	createExecutionRuntimeFromToolClient,
 	createPrincipal,
 	type FinalizeRequestWrite,
 } from "./chat-command.service.test-support";
@@ -77,7 +77,7 @@ describe("chat command service", () => {
 						],
 					},
 				},
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				status: "completed",
 				traceId: "trace_0001",
 			})
@@ -86,11 +86,11 @@ describe("chat command service", () => {
 				error: null,
 				followUpQuestion: "",
 				result: {},
-				selectedCapability: null,
+				selectedTool: null,
 				status: "completed",
 				traceId: "trace_0002",
 			});
-		const executionRuntime = createExecutionRuntimeFromCapabilityClient({ execute });
+		const executionRuntime = createExecutionRuntimeFromToolClient({ execute });
 		const service = buildChatCommandService({
 			generateId: createDeterministicIdGenerator(),
 			now: () => new Date("2026-04-27T09:00:00.000Z"),

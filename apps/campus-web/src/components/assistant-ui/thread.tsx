@@ -265,7 +265,7 @@ const ComposerAction: FC = () => {
 		<div className="aui-composer-action-wrapper relative flex items-center justify-between">
 			{allowAttachments ? <ComposerAddAttachment /> : <span aria-hidden />}
 			<div className="flex items-center gap-1.5">
-				<AuiIf condition={(s) => s.thread.tools.dictation}>
+				<AuiIf condition={(s) => s.thread.capabilities.dictation}>
 					<AuiIf condition={(s) => s.composer.dictation == null}>
 						<ComposerPrimitive.Dictate asChild>
 							<TooltipIconButton

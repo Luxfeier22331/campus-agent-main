@@ -28,8 +28,8 @@ describe("provider config service", () => {
 				defaultValidatePromptProvider({
 					apiKey: "provider-key",
 					baseUrl: "https://provider.example/v1",
-					capabilityConfig: {},
 					dimensions: null,
+					featureConfig: {},
 					model: "gpt-compatible",
 					provider: "openai-compatible",
 					role: "primary_agent",
@@ -61,8 +61,8 @@ describe("provider config service", () => {
 				defaultValidatePromptProvider({
 					apiKey: "provider-key",
 					baseUrl: "https://provider.example/v1",
-					capabilityConfig: {},
 					dimensions: null,
+					featureConfig: {},
 					model: "gpt-compatible",
 					provider: "openai-compatible",
 					role: "primary_agent",
@@ -100,8 +100,8 @@ describe("provider config service", () => {
 				defaultValidatePromptProvider({
 					apiKey: "provider-key",
 					baseUrl: "https://provider.example/v1",
-					capabilityConfig: {},
 					dimensions: null,
+					featureConfig: {},
 					model: "gpt-compatible",
 					provider: "openai-compatible",
 					role: "primary_agent",

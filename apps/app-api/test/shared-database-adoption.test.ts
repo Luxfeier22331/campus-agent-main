@@ -645,7 +645,7 @@ DROP COLUMN "actor_groups_json";`),
 		);
 	});
 
-	it("recognizes Postgres-truncated long index names as existing indexes", () => {
+	it("reports non-matching index names as drift instead of treating them as truncation", () => {
 		const inventory = makeInventory({
 			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
 			tables: [...latestSpecs.keys()].map((qualifiedName) => {
@@ -679,7 +679,7 @@ DROP COLUMN "actor_groups_json";`),
 					"runtime.request_observability_fact@runtime_request_observability_selected_tool_started_at_idx",
 			),
 		).toBe(false);
-		expect(plan.mismatches).not.toContain(
+		expect(plan.mismatches).toContain(
 			"runtime.request_observability_fact missing index runtime_request_observability_selected_tool_started_at_idx",
 		);
 	});

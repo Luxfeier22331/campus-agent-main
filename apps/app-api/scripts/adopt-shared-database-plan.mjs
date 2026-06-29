@@ -331,6 +331,23 @@ function latestSnapshotKeepsIndex(expectedLatestTables, target) {
 	);
 }
 
+function latestSnapshotHasRenamedIndex(expectedLatestTables, target, renameIndexTargetBySourceKey) {
+	if (target.kind !== "index") {
+		return false;
+	}
+	const renamedIndex = renameIndexTargetBySourceKey.get(`${target.schema}@${target.index}`);
+	if (!renamedIndex) {
+		return false;
+	}
+
+	for (const table of expectedLatestTables.values()) {
+		if (table.schema === target.schema && table.indexes.has(renamedIndex)) {
+			return true;
+		}
+	}
+	return false;
+}
+
 function shouldApplyStatement(
 	inventory,
 	target,
@@ -339,6 +356,8 @@ function shouldApplyStatement(
 	migrationHasPlannedStructuralStatement,
 	renameColumnSourceKeys,
 	renameIndexSourceKeys,
+	renameIndexTargetBySourceKey,
+	originalTableKeys,
 ) {
 	if (target.kind === "drop_index") {
 		const actualIndex = findInventoryIndex(inventory, target);
@@ -353,6 +372,12 @@ function shouldApplyStatement(
 	}
 	if (target.kind === "index") {
 		if (
+			originalTableKeys.has(qualifyTable(target.schema, target.table)) &&
+			latestSnapshotHasRenamedIndex(expectedLatestTables, target, renameIndexTargetBySourceKey)
+		) {
+			return false;
+		}
+		if (
 			!(
 				latestSnapshotKeepsIndex(expectedLatestTables, target) ||
 				targetExists(inventory, target) ||
@@ -362,6 +387,12 @@ function shouldApplyStatement(
 			return false;
 		}
 		return !targetExists(inventory, target);
+	}
+	if (target.kind === "rename_index") {
+		if (targetExists(inventory, target)) {
+			return false;
+		}
+		return inventoryHasSchemaIndex(inventory, target.schema, target.fromIndex);
 	}
 	if (target.kind === "table" && !latestSnapshotKeepsTable(expectedLatestTables, target)) {
 		return false;
@@ -609,6 +640,7 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 	const renameIndexTargetBySourceKey = new Map();
 	const renameColumnSourceKeys = new Set();
 	const renameColumnTargetBySourceKey = new Map();
+	const originalTableKeys = new Set(inventory.tables.keys());
 	for (const migration of migrationContext.migrations) {
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
@@ -651,6 +683,8 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 					migrationHasPlannedStructuralStatement,
 					renameColumnTargetAlreadyExists ? new Set() : renameColumnSourceKeys,
 					renameTargetAlreadyExists ? new Set() : renameIndexSourceKeys,
+					renameIndexTargetBySourceKey,
+					originalTableKeys,
 				)
 			) {
 				statements.push({

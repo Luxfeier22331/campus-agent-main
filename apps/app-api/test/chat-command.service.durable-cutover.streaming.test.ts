@@ -521,7 +521,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 	it("streams durable run cancellation as a cancelled terminal event", async () => {
 		const { store, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();
-		const supervisor: CapabilityExecutionClient = {
+		const supervisor: ToolExecutionClient = {
 			execute: vi.fn(),
 			executeStream: vi.fn(),
 		};
@@ -537,9 +537,9 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 				lane: "rag",
 				ownerUserId: "user_01HQ",
 				requestId: "req_0001",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 				runId: "run_0001",
-				selectedCapability: "knowledge",
+				selectedTool: "knowledge_query",
 				startedAt: "",
 				status: "queued",
 				streamingStartedAt: "",
@@ -599,7 +599,7 @@ describe("chat command durable runtime cutover failure and streaming", () => {
 			payload: {
 				conversationId: "conv_01HQ",
 				prompt: "中央民族大学本科学生国家奖学金评审办法",
-				requestedCapability: "knowledge",
+				requestedTool: "knowledge_query",
 			},
 			principal: createPrincipal(),
 			surface: "campus_web",
