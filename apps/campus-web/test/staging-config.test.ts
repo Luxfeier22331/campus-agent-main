@@ -48,6 +48,8 @@ describe("campus web staging config", () => {
 		expect(stagingBrowserE2ESource).toContain("/api/internal/staging-smoke/auth/session");
 		expect(stagingBrowserE2ESource).toContain("E2E_QA_EVIDENCE_DIR");
 		expect(stagingBrowserE2ESource).toContain("campus-browser-e2e.json");
+		expect(stagingBrowserE2ESource).toContain('page.goto("/",');
+		expect(stagingBrowserE2ESource).not.toContain('page.goto("/chat"');
 		expect(stagingBrowserE2ESource).toContain("/api/chat/runs/");
 		expect(stagingBrowserE2ESource).toContain("/docs/regulations/student_rules/");
 		expect(packageScripts["browser:e2e:staging"]).toBeUndefined();

@@ -180,7 +180,7 @@ async function expectNoBrokenNetwork(records: NetworkRecord[]) {
 }
 
 async function sendChatPrompt(page: Page, prompt: string, timeoutMs: number) {
-	await page.goto("/chat", { waitUntil: "domcontentloaded" });
+	await page.goto("/", { waitUntil: "domcontentloaded" });
 	const textbox = page.getByRole("textbox").first();
 	await textbox.waitFor({ timeout: timeoutMs });
 	await textbox.fill(prompt);
