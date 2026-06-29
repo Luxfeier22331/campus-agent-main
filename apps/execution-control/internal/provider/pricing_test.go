@@ -6,6 +6,36 @@ import (
 	"testing"
 )
 
+func TestRuntimePricingCatalogCoversLinuxDoGPT55(t *testing.T) {
+	catalog, err := LoadPricingCatalog(filepath.Join(
+		"..",
+		"..",
+		"..",
+		"..",
+		"configs",
+		"runtime",
+		"provider-pricing.v1.json",
+	))
+	if err != nil {
+		t.Fatalf("load runtime pricing catalog: %v", err)
+	}
+
+	cost, err := catalog.EstimateCostMicroUSD(Usage{
+		CachedInputTokens: 200,
+		InputTokens:       1000,
+		ModelName:         "gpt-5.5",
+		ModelProvider:     "openai-compatible",
+		OutputTokens:      500,
+	})
+	if err != nil {
+		t.Fatalf("estimate linux.do gpt-5.5 cost: %v", err)
+	}
+
+	if cost != 19100 {
+		t.Fatalf("estimated cost = %d, want 19100", cost)
+	}
+}
+
 func TestPricingCatalogComputesEstimatedCost(t *testing.T) {
 	path := writePricingCatalogForTest(t, `{
 		"schema_version":"provider-pricing-v1",

@@ -36,6 +36,13 @@
 			"input_microusd_per_1k_tokens": 5000,
 			"cached_input_microusd_per_1k_tokens": 500,
 			"output_microusd_per_1k_tokens": 30000
+		},
+		{
+			"provider": "openai-compatible",
+			"model": "gpt-5.5",
+			"input_microusd_per_1k_tokens": 5000,
+			"cached_input_microusd_per_1k_tokens": 500,
+			"output_microusd_per_1k_tokens": 30000
 		}
 	]
 }

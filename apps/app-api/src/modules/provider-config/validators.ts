@@ -106,17 +106,17 @@ function recordFromUnknown(value: unknown): Record<string, unknown> | undefined 
 
 function responsesOutputTextFromSdkCompatibleOutput(outputValue: unknown): string | undefined {
 	if (!Array.isArray(outputValue)) {
-		return undefined;
+		return;
 	}
 	for (const itemValue of outputValue) {
 		const item = recordFromUnknown(itemValue);
 		if (item?.type !== "message") {
 			if (item?.type === "function_call" && !responsesStatusLooksSdkCompatible(item.status)) {
-				return undefined;
+				return;
 			}
 			continue;
 		}
-		if (!responsesStatusLooksSdkCompatible(item.status) || !Array.isArray(item.content)) {
+		if (!(responsesStatusLooksSdkCompatible(item.status) && Array.isArray(item.content))) {
 			continue;
 		}
 		for (const partValue of item.content) {
@@ -126,7 +126,7 @@ function responsesOutputTextFromSdkCompatibleOutput(outputValue: unknown): strin
 			}
 		}
 	}
-	return undefined;
+	return;
 }
 
 function promptValidationUrl(input: Parameters<ProviderConfigValidators["validatePrompt"]>[0]) {

@@ -813,11 +813,11 @@ describe("provider config service", () => {
 				status: "failed",
 			},
 		});
-		await expect(
-			service.getActiveRuntimeSnapshot({ role: "primary_agent" }),
-		).rejects.toMatchObject({
-			code: "provider_profile_missing",
-		});
+		await expect(service.getActiveRuntimeSnapshot({ role: "primary_agent" })).rejects.toMatchObject(
+			{
+				code: "provider_profile_missing",
+			},
+		);
 	});
 
 	it("resolves Hindsight LLM active projection snapshots", async () => {
