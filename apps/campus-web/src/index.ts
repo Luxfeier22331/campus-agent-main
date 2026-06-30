@@ -86,6 +86,7 @@ const SHELL_EXACT_PATHS = new Set([
 	"/account/register",
 	"/account/forgot-password",
 	"/account/reset-password",
+	"/account/sign-out",
 	"/account/settings/account",
 	"/account/settings/security",
 	"/account/federation/consent",

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
+import { DocsBootstrapStatus } from "./docs-bootstrap-status";
 
 interface DocsNavigationResponse {
 	collection: {
@@ -72,31 +73,39 @@ export default function GatedCollectionBootstrap() {
 	}, []);
 
 	if (state.status === "loading") {
-		return <div className="reader-bootstrap-status">正在读取文档目录</div>;
+		return <DocsBootstrapStatus kind="loading" title="正在读取文档目录" />;
 	}
 	if (state.status === "not_found") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>无法打开文档目录</h1>
-				<p>请确认当前账号可以访问这个目录。</p>
-			</div>
+			<DocsBootstrapStatus
+				description="请确认当前账号可以访问这个目录。"
+				kind="not_found"
+				title="无法打开文档目录"
+			/>
 		);
 	}
 	if (state.status === "unauthorized") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>请先登录</h1>
-				<p>登录后继续打开这个文档目录。</p>
-				<a href={resolveLoginHref()}>登录后继续</a>
-			</div>
+			<DocsBootstrapStatus
+				action={<a href={resolveLoginHref()}>登录后继续</a>}
+				description="登录后继续打开这个文档目录。"
+				kind="unauthorized"
+				title="请先登录"
+			/>
 		);
 	}
 	if (state.status === "unavailable") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>文档目录暂不可用</h1>
-				<p>请稍后重试。</p>
-			</div>
+			<DocsBootstrapStatus
+				action={
+					<button type="button" onClick={() => window.location.reload()}>
+						重试
+					</button>
+				}
+				description="请稍后重试。"
+				kind="unavailable"
+				title="文档目录暂不可用"
+			/>
 		);
 	}
 

@@ -1,4 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { LayoutGroup, motion } from "motion/react";
 import { useState } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -7,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { stateSwap } from "@/components/ui/motion";
 import {
 	Select,
 	SelectContent,
@@ -92,7 +94,7 @@ export function FeedbackPage() {
 					</CardTitle>
 				</CardHeader>
 				<CardContent>
-					<form className="space-y-5">
+					<motion.form className="space-y-5" layout>
 						<Controller
 							control={form.control}
 							name="category"
@@ -116,7 +118,13 @@ export function FeedbackPage() {
 						/>
 						<div className="grid gap-2">
 							<Label htmlFor="feedback-route-context">当前页面</Label>
-							<Input id="feedback-route-context" {...form.register("routeContext")} />
+							<output
+								className="rounded-md border border-border bg-muted px-3 py-2 text-sm leading-6 text-[var(--sys-text-muted)]"
+								id="feedback-route-context"
+							>
+								{form.getValues("routeContext")}
+							</output>
+							<input type="hidden" {...form.register("routeContext")} />
 						</div>
 						<div className="grid gap-2">
 							<Label htmlFor="feedback-body">问题描述</Label>
@@ -135,8 +143,20 @@ export function FeedbackPage() {
 								{...form.register("contact")}
 							/>
 						</div>
-						{error ? <Alert variant="destructive">{error}</Alert> : null}
-						{receivedId ? <Alert>已收到：{receivedId}</Alert> : null}
+						<LayoutGroup>
+							<motion.div aria-live="polite" className="grid gap-2" layout>
+								{error ? (
+									<motion.div key="feedback-error" layout {...stateSwap}>
+										<Alert variant="destructive">{error}</Alert>
+									</motion.div>
+								) : null}
+								{receivedId ? (
+									<motion.div key="feedback-received" layout {...stateSwap}>
+										<Alert>已收到：{receivedId}</Alert>
+									</motion.div>
+								) : null}
+							</motion.div>
+						</LayoutGroup>
 						<Button
 							disabled={submitting || !body.trim()}
 							onClick={form.handleSubmit(handleSubmit)}
@@ -144,7 +164,7 @@ export function FeedbackPage() {
 						>
 							{submitting ? "提交中" : "提交反馈"}
 						</Button>
-					</form>
+					</motion.form>
 				</CardContent>
 			</Card>
 		</section>

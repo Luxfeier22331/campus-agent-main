@@ -8,7 +8,9 @@ import {
 import { useCallback, useEffect, useRef, useState } from "react";
 import { UnauthorizedError } from "@/platform/api/client";
 import {
+	ChatStreamRequestError,
 	cancelRun,
+	deleteTrailingMessages,
 	getConversationDetail,
 	resumeRunEventsStream,
 	submitChatRequestStream,
@@ -39,15 +41,25 @@ interface TypewriterState {
 	visibleLength: number;
 }
 
-export function createCampusAssistantRuntimeHook(input: { onLoginRequired: () => void }) {
+export function createCampusAssistantRuntimeHook(input: {
+	hasSession: boolean;
+	onLoginRequired: () => void;
+}) {
 	return function useCampusAssistantExternalStoreRuntime() {
 		return useCampusAssistantRuntimeState({
+			hasSession: input.hasSession,
 			onLoginRequired: input.onLoginRequired,
 		});
 	};
 }
 
-function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: () => void }) {
+function useCampusAssistantRuntimeState({
+	hasSession,
+	onLoginRequired,
+}: {
+	hasSession: boolean;
+	onLoginRequired: () => void;
+}) {
 	const aui = useAui();
 	const remoteId = useAuiState((state) => state.threadListItem.remoteId);
 	const [isLoading, setIsLoading] = useState(false);
@@ -96,6 +108,22 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 			window.clearInterval(current.intervalId);
 		}
 		typewriterRef.current = null;
+	}, []);
+
+	const appendLocalErrorMessage = useCallback((error: ChatStreamRequestError) => {
+		const messageId = error.requestId
+			? `local-error-${error.requestId}`
+			: `local-error-${crypto.randomUUID()}`;
+		const text = error.message.trim() || "请求失败，请稍后重试。";
+		setMessages((current) => [
+			...current,
+			{
+				content: [{ text, type: "text" }],
+				createdAt: new Date(),
+				id: messageId,
+				role: "assistant",
+			},
+		]);
 	}, []);
 
 	const finishTypewriter = useCallback(() => {
@@ -199,6 +227,24 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 		async (event: ChatRequestStreamEvent) => {
 			const conversationId =
 				event.data.answer?.conversation.id ?? activeRun?.conversationId ?? remoteId;
+			if (event.event === "request.failed" && event.data.error) {
+				clearTypewriter();
+				appendLocalErrorMessage(
+					new ChatStreamRequestError({
+						code: event.data.error.code,
+						message: event.data.error.message,
+						requestId: event.data.requestId,
+						retryable: event.data.error.retryable ?? true,
+						traceId: event.data.traceId,
+					}),
+				);
+				setIsRunning(false);
+				if (conversationId && locallyInitializedRunConversationIdRef.current === conversationId) {
+					locallyInitializedRunConversationIdRef.current = null;
+				}
+				setActiveRun(null);
+				return;
+			}
 			if (event.data.answer) {
 				const terminalMessages = toAssistantThreadMessages(event.data.answer.conversation);
 				const activeTypewriter = typewriterRef.current;
@@ -221,7 +267,13 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 			}
 			setActiveRun(null);
 		},
-		[activeRun?.conversationId, clearTypewriter, fetchConversationMessages, remoteId],
+		[
+			activeRun?.conversationId,
+			appendLocalErrorMessage,
+			clearTypewriter,
+			fetchConversationMessages,
+			remoteId,
+		],
 	);
 
 	const applyAnswerDelta = useCallback(
@@ -309,40 +361,53 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 		[applyAnswerDelta, applyTerminalEvent, clearTypewriter],
 	);
 
-	const onNew = useCallback(
-		async (message: AppendMessage) => {
-			const prompt = readTextContent(message).trim();
+	const runPrompt = useCallback(
+		async (input: {
+			conversationId: string | undefined;
+			messageContent: AppendMessage["content"];
+			prompt: string;
+			truncateFromMessageId?: string;
+		}) => {
+			const prompt = input.prompt.trim();
 			if (!prompt) {
 				throw new Error("Message text is required.");
 			}
-			const existingRemoteId = remoteId;
-			const conversationId =
-				existingRemoteId ?? (await aui.threadListItem().initialize()).remoteId ?? undefined;
-			if (!existingRemoteId && conversationId) {
-				locallyInitializedRunConversationIdRef.current = conversationId;
+			if (!hasSession) {
+				onLoginRequired();
+				return;
 			}
 			abortControllerRef.current?.abort();
 			const controller = new AbortController();
 			abortControllerRef.current = controller;
 			pendingCancelBeforeRunRef.current = false;
-			setMessages((current) => [
-				...current,
-				{
-					content: message.content,
-					createdAt: new Date(),
-					role: "user",
-				},
-			]);
+			if (input.truncateFromMessageId) {
+				setMessages((current) =>
+					current.slice(
+						0,
+						Math.max(
+							current.findIndex((message) => message.id === input.truncateFromMessageId),
+							0,
+						),
+					),
+				);
+			}
+			setMessages((current) => [...current, localUserMessage(input.messageContent)]);
 			setIsRunning(true);
 
 			try {
+				if (input.truncateFromMessageId && input.conversationId) {
+					await deleteTrailingMessages({
+						conversationId: input.conversationId,
+						messageId: input.truncateFromMessageId,
+					});
+				}
 				await consumeLifecycleStream(
 					submitChatRequestStream({
-						conversationId,
+						conversationId: input.conversationId,
 						prompt,
 						signal: controller.signal,
 					}),
-					conversationId,
+					input.conversationId,
 				);
 			} catch (error) {
 				setIsRunning(false);
@@ -354,10 +419,71 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 				if (isAbortError(error)) {
 					return;
 				}
+				if (error instanceof ChatStreamRequestError) {
+					clearTypewriter();
+					pendingCancelBeforeRunRef.current = false;
+					appendLocalErrorMessage(error);
+					return;
+				}
 				throw error;
 			}
 		},
-		[aui.threadListItem, consumeLifecycleStream, onLoginRequired, remoteId],
+		[appendLocalErrorMessage, clearTypewriter, consumeLifecycleStream, hasSession, onLoginRequired],
+	);
+
+	const onNew = useCallback(
+		async (message: AppendMessage) => {
+			if (!hasSession) {
+				onLoginRequired();
+				return;
+			}
+			const existingRemoteId = remoteId;
+			const conversationId =
+				existingRemoteId ?? (await aui.threadListItem().initialize()).remoteId ?? undefined;
+			if (!existingRemoteId && conversationId) {
+				locallyInitializedRunConversationIdRef.current = conversationId;
+			}
+			await runPrompt({
+				conversationId,
+				messageContent: message.content,
+				prompt: readTextContent(message),
+			});
+		},
+		[aui.threadListItem, hasSession, onLoginRequired, remoteId, runPrompt],
+	);
+
+	const onEdit = useCallback(
+		async (message: AppendMessage) => {
+			const conversationId = remoteId;
+			const truncateFromMessageId = message.parentId;
+			await runPrompt({
+				conversationId,
+				messageContent: message.content,
+				prompt: readTextContent(message),
+				truncateFromMessageId: truncateFromMessageId ?? undefined,
+			});
+		},
+		[remoteId, runPrompt],
+	);
+
+	const onReload = useCallback(
+		async (parentId: string | null) => {
+			if (!parentId) {
+				return;
+			}
+			const parentMessage = messages.find((message) => message.id === parentId);
+			const prompt = readMessageText(parentMessage).trim();
+			if (!prompt) {
+				return;
+			}
+			await runPrompt({
+				conversationId: remoteId,
+				messageContent: [{ text: prompt, type: "text" }],
+				prompt,
+				truncateFromMessageId: parentId,
+			});
+		},
+		[messages, remoteId, runPrompt],
 	);
 
 	const onCancel = useCallback(async () => {
@@ -416,11 +542,31 @@ function useCampusAssistantRuntimeState({ onLoginRequired }: { onLoginRequired: 
 		isRunning,
 		messages,
 		onCancel,
+		onEdit,
 		onNew,
+		onReload,
 		onResume,
 	});
 
 	return runtime;
+}
+
+function localUserMessage(content: AppendMessage["content"]): ThreadMessageLike {
+	return {
+		content: typeof content === "string" ? [{ text: content, type: "text" }] : content,
+		createdAt: new Date(),
+		role: "user",
+	};
+}
+
+function readMessageText(message: ThreadMessageLike | undefined): string {
+	if (!message) {
+		return "";
+	}
+	if (typeof message.content === "string") {
+		return message.content;
+	}
+	return message.content.map((part) => (part.type === "text" ? part.text : "")).join("");
 }
 
 function readTextContent(message: AppendMessage): string {

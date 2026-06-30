@@ -187,7 +187,7 @@ const Sidebar = React.forwardRef<
 					<SheetContent
 						data-sidebar="sidebar"
 						data-mobile="true"
-						className="w-(--sidebar-width) bg-sidebar p-0 text-sidebar-foreground [&_[data-sidebar=header]]:pr-12"
+						className="w-(--sidebar-width) max-w-[calc(100vw-1rem)] bg-sidebar p-0 text-sidebar-foreground [&_[data-sidebar=header]]:pr-12"
 						closeLabel="关闭聊天记录"
 						style={
 							{
@@ -265,7 +265,7 @@ const SidebarTrigger = React.forwardRef<
 			data-sidebar="trigger"
 			variant="ghost"
 			size="icon"
-			className={cn("h-7 w-7", className)}
+			className={cn("size-11", className)}
 			onClick={(event) => {
 				onClick?.(event);
 				toggleSidebar();

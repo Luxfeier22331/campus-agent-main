@@ -8,6 +8,7 @@ ROOT_SCRIPT_ALLOWLIST = frozenset(
     {
         "repo:guard",
         "repo:static",
+        "repo:static:affected",
         "ci:repo-guard",
         "ci:repo-static",
         "ci:langfuse",

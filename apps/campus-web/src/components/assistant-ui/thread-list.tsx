@@ -4,23 +4,33 @@ import {
 	ThreadListItemPrimitive,
 	ThreadListPrimitive,
 	useAuiState,
+	useThreadListItemRuntime,
 } from "@assistant-ui/react";
 import { ArchiveIcon, MoreHorizontalIcon, PlusIcon, TrashIcon } from "lucide-react";
-import { type FC, Fragment, useMemo } from "react";
+import { type FC, Fragment, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 
-export const ThreadList: FC = () => (
-	<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-0.5">
-		<ThreadListNew />
-		<AuiIf condition={(s) => s.threads.isLoading}>
-			<ThreadListSkeleton />
-		</AuiIf>
-		<AuiIf condition={(s) => !s.threads.isLoading}>
-			<ThreadListItems />
-		</AuiIf>
-	</ThreadListPrimitive.Root>
-);
+export const ThreadList: FC = () => {
+	const [actionError, setActionError] = useState<string | null>(null);
+
+	return (
+		<ThreadListPrimitive.Root className="aui-root aui-thread-list-root flex flex-col gap-0.5">
+			<ThreadListNew />
+			{actionError ? (
+				<p role="alert" className="text-destructive px-2.5 py-1 text-xs">
+					{actionError}
+				</p>
+			) : null}
+			<AuiIf condition={(s) => s.threads.isLoading}>
+				<ThreadListSkeleton />
+			</AuiIf>
+			<AuiIf condition={(s) => !s.threads.isLoading}>
+				<ThreadListItems onActionError={setActionError} />
+			</AuiIf>
+		</ThreadListPrimitive.Root>
+	);
+};
 
 const DAY_IN_MS = 86_400_000;
 const SKELETON_THREAD_IDS = ["thread-1", "thread-2", "thread-3", "thread-4", "thread-5"] as const;
@@ -40,7 +50,11 @@ interface ThreadListGroup {
 	indices: number[];
 }
 
-const ThreadListItems: FC = () => {
+interface ThreadListActionErrorProps {
+	onActionError: (message: string | null) => void;
+}
+
+const ThreadListItems: FC<ThreadListActionErrorProps> = ({ onActionError }) => {
 	const threadIds = useAuiState((s) => s.threads.threadIds);
 	const threadItems = useAuiState((s) => s.threads.threadItems);
 
@@ -70,8 +84,14 @@ const ThreadListItems: FC = () => {
 	}, [threadIds, threadItems]);
 
 	if (!groups) {
-		return <ThreadListPrimitive.Items>{() => <ThreadListItem />}</ThreadListPrimitive.Items>;
+		return (
+			<ThreadListPrimitive.Items>
+				{() => <ThreadListItem onActionError={onActionError} />}
+			</ThreadListPrimitive.Items>
+		);
 	}
+
+	const ThreadListItemWithError = () => <ThreadListItem onActionError={onActionError} />;
 
 	return groups.map((group) => (
 		<Fragment key={group.label}>
@@ -82,7 +102,7 @@ const ThreadListItems: FC = () => {
 				<ThreadListPrimitive.ItemByIndex
 					key={threadIds[index]}
 					index={index}
-					components={{ ThreadListItem }}
+					components={{ ThreadListItem: ThreadListItemWithError }}
 				/>
 			))}
 		</Fragment>
@@ -116,47 +136,74 @@ const ThreadListSkeleton: FC = () => (
 	</div>
 );
 
-const ThreadListItem: FC = () => (
+const ThreadListItem: FC<ThreadListActionErrorProps> = ({ onActionError }) => (
 	<ThreadListItemPrimitive.Root className="aui-thread-list-item group hover:bg-muted focus-visible:bg-muted data-active:bg-muted relative flex h-8 items-center rounded-md transition-colors focus-visible:outline-none">
 		<ThreadListItemPrimitive.Trigger className="aui-thread-list-item-trigger flex h-full min-w-0 flex-1 items-center px-2.5 text-start text-sm group-hover:pe-9 group-has-data-[state=open]:pe-9 group-data-active:pe-9">
 			<span className="aui-thread-list-item-title min-w-0 flex-1 truncate">
 				<ThreadListItemPrimitive.Title fallback="新对话" />
 			</span>
 		</ThreadListItemPrimitive.Trigger>
-		<ThreadListItemMore />
+		<ThreadListItemMore onActionError={onActionError} />
 	</ThreadListItemPrimitive.Root>
 );
 
-const ThreadListItemMore: FC = () => (
-	<ThreadListItemMorePrimitive.Root>
-		<ThreadListItemMorePrimitive.Trigger asChild>
-			<Button
-				variant="ghost"
-				size="icon"
-				className="aui-thread-list-item-more data-[state=open]:bg-accent absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
+const ThreadListItemMore: FC<ThreadListActionErrorProps> = ({ onActionError }) => {
+	const runtime = useThreadListItemRuntime();
+	const [isActionPending, setIsActionPending] = useState(false);
+
+	const runThreadAction = async (action: () => Promise<void>, failureMessage: string) => {
+		onActionError(null);
+		setIsActionPending(true);
+		try {
+			await action();
+		} catch {
+			onActionError(failureMessage);
+		} finally {
+			setIsActionPending(false);
+		}
+	};
+
+	return (
+		<ThreadListItemMorePrimitive.Root>
+			<ThreadListItemMorePrimitive.Trigger asChild>
+				<Button
+					variant="ghost"
+					size="icon"
+					className="aui-thread-list-item-more data-[state=open]:bg-accent absolute end-1.5 top-1/2 size-6 -translate-y-1/2 p-0 opacity-0 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100"
+				>
+					<MoreHorizontalIcon className="size-3.5" />
+					<span className="sr-only">更多操作</span>
+				</Button>
+			</ThreadListItemMorePrimitive.Trigger>
+			<ThreadListItemMorePrimitive.Content
+				side="right"
+				align="start"
+				sideOffset={6}
+				className="aui-thread-list-item-more-content bg-popover/95 text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-xl border p-1.5 shadow-lg backdrop-blur-sm"
 			>
-				<MoreHorizontalIcon className="size-3.5" />
-				<span className="sr-only">更多操作</span>
-			</Button>
-		</ThreadListItemMorePrimitive.Trigger>
-		<ThreadListItemMorePrimitive.Content
-			side="right"
-			align="start"
-			sideOffset={6}
-			className="aui-thread-list-item-more-content bg-popover/95 text-popover-foreground data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:animate-in data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:animate-out data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] overflow-hidden rounded-xl border p-1.5 shadow-lg backdrop-blur-sm"
-		>
-			<ThreadListItemPrimitive.Archive asChild>
-				<ThreadListItemMorePrimitive.Item className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
+				<ThreadListItemMorePrimitive.Item
+					disabled={isActionPending}
+					onSelect={(event) => {
+						event.preventDefault();
+						void runThreadAction(runtime.archive, "归档失败，请稍后重试。");
+					}}
+					className="aui-thread-list-item-more-item hover:bg-accent hover:text-accent-foreground focus:bg-accent focus:text-accent-foreground flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+				>
 					<ArchiveIcon className="size-4" />
 					归档
 				</ThreadListItemMorePrimitive.Item>
-			</ThreadListItemPrimitive.Archive>
-			<ThreadListItemPrimitive.Delete asChild>
-				<ThreadListItemMorePrimitive.Item className="aui-thread-list-item-more-item text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none">
+				<ThreadListItemMorePrimitive.Item
+					disabled={isActionPending}
+					onSelect={(event) => {
+						event.preventDefault();
+						void runThreadAction(runtime.delete, "删除失败，请稍后重试。");
+					}}
+					className="aui-thread-list-item-more-item text-destructive hover:bg-destructive/10 hover:text-destructive focus:bg-destructive/10 focus:text-destructive flex cursor-pointer items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm outline-none select-none data-disabled:pointer-events-none data-disabled:opacity-50"
+				>
 					<TrashIcon className="size-4" />
 					删除
 				</ThreadListItemMorePrimitive.Item>
-			</ThreadListItemPrimitive.Delete>
-		</ThreadListItemMorePrimitive.Content>
-	</ThreadListItemMorePrimitive.Root>
-);
+			</ThreadListItemMorePrimitive.Content>
+		</ThreadListItemMorePrimitive.Root>
+	);
+};

@@ -103,5 +103,11 @@ describe("campus services page", () => {
 		render(<ServicesPage />);
 
 		expect(await screen.findByText("班车时刻表暂时无法读取。")).toBeInTheDocument();
+		expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+		expect(screen.getByRole("link", { name: "反馈" })).toHaveAttribute(
+			"href",
+			"/feedback?source=services",
+		);
+		expect(screen.queryByText("暂无变更")).toBeNull();
 	});
 });

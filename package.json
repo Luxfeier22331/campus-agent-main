@@ -22,6 +22,7 @@
 	"scripts": {
 		"repo:guard": "uv run --all-packages python -m unittest tests.test_docs_structure tests.test_workspace_layout tests.test_repo_collaboration tests.test_package_script_policy tests.ingestion.test_ingestion_task_executability tests.api.test_app_api_collector_execution_boundary -q",
 		"repo:static": "uv run --all-packages python -m scripts.check_repo_static",
+		"repo:static:affected": "uv run --all-packages python -m scripts.check_repo_static --affected",
 		"ci:repo-guard": "pnpm repo:guard",
 		"ci:repo-static": "pnpm repo:static",
 		"ci:langfuse": "pnpm --dir packages/eval-langfuse typecheck && pnpm --dir packages/eval-langfuse test && pnpm --dir apps/app-api exec tsx ./scripts/check-langfuse-trace-id-vectors.ts",

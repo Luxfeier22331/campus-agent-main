@@ -5,7 +5,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.check_java_tracked import main, run_java_lint, tracked_java_files
+from scripts.check_java_tracked import (
+    affected_java_lint_required,
+    main,
+    run_java_lint,
+    tracked_java_files,
+)
 
 
 class CheckJavaTrackedTest(unittest.TestCase):
@@ -62,6 +67,26 @@ class CheckJavaTrackedTest(unittest.TestCase):
     def test_main_returns_success_when_no_java_files_exist(self) -> None:
         with patch("scripts.check_java_tracked.tracked_java_files", return_value=()):
             self.assertEqual(main(), 0)
+
+    def test_affected_java_lint_skips_unrelated_frontend_paths(self) -> None:
+        self.assertFalse(
+            affected_java_lint_required(
+                (
+                    "apps/campus-web/src/features/conversation/assistant-ui-runtime.tsx",
+                    "apps/campus-web/e2e/qa.spec.ts",
+                )
+            )
+        )
+
+    def test_affected_java_lint_runs_for_legacy_office_surface(self) -> None:
+        self.assertTrue(
+            affected_java_lint_required(
+                ("apps/legacy-office-conversion-service/src/main/java/Foo.java",)
+            )
+        )
+        self.assertTrue(
+            affected_java_lint_required(("apps/legacy-office-conversion-service/Dockerfile",))
+        )
 
     def test_main_fails_closed_when_docker_is_missing(self) -> None:
         fake_java_file = Path("/repo/apps/legacy-office-conversion-service/src/main/java/Foo.java")

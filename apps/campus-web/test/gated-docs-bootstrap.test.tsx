@@ -24,7 +24,9 @@ describe("gated docs bootstrap", () => {
 
 		render(<GatedReaderBootstrap />);
 
-		expect(await screen.findByRole("heading", { name: "请先登录" })).toBeInTheDocument();
+		const state = await screen.findByRole("alert");
+		expect(screen.getByRole("heading", { name: "请先登录" })).toBeInTheDocument();
+		expect(state).toHaveTextContent("登录后继续打开这份文档。");
 		const loginHref = new URL(
 			screen.getByRole("link", { name: "登录后继续" }).getAttribute("href") ?? "",
 		);
@@ -52,8 +54,22 @@ describe("gated docs bootstrap", () => {
 
 		render(<GatedCollectionBootstrap />);
 
-		expect(await screen.findByRole("heading", { name: "文档目录暂不可用" })).toBeInTheDocument();
-		expect(screen.getByText("请稍后重试。")).toBeInTheDocument();
+		const state = await screen.findByRole("alert");
+		expect(screen.getByRole("heading", { name: "文档目录暂不可用" })).toBeInTheDocument();
+		expect(state).toHaveTextContent("请稍后重试。");
+		expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
+	});
+
+	it("shows service unavailable for transient gated reader failures", async () => {
+		window.history.replaceState(null, "", "/docs/regulations/scoped_rules/restricted-policy");
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 503 }));
+
+		render(<GatedReaderBootstrap />);
+
+		const state = await screen.findByRole("alert");
+		expect(screen.getByRole("heading", { name: "文档暂不可用" })).toBeInTheDocument();
+		expect(state).toHaveTextContent("请稍后重试。");
+		expect(screen.getByRole("button", { name: "重试" })).toBeInTheDocument();
 	});
 
 	it("renders gated collection document display titles without changing canonical titles", async () => {
@@ -147,6 +163,10 @@ describe("gated docs bootstrap", () => {
 		await waitFor(() => {
 			expect(fetchMock).toHaveBeenCalledTimes(2);
 		});
+		expect(document.querySelector("[data-docs-reader-meta]")).toHaveAttribute(
+			"data-docs-search-visibility",
+			"gated_bootstrap",
+		);
 		expect(fetchMock).toHaveBeenNthCalledWith(
 			1,
 			"/api/docs/collections/regulations/scoped_rules/documents/%E4%B8%AD%E5%A4%AE%E6%B0%91%E6%97%8F%E5%A4%A7%E5%AD%A6%E5%8F%97%E9%99%90%E5%88%B6%E5%BA%A6/resolve?anchor=restricted&hl=restricted-root",

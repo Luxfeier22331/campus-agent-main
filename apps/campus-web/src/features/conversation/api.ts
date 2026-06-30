@@ -10,6 +10,33 @@ import type {
 	MessageFeedbackVote,
 } from "./model";
 
+const DEFAULT_CHAT_STREAM_ERROR_MESSAGE = "请求失败，请稍后重试。";
+
+export class ChatStreamRequestError extends Error {
+	code: string;
+	requestId?: string;
+	retryable: boolean;
+	status?: number;
+	traceId?: string;
+
+	constructor(input: {
+		code: string;
+		message: string;
+		requestId?: string;
+		retryable: boolean;
+		status?: number;
+		traceId?: string;
+	}) {
+		super(input.message);
+		this.name = "ChatStreamRequestError";
+		this.code = input.code;
+		this.requestId = input.requestId;
+		this.retryable = input.retryable;
+		this.status = input.status;
+		this.traceId = input.traceId;
+	}
+}
+
 export async function listConversations(
 	input: { limit?: number; view?: "active" | "archived" } = {},
 ): Promise<ConversationSummary[]> {
@@ -237,7 +264,7 @@ export async function* submitChatRequestStream(input: {
 		throw new UnauthorizedError();
 	}
 	if (!response.ok) {
-		throw new Error(response.statusText || "请求失败。");
+		throw await createChatStreamRequestError(response);
 	}
 	if (!response.body) {
 		throw new Error("Lifecycle stream response body is empty.");
@@ -368,4 +395,56 @@ function isProductStreamEventName(value: string): value is ChatRequestStreamEven
 		value === "request.completed" ||
 		value === "request.failed"
 	);
+}
+
+async function createChatStreamRequestError(response: Response): Promise<ChatStreamRequestError> {
+	const payload = await readJsonErrorPayload(response);
+	const errorPayload =
+		payload &&
+		typeof payload === "object" &&
+		"error" in payload &&
+		payload.error &&
+		typeof payload.error === "object"
+			? payload.error
+			: null;
+	const message =
+		readStringField(errorPayload, "message") ||
+		response.statusText ||
+		DEFAULT_CHAT_STREAM_ERROR_MESSAGE;
+	return new ChatStreamRequestError({
+		code: readStringField(errorPayload, "code") ?? "chat_stream_request_failed",
+		message,
+		requestId: readStringField(errorPayload, "requestId"),
+		retryable: readBooleanField(errorPayload, "retryable") ?? response.status >= 500,
+		status: response.status,
+		traceId: readStringField(errorPayload, "traceId"),
+	});
+}
+
+async function readJsonErrorPayload(response: Response): Promise<unknown> {
+	const contentType = response.headers.get("content-type") ?? "";
+	if (!contentType.toLowerCase().includes("application/json")) {
+		return null;
+	}
+	try {
+		return await response.json();
+	} catch {
+		return null;
+	}
+}
+
+function readStringField(input: object | null, field: string): string | undefined {
+	if (!(input && field in input)) {
+		return;
+	}
+	const value = (input as Record<string, unknown>)[field];
+	return typeof value === "string" && value.trim() ? value : undefined;
+}
+
+function readBooleanField(input: object | null, field: string): boolean | undefined {
+	if (!(input && field in input)) {
+		return;
+	}
+	const value = (input as Record<string, unknown>)[field];
+	return typeof value === "boolean" ? value : undefined;
 }

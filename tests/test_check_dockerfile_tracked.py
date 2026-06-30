@@ -10,6 +10,7 @@ from scripts.check_dockerfile_tracked import (
     build_docker_hadolint_command,
     build_local_hadolint_command,
     main,
+    select_affected_dockerfiles,
     tracked_dockerfiles,
 )
 
@@ -57,6 +58,38 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             if item and (decoded := item.decode("utf-8")) and (repo_root / decoded).exists()
         )
         self.assertEqual(tracked_dockerfiles(root=repo_root), expected_paths)
+
+    def test_select_affected_dockerfiles_skips_unrelated_paths(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_dockerfiles(
+            (
+                "apps/campus-web/src/features/conversation/assistant-ui-runtime.tsx",
+                "apps/campus-web/e2e/qa.spec.ts",
+            ),
+            root=repo_root,
+        )
+
+        self.assertEqual(selected, ())
+
+    def test_select_affected_dockerfiles_returns_changed_dockerfile(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_dockerfiles(
+            ("apps/legacy-office-conversion-service/Dockerfile",),
+            root=repo_root,
+        )
+
+        self.assertEqual(
+            selected, (repo_root / "apps/legacy-office-conversion-service/Dockerfile",)
+        )
+
+    def test_select_affected_dockerfiles_returns_all_when_hadolint_config_changes(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_dockerfiles((".hadolint.yaml",), root=repo_root)
+
+        self.assertEqual(selected, tracked_dockerfiles(root=repo_root))
 
     def test_build_local_hadolint_command_uses_repo_config_and_relative_path(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

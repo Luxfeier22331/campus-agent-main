@@ -72,12 +72,106 @@ describe("campus auth client", () => {
 		).resolves.toEqual({});
 
 		const signUpInput = authClientMock.signUpEmail.mock.calls[0]?.[0] as {
-			fetchOptions?: { headers?: HeadersInit };
+			fetchOptions?: { headers?: HeadersInit; throw?: boolean };
 		};
 		const headers = new Headers(signUpInput.fetchOptions?.headers);
 		expect(headers.get("x-campus-legal-accepted")).toBe("terms-and-privacy");
 		expect(headers.get("x-captcha-response")).toBe("captcha-token");
 		expect(signUpInput).not.toHaveProperty("legalConsentAccepted");
+	});
+
+	it("preserves Better Auth UI throw mode for email sign-up errors", async () => {
+		authClientMock.signUpEmail.mockResolvedValue({});
+
+		await campusAuthClient.signUp.email({
+			callbackURL: "/account",
+			email: "student@muc.edu.cn",
+			legalConsentAccepted: true,
+			fetchOptions: {
+				throw: true,
+			},
+			name: "student@muc.edu.cn",
+			password: "password1234",
+		});
+
+		expect(authClientMock.signUpEmail).toHaveBeenCalledWith(
+			expect.objectContaining({
+				fetchOptions: expect.objectContaining({ throw: true }),
+			}),
+		);
+	});
+
+	it("localizes Better Auth thrown sign-up errors for mutation toasts", async () => {
+		const upstreamError = Object.assign(new Error("User already exists"), {
+			error: {
+				code: "USER_ALREADY_EXISTS",
+				message: "User already exists",
+				status: 409,
+				statusText: "Conflict",
+			},
+		});
+		authClientMock.signUpEmail.mockRejectedValue(upstreamError);
+
+		await expect(
+			campusAuthClient.signUp.email({
+				callbackURL: "/account",
+				email: "student@muc.edu.cn",
+				legalConsentAccepted: true,
+				fetchOptions: {
+					throw: true,
+				},
+				name: "student@muc.edu.cn",
+				password: "password1234",
+			}),
+		).rejects.toMatchObject({
+			error: expect.objectContaining({
+				code: "USER_ALREADY_EXISTS",
+				message: "这个邮箱已经注册，请直接登录。",
+			}),
+			message: "这个邮箱已经注册，请直接登录。",
+		});
+		expect(upstreamError.error.message).toBe("这个邮箱已经注册，请直接登录。");
+	});
+
+	it("localizes Better Fetch body errors for sign-up mutation toasts", async () => {
+		const upstreamError = Object.assign(new Error("User already exists. Use another email."), {
+			body: {
+				data: null,
+				error: {
+					code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+					message: "User already exists. Use another email.",
+					status: 422,
+					statusText: "Unprocessable Entity",
+				},
+			},
+		});
+		authClientMock.signUpEmail.mockRejectedValue(upstreamError);
+
+		await expect(
+			campusAuthClient.signUp.email({
+				callbackURL: "/account",
+				email: "student@muc.edu.cn",
+				legalConsentAccepted: true,
+				fetchOptions: {
+					throw: true,
+				},
+				name: "student@muc.edu.cn",
+				password: "password1234",
+			}),
+		).rejects.toMatchObject({
+			body: {
+				error: expect.objectContaining({
+					code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+					message: "这个邮箱已经注册，请直接登录。",
+				}),
+			},
+			error: expect.objectContaining({
+				code: "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+				message: "这个邮箱已经注册，请直接登录。",
+			}),
+			message: "这个邮箱已经注册，请直接登录。",
+		});
+		expect(upstreamError.body.error.message).toBe("这个邮箱已经注册，请直接登录。");
 	});
 
 	it("does not send legal consent headers for email sign-in", async () => {
@@ -120,6 +214,11 @@ describe("campus auth client", () => {
 		["INVALID_ORIGIN", "Invalid origin", "登录请求来源无效，请刷新页面后重试。"],
 		["INVALID_EMAIL_OR_PASSWORD", "Invalid email or password", "邮箱或密码不正确。"],
 		["USER_ALREADY_EXISTS", "User already exists", "这个邮箱已经注册，请直接登录。"],
+		[
+			"USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL",
+			"User already exists. Use another email.",
+			"这个邮箱已经注册，请直接登录。",
+		],
 		["UNKNOWN", "Upstream failure", "操作失败，请稍后重试。"],
 	])("localizes Better Auth thrown errors for code %s", async (code, message, expected) => {
 		const upstreamError = Object.assign(new Error(message), {
@@ -147,7 +246,7 @@ describe("campus auth client", () => {
 		});
 	});
 
-	it("localizes resolved Better Auth error payloads for sign-up", async () => {
+	it("throws localized resolved Better Auth error payloads for sign-up", async () => {
 		authClientMock.signUpEmail.mockResolvedValue({
 			data: null,
 			error: {
@@ -166,12 +265,12 @@ describe("campus auth client", () => {
 				name: "student@muc.edu.cn",
 				password: "password1234",
 			}),
-		).resolves.toMatchObject({
-			data: null,
-			error: {
+		).rejects.toMatchObject({
+			error: expect.objectContaining({
 				code: "MISSING_RESPONSE",
 				message: "安全验证还没有完成，请稍后再试。",
-			},
+			}),
+			message: "安全验证还没有完成，请稍后再试。",
 		});
 	});
 });

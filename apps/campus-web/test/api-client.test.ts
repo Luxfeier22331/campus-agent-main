@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
 	archiveConversation,
+	ChatStreamRequestError,
 	cancelRun,
 	deleteConversation,
 	deleteMessageFeedback,
@@ -206,6 +207,70 @@ describe("campus app-api client", () => {
 			"content-type": "application/json",
 		});
 		expect(fetchMock.mock.calls[0]?.[1]?.headers).toHaveProperty("idempotency-key");
+	});
+
+	it("maps failed chat stream startup responses to structured request errors", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response(
+				JSON.stringify({
+					error: {
+						code: "execution_failed",
+						message: "请求失败。",
+						requestId: "req_failed",
+						retryable: true,
+						traceId: "trace_failed",
+					},
+				}),
+				{
+					headers: { "content-type": "application/json" },
+					status: 500,
+					statusText: "Internal Server Error",
+				},
+			),
+		);
+
+		const events = submitChatRequestStream({ prompt: "这次会失败吗？" });
+
+		let error: unknown;
+		try {
+			for await (const _event of events) {
+				throw new Error("stream should not yield events");
+			}
+		} catch (caught) {
+			error = caught;
+		}
+
+		expect(error).toBeInstanceOf(ChatStreamRequestError);
+		expect(error).toMatchObject({
+			code: "execution_failed",
+			message: "请求失败。",
+			requestId: "req_failed",
+			retryable: true,
+			traceId: "trace_failed",
+		});
+	});
+
+	it("uses a default structured request error for failed non-json chat stream startup", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+			new Response("upstream unavailable", {
+				headers: { "content-type": "text/plain" },
+				status: 503,
+				statusText: "Service Unavailable",
+			}),
+		);
+
+		const events = submitChatRequestStream({ prompt: "这次会失败吗？" });
+
+		await expect(async () => {
+			for await (const _event of events) {
+				throw new Error("stream should not yield events");
+			}
+		}).rejects.toMatchObject({
+			code: "chat_stream_request_failed",
+			message: "Service Unavailable",
+			retryable: true,
+			status: 503,
+		});
 	});
 
 	it("calls run control and trailing delete routes explicitly", async () => {

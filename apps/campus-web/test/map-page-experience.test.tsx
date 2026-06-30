@@ -1,4 +1,5 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { MapPage } from "../src/app/routes/map-page";
@@ -141,11 +142,12 @@ describe("campus map product experience", () => {
 	});
 
 	it("clears search and ranks title matches before tag matches", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
 		await expandMapResults();
 		const search = await screen.findByRole("combobox", { name: "搜索地点" });
-		fireEvent.change(search, { target: { value: "食堂" } });
+		await user.type(search, "食堂");
 
 		const results = within(screen.getByRole("region", { name: "地点结果" })).getAllByRole(
 			"button",
@@ -157,21 +159,20 @@ describe("campus map product experience", () => {
 		]);
 		expect(screen.getByRole("button", { name: "清除搜索" })).toBeInTheDocument();
 
-		fireEvent.click(screen.getByRole("button", { name: "清除搜索" }));
+		await user.click(screen.getByRole("button", { name: "清除搜索" }));
 
 		expect(search).toHaveValue("");
 		expect(screen.getByRole("button", { name: "选择博雅楼" })).toBeInTheDocument();
 	});
 
 	it("supports keyboard navigation and escape behavior in search results", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
 		await expandMapResults();
 		const search = await screen.findByRole("combobox", { name: "搜索地点" });
-		fireEvent.change(search, { target: { value: "食堂" } });
-		fireEvent.keyDown(search, { key: "ArrowDown" });
-		fireEvent.keyDown(search, { key: "ArrowDown" });
-		fireEvent.keyDown(search, { key: "Enter" });
+		await user.type(search, "食堂");
+		await user.keyboard("{ArrowDown}{ArrowDown}{Enter}");
 
 		expect(await screen.findByRole("dialog", { name: "荟贤食堂" })).toBeInTheDocument();
 		expect(window.location.search).toContain("place=fengtai-huixian-canteen");
@@ -180,12 +181,13 @@ describe("campus map product experience", () => {
 			zoom: 17,
 		});
 
-		fireEvent.keyDown(search, { key: "Escape" });
+		await user.keyboard("{Escape}");
 
 		expect(screen.queryByRole("dialog", { name: "荟贤食堂" })).toBeNull();
 		expect(search).toHaveValue("食堂");
 
-		fireEvent.keyDown(search, { key: "Escape" });
+		await user.click(search);
+		await user.keyboard("{Escape}");
 
 		expect(search).toHaveValue("");
 	});
@@ -218,6 +220,7 @@ describe("campus map product experience", () => {
 	});
 
 	it("uses student task filters instead of backend category labels", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
 		await expandMapResults();
@@ -233,7 +236,7 @@ describe("campus map product experience", () => {
 		expect(within(typeFilters).queryByRole("radio", { name: "地标" })).toBeNull();
 		expect(within(typeFilters).queryByRole("radio", { name: "交通" })).toBeNull();
 
-		fireEvent.click(within(typeFilters).getByRole("radio", { name: "食堂" }));
+		await user.click(within(typeFilters).getByRole("radio", { name: "食堂" }));
 
 		expect(screen.getByRole("button", { name: "选择聚雅食堂" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "选择荟贤食堂" })).toBeInTheDocument();
@@ -242,6 +245,7 @@ describe("campus map product experience", () => {
 	});
 
 	it("keeps long Fengtai groups collapsed by default and expands them on demand", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
 		await expandMapResults();
@@ -255,7 +259,7 @@ describe("campus map product experience", () => {
 			"展开宿舍",
 		);
 
-		fireEvent.click(within(dormGroup).getByRole("button", { name: "展开宿舍" }));
+		await user.click(within(dormGroup).getByRole("button", { name: "展开宿舍" }));
 
 		expect(within(dormGroup).getByRole("button", { name: "选择静园六号楼" })).toBeInTheDocument();
 		expect(within(dormGroup).getByRole("button", { name: "选择教师公寓区" })).toBeInTheDocument();
@@ -263,10 +267,11 @@ describe("campus map product experience", () => {
 	});
 
 	it("shows concise place detail without repeating campus or raw category tags", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
 		await expandMapResults();
-		fireEvent.click(await screen.findByRole("button", { name: "选择聚雅食堂" }));
+		await user.click(await screen.findByRole("button", { name: "选择聚雅食堂" }));
 		const detail = await screen.findByRole("dialog", { name: "聚雅食堂" });
 
 		expect(within(detail).getByText("食堂")).toBeInTheDocument();
@@ -278,11 +283,12 @@ describe("campus map product experience", () => {
 	});
 
 	it("renders mobile detail as a constrained sheet with close controls and keeps results collapsed", async () => {
+		const user = userEvent.setup();
 		mockMapWorkspaceWidth(false, vi.fn);
 		render(<MapPage />);
 
 		await expandMapResults();
-		fireEvent.click(await screen.findByRole("button", { name: "选择聚雅食堂" }));
+		await user.click(await screen.findByRole("button", { name: "选择聚雅食堂" }));
 		const sheet = await screen.findByRole("dialog", { name: "聚雅食堂" });
 
 		expect(sheet).toHaveAttribute("data-variant", "sheet");
@@ -293,9 +299,10 @@ describe("campus map product experience", () => {
 	});
 
 	it("uses product copy for Haidian basic reference state", async () => {
+		const user = userEvent.setup();
 		render(<MapPage />);
 
-		fireEvent.click(await screen.findByRole("radio", { name: "海淀校区" }));
+		await user.click(await screen.findByRole("radio", { name: "海淀校区" }));
 
 		expect(await screen.findByText("海淀校区当前提供基础地点参考。")).toBeInTheDocument();
 		expect(screen.queryByText("开发中")).toBeNull();

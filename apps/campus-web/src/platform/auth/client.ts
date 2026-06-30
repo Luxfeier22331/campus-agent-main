@@ -90,6 +90,7 @@ function resolveUserFacingAuthErrorMessage(input: { code?: unknown; message?: un
 		code === "USER_ALREADY_EXISTS" ||
 		code === "USER_EXISTS" ||
 		code === "EMAIL_ALREADY_EXISTS" ||
+		code === "USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL" ||
 		normalized.includes("already exists") ||
 		normalized.includes("already registered")
 	) {
@@ -116,9 +117,44 @@ function localizeResolvedAuthResult<T>(result: T): T {
 	} as T;
 }
 
+function throwLocalizedResolvedAuthError(result: unknown): never {
+	const localized = localizeResolvedAuthResult(result);
+	const error =
+		localized && typeof localized === "object" && "error" in localized
+			? localized.error
+			: undefined;
+	const message = readAuthErrorMessage(error) || USER_FACING_AUTH_ERROR_MESSAGES.generic;
+	throw Object.assign(new Error(message), {
+		error,
+	});
+}
+
+function readObjectProperty(input: unknown, property: string): unknown {
+	if (!input || typeof input !== "object" || !(property in input)) {
+		return;
+	}
+	return input[property as keyof typeof input];
+}
+
+function readNestedAuthErrorPayload(error: unknown): unknown {
+	const directError = readObjectProperty(error, "error");
+	const nestedDirectError = readObjectProperty(directError, "error");
+	if (nestedDirectError) {
+		return nestedDirectError;
+	}
+	if (directError) {
+		return directError;
+	}
+	const bodyError = readObjectProperty(readObjectProperty(error, "body"), "error");
+	if (bodyError) {
+		return bodyError;
+	}
+	return error;
+}
+
 function localizeThrownAuthError(error: unknown): never {
 	if (error && typeof error === "object") {
-		const nestedError = "error" in error ? error.error : undefined;
+		const nestedError = readNestedAuthErrorPayload(error);
 		const message = resolveUserFacingAuthErrorMessage({
 			code: readAuthErrorCode(nestedError),
 			message: readAuthErrorMessage(nestedError) || readAuthErrorMessage(error),
@@ -132,6 +168,13 @@ function localizeThrownAuthError(error: unknown): never {
 		}
 		if (nestedError && typeof nestedError === "object") {
 			Object.assign(nestedError, { message });
+		}
+		const directError = readObjectProperty(error, "error");
+		if (directError && typeof directError === "object" && directError !== nestedError) {
+			Object.assign(directError, { message });
+		}
+		if (!("error" in error) && nestedError && typeof nestedError === "object") {
+			Object.assign(error, { error: nestedError });
 		}
 	}
 	throw error;
@@ -172,6 +215,9 @@ async function campusSignUpEmail(input: CampusSignUpEmailInput) {
 				headers: buildSignupLegalConsentHeaders(headersInitFromUnknown(fetchOptions.headers)),
 			},
 		});
+		if (result && typeof result === "object" && "error" in result && result.error) {
+			throwLocalizedResolvedAuthError(result);
+		}
 		return localizeResolvedAuthResult(result) as Awaited<
 			ReturnType<CampusAuthClient["signUp"]["email"]>
 		>;

@@ -1,10 +1,12 @@
 import { Table } from "@heroui/react";
+import { LayoutGroup, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { Card } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { contentSwap, stateSwap } from "@/components/ui/motion";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusTransportStatus } from "@/features/campus-services/api";
 import type {
 	CampusTransportDeparture,
@@ -122,7 +124,7 @@ function TransportScheduleSection({
 	const adjustmentSummary = adjustmentCount > 0 ? `含 ${adjustmentCount} 条变更` : "暂无变更";
 	const sourceRefs = useMemo(() => collectSourceRefs(payload), [payload]);
 	return (
-		<section aria-labelledby="transport-schedule-heading" className="grid gap-4">
+		<motion.section aria-labelledby="transport-schedule-heading" className="grid gap-4" layout>
 			<div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
 				<div>
 					<h2
@@ -138,25 +140,59 @@ function TransportScheduleSection({
 						</p>
 					) : null}
 				</div>
-				<Badge className="h-9 px-3" variant={adjustmentCount > 0 ? "default" : "secondary"}>
-					{adjustmentSummary}
-				</Badge>
+				{payload ? (
+					<Badge className="h-9 px-3" variant={adjustmentCount > 0 ? "default" : "secondary"}>
+						{adjustmentSummary}
+					</Badge>
+				) : null}
 			</div>
 
-			{error ? <Alert variant="destructive">{error}</Alert> : null}
-			{isLoading ? <TransportScheduleSkeleton /> : null}
-			{!(isLoading || error) && payload && payload.groups.length === 0 ? (
-				<Alert>当前暂无可展示班次。</Alert>
-			) : null}
-			{!(isLoading || error) && payload && payload.groups.length > 0 ? (
-				<div className="grid gap-5">
-					{payload.groups.map((group) => (
-						<TransportScheduleGroupSection group={group} key={group.kind} />
-					))}
-				</div>
-			) : null}
+			<LayoutGroup>
+				<motion.div className="grid gap-5" layout>
+					{error ? (
+						<motion.div key="transport-error" layout {...stateSwap}>
+							<SurfaceState
+								description={error}
+								kind="error"
+								primaryAction={
+									<Button onClick={() => window.location.reload()} type="button">
+										重试
+									</Button>
+								}
+								secondaryAction={
+									<Button asChild variant="outline">
+										<a href="/feedback?source=services">反馈</a>
+									</Button>
+								}
+								title="班车数据不可用"
+							/>
+						</motion.div>
+					) : null}
+					{isLoading ? (
+						<motion.div key="transport-loading" layout {...stateSwap}>
+							<SurfaceState
+								description="正在读取已发布的校车班次。"
+								kind="loading"
+								title="正在加载"
+							/>
+						</motion.div>
+					) : null}
+					{!(isLoading || error) && payload && payload.groups.length === 0 ? (
+						<motion.div key="transport-empty" layout {...stateSwap}>
+							<SurfaceState description="当前暂无可展示班次。" kind="empty" title="暂无班车时刻" />
+						</motion.div>
+					) : null}
+					{!(isLoading || error) && payload && payload.groups.length > 0 ? (
+						<motion.div className="grid gap-5" key="transport-groups" layout {...contentSwap}>
+							{payload.groups.map((group) => (
+								<TransportScheduleGroupSection group={group} key={group.kind} />
+							))}
+						</motion.div>
+					) : null}
+				</motion.div>
+			</LayoutGroup>
 			{sourceRefs.length > 0 ? (
-				<div className="grid gap-2 text-sm">
+				<motion.div className="grid gap-2 text-sm" layout {...stateSwap}>
 					<p className="font-medium text-[var(--sys-text-strong)]">来源</p>
 					<div className="flex flex-wrap gap-x-4 gap-y-2">
 						{sourceRefs.map((url) => (
@@ -171,15 +207,20 @@ function TransportScheduleSection({
 							</a>
 						))}
 					</div>
-				</div>
+				</motion.div>
 			) : null}
-		</section>
+		</motion.section>
 	);
 }
 
 function TransportScheduleGroupSection({ group }: { group: CampusTransportStatusGroup }) {
 	return (
-		<section aria-labelledby={`transport-group-${group.kind}`} className="grid gap-4">
+		<motion.section
+			aria-labelledby={`transport-group-${group.kind}`}
+			className="grid gap-4"
+			layout
+			{...contentSwap}
+		>
 			<h3
 				className="text-base font-semibold tracking-normal text-[var(--sys-text-strong)]"
 				id={`transport-group-${group.kind}`}
@@ -191,7 +232,7 @@ function TransportScheduleGroupSection({ group }: { group: CampusTransportStatus
 					<TransportRouteTable key={route.routeId} route={route} />
 				))}
 			</div>
-		</section>
+		</motion.section>
 	);
 }
 
@@ -295,15 +336,6 @@ function getDepartureCellText(
 		return departureStatusLabels[departure.status];
 	}
 	return departure.note ?? "—";
-}
-
-function TransportScheduleSkeleton() {
-	return (
-		<Card className="rounded-lg border border-border p-4">
-			<Skeleton className="h-5 w-32" />
-			<Skeleton className="mt-4 h-24 w-full" />
-		</Card>
-	);
 }
 
 function countDepartureAdjustments(payload: CampusTransportStatusResponse | null): number {

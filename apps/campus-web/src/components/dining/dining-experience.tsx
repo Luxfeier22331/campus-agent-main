@@ -1,5 +1,6 @@
 import { getDiningFloorplanByFloor } from "dining-floorplans";
 import { Maximize2, ZoomIn, ZoomOut } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import { useEffect } from "react";
 import { TransformComponent, TransformWrapper, useControls } from "react-zoom-pan-pinch";
 import type {
@@ -13,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
+import { contentSwap } from "../ui/motion";
 import { ToggleGroup, ToggleGroupItem } from "../ui/toggle-group";
 
 export function HallSelector({
@@ -33,9 +35,9 @@ export function HallSelector({
 		);
 	}
 	return (
-		<ul className="flex list-none gap-2 overflow-x-auto p-0 pb-1">
+		<motion.ul className="flex list-none gap-2 overflow-x-auto p-0 pb-1" layout>
 			{halls.map((hall) => (
-				<li className="shrink-0" key={hall.hallId}>
+				<motion.li className="shrink-0" key={hall.hallId} layout {...contentSwap}>
 					<Button
 						className={cn(
 							"min-h-10 rounded-lg border border-border bg-white px-4 text-sm text-[var(--sys-text-muted)] shadow-[var(--shadow-xs)] hover:border-[var(--sys-text-strong)]",
@@ -47,9 +49,9 @@ export function HallSelector({
 					>
 						{hall.name}
 					</Button>
-				</li>
+				</motion.li>
 			))}
-		</ul>
+		</motion.ul>
 	);
 }
 
@@ -257,71 +259,107 @@ export function StallDetail({
 	selectedOfferingId: string | null;
 	window: DiningWindowProjection | null;
 }) {
-	if (!selectedWindow) {
-		return (
-			<Card
-				className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center"
-				data-testid="dining-stall-detail"
-			>
-				<h3 className="font-medium text-foreground text-sm">选择档口</h3>
-				<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-					选择地图或列表里的档口后查看菜品。
-				</p>
-			</Card>
-		);
-	}
+	return (
+		<LayoutGroup>
+			{selectedWindow ? (
+				<StallDetailCard
+					key={selectedWindow.windowId}
+					onSelectOffering={onSelectOffering}
+					selectedOfferingId={selectedOfferingId}
+					selectedWindow={selectedWindow}
+				/>
+			) : (
+				<motion.div key="empty-stall" layout {...contentSwap}>
+					<Card
+						className="flex min-h-32 flex-col items-center justify-center border-dashed bg-white px-6 py-8 text-center"
+						data-testid="dining-stall-detail"
+					>
+						<h3 className="font-medium text-foreground text-sm">选择档口</h3>
+						<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+							选择地图或列表里的档口后查看菜品。
+						</p>
+					</Card>
+				</motion.div>
+			)}
+		</LayoutGroup>
+	);
+}
+
+function StallDetailCard({
+	onSelectOffering,
+	selectedOfferingId,
+	selectedWindow,
+}: {
+	onSelectOffering(offeringId: string): void;
+	selectedOfferingId: string | null;
+	selectedWindow: DiningWindowProjection;
+}) {
 	const offerings = selectedWindow.assignment?.offerings ?? [];
 	const stallName = selectedWindow.assignment?.stallProfile.displayName ?? selectedWindow.label;
 	const selectedOffering = resolveSelectedOffering({ offerings, selectedOfferingId });
 	return (
-		<Card className="overflow-hidden" data-testid="dining-stall-detail">
-			<div className="border-b border-border p-4">
-				<p className="text-xs font-medium text-[var(--sys-text-muted)]">
-					{selectedWindow.locationLabel}
-				</p>
-				<h2 className="mt-2 text-xl font-semibold text-[var(--sys-text-strong)]">{stallName}</h2>
-				<div className="mt-3 flex flex-wrap gap-2">
-					{selectedWindow.tags.map((tag) => (
-						<Badge className="bg-muted text-muted-foreground" key={tag} variant="secondary">
-							{tag}
-						</Badge>
-					))}
+		<motion.div key={selectedWindow.windowId} layout {...contentSwap}>
+			<Card className="overflow-hidden" data-testid="dining-stall-detail">
+				<div className="border-b border-border p-4">
+					<p className="text-xs font-medium text-[var(--sys-text-muted)]">
+						{selectedWindow.locationLabel}
+					</p>
+					<h2 className="mt-2 text-xl font-semibold text-[var(--sys-text-strong)]">{stallName}</h2>
+					<div className="mt-3 flex flex-wrap gap-2">
+						{selectedWindow.tags.map((tag) => (
+							<Badge className="bg-muted text-muted-foreground" key={tag} variant="secondary">
+								{tag}
+							</Badge>
+						))}
+					</div>
 				</div>
-			</div>
-			<div className="divide-y divide-border">
-				{offerings.length > 0 ? (
-					<div className="space-y-4 p-4">
-						<ToggleGroup
-							aria-label="菜品"
-							className="grid grid-cols-1 gap-2"
-							onValueChange={(offeringId) => {
-								if (offeringId) {
-									onSelectOffering(offeringId);
-								}
-							}}
-							type="single"
-							value={selectedOffering?.offeringId}
-						>
-							{offerings.map((offering) => (
-								<ToggleGroupItem
-									className="min-h-11 justify-between rounded-lg border border-border px-3 text-left data-[state=on]:border-primary data-[state=on]:bg-[var(--sys-brand-interactive-subtle)] data-[state=on]:text-primary"
-									key={offering.offeringId}
-									value={offering.offeringId}
+				<div className="divide-y divide-border">
+					{offerings.length > 0 ? (
+						<div className="space-y-4 p-4">
+							<LayoutGroup>
+								<ToggleGroup
+									aria-label="菜品"
+									className="grid grid-cols-1 gap-2"
+									onValueChange={(offeringId) => {
+										if (offeringId) {
+											onSelectOffering(offeringId);
+										}
+									}}
+									type="single"
+									value={selectedOffering?.offeringId}
 								>
-									<span className="truncate text-sm">{offering.name}</span>
-									<span className="ml-3 shrink-0 text-sm font-semibold">{offering.priceLabel}</span>
-								</ToggleGroupItem>
-							))}
-						</ToggleGroup>
-					</div>
-				) : (
-					<div className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center">
-						<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
-						<p className="mt-1 max-w-sm text-muted-foreground text-sm">当前档口没有已发布菜品。</p>
-					</div>
-				)}
-			</div>
-		</Card>
+									{offerings.map((offering) => (
+										<motion.div key={offering.offeringId} layout {...contentSwap}>
+											<ToggleGroupItem
+												className="min-h-11 w-full justify-between rounded-lg border border-border px-3 text-left data-[state=on]:border-primary data-[state=on]:bg-[var(--sys-brand-interactive-subtle)] data-[state=on]:text-primary"
+												value={offering.offeringId}
+											>
+												<span className="truncate text-sm">{offering.name}</span>
+												<span className="ml-3 shrink-0 text-sm font-semibold">
+													{offering.priceLabel}
+												</span>
+											</ToggleGroupItem>
+										</motion.div>
+									))}
+								</ToggleGroup>
+							</LayoutGroup>
+						</div>
+					) : (
+						<motion.div
+							className="m-4 flex min-h-24 flex-col items-center justify-center rounded-lg border border-dashed border-border px-6 py-8 text-center"
+							key="empty-offerings"
+							layout
+							{...contentSwap}
+						>
+							<h3 className="font-medium text-foreground text-sm">暂无菜品</h3>
+							<p className="mt-1 max-w-sm text-muted-foreground text-sm">
+								当前档口没有已发布菜品。
+							</p>
+						</motion.div>
+					)}
+				</div>
+			</Card>
+		</motion.div>
 	);
 }
 
@@ -333,15 +371,21 @@ export function DiningOfferingReviews({
 	reviews: DiningReview[];
 }) {
 	return (
-		<section
+		<motion.section
 			aria-label={label}
 			className="rounded-xl border bg-card text-card-foreground shadow"
 			data-testid="dining-review-panel"
+			layout
 		>
 			<div className="divide-y divide-border">
 				{reviews.length > 0 ? (
 					reviews.map((review) => (
-						<article className="space-y-3 px-3 py-3" key={review.reviewId}>
+						<motion.article
+							className="space-y-3 px-3 py-3"
+							key={review.reviewId}
+							layout
+							{...contentSwap}
+						>
 							<div className="flex items-start justify-between gap-3">
 								<div className="min-w-0">
 									{review.contributorName ? (
@@ -377,13 +421,20 @@ export function DiningOfferingReviews({
 									))}
 								</div>
 							) : null}
-						</article>
+						</motion.article>
 					))
 				) : (
-					<div className="px-3 py-4 text-muted-foreground text-sm">暂无评价</div>
+					<motion.div
+						className="px-3 py-4 text-muted-foreground text-sm"
+						key="empty-reviews"
+						layout
+						{...contentSwap}
+					>
+						暂无评价
+					</motion.div>
 				)}
 			</div>
-		</section>
+		</motion.section>
 	);
 }
 

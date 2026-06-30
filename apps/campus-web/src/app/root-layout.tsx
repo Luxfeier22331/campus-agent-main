@@ -3,6 +3,7 @@ import { Suspense } from "react";
 
 import { ProductBrandLink, ProductNavActions } from "@/components/navigation/product-navigation";
 import { Button } from "@/components/ui/button";
+import { CampusMotionProvider } from "@/components/ui/motion";
 
 export function RootLayout() {
 	const location = useLocation();
@@ -12,14 +13,16 @@ export function RootLayout() {
 	const isLegalRoute = location.pathname.startsWith("/legal");
 	const shouldHideSupportHeader = isQaRoute || isMapRoute || isAccountRoute || isLegalRoute;
 	return (
-		<div className="min-h-dvh bg-background text-foreground">
-			{shouldHideSupportHeader ? null : <SupportPageHeader activePath={location.pathname} />}
-			<main>
-				<Suspense fallback={<RoutePending />}>
-					<Outlet />
-				</Suspense>
-			</main>
-		</div>
+		<CampusMotionProvider>
+			<div className="min-h-dvh bg-background text-foreground">
+				{shouldHideSupportHeader ? null : <SupportPageHeader activePath={location.pathname} />}
+				<main>
+					<Suspense fallback={<RoutePending />}>
+						<Outlet />
+					</Suspense>
+				</main>
+			</div>
+		</CampusMotionProvider>
 	);
 }
 

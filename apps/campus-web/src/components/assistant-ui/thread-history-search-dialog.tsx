@@ -2,6 +2,7 @@
 
 import { useNavigate } from "@tanstack/react-router";
 import { SearchIcon } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import {
 	Command,
@@ -12,6 +13,7 @@ import {
 	CommandList,
 } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { contentSwap, stateSwap } from "@/components/ui/motion";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { searchConversations } from "@/features/conversation/api";
 import type { ConversationSummary } from "@/features/conversation/model";
@@ -111,31 +113,42 @@ export function ThreadHistorySearchDialog({
 					</div>
 					<CommandInput placeholder="搜索历史会话" value={query} onValueChange={setQuery} />
 					<CommandList>
-						<CommandEmpty>{emptyLabel}</CommandEmpty>
-						{results.length > 0 ? (
-							<CommandGroup heading={view === "archived" ? "已归档" : "当前"}>
-								{results.map((conversation) => (
-									<CommandItem
-										key={conversation.id}
-										value={conversation.title}
-										onSelect={() => {
-											onOpenChange(false);
-											void navigate({
-												params: { conversationId: conversation.id },
-												to: "/c/$conversationId",
-											});
-										}}
-									>
-										<div className="flex min-w-0 flex-col">
-											<span className="truncate">{conversation.title}</span>
-											<span className="text-muted-foreground text-xs">
-												{formatConversationUpdatedAt(conversation.updatedAt)}
-											</span>
-										</div>
-									</CommandItem>
-								))}
-							</CommandGroup>
-						) : null}
+						<LayoutGroup>
+							<motion.div layout>
+								<CommandEmpty>
+									<motion.span key={emptyLabel} {...stateSwap}>
+										{emptyLabel}
+									</motion.span>
+								</CommandEmpty>
+								{results.length > 0 ? (
+									<motion.div key={`${view}:${trimmedQuery}`} layout {...contentSwap}>
+										<CommandGroup heading={view === "archived" ? "已归档" : "当前"}>
+											{results.map((conversation) => (
+												<motion.div key={conversation.id} layout {...contentSwap}>
+													<CommandItem
+														value={conversation.title}
+														onSelect={() => {
+															onOpenChange(false);
+															void navigate({
+																params: { conversationId: conversation.id },
+																to: "/c/$conversationId",
+															});
+														}}
+													>
+														<div className="flex min-w-0 flex-col">
+															<span className="truncate">{conversation.title}</span>
+															<span className="text-muted-foreground text-xs">
+																{formatConversationUpdatedAt(conversation.updatedAt)}
+															</span>
+														</div>
+													</CommandItem>
+												</motion.div>
+											))}
+										</CommandGroup>
+									</motion.div>
+								) : null}
+							</motion.div>
+						</LayoutGroup>
 					</CommandList>
 				</Command>
 			</DialogContent>

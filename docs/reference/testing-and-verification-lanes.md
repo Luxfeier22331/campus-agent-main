@@ -28,6 +28,11 @@ configuration.
     are intentionally added.
   - PowerShell 继续保留为 supplemental lane; it is 不并入默认 `pnpm repo:static`.
   - Not a typecheck, unit test, integration test or E2E proof.
+- `pnpm repo:static:affected`
+  - Local changed-file static lane against `origin/develop`.
+  - Skips unrelated heavy checks such as Java legacy office conversion and
+    Dockerfile lint when the affected file set does not touch those surfaces.
+  - Not a replacement for CI / release full `pnpm repo:static`.
 - `uv run --all-packages python -m unittest discover -s tests -t .`
   - Repo Python baseline through `uv` / `unittest`.
 - `pnpm web:typecheck`, `pnpm web:test`, `pnpm web:build`,
@@ -52,6 +57,18 @@ configuration.
   - Shared Postgres / Better Auth integration lane.
 - `pnpm --dir apps/campus-web test`
   - Campus-web Worker lane.
+- `pnpm --dir apps/campus-web test:e2e`
+  - Campus-web local browser E2E lane through Playwright Test.
+  - Uses the local Cloudflare Vite dev server and deterministic browser-side
+    API mocks for product UI journeys.
+  - Focuses on React shell user journeys; docs / Worker route boundary coverage
+    belongs to `test:e2e:worker`.
+- `pnpm --dir apps/campus-web test:e2e:worker`
+  - Campus-web local Worker/docs browser E2E lane through Playwright Test.
+  - Uses the local Cloudflare Vite dev server without browser-side API mocks.
+  - Proves Worker-owned routes such as probes, docs redirects, missing docs
+    fail-closed behavior, protected docs asset denial and unknown API paths.
+  - Not a staging release proof and not part of the root web graph lane.
 - `pnpm --dir apps/operator-console-web test`
   - Operator-console-web Worker lane.
 - `cd apps/execution-control && go test ./...`

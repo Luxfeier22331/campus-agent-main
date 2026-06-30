@@ -11,6 +11,7 @@ from scripts.check_shell_tracked import (
     build_docker_shellcheck_command,
     build_local_shellcheck_command,
     main,
+    select_affected_shell_files,
     tracked_shell_files,
     validate_shell_file,
 )
@@ -41,6 +42,26 @@ class CheckShellTrackedTest(unittest.TestCase):
             if item and (decoded := item.decode("utf-8")) and (repo_root / decoded).exists()
         )
         self.assertEqual(tracked_shell_files(root=repo_root), expected_paths)
+
+    def test_select_affected_shell_files_skips_unrelated_paths(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_shell_files(
+            ("apps/campus-web/src/features/conversation/assistant-ui-runtime.tsx",),
+            root=repo_root,
+        )
+
+        self.assertEqual(selected, ())
+
+    def test_select_affected_shell_files_returns_changed_shell_script(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        selected = select_affected_shell_files(
+            ("infra/local/minio/create_buckets.sh",),
+            root=repo_root,
+        )
+
+        self.assertEqual(selected, (repo_root / "infra/local/minio/create_buckets.sh",))
 
     def test_build_local_shellcheck_command_uses_repo_relative_path(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

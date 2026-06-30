@@ -64,9 +64,14 @@ describe("campus account pages", () => {
 		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signIn");
 
 		unmount();
-		render(<AccountAuthPage view="signUp" />);
+		const signUp = render(<AccountAuthPage view="signUp" />);
 
 		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signUp");
+
+		signUp.unmount();
+		render(<AccountAuthPage view="signOut" />);
+
+		expect(screen.getByLabelText("better-auth-ui-auth")).toHaveAttribute("data-view", "signOut");
 	});
 
 	it("routes account settings through Better Auth UI settings components", () => {

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ConversationPage } from "../src/app/routes/conversation-page";
@@ -166,15 +167,14 @@ describe("Q&A product interactions", () => {
 	});
 
 	it("searches remote conversation history from the Q&A rail", async () => {
+		const user = userEvent.setup();
 		render(<HomePage />);
 
 		await screen.findByTestId("assistant-chat");
-		fireEvent.click(screen.getByRole("button", { name: "搜索聊天" }));
+		await user.click(screen.getByRole("button", { name: "搜索聊天" }));
 
 		expect(await screen.findByRole("dialog", { name: "搜索聊天" })).toBeInTheDocument();
-		fireEvent.change(screen.getByPlaceholderText("搜索历史会话"), {
-			target: { value: "图书馆" },
-		});
+		await user.type(screen.getByPlaceholderText("搜索历史会话"), "图书馆");
 
 		await waitFor(() => {
 			expect(conversationApiMock.searchConversations).toHaveBeenCalledWith({
@@ -183,7 +183,7 @@ describe("Q&A product interactions", () => {
 				view: "active",
 			});
 		});
-		fireEvent.click(await screen.findByText("图书馆开放时间"));
+		await user.click(await screen.findByText("图书馆开放时间"));
 		expect(navigateMock).toHaveBeenCalledWith({
 			params: { conversationId: "conv_search" },
 			to: "/c/$conversationId",
@@ -222,10 +222,11 @@ describe("Q&A product interactions", () => {
 		expect(screen.getByRole("link", { name: "校园地图" })).toHaveClass("min-h-8", "text-xs");
 	});
 
-	it("keeps new conversation shortcut routed through the Q&A shell", () => {
+	it("keeps new conversation shortcut routed through the Q&A shell", async () => {
+		const user = userEvent.setup();
 		render(<ConversationPage />);
 
-		fireEvent.keyDown(window, { key: "o", metaKey: true, shiftKey: true });
+		await user.keyboard("{Control>}{Shift>}o{/Shift}{/Control}");
 
 		expect(navigateMock).toHaveBeenCalledWith({ to: "/" });
 	});
@@ -256,10 +257,11 @@ describe("Q&A product interactions", () => {
 	});
 
 	it("opens the auth modal from the Q&A account entry", async () => {
+		const user = userEvent.setup();
 		sessionState.data = null;
 		render(<QAShell assistantThreadId={null} topTitle="新对话" />);
 
-		fireEvent.click(await screen.findByRole("button", { name: "登录" }));
+		await user.click(await screen.findByRole("button", { name: "登录" }));
 
 		expect(screen.getByRole("dialog", { name: "登录或创建校园问答账号" })).toBeInTheDocument();
 	});

@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NotFoundPage, RootLayout } from "../src/app/root-layout";
 import rootLayoutSource from "../src/app/root-layout.tsx?raw";
@@ -39,7 +40,9 @@ const conversationApiMock = vi.hoisted(() => ({
 	unarchiveConversation: vi.fn(),
 }));
 const sessionState = vi.hoisted(() => ({
-	data: { user: { id: "user_01", name: "测试用户" } },
+	data: { user: { id: "user_01", name: "测试用户" } } as {
+		user: { id: string; name: string };
+	} | null,
 	isPending: false,
 }));
 const navigateMock = vi.hoisted(() => vi.fn());
@@ -320,20 +323,31 @@ describe("campus routes", () => {
 	});
 
 	it("keeps the mobile thread list scoped to conversation history", async () => {
+		const user = userEvent.setup();
 		mockMapWorkspaceWidth(false, vi.fn);
 		render(<HomePage />);
 
-		fireEvent.click(screen.getByRole("button", { name: "打开聊天记录" }));
+		const openMobileThreadsButton = screen.getByRole("button", { name: "打开聊天记录" });
+		expect(openMobileThreadsButton).toHaveClass("size-11");
+		await user.click(openMobileThreadsButton);
 		const mobileMenu = screen.getByRole("dialog", { name: "聊天记录" });
 		const closeMobileMenuButton = within(mobileMenu).getByRole("button", {
 			name: "关闭聊天记录",
 		});
 		expect(closeMobileMenuButton).toBeInTheDocument();
+		expect(mobileMenu.className).toContain("max-w-[calc(100vw-1rem)]");
 
 		expect(within(mobileMenu).queryByRole("button", { name: "登录" })).toBeNull();
 		expect(await within(mobileMenu).findByRole("button", { name: "国家奖学金" }));
-		fireEvent.click(closeMobileMenuButton);
+		await user.click(closeMobileMenuButton);
 		expect(screen.queryByRole("button", { name: "关闭聊天记录" })).toBeNull();
+	});
+
+	it("keeps signed-out Q&A account entry large enough for touch", async () => {
+		sessionState.data = null;
+		render(<HomePage />);
+
+		expect(await screen.findByRole("button", { name: "登录" })).toHaveClass("min-h-11");
 	});
 
 	it("does not wrap the map route in the generic support page header", () => {
@@ -403,19 +417,21 @@ describe("campus routes", () => {
 		window.history.pushState({}, "", "/feedback?source=map");
 		render(<FeedbackPage />);
 
-		expect(screen.getByLabelText("当前页面")).toHaveValue("/feedback?source=map");
+		expect(screen.getByLabelText("当前页面")).toHaveTextContent("/feedback?source=map");
+		expect(screen.queryByRole("textbox", { name: "当前页面" })).toBeNull();
 	});
 
 	it("submits feedback with the current route context and shows received status", async () => {
+		const user = userEvent.setup();
 		window.history.pushState({}, "", "/feedback?source=map");
 		render(<FeedbackPage />);
 
-		fireEvent.change(screen.getByLabelText("问题描述"), {
-			target: { value: "地图地点名称需要更新。" },
-		});
-		fireEvent.click(screen.getByRole("button", { name: "提交反馈" }));
+		await user.type(screen.getByLabelText("问题描述"), "地图地点名称需要更新。");
+		await user.click(screen.getByRole("button", { name: "提交反馈" }));
 
-		expect(await screen.findByText("已收到：feedback_01")).toBeInTheDocument();
+		const receivedStatus = await screen.findByText("已收到：feedback_01");
+		expect(receivedStatus).toBeInTheDocument();
+		expect(receivedStatus.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
 		expect(feedbackApiMock.submitFeedback).toHaveBeenCalledWith(
 			expect.objectContaining({
 				body: "地图地点名称需要更新。",
@@ -469,6 +485,7 @@ describe("campus routes", () => {
 	});
 
 	it("renders dining map-first hall selector, interactive stalls, and menu references", async () => {
+		const user = userEvent.setup();
 		mockDiningFixtureApi(diningApiMock);
 		render(<DiningPage />);
 
@@ -520,39 +537,34 @@ describe("campus routes", () => {
 		expect(screen.getByRole("button", { name: "放大平面图" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "缩小平面图" })).toBeInTheDocument();
 		expect(screen.getByRole("button", { name: "适配平面图" })).toBeInTheDocument();
-		fireEvent.click(screen.getByTestId("dining-anchor-window-01"));
+		await user.click(screen.getByTestId("dining-anchor-window-01"));
 		expect(screen.getByTestId("dining-anchor-window-01")).toHaveClass("is-selected");
 		expect(screen.queryByRole("button", { name: "鱼粉" })).toBeNull();
-		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-			target: { value: "金汤" },
-		});
+		await user.type(screen.getByPlaceholderText("搜索食堂、档口、菜品"), "金汤");
 		expect(screen.getByText("海淀一食堂")).toBeInTheDocument();
 		expect(screen.queryByText("没有匹配的食堂、档口或菜品")).not.toBeInTheDocument();
 		expect(screen.getAllByText("金汤鱼粉")).toHaveLength(1);
 		expect(screen.getByTestId("dining-anchor-window-01")).toBeInTheDocument();
 		expect(screen.getByTestId("dining-anchor-window-02")).toHaveClass("is-dimmed");
 		expect(screen.queryByRole("button", { name: "选择二号窗口" })).toBeNull();
-		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-			target: { value: "不存在的菜" },
-		});
+		await user.clear(screen.getByPlaceholderText("搜索食堂、档口、菜品"));
+		await user.type(screen.getByPlaceholderText("搜索食堂、档口、菜品"), "不存在的菜");
 		expect(screen.getByText("没有匹配的食堂、档口或菜品")).toBeInTheDocument();
 		expect(screen.queryByTestId("dining-inline-floorplan")).toBeNull();
 		expect(screen.queryByText("金汤鱼粉")).toBeNull();
-		fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-			target: { value: "" },
-		});
-		fireEvent.click(screen.getByRole("radio", { name: "热餐" }));
+		await user.clear(screen.getByPlaceholderText("搜索食堂、档口、菜品"));
+		await user.click(screen.getByRole("radio", { name: "热餐" }));
 		expect(screen.getByRole("button", { name: "选择螺蛳粉" })).toBeInTheDocument();
-		fireEvent.click(screen.getByRole("radio", { name: "全部" }));
+		await user.click(screen.getByRole("radio", { name: "全部" }));
 		expect(screen.getByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
-		fireEvent.click(screen.getByRole("radio", { name: "丰台校区" }));
+		await user.click(screen.getByRole("radio", { name: "丰台校区" }));
 
 		expect((await screen.findAllByText("荟贤食堂一层")).length).toBeGreaterThan(0);
-		fireEvent.click(screen.getByText("二层"));
+		await user.click(screen.getByText("二层"));
 		expect((await screen.findAllByText("荟贤食堂二层")).length).toBeGreaterThan(0);
-		fireEvent.click(screen.getByRole("radio", { name: "海淀校区" }));
+		await user.click(screen.getByRole("radio", { name: "海淀校区" }));
 
 		expect((await screen.findAllByText("海淀一食堂一层")).length).toBeGreaterThan(0);
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalledWith({
@@ -562,6 +574,7 @@ describe("campus routes", () => {
 	});
 
 	it("scrolls mobile diners to the stall detail after explicit window selection", async () => {
+		const user = userEvent.setup();
 		mockDiningFixtureApi(diningApiMock);
 		const originalMatchMedia = window.matchMedia;
 		const originalRequestAnimationFrame = window.requestAnimationFrame;
@@ -589,14 +602,12 @@ describe("campus routes", () => {
 			expect(await screen.findByRole("button", { name: "选择鱼粉" })).toBeInTheDocument();
 			expect(scrollIntoView).not.toHaveBeenCalled();
 
-			fireEvent.click(screen.getByTestId("dining-anchor-window-02"));
+			await user.click(screen.getByTestId("dining-anchor-window-02"));
 			expect(scrollIntoView).toHaveBeenCalledWith({ behavior: "smooth", block: "start" });
 			expect(screen.getByRole("heading", { name: "螺蛳粉" })).toBeInTheDocument();
 
 			scrollIntoView.mockClear();
-			fireEvent.change(screen.getByPlaceholderText("搜索食堂、档口、菜品"), {
-				target: { value: "金汤" },
-			});
+			await user.type(screen.getByPlaceholderText("搜索食堂、档口、菜品"), "金汤");
 			expect(scrollIntoView).not.toHaveBeenCalled();
 		} finally {
 			window.matchMedia = originalMatchMedia;
@@ -610,7 +621,14 @@ describe("campus routes", () => {
 
 		render(<DiningPage />);
 
+		expect(screen.getByRole("status", { name: "正在读取食堂数据" })).toHaveAttribute(
+			"aria-busy",
+			"true",
+		);
 		expect(await screen.findByText("当前没有已发布的食堂数据。")).toBeInTheDocument();
+		expect(screen.getByRole("status", { name: "暂无内容" })).toHaveTextContent(
+			"当前没有已发布的食堂数据。",
+		);
 		expect(screen.queryByText("正在读取食堂数据")).not.toBeInTheDocument();
 		expect(diningApiMock.getDiningFloor).not.toHaveBeenCalled();
 	});

@@ -44,6 +44,12 @@ export function QAShell({
 	}, [loginRequested, openAuthDialog]);
 
 	useEffect(() => {
+		if (hasSession) {
+			setAuthDialogOpen(false);
+		}
+	}, [hasSession]);
+
+	useEffect(() => {
 		function handleKeyDown(event: KeyboardEvent) {
 			const commandKey = event.metaKey || event.ctrlKey;
 			if (commandKey && event.shiftKey && event.key.toLowerCase() === "o") {
@@ -97,17 +103,18 @@ export function QAShell({
 										triggerClassName="md:hidden"
 										variant="chat"
 									/>
-									{hasSession ? (
-										<QAAccountEntry />
-									) : (
-										<AuthDialog
-											onOpenChange={setAuthDialogOpen}
-											open={authDialogOpen}
-											trigger={<QAAccountEntry />}
-											triggerAriaLabel="登录"
-											triggerClassName="inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
-										/>
-									)}
+									{hasSession ? <QAAccountEntry /> : null}
+									<AuthDialog
+										onOpenChange={setAuthDialogOpen}
+										open={authDialogOpen}
+										trigger={hasSession ? undefined : <QAAccountEntry />}
+										triggerAriaLabel={hasSession ? undefined : "登录"}
+										triggerClassName={
+											hasSession
+												? undefined
+												: "inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-2 text-xs font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring sm:px-3"
+										}
+									/>
 								</div>
 							</div>
 						</header>
@@ -144,8 +151,8 @@ function AssistantRemoteRuntimeFrame({
 		[enableRemoteHistory],
 	);
 	const runtimeHook = useMemo(
-		() => createCampusAssistantRuntimeHook({ onLoginRequired }),
-		[onLoginRequired],
+		() => createCampusAssistantRuntimeHook({ hasSession: enableRemoteHistory, onLoginRequired }),
+		[enableRemoteHistory, onLoginRequired],
 	);
 	const runtime = useRemoteThreadListRuntime({
 		adapter,

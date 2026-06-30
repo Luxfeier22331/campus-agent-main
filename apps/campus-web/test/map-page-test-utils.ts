@@ -1,4 +1,5 @@
-import { fireEvent, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import type { Mock } from "vitest";
 
 interface MatchMediaMock extends Mock<(query: string) => MediaQueryList> {}
@@ -54,5 +55,5 @@ export async function expandMapResults() {
 		return;
 	}
 	const trigger = await screen.findByRole("button", { name: "展开地点结果" });
-	fireEvent.click(trigger);
+	await userEvent.setup().click(trigger);
 }

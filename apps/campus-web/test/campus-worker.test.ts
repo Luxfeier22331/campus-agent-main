@@ -130,6 +130,7 @@ describe("campus worker boundary", () => {
 			"/account/register",
 			"/account/forgot-password",
 			"/account/reset-password",
+			"/account/sign-out",
 			"/account/settings/account",
 			"/account/settings/security",
 			"/account/federation/consent",

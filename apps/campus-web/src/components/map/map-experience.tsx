@@ -1,4 +1,5 @@
 import { List, LocateFixed, MapPin, X } from "lucide-react";
+import { LayoutGroup, motion } from "motion/react";
 import type { RefObject } from "react";
 import { useEffect, useState } from "react";
 
@@ -7,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Command, CommandInput } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { contentSwap, panelPresence, popoverPresence, sheetPresence } from "@/components/ui/motion";
 import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
@@ -30,6 +32,7 @@ export function MapExperience({
 	mapRef,
 	onCanvasClick,
 	onCategoryChange,
+	onClearFilters,
 	onCampusChange,
 	onPlaceSelect,
 	onQueryChange,
@@ -48,6 +51,7 @@ export function MapExperience({
 	mapRef: RefObject<HTMLElement | null>;
 	onCanvasClick: () => void;
 	onCategoryChange: (category: MapTaskFilter) => void;
+	onClearFilters: () => void;
 	onCampusChange: (campus: string) => void;
 	onPlaceSelect: (placeId: string) => void;
 	onQueryChange: (query: string) => void;
@@ -83,6 +87,7 @@ export function MapExperience({
 				listExpanded={placeListExpanded}
 				onCategoryChange={onCategoryChange}
 				onCampusChange={onCampusChange}
+				onClearFilters={onClearFilters}
 				onClearSelection={onCanvasClick}
 				onListExpandedChange={setPlaceListExpanded}
 				onPlaceSelect={onPlaceSelect}
@@ -111,6 +116,7 @@ function MapSearchPanel({
 	isDesktop,
 	listExpanded,
 	onCategoryChange,
+	onClearFilters,
 	onCampusChange,
 	onClearSelection,
 	onListExpandedChange,
@@ -129,6 +135,7 @@ function MapSearchPanel({
 	isDesktop: boolean;
 	listExpanded: boolean;
 	onCategoryChange: (category: MapTaskFilter) => void;
+	onClearFilters: () => void;
 	onCampusChange: (campus: string) => void;
 	onClearSelection: () => void;
 	onListExpandedChange: (expanded: boolean) => void;
@@ -149,7 +156,7 @@ function MapSearchPanel({
 	const activeResultIndex = activeResultState.key === resultStateKey ? activeResultState.index : -1;
 
 	return (
-		<aside
+		<motion.aside
 			aria-label="地点搜索与结果"
 			className={cn(
 				"pointer-events-auto absolute z-30 rounded-2xl border border-white/70 bg-white/80 shadow-[var(--shadow-xs)] backdrop-blur-md",
@@ -164,153 +171,166 @@ function MapSearchPanel({
 						? "max-h-[min(34dvh,220px)]"
 						: "max-h-[148px]",
 			)}
+			layout
 		>
-			<Command
-				className="min-h-0 bg-transparent"
-				filter={() => 1}
-				label="搜索地点"
-				onKeyDown={(event) => {
-					if (event.key !== "Escape") {
-						return;
-					}
-					if (selectedPlaceId) {
-						event.preventDefault();
-						onClearSelection();
-						return;
-					}
-					if (hasQuery) {
-						event.preventDefault();
-						onQueryChange("");
-					}
-				}}
-			>
-				<div className={cn("space-y-2 p-2.5", listExpanded && "border-b border-white/60")}>
-					<div className="flex items-center gap-2">
-						<form
-							aria-label="地点搜索"
-							className="min-w-0 flex-1"
-							onSubmit={(event) => event.preventDefault()}
-						>
-							<div className="relative">
-								<CommandInput
-									aria-label="搜索地点"
-									className={cn(
-										"rounded-full border border-white/70 bg-white/72 pl-1 shadow-[var(--shadow-xs)]",
-										hasQuery ? "pr-10" : "pr-3",
-										isDesktop ? "min-h-10" : "min-h-11",
-									)}
-									onFocus={() => onListExpandedChange(true)}
-									onKeyDown={(event) => {
-										if (event.key === "ArrowDown") {
-											event.preventDefault();
-											onListExpandedChange(true);
-											setActiveResultState((current) => ({
-												index: getNextPlaceIndex(
-													current.key === resultStateKey ? current.index : -1,
-													places.length,
-													1,
-												),
-												key: resultStateKey,
-											}));
-											return;
-										}
-										if (event.key === "ArrowUp") {
-											event.preventDefault();
-											onListExpandedChange(true);
-											setActiveResultState((current) => ({
-												index: getNextPlaceIndex(
-													current.key === resultStateKey ? current.index : -1,
-													places.length,
-													-1,
-												),
-												key: resultStateKey,
-											}));
-											return;
-										}
-										if (event.key === "Enter" && places.length > 0) {
-											event.preventDefault();
-											const place = places[activeResultIndex >= 0 ? activeResultIndex : 0];
-											if (place) {
-												onPlaceSelect(place.place.id);
-											}
-										}
-									}}
-									onValueChange={(value) => {
-										onListExpandedChange(true);
-										onQueryChange(value);
-									}}
-									placeholder="搜索地点"
-									value={query}
-								/>
-								{hasQuery ? (
-									<Button
-										aria-label="清除搜索"
-										className="-translate-y-1/2 absolute right-1 top-1/2 rounded-full"
-										onClick={() => {
-											onQueryChange("");
-											onListExpandedChange(true);
-										}}
-										size="icon"
-										variant="ghost"
-									>
-										<X aria-hidden="true" className="size-4" />
-									</Button>
-								) : null}
-							</div>
-						</form>
-						{compactResults ? null : (
-							<Button
-								aria-controls="campus-map-results"
-								aria-expanded={listExpanded}
-								aria-label={listExpanded ? "收起地点结果" : "展开地点结果"}
-								className={cn(
-									"rounded-full bg-white/58 text-[var(--sys-text-muted)] hover:bg-white/72 hover:text-[var(--sys-text-strong)]",
-									isDesktop ? "min-h-10 text-xs" : "min-h-11 text-sm",
-								)}
-								onClick={() => onListExpandedChange(!listExpanded)}
-								title={listExpanded ? "收起地点结果" : "展开地点结果"}
-								variant="ghost"
-							>
-								<List aria-hidden="true" className="size-4" />
-								<span className="hidden sm:inline">{listExpanded ? "收起" : "地点"}</span>
-							</Button>
-						)}
-					</div>
-					<CampusSelector
-						campuses={campuses}
-						campus={campus}
-						isDesktop={isDesktop}
-						onCampusChange={onCampusChange}
-					/>
-					{campusNotice ? <CampusReferenceNotice message={campusNotice} /> : null}
-					{listExpanded && !compactResults ? (
-						<CategoryFilters
-							categories={categories}
-							category={category}
-							isDesktop={isDesktop}
-							onCategoryChange={onCategoryChange}
-						/>
-					) : null}
-				</div>
-				{listExpanded && !compactResults ? (
-					<div
-						className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
-						id="campus-map-results"
+			<LayoutGroup>
+				<Command
+					className="min-h-0 bg-transparent"
+					filter={() => 1}
+					label="搜索地点"
+					onKeyDown={(event) => {
+						if (event.key !== "Escape") {
+							return;
+						}
+						if (selectedPlaceId) {
+							event.preventDefault();
+							onClearSelection();
+							return;
+						}
+						if (hasQuery) {
+							event.preventDefault();
+							onQueryChange("");
+						}
+					}}
+				>
+					<motion.div
+						className={cn("space-y-2 p-2.5", listExpanded && "border-b border-white/60")}
+						layout
 					>
-						<h2 className="px-2 py-1 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
-							地点
-						</h2>
-						<PlaceList
-							activeResultIndex={activeResultIndex}
-							forceExpanded={hasQuery || category !== "all"}
-							onPlaceSelect={onPlaceSelect}
-							places={places}
-							selectedPlaceId={selectedPlaceId}
+						<div className="flex items-center gap-2">
+							<form
+								aria-label="地点搜索"
+								className="min-w-0 flex-1"
+								onSubmit={(event) => event.preventDefault()}
+							>
+								<div className="relative">
+									<CommandInput
+										aria-label="搜索地点"
+										className={cn(
+											"rounded-full border border-white/70 bg-white/72 pl-1 shadow-[var(--shadow-xs)]",
+											hasQuery ? "pr-10" : "pr-3",
+											isDesktop ? "min-h-10" : "min-h-11",
+										)}
+										onFocus={() => onListExpandedChange(true)}
+										onKeyDown={(event) => {
+											if (event.key === "ArrowDown") {
+												event.preventDefault();
+												onListExpandedChange(true);
+												setActiveResultState((current) => ({
+													index: getNextPlaceIndex(
+														current.key === resultStateKey ? current.index : -1,
+														places.length,
+														1,
+													),
+													key: resultStateKey,
+												}));
+												return;
+											}
+											if (event.key === "ArrowUp") {
+												event.preventDefault();
+												onListExpandedChange(true);
+												setActiveResultState((current) => ({
+													index: getNextPlaceIndex(
+														current.key === resultStateKey ? current.index : -1,
+														places.length,
+														-1,
+													),
+													key: resultStateKey,
+												}));
+												return;
+											}
+											if (event.key === "Enter" && places.length > 0) {
+												event.preventDefault();
+												const place = places[activeResultIndex >= 0 ? activeResultIndex : 0];
+												if (place) {
+													onPlaceSelect(place.place.id);
+												}
+											}
+										}}
+										onValueChange={(value) => {
+											onListExpandedChange(true);
+											onQueryChange(value);
+										}}
+										placeholder="搜索地点"
+										value={query}
+									/>
+									{hasQuery ? (
+										<Button
+											aria-label="清除搜索"
+											className="-translate-y-1/2 absolute right-1 top-1/2 rounded-full"
+											onClick={() => {
+												onQueryChange("");
+												onListExpandedChange(true);
+											}}
+											size="icon"
+											variant="ghost"
+										>
+											<X aria-hidden="true" className="size-4" />
+										</Button>
+									) : null}
+								</div>
+							</form>
+							{compactResults ? null : (
+								<Button
+									aria-controls="campus-map-results"
+									aria-expanded={listExpanded}
+									aria-label={listExpanded ? "收起地点结果" : "展开地点结果"}
+									className={cn(
+										"rounded-full bg-white/58 text-[var(--sys-text-muted)] hover:bg-white/72 hover:text-[var(--sys-text-strong)]",
+										isDesktop ? "min-h-10 text-xs" : "min-h-11 text-sm",
+									)}
+									onClick={() => onListExpandedChange(!listExpanded)}
+									title={listExpanded ? "收起地点结果" : "展开地点结果"}
+									variant="ghost"
+								>
+									<List aria-hidden="true" className="size-4" />
+									<span className="hidden sm:inline">{listExpanded ? "收起" : "地点"}</span>
+								</Button>
+							)}
+						</div>
+						<CampusSelector
+							campuses={campuses}
+							campus={campus}
+							isDesktop={isDesktop}
+							onCampusChange={onCampusChange}
 						/>
-					</div>
-				) : null}
-			</Command>
-		</aside>
+						{campusNotice ? <CampusReferenceNotice message={campusNotice} /> : null}
+						{listExpanded && !compactResults ? (
+							<motion.div key="category-filters" layout {...contentSwap}>
+								<CategoryFilters
+									categories={categories}
+									category={category}
+									isDesktop={isDesktop}
+									onCategoryChange={onCategoryChange}
+								/>
+							</motion.div>
+						) : null}
+					</motion.div>
+					{listExpanded && !compactResults ? (
+						<motion.div
+							className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-1.5"
+							id="campus-map-results"
+							key="map-results"
+							layout
+							layoutScroll
+							{...panelPresence}
+						>
+							<h2 className="px-2 py-1 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
+								地点
+							</h2>
+							<PlaceList
+								activeResultIndex={activeResultIndex}
+								forceExpanded={hasQuery || category !== "all"}
+								onClearFilters={onClearFilters}
+								onPlaceSelect={onPlaceSelect}
+								places={places}
+								selectedPlaceId={selectedPlaceId}
+							/>
+						</motion.div>
+					) : null}
+				</Command>
+			</LayoutGroup>
+		</motion.aside>
 	);
 }
 
@@ -403,12 +423,14 @@ function CategoryFilters({
 function PlaceList({
 	activeResultIndex,
 	forceExpanded,
+	onClearFilters,
 	onPlaceSelect,
 	places,
 	selectedPlaceId,
 }: {
 	activeResultIndex: number;
 	forceExpanded: boolean;
+	onClearFilters: () => void;
 	onPlaceSelect: (placeId: string) => void;
 	places: MapPlaceView[];
 	selectedPlaceId: string | null;
@@ -422,6 +444,9 @@ function PlaceList({
 					<p className="mt-1 max-w-sm text-muted-foreground text-sm">
 						调整搜索词或筛选条件后再试。
 					</p>
+					<Button className="mt-4" onClick={onClearFilters} type="button" variant="outline">
+						清除筛选
+					</Button>
 				</div>
 			</section>
 		);
@@ -431,7 +456,7 @@ function PlaceList({
 	let placeIndex = 0;
 
 	return (
-		<section aria-label="地点结果" className="space-y-3">
+		<motion.section aria-label="地点结果" className="space-y-3" layout>
 			{groups.map((group) => {
 				const expanded = forceExpanded || expandedGroups.has(group.label);
 				const visiblePlaces = expanded
@@ -439,7 +464,7 @@ function PlaceList({
 					: group.places.slice(0, DEFAULT_VISIBLE_PLACES_PER_GROUP);
 				const canToggle = group.places.length > DEFAULT_VISIBLE_PLACES_PER_GROUP;
 				return (
-					<fieldset className="space-y-1" key={group.label}>
+					<motion.fieldset className="space-y-1" key={group.label} layout>
 						<legend className="px-2 text-[11px] font-semibold text-[var(--sys-text-subtle)]">
 							{group.label}
 						</legend>
@@ -449,28 +474,29 @@ function PlaceList({
 							const selected = selectedPlaceId === place.place.id;
 							const active = activeResultIndex === currentIndex;
 							return (
-								<Button
-									aria-label={`选择${place.place.title}`}
-									aria-pressed={selected}
-									className={cn(
-										"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-white/58 p-2.5 text-left whitespace-normal outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
-										active && "border-[var(--sys-border-default)] bg-white/78",
-										selected && "border-[var(--sys-text-strong)] bg-white/88",
-									)}
-									key={place.place.id}
-									onClick={() => onPlaceSelect(place.place.id)}
-									variant="ghost"
-								>
-									<span className="block text-sm font-semibold text-[var(--sys-text-strong)]">
-										{place.place.title}
-									</span>
-									<span className="mt-0.5 block text-[11px] text-[var(--sys-text-muted)]">
-										{place.place.campus} · {place.categoryLabel}
-									</span>
-									<span className="mt-1 line-clamp-1 block text-xs leading-5 text-[var(--sys-text-muted)]">
-										{place.place.description}
-									</span>
-								</Button>
+								<motion.div key={place.place.id} layout {...contentSwap}>
+									<Button
+										aria-label={`选择${place.place.title}`}
+										aria-pressed={selected}
+										className={cn(
+											"h-auto min-h-[76px] w-full flex-col items-start rounded-lg border border-transparent bg-white/58 p-2.5 text-left whitespace-normal outline-none hover:bg-white/82 focus-visible:shadow-[var(--state-focus-shadow)]",
+											active && "border-[var(--sys-border-default)] bg-white/78",
+											selected && "border-[var(--sys-text-strong)] bg-white/88",
+										)}
+										onClick={() => onPlaceSelect(place.place.id)}
+										variant="ghost"
+									>
+										<span className="block text-sm font-semibold text-[var(--sys-text-strong)]">
+											{place.place.title}
+										</span>
+										<span className="mt-0.5 block text-[11px] text-[var(--sys-text-muted)]">
+											{place.place.campus} · {place.categoryLabel}
+										</span>
+										<span className="mt-1 line-clamp-1 block text-xs leading-5 text-[var(--sys-text-muted)]">
+											{place.place.description}
+										</span>
+									</Button>
+								</motion.div>
 							);
 						})}
 						{canToggle && !forceExpanded ? (
@@ -492,10 +518,10 @@ function PlaceList({
 								{expanded ? `收起${group.label}` : `展开${group.label}`}
 							</Button>
 						) : null}
-					</fieldset>
+					</motion.fieldset>
 				);
 			})}
-		</section>
+		</motion.section>
 	);
 }
 
@@ -583,16 +609,18 @@ function MapPlacePopover({
 					side="right"
 					sideOffset={20}
 				>
-					<Button
-						aria-label="关闭地点详情"
-						className="absolute right-3 top-3 z-10 size-10"
-						onClick={onClose}
-						size="icon"
-						variant="ghost"
-					>
-						<X aria-hidden="true" className="size-4" />
-					</Button>
-					<DetailCard />
+					<motion.div key={place.place.id} {...popoverPresence}>
+						<Button
+							aria-label="关闭地点详情"
+							className="absolute right-3 top-3 z-10 size-10"
+							onClick={onClose}
+							size="icon"
+							variant="ghost"
+						>
+							<X aria-hidden="true" className="size-4" />
+						</Button>
+						<DetailCard />
+					</motion.div>
 				</PopoverContent>
 			</Popover>
 		);
@@ -605,26 +633,28 @@ function MapPlacePopover({
 				data-variant="sheet"
 				showCloseButton={false}
 			>
-				<Button
-					aria-label="关闭地点详情"
-					className="mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none focus-visible:shadow-[var(--state-focus-shadow)]"
-					onClick={onClose}
-					variant="ghost"
-				>
-					<span className="h-1 w-10 rounded-full bg-[var(--sys-border-default)]" />
-				</Button>
-				<div className="relative">
-					<DetailCard titleKind="dialog" />
+				<motion.div key={place.place.id} {...sheetPresence}>
 					<Button
 						aria-label="关闭地点详情"
-						className="absolute right-3 top-3 size-10"
+						className="mx-auto mt-2 grid min-h-5 w-16 place-items-center rounded-full text-[var(--sys-text-subtle)] outline-none focus-visible:shadow-[var(--state-focus-shadow)]"
 						onClick={onClose}
-						size="icon"
 						variant="ghost"
 					>
-						<X aria-hidden="true" className="size-4" />
+						<span className="h-1 w-10 rounded-full bg-[var(--sys-border-default)]" />
 					</Button>
-				</div>
+					<div className="relative">
+						<DetailCard titleKind="dialog" />
+						<Button
+							aria-label="关闭地点详情"
+							className="absolute right-3 top-3 size-10"
+							onClick={onClose}
+							size="icon"
+							variant="ghost"
+						>
+							<X aria-hidden="true" className="size-4" />
+						</Button>
+					</div>
+				</motion.div>
 			</DialogContent>
 		</Dialog>
 	);

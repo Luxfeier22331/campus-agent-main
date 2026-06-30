@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.worktree_file_discovery import worktree_paths
+from scripts.worktree_file_discovery import changed_worktree_paths, worktree_paths
 
 
 class WorktreeFileDiscoveryTest(unittest.TestCase):
@@ -80,6 +80,49 @@ class WorktreeFileDiscoveryTest(unittest.TestCase):
             files = worktree_paths("docs", root=root)
 
         self.assertEqual(files, (target,))
+
+    @patch("scripts.worktree_file_discovery.subprocess.run")
+    def test_changed_worktree_paths_include_branch_worktree_and_untracked_files(
+        self, run_mock: subprocess.CompletedProcess[bytes]
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            changed = root / "apps/campus-web/src/app.ts"
+            staged = root / "scripts/check_repo_static.py"
+            untracked = root / "tests/test_new.py"
+            changed.parent.mkdir(parents=True)
+            staged.parent.mkdir(parents=True)
+            untracked.parent.mkdir(parents=True)
+            changed.write_text("export {};\n", encoding="utf-8")
+            staged.write_text("print('ok')\n", encoding="utf-8")
+            untracked.write_text("import unittest\n", encoding="utf-8")
+            run_mock.side_effect = [
+                subprocess.CompletedProcess(args=["git"], returncode=0, stdout="abc123\n"),
+                subprocess.CompletedProcess(
+                    args=["git"],
+                    returncode=0,
+                    stdout="apps/campus-web/src/app.ts\0missing.py\0",
+                ),
+                subprocess.CompletedProcess(
+                    args=["git"],
+                    returncode=0,
+                    stdout="scripts/check_repo_static.py\0",
+                ),
+                subprocess.CompletedProcess(
+                    args=["git"],
+                    returncode=0,
+                    stdout="apps/campus-web/src/app.ts\0",
+                ),
+                subprocess.CompletedProcess(
+                    args=["git"],
+                    returncode=0,
+                    stdout="tests/test_new.py\0",
+                ),
+            ]
+
+            files = changed_worktree_paths(root=root, base_ref="origin/develop")
+
+        self.assertEqual(files, (changed, staged, untracked))
 
 
 if __name__ == "__main__":

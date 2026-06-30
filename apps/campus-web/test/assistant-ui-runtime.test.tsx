@@ -1,6 +1,7 @@
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ChatStreamRequestError } from "../src/features/conversation/api";
 import { createCampusAssistantRuntimeHook } from "../src/features/conversation/assistant-ui-runtime";
 import type { ChatRequestStreamEvent } from "../src/features/conversation/model";
 
@@ -9,7 +10,12 @@ const assistantUiMock = vi.hoisted(() => ({
 		isRunning: boolean;
 		messages: unknown[];
 		onCancel: () => Promise<void>;
+		onEdit?: (message: {
+			content: { text: string; type: "text" }[];
+			parentId?: string;
+		}) => Promise<void>;
 		onNew: (message: { content: { text: string; type: "text" }[] }) => Promise<void>;
+		onReload?: (parentId: string | null) => Promise<void>;
 	},
 	initialize: vi.fn(),
 	remoteId: undefined as string | undefined,
@@ -17,6 +23,28 @@ const assistantUiMock = vi.hoisted(() => ({
 
 const conversationApiMock = vi.hoisted(() => ({
 	cancelRun: vi.fn(),
+	ChatStreamRequestError: class ChatStreamRequestError extends Error {
+		code: string;
+		requestId?: string;
+		retryable: boolean;
+		traceId?: string;
+
+		constructor(input: {
+			code: string;
+			message: string;
+			requestId?: string;
+			retryable: boolean;
+			traceId?: string;
+		}) {
+			super(input.message);
+			this.name = "ChatStreamRequestError";
+			this.code = input.code;
+			this.requestId = input.requestId;
+			this.retryable = input.retryable;
+			this.traceId = input.traceId;
+		}
+	},
+	deleteTrailingMessages: vi.fn(),
 	getConversationDetail: vi.fn(),
 	resumeRunEventsStream: vi.fn(),
 	submitChatRequestStream: vi.fn(),
@@ -38,8 +66,14 @@ vi.mock("@assistant-ui/react", () => ({
 
 vi.mock("../src/features/conversation/api", () => conversationApiMock);
 
-function RuntimeProbe({ onLoginRequired }: { onLoginRequired: () => void }) {
-	const useRuntime = createCampusAssistantRuntimeHook({ onLoginRequired });
+function RuntimeProbe({
+	hasSession = true,
+	onLoginRequired,
+}: {
+	hasSession?: boolean;
+	onLoginRequired: () => void;
+}) {
+	const useRuntime = createCampusAssistantRuntimeHook({ hasSession, onLoginRequired });
 	useRuntime();
 	return null;
 }
@@ -71,6 +105,7 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		assistantUiMock.initialize.mockReset();
 		assistantUiMock.initialize.mockResolvedValue({ remoteId: "conv_created" });
 		conversationApiMock.cancelRun.mockReset();
+		conversationApiMock.deleteTrailingMessages.mockReset();
 		conversationApiMock.getConversationDetail.mockReset();
 		conversationApiMock.resumeRunEventsStream.mockReset();
 		conversationApiMock.submitChatRequestStream.mockReset();
@@ -166,6 +201,22 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 				expect.objectContaining({ id: "msg_answer", role: "assistant" }),
 			]);
 		});
+	});
+
+	it("opens login without initializing a conversation when a prompt is submitted anonymously", async () => {
+		const onLoginRequired = vi.fn();
+		render(<RuntimeProbe hasSession={false} onLoginRequired={onLoginRequired} />);
+
+		await act(async () => {
+			await assistantUiMock.externalStoreInput?.onNew({
+				content: [{ text: "国家奖学金怎么评审？", type: "text" }],
+			});
+		});
+
+		expect(onLoginRequired).toHaveBeenCalledOnce();
+		expect(assistantUiMock.initialize).not.toHaveBeenCalled();
+		expect(conversationApiMock.submitChatRequestStream).not.toHaveBeenCalled();
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual([]);
 	});
 
 	it("reveals answer delta text incrementally before terminal closeout is applied", async () => {
@@ -412,6 +463,95 @@ describe("assistant-ui runtime lifecycle bridge", () => {
 		await act(async () => {
 			await submitPromise;
 		});
+	});
+
+	it("renders failed stream startup as an assistant error message without throwing", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(async function* () {
+			yield* [] as ChatRequestStreamEvent[];
+			throw new ChatStreamRequestError({
+				code: "execution_failed",
+				message: "请求失败。",
+				requestId: "req_failed",
+				retryable: true,
+				traceId: "trace_failed",
+			});
+		});
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		await act(async () => {
+			await expect(
+				assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "这次会失败吗？", type: "text" }],
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		await waitFor(() => expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false));
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
+			expect.objectContaining({ role: "user" }),
+			expect.objectContaining({
+				content: [{ text: "请求失败。", type: "text" }],
+				id: "local-error-req_failed",
+				role: "assistant",
+			}),
+		]);
+		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
+	});
+
+	it("renders a failed stream terminal event as an assistant error message", async () => {
+		conversationApiMock.submitChatRequestStream.mockImplementation(() =>
+			streamEvents([
+				{
+					data: {
+						occurredAt: "2026-06-24T01:00:00.000Z",
+						requestId: "req_failed",
+						runId: "run_failed",
+						sequence: 1,
+						status: "accepted",
+						traceId: "trace_failed",
+					},
+					event: "request.accepted",
+				},
+				{
+					data: {
+						error: {
+							code: "execution_failed",
+							message: "请求失败。",
+							retryable: true,
+						},
+						occurredAt: "2026-06-24T01:00:01.000Z",
+						requestId: "req_failed",
+						runId: "run_failed",
+						sequence: 2,
+						status: "failed",
+						traceId: "trace_failed",
+					},
+					event: "request.failed",
+				},
+			]),
+		);
+
+		render(<RuntimeProbe onLoginRequired={vi.fn()} />);
+
+		await act(async () => {
+			await expect(
+				assistantUiMock.externalStoreInput?.onNew({
+					content: [{ text: "这次会失败吗？", type: "text" }],
+				}),
+			).resolves.toBeUndefined();
+		});
+
+		await waitFor(() => expect(assistantUiMock.externalStoreInput?.isRunning).toBe(false));
+		expect(assistantUiMock.externalStoreInput?.messages).toEqual([
+			expect.objectContaining({ role: "user" }),
+			expect.objectContaining({
+				content: [{ text: "请求失败。", type: "text" }],
+				id: "local-error-req_failed",
+				role: "assistant",
+			}),
+		]);
+		expect(conversationApiMock.getConversationDetail).not.toHaveBeenCalled();
 	});
 
 	it("keeps local streaming messages when assistant-ui publishes the newly initialized remote thread", async () => {

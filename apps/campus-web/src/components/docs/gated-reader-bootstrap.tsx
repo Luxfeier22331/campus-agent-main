@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { buildAccountLoginUrlForCurrentRoute } from "@/platform/runtime/config";
+import { DocsBootstrapStatus } from "./docs-bootstrap-status";
 
 interface DocsResolveResponse {
 	document: {
@@ -110,31 +111,39 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 	}, [documentSlug]);
 
 	if (state.status === "loading") {
-		return <div className="reader-bootstrap-status">正在读取文档</div>;
+		return <DocsBootstrapStatus kind="loading" title="正在读取文档" />;
 	}
 	if (state.status === "not_found") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>无法打开文档</h1>
-				<p>请确认当前账号可以访问这份文档。</p>
-			</div>
+			<DocsBootstrapStatus
+				description="请确认当前账号可以访问这份文档。"
+				kind="not_found"
+				title="无法打开文档"
+			/>
 		);
 	}
 	if (state.status === "unauthorized") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>请先登录</h1>
-				<p>登录后继续打开这份文档。</p>
-				<a href={resolveLoginHref()}>登录后继续</a>
-			</div>
+			<DocsBootstrapStatus
+				action={<a href={resolveLoginHref()}>登录后继续</a>}
+				description="登录后继续打开这份文档。"
+				kind="unauthorized"
+				title="请先登录"
+			/>
 		);
 	}
 	if (state.status === "unavailable") {
 		return (
-			<div className="reader-bootstrap-status">
-				<h1>文档暂不可用</h1>
-				<p>请稍后重试。</p>
-			</div>
+			<DocsBootstrapStatus
+				action={
+					<button type="button" onClick={() => window.location.reload()}>
+						重试
+					</button>
+				}
+				description="请稍后重试。"
+				kind="unavailable"
+				title="文档暂不可用"
+			/>
 		);
 	}
 
@@ -147,6 +156,11 @@ export default function GatedReaderBootstrap({ documentSlug }: GatedReaderBootst
 				data-docs-corpus={state.resolve.document.corpus}
 				data-docs-document-slug={state.resolve.document.documentSlug}
 				data-docs-reader-meta="true"
+				data-docs-search-visibility={
+					state.resolve.readerAsset.deliveryMode === "gated_asset"
+						? "gated_bootstrap"
+						: "public_current"
+				}
 				data-docs-version-slug={state.resolve.resolvedVersion.versionSlug}
 			>
 				<p className="document-meta-summary">

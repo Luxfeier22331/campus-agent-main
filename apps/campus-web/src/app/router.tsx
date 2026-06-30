@@ -43,6 +43,11 @@ const AccountResetPasswordPage = lazy(() =>
 		default: () => <module.AccountAuthPage view="resetPassword" />,
 	})),
 );
+const AccountSignOutPage = lazy(() =>
+	import("./routes/account-page").then((module) => ({
+		default: () => <module.AccountAuthPage view="signOut" />,
+	})),
+);
 const AccountSettingsPage = lazy(() =>
 	import("./routes/account-page").then((module) => ({
 		default: () => <module.AccountSettingsPage view="account" />,
@@ -138,6 +143,12 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
+const accountSignOutRoute = createRoute({
+	component: AccountSignOutPage,
+	getParentRoute: () => rootRoute,
+	path: "/account/sign-out",
+});
+
 const accountSettingsRoute = createRoute({
 	component: AccountSettingsPage,
 	getParentRoute: () => rootRoute,
@@ -186,6 +197,7 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
+	accountSignOutRoute,
 	accountSettingsRoute,
 	accountSecurityRoute,
 	accountFederationConsentRoute,

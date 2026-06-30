@@ -8,6 +8,10 @@ from scripts.worktree_file_discovery import worktree_paths
 
 _JAVA_TRACKED_PATHS = ("apps/legacy-office-conversion-service/src/**/*.java",)
 _JAVA_PREFIX = "apps/legacy-office-conversion-service/src/"
+_JAVA_AFFECTED_PREFIXES = (
+    "apps/legacy-office-conversion-service/",
+    "infra/local/docker-compose.legacy-office-conversion.yml",
+)
 
 
 def repo_root() -> Path:
@@ -25,6 +29,13 @@ def tracked_java_files(*, root: Path | None = None) -> tuple[Path, ...]:
 
 def _is_tracked_java_candidate(path: str) -> bool:
     return path.startswith(_JAVA_PREFIX) and path.endswith(".java")
+
+
+def affected_java_lint_required(paths: tuple[str, ...]) -> bool:
+    for path in paths:
+        if path.startswith(_JAVA_AFFECTED_PREFIXES):
+            return True
+    return False
 
 
 def run_java_lint(*, root: Path | None = None) -> None:

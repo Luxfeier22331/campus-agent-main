@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { MapExperience } from "@/components/map/map-experience";
 import { MapProductNavOverlay } from "@/components/navigation/product-navigation";
-import { Alert } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { SurfaceState } from "@/components/ui/surface-state";
 import { getCampusMapPlaces } from "@/features/map/api";
 import {
 	CAMPUS_HOVER_PLACE_FILL_LAYER_ID,
@@ -348,14 +348,29 @@ export function MapPage() {
 		<>
 			{error ? (
 				<MapStateShell>
-					<Alert variant="destructive">{error}</Alert>
+					<SurfaceState
+						description={error}
+						kind="error"
+						primaryAction={
+							<Button onClick={() => window.location.reload()} type="button">
+								重试
+							</Button>
+						}
+						secondaryAction={
+							<Button asChild variant="outline">
+								<a href="/feedback?source=map">反馈</a>
+							</Button>
+						}
+						title="校园地图暂时无法打开"
+					/>
 				</MapStateShell>
 			) : loading ? (
 				<MapStateShell>
-					<div className="rounded-lg border border-border bg-card p-6" role="status">
-						<Skeleton className="h-4 w-32" />
-						<span className="sr-only">正在读取地图</span>
-					</div>
+					<SurfaceState
+						description="正在读取可展示的校园地点。"
+						kind="loading"
+						title="正在读取地图"
+					/>
 				</MapStateShell>
 			) : data && selectedCampusProfile ? (
 				<MapExperience
@@ -369,6 +384,7 @@ export function MapPage() {
 					mapRef={mapRef}
 					onCanvasClick={clearSelection}
 					onCategoryChange={selectCategory}
+					onClearFilters={clearFilters}
 					onCampusChange={selectCampus}
 					onPlaceSelect={selectPlace}
 					onQueryChange={searchPlaces}
@@ -379,12 +395,12 @@ export function MapPage() {
 				/>
 			) : (
 				<MapStateShell>
-					<div className="flex min-h-32 flex-col items-center justify-center rounded-lg border border-dashed border-border bg-card px-6 py-8 text-center">
-						<h3 className="font-medium text-foreground text-sm">暂无内容</h3>
-						<p className="mt-1 max-w-sm text-muted-foreground text-sm">
-							当前没有可展示的地图地点。
-						</p>
-					</div>
+					<SurfaceState
+						className="border-dashed text-center"
+						description="当前没有可展示的地图地点。"
+						kind="empty"
+						title="暂无内容"
+					/>
 				</MapStateShell>
 			)}
 		</>
@@ -418,6 +434,13 @@ export function MapPage() {
 	function searchPlaces(nextQuery: string) {
 		mapMoveIntentRef.current = "filter";
 		setQuery(nextQuery);
+		setSelectedPlaceId(null);
+	}
+
+	function clearFilters() {
+		mapMoveIntentRef.current = "filter";
+		setQuery("");
+		setSelectedCategory("all");
 		setSelectedPlaceId(null);
 	}
 
