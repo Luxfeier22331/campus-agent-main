@@ -203,6 +203,189 @@ func TestPlanRAGActivityUsesExecutionPayloadUserGoalOverLegacyHandoff(t *testing
 	}
 }
 
+func TestPlanRAGActivityTreatsDetailedStandaloneQueryAsNewQuestion(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	query := "请详细说明中央民族大学本科学生国家奖学金评审办法的依据、原则、申请条件和流程。"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-detailed-standalone",
+		"conv-rag-detailed-standalone",
+		now,
+		ragHandoffForDurableWorkerTest(query),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-detailed-standalone", "regulations", "student_rules")
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-detailed-standalone",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-detailed-standalone",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-detailed-standalone",
+			WorkflowID:     "campus-agent.chat.run-rag-detailed-standalone",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+
+	output, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-detailed-standalone",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	run, getErr := store.GetRun(context.Background(), output.RunID)
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	plan, planErr := temporalRAGPlanProjectionFromRun(run, output.PlanRef)
+	if planErr != nil {
+		t.Fatalf("get rag plan projection: %v", planErr)
+	}
+	if plan.QueryText != query {
+		t.Fatalf("rag query text = %q, want standalone query", plan.QueryText)
+	}
+	if plan.QueryRewrite == nil || plan.QueryRewrite.FollowupReference.Type != "none" {
+		t.Fatalf("query rewrite = %#v, want no follow-up reference", plan.QueryRewrite)
+	}
+	if plan.PreviousEvidenceReuse == nil || plan.PreviousEvidenceReuse.Decision != "not_available" {
+		t.Fatalf("previous evidence reuse = %#v, want not_available", plan.PreviousEvidenceReuse)
+	}
+}
+
+func TestPlanRAGActivityTreatsStandaloneContinuationWordingAsNewQuestion(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	query := "继续介绍中央民族大学本科学生国家奖学金评审办法"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-continuation-standalone",
+		"conv-rag-continuation-standalone",
+		now,
+		ragHandoffForDurableWorkerTest(query),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-continuation-standalone", "regulations", "student_rules")
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-continuation-standalone",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-continuation-standalone",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-continuation-standalone",
+			WorkflowID:     "campus-agent.chat.run-rag-continuation-standalone",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+
+	output, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-continuation-standalone",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	run, getErr := store.GetRun(context.Background(), output.RunID)
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	plan, planErr := temporalRAGPlanProjectionFromRun(run, output.PlanRef)
+	if planErr != nil {
+		t.Fatalf("get rag plan projection: %v", planErr)
+	}
+	if plan.QueryText != query {
+		t.Fatalf("rag query text = %q, want standalone query", plan.QueryText)
+	}
+	if plan.QueryRewrite == nil || plan.QueryRewrite.FollowupReference.Type != "none" {
+		t.Fatalf("query rewrite = %#v, want no follow-up reference", plan.QueryRewrite)
+	}
+}
+
+func TestPlanRAGActivityTreatsOtherPronounLikeStandaloneSubjectAsNewQuestion(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	query := "其它奖学金有哪些申请条件"
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-other-pronoun-like-standalone",
+		"conv-rag-other-pronoun-like-standalone",
+		now,
+		ragHandoffForDurableWorkerTest(query),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-other-pronoun-like-standalone", "regulations", "student_rules")
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-other-pronoun-like-standalone",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-other-pronoun-like-standalone",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-other-pronoun-like-standalone",
+			WorkflowID:     "campus-agent.chat.run-rag-other-pronoun-like-standalone",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+
+	output, err := server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-other-pronoun-like-standalone",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan rag: %v", err)
+	}
+	run, getErr := store.GetRun(context.Background(), output.RunID)
+	if getErr != nil {
+		t.Fatalf("get run: %v", getErr)
+	}
+	plan, planErr := temporalRAGPlanProjectionFromRun(run, output.PlanRef)
+	if planErr != nil {
+		t.Fatalf("get rag plan projection: %v", planErr)
+	}
+	if plan.QueryText != query {
+		t.Fatalf("rag query text = %q, want standalone query", plan.QueryText)
+	}
+	if plan.QueryRewrite == nil || plan.QueryRewrite.FollowupReference.Type != "none" {
+		t.Fatalf("query rewrite = %#v, want no follow-up reference", plan.QueryRewrite)
+	}
+}
+
 func TestPlanRAGActivityRewritesFollowupFromConversationEvidence(t *testing.T) {
 	store := execution.NewInMemoryRunProjectionStore()
 	server := newServerForTest()
@@ -448,6 +631,50 @@ func TestPlanRAGActivityFailsClosedWhenFollowupHasNoConversationAnchor(t *testin
 		context.Background(),
 		temporalruntime.PlanRAGActivityInput{
 			RunID:           "run-rag-followup-unresolved",
+			TraceID:         "trace-executor-001",
+			WorkflowPlanRef: workflowPlan.PlanRef,
+		},
+	)
+	if err == nil || !strings.Contains(err.Error(), "rag follow-up query requires resolvable conversation context") {
+		t.Fatalf("plan rag error = %v, want unresolved follow-up failure", err)
+	}
+}
+
+func TestPlanRAGActivityFailsClosedWhenSoftFollowupHasStrongReferenceWithoutAnchor(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newServerForTest()
+	attachReadyRAGVersionResolverForTest(server)
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Date(2026, 6, 8, 1, 2, 3, 0, time.UTC)
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-rag-soft-followup-unresolved",
+		"conv-rag-soft-followup-unresolved",
+		now,
+		ragHandoffForDurableWorkerTest("继续说这个流程"),
+	)
+	addRequestedScopeForRunTest(t, store, "run-rag-soft-followup-unresolved", "regulations", "student_rules")
+	workflowPlan, err := server.PlanRouteActivity(
+		context.Background(),
+		temporalruntime.PlanRouteActivityInput{
+			ConversationID: "conv-rag-soft-followup-unresolved",
+			Namespace:      "campus-agent-test",
+			PayloadSHA256:  "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+			RequestID:      "req-executor-001",
+			RunID:          "run-rag-soft-followup-unresolved",
+			TraceID:        "trace-executor-001",
+			TurnID:         "turn-run-rag-soft-followup-unresolved",
+			WorkflowID:     "campus-agent.chat.run-rag-soft-followup-unresolved",
+		},
+	)
+	if err != nil {
+		t.Fatalf("plan route: %v", err)
+	}
+	_, err = server.PlanRAGActivity(
+		context.Background(),
+		temporalruntime.PlanRAGActivityInput{
+			RunID:           "run-rag-soft-followup-unresolved",
 			TraceID:         "trace-executor-001",
 			WorkflowPlanRef: workflowPlan.PlanRef,
 		},

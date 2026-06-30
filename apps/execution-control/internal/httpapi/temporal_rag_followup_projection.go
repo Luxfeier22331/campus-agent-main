@@ -192,17 +192,80 @@ func applyPreviousEvidenceSelector(
 	)
 }
 
+type ragFollowupClassification string
+
+const (
+	ragFollowupStandalone ragFollowupClassification = "standalone"
+	ragFollowupContextual ragFollowupClassification = "contextual_followup"
+	ragFollowupAmbiguous  ragFollowupClassification = "ambiguous_followup"
+)
+
 func isContextualFollowupQuery(query string) bool {
-	normalized := strings.TrimSpace(query)
-	for _, signal := range []string{
-		"这个", "那个", "这条", "那条", "上一条", "上条", "刚才", "前面", "其中", "第二点",
-		"第一点", "第三点", "它", "其", "继续", "展开", "详细说", "具体说",
-	} {
+	classification := classifyRAGFollowupQuery(query)
+	return classification == ragFollowupContextual || classification == ragFollowupAmbiguous
+}
+
+func classifyRAGFollowupQuery(query string) ragFollowupClassification {
+	normalized := normalizeRAGFollowupQuery(query)
+	if normalized == "" {
+		return ragFollowupStandalone
+	}
+	if containsAnyRAGFollowupSignal(normalized, []string{
+		"这个", "那个", "这条", "那条", "上一条", "上条", "刚才", "前面", "其中",
+		"第一点", "第二点", "第三点",
+	}) {
+		return ragFollowupContextual
+	}
+	if hasPronounRAGFollowupReference(normalized) {
+		return ragFollowupAmbiguous
+	}
+	if hasStandaloneRAGSubject(normalized) {
+		return ragFollowupStandalone
+	}
+	if containsAnyRAGFollowupSignal(normalized, []string{
+		"继续", "展开", "详细说", "详细说明", "具体说", "具体说明",
+	}) {
+		return ragFollowupAmbiguous
+	}
+	return ragFollowupStandalone
+}
+
+func normalizeRAGFollowupQuery(query string) string {
+	return strings.ToLower(strings.Join(strings.Fields(query), ""))
+}
+
+func containsAnyRAGFollowupSignal(normalized string, signals []string) bool {
+	for _, signal := range signals {
 		if strings.Contains(normalized, signal) {
 			return true
 		}
 	}
 	return false
+}
+
+func hasPronounRAGFollowupReference(normalized string) bool {
+	if strings.Contains(normalized, "其他") || strings.Contains(normalized, "其它") {
+		return false
+	}
+	if strings.Contains(normalized, "它") {
+		return len([]rune(normalized)) <= 12 || containsAnyRAGFollowupSignal(normalized, []string{
+			"它的", "对它", "它是", "它要", "它需", "它们",
+		})
+	}
+	return containsAnyRAGFollowupSignal(normalized, []string{
+		"其要求", "其流程", "其条件", "其依据", "其原则", "其内容", "其原因", "其材料",
+	})
+}
+
+func hasStandaloneRAGSubject(normalized string) bool {
+	return containsAnyRAGFollowupSignal(normalized, []string{
+		"中央民族大学", "本科学生", "学生手册", "奖学金", "国家奖学金", "助学金",
+		"评审办法", "管理办法", "申请条件", "请假", "学籍", "转专业", "毕业",
+		"推免", "保研", "处分", "申诉", "选课", "培养方案", "培养计划", "课程",
+		"学分", "专业", "官网", "官方网站", "招生办公室", "联系方式", "联系电话",
+		"地址", "学院官网", "部门主页", "学校章程", "规章制度", "校园网",
+		"统一身份认证", "信息门户", "智慧门户",
+	})
 }
 
 func evidenceIDs(refs []conversationEvidenceRef) []string {
