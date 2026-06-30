@@ -108,7 +108,7 @@ export interface AppRuntimeReadinessResult {
 		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
 		executionRuntime: "ready" | "not_ready" | "not_required";
-		officialWebHandoff: "configured" | "not_configured";
+		ingestionControl: "configured" | "misconfigured" | "not_configured";
 		operatorSurface: "configured";
 		executionControl: "ready" | "not_ready";
 	};

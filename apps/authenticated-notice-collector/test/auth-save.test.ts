@@ -9,40 +9,27 @@ describe("authenticated notice collector auth save", () => {
 			authStorageStatePath: "/tmp/collector-storage-state.json",
 			authTimeoutMs: 1_000,
 			confirmLogin: async () => undefined,
-			launchBrowser: async () => ({
-				close: async () => {
-					calls.push("browser.close");
-				},
-				newContext: async () => ({
-					newPage: async () => ({
-						goto: async (url: string) => {
-							calls.push(`page.goto:${url}`);
-						},
-					}),
-					storageState: async (input: { path: string }) => {
-						calls.push(`storageState:${input.path}`);
-					},
-				}),
-			}),
 			logger: {
 				log: () => undefined,
 			},
 			portalPageUrl: "https://portal.example.edu/page/11#/",
+			runAuthPortalCrawler: async (input) => {
+				calls.push(`crawler.goto:${input.portalPageUrl}`);
+				await input.confirmLogin();
+				calls.push(`storageState:${input.storageStatePath}`);
+			},
 		});
 
 		expect(result).toEqual({
 			savedTo: "/tmp/collector-storage-state.json",
 		});
 		expect(calls).toEqual([
-			"page.goto:https://portal.example.edu/page/11#/",
+			"crawler.goto:https://portal.example.edu/page/11#/",
 			"storageState:/tmp/collector-storage-state.json",
-			"browser.close",
 		]);
 	});
 
-	it("still closes the browser when confirmation times out", async () => {
-		let closed = false;
-
+	it("surfaces crawler bootstrap failures when confirmation times out", async () => {
 		await expect(
 			saveAuthStorageState({
 				authStorageStatePath: "/tmp/collector-storage-state.json",
@@ -50,24 +37,14 @@ describe("authenticated notice collector auth save", () => {
 				confirmLogin: async () => {
 					throw new Error("login timeout exceeded");
 				},
-				launchBrowser: async () => ({
-					close: async () => {
-						closed = true;
-					},
-					newContext: async () => ({
-						newPage: async () => ({
-							goto: async () => undefined,
-						}),
-						storageState: async () => undefined,
-					}),
-				}),
 				logger: {
 					log: () => undefined,
 				},
 				portalPageUrl: "https://portal.example.edu/page/11#/",
+				runAuthPortalCrawler: async (input) => {
+					await input.confirmLogin();
+				},
 			}),
 		).rejects.toThrow("login timeout exceeded");
-
-		expect(closed).toBe(true);
 	});
 });

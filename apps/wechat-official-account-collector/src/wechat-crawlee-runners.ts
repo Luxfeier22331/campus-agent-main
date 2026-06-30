@@ -118,21 +118,27 @@ export async function runWeChatMediaCrawleeCapture(input: {
 	const requestHandler = async (context: WeChatMediaCrawlerRequestHandlerContext) => {
 		const userData = parseWeChatMediaUserData(context.request.userData);
 		const capturedAt = input.now().toISOString();
-		const response = await context.fetchMedia({
+		const response = await context.sendRequest({
 			headers: {
 				...WECHAT_MEDIA_REQUEST_HEADERS,
 				referer: input.articleSourceUrl,
 			},
-			url: context.request.url,
+			responseType: "buffer",
 		});
+		const contentType = normalizeImageContentType(
+			normalizeHeaderValue(response.headers?.["content-type"]),
+		);
+		if (!contentType) {
+			throw new Error("non-image content-type");
+		}
 		results.set(
 			context.request.uniqueKey,
 			buildCapturedArticleMediaPayload({
 				capturedAt,
-				contentType: response.contentType,
+				contentType,
 				errorMessage: null,
-				finalUrl: response.finalUrl,
-				imageBytes: response.imageBytes,
+				finalUrl: normalizeMediaUrl(response.url) ?? context.request.url,
+				imageBytes: toBinaryBody(response.body),
 				normalizedSourceUrl: userData.normalizedSourceUrl,
 				sourceUrl: userData.sourceUrl,
 			}),
@@ -199,16 +205,16 @@ export type WeChatArticlePageCrawlerFactory = (input: WeChatArticlePageCrawlerFa
 };
 
 export interface WeChatMediaCrawlerRequestHandlerContext {
-	fetchMedia(input: { headers: Record<string, string>; url: string }): Promise<{
-		contentType: string;
-		finalUrl: string;
-		imageBytes: Uint8Array;
-	}>;
 	request: {
 		uniqueKey: string;
 		url: string;
 		userData?: unknown;
 	};
+	sendRequest(input: { headers: Record<string, string>; responseType: "buffer" }): Promise<{
+		body: Buffer | Uint8Array | string;
+		headers?: Record<string, string | string[] | undefined>;
+		url?: string;
+	}>;
 }
 
 export interface WeChatMediaCrawlerFactoryInput {
@@ -274,12 +280,12 @@ function createDefaultWeChatMediaCrawler(input: WeChatMediaCrawlerFactoryInput) 
 			failedRequestHandler: async (context, error) => {
 				await input.failedRequestHandler(
 					{
-						fetchMedia,
 						request: {
 							uniqueKey: context.request.uniqueKey,
 							url: context.request.url,
 							userData: context.request.userData,
 						},
+						sendRequest: async (overrideOptions) => await context.sendRequest(overrideOptions),
 					},
 					error,
 				);
@@ -288,12 +294,12 @@ function createDefaultWeChatMediaCrawler(input: WeChatMediaCrawlerFactoryInput) 
 			maxRequestRetries: input.requestMaxRetries,
 			requestHandler: async (context) => {
 				await input.requestHandler({
-					fetchMedia,
 					request: {
 						uniqueKey: context.request.uniqueKey,
 						url: context.request.url,
 						userData: context.request.userData,
 					},
+					sendRequest: async (overrideOptions) => await context.sendRequest(overrideOptions),
 				});
 			},
 			requestHandlerTimeoutSecs: 30,
@@ -346,30 +352,6 @@ function parseWeChatMediaUserData(value: unknown): {
 	};
 }
 
-async function fetchMedia(input: { headers: Record<string, string>; url: string }): Promise<{
-	contentType: string;
-	finalUrl: string;
-	imageBytes: Uint8Array;
-}> {
-	const response = await fetch(input.url, {
-		headers: input.headers,
-		redirect: "follow",
-	});
-	if (!response.ok) {
-		throw new Error(`HTTP ${response.status}`);
-	}
-	const contentType = normalizeImageContentType(response.headers.get("content-type"));
-	if (!contentType) {
-		throw new Error("non-image content-type");
-	}
-	const imageBytes = new Uint8Array(await response.arrayBuffer());
-	return {
-		contentType,
-		finalUrl: normalizeMediaUrl(response.url) ?? input.url,
-		imageBytes,
-	};
-}
-
 function buildWeChatArticlePageUniqueKey(articleUrl: string): string {
 	return `wechat_article_page:${sha256Hex(articleUrl).slice(0, 16)}`;
 }
@@ -404,4 +386,11 @@ function normalizeImageContentType(value: string | null): string | null {
 		.trim()
 		.toLowerCase();
 	return normalized.startsWith("image/") ? normalized : null;
+}
+
+function toBinaryBody(value: Buffer | Uint8Array | string): Uint8Array {
+	if (typeof value === "string") {
+		return new TextEncoder().encode(value);
+	}
+	return value;
 }

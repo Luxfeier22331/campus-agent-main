@@ -78,6 +78,7 @@ export function buildCollectedPageArtifacts(input: {
 		html: input.html,
 		baseUrl: input.finalUrl,
 		normalizedCanonicalUrl: urlIdentity.normalizedCanonicalUrl,
+		responseBody: input.responseBody,
 		responseBodyHash,
 		siteDisplayName: input.bundle.site.displayName,
 		siteId: input.bundle.site.siteId,

@@ -15,60 +15,34 @@ export async function loadRobotsState(
 	const robotsUrl = `https://${hostPolicy.host}/robots.txt`;
 
 	try {
-		const response = await fetch(robotsUrl, {
-			headers: {
-				"user-agent": bundle.site.userAgent,
-			},
-			redirect: "follow",
+		const robots = await RobotsTxtFile.find(`https://${hostPolicy.host}/`, undefined, {
+			timeoutMillis: bundle.site.requestTimeoutMs,
 		});
-		if (response.status === 429) {
-			return {
-				robots: null,
-				blocked: true,
-				failure: buildOfficialWebFailureRecord({
-					siteId: plan.siteId,
-					crawlRunId: plan.crawlRunId,
-					host: hostPolicy.host,
-					url: robotsUrl,
-					phase: "robots",
-					reason: "robots_rate_limited",
-					message: `robots.txt returned ${response.status}`,
-					retryable: true,
-				}),
-			};
-		}
-		if (response.status >= 500) {
-			return {
-				robots: null,
-				blocked: true,
-				failure: buildOfficialWebFailureRecord({
-					siteId: plan.siteId,
-					crawlRunId: plan.crawlRunId,
-					host: hostPolicy.host,
-					url: robotsUrl,
-					phase: "robots",
-					reason: "robots_server_error",
-					message: `robots.txt returned ${response.status}`,
-					retryable: true,
-				}),
-			};
-		}
-		if (response.status >= 400) {
-			return {
-				robots: null,
-				blocked: false,
-				failure: null,
-			};
-		}
-
-		const robotsContent = await response.text();
-		const robots = RobotsTxtFile.from(robotsUrl, robotsContent);
 		return {
 			robots,
 			blocked: false,
 			failure: null,
 		};
 	} catch (error) {
+		const statusCode = resolveHttpStatusCode(error);
+		if (statusCode === 429) {
+			return buildBlockedRobotsFailure({
+				plan,
+				hostPolicy,
+				robotsUrl,
+				reason: "robots_rate_limited",
+				message: `robots.txt returned ${statusCode}`,
+			});
+		}
+		if (statusCode != null && statusCode >= 500) {
+			return buildBlockedRobotsFailure({
+				plan,
+				hostPolicy,
+				robotsUrl,
+				reason: "robots_server_error",
+				message: `robots.txt returned ${statusCode}`,
+			});
+		}
 		return {
 			robots: null,
 			blocked: true,
@@ -84,6 +58,38 @@ export async function loadRobotsState(
 			}),
 		};
 	}
+}
+
+function buildBlockedRobotsFailure(input: {
+	plan: OfficialWebCrawlPlan;
+	hostPolicy: OfficialWebHostPolicy;
+	robotsUrl: string;
+	reason: "robots_rate_limited" | "robots_server_error";
+	message: string;
+}): CollectorRobotsState {
+	return {
+		robots: null,
+		blocked: true,
+		failure: buildOfficialWebFailureRecord({
+			siteId: input.plan.siteId,
+			crawlRunId: input.plan.crawlRunId,
+			host: input.hostPolicy.host,
+			url: input.robotsUrl,
+			phase: "robots",
+			reason: input.reason,
+			message: input.message,
+			retryable: true,
+		}),
+	};
+}
+
+function resolveHttpStatusCode(error: unknown): number | null {
+	if (!(error && typeof error === "object")) {
+		return null;
+	}
+	const response = (error as { response?: { status?: unknown; statusCode?: unknown } }).response;
+	const status = response?.statusCode ?? response?.status;
+	return typeof status === "number" ? status : null;
 }
 
 function formatErrorWithCauses(error: unknown): string {

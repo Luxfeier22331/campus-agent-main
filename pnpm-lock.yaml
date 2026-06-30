@@ -74,6 +74,9 @@ importers:
       hono:
         specifier: ^4.9.8
         version: 4.12.9
+      ingestion-contracts:
+        specifier: file:../../packages/ingestion-contracts
+        version: link:../../packages/ingestion-contracts
       official-web-core:
         specifier: file:../../packages/official-web-core
         version: link:../../packages/official-web-core
@@ -120,12 +123,18 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.913.0
         version: 3.1022.0
+      content-disposition:
+        specifier: ^2.0.1
+        version: 2.0.1
       crawlee:
         specifier: ^3.17.0
         version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
       pg:
         specifier: ^8.20.0
         version: 8.20.0
@@ -133,6 +142,12 @@ importers:
         specifier: ^1.61.1
         version: 1.61.1
     devDependencies:
+      '@types/content-disposition':
+        specifier: ^0.5.9
+        version: 0.5.9
+      '@types/mime-types':
+        specifier: ^3.0.1
+        version: 3.0.1
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.0
@@ -408,9 +423,15 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.913.0
         version: 3.1022.0
+      '@mozilla/readability':
+        specifier: ^0.6.0
+        version: 0.6.0
       crawlee:
         specifier: ^3.17.0
         version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
+      jsdom:
+        specifier: ^27.4.0
+        version: 27.4.0(@noble/hashes@2.0.1)
       official-web-core:
         specifier: file:../../packages/official-web-core
         version: link:../../packages/official-web-core
@@ -418,6 +439,9 @@ importers:
         specifier: ^1.61.1
         version: 1.61.1
     devDependencies:
+      '@types/jsdom':
+        specifier: ^28.0.3
+        version: 28.0.3
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.0
@@ -542,10 +566,19 @@ importers:
       crawlee:
         specifier: ^3.17.0
         version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
+      ingestion-contracts:
+        specifier: file:../../packages/ingestion-contracts
+        version: link:../../packages/ingestion-contracts
+      mime-types:
+        specifier: ^3.0.2
+        version: 3.0.2
       wechat-official-account-core:
         specifier: workspace:*
         version: link:../../packages/wechat-official-account-core
     devDependencies:
+      '@types/mime-types':
+        specifier: ^3.0.1
+        version: 3.0.1
       '@types/node':
         specifier: ^24.12.0
         version: 24.12.0
@@ -2414,6 +2447,10 @@ packages:
     peerDependenciesMeta:
       '@cfworker/json-schema':
         optional: true
+
+  '@mozilla/readability@0.6.0':
+    resolution: {integrity: sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==}
+    engines: {node: '>=14.0.0'}
 
   '@napi-rs/wasm-runtime@1.1.2':
     resolution: {integrity: sha512-sNXv5oLJ7ob93xkZ1XnxisYhGYXfaG9f65/ZgYuAu3qt7b3NadcOEhLvx28hv31PgX8SZJRYrAIPQilQmFpLVw==}
@@ -4499,6 +4536,9 @@ packages:
   '@types/chai@5.2.3':
     resolution: {integrity: sha512-Mw558oeA9fFbv65/y4mHtXDs9bPnFMZAL/jxdPFUpOHHIXX91mcgEHbS5Lahr+pwZFR8A7GQleRWeI6cGFC2UA==}
 
+  '@types/content-disposition@0.5.9':
+    resolution: {integrity: sha512-8uYXI3Gw35MhiVYhG3s295oihrxRyytcRHjSjqnqZVDDy/xcGBRny7+Xj1Wgfhv5QzRtN2hB2dVRBUX9XW3UcQ==}
+
   '@types/content-type@1.1.9':
     resolution: {integrity: sha512-Hq9IMnfekuOCsEmYl4QX2HBrT+XsfXiupfrLLY8Dcf3Puf4BkBOxSbWYTITSOQAhJoYPBez+b4MJRpIYL65z8A==}
 
@@ -4526,6 +4566,9 @@ packages:
   '@types/jsdom@21.1.7':
     resolution: {integrity: sha512-yOriVnggzrnQ3a9OKOCxaVuSug3w3/SbOj5i7VwXWZEyUNl3bLF9V3MfxGbZKuwqJOQyRfqXyROBB1CoZLFWzA==}
 
+  '@types/jsdom@28.0.3':
+    resolution: {integrity: sha512-/HQ2uFoetFTXuye8vzIcHw2z6Fwi7Hi/qcgC+RoS9NCyewiqxhVGqlG+ViGB6lkax481R6dmhf1I7lIGlzJStQ==}
+
   '@types/katex@0.16.8':
     resolution: {integrity: sha512-trgaNyfU+Xh2Tc+ABIb44a5AYUpicB3uwirOioeOkNPPbmgRNtcWyDeeFRzjPZENO9Vq8gvVqfhaaXWLlevVwg==}
 
@@ -4534,6 +4577,9 @@ packages:
 
   '@types/mdx@2.0.13':
     resolution: {integrity: sha512-+OWZQfAYyio6YkJb3HLxDrvnx6SWWDbC0zVPfBRzUk0/nqoDyf6dNxQi3eArPe8rJ473nobTMQ/8Zk+LxJ+Yuw==}
+
+  '@types/mime-types@3.0.1':
+    resolution: {integrity: sha512-xRMsfuQbnRq1Ef+C+RKaENOxXX87Ygl38W1vDfPHRku02TgQr+Qd8iivLtAMcR0KF5/29xlnFihkTlbqFrGOVQ==}
 
   '@types/ms@2.1.0':
     resolution: {integrity: sha512-GsCCIZDE/p3i96vtEqx+7dBUGXrc7zeSK3wwPHIaRThS+9OhWIXRqzs4d6k1SVU8g91DrNRWxWUGhp5KXQb2VA==}
@@ -5014,6 +5060,10 @@ packages:
 
   content-disposition@1.1.0:
     resolution: {integrity: sha512-5jRCH9Z/+DRP7rkvY83B+yGIGX96OYdJmzngqnw2SBSxqCFPd0w2km3s5iawpGX8krnwSGmF0FW5Nhr0Hfai3g==}
+    engines: {node: '>=18'}
+
+  content-disposition@2.0.1:
+    resolution: {integrity: sha512-e+H0ZXHSWYrENhQzw1LPuP4oF5MzVKmDU6d3hxlvaPEYLLg62MxtQNPRx4SYSuYJSBUgnQIG4HIN2tEtNv7Dog==}
     engines: {node: '>=18'}
 
   content-type@1.0.5:
@@ -7516,6 +7566,9 @@ packages:
   undici-types@7.16.0:
     resolution: {integrity: sha512-Zz+aZWSj8LE6zoxD+xrjh4VfkIG8Ya6LvYkZqtUQGJPZjYl53ypCaUwWqo7eI0x66KBGeRo+mlBEkMSeSZ38Nw==}
 
+  undici-types@7.28.0:
+    resolution: {integrity: sha512-LJAfY+2w6HGeT8d8J1wNQsUGUEGio6NWWpwdwurQe4f6oojzCFuGLizl1KSve4irsTxyLly1QhEeE6iapdaIvQ==}
+
   undici@7.24.4:
     resolution: {integrity: sha512-BM/JzwwaRXxrLdElV2Uo6cTLEjhSb3WXboncJamZ15NgUURmvlXvxa6xkwIOILIjPNo9i8ku136ZvWV0Uly8+w==}
     engines: {node: '>=20.18.1'}
@@ -9978,6 +10031,8 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
     optional: true
+
+  '@mozilla/readability@0.6.0': {}
 
   '@napi-rs/wasm-runtime@1.1.2(@emnapi/core@1.9.1)(@emnapi/runtime@1.9.1)':
     dependencies:
@@ -13090,6 +13145,8 @@ snapshots:
       '@types/deep-eql': 4.0.2
       assertion-error: 2.0.1
 
+  '@types/content-disposition@0.5.9': {}
+
   '@types/content-type@1.1.9': {}
 
   '@types/debug@4.1.13':
@@ -13118,6 +13175,13 @@ snapshots:
       '@types/tough-cookie': 4.0.5
       parse5: 7.3.0
 
+  '@types/jsdom@28.0.3':
+    dependencies:
+      '@types/node': 24.12.0
+      '@types/tough-cookie': 4.0.5
+      parse5: 8.0.0
+      undici-types: 7.28.0
+
   '@types/katex@0.16.8': {}
 
   '@types/mdast@4.0.4':
@@ -13125,6 +13189,8 @@ snapshots:
       '@types/unist': 3.0.3
 
   '@types/mdx@2.0.13': {}
+
+  '@types/mime-types@3.0.1': {}
 
   '@types/ms@2.1.0': {}
 
@@ -13644,6 +13710,8 @@ snapshots:
 
   content-disposition@1.1.0:
     optional: true
+
+  content-disposition@2.0.1: {}
 
   content-type@1.0.5: {}
 
@@ -14756,7 +14824,7 @@ snapshots:
       webidl-conversions: 8.0.1
       whatwg-mimetype: 4.0.0
       whatwg-url: 15.1.0
-      ws: 8.20.0
+      ws: 8.21.0
       xml-name-validator: 5.0.0
     transitivePeerDependencies:
       - '@noble/hashes'
@@ -15482,8 +15550,7 @@ snapshots:
 
   mime-db@1.52.0: {}
 
-  mime-db@1.54.0:
-    optional: true
+  mime-db@1.54.0: {}
 
   mime-types@2.1.35:
     dependencies:
@@ -15492,7 +15559,6 @@ snapshots:
   mime-types@3.0.2:
     dependencies:
       mime-db: 1.54.0
-    optional: true
 
   mimic-fn@2.1.0: {}
 
@@ -16898,6 +16964,8 @@ snapshots:
   uint8array-extras@1.5.0: {}
 
   undici-types@7.16.0: {}
+
+  undici-types@7.28.0: {}
 
   undici@7.24.4: {}
 

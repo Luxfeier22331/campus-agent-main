@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 
 import {
 	createGenerateIdMock,
-	createHandoffPublisher,
+	createIngestionTaskClient,
 	createMemoryState,
 	createOfficialWebE2ERuntime,
 } from "./official-web-e2e-test-support";
@@ -10,7 +10,9 @@ import {
 export function registerOfficialWebE2EDispatchedProjectionSuite() {
 	it("runs collector start/heartbeat/finalize through scheduled dispatch and exposes operator-visible dispatched projections", async () => {
 		const state = createMemoryState();
-		const handoffPublisher = createHandoffPublisher("dispatch_01HQ");
+		const ingestionTasks = createIngestionTaskClient(
+			"task_official_web_stable_reference_source_truth_owrun_01HQ",
+		);
 		const runtime = createOfficialWebE2ERuntime({
 			commandNow: () => new Date("2026-03-29T08:00:01.000Z"),
 			generateId: createGenerateIdMock([
@@ -19,7 +21,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 				"owhb_01HQ",
 				"owevt_completed_01HQ",
 			]),
-			handoffPublisher,
+			ingestionTasks,
 			projectorNow: () => new Date("2026-03-29T08:17:33.000Z"),
 			queryNow: () => new Date("2026-03-29T14:30:00.000Z"),
 			state,
@@ -83,7 +85,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 						{
 							artifactType: "source_truth_bundle",
 							contentSha256: "def456",
-							objectKey: "official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth.tar",
+							objectKey: "official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
 							recordCount: 310,
 						},
 					],
@@ -152,7 +154,7 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 							artifactType: "source_truth_bundle",
 						}),
 					],
-					ingestionDispatchRef: "dispatch_01HQ",
+					ingestionDispatchRef: "task_official_web_stable_reference_source_truth_owrun_01HQ",
 					ingestionDispatchStatus: "dispatched",
 					ingestionExecutionStatus: "pending",
 					runId: "owrun_01HQ",
@@ -203,11 +205,12 @@ export function registerOfficialWebE2EDispatchedProjectionSuite() {
 				siteId: "www_muc_edu_cn",
 			}),
 		});
-		expect(handoffPublisher.publish).toHaveBeenCalledWith(
+		expect(ingestionTasks.admitTask).toHaveBeenCalledWith(
 			expect.objectContaining({
-				eventId: "owevt_completed_01HQ",
-				runId: "owrun_01HQ",
-				siteId: "www_muc_edu_cn",
+				run_id: "owrun_01HQ",
+				input_ref: expect.objectContaining({
+					uri: "s3://campus-rag-source/official_web/www_muc_edu_cn/runs/owrun_01HQ/source-truth-bundle.json",
+				}),
 			}),
 		);
 	});

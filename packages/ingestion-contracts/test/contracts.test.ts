@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { validateIngestionTaskEnvelope, validateIngestionTaskRegistry } from "../src/index.ts";
+import {
+	type IngestionArtifactRef,
+	type IngestionTaskEnvelope,
+	validateIngestionTaskEnvelope,
+	validateIngestionTaskRegistry,
+} from "../src/index.ts";
 
 const fixtureRoot = join(import.meta.dirname, "..", "fixtures");
 
@@ -10,6 +15,37 @@ function loadFixture(name: string): unknown {
 }
 
 describe("ingestion task contracts", () => {
+	it("exports the shared task envelope DTO used by runtime clients", () => {
+		const inputRef: IngestionArtifactRef = {
+			kind: "object_store",
+			uri: "s3://campus-rag-source/official_web/run/source-truth-bundle.json",
+		};
+		const envelope: IngestionTaskEnvelope = {
+			schema_version: "ingestion_task_envelope.v1",
+			task_id: "task_01",
+			run_id: "run_01",
+			source_family: "official_web",
+			source_channel: "official_web",
+			corpus: "official_web",
+			collection: "stable_reference",
+			task_kind: "source_truth_materialize",
+			input_ref: inputRef,
+			output_contract: "official_web_stable_reference_source_truth.v1",
+			idempotency_key: "official_web/stable_reference/source_truth_materialize/run_01",
+			lease_policy: {
+				lease_seconds: 300,
+				heartbeat_seconds: 30,
+			},
+			retry_policy: {
+				max_attempts: 3,
+			},
+			created_by: "test",
+			created_at: "2026-03-29T08:17:33.000Z",
+		};
+
+		expect(validateIngestionTaskEnvelope(envelope).ok).toBe(true);
+	});
+
 	it("accepts a valid task envelope and rejects missing idempotency", () => {
 		expect(validateIngestionTaskEnvelope(loadFixture("task-envelope.valid.json")).ok).toBe(true);
 

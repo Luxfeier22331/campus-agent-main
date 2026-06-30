@@ -12,22 +12,18 @@ from campus_ingestion_core.file_asset_routing_mineru_archive import (
     adapt_mineru_archive_to_canonical_provider_payload,
 )
 
-_EXTENSION_CONTENT_TYPES = {
-    ".csv": "text/csv",
+_REGISTERED_CONTENT_TYPES = {
     ".doc": "application/msword",
     ".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    ".gif": "image/gif",
-    ".htm": "text/html; charset=utf-8",
-    ".html": "text/html; charset=utf-8",
-    ".jpeg": "image/jpeg",
-    ".jpg": "image/jpeg",
-    ".pdf": "application/pdf",
-    ".png": "image/png",
     ".ppt": "application/vnd.ms-powerpoint",
     ".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-    ".txt": "text/plain; charset=utf-8",
     ".xls": "application/vnd.ms-excel",
     ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+}
+_TEXT_CONTENT_TYPES_WITH_CHARSET = {
+    ".htm": "text/html; charset=utf-8",
+    ".html": "text/html; charset=utf-8",
+    ".txt": "text/plain; charset=utf-8",
 }
 _OFFICE_EXTENSIONS = {
     ".doc",
@@ -122,12 +118,7 @@ def infer_raw_asset_typed_metadata(
     *, source_path: Path, file_bytes: bytes
 ) -> RawAssetTypedMetadata:
     extension = source_path.suffix.strip().lower()
-    guessed_content_type, _ = mimetypes.guess_type(source_path.name)
-    content_type = _normalize_content_type(
-        _EXTENSION_CONTENT_TYPES.get(extension)
-        or guessed_content_type
-        or "application/octet-stream"
-    )
+    content_type = _guess_content_type(source_path.name, extension)
     byte_size = len(file_bytes)
 
     if extension == ".pdf" or content_type == "application/pdf":
@@ -559,6 +550,17 @@ def _normalize_content_type(value: str | None) -> str:
     if normalized == "text/plain":
         return "text/plain; charset=utf-8"
     return normalized
+
+
+def _guess_content_type(source_name: str, extension: str) -> str:
+    for registered_extension, content_type in _REGISTERED_CONTENT_TYPES.items():
+        mimetypes.add_type(content_type, registered_extension)
+
+    if extension in _TEXT_CONTENT_TYPES_WITH_CHARSET:
+        return _TEXT_CONTENT_TYPES_WITH_CHARSET[extension]
+
+    guessed_content_type, _ = mimetypes.guess_type(source_name)
+    return _normalize_content_type(guessed_content_type)
 
 
 def _structure_signals(summary: dict[str, object]) -> dict[str, int]:

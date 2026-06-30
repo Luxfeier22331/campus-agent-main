@@ -1,38 +1,21 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import {
-	type APIRequestContext,
-	type Browser,
-	type BrowserContext,
-	chromium,
-	request,
-} from "playwright";
+import { type APIRequestContext, request } from "playwright";
 
+import { type AuthPortalStorageState, bootstrapPortalStorageState } from "./auth-crawlee-runner.js";
 import { type CollectorConfig, ensureRuntimeDirs, resolveCollectorConfig } from "./config.js";
 import type { ApiRequestContextLike, DisposableApiContextLike } from "./types.js";
 
-type PortalStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
+type PortalStorageState = AuthPortalStorageState;
 const PORTAL_BOOTSTRAP_TIMEOUT_MS = 12_000;
 const SSO_TGC_COOKIE_NAME = "SSO_TGC";
 
-export interface BrowserLike {
-	close(): Promise<void>;
-	newContext(input: { storageState: string | PortalStorageState }): Promise<BrowserContextLike>;
-}
-
-export interface BrowserContextLike {
-	newPage(): Promise<PageLike>;
-	storageState(input?: { path?: string }): Promise<PortalStorageState>;
-}
-
-export interface PageLike {
-	close?(): Promise<void>;
-	goto(url: string, input: { timeout?: number; waitUntil: "domcontentloaded" }): Promise<unknown>;
-}
-
 export interface CreateApiContextFromStorageStateDependencies {
-	launchBrowser?: (config: CollectorConfig) => Promise<BrowserLike>;
+	bootstrapStorageState?: (input: {
+		config: CollectorConfig;
+		timeoutMs: number;
+	}) => Promise<PortalStorageState>;
 	createRequestContext?: (input: {
 		baseURL: string;
 		extraHTTPHeaders: Record<string, string>;
@@ -41,70 +24,25 @@ export interface CreateApiContextFromStorageStateDependencies {
 	}) => Promise<ApiRequestContextLike & DisposableApiContextLike>;
 }
 
-export async function launchContextWithStoredAuth(
-	config: CollectorConfig = resolveCollectorConfig(process.env),
-	launchBrowser: (config: CollectorConfig) => Promise<BrowserLike> = defaultLaunchBrowser,
-): Promise<{ browserContext: BrowserContextLike; close: () => Promise<void> }> {
-	ensureRuntimeDirs(config);
-	const browser = await launchBrowser(config);
-	const browserContext = await browser.newContext({
-		storageState: config.authStorageStatePath,
-	});
-	return {
-		browserContext,
-		close: async () => {
-			await browser.close();
-		},
-	};
-}
-
 export async function createApiContextFromStorageState(
 	config: CollectorConfig = resolveCollectorConfig(process.env),
 	dependencies: CreateApiContextFromStorageStateDependencies = {},
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
 	ensureRuntimeDirs(config);
 	seedStoredAuthFromConfig(config);
-	const { browserContext, close } = await launchContextWithStoredAuth(
+	const storageState = await (dependencies.bootstrapStorageState ?? defaultBootstrapStorageState)({
 		config,
-		dependencies.launchBrowser,
-	);
-	try {
-		const page = await browserContext.newPage();
-		try {
-			// Visiting the portal once often refreshes the host-scoped session cookie
-			// that the notice API expects. Bootstrap failure is an auth failure and
-			// must surface before any API request is attempted.
-			await page.goto(config.portalPageUrl, {
-				timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
-				waitUntil: "domcontentloaded",
-			});
-			const storageState = await browserContext.storageState({
-				path: config.authStorageStatePath,
-			});
-			const mergedStorageState = mergeSeededCookies(storageState, resolveSeedCookies(config), {
-				preferSeeded: false,
-			});
-			writeStoredAuthStorageState(config.authStorageStatePath, mergedStorageState);
-			return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
-				baseURL: config.portalBaseUrl,
-				extraHTTPHeaders: buildPortalApiHeaders(config),
-				...buildProxyOption(config),
-				storageState: mergedStorageState,
-			});
-		} finally {
-			await page.close?.();
-		}
-	} finally {
-		await close();
-	}
-}
-
-function defaultLaunchBrowser(config: CollectorConfig): Promise<Browser> {
-	return chromium.launch({
-		headless: true,
-		channel: "chrome",
+		timeoutMs: PORTAL_BOOTSTRAP_TIMEOUT_MS,
+	});
+	const mergedStorageState = mergeSeededCookies(storageState, resolveSeedCookies(config), {
+		preferSeeded: false,
+	});
+	writeStoredAuthStorageState(config.authStorageStatePath, mergedStorageState);
+	return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
+		baseURL: config.portalBaseUrl,
+		extraHTTPHeaders: buildPortalApiHeaders(config),
 		...buildProxyOption(config),
-		timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
+		storageState: mergedStorageState,
 	});
 }
 
@@ -114,6 +52,13 @@ function defaultCreateRequestContext(input: {
 	storageState: PortalStorageState;
 }): Promise<APIRequestContext> {
 	return request.newContext(input);
+}
+
+function defaultBootstrapStorageState(input: {
+	config: CollectorConfig;
+	timeoutMs: number;
+}): Promise<PortalStorageState> {
+	return bootstrapPortalStorageState(input);
 }
 
 function readStoredAuthStorageState(storageStatePath: string): PortalStorageState {

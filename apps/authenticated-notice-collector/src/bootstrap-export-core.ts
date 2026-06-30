@@ -5,6 +5,7 @@ import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./arti
 
 export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
 
+import type { AttachmentDownloadCrawlerFactory } from "./attachment-crawlee-runner.js";
 import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import {
 	type AttachmentFetchAdmission,
@@ -52,6 +53,7 @@ import type {
 
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
+	attachmentCrawlerFactory?: AttachmentDownloadCrawlerFactory;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	defaultInlineVisualCapture?: boolean;
@@ -315,6 +317,7 @@ export async function collectBootstrapBundle(
 				: await materializeBundleAttachments({
 						apiContext,
 						artifactStore: input.attachmentArtifactStore,
+						attachmentCrawlerFactory: input.attachmentCrawlerFactory,
 						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 						defaultInlineVisualCapture: input.defaultInlineVisualCapture,

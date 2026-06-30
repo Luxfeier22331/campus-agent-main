@@ -45,7 +45,6 @@ export interface AttachmentDownloadResult {
 export interface AttachmentDownloadRunnerInput {
 	apiContext: ApiRequestContextLike;
 	crawlerFactory?: AttachmentDownloadCrawlerFactory;
-	fetchExternal?: typeof fetch;
 	requestMaxRetries: number;
 	requests: AttachmentDownloadRequestSpec[];
 }
@@ -67,6 +66,11 @@ interface AttachmentDownloadRequestHandlerContext {
 	request: {
 		userData: unknown;
 	};
+	sendRequest?(input: { responseType: "buffer"; url: string }): Promise<{
+		body: Buffer | Uint8Array | string;
+		headers?: Record<string, string | string[] | undefined>;
+		statusCode?: number;
+	}>;
 }
 
 const INTERNAL_REQUEST_BASE_URL = "https://collector.local/authenticated-notice/download";
@@ -94,14 +98,13 @@ export async function runAttachmentCrawleeDownloads(
 ): Promise<Map<string, FetchAttachmentBinaryResult>> {
 	const results = new Map<string, FetchAttachmentBinaryResult>();
 	const failedErrors: Error[] = [];
-	const fetchExternal = input.fetchExternal ?? fetch;
 	const requestHandler = async (context: AttachmentDownloadRequestHandlerContext) => {
 		const userData = normalizeRequestUserData(context.request.userData);
 		const result =
 			userData.fetchMode === "trusted_external_visual"
 				? await fetchExternalVisualBinary({
 						attachmentUrl: userData.attachmentUrl,
-						fetchExternal,
+						sendRequest: requireSendRequest(context),
 					})
 				: await fetchAttachmentBinary({
 						apiContext: input.apiContext,
@@ -132,6 +135,7 @@ function createDefaultAttachmentDownloadCrawler(input: AttachmentDownloadCrawler
 						request: {
 							userData: context.request.userData,
 						},
+						sendRequest: async (overrideOptions) => await context.sendRequest(overrideOptions),
 					},
 					error,
 				);
@@ -142,6 +146,7 @@ function createDefaultAttachmentDownloadCrawler(input: AttachmentDownloadCrawler
 					request: {
 						userData: context.request.userData,
 					},
+					sendRequest: async (overrideOptions) => await context.sendRequest(overrideOptions),
 				});
 			},
 		},
@@ -170,37 +175,46 @@ function normalizeRequestUserData(value: unknown): AttachmentDownloadRequestUser
 	throw new Error("invalid attachment download request type");
 }
 
+function requireSendRequest(
+	context: AttachmentDownloadRequestHandlerContext,
+): NonNullable<AttachmentDownloadRequestHandlerContext["sendRequest"]> {
+	if (!context.sendRequest) {
+		throw new Error("trusted external visual download requires Crawlee sendRequest context");
+	}
+	return context.sendRequest;
+}
+
 async function fetchExternalVisualBinary(input: {
 	attachmentUrl: string;
-	fetchExternal: typeof fetch;
+	sendRequest: NonNullable<AttachmentDownloadRequestHandlerContext["sendRequest"]>;
 }): Promise<FetchAttachmentBinaryResult> {
-	const response = await input.fetchExternal(input.attachmentUrl, {
-		redirect: "follow",
+	const response = await input.sendRequest({
+		responseType: "buffer",
+		url: input.attachmentUrl,
 	});
-	if (!response.ok) {
-		throw new Error(`downloadExternalVisual failed: ${response.status} ${response.statusText}`);
-	}
-	const contentType = normalizeHeaderValue(response.headers.get("content-type"));
+	const contentType = normalizeHeaderValue(response.headers?.["content-type"]);
 	const normalizedContentType = normalizeContentType(contentType);
 	if (!normalizedContentType?.startsWith("image/")) {
 		throw new Error(
 			`downloadExternalVisual returned non-image content-type: ${contentType ?? "unknown"}`,
 		);
 	}
-	const contentLength = parseContentLength(response.headers.get("content-length"));
+	const contentLength = parseContentLength(
+		normalizeHeaderValue(response.headers?.["content-length"]),
+	);
 	if (contentLength !== null && contentLength > EXTERNAL_VISUAL_MAX_BYTES) {
 		throw new Error(`downloadExternalVisual exceeded max size before download: ${contentLength}`);
 	}
-	const body = Buffer.from(await response.arrayBuffer());
+	const body = toBuffer(response.body);
 	if (body.byteLength > EXTERNAL_VISUAL_MAX_BYTES) {
 		throw new Error(`downloadExternalVisual exceeded max size: ${body.byteLength}`);
 	}
 	return {
 		body,
 		contentType,
-		contentDisposition: normalizeHeaderValue(response.headers.get("content-disposition")),
-		etag: normalizeHeaderValue(response.headers.get("etag")),
-		statusCode: response.status,
+		contentDisposition: normalizeHeaderValue(response.headers?.["content-disposition"]),
+		etag: normalizeHeaderValue(response.headers?.etag),
+		statusCode: response.statusCode ?? 0,
 	};
 }
 
@@ -212,7 +226,10 @@ function normalizeContentType(value: string | null): string | null {
 	return normalized || null;
 }
 
-function normalizeHeaderValue(value: string | null): string | null {
+function normalizeHeaderValue(value: string | string[] | null | undefined): string | null {
+	if (Array.isArray(value)) {
+		return value.join(", ").trim() || null;
+	}
 	if (!value) {
 		return null;
 	}
@@ -226,4 +243,8 @@ function parseContentLength(value: string | null): number | null {
 	}
 	const parsed = Number(value.trim());
 	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}
+
+function toBuffer(value: Buffer | Uint8Array | string): Buffer {
+	return Buffer.isBuffer(value) ? value : Buffer.from(value);
 }

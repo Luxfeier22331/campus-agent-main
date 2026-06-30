@@ -3,6 +3,62 @@ export type ValidationResult = { ok: true } | { ok: false; errors: string[] };
 const TASK_ENVELOPE_VERSION = "ingestion_task_envelope.v1";
 const TASK_REGISTRY_VERSION = "ingestion_task_registry.v1";
 
+export type IngestionArtifactRefKind = "object_store" | "local_file" | "postgres_row" | "inline";
+
+export interface IngestionArtifactRef {
+	kind: IngestionArtifactRefKind;
+	uri: string;
+	digest?: string;
+}
+
+export type IngestionTaskKind =
+	| "source_truth_materialize"
+	| "document_units_validate"
+	| "chunk_prepare"
+	| "release_manifest_validate";
+
+export interface IngestionTaskEnvelope {
+	schema_version: "ingestion_task_envelope.v1";
+	task_id: string;
+	run_id: string;
+	source_family: string;
+	source_channel: string;
+	corpus: string;
+	collection: string;
+	task_kind: IngestionTaskKind;
+	input_ref: IngestionArtifactRef;
+	output_contract: string;
+	idempotency_key: string;
+	lease_policy: {
+		lease_seconds: number;
+		heartbeat_seconds: number;
+	};
+	retry_policy: {
+		max_attempts: number;
+	};
+	created_by: string;
+	created_at: string;
+}
+
+export type IngestionTaskExecutorKind = "rust_kernel" | "ts_control";
+
+export interface IngestionTaskRegistryTask {
+	task_kind: IngestionTaskKind;
+	executor_kind: IngestionTaskExecutorKind;
+	kernel_id?: string;
+	input_contract: string;
+	output_contract: string;
+	can_publish_alias: boolean;
+}
+
+export interface IngestionTaskRegistry {
+	schema_version: "ingestion_task_registry.v1";
+	source_family: string;
+	corpus: string;
+	collection: string;
+	tasks: IngestionTaskRegistryTask[];
+}
+
 const taskKinds = new Set([
 	"source_truth_materialize",
 	"document_units_validate",

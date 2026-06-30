@@ -6,6 +6,7 @@ import {
 	toOperatorProjection,
 } from "./projection";
 import type {
+	ExpiredLeaseSweepResult,
 	IngestionArtifactRef,
 	IngestionTaskEnvelope,
 	IngestionTaskOperatorProjectionList,
@@ -150,6 +151,47 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		return updated;
 	}
 
+	sweepExpiredLeases(): ExpiredLeaseSweepResult {
+		let deadLettered = 0;
+		let requeued = 0;
+		for (const task of this.#tasks.values()) {
+			if (!isExpiredRunningTask(task, this.#now())) {
+				continue;
+			}
+			const exhausted = task.attempt_count >= task.retry_policy.max_attempts;
+			if (exhausted) {
+				deadLettered += 1;
+				this.#tasks.set(task.task_id, {
+					...task,
+					closeout: {
+						artifact_refs: [],
+						error: {
+							code: "lease_expired",
+							message: "Ingestion task lease expired.",
+						},
+						outcome_kind: "error",
+						task_id: task.task_id,
+						terminal_status: "dead_lettered",
+					},
+					leased_by: null,
+					lease_expires_at: null,
+					status: "dead_lettered",
+					updated_at: this.#nowIso(),
+				});
+			} else {
+				requeued += 1;
+				this.#tasks.set(task.task_id, {
+					...task,
+					leased_by: null,
+					lease_expires_at: null,
+					status: "queued",
+					updated_at: this.#nowIso(),
+				});
+			}
+		}
+		return { deadLettered, requeued };
+	}
+
 	listOperatorTaskProjections(
 		filters: IngestionTaskProjectionFilters,
 	): IngestionTaskOperatorProjectionList {
@@ -183,10 +225,20 @@ export class InMemoryIngestionTaskStore implements IngestionTaskStore {
 		if (task.status !== "running" || task.leased_by !== workerId) {
 			throw new Error(`ingestion task is not leased by worker: ${taskId}`);
 		}
+		if (isExpiredRunningTask(task, this.#now())) {
+			throw new Error(`ingestion task lease expired: ${taskId}`);
+		}
 		return task;
 	}
 
 	#nowIso(): string {
 		return this.#now().toISOString();
 	}
+}
+
+function isExpiredRunningTask(task: IngestionTaskRecord, now: Date): boolean {
+	if (task.status !== "running" || !task.lease_expires_at) {
+		return false;
+	}
+	return new Date(task.lease_expires_at).getTime() <= now.getTime();
 }

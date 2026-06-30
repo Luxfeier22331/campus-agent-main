@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
-import { chromium } from "playwright";
 
+import { runAuthPortalCrawler } from "./auth-crawlee-runner.js";
 import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
 
@@ -9,32 +9,20 @@ interface LoggerLike {
 	log(message: string): void;
 }
 
-interface PageLike {
-	goto(
-		url: string,
-		options?: {
-			waitUntil?: "domcontentloaded";
-		},
-	): Promise<unknown>;
-}
-
-interface BrowserContextLike {
-	newPage(): Promise<PageLike>;
-	storageState(input: { path: string }): Promise<unknown>;
-}
-
-interface BrowserLike {
-	close(): Promise<void>;
-	newContext(): Promise<BrowserContextLike>;
-}
-
 export interface SaveAuthStorageStateInput {
 	authStorageStatePath: string;
 	authTimeoutMs: number;
 	confirmLogin?: (input: { authTimeoutMs: number; logger: LoggerLike }) => Promise<void>;
-	launchBrowser?: () => Promise<BrowserLike>;
 	logger?: LoggerLike;
 	portalPageUrl: string;
+	runAuthPortalCrawler?: (input: {
+		confirmLogin: () => Promise<void>;
+		headless: boolean;
+		portalPageUrl: string;
+		proxyServer: string | null;
+		storageStatePath: string;
+		timeoutMs: number;
+	}) => Promise<unknown>;
 }
 
 export interface SaveAuthStorageStateResult {
@@ -47,36 +35,25 @@ export async function saveAuthStorageState(
 	input: SaveAuthStorageStateInput,
 ): Promise<SaveAuthStorageStateResult> {
 	const logger = input.logger ?? console;
-	const launchBrowser = input.launchBrowser ?? defaultLaunchBrowser;
 	const confirmLogin = input.confirmLogin ?? defaultConfirmLogin;
 
-	const browser = await launchBrowser();
-	try {
-		const context = await browser.newContext();
-		const page = await context.newPage();
-
-		await page.goto(input.portalPageUrl, { waitUntil: "domcontentloaded" });
-		await confirmLogin({
-			authTimeoutMs: input.authTimeoutMs,
-			logger,
-		});
-
-		fs.mkdirSync(path.dirname(input.authStorageStatePath), { recursive: true });
-		await context.storageState({ path: input.authStorageStatePath });
-
-		return {
-			savedTo: input.authStorageStatePath,
-		};
-	} finally {
-		await browser.close();
-	}
-}
-
-async function defaultLaunchBrowser(): Promise<BrowserLike> {
-	return chromium.launch({
+	fs.mkdirSync(path.dirname(input.authStorageStatePath), { recursive: true });
+	await (input.runAuthPortalCrawler ?? runAuthPortalCrawler)({
+		confirmLogin: async () => {
+			await confirmLogin({
+				authTimeoutMs: input.authTimeoutMs,
+				logger,
+			});
+		},
 		headless: false,
-		channel: "chrome",
+		portalPageUrl: input.portalPageUrl,
+		proxyServer: null,
+		storageStatePath: input.authStorageStatePath,
+		timeoutMs: input.authTimeoutMs,
 	});
+	return {
+		savedTo: input.authStorageStatePath,
+	};
 }
 
 async function defaultConfirmLogin(input: {

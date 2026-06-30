@@ -1,8 +1,4 @@
 export type {
-	OfficialWebHandoffPublisher,
-	OfficialWebIngestionHandoffPayload,
-} from "../official-web-projection";
-export type {
 	ExecutionControlCampusServicesProductPathPreflight,
 	ExecutionControlOperatorRuntimeHealth,
 	ExecutionControlPersonalMemoryClient,
@@ -51,10 +47,8 @@ export {
 } from "./execution-control";
 export {
 	createIngestionTaskProjectionClient,
+	type IngestionTaskAdmissionResult,
+	type IngestionTaskEnvelope,
 	type IngestionTaskProjectionClient,
 	type IngestionTaskProjectionFetch,
 } from "./ingestion-control";
-export {
-	createOfficialWebHandoffPublisher,
-	OfficialWebHandoffTransportError,
-} from "./official-web-handoff";

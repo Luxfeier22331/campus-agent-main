@@ -1,5 +1,9 @@
 export * from "./file-release-export-core.js";
-export { resolveFileReleaseExportFiltersFromEnv } from "./file-release-export-helpers.js";
+export {
+	resolveFileReleaseExportFiltersFromEnv,
+	resolveFileReleaseFilename,
+	resolveReleasedFileContentType,
+} from "./file-release-export-helpers.js";
 
 import { main } from "./file-release-export-main.js";
 import { formatSafeErrorMessage } from "./safe-error.js";

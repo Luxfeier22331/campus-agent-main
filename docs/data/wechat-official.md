@@ -53,6 +53,26 @@ wechat_official_account/{account_slug}/{year}/{article_version_id}/source-truth/
 wechat_official_account/{account_slug}/{year}/{article_version_id}/source-truth/media-refs.jsonl
 ```
 
+After a collector run has a run id, the collector writes a run-level release
+object:
+
+```text
+wechat_official_account/{account_slug}/runs/{run_id}/capture-release.json
+```
+
+`capture-release.json` uses
+`wechat_official_account_capture_release.v1` and contains only
+same-source-bucket references to article source-truth objects:
+
+- `article_source_truth_refs[].manifest_ref`
+- `article_source_truth_refs[].content_blocks_ref`
+- `article_source_truth_refs[].media_refs_ref`
+
+This object is the ingestion-control task input for
+`wechat_public_notice/campus_notices/wechat_public_notice/
+source_truth_materialize`. It is not a query-serving artifact and does not
+replace article-level source-truth.
+
 ## Article Manifest
 
 `article-manifest.json` is the article-level canonical upstream record.
@@ -256,3 +276,7 @@ Provider response JSONL remains useful for audit and source-truth replay, but
 it is not the long-term downstream contract. The repo-owned collector command
 path for producing new source-truth is the real article capture path, not a
 metadata-only provider-response replay CLI.
+
+Ingestion-control admission starts from `capture-release.json`. `app-api`
+WeChat routes remain run-ledger/projection surfaces and must not become the
+source-truth lifecycle owner.

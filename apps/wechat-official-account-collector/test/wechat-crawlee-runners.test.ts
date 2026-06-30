@@ -71,12 +71,24 @@ describe("WeChat Crawlee runners", () => {
 		expect(page.rawHtml).toContain("正文第一段");
 	});
 
-	it("captures article media through a BasicCrawler boundary", async () => {
-		const fetchMedia = vi.fn(async (input: { headers: Record<string, string>; url: string }) => ({
-			contentType: input.url.includes("cover") ? "image/jpeg" : "image/png",
-			finalUrl: input.url,
-			imageBytes: new TextEncoder().encode(input.url.includes("cover") ? "cover" : "inline"),
-		}));
+	it("captures article media through Crawlee request context", async () => {
+		let mediaIndex = 0;
+		const sendRequest = vi.fn(
+			async (_input: { headers: Record<string, string>; responseType: string }) => {
+				const current = mediaIndex;
+				mediaIndex += 1;
+				return {
+					body: new TextEncoder().encode(current === 0 ? "cover" : "inline"),
+					headers: {
+						"content-type": current === 0 ? "image/jpeg" : "image/png",
+					},
+					url:
+						current === 0
+							? "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg"
+							: "https://mmbiz.qpic.cn/sz_mmbiz_png/example/inline/0?wx_fmt=png",
+				};
+			},
+		);
 		const run = vi.fn(async (requests) => {
 			expect(requests).toEqual([
 				expect.objectContaining({
@@ -98,12 +110,12 @@ describe("WeChat Crawlee runners", () => {
 			]);
 			for (const request of requests) {
 				await requestHandler({
-					fetchMedia,
 					request: {
 						uniqueKey: request.uniqueKey ?? "",
 						url: request.url,
 						userData: request.userData,
 					},
+					sendRequest,
 				});
 			}
 		});
@@ -125,13 +137,13 @@ describe("WeChat Crawlee runners", () => {
 		});
 
 		expect(run).toHaveBeenCalledTimes(1);
-		expect(fetchMedia).toHaveBeenCalledWith({
-			url: "https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/cover/0?wx_fmt=jpeg",
+		expect(sendRequest).toHaveBeenCalledWith({
 			headers: expect.objectContaining({
 				accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
 				referer: "https://mp.weixin.qq.com/s/article-a",
 				"user-agent": expect.stringContaining("Mozilla/5.0"),
 			}),
+			responseType: "buffer",
 		});
 		expect(media).toHaveLength(2);
 		expect(media[0]).toMatchObject({
@@ -151,7 +163,7 @@ describe("WeChat Crawlee runners", () => {
 	});
 
 	it("records media fetch_failed only after Crawlee exhausts a media request", async () => {
-		const fetchMedia = vi.fn(async () => {
+		const sendRequest = vi.fn(async () => {
 			throw new Error("HTTP 503");
 		});
 		let requestHandler: Parameters<WeChatMediaCrawlerFactory>[0]["requestHandler"];
@@ -169,12 +181,12 @@ describe("WeChat Crawlee runners", () => {
 					run: async (requests) => {
 						for (const request of requests) {
 							const context = {
-								fetchMedia,
 								request: {
 									uniqueKey: request.uniqueKey ?? "",
 									url: request.url,
 									userData: request.userData,
 								},
+								sendRequest,
 							};
 							try {
 								await requestHandler(context);
@@ -187,7 +199,7 @@ describe("WeChat Crawlee runners", () => {
 			},
 		});
 
-		expect(fetchMedia).toHaveBeenCalledTimes(1);
+		expect(sendRequest).toHaveBeenCalledTimes(1);
 		expect(media).toEqual([
 			expect.objectContaining({
 				captureStatus: "fetch_failed",

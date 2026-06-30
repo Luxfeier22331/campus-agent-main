@@ -1,12 +1,16 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
+import { parse as parseContentDisposition } from "content-disposition";
+import { lookup as lookupMimeType, extension as mimeExtension } from "mime-types";
+
 import {
 	type FetchAttachmentBinaryResult,
 	isAttachmentDownloadTerminalUnavailableError,
 } from "./api.js";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store.js";
 import {
+	type AttachmentDownloadCrawlerFactory,
 	type AttachmentDownloadFetchMode,
 	runAttachmentCrawleeDownloads,
 } from "./attachment-crawlee-runner.js";
@@ -19,47 +23,14 @@ import type {
 } from "./types.js";
 
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;
-const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
-	".7z": "application/x-7z-compressed",
-	".avif": "image/avif",
-	".bmp": "image/bmp",
-	".csv": "text/csv",
-	".doc": "application/msword",
-	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	".gif": "image/gif",
-	".jpeg": "image/jpeg",
-	".jpg": "image/jpeg",
-	".pdf": "application/pdf",
-	".png": "image/png",
-	".ppt": "application/vnd.ms-powerpoint",
-	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-	".rar": "application/vnd.rar",
-	".svg": "image/svg+xml",
-	".tif": "image/tiff",
-	".tiff": "image/tiff",
-	".txt": "text/plain",
-	".webp": "image/webp",
-	".xls": "application/vnd.ms-excel",
-	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-	".zip": "application/zip",
-};
 const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/octet-stream"]);
 const DEFAULT_EXTERNAL_VISUAL_CAPTURE_HOSTS = new Set(["mmbiz.qpic.cn"]);
 const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
-const PREFERRED_EXTENSION_BY_MIME_TYPE: Record<string, string> = {
-	"image/avif": ".avif",
-	"image/bmp": ".bmp",
-	"image/gif": ".gif",
-	"image/jpeg": ".jpg",
-	"image/png": ".png",
-	"image/svg+xml": ".svg",
-	"image/tiff": ".tiff",
-	"image/webp": ".webp",
-};
 
 export interface MaterializeBundleAttachmentsInput {
 	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
+	attachmentCrawlerFactory?: AttachmentDownloadCrawlerFactory;
 	attachmentFetchAdmissions?: AttachmentFetchAdmission[];
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	defaultInlineVisualCapture?: boolean;
@@ -194,6 +165,7 @@ export async function materializeBundleAttachments(
 							apiContext: input.apiContext,
 							attachmentUrl: candidateUrl,
 							cacheKey,
+							crawlerFactory: input.attachmentCrawlerFactory,
 							downloadCache,
 							fetchMode: materializationCandidate.fetchMode,
 							requestMaxRetries: input.requestMaxRetries,
@@ -298,8 +270,7 @@ async function materializeSingleAttachment(input: {
 			contentDisposition: result.contentDisposition,
 			sourceUrl: input.attachment.final_url,
 		});
-		const extensionContentType =
-			MIME_TYPE_BY_EXTENSION[path.posix.extname(initialFilename).toLowerCase()] ?? null;
+		const extensionContentType = normalizeContentType(lookupMimeType(initialFilename) || null);
 		const responseContentType = normalizeContentType(result.contentType);
 		const resolvedContentType =
 			(responseContentType && !GENERIC_BINARY_MIME_TYPES.has(responseContentType)
@@ -519,6 +490,7 @@ async function downloadAttachmentOnce(input: {
 	apiContext: ApiRequestContextLike;
 	attachmentUrl: string;
 	cacheKey: string;
+	crawlerFactory?: AttachmentDownloadCrawlerFactory;
 	downloadCache: Map<string, Promise<FetchAttachmentBinaryResult>>;
 	fetchMode: AttachmentDownloadFetchMode;
 	requestMaxRetries: number;
@@ -530,6 +502,7 @@ async function downloadAttachmentOnce(input: {
 	}
 	const task = runAttachmentCrawleeDownloads({
 		apiContext: input.apiContext,
+		crawlerFactory: input.crawlerFactory,
 		requestMaxRetries: input.requestMaxRetries,
 		requests: [
 			{
@@ -572,11 +545,11 @@ function ensureFilenameExtensionForContentType(input: {
 	if (path.posix.extname(input.filename)) {
 		return input.filename;
 	}
-	const extension = PREFERRED_EXTENSION_BY_MIME_TYPE[input.contentType];
+	const extension = mimeExtension(input.contentType);
 	if (!extension) {
 		return input.filename;
 	}
-	return safeBasename(`${input.filename}${extension}`);
+	return safeBasename(`${input.filename}.${extension}`);
 }
 
 function contentDispositionFilename(
@@ -586,19 +559,12 @@ function contentDispositionFilename(
 	if (!value) {
 		return null;
 	}
-	const encodedMatch = value.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-	if (encodedMatch?.[1]) {
-		return safeBasename(repairMojibakeUtf8(safeDecodeURIComponent(encodedMatch[1])));
+	try {
+		const filename = parseContentDisposition(value).parameters.filename;
+		return filename ? safeBasename(repairMojibakeUtf8(filename)) : null;
+	} catch {
+		return null;
 	}
-	const quotedMatch = value.match(/filename\s*=\s*"([^"]+)"/i);
-	if (quotedMatch?.[1]) {
-		return safeBasename(repairMojibakeUtf8(quotedMatch[1]));
-	}
-	const plainMatch = value.match(/filename\s*=\s*([^;]+)/i);
-	if (plainMatch?.[1]) {
-		return safeBasename(repairMojibakeUtf8(plainMatch[1].trim()));
-	}
-	return null;
 }
 
 function inferAuthenticatedNoticeYear(record: BundleNoticeRecord): string | null {
@@ -627,14 +593,6 @@ function safeBasename(value: string): string {
 	const normalized = value.replace(/\\/g, "/");
 	const basename = path.posix.basename(normalized).trim().replace(/\//g, "_");
 	return basename || "attachment";
-}
-
-function safeDecodeURIComponent(value: string): string {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
 }
 
 function repairMojibakeUtf8(value: string): string {

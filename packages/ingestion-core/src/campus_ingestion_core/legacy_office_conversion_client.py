@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Protocol
-from urllib import error as urllib_error
-from urllib import request as urllib_request
+
+import httpx
 
 _SUPPORTED_TARGET_FORMATS = {"docx", "xlsx"}
 
@@ -51,12 +50,12 @@ class LegacyOfficeConversionClient:
         base_url: str,
         internal_shared_secret: str,
         timeout_seconds: float = 120.0,
-        urlopen=urllib_request.urlopen,
+        post=httpx.post,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._internal_shared_secret = internal_shared_secret
         self._timeout_seconds = timeout_seconds
-        self._urlopen = urlopen
+        self._post = post
 
     def convert(
         self,
@@ -68,39 +67,35 @@ class LegacyOfficeConversionClient:
                 f"unsupported target_format for legacy Office conversion: {request.target_format!r}"
             )
 
-        http_request = urllib_request.Request(
-            f"{self._base_url}/api/internal/legacy-office/conversions",
-            data=json.dumps(
-                {
+        url = f"{self._base_url}/api/internal/legacy-office/conversions"
+        try:
+            response = self._post(
+                url,
+                headers={
+                    "x-app-internal-auth": self._internal_shared_secret,
+                },
+                json={
                     "source_media_type": request.source_media_type,
                     "target_format": target_format,
                     "source_sha256": request.source_sha256,
                     "filename": request.filename,
                     "source_bytes_b64": base64.b64encode(request.source_bytes).decode("ascii"),
                 },
-                ensure_ascii=False,
-            ).encode("utf-8"),
-            headers={
-                "content-type": "application/json",
-                "x-app-internal-auth": self._internal_shared_secret,
-            },
-            method="POST",
-        )
-        try:
-            with self._urlopen(http_request, timeout=self._timeout_seconds) as response:
-                if response.status < 200 or response.status >= 300:
-                    raise LegacyOfficeConversionClientError(
-                        "legacy Office conversion service returned unexpected "
-                        f"status {response.status}"
-                    )
-                payload = _parse_json_payload(response.read())
-        except urllib_error.HTTPError as exc:
+                timeout=self._timeout_seconds,
+            )
+            if response.status_code < 200 or response.status_code >= 300:
+                raise LegacyOfficeConversionClientError(
+                    "legacy Office conversion service returned unexpected "
+                    f"status {response.status_code}"
+                )
+            payload = _parse_json_payload(response.json())
+        except httpx.HTTPStatusError as exc:
             raise LegacyOfficeConversionClientError(
-                f"legacy Office conversion service returned http {exc.code}"
+                f"legacy Office conversion service returned http {exc.response.status_code}"
             ) from exc
-        except urllib_error.URLError as exc:
+        except httpx.HTTPError as exc:
             raise LegacyOfficeConversionClientError(
-                f"legacy Office conversion service request failed: {exc.reason}"
+                f"legacy Office conversion service request failed: {exc}"
             ) from exc
 
         response_target_format = _require_string(payload, "target_format").strip().lower()
@@ -148,7 +143,7 @@ class LegacyOfficeConversionClient:
 def build_legacy_office_conversion_client_from_env(
     *,
     env: Mapping[str, str] | None = None,
-    urlopen=urllib_request.urlopen,
+    post=httpx.post,
 ) -> LegacyOfficeConversionClient:
     source_env = env if env is not None else os.environ
     base_url = str(source_env.get("LEGACY_OFFICE_CONVERSION_BASE_URL", "")).strip()
@@ -174,22 +169,16 @@ def build_legacy_office_conversion_client_from_env(
         base_url=base_url,
         internal_shared_secret=internal_shared_secret,
         timeout_seconds=timeout_seconds,
-        urlopen=urlopen,
+        post=post,
     )
 
 
-def _parse_json_payload(payload: bytes) -> Mapping[str, object]:
-    try:
-        parsed = json.loads(payload.decode("utf-8"))
-    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise LegacyOfficeConversionClientError(
-            "legacy Office conversion service returned invalid json"
-        ) from exc
-    if not isinstance(parsed, Mapping):
+def _parse_json_payload(payload: object) -> Mapping[str, object]:
+    if not isinstance(payload, Mapping):
         raise LegacyOfficeConversionClientError(
             "legacy Office conversion service returned a non-object payload"
         )
-    return parsed
+    return payload
 
 
 def _require_string(payload: Mapping[str, object], key: str) -> str:

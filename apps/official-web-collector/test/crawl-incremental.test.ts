@@ -155,7 +155,7 @@ function mockCrawlee(
 			},
 			CheerioCrawler: FakeCheerioCrawler,
 			RobotsTxtFile: {
-				from: vi.fn(() => ({
+				find: vi.fn(async () => ({
 					getSitemaps: () => [],
 					isAllowed: () => true,
 					parseUrlsFromSitemaps: async () => [],
@@ -166,16 +166,6 @@ function mockCrawlee(
 			},
 		};
 	});
-}
-
-function stubRobotsAllowFetch(): void {
-	vi.stubGlobal(
-		"fetch",
-		vi.fn(async () => ({
-			status: 404,
-			text: async () => "",
-		})),
-	);
 }
 
 const CRAWL_TEST_TIMEOUT_MS = 30_000;
@@ -190,7 +180,6 @@ describe("official-web-collector incremental crawl", () => {
 	it(
 		"sends If-None-Match and records not_modified observations for known pages",
 		async () => {
-			stubRobotsAllowFetch();
 			const requestHeaders = new Map<string, Record<string, string>>();
 			mockCrawlee(({ headers, request }) => {
 				requestHeaders.set(request.url, headers);
@@ -321,7 +310,6 @@ describe("official-web-collector incremental crawl", () => {
 	);
 
 	it("records not_modified even when a 304 response does not provide a cheerio document", async () => {
-		stubRobotsAllowFetch();
 		mockCrawlee(() => ({
 			statusCode: 304,
 			contentType: "application/octet-stream",
@@ -397,7 +385,6 @@ describe("official-web-collector incremental crawl", () => {
 	});
 
 	it("preserves non-empty known-page titles for deleted target-workset observations", async () => {
-		stubRobotsAllowFetch();
 		let finalizeInput: Parameters<OfficialWebControlPlaneClient["finalizeRun"]>[0] | undefined;
 		mockCrawlee(() => ({
 			statusCode: 404,
@@ -492,7 +479,6 @@ describe("official-web-collector incremental crawl", () => {
 	});
 
 	it("uses If-Modified-Since when ETag is unavailable", async () => {
-		stubRobotsAllowFetch();
 		const requestHeaders = new Map<string, Record<string, string>>();
 		mockCrawlee(({ headers, request }) => {
 			requestHeaders.set(request.url, headers);

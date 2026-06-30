@@ -198,7 +198,7 @@ export function registerPageArtifactsDetailSuite() {
 		).toBe(false);
 	});
 
-	it("does not infer VSB br-separated regulation bodies when the primary extractor sees only footer text", () => {
+	it("extracts VSB br-separated regulation bodies through the reader extraction path", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_vsb_regulation_shell_review",
 			requestedUrl: "https://www.example.edu/info/1198/4101.htm",
@@ -209,9 +209,9 @@ export function registerPageArtifactsDetailSuite() {
 			fetchedAt: "2026-05-05T09:00:00.000Z",
 		});
 
-		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBe(1);
-		expect(pageArtifacts.providerExtraction.pageSignals.mainContentCharacterCount).toBeLessThan(
-			120,
+		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBeGreaterThanOrEqual(2);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainContentCharacterCount).toBeGreaterThan(
+			260,
 		);
 		expect(
 			pageArtifacts.contentBlocks.some(
@@ -219,13 +219,13 @@ export function registerPageArtifactsDetailSuite() {
 					item.isMainContent &&
 					(item.textNormalized ?? "").includes("第一条 为进一步提高我校科研水平"),
 			),
-		).toBe(false);
+		).toBe(true);
 		expect(
 			pageArtifacts.contentBlocks.some(
 				(item) => item.isMainContent && (item.textNormalized ?? "").includes("Copyright@ 2018"),
 			),
 		).toBe(false);
-		expect(pageArtifacts.pageManifest.pageFamily).toBe("generic_content_page");
-		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe("generic_content_signal");
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
+		expect(pageArtifacts.pageManifest.pageFamilyReason).toBe("paragraph_dominant_main_content");
 	});
 }

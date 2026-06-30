@@ -2,6 +2,7 @@ import { validateIngestionTaskEnvelope } from "ingestion-contracts";
 
 import { normalizeProjectionLimit, toOperatorProjection } from "./projection";
 import type {
+	ExpiredLeaseSweepResult,
 	IngestionArtifactRef,
 	IngestionTaskCloseout,
 	IngestionTaskEnvelope,
@@ -255,6 +256,68 @@ RETURNING *`,
 		return requirePostgresTask(rows[0], input.taskId);
 	}
 
+	async sweepExpiredLeases(): Promise<ExpiredLeaseSweepResult> {
+		return this.#transaction(async (client) => {
+			const selected = await client.query(
+				`
+	SELECT *
+	FROM ingestion_control.tasks
+	WHERE status = 'running'
+		AND lease_expires_at IS NOT NULL
+		AND lease_expires_at <= $1::timestamptz
+	FOR UPDATE SKIP LOCKED`,
+				[this.#nowIso()],
+			);
+			let deadLettered = 0;
+			let requeued = 0;
+			for (const row of selected.rows) {
+				const task = toTaskRecord(row);
+				const exhausted = task.attempt_count >= task.retry_policy.max_attempts;
+				if (exhausted) {
+					deadLettered += 1;
+					await client.query(
+						`
+	UPDATE ingestion_control.tasks
+	SET status = 'dead_lettered',
+		leased_by = NULL,
+		lease_expires_at = NULL,
+		updated_at = $1::timestamptz,
+		closeout_json = $2::jsonb
+	WHERE task_id = $3`,
+						[
+							this.#nowIso(),
+							JSON.stringify({
+								artifact_refs: [],
+								error: {
+									code: "lease_expired",
+									message: "Ingestion task lease expired.",
+								},
+								outcome_kind: "error",
+								task_id: task.task_id,
+								terminal_status: "dead_lettered",
+							} satisfies IngestionTaskCloseout),
+							task.task_id,
+						],
+					);
+				} else {
+					requeued += 1;
+					await client.query(
+						`
+	UPDATE ingestion_control.tasks
+	SET status = 'queued',
+		leased_by = NULL,
+		lease_expires_at = NULL,
+		updated_at = $1::timestamptz,
+		closeout_json = NULL
+	WHERE task_id = $2`,
+						[this.#nowIso(), task.task_id],
+					);
+				}
+			}
+			return { deadLettered, requeued };
+		});
+	}
+
 	async listOperatorTaskProjections(
 		filters: IngestionTaskProjectionFilters,
 	): Promise<IngestionTaskOperatorProjectionList> {
@@ -299,6 +362,12 @@ LIMIT $${params.length}`,
 		}
 		if (task.status !== "running" || task.leased_by !== workerId) {
 			throw new Error(`ingestion task is not leased by worker: ${taskId}`);
+		}
+		if (
+			!task.lease_expires_at ||
+			new Date(task.lease_expires_at).getTime() <= this.#now().getTime()
+		) {
+			throw new Error(`ingestion task lease expired: ${taskId}`);
 		}
 		return task;
 	}

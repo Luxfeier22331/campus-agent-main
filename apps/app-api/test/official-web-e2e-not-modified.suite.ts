@@ -2,7 +2,7 @@ import { expect, it } from "vitest";
 
 import {
 	createGenerateIdMock,
-	createHandoffPublisher,
+	createIngestionTaskClient,
 	createMemoryState,
 	createOfficialWebE2ERuntime,
 } from "./official-web-e2e-test-support";
@@ -35,7 +35,9 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 			siteId: "muc_public",
 		});
 
-		const handoffPublisher = createHandoffPublisher("dispatch_not_modified");
+		const ingestionTasks = createIngestionTaskClient(
+			"task_official_web_stable_reference_source_truth_not_modified",
+		);
 		const runtime = createOfficialWebE2ERuntime({
 			commandNow: () => new Date("2026-03-29T09:00:00.000Z"),
 			generateId: createGenerateIdMock([
@@ -43,7 +45,7 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 				"owevt_accepted_not_modified",
 				"owevt_completed_not_modified",
 			]),
-			handoffPublisher,
+			ingestionTasks,
 			projectorNow: () => new Date("2026-03-29T09:00:01.000Z"),
 			queryNow: () => new Date("2026-03-29T15:30:00.000Z"),
 			state,
@@ -75,7 +77,14 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 		const finalize = await runtime.fetch(
 			new Request("https://app-api.internal/api/official-web/runs/owrun_not_modified/finalize", {
 				body: JSON.stringify({
-					artifacts: [],
+					artifacts: [
+						{
+							artifactType: "source_truth_bundle",
+							contentSha256: "bundle-not-modified",
+							objectKey: "official_web/muc_public/runs/owrun_not_modified/source-truth-bundle.json",
+							recordCount: 0,
+						},
+					],
 					finishedAt: "2026-03-29T09:00:00.000Z",
 					pageObservations: [
 						{
@@ -143,7 +152,7 @@ export function registerOfficialWebE2ENotModifiedSuite() {
 				}),
 				pageChanges: [],
 				run: expect.objectContaining({
-					ingestionDispatchRef: "dispatch_not_modified",
+					ingestionDispatchRef: "task_official_web_stable_reference_source_truth_not_modified",
 					ingestionDispatchStatus: "dispatched",
 					ingestionExecutionStatus: "pending",
 					runId: "owrun_not_modified",

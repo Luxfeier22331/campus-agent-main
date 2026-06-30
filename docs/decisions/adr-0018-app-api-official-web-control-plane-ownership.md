@@ -5,12 +5,12 @@ owner_boundary: docs/decisions
 decision_id: ADR-0018
 status: accepted
 created: 2026-03-29
-updated: 2026-06-15
+updated: 2026-06-30
 ---
 # ADR-0018 App API Official Web Control-Plane Ownership
 
 适用范围：`official_web` source channel 的 crawl-run 控制面、collector 上报入口、operator 查询面与
-ingestion handoff ownership
+ingestion-control task admission ownership
 
 ## 当前边界说明
 
@@ -19,6 +19,12 @@ ingestion handoff ownership
 ADR-0054 局部 supersede。当前 release task runtime owner 是
 `apps/ingestion-control`；`apps/ingestion-worker` 只保留 Python extraction adapter
 island。
+
+2026-06-30 后，official-web 不再保留 app-api 专用 terminal handoff receiver。
+`apps/app-api` 的 projection drain 直接从 terminal run outbox 与
+`source_truth_bundle` artifact ref admission ingestion-control task。历史文档中的
+“ingestion handoff”只应理解为 outbox-driven task admission，不表示还存在
+`official_web_*_handoff.v1` wrapper contract。
 
 ## 背景
 
@@ -189,12 +195,27 @@ offline executor / release task runtime 的表述只作为历史背景保留。
 
 - `apps/app-api` 仍只拥有 official-web control plane、operator command ledger 与
   operator-safe projection read model
-- `apps/ingestion-control` 拥有 release task admission、claim / lease、retry、
+- `apps/ingestion-control` 拥有 ingestion task admission、claim / lease、retry、
   dead-letter、materialize、publish、closeout 与 operator-safe projection snapshot
 - `packages/ingestion-core` 保留 canonical data-plane contract 与 collection strategy，
   不再通过 Python collection CLI 或 worker facade 定义 task lifecycle
 - `apps/ingestion-worker` 只保留 Python extraction adapter island；official-web
   lifecycle 不回退到 Python worker command
+
+## 2026-06-30 边界修订：Official-Web Terminal Handoff 退出
+
+固定边界：
+
+- `apps/app-api` 保留 crawl-run ledger、artifact refs、terminal outbox 与
+  operator-safe projection ownership
+- terminal run 不再生成或发布 `official_web_*_handoff.v1` wrapper
+- app-api projection drain 直接构造 `ingestion_task_envelope.v1`，以
+  `source_truth_bundle` 的 `s3://...` object-store ref 作为 `input_ref`
+- `ingestion_dispatch_ref` 保存 ingestion-control task id；字段名是历史 schema
+  命名，不代表仍有独立 official-web handoff object
+- `apps/ingestion-control` 的 official-web `source_truth_materialize` handler
+  读取 `official_web_source_truth_bundle.v1`，验证 referenced page source-truth
+  objects，并以 artifact refs close out
 
 ## 相关文档
 

@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs
 status: active
 created: 2026-03-22
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 # Docs
@@ -62,6 +62,10 @@ class owns a fact.
   - [contracts/campus-notice-runtime-contract.md](./contracts/campus-notice-runtime-contract.md)
 - Data source truth, source-channel schema and read-model ownership:
   - [data/README.md](./data/README.md)
+- Ingestion / collector / source-channel runtime shape:
+  - [architecture/system/data-plane.md](./architecture/system/data-plane.md)
+  - [decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md](./decisions/adr-0054-ingestion-control-plane-and-kernel-boundary.md)
+  - [runbooks/ingestion-control-clean-target.md](./runbooks/ingestion-control-clean-target.md)
 - HTTP/runtime wire contracts, DTOs and tool contracts:
   - [contracts/README.md](./contracts/README.md)
 - ADR reasoning and supersession:

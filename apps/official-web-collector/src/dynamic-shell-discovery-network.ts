@@ -16,58 +16,16 @@ export async function captureDynamicShellNetwork(input: {
 	crawlerFactory?: DynamicShellCrawlerFactory;
 	policy: OfficialWebDynamicShellDiscoveryPolicy;
 	url: string;
-}): Promise<{
-	captures: DynamicShellNetworkCapture[];
-	wait: OfficialWebDynamicShellDiscoveryAudit["wait"];
-}> {
-	const captures: DynamicShellNetworkCapture[] = [];
-	const pendingCaptures: Promise<void>[] = [];
-	let matchedResponseUrl: string | null = null;
-	let matchedSelector: string | null = null;
-	let usedNetworkIdleWait = false;
-	let usedFixedDelayWait = false;
+}): Promise<DynamicShellPageObservation> {
+	const observations: DynamicShellPageObservation[] = [];
 	const requestHandler = async (context: DynamicShellCrawlerRequestHandlerContext) => {
-		const page = context.page;
-		const responseWaitPromise = waitForAnyResponse({
-			page,
-			patterns: compilePatterns(input.policy.waitForResponseUrlPatterns),
-			timeoutMs: input.policy.networkObservationTimeoutMs,
-		});
-		const selectorWaitPromise = waitForAnySelector({
-			page,
-			selectors: input.policy.waitForSelectorPatterns,
-			timeoutMs: input.policy.networkObservationTimeoutMs,
-		});
-		page.on("response", (response) => {
-			pendingCaptures.push(captureTextResponse(response, captures));
-		});
-		await page.goto(input.url, { waitUntil: "load" });
-		[matchedResponseUrl, matchedSelector] = await Promise.all([
-			responseWaitPromise,
-			selectorWaitPromise,
-		]);
-		if (matchedResponseUrl == null && matchedSelector == null) {
-			usedNetworkIdleWait = true;
-			try {
-				await page.waitForLoadState("networkidle", {
-					timeout: Math.max(250, Math.min(5_000, input.policy.waitAfterLoadMs)),
-				});
-			} catch {
-				// Some shell pages never reach a quiet network state. Continue with fixed wait.
-			}
-			usedFixedDelayWait = true;
-			await page.waitForTimeout(input.policy.waitAfterLoadMs);
-		} else {
-			try {
-				await page.waitForLoadState("networkidle", {
-					timeout: input.policy.networkObservationTimeoutMs,
-				});
-			} catch {
-				usedFixedDelayWait = true;
-				await page.waitForTimeout(input.policy.waitAfterLoadMs);
-			}
-		}
-		await drainPendingCaptures(pendingCaptures);
+		observations.push(
+			await observeDynamicShellPage({
+				page: context.page,
+				policy: input.policy,
+				url: input.url,
+			}),
+		);
 	};
 	const crawler = (input.crawlerFactory ?? createDefaultDynamicShellCrawler)({
 		requestHandler,
@@ -79,17 +37,16 @@ export async function captureDynamicShellNetwork(input: {
 		},
 	]);
 
-	return {
-		captures,
-		wait: {
-			waitAfterLoadMs: input.policy.waitAfterLoadMs,
-			networkObservationTimeoutMs: input.policy.networkObservationTimeoutMs,
-			matchedResponseUrl,
-			matchedSelector,
-			usedNetworkIdleWait,
-			usedFixedDelayWait,
-		},
-	};
+	const [observed] = observations;
+	if (!observed) {
+		throw new Error("dynamic shell crawler did not observe the page");
+	}
+	return observed;
+}
+
+interface DynamicShellPageObservation {
+	captures: DynamicShellNetworkCapture[];
+	wait: OfficialWebDynamicShellDiscoveryAudit["wait"];
 }
 
 interface DynamicShellPageResponse {
@@ -125,6 +82,51 @@ interface DynamicShellCrawlerFactoryInput {
 export type DynamicShellCrawlerFactory = (input: DynamicShellCrawlerFactoryInput) => {
 	run(requests: RequestOptions[]): Promise<unknown>;
 };
+
+export async function observeDynamicShellPage(input: {
+	page: DynamicShellPageLike;
+	policy: OfficialWebDynamicShellDiscoveryPolicy;
+	url: string;
+}): Promise<DynamicShellPageObservation> {
+	const captures: DynamicShellNetworkCapture[] = [];
+	const pendingCaptures: Promise<void>[] = [];
+	const responseWaitPromise = waitForAnyResponse({
+		page: input.page,
+		patterns: compilePatterns(input.policy.waitForResponseUrlPatterns),
+		timeoutMs: input.policy.networkObservationTimeoutMs,
+	});
+	const selectorWaitPromise = waitForAnySelector({
+		page: input.page,
+		selectors: input.policy.waitForSelectorPatterns,
+		timeoutMs: input.policy.networkObservationTimeoutMs,
+	});
+	input.page.on("response", (response) => {
+		pendingCaptures.push(captureTextResponse(response, captures));
+	});
+	await input.page.goto(input.url, { waitUntil: "load" });
+	const [matchedResponseUrl, matchedSelector] = await Promise.all([
+		responseWaitPromise,
+		selectorWaitPromise,
+	]);
+	const waitOutcome = await waitAfterDynamicShellLoad({
+		matchedResponseUrl,
+		matchedSelector,
+		page: input.page,
+		policy: input.policy,
+	});
+	await drainPendingCaptures(pendingCaptures);
+	return {
+		captures,
+		wait: {
+			waitAfterLoadMs: input.policy.waitAfterLoadMs,
+			networkObservationTimeoutMs: input.policy.networkObservationTimeoutMs,
+			matchedResponseUrl,
+			matchedSelector,
+			usedNetworkIdleWait: waitOutcome.usedNetworkIdleWait,
+			usedFixedDelayWait: waitOutcome.usedFixedDelayWait,
+		},
+	};
+}
 
 async function captureTextResponse(
 	response: DynamicShellPageResponse,
@@ -177,6 +179,47 @@ async function drainPendingCaptures(pendingCaptures: Promise<void>[]): Promise<v
 	while (snapshotSize !== pendingCaptures.length) {
 		snapshotSize = pendingCaptures.length;
 		await Promise.allSettled([...pendingCaptures]);
+	}
+}
+
+async function waitAfterDynamicShellLoad(input: {
+	matchedResponseUrl: string | null;
+	matchedSelector: string | null;
+	page: Pick<DynamicShellPageLike, "waitForLoadState" | "waitForTimeout">;
+	policy: OfficialWebDynamicShellDiscoveryPolicy;
+}): Promise<{
+	usedFixedDelayWait: boolean;
+	usedNetworkIdleWait: boolean;
+}> {
+	if (input.matchedResponseUrl == null && input.matchedSelector == null) {
+		try {
+			await input.page.waitForLoadState("networkidle", {
+				timeout: Math.max(250, Math.min(5_000, input.policy.waitAfterLoadMs)),
+			});
+		} catch {
+			// Some shell pages never reach a quiet network state. Continue with fixed wait.
+		}
+		await input.page.waitForTimeout(input.policy.waitAfterLoadMs);
+		return {
+			usedFixedDelayWait: true,
+			usedNetworkIdleWait: true,
+		};
+	}
+
+	try {
+		await input.page.waitForLoadState("networkidle", {
+			timeout: input.policy.networkObservationTimeoutMs,
+		});
+		return {
+			usedFixedDelayWait: false,
+			usedNetworkIdleWait: false,
+		};
+	} catch {
+		await input.page.waitForTimeout(input.policy.waitAfterLoadMs);
+		return {
+			usedFixedDelayWait: true,
+			usedNetworkIdleWait: false,
+		};
 	}
 }
 

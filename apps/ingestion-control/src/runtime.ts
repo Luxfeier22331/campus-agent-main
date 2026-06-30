@@ -1,18 +1,29 @@
 import { createServer } from "node:http";
 import { Pool } from "pg";
 
+import { createDefaultTsTaskHandlerRegistry } from "./default-handlers";
+import { type IngestionExecutorRuntimeConfig, runIngestionExecutorLoop } from "./executor-runtime";
 import { createIngestionControlHandler } from "./http";
+import { createS3IngestionObjectStoreFromEnv } from "./object-store";
 import {
 	createPostgresIngestionTaskStore,
 	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
+import { createDefaultRustKernelRegistry } from "./rust-kernel-runner";
 import { loadIngestionTaskRegistryCatalogFromRoot } from "./task-registry";
+import type { IngestionTaskStore } from "./types";
 
 export interface IngestionControlRuntimeConfig {
 	databaseUrl: string;
 	registryRoot: string;
 	host: string;
 	port: number;
+}
+
+export interface IngestionControlRuntime {
+	close(): Promise<void>;
+	registryCatalog: ReturnType<typeof loadIngestionTaskRegistryCatalogFromRoot>;
+	store: IngestionTaskStore;
 }
 
 export function buildIngestionControlRuntimeConfig(
@@ -29,12 +40,12 @@ export function buildIngestionControlRuntimeConfig(
 
 export async function startIngestionControlServer(
 	config: IngestionControlRuntimeConfig,
+	input: { runtime?: IngestionControlRuntime } = {},
 ): Promise<{ close(): Promise<void> }> {
-	const pool = new Pool({ connectionString: config.databaseUrl });
-	await ensureIngestionControlPostgresSchema(pool);
+	const runtime = input.runtime ?? (await createIngestionControlRuntime(config));
 	const handler = createIngestionControlHandler({
-		registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
-		store: createPostgresIngestionTaskStore({ pool }),
+		registryCatalog: runtime.registryCatalog,
+		store: runtime.store,
 	});
 
 	const server = createServer(async (request, response) => {
@@ -52,21 +63,69 @@ export async function startIngestionControlServer(
 		response.end(Buffer.from(await runtimeResponse.arrayBuffer()));
 	});
 
-	await new Promise<void>((resolve, reject) => {
-		server.once("error", reject);
-		server.listen(config.port, config.host, () => {
-			server.off("error", reject);
-			resolve();
+	try {
+		await new Promise<void>((resolve, reject) => {
+			server.once("error", reject);
+			server.listen(config.port, config.host, () => {
+				server.off("error", reject);
+				resolve();
+			});
 		});
-	});
+	} catch (error) {
+		await runtime.close();
+		throw error;
+	}
 
 	return {
 		async close(): Promise<void> {
 			await new Promise<void>((resolve, reject) => {
 				server.close((error) => (error ? reject(error) : resolve()));
 			});
+			await runtime.close();
+		},
+	};
+}
+
+export async function startIngestionControlExecutor(
+	config: IngestionExecutorRuntimeConfig,
+	input: { stopSignal?: AbortSignal } = {},
+): Promise<void> {
+	const runtime = await createIngestionControlRuntime(config);
+	const objectStore = createS3IngestionObjectStoreFromEnv(process.env);
+	try {
+		await runIngestionExecutorLoop({
+			pollIntervalMs: config.pollIntervalMs,
+			registryCatalog: runtime.registryCatalog,
+			rustKernels: createDefaultRustKernelRegistry({
+				objectStore,
+			}),
+			stopSignal: input.stopSignal,
+			store: runtime.store,
+			tsHandlers: createDefaultTsTaskHandlerRegistry({
+				authenticatedNoticeObjectStore: objectStore,
+				officialWebObjectStore: objectStore,
+				wechatOfficialAccountObjectStore: objectStore,
+			}),
+			workerId: config.workerId,
+		});
+	} finally {
+		await runtime.close();
+	}
+}
+
+export { buildIngestionExecutorRuntimeConfig } from "./executor-runtime";
+
+async function createIngestionControlRuntime(
+	config: Pick<IngestionControlRuntimeConfig, "databaseUrl" | "registryRoot">,
+): Promise<IngestionControlRuntime> {
+	const pool = new Pool({ connectionString: config.databaseUrl });
+	await ensureIngestionControlPostgresSchema(pool);
+	return {
+		async close(): Promise<void> {
 			await pool.end();
 		},
+		registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
+		store: createPostgresIngestionTaskStore({ pool }),
 	};
 }
 

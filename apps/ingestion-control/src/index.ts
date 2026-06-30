@@ -3,6 +3,15 @@ export {
 	type IngestionObjectStore,
 } from "./authenticated-notice-materialize";
 export { createDefaultTsTaskHandlerRegistry } from "./default-handlers";
+export {
+	buildIngestionExecutorRuntimeConfig,
+	type IngestionExecutorIterationInput,
+	type IngestionExecutorIterationResult,
+	type IngestionExecutorLoopInput,
+	type IngestionExecutorRuntimeConfig,
+	runIngestionExecutorIteration,
+	runIngestionExecutorLoop,
+} from "./executor-runtime";
 export { createIngestionControlHandler, type IngestionControlHandler } from "./http";
 export { InMemoryIngestionTaskStore } from "./in-memory-store";
 export {
@@ -32,6 +41,7 @@ export {
 	RustKernelIdMissingError,
 	RustKernelNotRegisteredError,
 	RustKernelRegistry,
+	runClaimedRegistryTask,
 	runRegistryTaskOnce,
 	type TsTaskHandler,
 	TsTaskHandlerNotRegisteredError,
@@ -59,3 +69,4 @@ export type {
 	IngestionTaskStatus,
 	IngestionTaskStore,
 } from "./types";
+export { createWeChatOfficialAccountSourceTruthMaterializeHandler } from "./wechat-official-account-materialize";

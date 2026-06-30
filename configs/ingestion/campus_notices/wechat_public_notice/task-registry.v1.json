@@ -1,0 +1,15 @@
+{
+	"schema_version": "ingestion_task_registry.v1",
+	"source_family": "wechat_public_notice",
+	"corpus": "campus_notices",
+	"collection": "wechat_public_notice",
+	"tasks": [
+		{
+			"task_kind": "source_truth_materialize",
+			"executor_kind": "ts_control",
+			"input_contract": "wechat_official_account_capture_release.v1",
+			"output_contract": "wechat_official_account_source_truth.v1",
+			"can_publish_alias": false
+		}
+	]
+}

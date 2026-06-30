@@ -35,6 +35,9 @@ importers:
       hono:
         specifier: ^4.9.8
         version: 4.12.9
+      ingestion-contracts:
+        specifier: file:../../packages/ingestion-contracts
+        version: file:../../packages/ingestion-contracts
       official-web-core:
         specifier: file:../../packages/official-web-core
         version: file:../../packages/official-web-core
@@ -1310,6 +1313,9 @@ packages:
     resolution: {integrity: sha512-wy3T8Zm2bsEvxKZM5w21VdHDDcwVS1yUFFY6i8UobSsKfFceT7TOwhbhfKsDyx7tYQlmRM5FLpIuYvNFyjctiA==}
     engines: {node: '>=16.9.0'}
 
+  ingestion-contracts@file:../../packages/ingestion-contracts:
+    resolution: {directory: ../../packages/ingestion-contracts, type: directory}
+
   jose@6.2.2:
     resolution: {integrity: sha512-d7kPDd34KO/YnzaDOlikGpOurfF0ByC2sEV4cANCtdqLlTfBlw2p14O/5d/zv40gJPbIQxfES3nSx1/oYNyuZQ==}
 
@@ -2556,6 +2562,8 @@ snapshots:
       resolve-pkg-maps: 1.0.0
 
   hono@4.12.9: {}
+
+  ingestion-contracts@file:../../packages/ingestion-contracts: {}
 
   jose@6.2.2: {}
 

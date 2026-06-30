@@ -2,11 +2,9 @@ from __future__ import annotations
 
 import base64
 import hashlib
-import json
 import unittest
-from urllib import error as urllib_error
-from urllib import request as urllib_request
 
+import httpx
 from campus_ingestion_core.legacy_office_conversion_client import (
     LegacyOfficeConversionClient,
     LegacyOfficeConversionClientError,
@@ -16,18 +14,12 @@ from campus_ingestion_core.legacy_office_conversion_client import (
 
 
 class _FakeResponse:
-    def __init__(self, *, status: int = 200, payload: dict[str, object]) -> None:
-        self.status = status
+    def __init__(self, *, status_code: int = 200, payload: dict[str, object]) -> None:
+        self.status_code = status_code
         self._payload = payload
 
-    def read(self) -> bytes:
-        return json.dumps(self._payload, ensure_ascii=False).encode("utf-8")
-
-    def __enter__(self) -> _FakeResponse:
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        return None
+    def json(self) -> dict[str, object]:
+        return self._payload
 
 
 class LegacyOfficeConversionClientTest(unittest.TestCase):
@@ -36,16 +28,19 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         normalized_bytes = b"normalized-docx-binary"
         captured: dict[str, object] = {}
 
-        def fake_urlopen(
-            request: urllib_request.Request, timeout: float | None = None
+        def fake_post(
+            url: str,
+            *,
+            headers: dict[str, str],
+            json: dict[str, object],
+            timeout: float,
         ) -> _FakeResponse:
             self.assertEqual(timeout, 42.0)
-            captured["url"] = request.full_url
-            captured["method"] = request.get_method()
-            captured["content_type"] = request.headers.get("Content-type")
-            captured["internal_auth"] = request.headers.get("X-app-internal-auth")
-            captured["body"] = json.loads((request.data or b"").decode("utf-8"))
+            captured["url"] = url
+            captured["headers"] = headers
+            captured["body"] = json
             return _FakeResponse(
+                status_code=200,
                 payload={
                     "target_format": "docx",
                     "normalized_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -54,14 +49,14 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
                     "engine_name": "jodconverter+libreoffice",
                     "engine_version": "7.6.7",
                     "warnings": [],
-                }
+                },
             )
 
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091/",
             internal_shared_secret="internal-secret",
             timeout_seconds=42.0,
-            urlopen=fake_urlopen,
+            post=fake_post,
         )
 
         result = client.convert(
@@ -77,9 +72,12 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         self.assertEqual(
             captured["url"], "http://127.0.0.1:8091/api/internal/legacy-office/conversions"
         )
-        self.assertEqual(captured["method"], "POST")
-        self.assertEqual(captured["content_type"], "application/json")
-        self.assertEqual(captured["internal_auth"], "internal-secret")
+        self.assertEqual(
+            captured["headers"],
+            {
+                "x-app-internal-auth": "internal-secret",
+            },
+        )
         self.assertEqual(
             captured["body"],
             {
@@ -104,20 +102,12 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091",
             internal_shared_secret="internal-secret",
-            urlopen=lambda request, timeout=None: (_ for _ in ()).throw(
-                urllib_error.HTTPError(
-                    url=request.full_url,
-                    code=503,
-                    msg="Service Unavailable",
-                    hdrs=None,
-                    fp=None,
-                )
-            ),
+            post=lambda url, **kwargs: _FakeResponse(status_code=503, payload={}),
         )
 
         with self.assertRaisesRegex(
             LegacyOfficeConversionClientError,
-            "conversion service returned http 503",
+            "conversion service returned unexpected status 503",
         ):
             client.convert(
                 LegacyOfficeConversionRequest(
@@ -133,9 +123,7 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091",
             internal_shared_secret="internal-secret",
-            urlopen=lambda request, timeout=None: (_ for _ in ()).throw(
-                urllib_error.URLError("timed out")
-            ),
+            post=lambda url, **kwargs: (_ for _ in ()).throw(httpx.ReadTimeout("timed out")),
         )
 
         with self.assertRaisesRegex(
@@ -158,7 +146,7 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091",
             internal_shared_secret="internal-secret",
-            urlopen=lambda request, timeout=None: _FakeResponse(
+            post=lambda url, **kwargs: _FakeResponse(
                 payload={
                     "target_format": "docx",
                     "normalized_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -189,7 +177,7 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091",
             internal_shared_secret="internal-secret",
-            urlopen=lambda request, timeout=None: _FakeResponse(
+            post=lambda url, **kwargs: _FakeResponse(
                 payload={
                     "target_format": "docx",
                     "normalized_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -226,7 +214,7 @@ class LegacyOfficeConversionClientTest(unittest.TestCase):
         client = LegacyOfficeConversionClient(
             base_url="http://127.0.0.1:8091",
             internal_shared_secret="internal-secret",
-            urlopen=lambda request, timeout=None: _FakeResponse(payload={}),
+            post=lambda url, **kwargs: _FakeResponse(payload={}),
         )
 
         with self.assertRaisesRegex(

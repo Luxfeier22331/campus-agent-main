@@ -2,6 +2,7 @@ import { vi } from "vitest";
 
 import { createWorkerRuntime } from "../src/index";
 import type { ResolvedAppPrincipal } from "../src/modules/auth";
+import type { IngestionTaskProjectionClient } from "../src/modules/integration";
 import {
 	buildOfficialWebCommandService,
 	type OfficialWebArtifactRecord,
@@ -12,7 +13,6 @@ import {
 } from "../src/modules/official-web-command";
 import {
 	buildOfficialWebProjectionProjector,
-	type OfficialWebHandoffPublisher,
 	type OfficialWebProjectionProjectorStore,
 	type OfficialWebRunOutboxEvent,
 	type OfficialWebRunProjectionMaterialization,
@@ -51,6 +51,7 @@ export const OFFICIAL_WEB_E2E_ENV = {
 	APP_API_OFFICIAL_WEB_PROJECTION_SWEEPER_ENABLED: "true",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 	AUTH_SHELL_ORIGIN: "https://campus.muc.wiki",
+	OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 	EXECUTION_CONTROL_BASE_URL: "https://execution-control.internal",
 	EXECUTION_CONTROL_SHARED_SECRET: "shared-secret",
 	APP_API_DB: {
@@ -487,8 +488,9 @@ export function createMemoryQueryStore(state: MemoryState): OfficialWebQueryStor
 	};
 }
 
-export type MockHandoffPublisher = OfficialWebHandoffPublisher & {
-	publish: ReturnType<typeof vi.fn>;
+export type MockIngestionTaskClient = IngestionTaskProjectionClient & {
+	admitTask: ReturnType<typeof vi.fn>;
+	listTasks: ReturnType<typeof vi.fn>;
 };
 
 export type GenerateIdFn = NonNullable<OfficialWebCommandServiceDependencies["generateId"]>;
@@ -496,7 +498,7 @@ export type GenerateIdFn = NonNullable<OfficialWebCommandServiceDependencies["ge
 interface CreateOfficialWebE2ERuntimeInput {
 	commandNow: () => Date;
 	generateId: GenerateIdFn;
-	handoffPublisher: OfficialWebHandoffPublisher;
+	ingestionTasks: IngestionTaskProjectionClient;
 	projectorNow: () => Date;
 	queryNow: () => Date;
 	state: MemoryState;
@@ -515,13 +517,18 @@ function createRequestProjectorStub(): RequestProjectionProjector {
 	} satisfies RequestProjectionProjector;
 }
 
-export function createHandoffPublisher(dispatchRef: string): MockHandoffPublisher {
-	const publish = vi.fn().mockResolvedValue({
-		dispatchRef,
-	}) as unknown as MockHandoffPublisher["publish"];
+export function createIngestionTaskClient(taskId: string): MockIngestionTaskClient {
+	const admitTask = vi.fn().mockResolvedValue({
+		task_id: taskId,
+		status: "queued",
+	}) as unknown as MockIngestionTaskClient["admitTask"];
+	const listTasks = vi
+		.fn()
+		.mockResolvedValue({ tasks: [] }) as unknown as MockIngestionTaskClient["listTasks"];
 
 	return {
-		publish,
+		admitTask,
+		listTasks,
 	};
 }
 
@@ -542,8 +549,9 @@ export function createOfficialWebE2ERuntime(input: CreateOfficialWebE2ERuntimeIn
 			store: createMemoryCommandStore(input.state),
 		}),
 		officialWebProjector: buildOfficialWebProjectionProjector({
-			handoffPublisher: input.handoffPublisher,
+			ingestionTasks: input.ingestionTasks,
 			now: input.projectorNow,
+			sourceBucket: OFFICIAL_WEB_E2E_ENV.OBJECT_STORE_BUCKET_SOURCE,
 			store: createMemoryProjectionStore(input.state),
 		}),
 		officialWebQueryService: buildOfficialWebQueryService({

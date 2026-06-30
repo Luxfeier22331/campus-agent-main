@@ -130,9 +130,49 @@ export class RegistryTaskContractMismatchError extends Error {
 	}
 }
 
+export class TaskHeartbeatFailedError extends Error {}
+
 export type ClaimedTaskRunResult =
 	| { status: "idle"; task?: undefined }
 	| { status: "completed" | "failed"; task: IngestionTaskRecord };
+
+export async function runClaimedRegistryTask(input: {
+	registry: IngestionTaskRegistry;
+	rustKernels: RustKernelRegistry;
+	store: IngestionTaskStore;
+	task: IngestionTaskRecord;
+	tsHandlers: TsTaskHandlerRegistry;
+	workerId: string;
+	beforeComplete?: () => void;
+}): Promise<Extract<ClaimedTaskRunResult, { task: IngestionTaskRecord }>> {
+	try {
+		const registryTask = requireRegistryTask(input.registry, input.task);
+		requireTaskContracts(input.task, registryTask);
+		const result =
+			registryTask.executor_kind === "ts_control"
+				? await input.tsHandlers.require(input.task)(input.task, registryTask)
+				: await runRustKernelTask({
+						task: input.task,
+						registryTask,
+						rustKernels: input.rustKernels,
+					});
+		input.beforeComplete?.();
+		const completed = await input.store.completeTask({
+			taskId: input.task.task_id,
+			workerId: input.workerId,
+			artifactRefs: result.artifactRefs ?? [],
+		});
+		return { status: "completed", task: completed };
+	} catch (error) {
+		const failed = await input.store.failTask({
+			taskId: input.task.task_id,
+			workerId: input.workerId,
+			errorCode: taskExecutorErrorCode(error),
+			errorMessage: error instanceof Error ? error.message : "ingestion registry task failed",
+		});
+		return { status: "failed", task: failed };
+	}
+}
 
 export async function runRegistryTaskOnce(input: {
 	store: IngestionTaskStore;
@@ -145,32 +185,7 @@ export async function runRegistryTaskOnce(input: {
 	if (!task) {
 		return { status: "idle" };
 	}
-	try {
-		const registryTask = requireRegistryTask(input.registry, task);
-		requireTaskContracts(task, registryTask);
-		const result =
-			registryTask.executor_kind === "ts_control"
-				? await input.tsHandlers.require(task)(task, registryTask)
-				: await runRustKernelTask({
-						task,
-						registryTask,
-						rustKernels: input.rustKernels,
-					});
-		const completed = await input.store.completeTask({
-			taskId: task.task_id,
-			workerId: input.workerId,
-			artifactRefs: result.artifactRefs ?? [],
-		});
-		return { status: "completed", task: completed };
-	} catch (error) {
-		const failed = await input.store.failTask({
-			taskId: task.task_id,
-			workerId: input.workerId,
-			errorCode: taskExecutorErrorCode(error),
-			errorMessage: error instanceof Error ? error.message : "ingestion registry task failed",
-		});
-		return { status: "failed", task: failed };
-	}
+	return runClaimedRegistryTask({ ...input, task });
 }
 
 function requireRegistryTask(
@@ -230,6 +245,9 @@ function taskExecutorErrorCode(error: unknown): string {
 	}
 	if (error instanceof RustKernelNotRegisteredError) {
 		return "rust_kernel_not_registered";
+	}
+	if (error instanceof TaskHeartbeatFailedError) {
+		return "heartbeat_failed";
 	}
 	return "task_executor_failed";
 }

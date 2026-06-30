@@ -10,6 +10,7 @@ import {
 import {
 	captureDynamicShellNetwork,
 	type DynamicShellCrawlerFactory,
+	observeDynamicShellPage,
 } from "../src/dynamic-shell-discovery-network";
 
 describe("official-web-collector dynamic shell discovery", () => {
@@ -322,6 +323,91 @@ describe("official-web-collector dynamic shell discovery", () => {
 						],
 					},
 				}),
+			},
+		]);
+	});
+
+	it("keeps dynamic shell page observation inside one Crawlee page policy helper", async () => {
+		const events: string[] = [];
+		const responseListeners: Array<
+			(response: {
+				url(): string;
+				status(): number;
+				headers(): Record<string, string>;
+				text(): Promise<string>;
+			}) => void
+		> = [];
+
+		const result = await observeDynamicShellPage({
+			url: "https://lib.muc.edu.cn/",
+			policy: {
+				enabled: true,
+				engine: "playwright",
+				waitAfterLoadMs: 750,
+				networkObservationTimeoutMs: 1200,
+				maxPromotedUrls: 10,
+				allowedRequestUrlPatterns: [],
+				ignoredRequestUrlPatterns: [],
+				promotedUrlPatterns: [],
+				waitForResponseUrlPatterns: ["^https://lib\\.muc\\.edu\\.cn/api/ready"],
+				waitForSelectorPatterns: ["#app-ready"],
+			},
+			page: {
+				on: (event, listener) => {
+					events.push(`on:${event}`);
+					responseListeners.push(listener);
+				},
+				goto: async (url) => {
+					events.push(`goto:${url}`);
+					for (const listener of responseListeners) {
+						listener({
+							url: () => "https://lib.muc.edu.cn/api/data",
+							status: () => 200,
+							headers: () => ({ "content-type": "application/json" }),
+							text: async () => '{"ok":true}',
+						});
+					}
+				},
+				waitForLoadState: async (state, options) => {
+					events.push(`waitForLoadState:${state}:${options?.timeout ?? "none"}`);
+					throw new Error("networkidle timeout");
+				},
+				waitForResponse: async () => {
+					events.push("waitForResponse");
+					throw new Error("response timeout");
+				},
+				waitForSelector: async () => {
+					events.push("waitForSelector");
+					throw new Error("selector timeout");
+				},
+				waitForTimeout: async (timeout) => {
+					events.push(`waitForTimeout:${timeout}`);
+				},
+			},
+		});
+
+		expect(events).toEqual([
+			"waitForResponse",
+			"waitForSelector",
+			"on:response",
+			"goto:https://lib.muc.edu.cn/",
+			"waitForLoadState:networkidle:750",
+			"waitForTimeout:750",
+		]);
+		expect(result.wait).toEqual({
+			waitAfterLoadMs: 750,
+			networkObservationTimeoutMs: 1200,
+			matchedResponseUrl: null,
+			matchedSelector: null,
+			usedNetworkIdleWait: true,
+			usedFixedDelayWait: true,
+		});
+		expect(result.captures).toEqual([
+			{
+				url: "https://lib.muc.edu.cn/api/data",
+				status: 200,
+				contentType: "application/json",
+				bodyText: '{"ok":true}',
 			},
 		]);
 	});

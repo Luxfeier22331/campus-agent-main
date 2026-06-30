@@ -23,13 +23,17 @@ Current responsibilities:
 - materialize source-truth from the real article page; verification walls,
   non-article pages, and fetch failures become explicit metadata-only terminal
   records
-- report run metadata and artifact refs to `app-api`
+- write a run-level `capture-release.json` when an app-api run id exists
+- optionally admit the release into `apps/ingestion-control`
+- optionally report run metadata and artifact refs to `app-api` run ledger
 
 It does not write projections, document registry, Qdrant, release aliases,
 notice read models, or query-serving runtime state. Crawlee ownership is limited
 to article page and media capture scheduling/retry; FeedWe login/auth,
 subscription and article cursor APIs remain provider-adapter code, and
 source-truth materialization/object-store writes remain outside Crawlee.
+`app-api` is only a collector run ledger surface for this collector; it is not
+the ingestion lifecycle handoff.
 
 ## Local Debug Entrypoint
 
@@ -52,7 +56,19 @@ Required runtime config:
 - `FEEDWE_BASE_URL`
 - existing `OBJECT_STORE_*` source-bucket config
 
-Optional app-api handoff:
+Optional run ledger reporting:
 
 - `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
 - `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
+
+Optional ingestion-control admission:
+
+- `INGESTION_CONTROL_BASE_URL`
+
+When both an app-api run id and `INGESTION_CONTROL_BASE_URL` exist, the CLI
+writes
+`wechat_official_account/{account_slug}/runs/{run_id}/capture-release.json`
+and admits `wechat_public_notice/campus_notices/wechat_public_notice/
+source_truth_materialize` with that object-store ref. Without
+`INGESTION_CONTROL_BASE_URL`, capture still writes article source-truth and the
+run ledger remains an audit surface only.

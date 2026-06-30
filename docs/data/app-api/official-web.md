@@ -56,7 +56,8 @@ updated: 2026-05-02
 
 ## Global Rules
 
-- DB 只保存 run ledger、heartbeat、artifact refs、handoff truth 与 operator projections
+- DB 只保存 run ledger、heartbeat、artifact refs、ingestion task admission
+  state 与 operator projections
 - retained HTML、provider payload、source-truth rows 保存在对象存储，不保存在这些表里
 - site config 仍然是 repo-tracked source config，不迁移进数据库当作真相源
 - ingestion execution 由 `apps/ingestion-control` 拥有，不在这里复制其内部 task schema
@@ -136,8 +137,10 @@ updated: 2026-05-02
 
 - 这是 crawl-run lifecycle 的 canonical owner
 - `summary_json` 只保存 projection-friendly summary，不保存整份 artifact 内容
-- `ingestion_dispatch_status` 只表达 handoff/dispatched 语义，不替代 ingestion-control 的内部
-  task truth
+- `ingestion_dispatch_status` 只表达 task admission / dispatched 语义，不替代
+  ingestion-control 的内部 task truth
+- `ingestion_dispatch_ref` 当前保存 ingestion-control task id；字段名是历史
+  schema 命名，不表示 official-web 仍有独立 terminal handoff object
 - ingestion execution 回调当前允许 `pending -> running -> staged -> promoted/failed`
 - `staged` 表示 replay / validator / chunk audit 已完成，但 registry current truth 尚未被
   promote 改写
@@ -208,7 +211,7 @@ updated: 2026-05-02
 
 用途：
 
-- crawl-run terminal facts 到 projector / ingestion handoff 的边界
+- crawl-run terminal facts 到 projector / ingestion-control task admission 的边界
 
 最小列：
 
@@ -237,7 +240,7 @@ updated: 2026-05-02
 
 规则：
 
-- projector 与 ingestion handoff 都必须以 `event_id` 幂等消费
+- projector 与 ingestion task admission 都必须以 `event_id` 幂等消费
 - outbox payload 只携带 run identity、site identity、terminal status 与 artifact refs
 
 ## `official_web.run_admission_decisions`
@@ -280,7 +283,7 @@ updated: 2026-05-02
 用途：
 
 - durable 记录 collector 上报的 page-level observation
-- 为 page freshness state 和 ingestion handoff change-set 提供 canonical 上游事实
+- 为 page freshness state 和 ingestion task admission change-set 提供 canonical 上游事实
 
 最小列：
 
@@ -319,8 +322,8 @@ updated: 2026-05-02
   `deleted` / `fetch_failed`
 - `change_status` 反映 `app-api` 依据 freshness truth 计算出的 `new` / `changed` /
   `deleted` / `not_modified` / `fetch_failed`
-- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion handoff page
-  change
+- `fetch_failed` 主要用于 operator 可见性与 repair backlog，不单独推进 ingestion task
+  page change
 - 这是 control-plane durable truth，不退回对象存储扫描或 ingestion-control 内部状态
 
 ## `official_web.page_freshness`

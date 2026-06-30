@@ -12,7 +12,7 @@ This package is the first implementation slice of the target ingestion runtime:
 - keeps execution out of `apps/app-api`
 - materializes `campus_notices/internal_notice` source truth from
   `authenticated_notice_capture_release.v1` object-store input refs
-- verifies `official_web` terminal handoff objects and source-truth bundle refs
+- verifies `official_web_source_truth_bundle.v1` object-store input refs
   for `official_web/stable_reference` and `official_web/fresh_news`
 
 Runtime mode is Postgres-backed and fail-closed:
@@ -29,6 +29,9 @@ Runtime mode is Postgres-backed and fail-closed:
 - `INGESTION_KERNEL_RUNNER_PATH` optionally points to the
   `ingestion-kernel-runner` binary; if omitted, ingestion-control expects it on
   `PATH`
+- `INGESTION_EXECUTOR_WORKER_ID` optionally sets the executor worker identity
+- `INGESTION_EXECUTOR_POLL_INTERVAL_MS` optionally sets the executor idle poll
+  interval; default is `5000`
 
 Registry-declared `ts_control` tasks are not replaced by generic closeout
 skeletons. If a collection-specific handler is not registered, the task fails
@@ -40,18 +43,41 @@ default Rust kernels are not registered and tasks fail closed with
 `rust_kernel_not_registered`; ingestion-control does not provide JS or Python
 stand-ins for deterministic kernels.
 
-Local run:
+## Runtime Roles
+
+`apps/ingestion-control` is a self-hosted internal service package, not a
+Cloudflare Worker.
+
+- `ingestion-control-api`: HTTP control-plane surface for task admission,
+  readiness and operator-safe projections.
+- `ingestion-control-executor`: background executor worker process for
+  claim / lease / registry-aware execution / terminal closeout.
+- `runRegistryTaskOnce`: one-shot library seam used by the executor role and
+  tests; it is not a substitute for a long-running deployment process.
+
+The API and executor roles may share the same package or image, but they must be
+deployed as different runtime processes and scaled independently.
+
+Local control-plane run:
 
 ```bash
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
-pnpm --filter ingestion-control start
+pnpm --filter ingestion-control start:api
 ```
 
 The in-memory store is retained only for tests and contract development; it is
 not the service runtime default.
 
-The HTTP server is the control-plane surface. One-shot task execution is exposed
-as a library seam through `runRegistryTaskOnce`; deployment of a long-running
-worker loop is a separate runtime concern and must not be hidden inside
-`apps/app-api` or collector processes.
+Local executor run:
+
+```bash
+export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
+export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
+pnpm --filter ingestion-control start:executor
+```
+
+The API command starts the HTTP control-plane surface. The executor command
+starts the long-running executor worker process. They must remain separate
+runtime processes and must not be hidden inside `apps/app-api` or collector
+processes.

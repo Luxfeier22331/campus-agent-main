@@ -39,22 +39,24 @@ export function createMediaCrawlerFactory(
 		run: async (requests) => {
 			for (const request of requests) {
 				await input.requestHandler({
-					fetchMedia: async (fetchInput) => {
-						const media = mediaByUrl[fetchInput.url];
-						if (!media) {
-							throw new Error(`missing fake WeChat media for ${fetchInput.url}`);
-						}
-						assertMediaRequestHeaders(fetchInput.headers);
-						return {
-							contentType: media.contentType,
-							finalUrl: fetchInput.url,
-							imageBytes: new TextEncoder().encode(media.body),
-						};
-					},
 					request: {
 						uniqueKey: request.uniqueKey ?? "",
 						url: request.url,
 						userData: request.userData,
+					},
+					sendRequest: async (fetchInput) => {
+						const media = mediaByUrl[request.url];
+						if (!media) {
+							throw new Error(`missing fake WeChat media for ${request.url}`);
+						}
+						assertMediaRequestHeaders(fetchInput.headers);
+						return {
+							body: new TextEncoder().encode(media.body),
+							headers: {
+								"content-type": media.contentType,
+							},
+							url: request.url,
+						};
 					},
 				});
 			}

@@ -2,7 +2,6 @@ export type AppApiEnvironment = "development" | "test" | "staging" | "production
 export type DatabaseSslMode = "disable" | "prefer" | "require";
 export const DEFAULT_EXECUTION_CONTROL_TIMEOUT_MS = 30_000;
 export const DEFAULT_EXECUTION_CONTROL_EVAL_TIMEOUT_MS = 30_000;
-export const DEFAULT_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = 8_000;
 
 export interface HyperdriveBindingLike {
 	connectionString?: string;
@@ -11,9 +10,6 @@ export interface HyperdriveBindingLike {
 export interface Env {
 	APP_API_NAME?: string;
 	APP_API_ENVIRONMENT?: AppApiEnvironment;
-	APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS?: string;
-	APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?: string;
-	APP_API_OFFICIAL_WEB_HANDOFF_URL?: string;
 	APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
 	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN?: string;
 	BETTER_AUTH_SECRET?: string;
@@ -43,6 +39,7 @@ export interface Env {
 	APP_API_SAFETY_IDENTIFIER_HMAC_SECRET?: string;
 	APP_API_PROVIDER_CONFIG_ENCRYPTION_KEY?: string;
 	OBJECT_STORE_ACCESS_KEY?: string;
+	OBJECT_STORE_BUCKET_SOURCE?: string;
 	OBJECT_STORE_BUCKET_DERIVED?: string;
 	OBJECT_STORE_DERIVED_ACCESS_KEY?: string;
 	OBJECT_STORE_DERIVED_SECRET_KEY?: string;

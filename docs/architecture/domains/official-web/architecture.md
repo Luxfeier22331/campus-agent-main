@@ -38,7 +38,8 @@ app-api operator-safe projection -> Operator Console`
 
 - collector 负责 crawl / fetch / normalize / upload / report
 - `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与
-  ingestion handoff；它还接收 ingestion-control 上报的 redacted release task projection
+  ingestion-control task admission；它还接收 ingestion-control 上报的 redacted
+  release task projection
 - `apps/ingestion-control` 是 offline task control plane 与 registry-aware executor，负责
   release task claim / lease / retry / materialize / index / publish
 - `apps/ingestion-worker` 只保留 Python extraction adapter island；official-web
@@ -128,8 +129,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   optional denominator
 - `hosts.json` / `seeds.json` 是 source reachability registry；target source map 才是
   target-first collection declaration
-- 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、handoff 或
-  selected-write
+- 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、task
+  admission 或 selected-write
 - news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或 `news_archive`
 - 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
   包括 `met.muc.edu.cn`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
@@ -147,8 +148,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - 不再允许显式 legacy/debug collector run；没有 `app-api` target workset admission 时必须
   fail closed
 - `apps/app-api` 不再为 `official_web` 维护独立 run cleanup admission ledger
-- projection drain 直接推进 admitted run 的 operator projection 与 ingestion handoff，
-  不再读取 `legacy_contract_excluded` 之类的历史 cleanup decision
+- projection drain 直接推进 admitted run 的 operator projection 与 ingestion-control task
+  admission，不再读取 `legacy_contract_excluded` 之类的历史 cleanup decision
 - 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
   cleanup CLI 自动删除
 
@@ -171,7 +172,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - lifecycle / heartbeat / finalize
 - artifact refs
 - operator list / detail query
-- ingestion handoff dispatch
+- ingestion-control task admission dispatch
 - release task operator-safe projection ingest/read
 
 它不负责：
@@ -233,10 +234,10 @@ collector 通过 `POST /api/official-web/plans:resolve` 从 `app-api` materializ
 lane-aware dynamic workset。`hostFilter` 只允许缩小已准入的 target workset，不能替代
 target admission。
 
-下游 ingestion handoff 只由 page-level observation 中的 `new`、`changed`、
-`deleted` 驱动。HTTP `304`、仅 body hash 变化、仅 fetch metadata 变化或
-`fetch_failed` 不触发下游重处理。条件请求、sitemap/RSS hint 和 listing diff
-只服务 discovery / priority / observation，不替代变化真相。
+下游 ingestion-control task admission 只由 terminal run outbox 和
+`source_truth_bundle` artifact refs 驱动。HTTP `304`、仅 body hash 变化、仅 fetch
+metadata 变化或 `fetch_failed` 不触发独立 page-change handoff object。条件请求、
+sitemap/RSS hint 和 listing diff 只服务 discovery / priority / observation，不替代变化真相。
 
 责任边界：
 
@@ -244,9 +245,9 @@ target admission。
 - collector 执行 fetch / normalize / artifact upload，产出 `new / changed / deleted /
   not_modified / fetch_failed` 摘要。
 - `app-api` 持有 run ledger、page/url freshness state、dynamic planner、observation
-  truth、handoff outbox 与 operator query surface。
-- `ingestion-control` 只消费 terminal run 的 `new / changed / deleted` 集合，不扫描对象存储
-  反推 freshness。
+  truth、terminal outbox 与 operator query surface。
+- `ingestion-control` 消费 app-api admission 的 `source_truth_bundle` task，不扫描对象存储
+  反推 freshness，也不消费 official-web 专用 terminal handoff wrapper。
 - 少量动态壳页走独立 browser-capable provider lane，不污染主 HTML crawl lane。
 
 ## Serving And News Retrieval

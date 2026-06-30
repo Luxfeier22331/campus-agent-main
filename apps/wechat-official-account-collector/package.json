@@ -12,9 +12,12 @@
 		"@aws-sdk/client-s3": "^3.913.0",
 		"cheerio": "1.0.0-rc.12",
 		"crawlee": "^3.17.0",
+		"ingestion-contracts": "file:../../packages/ingestion-contracts",
+		"mime-types": "^3.0.2",
 		"wechat-official-account-core": "workspace:*"
 	},
 	"devDependencies": {
+		"@types/mime-types": "^3.0.1",
 		"@types/node": "^24.12.0",
 		"typescript": "^5.8.2",
 		"vitest": "^4.1.0"

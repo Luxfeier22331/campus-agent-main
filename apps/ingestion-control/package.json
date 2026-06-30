@@ -10,6 +10,8 @@
 	"scripts": {
 		"dev": "node --experimental-strip-types ./src/server.ts",
 		"start": "node --experimental-strip-types ./src/server.ts",
+		"start:api": "node --experimental-strip-types ./src/server.ts",
+		"start:executor": "node --experimental-strip-types ./src/executor.ts",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},

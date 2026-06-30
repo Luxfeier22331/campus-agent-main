@@ -1,7 +1,7 @@
+import type { IngestionTaskEnvelope, IngestionTaskProjectionClient } from "../integration";
 import type {
 	OfficialWebIngestionDispatchStatus,
 	OfficialWebIngestionExecutionStatus,
-	OfficialWebPageChange,
 	OfficialWebRunIntent,
 	OfficialWebRunStatus,
 } from "../official-web-command";
@@ -127,35 +127,6 @@ export interface OfficialWebProjectionProjectorStore {
 	upsertSiteProjection(projection: OfficialWebSiteProjectionMaterialization): Promise<void>;
 }
 
-export interface OfficialWebIngestionHandoffPayload {
-	artifacts: OfficialWebArtifactSummary[];
-	collectorVersion: string | null;
-	configVersion: string | null;
-	crawlPolicyVersion: string;
-	eventId: string;
-	eventType: string;
-	finishedAt: string | null;
-	hostSet: string[];
-	pageChanges: OfficialWebPageChange[];
-	pageChangeSummary: Record<string, number>;
-	runId: string;
-	runIntent: OfficialWebRunIntent;
-	schedulerRunKey: string;
-	seedSet: string[];
-	siteId: string;
-	sourceChannel: "official_web";
-	startedAt: string;
-	status: OfficialWebRunStatus;
-	summary: Record<string, unknown> | null;
-	triggerType: string;
-}
-
-export interface OfficialWebHandoffPublisher {
-	publish(input: OfficialWebIngestionHandoffPayload): Promise<{
-		dispatchRef: string;
-	}>;
-}
-
 export interface OfficialWebProjectionProjector {
 	drain(input?: {
 		limit?: number;
@@ -163,9 +134,10 @@ export interface OfficialWebProjectionProjector {
 }
 
 export interface OfficialWebProjectionProjectorDependencies {
-	handoffPublisher?: OfficialWebHandoffPublisher;
 	heartbeatTimeoutSeconds?: number;
+	ingestionTasks?: IngestionTaskProjectionClient;
 	now?: () => Date;
+	sourceBucket?: string;
 	store: OfficialWebProjectionProjectorStore;
 }
 
@@ -174,7 +146,7 @@ const DEFAULT_HEARTBEAT_TIMEOUT_SECONDS = 180;
 const MAX_PROJECTION_ATTEMPTS = 5;
 const PROJECTION_RETRY_BASE_DELAY_MS = 5_000;
 const PROJECTION_RETRY_MAX_DELAY_MS = 5 * 60_000;
-const TERMINAL_HANDOFF_EVENT_TYPES = new Set([
+const TERMINAL_TASK_ADMISSION_EVENT_TYPES = new Set([
 	"official_web.run.completed",
 	"official_web.run.completed_with_errors",
 	"official_web.run.failed",
@@ -188,12 +160,13 @@ function computeRetryDelayMs(attemptCount: number): number {
 	);
 }
 
-function shouldDispatchHandoff(
+function shouldAdmitIngestionTask(
 	event: OfficialWebRunOutboxEvent,
 	run: OfficialWebRunProjectionSource,
 ): boolean {
 	return (
-		TERMINAL_HANDOFF_EVENT_TYPES.has(event.eventType) && run.ingestionDispatchStatus === "queued"
+		TERMINAL_TASK_ADMISSION_EVENT_TYPES.has(event.eventType) &&
+		run.ingestionDispatchStatus === "queued"
 	);
 }
 
@@ -226,43 +199,48 @@ function withSiteDispatchStatus(
 	};
 }
 
-function toOfficialWebIngestionHandoffPayload(input: {
+function toOfficialWebSourceTruthTask(input: {
+	createdAt: string;
 	event: OfficialWebRunOutboxEvent;
 	run: OfficialWebRunProjectionSource;
-}): OfficialWebIngestionHandoffPayload {
+	sourceBucket: string;
+}): IngestionTaskEnvelope {
+	const sourceTruthBundle = input.run.artifacts.find(
+		(artifact) => artifact.artifactType === "source_truth_bundle",
+	);
+	if (!sourceTruthBundle) {
+		throw new Error("Official web source_truth_bundle artifact is required for task admission.");
+	}
+	const sourceBucket = input.sourceBucket.trim();
+	if (!sourceBucket) {
+		throw new Error("OBJECT_STORE_BUCKET_SOURCE is required for official web task admission.");
+	}
+
 	return {
-		artifacts: input.run.artifacts,
-		collectorVersion: input.run.collectorVersion,
-		configVersion: input.run.configVersion,
-		crawlPolicyVersion: input.run.crawlPolicyVersion,
-		eventId: input.event.eventId,
-		eventType: input.event.eventType,
-		finishedAt: input.run.finishedAt,
-		hostSet: input.run.hostSet,
-		pageChanges: Array.isArray(input.event.payload.pageChanges)
-			? (input.event.payload.pageChanges as OfficialWebPageChange[])
-			: [],
-		pageChangeSummary:
-			input.event.payload.pageChangeSummary &&
-			typeof input.event.payload.pageChangeSummary === "object"
-				? (input.event.payload.pageChangeSummary as Record<string, number>)
-				: {
-						changedPages: 0,
-						deletedPages: 0,
-						failedFetchPages: 0,
-						newPages: 0,
-						notModifiedPages: 0,
-					},
-		runId: input.run.runId,
-		runIntent: input.run.runIntent,
-		schedulerRunKey: input.run.schedulerRunKey,
-		seedSet: input.run.seedSet,
-		siteId: input.run.siteId,
-		sourceChannel: "official_web",
-		startedAt: input.run.startedAt,
-		status: input.run.status,
-		summary: input.run.summary,
-		triggerType: input.run.triggerType,
+		schema_version: "ingestion_task_envelope.v1",
+		task_id: `task_official_web_stable_reference_source_truth_${input.run.runId}`,
+		run_id: input.run.runId,
+		source_family: "official_web",
+		source_channel: "official_web",
+		corpus: "official_web",
+		collection: "stable_reference",
+		task_kind: "source_truth_materialize",
+		input_ref: {
+			kind: "object_store",
+			uri: `s3://${sourceBucket}/${sourceTruthBundle.objectKey}`,
+			digest: `sha256:${sourceTruthBundle.contentSha256}`,
+		},
+		output_contract: "official_web_stable_reference_source_truth.v1",
+		idempotency_key: `official_web/stable_reference/source_truth_materialize/${input.run.runId}/${input.event.eventId}`,
+		lease_policy: {
+			lease_seconds: 300,
+			heartbeat_seconds: 30,
+		},
+		retry_policy: {
+			max_attempts: 3,
+		},
+		created_by: "app-api:official-web-projection",
+		created_at: input.createdAt,
 	};
 }
 
@@ -292,6 +270,7 @@ export function buildOfficialWebProjectionProjector(
 	const heartbeatTimeoutSeconds =
 		dependencies.heartbeatTimeoutSeconds ?? DEFAULT_HEARTBEAT_TIMEOUT_SECONDS;
 	const now = dependencies.now ?? (() => new Date());
+	const sourceBucket = dependencies.sourceBucket?.trim() ?? "";
 
 	return {
 		async drain(input) {
@@ -328,26 +307,28 @@ export function buildOfficialWebProjectionProjector(
 					projectionRun = run;
 					projectionSite = site;
 
-					if (shouldDispatchHandoff(event, run)) {
-						if (!dependencies.handoffPublisher) {
-							throw new Error("Official web handoff publisher is not configured.");
+					if (shouldAdmitIngestionTask(event, run)) {
+						if (!dependencies.ingestionTasks) {
+							throw new Error("Ingestion control task admission is not configured.");
 						}
 
 						dispatchAttempted = true;
-						const handoff = await dependencies.handoffPublisher.publish(
-							toOfficialWebIngestionHandoffPayload({
+						const admitted = await dependencies.ingestionTasks.admitTask(
+							toOfficialWebSourceTruthTask({
+								createdAt: eventProjectedAt,
 								event,
 								run,
+								sourceBucket,
 							}),
 						);
 						await dependencies.store.updateRunDispatchStatus({
-							dispatchRef: handoff.dispatchRef,
+							dispatchRef: admitted.task_id,
 							dispatchedAt: eventProjectedAt,
 							runId: run.runId,
 							status: "dispatched",
 						});
 						projectionRun = withRunDispatchStatus(run, {
-							dispatchRef: handoff.dispatchRef,
+							dispatchRef: admitted.task_id,
 							status: "dispatched",
 						});
 						projectionSite = withSiteDispatchStatus(site, run.runId, "dispatched");

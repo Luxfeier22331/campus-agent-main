@@ -33,7 +33,7 @@ const task: IngestionTaskEnvelope = {
 };
 
 describe("ingestion-control internal HTTP API", () => {
-	it("admits, claims, completes, and exposes queue state", async () => {
+	it("admits and exposes queue state without executor mutation routes", async () => {
 		const handler = createIngestionControlHandler({
 			registryCatalog: createIngestionTaskRegistryCatalog([
 				{
@@ -68,57 +68,49 @@ describe("ingestion-control internal HTTP API", () => {
 		const admitted = await json(admittedResponse);
 		expect(admitted.status).toBe("queued");
 
-		const nextResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks/next"),
-		);
-		expect(nextResponse.status).toBeLessThan(400);
-		const next = await json(nextResponse);
-		expect(next.task_id).toBe(task.task_id);
-
-		const claimedResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks/claim", {
-				method: "POST",
-				body: JSON.stringify({ worker_id: "worker-a" }),
-			}),
-		);
-		expect(claimedResponse.status).toBeLessThan(400);
-		const claimed = await json(claimedResponse);
-		expect(claimed.status).toBe("running");
-		expect(claimed.leased_by).toBe("worker-a");
-
-		const heartbeatResponse = await handler(
-			new Request(`http://ingestion-control/internal/ingestion/tasks/${task.task_id}/heartbeat`, {
-				method: "POST",
-				body: JSON.stringify({ worker_id: "worker-a" }),
-			}),
-		);
-		expect(heartbeatResponse.status).toBeLessThan(400);
-		const heartbeat = await json(heartbeatResponse);
-		expect(heartbeat.status).toBe("running");
-		expect(heartbeat.leased_by).toBe("worker-a");
-
 		const fetchedResponse = await handler(
 			new Request(`http://ingestion-control/internal/ingestion/tasks/${task.task_id}`),
 		);
 		expect(fetchedResponse.status).toBeLessThan(400);
 		const fetched = await json(fetchedResponse);
 		expect(fetched.task_id).toBe(task.task_id);
+		expect(fetched.status).toBe("queued");
+	});
 
-		const completedResponse = await handler(
-			new Request(`http://ingestion-control/internal/ingestion/tasks/${task.task_id}/complete`, {
+	it("does not expose executor claim, heartbeat, complete or fail mutation routes", async () => {
+		const handler = createIngestionControlHandler({
+			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			store: new InMemoryIngestionTaskStore(),
+		});
+
+		const routes = [
+			new Request("http://ingestion-control/internal/ingestion/tasks/next"),
+			new Request("http://ingestion-control/internal/ingestion/tasks/claim", {
+				method: "POST",
+				body: JSON.stringify({ worker_id: "worker-a" }),
+			}),
+			new Request("http://ingestion-control/internal/ingestion/tasks/task-1/heartbeat", {
+				method: "POST",
+				body: JSON.stringify({ worker_id: "worker-a" }),
+			}),
+			new Request("http://ingestion-control/internal/ingestion/tasks/task-1/complete", {
+				method: "POST",
+				body: JSON.stringify({ worker_id: "worker-a", artifact_refs: [] }),
+			}),
+			new Request("http://ingestion-control/internal/ingestion/tasks/task-1/fail", {
 				method: "POST",
 				body: JSON.stringify({
+					error_code: "failed",
+					error_message: "failed",
 					worker_id: "worker-a",
-					artifact_refs: [{ kind: "object_store", uri: "s3://bucket/chunks.jsonl" }],
 				}),
 			}),
-		);
-		expect(completedResponse.status).toBeLessThan(400);
-		const completed = await json(completedResponse);
-		expect(completed.status).toBe("completed");
-		expect(typeof completed.closeout).toBe("object");
-		expect(completed.closeout).not.toBeNull();
-		expect((completed.closeout as Record<string, unknown>).terminal_status).toBe("completed");
+		];
+
+		for (const request of routes) {
+			const response = await handler(request);
+			expect(response.status).toBe(404);
+		}
 	});
 
 	it("rejects task admission before storage when registry membership is missing", async () => {

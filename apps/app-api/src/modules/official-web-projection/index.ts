@@ -1,8 +1,6 @@
 export {
 	buildOfficialWebProjectionProjector,
 	type OfficialWebArtifactSummary,
-	type OfficialWebHandoffPublisher,
-	type OfficialWebIngestionHandoffPayload,
 	type OfficialWebProjectionProjector,
 	type OfficialWebProjectionProjectorDependencies,
 	type OfficialWebProjectionProjectorStore,

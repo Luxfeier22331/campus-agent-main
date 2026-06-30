@@ -7,7 +7,7 @@ import { AppApiRouteError } from "./http";
 import { createPgChatConversationStore } from "./modules/chat";
 import {
 	createExecutionControlRuntimeClient,
-	createOfficialWebHandoffPublisher,
+	createIngestionTaskProjectionClient,
 	isExecutionControlRuntimeConfigured,
 } from "./modules/integration";
 import {
@@ -144,7 +144,10 @@ export function createWorkerRuntime(
 	const officialWebProjector =
 		dependencies.officialWebProjector ??
 		buildOfficialWebProjectionProjector({
-			handoffPublisher: createOfficialWebHandoffPublisher(env),
+			ingestionTasks: env.INGESTION_CONTROL_BASE_URL?.trim()
+				? createIngestionTaskProjectionClient(env)
+				: undefined,
+			sourceBucket: env.OBJECT_STORE_BUCKET_SOURCE,
 			store: createPgOfficialWebProjectionStore(env),
 		});
 	let durableCloseoutService = dependencies.chatCommandService ?? null;

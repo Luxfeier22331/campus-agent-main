@@ -44,21 +44,31 @@ source-channel collector 到 canonical data-plane 的 clean runtime chain 固定
 ```text
 source-channel collector
 -> S3-compatible source bucket artifact pack + run ledger
+   + source-channel task input refs
 -> app-api product/operator admission when a product control plane is required
--> ingestion-control task envelope with object-store input refs
--> registry-aware source_truth_materialize / projection / document / release tasks
--> app-api or operator-safe projection consumers
+-> ingestion-control-api task admission with object-store input refs
+-> ingestion-control-executor claim / lease / registry-aware execute / closeout
+-> source truth / projection / document / release artifacts
+-> app-api / execution-control / operator-safe projection consumers
 ```
 
-collector 只能把外部 source 转换成可审计 artifact pack、run ledger 与 typed handoff
-metadata；它不拥有 source-truth mutation、document registry、chunk/index release 或
-Qdrant alias publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此
-成为 ingestion executor。
+collector 只能把外部 source 转换成可审计 artifact pack、run ledger 与
+source-channel input refs。需要 capture-release handoff object 的来源必须把它建模成
+typed object-store task input；不需要 handoff object 的来源（例如
+`official_web_source_truth_bundle.v1`）不得额外引入 terminal handoff wrapper。collector
+不拥有 source-truth mutation、document registry、chunk/index release 或 Qdrant alias
+publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此成为
+ingestion executor。
+
+`ingestion-control-api` 与 `ingestion-control-executor` 是自部署
+`apps/ingestion-control` 的两个 runtime role。前者是 HTTP control-plane service；
+后者是后台 executor worker process。这里的 worker 不表示 Cloudflare Worker，也不得
+把 ingestion lifecycle 藏进 `apps/app-api` 或 collector 进程。
 
 学校或来源差异必须停在 source adapter 层。repo 当前目标是 fork-friendly source adapter
 boundary，而不是 plugin 平台：自部署 fork 可以替换自己的 collector adapter，但应保持
-source bucket artifact pack、capture-release handoff object、ingestion-control task
-envelope 与 canonical source-truth contract 不变。
+source bucket artifact pack、source-channel typed task input object、
+ingestion-control task envelope 与 canonical source-truth contract 不变。
 
 ## Qdrant Private Data-Plane Posture
 
@@ -170,10 +180,15 @@ admit
   与 release gate command；不拥有 ingestion task admission、executor state mutation、
   executor callback、source truth write、document/index materialization 或 Qdrant alias
   publish。
-- ingestion control plane 拥有 task admission、task registry、claim / lease /
-  retry / dead-letter、registry-aware executor dispatch、run shard batch state、
-  telemetry closeout 与 redacted operator projection snapshot。
-- `apps/ingestion-control` 的 registry-aware executor 是 durable dispatch shell；它消费
+- ingestion control plane 以自部署服务运行，不是 Cloudflare Worker。它可以由同一
+  package / image 提供 `ingestion-control-api` 与 `ingestion-control-executor` 两个
+  runtime role，但 API surface 与后台 executor worker process 必须作为不同进程部署和扩缩。
+- `ingestion-control-api` 拥有 task admission、task registry validation、
+  idempotency、operator-safe projection read model 与 ready / metrics surface。
+- `ingestion-control-executor` 拥有 claim / lease、retry / dead-letter、
+  registry-aware executor dispatch、run shard batch state、telemetry closeout 与
+  redacted operator projection snapshot。
+- `apps/ingestion-control` 的 executor role 是 durable dispatch shell；它消费
   已 admission 的 task，按 registry 中的 `ts_control` / `rust_kernel` executor kind
   调用 TS handlers 或 deterministic kernels，并把 terminal outcome 暴露为可诊断
   closeout。缺失 handler / kernel 必须 fail closed。

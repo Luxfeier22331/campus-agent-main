@@ -54,6 +54,24 @@ export class IngestionTaskRegistryCatalog {
 	}
 
 	requireTask(task: IngestionTaskEnvelope): IngestionTaskRegistryTask {
+		const { registryTask } = this.#requireRegistryTask(task);
+		if (task.output_contract !== registryTask.output_contract) {
+			throw new RegistryAdmissionError(
+				`output contract mismatch for ${task.task_kind}: expected ${registryTask.output_contract}, got ${task.output_contract}`,
+			);
+		}
+		return registryTask;
+	}
+
+	requireRegistry(task: IngestionTaskEnvelope): IngestionTaskRegistry {
+		return this.#requireRegistryTask(task).registry;
+	}
+
+	#requireRegistryTask(task: IngestionTaskEnvelope): {
+		key: string;
+		registry: IngestionTaskRegistry;
+		registryTask: IngestionTaskRegistryTask;
+	} {
 		const key = registryKey(task);
 		const registry = this.#registries.get(key);
 		if (!registry) {
@@ -67,12 +85,7 @@ export class IngestionTaskRegistryCatalog {
 				`task is not declared by ingestion registry: ${key}/${task.task_kind}`,
 			);
 		}
-		if (task.output_contract !== registryTask.output_contract) {
-			throw new RegistryAdmissionError(
-				`output contract mismatch for ${task.task_kind}: expected ${registryTask.output_contract}, got ${task.output_contract}`,
-			);
-		}
-		return registryTask;
+		return { key, registry, registryTask };
 	}
 }
 

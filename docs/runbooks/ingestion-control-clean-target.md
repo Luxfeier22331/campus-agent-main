@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/ingestion-control
 status: active
 created: 2026-06-12
-updated: 2026-06-29
+updated: 2026-06-30
 ---
 
 # Ingestion Control Clean-Target Runbook
@@ -30,12 +30,31 @@ CLIs and serving seed CLIs are not active operation surfaces.
 - Eval-owned Python verification must not live under `packages/evals`; it is not
   an ingestion fallback or collection operation surface.
 
+## Deployment Shape
+
+`apps/ingestion-control` is a self-hosted internal task control-plane package,
+not a Cloudflare Worker.
+
+- `ingestion-control-api`: internal HTTP service for task admission, readiness,
+  metrics and operator-safe projections.
+- `ingestion-control-executor`: background executor worker process for claim /
+  lease / registry-aware handler or kernel execution / terminal closeout.
+- collector jobs or services: source-channel adapters that write source-bucket
+  artifacts, run ledgers and source-channel task input refs, then admit
+  ingestion tasks through the control plane.
+- Python adapter process or service: private extraction island invoked only
+  behind explicit TS-controlled handlers.
+
+The API and executor roles may share the same package or container image, but
+they must be deployed as different runtime processes. Collector processes and
+`apps/app-api` must not own claim / lease / closeout truth.
+
 ## Local Control Plane
 
 ```bash
 export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
 export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
-pnpm --filter ingestion-control start
+pnpm --filter ingestion-control start:api
 ```
 
 Health:
@@ -43,6 +62,20 @@ Health:
 ```bash
 curl -fsS http://127.0.0.1:8000/readyz
 ```
+
+The local command starts only the HTTP control-plane surface.
+
+## Local Executor
+
+```bash
+export INGESTION_CONTROL_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent
+export INGESTION_TASK_REGISTRY_ROOT=configs/ingestion
+pnpm --filter ingestion-control start:executor
+```
+
+The executor command runs claim / lease / registry-aware execution / closeout in
+a separate process. It must not be embedded in `apps/app-api` or collector
+processes.
 
 ## Registry Validation
 
@@ -96,13 +129,28 @@ path mark authenticated notice source-truth materialization as completed.
 `official_web/stable_reference` and `official_web/fresh_news` also have real TS
 `source_truth_materialize` handlers. Official-web collectors already write
 page-level source-truth artifacts and the run-level `source-truth-bundle.json`;
-the ingestion-control handler therefore verifies the terminal handoff object,
-the source-truth bundle digest / size and the referenced page source-truth
-objects, then closes out with object-store artifact refs. It does not crawl,
-parse HTML, rebuild page source-truth or mutate app-api projection state.
+the ingestion-control handler therefore reads the admitted
+`official_web_source_truth_bundle.v1` object-store `input_ref`, verifies the
+source-truth bundle digest and the referenced page source-truth objects, then
+closes out with object-store artifact refs. It does not crawl, parse HTML,
+rebuild page source-truth or mutate app-api projection state.
 If the official-web object store is not configured, these
 `source_truth_materialize` tasks must fail closed rather than falling back to
 generic closeout.
+
+WeChat public-notice collection uses
+`wechat_official_account_capture_release.v1` as the `source_truth_materialize`
+input contract. The WeChat collector writes article-level source-truth
+artifacts during capture; after an app-api run id exists, it writes run-level
+`capture-release.json` under
+`wechat_official_account/{account_slug}/runs/{run_id}/capture-release.json`.
+When `INGESTION_CONTROL_BASE_URL` is configured, the collector admits
+`wechat_public_notice/campus_notices/wechat_public_notice/
+source_truth_materialize` directly to ingestion-control with that
+object-store ref. The ingestion-control handler verifies the release run id,
+same-bucket article source-truth refs and SHA-256 values, then closes out with
+object-store refs. It does not call FeedWe, crawl WeChat, parse article HTML,
+or mutate app-api run ledger rows.
 
 The default TS handler registry only registers collection-specific real
 handlers. A registry-declared `ts_control` task without a registered handler
@@ -117,6 +165,7 @@ The current default executable TS tasks are:
 - `authenticated_notice/campus_notices/internal_notice/source_truth_materialize`
 - `official_web/official_web/fresh_news/source_truth_materialize`
 - `official_web/official_web/stable_reference/source_truth_materialize`
+- `wechat_public_notice/campus_notices/wechat_public_notice/source_truth_materialize`
 
 The current Rust kernel ids in task registries
 (`validate-document-units`, `chunk-document-units`,
@@ -136,6 +185,12 @@ configured by:
 - `OBJECT_STORE_SOURCE_ACCESS_KEY`
 - `OBJECT_STORE_SOURCE_SECRET_KEY`
 - `OBJECT_STORE_BUCKET_SOURCE` (optional, defaults to `campus-rag-source`)
+
+`app-api` official-web projection is stricter: when
+`INGESTION_CONTROL_BASE_URL` is configured and terminal runs can admit
+ingestion-control tasks, `OBJECT_STORE_BUCKET_SOURCE` must also be configured.
+The projector must fail closed rather than constructing task `input_ref` values
+from an implicit bucket default.
 
 Rust kernel execution additionally uses:
 

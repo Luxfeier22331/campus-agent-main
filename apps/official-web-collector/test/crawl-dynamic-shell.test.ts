@@ -120,7 +120,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 					},
 					CheerioCrawler: FakeCheerioCrawler,
 					RobotsTxtFile: {
-						from: vi.fn(() => ({
+						find: vi.fn(async () => ({
 							getSitemaps: () => [],
 							isAllowed: () => true,
 							parseUrlsFromSitemaps: async () => [],
@@ -131,14 +131,6 @@ describe("official-web-collector dynamic shell crawl", () => {
 					},
 				};
 			});
-
-			vi.stubGlobal(
-				"fetch",
-				vi.fn(async () => ({
-					status: 404,
-					text: async () => "",
-				})),
-			);
 
 			const { configRoot, outputDir } = writeTestConfigRoot();
 			writeFileSync(

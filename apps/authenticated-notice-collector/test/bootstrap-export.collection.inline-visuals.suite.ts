@@ -1,5 +1,6 @@
 import { expect, it, vi } from "vitest";
 
+import type { AttachmentDownloadCrawlerFactory } from "../src/attachment-crawlee-runner.js";
 import { collectBootstrapBundle } from "../src/bootstrap-export.js";
 
 export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
@@ -143,17 +144,13 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 	});
 
 	it("materializes allowlisted external inline image refs when visual capture is explicitly enabled", async () => {
-		const externalFetch = vi.fn(
-			async (url: string) =>
-				new Response(Buffer.from(url.includes("mmbiz.qpic.cn") ? "wechat-image" : "other"), {
-					headers: {
-						"content-type": "image/jpeg; charset=binary",
-					},
-					status: 200,
-					statusText: "OK",
-				}),
-		);
-		vi.stubGlobal("fetch", externalFetch);
+		const sendRequest = vi.fn(async (input: { responseType: "buffer"; url: string }) => ({
+			body: Buffer.from(input.url.includes("mmbiz.qpic.cn") ? "wechat-image" : "other"),
+			headers: {
+				"content-type": "image/jpeg; charset=binary",
+			},
+			statusCode: 200,
+		}));
 
 		const storedObjects: Array<{
 			key: string;
@@ -182,6 +179,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 					};
 				},
 			},
+			attachmentCrawlerFactory: createExternalVisualCrawlerFactory(sendRequest),
 			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
@@ -252,13 +250,11 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
-		expect(externalFetch).toHaveBeenCalledTimes(1);
-		expect(externalFetch).toHaveBeenCalledWith(
-			"https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&from=appmsg",
-			expect.objectContaining({
-				redirect: "follow",
-			}),
-		);
+		expect(sendRequest).toHaveBeenCalledTimes(1);
+		expect(sendRequest).toHaveBeenCalledWith({
+			responseType: "buffer",
+			url: "https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&from=appmsg",
+		});
 		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.exportManifest.collector).toMatchObject({
 			attachment_collection_mode: "detail_api_and_html_materialized",
@@ -307,17 +303,13 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 	});
 
 	it("materializes admitted allowlisted external inline image refs without using the portal API context", async () => {
-		const externalFetch = vi.fn(
-			async () =>
-				new Response(Buffer.from("wechat-image"), {
-					headers: {
-						"content-type": "image/jpeg; charset=binary",
-					},
-					status: 200,
-					statusText: "OK",
-				}),
-		);
-		vi.stubGlobal("fetch", externalFetch);
+		const sendRequest = vi.fn(async () => ({
+			body: Buffer.from("wechat-image"),
+			headers: {
+				"content-type": "image/jpeg; charset=binary",
+			},
+			statusCode: 200,
+		}));
 
 		const storedObjects: Array<{
 			key: string;
@@ -346,6 +338,7 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 					};
 				},
 			},
+			attachmentCrawlerFactory: createExternalVisualCrawlerFactory(sendRequest),
 			attachmentFetchAdmissions: [
 				{
 					attachmentCapturePolicy: "fetch_to_quarantine",
@@ -422,13 +415,11 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
 
-		expect(externalFetch).toHaveBeenCalledTimes(1);
-		expect(externalFetch).toHaveBeenCalledWith(
-			"https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&from=appmsg",
-			expect.objectContaining({
-				redirect: "follow",
-			}),
-		);
+		expect(sendRequest).toHaveBeenCalledTimes(1);
+		expect(sendRequest).toHaveBeenCalledWith({
+			responseType: "buffer",
+			url: "https://mmbiz.qpic.cn/mmbiz_jpg/VSYicAPlaX6z95r71Jfu4l5vJAfQcSmvQ/640?wx_fmt=jpeg&from=appmsg",
+		});
 		expect(result.stats.attachmentObjectsUploaded).toBe(1);
 		expect(result.bundleRecords[0]?.links).toHaveLength(2);
 		expect(result.bundleRecords[0]?.links[0]).toMatchObject({
@@ -478,6 +469,27 @@ export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 				},
 			},
 		]);
+	});
+}
+
+function createExternalVisualCrawlerFactory(
+	sendRequest: (input: { responseType: "buffer"; url: string }) => Promise<{
+		body: Buffer;
+		headers: Record<string, string>;
+		statusCode: number;
+	}>,
+): AttachmentDownloadCrawlerFactory {
+	return ({ requestHandler }) => ({
+		run: async (requests) => {
+			for (const request of requests) {
+				await requestHandler({
+					request: {
+						userData: request.userData,
+					},
+					sendRequest,
+				});
+			}
+		},
 	});
 }
 

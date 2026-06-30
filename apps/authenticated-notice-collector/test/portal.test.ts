@@ -23,6 +23,26 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		const config = buildConfig(runtimeDir);
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async (input) => {
+				calls.push(
+					`crawler.bootstrap:${input.config.authStorageStatePath}:${input.config.portalPageUrl}`,
+				);
+				return {
+					cookies: [
+						{
+							domain: "portal.example.edu",
+							expires: -1,
+							httpOnly: true,
+							name: "JSESSIONID",
+							path: "/",
+							sameSite: "Lax",
+							secure: false,
+							value: "bootstrapped-session",
+						},
+					],
+					origins: [],
+				};
+			},
 			createRequestContext: async (input) => {
 				calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
 				expect(input.baseURL).toBe("https://portal.example.edu");
@@ -39,51 +59,11 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => {
-					calls.push("browser.close");
-				},
-				newContext: async (input) => {
-					calls.push(`browser.newContext:${String(input.storageState)}`);
-					return {
-						newPage: async () => ({
-							close: async () => {
-								calls.push("page.close");
-							},
-							goto: async (url: string) => {
-								calls.push(`page.goto:${url}`);
-							},
-						}),
-						storageState: async (input) => {
-							calls.push(`storageState:${input?.path ?? "none"}`);
-							return {
-								cookies: [
-									{
-										domain: "portal.example.edu",
-										expires: -1,
-										httpOnly: true,
-										name: "JSESSIONID",
-										path: "/",
-										sameSite: "Lax",
-										secure: false,
-										value: "bootstrapped-session",
-									},
-								],
-								origins: [],
-							};
-						},
-					};
-				},
-			}),
 		});
 
 		expect(calls).toEqual([
-			`browser.newContext:${config.authStorageStatePath}`,
-			"page.goto:https://portal.example.edu/page/11#/",
-			`storageState:${config.authStorageStatePath}`,
+			`crawler.bootstrap:${config.authStorageStatePath}:https://portal.example.edu/page/11#/`,
 			"request.newContext:bootstrapped-session",
-			"page.close",
-			"browser.close",
 		]);
 
 		await apiContext.dispose();
@@ -97,22 +77,10 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		await expect(
 			createApiContextFromStorageState(buildConfig(runtimeDir), {
-				launchBrowser: async () => ({
-					close: async () => {
-						closed = true;
-					},
-					newContext: async () => ({
-						newPage: async () => ({
-							goto: async () => {
-								throw new Error("bootstrap failed");
-							},
-						}),
-						storageState: async () => ({
-							cookies: [],
-							origins: [],
-						}),
-					}),
-				}),
+				bootstrapStorageState: async () => {
+					closed = true;
+					throw new Error("bootstrap failed");
+				},
 			}),
 		).rejects.toThrow("bootstrap failed");
 
@@ -129,33 +97,17 @@ describe("authenticated notice collector portal bootstrap", () => {
 		const config = buildConfig(runtimeDir);
 		await expect(
 			createApiContextFromStorageState(config, {
+				bootstrapStorageState: async () => {
+					calls.push("crawler.bootstrap");
+					throw new Error("page.goto: net::ERR_TIMED_OUT at https://portal.example.edu/page/11#/");
+				},
 				createRequestContext: async () => {
 					throw new Error("unexpected request context");
 				},
-				launchBrowser: async () => ({
-					close: async () => {
-						calls.push("browser.close");
-					},
-					newContext: async () => ({
-						newPage: async () => ({
-							close: async () => {
-								calls.push("page.close");
-							},
-							goto: async () => {
-								throw new Error(
-									"page.goto: net::ERR_TIMED_OUT at https://portal.example.edu/page/11#/",
-								);
-							},
-						}),
-						storageState: async () => {
-							throw new Error("unexpected storage state read");
-						},
-					}),
-				}),
 			}),
 		).rejects.toThrow("net::ERR_TIMED_OUT");
 
-		expect(calls).toEqual(["page.close", "browser.close"]);
+		expect(calls).toEqual(["crawler.bootstrap"]);
 	});
 
 	it("fails closed when browser launch times out before bootstrap", async () => {
@@ -187,12 +139,12 @@ describe("authenticated notice collector portal bootstrap", () => {
 
 		await expect(
 			createApiContextFromStorageState(config, {
+				bootstrapStorageState: async () => {
+					throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+				},
 				createRequestContext: async () => {
 					calls.push("request.newContext");
 					throw new Error("unexpected request context");
-				},
-				launchBrowser: async () => {
-					throw new Error("browserType.launch: Timeout 180000ms exceeded.");
 				},
 			}),
 		).rejects.toThrow("Timeout 180000ms exceeded");
@@ -210,6 +162,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 			authSsoTgcToken: "SSO_TGC=seeded-token; Path=/; Domain=.muc.edu.cn",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async () => ({ cookies: [], origins: [] }),
 			createRequestContext: async (input) => {
 				const ssoCookie = input.storageState.cookies.find((cookie) => cookie.name === "SSO_TGC");
 				calls.push(`request.newContext:${ssoCookie?.value ?? "missing"}`);
@@ -231,16 +184,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => undefined,
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => undefined,
-						goto: async () => undefined,
-					}),
-					storageState: async () => ({ cookies: [], origins: [] }),
-				}),
-			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:seeded-token"]);
@@ -260,6 +203,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 			authSsoTgcToken: "seeded-ticket",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async () => ({ cookies: [], origins: [] }),
 			createRequestContext: async (input) => {
 				const cookiesByName = new Map(
 					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
@@ -299,16 +243,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => undefined,
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => undefined,
-						goto: async () => undefined,
-					}),
-					storageState: async () => ({ cookies: [], origins: [] }),
-				}),
-			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:seeded-session"]);
@@ -369,6 +303,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 		);
 
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async () => ({ cookies: [], origins: [] }),
 			createRequestContext: async (input) => {
 				const cookiesByName = new Map(
 					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
@@ -396,16 +331,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => undefined,
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => undefined,
-						goto: async () => undefined,
-					}),
-					storageState: async () => ({ cookies: [], origins: [] }),
-				}),
-			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:fresh-session"]);
@@ -424,6 +349,21 @@ describe("authenticated notice collector portal bootstrap", () => {
 			authSsoTgcToken: "seeded-ticket",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async () => ({
+				cookies: [
+					{
+						domain: "portal.example.edu",
+						expires: -1,
+						httpOnly: true,
+						name: "JSESSIONID",
+						path: "/",
+						sameSite: "Lax",
+						secure: false,
+						value: "refreshed-session",
+					},
+				],
+				origins: [],
+			}),
 			createRequestContext: async (input) => {
 				const cookiesByName = new Map(
 					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
@@ -450,30 +390,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => undefined,
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => undefined,
-						goto: async () => undefined,
-					}),
-					storageState: async () => ({
-						cookies: [
-							{
-								domain: "portal.example.edu",
-								expires: -1,
-								httpOnly: true,
-								name: "JSESSIONID",
-								path: "/",
-								sameSite: "Lax",
-								secure: false,
-								value: "refreshed-session",
-							},
-						],
-						origins: [],
-					}),
-				}),
-			}),
 		});
 
 		await apiContext.dispose();
@@ -490,6 +406,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 			portalProxyServer: "http://127.0.0.1:10808",
 		};
 		const apiContext = await createApiContextFromStorageState(config, {
+			bootstrapStorageState: async () => ({ cookies: [], origins: [] }),
 			createRequestContext: async (input) => {
 				expect(input.proxy).toEqual({ server: "http://127.0.0.1:10808" });
 				return {
@@ -502,16 +419,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => ({
-				close: async () => undefined,
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => undefined,
-						goto: async () => undefined,
-					}),
-					storageState: async () => ({ cookies: [], origins: [] }),
-				}),
-			}),
 		});
 
 		await apiContext.dispose();
@@ -528,11 +435,11 @@ describe("authenticated notice collector portal bootstrap", () => {
 					authSsoTgcToken: "not a cookie token",
 				},
 				{
+					bootstrapStorageState: async () => {
+						throw new Error("unexpected browser bootstrap");
+					},
 					createRequestContext: async () => {
 						throw new Error("unexpected request context");
-					},
-					launchBrowser: async () => {
-						throw new Error("unexpected browser launch");
 					},
 				},
 			),

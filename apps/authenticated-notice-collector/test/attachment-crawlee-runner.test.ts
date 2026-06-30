@@ -91,19 +91,17 @@ describe("authenticated notice attachment Crawlee runner", () => {
 		expect(results.get("portal:1")?.body.toString("utf-8")).toBe("portal-bytes");
 	});
 
-	it("downloads trusted external visuals through fetch and rejects non-image responses", async () => {
-		const externalFetch = vi.fn(
-			async () =>
-				new Response(Buffer.from("wechat-image"), {
-					headers: {
-						"content-length": "12",
-						"content-type": "image/jpeg; charset=binary",
-						etag: '"etag-external"',
-					},
-					status: 200,
-					statusText: "OK",
-				}),
-		);
+	it("downloads trusted external visuals through Crawlee request context and rejects non-image responses", async () => {
+		const sendRequest = vi.fn(async () => ({
+			body: Buffer.from("wechat-image"),
+			headers: {
+				"content-disposition": undefined,
+				"content-length": "12",
+				"content-type": "image/jpeg; charset=binary",
+				etag: '"etag-external"',
+			},
+			statusCode: 200,
+		}));
 		const results = await runAttachmentCrawleeDownloads({
 			apiContext: {
 				get: async () => {
@@ -120,11 +118,11 @@ describe("authenticated notice attachment Crawlee runner", () => {
 							request: {
 								userData: request.userData,
 							},
+							sendRequest,
 						});
 					}
 				},
 			}),
-			fetchExternal: externalFetch,
 			requestMaxRetries: 1,
 			requests: [
 				{
@@ -136,10 +134,10 @@ describe("authenticated notice attachment Crawlee runner", () => {
 			],
 		});
 
-		expect(externalFetch).toHaveBeenCalledWith(
-			"https://mmbiz.qpic.cn/image.jpg",
-			expect.objectContaining({ redirect: "follow" }),
-		);
+		expect(sendRequest).toHaveBeenCalledWith({
+			responseType: "buffer",
+			url: "https://mmbiz.qpic.cn/image.jpg",
+		});
 		expect(results.get("external:1")).toMatchObject({
 			contentType: "image/jpeg; charset=binary",
 			etag: '"etag-external"',
@@ -164,6 +162,13 @@ describe("authenticated notice attachment Crawlee runner", () => {
 								request: {
 									userData: request.userData,
 								},
+								sendRequest: async () => ({
+									body: Buffer.from("not-image"),
+									headers: {
+										"content-type": "text/html",
+									},
+									statusCode: 200,
+								}),
 							};
 							try {
 								await requestHandler(context);
@@ -173,14 +178,6 @@ describe("authenticated notice attachment Crawlee runner", () => {
 						}
 					},
 				}),
-				fetchExternal: async () =>
-					new Response(Buffer.from("not-image"), {
-						headers: {
-							"content-type": "text/html",
-						},
-						status: 200,
-						statusText: "OK",
-					}),
 				requestMaxRetries: 1,
 				requests: [
 					{

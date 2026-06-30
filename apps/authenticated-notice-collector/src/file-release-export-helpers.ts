@@ -1,5 +1,8 @@
 import path from "node:path";
 
+import { parse as parseContentDisposition } from "content-disposition";
+import { lookup as lookupMimeType } from "mime-types";
+
 import type {
 	CollectorFileReleaseExportMetadata,
 	FileReleaseCodeTypeListResponse,
@@ -12,15 +15,6 @@ export const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal"
 export const FILE_RELEASE_EXPORT_SCHEMA_VERSION = "authenticated_notice_file_release_export_v1";
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;
 const GENERIC_BINARY_MIME_TYPES = new Set(["application/octet-stream", "binary/octet-stream"]);
-const MIME_TYPE_BY_EXTENSION: Record<string, string> = {
-	".doc": "application/msword",
-	".docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-	".pdf": "application/pdf",
-	".ppt": "application/vnd.ms-powerpoint",
-	".pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
-	".xls": "application/vnd.ms-excel",
-	".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-};
 
 export function buildExportManifest(input: {
 	exportedAt: string;
@@ -172,10 +166,7 @@ export function resolveReleasedFileContentType(input: {
 	if (normalizedContentType && !GENERIC_BINARY_MIME_TYPES.has(normalizedContentType)) {
 		return normalizedContentType;
 	}
-	return (
-		MIME_TYPE_BY_EXTENSION[path.posix.extname(input.filename).toLowerCase()] ??
-		normalizedContentType
-	);
+	return normalizeContentType(lookupMimeType(input.filename) || null) ?? normalizedContentType;
 }
 
 function contentDispositionFilename(value: string | null): string | null {
@@ -183,19 +174,12 @@ function contentDispositionFilename(value: string | null): string | null {
 	if (!trimmed) {
 		return null;
 	}
-	const encodedMatch = trimmed.match(/filename\*\s*=\s*UTF-8''([^;]+)/i);
-	if (encodedMatch?.[1]) {
-		return safeBasename(safeDecodeURIComponent(encodedMatch[1]));
+	try {
+		const filename = parseContentDisposition(trimmed).parameters.filename;
+		return filename ? safeBasename(filename) : null;
+	} catch {
+		return null;
 	}
-	const quotedMatch = trimmed.match(/filename\s*=\s*"([^"]+)"/i);
-	if (quotedMatch?.[1]) {
-		return safeBasename(quotedMatch[1]);
-	}
-	const plainMatch = trimmed.match(/filename\s*=\s*([^;]+)/i);
-	if (plainMatch?.[1]) {
-		return safeBasename(plainMatch[1].trim());
-	}
-	return null;
 }
 
 export function classifyOriginScope(urlValue: string): "internal" | "external" | "unsupported" {
@@ -312,14 +296,6 @@ export function safeBasename(value: string): string {
 	const normalized = value.replace(/\\/g, "/");
 	const basename = path.posix.basename(normalized).trim().replace(/\//g, "_");
 	return basename || "file-release";
-}
-
-function safeDecodeURIComponent(value: string): string {
-	try {
-		return decodeURIComponent(value);
-	} catch {
-		return value;
-	}
 }
 
 export function toTimestampLabel(value: string): string {

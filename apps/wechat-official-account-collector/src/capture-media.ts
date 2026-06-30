@@ -1,13 +1,7 @@
+import { extension as mimeExtension } from "mime-types";
 import type { CapturedWeChatOfficialAccountArticleMedia } from "wechat-official-account-core";
 
 import { sha256Hex } from "./capture-hashing.ts";
-
-const MIME_TYPE_EXTENSION: Record<string, string> = {
-	"image/gif": ".gif",
-	"image/jpeg": ".jpg",
-	"image/png": ".png",
-	"image/webp": ".webp",
-};
 
 export interface CapturedArticleMediaPayload extends CapturedWeChatOfficialAccountArticleMedia {
 	contentType: string | null;
@@ -60,9 +54,9 @@ export function buildCapturedArticleMediaPayload(input: {
 }
 
 export function inferImageExtension(input: { contentType: string; sourceUrl: string }): string {
-	const direct = MIME_TYPE_EXTENSION[input.contentType];
+	const direct = mimeExtension(input.contentType);
 	if (direct) {
-		return direct;
+		return `.${direct}`;
 	}
 	const extension = /\.([a-z0-9]{1,8})(?:$|[?#])/i.exec(input.sourceUrl)?.[1];
 	return extension ? `.${extension.toLowerCase()}` : ".bin";

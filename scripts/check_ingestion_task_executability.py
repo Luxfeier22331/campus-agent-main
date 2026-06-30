@@ -10,6 +10,7 @@ EXECUTABLE_TS_TASKS = frozenset(
         "authenticated_notice/campus_notices/internal_notice/source_truth_materialize",
         "official_web/official_web/fresh_news/source_truth_materialize",
         "official_web/official_web/stable_reference/source_truth_materialize",
+        "wechat_public_notice/campus_notices/wechat_public_notice/source_truth_materialize",
     }
 )
 

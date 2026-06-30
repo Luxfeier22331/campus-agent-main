@@ -4,9 +4,41 @@ import {
 	buildFileReleaseRecord,
 	collectFileReleaseBundle,
 	resolveFileReleaseExportFiltersFromEnv,
+	resolveFileReleaseFilename,
+	resolveReleasedFileContentType,
 } from "../src/file-release-export.js";
 
 describe("authenticated notice collector file release export", () => {
+	it("resolves file release filenames and MIME types through standard header and MIME parsing", () => {
+		expect(
+			resolveFileReleaseFilename({
+				contentDisposition:
+					"attachment; filename=\"fallback.pdf\"; filename*=UTF-8''%E4%B8%AD%E6%96%87.docx",
+				sourceFilename: null,
+				sourceUrl: "https://portal.example.edu/download?id=1",
+			}),
+		).toBe("中文.docx");
+		expect(
+			resolveFileReleaseFilename({
+				contentDisposition: 'attachment; filename="unsafe/path.pdf"',
+				sourceFilename: null,
+				sourceUrl: "https://portal.example.edu/download?id=1",
+			}),
+		).toBe("path.pdf");
+		expect(
+			resolveReleasedFileContentType({
+				contentType: "application/octet-stream;charset=utf-8",
+				filename: "中文.docx",
+			}),
+		).toBe("application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+		expect(
+			resolveReleasedFileContentType({
+				contentType: "application/vnd.ms-excel; charset=utf-8",
+				filename: "report.bin",
+			}),
+		).toBe("application/vnd.ms-excel");
+	});
+
 	it("builds file release bundle records from page, detail, and resolved download payloads", () => {
 		const record = buildFileReleaseRecord({
 			detail: {

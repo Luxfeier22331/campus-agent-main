@@ -7,44 +7,29 @@ import type { TsTaskHandler, TsTaskHandlerResult } from "./task-executor";
 import type { IngestionArtifactRef } from "./types";
 
 const OFFICIAL_WEB_SOURCE_CHANNEL = "official_web";
-const SOURCE_TRUTH_BUNDLE_ARTIFACT_TYPE = "source_truth_bundle";
 
 export function createOfficialWebSourceTruthMaterializeHandler(input: {
 	objectStore: IngestionObjectStore;
 }): TsTaskHandler {
 	return async (task): Promise<TsTaskHandlerResult> => {
-		const handoffInput = parseS3Uri(task.input_ref);
-		const handoff = asRecord(
-			JSON.parse(textFromBytes(await input.objectStore.getObject(handoffInput))),
-			"official web handoff",
-		);
-		validateOfficialWebHandoff({ handoff, taskRunId: task.run_id });
-		const sourceTruthBundleRef = requiredArtifactSummary(
-			handoff,
-			SOURCE_TRUTH_BUNDLE_ARTIFACT_TYPE,
-		);
-		const bundleBytes = await readSameBucketObject({
-			bucket: handoffInput.bucket,
-			key: sourceTruthBundleRef.objectKey,
-			objectStore: input.objectStore,
-		});
-		verifyArtifactSummaryBytes({
-			artifact: sourceTruthBundleRef,
-			bytes: bundleBytes,
-			label: SOURCE_TRUTH_BUNDLE_ARTIFACT_TYPE,
+		const bundleInput = parseS3Uri(task.input_ref);
+		const bundleBytes = await input.objectStore.getObject(bundleInput);
+		const bundleDigest = sha256(bundleBytes);
+		validateInputDigest({
+			actualSha256: bundleDigest,
+			digest: task.input_ref.digest,
 		});
 		const bundle = asOfficialWebSourceTruthBundle(JSON.parse(textFromBytes(bundleBytes)));
 		validateOfficialWebSourceTruthBundle({
 			bundle,
-			siteId: requiredText(handoff.siteId, "siteId"),
 			runId: task.run_id,
 		});
 
 		const refs: IngestionArtifactRef[] = [
 			{
 				kind: "object_store",
-				uri: `s3://${handoffInput.bucket}/${sourceTruthBundleRef.objectKey}`,
-				digest: `sha256:${sourceTruthBundleRef.contentSha256}`,
+				uri: task.input_ref.uri,
+				digest: `sha256:${bundleDigest}`,
 			},
 		];
 		const seen = new Set<string>();
@@ -55,13 +40,13 @@ export function createOfficialWebSourceTruthMaterializeHandler(input: {
 				}
 				seen.add(key);
 				await readSameBucketObject({
-					bucket: handoffInput.bucket,
+					bucket: bundleInput.bucket,
 					key,
 					objectStore: input.objectStore,
 				});
 				refs.push({
 					kind: "object_store",
-					uri: `s3://${handoffInput.bucket}/${key}`,
+					uri: `s3://${bundleInput.bucket}/${key}`,
 				});
 			}
 		}
@@ -69,72 +54,27 @@ export function createOfficialWebSourceTruthMaterializeHandler(input: {
 	};
 }
 
-function validateOfficialWebHandoff(input: {
-	handoff: Record<string, unknown>;
-	taskRunId: string;
-}): void {
-	if (input.handoff.sourceChannel !== OFFICIAL_WEB_SOURCE_CHANNEL) {
-		throw new Error("official web handoff sourceChannel must be official_web");
+function validateInputDigest(input: { actualSha256: string; digest: string | undefined }): void {
+	if (!input.digest?.trim()) {
+		throw new Error("official web source truth bundle input_ref digest is required");
 	}
-	if (input.handoff.runId !== input.taskRunId) {
-		throw new Error("official web handoff runId must match task run_id");
+	if (!input.digest.startsWith("sha256:")) {
+		throw new Error("official web source truth bundle input_ref digest must use sha256");
 	}
-	const eventType = requiredText(input.handoff.eventType, "eventType");
-	if (!eventType.startsWith("official_web.run.")) {
-		throw new Error("official web handoff eventType must be terminal official_web run event");
+	if (input.digest.slice("sha256:".length) !== input.actualSha256) {
+		throw new Error("official web source truth bundle input_ref digest mismatch");
 	}
 }
 
 function validateOfficialWebSourceTruthBundle(input: {
 	bundle: OfficialWebSourceTruthBundle;
-	siteId: string;
 	runId: string;
 }): void {
 	if (input.bundle.sourceChannel !== OFFICIAL_WEB_SOURCE_CHANNEL) {
 		throw new Error("official web source truth bundle sourceChannel must be official_web");
 	}
-	if (input.bundle.siteId !== input.siteId) {
-		throw new Error("official web source truth bundle siteId must match handoff siteId");
-	}
 	if (input.bundle.crawlRunId !== input.runId) {
 		throw new Error("official web source truth bundle crawlRunId must match task run_id");
-	}
-}
-
-function requiredArtifactSummary(
-	handoff: Record<string, unknown>,
-	artifactType: string,
-): {
-	artifactType: string;
-	byteSize: number | null;
-	contentSha256: string;
-	objectKey: string;
-	recordCount: number | null;
-} {
-	const artifacts = asArray(handoff.artifacts, "artifacts").filter(isRecord);
-	const artifact = artifacts.find((item) => item.artifactType === artifactType);
-	if (!artifact) {
-		throw new Error(`official web handoff missing ${artifactType} artifact`);
-	}
-	return {
-		artifactType,
-		byteSize: optionalNumber(artifact.byteSize),
-		contentSha256: requiredText(artifact.contentSha256, `${artifactType}.contentSha256`),
-		objectKey: requiredText(artifact.objectKey, `${artifactType}.objectKey`),
-		recordCount: optionalNumber(artifact.recordCount),
-	};
-}
-
-function verifyArtifactSummaryBytes(input: {
-	artifact: { byteSize: number | null; contentSha256: string };
-	bytes: Uint8Array;
-	label: string;
-}): void {
-	if (input.artifact.byteSize !== null && input.artifact.byteSize !== input.bytes.byteLength) {
-		throw new Error(`${input.label} byteSize mismatch`);
-	}
-	if (input.artifact.contentSha256 !== sha256(input.bytes)) {
-		throw new Error(`${input.label} contentSha256 mismatch`);
 	}
 }
 
@@ -177,17 +117,10 @@ function asOfficialWebSourceTruthBundle(value: unknown): OfficialWebSourceTruthB
 	}
 	const pages = asArray(bundle.pages, "official web source truth bundle pages").filter(isRecord);
 	for (const page of pages) {
-		requiredText(page.pageManifestObjectKey, "pageManifestObjectKey");
-		requiredText(page.contentBlocksObjectKey, "contentBlocksObjectKey");
+		requiredText(page, "pageManifestObjectKey");
+		requiredText(page, "contentBlocksObjectKey");
 	}
 	return bundle as unknown as OfficialWebSourceTruthBundle;
-}
-
-function asArray(value: unknown, label: string): unknown[] {
-	if (!Array.isArray(value)) {
-		throw new Error(`${label} must be an array`);
-	}
-	return value;
 }
 
 function asRecord(value: unknown, label: string): Record<string, unknown> {
@@ -197,23 +130,23 @@ function asRecord(value: unknown, label: string): Record<string, unknown> {
 	return value;
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function requiredText(value: unknown, label: string): string {
-	const normalized = String(value ?? "").trim();
-	if (!normalized) {
-		throw new Error(`${label} is required`);
-	}
-	return normalized;
-}
-
-function optionalNumber(value: unknown): number | null {
-	if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
-		return null;
+function asArray(value: unknown, label: string): unknown[] {
+	if (!Array.isArray(value)) {
+		throw new Error(`${label} must be an array`);
 	}
 	return value;
+}
+
+function requiredText(record: Record<string, unknown>, field: string): string {
+	const value = record[field];
+	if (typeof value !== "string" || !value.trim()) {
+		throw new Error(`official web source truth bundle page ${field} is required`);
+	}
+	return value;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function textFromBytes(value: Uint8Array): string {

@@ -208,6 +208,16 @@ REMOVED_ACTIVE_INGESTION_TASK_KINDS = {
     "structured_projection_publish",
 }
 
+REMOVED_OFFICIAL_WEB_HANDOFF_TERMS = {
+    "APP_API_OFFICIAL_WEB_HANDOFF",
+    "OfficialWebHandoff",
+    "OfficialWebIngestionHandoff",
+    "apps/app-api/src/modules/integration/official-web-handoff",
+    "createOfficialWebHandoffPublisher",
+    "official_web_fresh_news_handoff.v1",
+    "official_web_stable_reference_handoff.v1",
+}
+
 ACTIVE_REFERENCE_ROOTS = (
     REPO_ROOT / "apps",
     REPO_ROOT / "configs",
@@ -333,6 +343,69 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
                     )
         self.assertEqual(offenders, [])
 
+    def test_wechat_public_notice_registry_declares_real_source_truth_materializer(self) -> None:
+        registry_path = (
+            REPO_ROOT
+            / "configs/ingestion/campus_notices/wechat_public_notice/task-registry.v1.json"
+        )
+        registry = json.loads(registry_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(registry["source_family"], "wechat_public_notice")
+        self.assertEqual(registry["corpus"], "campus_notices")
+        self.assertEqual(registry["collection"], "wechat_public_notice")
+        self.assertIn(
+            {
+                "task_kind": "source_truth_materialize",
+                "executor_kind": "ts_control",
+                "input_contract": "wechat_official_account_capture_release.v1",
+                "output_contract": "wechat_official_account_source_truth.v1",
+                "can_publish_alias": False,
+            },
+            registry["tasks"],
+        )
+
+    def test_ingestion_control_runtime_wires_wechat_public_notice_materializer(self) -> None:
+        runtime_text = (REPO_ROOT / "apps/ingestion-control/src/runtime.ts").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("wechatOfficialAccountObjectStore: objectStore", runtime_text)
+
+    def test_app_api_uses_shared_ingestion_task_contracts_without_handwritten_dto(
+        self,
+    ) -> None:
+        text = (REPO_ROOT / "apps/app-api/src/modules/integration/ingestion-control.ts").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn('from "ingestion-contracts"', text)
+        self.assertNotIn("interface IngestionArtifactRef", text)
+        self.assertNotIn("interface IngestionTaskEnvelope", text)
+
+    def test_wechat_collector_no_longer_documents_app_api_as_ingestion_handoff(
+        self,
+    ) -> None:
+        text = (REPO_ROOT / "apps/wechat-official-account-collector/README.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("Optional app-api handoff", text)
+        self.assertIn("Optional ingestion-control admission", text)
+
+    def test_authenticated_notice_auth_bootstrap_uses_crawlee_runner_boundary(self) -> None:
+        for relative_path in (
+            Path("apps/authenticated-notice-collector/src/auth-save.ts"),
+            Path("apps/authenticated-notice-collector/src/portal.ts"),
+        ):
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            self.assertNotIn("chromium", text, str(relative_path))
+            self.assertNotIn("launch(", text, str(relative_path))
+
+        runner_text = (
+            REPO_ROOT / "apps/authenticated-notice-collector/src/auth-crawlee-runner.ts"
+        ).read_text(encoding="utf-8")
+        self.assertIn("PlaywrightCrawler", runner_text)
+
     def test_active_task_contracts_do_not_admit_unwired_task_kinds(self) -> None:
         contract_files = [
             REPO_ROOT / "packages/ingestion-contracts/src/index.ts",
@@ -350,6 +423,24 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
             for task_kind in sorted(REMOVED_ACTIVE_INGESTION_TASK_KINDS):
                 if f'"{task_kind}"' in text:
                     offenders.append(f"{path.relative_to(REPO_ROOT)}:{task_kind}")
+
+        self.assertEqual(offenders, [])
+
+    def test_active_tree_does_not_reference_official_web_handoff_receiver(self) -> None:
+        offenders: list[str] = []
+        for root in ACTIVE_REFERENCE_ROOTS:
+            if not root.exists():
+                continue
+            for path in root.rglob("*"):
+                if not path.is_file() or path.suffix not in TEXT_SUFFIXES:
+                    continue
+                relative_path = path.relative_to(REPO_ROOT)
+                if relative_path in REFERENCE_ALLOWLIST or "archive" in relative_path.parts:
+                    continue
+                text = path.read_text(encoding="utf-8")
+                for term in sorted(REMOVED_OFFICIAL_WEB_HANDOFF_TERMS):
+                    if term in text:
+                        offenders.append(f"{relative_path}: {term}")
 
         self.assertEqual(offenders, [])
 

@@ -34,6 +34,9 @@ const task: IngestionTaskEnvelope = {
 
 describe("ingestion-control operator projection", () => {
 	it("returns redacted task snapshots without input or artifact refs", async () => {
+		const store = new InMemoryIngestionTaskStore({
+			now: () => new Date("2026-06-11T00:00:00Z"),
+		});
 		const handler = createIngestionControlHandler({
 			registryCatalog: createIngestionTaskRegistryCatalog([
 				{
@@ -53,9 +56,7 @@ describe("ingestion-control operator projection", () => {
 					],
 				},
 			]),
-			store: new InMemoryIngestionTaskStore({
-				now: () => new Date("2026-06-11T00:00:00Z"),
-			}),
+			store,
 		});
 
 		const admitResponse = await handler(
@@ -66,29 +67,18 @@ describe("ingestion-control operator projection", () => {
 		);
 		expect(admitResponse.status).toBeLessThan(400);
 
-		const claimResponse = await handler(
-			new Request("http://ingestion-control/internal/ingestion/tasks/claim", {
-				method: "POST",
-				body: JSON.stringify({ worker_id: "worker-a" }),
-			}),
-		);
-		expect(claimResponse.status).toBeLessThan(400);
-
-		const completeResponse = await handler(
-			new Request(`http://ingestion-control/internal/ingestion/tasks/${task.task_id}/complete`, {
-				method: "POST",
-				body: JSON.stringify({
-					worker_id: "worker-a",
-					artifact_refs: [
-						{
-							kind: "object_store",
-							uri: "s3://campus-rag-derived/curriculum/curriculum_plan/chunks.jsonl",
-						},
-					],
-				}),
-			}),
-		);
-		expect(completeResponse.status).toBeLessThan(400);
+		const claimed = store.claimNextTask({ workerId: "worker-a" });
+		expect(claimed?.task_id).toBe(task.task_id);
+		store.completeTask({
+			taskId: task.task_id,
+			workerId: "worker-a",
+			artifactRefs: [
+				{
+					kind: "object_store",
+					uri: "s3://campus-rag-derived/curriculum/curriculum_plan/chunks.jsonl",
+				},
+			],
+		});
 
 		const projectionResponse = await handler(
 			new Request(

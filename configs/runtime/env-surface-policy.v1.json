@@ -301,6 +301,11 @@
 			"scopes": ["infra"],
 			"secret": true
 		},
+		"INGESTION_CONTROL_BASE_URL": {
+			"owner": "ingestion-control-task-admission",
+			"scopes": ["app-api"],
+			"secret": false
+		},
 		"EXECUTION_CONTROL_OTEL_EXPORTER_OTLP_HEADERS": {
 			"owner": "runtime-observability",
 			"scopes": ["infra"],

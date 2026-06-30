@@ -10,6 +10,12 @@ import {
 	type WeChatOfficialAccountControlPlaneClient,
 	type WeChatOfficialAccountObjectStoreEnvironment,
 } from "./index.ts";
+import {
+	buildWeChatOfficialAccountCaptureRelease,
+	buildWeChatOfficialAccountSourceTruthTask,
+	createWeChatOfficialAccountIngestionControlClient,
+	type WeChatOfficialAccountIngestionControlClient,
+} from "./ingestion-control.ts";
 
 interface CaptureCliEnvironment extends WeChatOfficialAccountObjectStoreEnvironment {
 	FEEDWE_BASE_URL?: string;
@@ -19,6 +25,7 @@ interface CaptureCliEnvironment extends WeChatOfficialAccountObjectStoreEnvironm
 	WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN?: string;
 	WECHAT_OFFICIAL_ACCOUNT_TRACE_ID?: string;
 	WECHAT_OFFICIAL_ACCOUNT_TRIGGER_TYPE?: string;
+	INGESTION_CONTROL_BASE_URL?: string;
 }
 
 interface CaptureCliDependencies {
@@ -30,6 +37,9 @@ interface CaptureCliDependencies {
 		appApiBaseUrl?: string | null;
 		serviceToken?: string | null;
 	}) => WeChatOfficialAccountControlPlaneClient;
+	createIngestionControlClient?: (env: {
+		baseUrl?: string | null;
+	}) => WeChatOfficialAccountIngestionControlClient;
 	now?: () => Date;
 	writeOutput?: (value: string) => void;
 }
@@ -46,6 +56,8 @@ export async function runCaptureCli(
 		dependencies.createArtifactStore ?? createWeChatOfficialAccountArtifactStoreFromEnv;
 	const createControlPlaneClient =
 		dependencies.createControlPlaneClient ?? createWeChatOfficialAccountControlPlaneClient;
+	const createIngestionControlClient =
+		dependencies.createIngestionControlClient ?? createWeChatOfficialAccountIngestionControlClient;
 	const now = dependencies.now ?? (() => new Date());
 	const writeOutput = dependencies.writeOutput ?? console.log;
 	const { values } = parseArgs({
@@ -134,6 +146,32 @@ export async function runCaptureCli(
 			provider: { baseUrl, email, password },
 			size,
 		});
+		const sourceBucket = env.OBJECT_STORE_BUCKET_SOURCE?.trim() || "campus-rag-source";
+		const captureReleaseRef =
+			run && result.summary.sourceTruthArtifacts > 0
+				? await writeCaptureRelease({
+						accountSlug: result.accountSlug,
+						artifactStore,
+						capturedAt: now().toISOString(),
+						captureRunId: run.run.runId,
+						result,
+						sourceBucket,
+					})
+				: null;
+		const ingestionTask =
+			captureReleaseRef && env.INGESTION_CONTROL_BASE_URL?.trim()
+				? await createIngestionControlClient({
+						baseUrl: env.INGESTION_CONTROL_BASE_URL,
+					}).admitTask(
+						buildWeChatOfficialAccountSourceTruthTask({
+							captureReleaseContentSha256: captureReleaseRef.contentSha256,
+							captureReleaseKey: captureReleaseRef.objectKey,
+							captureRunId: run?.run.runId ?? schedulerRunKey,
+							createdAt: now().toISOString(),
+							sourceBucket,
+						}),
+					)
+				: null;
 
 		if (controlPlane && run) {
 			await controlPlane.finalizeRun({
@@ -152,6 +190,8 @@ export async function runCaptureCli(
 					accountSlug: result.accountSlug,
 					artifacts: result.artifacts,
 					captureRunId: run?.run.runId ?? null,
+					captureRelease: captureReleaseRef,
+					ingestionTask,
 					planningOutcome: result.planningOutcome,
 					summary: result.summary,
 				},
@@ -184,6 +224,34 @@ export async function runCaptureCli(
 		}
 		throw buildRedactedError(terminalError);
 	}
+}
+
+async function writeCaptureRelease(input: {
+	accountSlug: string;
+	artifactStore: WeChatOfficialAccountArtifactStore;
+	capturedAt: string;
+	captureRunId: string;
+	result: CaptureFeedWeHistoryResult;
+	sourceBucket: string;
+}): Promise<{
+	byteSize: number;
+	contentSha256: string;
+	objectKey: string;
+	recordCount?: number;
+}> {
+	const release = buildWeChatOfficialAccountCaptureRelease({
+		accountSlug: input.accountSlug,
+		artifacts: input.result.artifacts,
+		capturedAt: input.capturedAt,
+		captureRunId: input.captureRunId,
+		sourceBucket: input.sourceBucket,
+	});
+	return input.artifactStore.putObject({
+		contentType: "application/json",
+		data: new TextEncoder().encode(`${JSON.stringify(release, null, 2)}\n`),
+		objectKey: `wechat_official_account/${input.accountSlug}/runs/${input.captureRunId}/capture-release.json`,
+		recordCount: 1,
+	});
 }
 
 function required(value: unknown, field: string): string {

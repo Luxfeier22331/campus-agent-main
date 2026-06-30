@@ -21,7 +21,7 @@ const task: IngestionTaskEnvelope = {
 	task_kind: "source_truth_materialize",
 	input_ref: {
 		kind: "object_store",
-		uri: "s3://campus-source/official_web/stable_reference/run-001/handoff.json",
+		uri: "s3://campus-source/official_web/stable_reference/run-001/source-truth-bundle.json",
 	},
 	output_contract: "official_web_stable_reference_source_truth.v1",
 	idempotency_key: "official_web/stable_reference/source_truth_materialize/run-001",
@@ -61,7 +61,7 @@ const officialWebRegistry: IngestionTaskRegistry = {
 		{
 			task_kind: "source_truth_materialize",
 			executor_kind: "ts_control",
-			input_contract: "official_web_source_handoff.v1",
+			input_contract: "official_web_source_truth_bundle.v1",
 			output_contract: "official_web_stable_reference_source_truth.v1",
 			can_publish_alias: false,
 		},

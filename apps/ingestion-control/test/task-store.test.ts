@@ -77,4 +77,66 @@ describe("InMemoryIngestionTaskStore", () => {
 		expect(failed.closeout?.terminal_status).toBe("dead_lettered");
 		expect(store.nextTask()).toBeNull();
 	});
+
+	it("rejects heartbeat and terminal closeout after the lease expires", () => {
+		let now = new Date("2026-06-11T00:00:00Z");
+		const store = new InMemoryIngestionTaskStore({ now: () => now });
+		store.admitTask({
+			...baseTask,
+			lease_policy: {
+				heartbeat_seconds: 1,
+				lease_seconds: 1,
+			},
+		});
+		store.claimNextTask({ workerId: "worker-a" });
+		now = new Date("2026-06-11T00:00:02Z");
+
+		expect(() => store.heartbeatTask({ taskId: baseTask.task_id, workerId: "worker-a" })).toThrow(
+			"ingestion task lease expired",
+		);
+		expect(() =>
+			store.completeTask({
+				taskId: baseTask.task_id,
+				workerId: "worker-a",
+			}),
+		).toThrow("ingestion task lease expired");
+		expect(() =>
+			store.failTask({
+				taskId: baseTask.task_id,
+				workerId: "worker-a",
+				errorCode: "failed",
+				errorMessage: "failed",
+			}),
+		).toThrow("ingestion task lease expired");
+	});
+
+	it("sweeps expired running tasks back to queued until retry attempts are exhausted", () => {
+		let now = new Date("2026-06-11T00:00:00Z");
+		const store = new InMemoryIngestionTaskStore({ now: () => now });
+		store.admitTask({
+			...baseTask,
+			lease_policy: {
+				heartbeat_seconds: 1,
+				lease_seconds: 1,
+			},
+			retry_policy: {
+				max_attempts: 2,
+			},
+		});
+		store.claimNextTask({ workerId: "worker-a" });
+		now = new Date("2026-06-11T00:00:02Z");
+
+		const firstSweep = store.sweepExpiredLeases();
+		expect(firstSweep).toEqual({ deadLettered: 0, requeued: 1 });
+		expect(store.getTask(baseTask.task_id)?.status).toBe("queued");
+
+		store.claimNextTask({ workerId: "worker-b" });
+		now = new Date("2026-06-11T00:00:04Z");
+
+		const secondSweep = store.sweepExpiredLeases();
+		expect(secondSweep).toEqual({ deadLettered: 1, requeued: 0 });
+		const deadLettered = store.getTask(baseTask.task_id);
+		expect(deadLettered?.status).toBe("dead_lettered");
+		expect(deadLettered?.closeout?.error?.code).toBe("lease_expired");
+	});
 });

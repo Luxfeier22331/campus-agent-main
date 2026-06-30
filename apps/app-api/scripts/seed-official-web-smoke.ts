@@ -16,6 +16,7 @@ export interface LocalOfficialWebSmokeSeedRuntime {
 	collectorToken: string;
 	env: Env;
 	operatorEmail: string;
+	sourceBucket: string;
 }
 
 function readOptionalString(
@@ -76,6 +77,7 @@ export function buildLocalOfficialWebSmokeSeedRuntime(
 	const collectorToken = readRequiredString(sourceEnv, "APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN");
 	const internalSharedSecret = readRequiredString(sourceEnv, "APP_API_INTERNAL_SHARED_SECRET");
 	const operatorAllowlist = readRequiredString(sourceEnv, "APP_API_OPERATOR_EMAIL_ALLOWLIST");
+	const sourceBucket = readRequiredString(sourceEnv, "OBJECT_STORE_BUCKET_SOURCE");
 	const operatorEmail = operatorAllowlist
 		.split(",")
 		.map((item) => item.trim().toLowerCase())
@@ -99,10 +101,12 @@ export function buildLocalOfficialWebSmokeSeedRuntime(
 				| undefined,
 			APP_API_INTERNAL_SHARED_SECRET: internalSharedSecret,
 			APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: collectorToken,
+			OBJECT_STORE_BUCKET_SOURCE: sourceBucket,
 			APP_API_OPERATOR_DATABASE_URL: readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL"),
 			APP_API_OPERATOR_EMAIL_ALLOWLIST: operatorAllowlist,
 		},
 		operatorEmail,
+		sourceBucket,
 	};
 }
 
@@ -614,13 +618,21 @@ export async function seedOfficialWebSmokeSamples(input: {
 	});
 
 	const projector = buildOfficialWebProjectionProjector({
-		handoffPublisher: {
-			async publish(payload) {
+		ingestionTasks: {
+			async admitTask(payload) {
 				return {
-					dispatchRef: `local-smoke-dispatch:${payload.runId}`,
+					task_id: `local-smoke-task:${payload.run_id}`,
+					status: "queued",
+				};
+			},
+			async listTasks() {
+				return {
+					tasks: [],
+					page: { next_cursor: null },
 				};
 			},
 		},
+		sourceBucket: runtime.sourceBucket,
 		store: createPgOfficialWebProjectionStore(runtime.env),
 	});
 	const projection = await projector.drain({

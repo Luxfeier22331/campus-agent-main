@@ -39,9 +39,11 @@ APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN=
 # must match `apps/wechat-official-account-collector/.env`
 # `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`.
 APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN=
-APP_API_OFFICIAL_WEB_HANDOFF_URL=
-APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=
-APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS=8000
+# Optional. Enables official_web terminal projection to admit tasks into
+# ingestion-control. Set OBJECT_STORE_BUCKET_SOURCE to the same source bucket
+# used by the collector when this is enabled.
+INGESTION_CONTROL_BASE_URL=
+OBJECT_STORE_BUCKET_SOURCE=campus-rag-source
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=app-api@dev-local

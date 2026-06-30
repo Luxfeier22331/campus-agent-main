@@ -19,13 +19,13 @@ const tsxExecutablePath = resolve(
 );
 
 describe("official web local projection drain helper", () => {
-	it("maps local app-api env into a Node runtime env and enables handoff when configured", () => {
+	it("maps local app-api env into a Node runtime env and enables ingestion-control admission when configured", () => {
 		const runtime = buildLocalOfficialWebProjectionDrainRuntime({
 			APP_API_DATABASE_SSLMODE: "disable",
 			APP_API_ENVIRONMENT: "development",
-			APP_API_OFFICIAL_WEB_HANDOFF_TOKEN: "handoff-token",
-			APP_API_OFFICIAL_WEB_HANDOFF_URL: "https://ingestion.example.internal/handoff",
 			CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: "postgres://runtime-db",
+			INGESTION_CONTROL_BASE_URL: "https://ingestion-control.example.internal",
+			OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 		});
 
 		expect(runtime).toEqual({
@@ -35,14 +35,14 @@ describe("official web local projection drain helper", () => {
 					connectionString: "postgres://runtime-db",
 				},
 				APP_API_ENVIRONMENT: "development",
-				APP_API_OFFICIAL_WEB_HANDOFF_TOKEN: "handoff-token",
-				APP_API_OFFICIAL_WEB_HANDOFF_URL: "https://ingestion.example.internal/handoff",
+				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.example.internal",
+				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 			},
-			handoffConfigured: true,
+			ingestionControlConfigured: true,
 		});
 	});
 
-	it("keeps handoff disabled when local runtime has no handoff credentials", () => {
+	it("keeps ingestion-control admission disabled when local runtime has no ingestion-control base URL", () => {
 		const runtime = buildLocalOfficialWebProjectionDrainRuntime({
 			APP_API_ENVIRONMENT: "development",
 			CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: "postgres://runtime-db",
@@ -55,8 +55,18 @@ describe("official web local projection drain helper", () => {
 				},
 				APP_API_ENVIRONMENT: "development",
 			},
-			handoffConfigured: false,
+			ingestionControlConfigured: false,
 		});
+	});
+
+	it("fails closed when ingestion-control admission lacks the source bucket", () => {
+		expect(() =>
+			buildLocalOfficialWebProjectionDrainRuntime({
+				APP_API_ENVIRONMENT: "development",
+				CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB: "postgres://runtime-db",
+				INGESTION_CONTROL_BASE_URL: "https://ingestion-control.example.internal",
+			}),
+		).toThrow("OBJECT_STORE_BUCKET_SOURCE is required when INGESTION_CONTROL_BASE_URL is set.");
 	});
 
 	it("parses the optional drain limit", () => {

@@ -8,7 +8,7 @@ export interface OfficialWebProjectionDrainArgs {
 
 export interface LocalOfficialWebProjectionDrainRuntime {
 	env: Env;
-	handoffConfigured: boolean;
+	ingestionControlConfigured: boolean;
 }
 
 function readOptionalString(
@@ -76,24 +76,25 @@ export function buildLocalOfficialWebProjectionDrainRuntime(
 		APP_API_OPERATOR_DATABASE_URL: readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL"),
 	};
 
-	const handoffUrl = readOptionalString(sourceEnv, "APP_API_OFFICIAL_WEB_HANDOFF_URL");
-	const handoffToken = readOptionalString(sourceEnv, "APP_API_OFFICIAL_WEB_HANDOFF_TOKEN");
-	const handoffTimeoutMs = readOptionalString(sourceEnv, "APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS");
-	const handoffConfigured = Boolean(handoffUrl && handoffToken);
+	const ingestionControlBaseUrl = readOptionalString(sourceEnv, "INGESTION_CONTROL_BASE_URL");
+	const sourceBucket = readOptionalString(sourceEnv, "OBJECT_STORE_BUCKET_SOURCE");
+	const ingestionControlConfigured = Boolean(ingestionControlBaseUrl);
+	if (ingestionControlConfigured && !sourceBucket) {
+		throw new Error(
+			"OBJECT_STORE_BUCKET_SOURCE is required when INGESTION_CONTROL_BASE_URL is set.",
+		);
+	}
 
-	if (handoffUrl) {
-		env.APP_API_OFFICIAL_WEB_HANDOFF_URL = handoffUrl;
+	if (ingestionControlBaseUrl) {
+		env.INGESTION_CONTROL_BASE_URL = ingestionControlBaseUrl;
 	}
-	if (handoffToken) {
-		env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN = handoffToken;
-	}
-	if (handoffTimeoutMs) {
-		env.APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS = handoffTimeoutMs;
+	if (sourceBucket) {
+		env.OBJECT_STORE_BUCKET_SOURCE = sourceBucket;
 	}
 
 	return {
 		env,
-		handoffConfigured,
+		ingestionControlConfigured,
 	};
 }
 
@@ -103,18 +104,19 @@ export async function drainOfficialWebProjection(
 ): Promise<{
 	abandoned: number;
 	failed: number;
-	handoffConfigured: boolean;
+	ingestionControlConfigured: boolean;
 	processed: number;
 	skipped: number;
 }> {
-	const [{ createOfficialWebHandoffPublisher }, projectionModule] = await Promise.all([
-		import("../src/modules/integration/official-web-handoff"),
+	const [{ createIngestionTaskProjectionClient }, projectionModule] = await Promise.all([
+		import("../src/modules/integration/ingestion-control"),
 		import("../src/modules/official-web-projection"),
 	]);
 	const projector = projectionModule.buildOfficialWebProjectionProjector({
-		handoffPublisher: runtime.handoffConfigured
-			? createOfficialWebHandoffPublisher(runtime.env)
+		ingestionTasks: runtime.ingestionControlConfigured
+			? createIngestionTaskProjectionClient(runtime.env)
 			: undefined,
+		sourceBucket: runtime.env.OBJECT_STORE_BUCKET_SOURCE,
 		store: projectionModule.createPgOfficialWebProjectionStore(runtime.env),
 	});
 	const result = await projector.drain(
@@ -127,7 +129,7 @@ export async function drainOfficialWebProjection(
 
 	return {
 		...result,
-		handoffConfigured: runtime.handoffConfigured,
+		ingestionControlConfigured: runtime.ingestionControlConfigured,
 	};
 }
 

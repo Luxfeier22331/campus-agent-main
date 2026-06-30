@@ -4,10 +4,12 @@ import {
 } from "./authenticated-notice-materialize";
 import { createOfficialWebSourceTruthMaterializeHandler } from "./official-web-materialize";
 import { TsTaskHandlerRegistry } from "./task-executor";
+import { createWeChatOfficialAccountSourceTruthMaterializeHandler } from "./wechat-official-account-materialize";
 
 export interface DefaultTsTaskHandlerRegistryOptions {
 	authenticatedNoticeObjectStore?: IngestionObjectStore;
 	officialWebObjectStore?: IngestionObjectStore;
+	wechatOfficialAccountObjectStore?: IngestionObjectStore;
 }
 
 export function createDefaultTsTaskHandlerRegistry(
@@ -41,6 +43,19 @@ export function createDefaultTsTaskHandlerRegistry(
 				}),
 			);
 		}
+	}
+	if (options.wechatOfficialAccountObjectStore) {
+		registry.register(
+			{
+				sourceFamily: "wechat_public_notice",
+				corpus: "campus_notices",
+				collection: "wechat_public_notice",
+				taskKind: "source_truth_materialize",
+			},
+			createWeChatOfficialAccountSourceTruthMaterializeHandler({
+				objectStore: options.wechatOfficialAccountObjectStore,
+			}),
+		);
 	}
 	return registry;
 }

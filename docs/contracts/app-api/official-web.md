@@ -104,16 +104,19 @@ The long-term lifecycle is:
 1. `app-api` writes the durable crawl-run accepted fact.
 1. Collector uploads object-storage artifacts and sends heartbeats.
 1. Collector finalizes; `app-api` writes terminal state and artifact refs.
-1. `app-api` emits ingestion handoff.
-1. `apps/ingestion-control` consumes the handoff and starts offline execution.
+1. `app-api` admits an ingestion-control `source_truth_materialize` task from
+   the run-level `source_truth_bundle` artifact ref.
+1. `apps/ingestion-control` claims the admitted task and starts offline
+   execution.
 1. Operator reads site/run/detail state through app-owned projections.
 
 Fixed lifecycle rules:
 
-- Crawl run truth enters the `app-api` durable ledger before ingestion handoff.
+- Crawl run truth enters the `app-api` durable ledger before ingestion task
+  admission.
 - Object storage artifacts and the app-owned run ledger jointly form
   control-plane truth.
-- Ingestion handoff can happen only after terminal finalize.
+- Ingestion task admission can happen only after terminal finalize.
 - Operator surfaces must not recover run status by scanning object storage,
   logs or ingestion-control internals.
 - Crawl status and ingestion status are separate facts.
@@ -156,7 +159,8 @@ Failure boundary:
 
 - Pre-accept failure creates no durable run truth.
 - Crawl terminal failure has run truth, but ends as `failed`.
-- Downstream ingestion failure happens after crawl completion and handoff.
+- Downstream ingestion failure happens after crawl completion and task
+  admission.
 
 `accepted` or `running` runs can be marked `abandoned` after the declared
 heartbeat threshold. `abandoned` is app-owned control-plane state, does not
@@ -240,8 +244,9 @@ Rules:
 
 ### `POST /api/official-web/runs/:runId/finalize`
 
-Submits terminal summary, page observations, artifact refs and ingestion handoff
-intent.
+Submits terminal summary, page observations and artifact refs. Ingestion-control
+task admission is derived by app-api from terminal outbox processing and the
+registered `source_truth_bundle` artifact.
 
 Minimum request fields:
 
@@ -261,7 +266,9 @@ Rules:
 - `pageObservations` are part of the finalize commit. App-api advances
   `page_freshness` and `page_observations` truth from them.
 - App-api computes `new / changed / deleted / not_modified / fetch_failed`.
-- Ingestion handoff includes only `new / changed / deleted`.
+- Ingestion task admission uses the run-level `source_truth_bundle`; page
+  change status remains app-api freshness/operator truth and does not create a
+  separate official-web handoff payload.
 - `not_modified` and `fetch_failed` update freshness truth, operator summary and
   repair cadence but do not produce ingestion page-change work.
 - `artifacts` register object-storage refs only; they do not inline artifact

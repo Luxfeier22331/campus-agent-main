@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/architecture
 status: active
 created: 2026-04-02
-updated: 2026-06-22
+updated: 2026-06-30
 ---
 # 当前架构
 
@@ -48,10 +48,11 @@ models -> sanitized projection`
 `browser -> operator-console-web explicit allowlist proxy -> app-api -> request
 projection / operator read model / operator-safe operations domains`
 
-`collector -> app-api official_web control plane -> ingestion-control task admission`
+`collector -> app-api product/operator control-plane seam when required ->
+ingestion-control-api task admission`
 
-`ingestion-control registry executor -> source truth / projection /
-document/index release`
+`ingestion-control-executor registry-aware execution -> source truth /
+projection / document/index release`
 
 关键约束：
 
@@ -134,6 +135,9 @@ document/index release`
 - `apps/app-api` 不拥有 official-web selected-write / release task state machine；
   claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
   `apps/ingestion-control` 的 task lifecycle 与 registry-aware executor
+- `apps/ingestion-control` 是 self-hosted internal ingestion control-plane package，不是
+  Cloudflare Worker。HTTP control-plane surface 与后台 executor worker process 是不同
+  runtime role，不得藏进 `apps/app-api` 或 collector 进程。
 - `wechat_official_account` 已进入 admitted source/data/control-plane truth：当前已有
   source-truth schema、collector principal、run ledger 与 offline projection handoff
   shape，但它不是默认 query-enabled surface，也不是近期已开放的 product runtime
@@ -329,6 +333,9 @@ document/index release`
 - internal ingestion/data-plane task control plane
 - 拥有 task admission、registry validation、claim / lease、retry、dead-letter、
   closeout 与 operator-safe projection snapshot
+- HTTP server 是 control-plane surface；one-shot execution 通过
+  `runRegistryTaskOnce` library seam 暴露。long-running executor worker process 是独立
+  runtime concern，不是 Cloudflare Worker。
 - registry-aware executor 按 `ts_control` / `rust_kernel` 分派任务；未注册 handler /
   kernel 时 fail closed，不回退 Python collection CLI
 - Python 只允许作为 explicit TS handler 内部调用的 MinerU / OCR / legacy Office /

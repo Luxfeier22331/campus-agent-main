@@ -59,7 +59,7 @@ describe("ingestion-control task registry loading", () => {
 		});
 	});
 
-	it("declares official-web source truth materialization from terminal handoff artifacts", () => {
+	it("declares official-web source truth materialization from source-truth bundle artifacts", () => {
 		const stableReference = loadIngestionTaskRegistryFromFile(
 			join(registryRoot, "official_web", "stable_reference", "task-registry.v1.json"),
 		);
@@ -71,14 +71,14 @@ describe("ingestion-control task registry loading", () => {
 			stableReference.tasks.find((task) => task.task_kind === "source_truth_materialize"),
 		).toMatchObject({
 			executor_kind: "ts_control",
-			input_contract: "official_web_source_handoff.v1",
+			input_contract: "official_web_source_truth_bundle.v1",
 			output_contract: "official_web_stable_reference_source_truth.v1",
 		});
 		expect(
 			freshNews.tasks.find((task) => task.task_kind === "source_truth_materialize"),
 		).toMatchObject({
 			executor_kind: "ts_control",
-			input_contract: "official_web_fresh_news_handoff.v1",
+			input_contract: "official_web_source_truth_bundle.v1",
 			output_contract: "official_web_fresh_news_source_truth.v1",
 		});
 	});

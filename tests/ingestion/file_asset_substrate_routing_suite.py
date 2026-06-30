@@ -12,6 +12,23 @@ class FileAssetRoutingSubstrateTest(unittest.TestCase):
         self.assertEqual(result.asset_subkind, "pdf")
         self.assertEqual(result.file_extension, ".pdf")
 
+    def test_infer_raw_asset_typed_metadata_uses_registered_standard_mime_types(self) -> None:
+        cases = {
+            "通知附件.docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "报名汇总.xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "宣讲材料.pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        }
+
+        for filename, expected_content_type in cases.items():
+            with self.subTest(filename=filename):
+                result = infer_raw_asset_typed_metadata(
+                    source_path=Path(filename),
+                    file_bytes=b"office-bytes",
+                )
+
+                self.assertEqual(result.content_type, expected_content_type)
+                self.assertEqual(result.asset_subkind, "office_document")
+
     def test_select_online_ocr_routing_prefers_mineru_for_pdf(self) -> None:
         decision = select_online_ocr_routing(
             asset_kind="document",

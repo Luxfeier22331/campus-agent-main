@@ -23,6 +23,7 @@ ingestion 当前存在大量 Python CLI、collection strategy 与 historical rep
 
 - app-api 不拥有 ingestion execution
 - ingestion task lifecycle 由独立 control plane 拥有
+- ingestion control plane 是自部署 internal service，不是 Cloudflare Worker
 - Python 只作为 adapter / offline tooling
 - Rust 只作为 proof-gated deterministic kernel
 - rebuild / replay 从 canonical source truth、document artifacts 或
@@ -37,13 +38,20 @@ artifact / handler boundary，再逐 collection 替换实现；不表示保留�
 
 - `packages/ingestion-contracts` 是 ingestion task envelope、task registry 与 closeout
   DTO 的 source of truth。
-- `apps/ingestion-control` 是 internal Docker-first task control plane；它拥有 admission、
-  idempotency、claim / lease、retry、dead-letter 与 closeout lifecycle。
-- `apps/ingestion-control` 通过 registry-aware executor claim task、dispatch
+- `apps/ingestion-control` 是 self-hosted internal task control-plane package。Docker
+  只是 local / transitional substrate，不是长期架构约束。
+- `apps/ingestion-control` 的部署角色拆为 `ingestion-control-api` 与
+  `ingestion-control-executor`。两者可以共享 package / image，但必须作为不同 runtime
+  process 部署和扩缩：API role 拥有 admission、idempotency、registry validation 与
+  operator projection；executor worker process 拥有 claim / lease、retry、
+  dead-letter、registry-aware execution 与 closeout lifecycle。
+- `apps/ingestion-control` 通过 registry-aware executor dispatch
   `ts_control` handler 或 `rust_kernel`、report terminal closeout。既有 Python
   collection CLI 不迁入 executor seam；它们按 delete-first clean-target triage
   处理，只有当前生产生命周期仍需要的能力才以 TS / Rust target runtime 或 Python
   adapter 重新建模。
+- `app-api`、collector 进程与 Cloudflare Worker surface 都不得承载 claim / lease /
+  executor callback 或 terminal closeout truth。
 - `ts_control` handler 是 source-channel / collection materialization 的默认 owner。
   source-truth materialization、canonical document materialization、structured
   projection publish、operator projection snapshot 与 alias publish 只有在存在真实

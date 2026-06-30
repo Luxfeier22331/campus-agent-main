@@ -68,6 +68,86 @@ describe("PostgresIngestionTaskStore", () => {
 			"release",
 		]);
 	});
+
+	it("sweeps expired running tasks back to queued when retry attempts remain", async () => {
+		const client = new RecordingPgClient([
+			{
+				rows: [
+					postgresRow({
+						...task,
+						attempt_count: 1,
+						status: "running",
+					}),
+				],
+			},
+		]);
+		const store = createPostgresIngestionTaskStore({
+			pool: new SingleClientPool(client),
+			now: () => new Date("2026-06-11T00:10:00Z"),
+		});
+
+		const result = await store.sweepExpiredLeases();
+
+		expect(result).toEqual({ deadLettered: 0, requeued: 1 });
+		expect(client.sql[1]).toContain("FOR UPDATE SKIP LOCKED");
+		expect(client.sql[2]).toContain("SET status = 'queued'");
+		expect(client.sql[2]).toContain("closeout_json = NULL");
+	});
+
+	it("dead-letters expired running tasks when retry attempts are exhausted", async () => {
+		const client = new RecordingPgClient([
+			{
+				rows: [
+					postgresRow({
+						...task,
+						attempt_count: 3,
+						status: "running",
+					}),
+				],
+			},
+		]);
+		const store = createPostgresIngestionTaskStore({
+			pool: new SingleClientPool(client),
+			now: () => new Date("2026-06-11T00:10:00Z"),
+		});
+
+		const result = await store.sweepExpiredLeases();
+
+		expect(result).toEqual({ deadLettered: 1, requeued: 0 });
+		expect(client.sql[2]).toContain("SET status = 'dead_lettered'");
+		expect(String(client.params[2][1])).toContain("lease_expired");
+	});
+
+	it("rejects heartbeat and terminal closeout after the lease expires", async () => {
+		const expired = postgresRow({ ...task, status: "running", attempt_count: 1 });
+		expired.lease_expires_at = new Date("2026-06-11T00:01:00Z");
+		const client = new RecordingPgClient([
+			{ rows: [expired] },
+			{ rows: [expired] },
+			{ rows: [expired] },
+		]);
+		const store = createPostgresIngestionTaskStore({
+			pool: new SingleClientPool(client),
+			now: () => new Date("2026-06-11T00:02:00Z"),
+		});
+
+		await expect(
+			store.heartbeatTask({ taskId: task.task_id, workerId: "worker-a" }),
+		).rejects.toThrow("ingestion task lease expired");
+		await expect(
+			store.completeTask({ taskId: task.task_id, workerId: "worker-a" }),
+		).rejects.toThrow("ingestion task lease expired");
+		await expect(
+			store.failTask({
+				taskId: task.task_id,
+				workerId: "worker-a",
+				errorCode: "failed",
+				errorMessage: "failed",
+			}),
+		).rejects.toThrow("ingestion task lease expired");
+		expect(client.sql.join("\n")).not.toContain("SET status = 'completed'");
+		expect(client.sql.join("\n")).not.toContain("SET status = $1");
+	});
 });
 
 interface QueryResult {
