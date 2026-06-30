@@ -83,6 +83,7 @@ export function registerWorkerOverviewAdmissionSuite() {
 						groups: [],
 						operator_id: "ops@example.com",
 						principal_class: "human",
+						service_id: null,
 						subject: "operator-001",
 					},
 				});
@@ -158,6 +159,89 @@ export function registerWorkerOverviewAdmissionSuite() {
 
 				expect(response.status).toBe(401);
 				await expect(response.text()).resolves.toBe("Invalid Access JWT.");
+			},
+		);
+	});
+
+	it("rejects access service tokens unless explicitly admitted as machine operators", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-overview-service-token-deny.cloudflareaccess.com",
+				claims: {
+					common_name: "operator-console-staging-smoke.access",
+					sub: "",
+					type: "app",
+				},
+			},
+			async (token) => {
+				const response = await worker.fetch(
+					new Request("https://operator-console.example.com/api/overview", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					{
+						APP_API: {
+							fetch: async () => new Response(null, { status: 204 }),
+						},
+						OPERATOR_CONSOLE_APP_NAME: "campus-agent-v2-operator-console",
+						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
+						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
+						ACCESS_TEAM_DOMAIN: "https://team-overview-service-token-deny.cloudflareaccess.com",
+						ACCESS_POLICY_AUD: "operator-console-test-audience",
+					},
+				);
+
+				expect(response.status).toBe(401);
+				await expect(response.text()).resolves.toBe("Invalid Access JWT.");
+			},
+		);
+	});
+
+	it("maps explicitly allowed access service tokens to machine operator context", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-overview-service-token.cloudflareaccess.com",
+				claims: {
+					common_name: "operator-console-staging-smoke.access",
+					sub: "",
+					type: "app",
+				},
+			},
+			async (token) => {
+				const response = await worker.fetch(
+					new Request("https://operator-console.example.com/api/overview", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					{
+						APP_API: {
+							fetch: async () => new Response(null, { status: 204 }),
+						},
+						OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST:
+							"operator-console-staging-smoke",
+						OPERATOR_CONSOLE_APP_NAME: "campus-agent-v2-operator-console",
+						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
+						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
+						ACCESS_TEAM_DOMAIN: "https://team-overview-service-token.cloudflareaccess.com",
+						ACCESS_POLICY_AUD: "operator-console-test-audience",
+					},
+				);
+
+				expect(response.status).toBe(200);
+				await expect(response.json()).resolves.toMatchObject({
+					operator_context: {
+						display_name: "operator-console-staging-smoke",
+						email: null,
+						operator_id: "operator-console-staging-smoke",
+						principal_class: "service",
+						service_id: "operator-console-staging-smoke",
+						subject: "operator-console-staging-smoke",
+					},
+				});
 			},
 		);
 	});

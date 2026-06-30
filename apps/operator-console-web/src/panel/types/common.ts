@@ -3,7 +3,8 @@ export interface RawOperatorContext {
 	email: string | null;
 	groups: string[];
 	operator_id: string;
-	principal_class: "human";
+	principal_class: "human" | "service";
+	service_id: string | null;
 	subject: string;
 }
 
@@ -35,7 +36,8 @@ export interface OperatorContext {
 	email: string | null;
 	groups: string[];
 	operatorId: string;
-	principalClass: "human";
+	principalClass: "human" | "service";
+	serviceId: string | null;
 	subject: string;
 }
 
@@ -52,6 +54,7 @@ export function normalizeOperatorContext(
 		groups: input.groups,
 		operatorId: input.operator_id,
 		principalClass: input.principal_class,
+		serviceId: input.service_id,
 		subject: input.subject,
 	};
 }

@@ -92,6 +92,18 @@ Auth/session truth stays in `app-api` / identity platform. The operations
 surface only consumes operator admission results through proxied operator
 routes. It does not own a second operator backend.
 
+Cloudflare Access service tokens may be admitted as machine operators only when
+both sides explicitly allow the token id:
+
+- `operator-console-web` validates the signed Access JWT and requires
+  `OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST`
+- `app-api` requires the trusted bridge secret plus
+  `APP_API_OPERATOR_SERVICE_ID_ALLOWLIST`
+
+This path exists for staging automation and controlled operator commands. It is
+not a bypass around the Operator Console surface and must not be used to write
+provider config directly to the database.
+
 ## Information Architecture
 
 Current implemented routes:

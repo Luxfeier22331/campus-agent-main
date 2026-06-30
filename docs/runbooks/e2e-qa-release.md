@@ -252,10 +252,14 @@ node apps/operator-console-web/scripts/staging-access-service-token-smoke.mjs \
 
 - 未认证 `/readyz` 返回 Cloudflare Access redirect
 - service token 访问 `/healthz` 与 `/readyz` 返回 `200`
-- service token 访问 Worker-local `/api/overview` 返回 `401 Invalid Access JWT.`
+- allowlisted service token 访问 Worker-local `/api/overview` 返回机器
+  operator context
+- allowlisted service token 可以通过 Operator Console proxy 读取
+  `/api/operator/provider-config/profiles`
 
-该 smoke 只证明 Access envelope 可由 automation 到达，不代表 human operator
-identity，也不证明当前 Operator Console domains 可用。
+该 smoke 证明 Access envelope 可由 automation 到达，并证明受控机器
+operator 可以走 Operator Console -> app-api 的 provider-config 路径；它不代表
+human operator browser E2E。
 
 使用 admitted human operator 登录后，至少检查当前 domain matrix：
 

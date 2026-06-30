@@ -79,7 +79,9 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(stagingAccessServiceTokenSmokeSource).toContain("loadRepoStagingEnvFile");
 		expect(stagingAccessServiceTokenSmokeSource).not.toContain("loadRepoEnvFile");
 		expect(stagingAccessServiceTokenSmokeSource).toContain("CF-Access-Client-Id");
-		expect(stagingAccessServiceTokenSmokeSource).toContain("Invalid Access JWT.");
+		expect(stagingAccessServiceTokenSmokeSource).toContain(
+			"Service-token provider-config route smoke",
+		);
 		expect(stagingBrowserE2ESource).toContain('from "playwright"');
 		expect(stagingBrowserE2ESource).toContain("OPERATOR_CONSOLE_STORAGE_STATE");
 		expect(stagingBrowserE2ESource).toContain(

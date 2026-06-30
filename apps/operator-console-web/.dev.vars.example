@@ -8,6 +8,9 @@ ACCESS_TEAM_DOMAIN=https://team-your-org.cloudflareaccess.com
 ACCESS_POLICY_AUD=replace-with-operator-console-access-audience
 # Must match `APP_API_INTERNAL_SHARED_SECRET` in `apps/app-api`.
 OPERATOR_CONSOLE_APP_API_SHARED_SECRET=replace-with-operator-console-bridge-secret
+# Optional. Comma-separated Cloudflare Access service token client IDs allowed
+# to act as machine operators through the protected console surface.
+OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST=
 SENTRY_DSN=
 SENTRY_ENVIRONMENT=development
 SENTRY_RELEASE=operator-console-web@dev-local

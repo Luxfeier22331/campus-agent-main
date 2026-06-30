@@ -87,6 +87,63 @@ describe("operator surface principal resolution", () => {
 		expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("aclGroups");
 		expect(principal?.authorization?.retrievalFilter).not.toHaveProperty("campusScope");
 	});
+
+	it("resolves a machine operator principal only when service id allowlist and internal auth both match", () => {
+		const request = new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+			headers: {
+				"x-app-internal-auth": "trusted-secret",
+				"x-app-operator-id": "operator-console-staging-smoke",
+				"x-app-operator-name": "operator-console-staging-smoke",
+				"x-app-operator-service-id": "operator-console-staging-smoke",
+			},
+		});
+
+		const principal = mapOperatorHeadersToPrincipal(request, {
+			APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+			APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+			APP_API_OPERATOR_SERVICE_ID_ALLOWLIST: "operator-console-staging-smoke",
+		});
+
+		expect(principal).toMatchObject({
+			actor: {
+				principalId: "operator-console-staging-smoke",
+				principalType: "operator",
+				userId: "operator-console-staging-smoke",
+			},
+			authorization: {
+				projectionSource: "operator_headers",
+			},
+			permissions: {
+				chat: false,
+				operator: true,
+			},
+			principal: {
+				displayName: "operator-console-staging-smoke",
+				email: null,
+				principalId: "operator-console-staging-smoke",
+				type: "operator",
+			},
+			session: null,
+		});
+	});
+
+	it("rejects machine operator headers when service id is not admitted", () => {
+		const request = new Request("https://app-api.internal/api/operator/provider-config/profiles", {
+			headers: {
+				"x-app-internal-auth": "trusted-secret",
+				"x-app-operator-email": "operator-console-staging-smoke",
+				"x-app-operator-id": "operator-console-staging-smoke",
+				"x-app-operator-service-id": "operator-console-staging-smoke",
+			},
+		});
+
+		expect(
+			mapOperatorHeadersToPrincipal(request, {
+				APP_API_INTERNAL_SHARED_SECRET: "trusted-secret",
+				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
+			}),
+		).toBeNull();
+	});
 });
 
 describe("campus member principal projection", () => {

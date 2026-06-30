@@ -3,7 +3,6 @@ import process from "node:process";
 import { loadRepoStagingEnvFile } from "../../../scripts/load-repo-env.mjs";
 
 const DEFAULT_BASE_URL = "https://panel-staging.mucwiki-edge.link";
-const EXPECTED_OPERATOR_API_ERROR = "Invalid Access JWT.";
 
 loadRepoStagingEnvFile(import.meta.url, "../../..");
 
@@ -85,13 +84,17 @@ function assertJsonReady(result, label, expectedStatus) {
 	}
 }
 
-function assertServiceTokenIsNotOperator(result) {
-	if (result.status !== 401) {
-		throw new Error(`Service token operator API smoke expected 401, received ${result.status}.`);
+function assertServiceTokenIsMachineOperator(result) {
+	assertJsonReady(result, "Service-token operator API smoke", 200);
+	if (result.body?.operator_context?.principal_class !== "service") {
+		throw new Error("Service token operator API smoke expected a machine operator context.");
 	}
-	const message = typeof result.body === "string" ? result.body.trim() : "";
-	if (message !== EXPECTED_OPERATOR_API_ERROR) {
-		throw new Error(`Service token operator API smoke expected ${EXPECTED_OPERATOR_API_ERROR}`);
+}
+
+function assertProviderConfigRouteAvailable(result) {
+	assertJsonReady(result, "Service-token provider-config route smoke", 200);
+	if (!Array.isArray(result.body?.profiles)) {
+		throw new Error("Service-token provider-config route smoke expected profiles array.");
 	}
 }
 
@@ -129,15 +132,28 @@ async function main() {
 		headers: serviceTokenHeaders,
 		path: "/api/overview",
 	});
-	assertServiceTokenIsNotOperator(operatorApi);
+	assertServiceTokenIsMachineOperator(operatorApi);
+
+	const providerProfiles = await fetchPanel({
+		baseUrl,
+		headers: serviceTokenHeaders,
+		path: "/api/operator/provider-config/profiles",
+	});
+	assertProviderConfigRouteAvailable(providerProfiles);
 
 	console.log(
 		JSON.stringify(
 			{
 				baseUrl: baseUrl.toString(),
 				checks: {
-					serviceTokenDoesNotGrantLocalOperatorAdmission: {
-						status: operatorApi.status,
+					serviceTokenMachineOperatorAdmission: {
+						principalClass: operatorApi.body.operator_context.principal_class,
+						serviceId: operatorApi.body.operator_context.service_id,
+						statusCode: operatorApi.status,
+					},
+					serviceTokenProviderConfigProfiles: {
+						count: providerProfiles.body.profiles.length,
+						statusCode: providerProfiles.status,
 					},
 					serviceTokenHealthz: {
 						...summarizeBody(healthz.contentType, healthz.body),

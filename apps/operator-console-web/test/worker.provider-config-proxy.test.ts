@@ -148,4 +148,63 @@ describe("operator provider-config proxy", () => {
 			},
 		);
 	});
+
+	it("proxies provider configuration commands from an admitted access service token", async () => {
+		await withAccessAssertion(
+			{
+				accessTeamDomain: "https://team-provider-config-service-token.cloudflareaccess.com",
+				claims: {
+					common_name: "operator-console-staging-smoke.access",
+					sub: "",
+					type: "app",
+				},
+			},
+			async (token) => {
+				const forwardedHeaders: Record<string, string | null> = {};
+				const response = await worker.fetch(
+					new Request(
+						"https://operator-console.example.com/api/operator/provider-config/profiles",
+						{
+							headers: { "cf-access-jwt-assertion": token },
+						},
+					),
+					{
+						ACCESS_POLICY_AUD: "operator-console-test-audience",
+						ACCESS_TEAM_DOMAIN: "https://team-provider-config-service-token.cloudflareaccess.com",
+						APP_API: {
+							fetch: async (request: Request) => {
+								for (const name of [
+									"x-app-internal-auth",
+									"x-app-operator-email",
+									"x-app-operator-id",
+									"x-app-operator-name",
+									"x-app-operator-service-id",
+								]) {
+									forwardedHeaders[name] = request.headers.get(name);
+								}
+								return new Response(JSON.stringify({ profiles: [] }), {
+									headers: { "content-type": "application/json; charset=utf-8" },
+									status: 200,
+								});
+							},
+						},
+						OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST:
+							"operator-console-staging-smoke",
+						OPERATOR_CONSOLE_APP_API_BASE_URL: "https://app-api.internal",
+						OPERATOR_CONSOLE_APP_API_SHARED_SECRET: "operator-console-bridge-secret",
+						OPERATOR_CONSOLE_PROTECTION_ENVELOPE: "cloudflare-access",
+					},
+				);
+
+				expect(response.status, await response.text()).toBe(200);
+				expect(forwardedHeaders).toEqual({
+					"x-app-internal-auth": "operator-console-bridge-secret",
+					"x-app-operator-email": "operator-console-staging-smoke",
+					"x-app-operator-id": "operator-console-staging-smoke",
+					"x-app-operator-name": "operator-console-staging-smoke",
+					"x-app-operator-service-id": "operator-console-staging-smoke",
+				});
+			},
+		);
+	});
 });

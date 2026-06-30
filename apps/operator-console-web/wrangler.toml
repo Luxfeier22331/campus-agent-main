@@ -29,6 +29,7 @@ environment = "local"
 [env.staging.vars]
 OPERATOR_CONSOLE_PROTECTION_ENVELOPE = "cloudflare-access"
 OPERATOR_CONSOLE_APP_API_BASE_URL = "https://app-api.internal"
+OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST = "0574fdaa4ead6412aba1c56ef9aec9af"
 SENTRY_ENVIRONMENT = "staging"
 
 [env.staging.secrets]

@@ -11,6 +11,7 @@ export interface Env {
 	OPERATOR_CONSOLE_APP_API_SHARED_SECRET?: string;
 	OPERATOR_CONSOLE_APP_API_BASE_URL?: string;
 	OPERATOR_CONSOLE_PROTECTION_ENVELOPE?: string;
+	OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
 	SENTRY_RELEASE?: string;
@@ -20,11 +21,12 @@ export interface Env {
 
 export interface OperatorContext {
 	operator_id: string;
-	principal_class: "human";
+	principal_class: "human" | "service";
 	subject: string;
 	display_name: string | null;
 	email: string | null;
 	groups: string[];
+	service_id: string | null;
 }
 
 export const JSON_HEADERS = {

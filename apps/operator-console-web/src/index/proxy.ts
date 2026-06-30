@@ -62,6 +62,9 @@ export async function proxyToAppApi(input: {
 	);
 	headers.set("x-app-internal-auth", operatorConsoleAppApiSharedSecret);
 	headers.set("x-app-operator-id", input.operatorContext.operator_id);
+	if (input.operatorContext.service_id) {
+		headers.set("x-app-operator-service-id", input.operatorContext.service_id);
+	}
 
 	if (input.operatorContext.display_name) {
 		headers.set("x-app-operator-name", input.operatorContext.display_name);

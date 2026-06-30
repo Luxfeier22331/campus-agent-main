@@ -26,6 +26,7 @@ EXECUTION_CONTROL_ACCESS_CLIENT_ID=
 EXECUTION_CONTROL_ACCESS_CLIENT_SECRET=
 # Comma-separated exact operator emails allowed through the operator surface.
 APP_API_OPERATOR_EMAIL_ALLOWLIST=ops@example.com
+APP_API_OPERATOR_SERVICE_ID_ALLOWLIST=
 # Local scripts auto-generate APP_API_INTERNAL_SHARED_SECRET in
 # `infra/local/.generated/runtime.env`; set this only when you intentionally
 # override the generated internal shared secret.

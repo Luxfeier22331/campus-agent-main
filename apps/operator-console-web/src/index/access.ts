@@ -11,6 +11,7 @@ import {
 } from "./types";
 
 const LOOPBACK_ACCESS_SMOKE_HOSTS = new Set(["127.0.0.1", "localhost", "::1", "[::1]"]);
+const SERVICE_TOKEN_COMMON_NAME_SUFFIX = ".access";
 
 function isLoopbackAccessSmokeIssuer(parsed: URL): boolean {
 	return parsed.protocol === "http:" && LOOPBACK_ACCESS_SMOKE_HOSTS.has(parsed.hostname);
@@ -117,7 +118,54 @@ function mapOperatorContext(payload: JWTPayload): OperatorContext | null {
 		groups,
 		operator_id: email || subject,
 		principal_class: "human",
+		service_id: null,
 		subject,
+	};
+}
+
+function normalizeAccessServiceTokenCommonName(value: unknown): string | null {
+	if (typeof value !== "string") {
+		return null;
+	}
+
+	const trimmed = value.trim();
+	if (!trimmed.endsWith(SERVICE_TOKEN_COMMON_NAME_SUFFIX)) {
+		return null;
+	}
+
+	return trimmed.slice(0, -SERVICE_TOKEN_COMMON_NAME_SUFFIX.length).trim() || null;
+}
+
+function normalizeServiceTokenAllowlist(value: string | undefined): Set<string> {
+	return new Set(
+		(value ?? "")
+			.split(",")
+			.map((item) => item.trim())
+			.filter(Boolean),
+	);
+}
+
+function mapServiceTokenOperatorContext(payload: JWTPayload, env: Env): OperatorContext | null {
+	const serviceId = normalizeAccessServiceTokenCommonName(payload.common_name);
+	if (!serviceId) {
+		return null;
+	}
+
+	const allowlist = normalizeServiceTokenAllowlist(
+		env.OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST,
+	);
+	if (!allowlist.has(serviceId)) {
+		return null;
+	}
+
+	return {
+		display_name: serviceId,
+		email: null,
+		groups: [],
+		operator_id: serviceId,
+		principal_class: "service",
+		service_id: serviceId,
+		subject: serviceId,
 	};
 }
 
@@ -166,7 +214,8 @@ export async function validateProtectedApiRequest(
 			issuer,
 			audience,
 		});
-		const operatorContext = mapOperatorContext(payload);
+		const operatorContext =
+			mapOperatorContext(payload) ?? mapServiceTokenOperatorContext(payload, env);
 		if (!operatorContext) {
 			return {
 				error: textResponse("Invalid Access JWT.", 401),

@@ -59,6 +59,21 @@ dining operations route inventory，不表示存在第二套长期 ops product b
 ## Authz
 
 当前实现使用 `ResolvedAppPrincipal.permissions.operator === true` 作为 ops route admission。
+Operator Console Worker 可以把两类 Cloudflare Access admission 映射到 app-api operator
+principal：
+
+- human operator：Access JWT 携带 `email` / `sub`，Worker 通过
+  `x-app-operator-email`、`x-app-operator-id` 与 `x-app-internal-auth` 转发；
+  app-api 要求 `x-app-internal-auth` 匹配 `APP_API_INTERNAL_SHARED_SECRET`，且 email 命中
+  `APP_API_OPERATOR_EMAIL_ALLOWLIST`
+- machine operator：Access service token JWT 携带
+  `common_name=<client-id>.access` 且 `sub=""`；Worker 只有在 client id 命中
+  `OPERATOR_CONSOLE_ACCESS_SERVICE_TOKEN_OPERATOR_ALLOWLIST` 时才转发
+  `x-app-operator-service-id`；app-api 还要求 service id 命中
+  `APP_API_OPERATOR_SERVICE_ID_ALLOWLIST`
+
+service token admission 只用于受控运维自动化，不代表普通 service principal 可以访问
+operator routes。
 
 目标权限模型保留以下语义位，但当前代码尚未拥有独立字段：
 

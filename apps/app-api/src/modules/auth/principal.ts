@@ -634,11 +634,17 @@ function isOperatorRouteRequest(request: Request): boolean {
 	return pathname.startsWith("/api/operator/");
 }
 
-function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPrincipal {
-	const principalId = normalizeHeaderValue(request.headers.get("x-app-operator-id")) ?? email;
-	const displayName = normalizeHeaderValue(request.headers.get("x-app-operator-name")) ?? email;
-	const roles = parseHeaderList(request, "x-app-operator-roles");
-	const departments = parseHeaderList(request, "x-app-operator-departments");
+function buildOperatorPrincipal(input: {
+	email: string | null;
+	identity: string;
+	request: Request;
+}): ResolvedAppPrincipal {
+	const principalId =
+		normalizeHeaderValue(input.request.headers.get("x-app-operator-id")) ?? input.identity;
+	const displayName =
+		normalizeHeaderValue(input.request.headers.get("x-app-operator-name")) ?? input.identity;
+	const roles = parseHeaderList(input.request, "x-app-operator-roles");
+	const departments = parseHeaderList(input.request, "x-app-operator-departments");
 
 	const actor: ExecutionActorContext = {
 		userId: principalId,
@@ -653,7 +659,7 @@ function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPri
 			type: "operator",
 			principalId,
 			displayName,
-			email,
+			email: input.email,
 		},
 		session: null,
 		permissions: {
@@ -665,34 +671,46 @@ function buildOperatorPrincipal(request: Request, email: string): ResolvedAppPri
 	};
 }
 
-function resolveOperatorHeadersAdmission(
-	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
-): OperatorHeadersAdmission {
+function resolveOperatorHeadersAdmission(request: Request, env: Env): OperatorHeadersAdmission {
 	const email = normalizeEmail(request.headers.get("x-app-operator-email"));
-	if (!email) {
+	const serviceId = normalizeHeaderValue(request.headers.get("x-app-operator-service-id"));
+	if (!(email || serviceId)) {
 		return { kind: "absent" };
 	}
 	if (!hasMatchingInternalSecret(request, env)) {
 		return { kind: "internal_auth_required" };
 	}
 
-	const allowlist = parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) =>
-		item.toLowerCase(),
+	if (serviceId) {
+		const serviceAllowlist = new Set(parseCsvList(env.APP_API_OPERATOR_SERVICE_ID_ALLOWLIST));
+		if (serviceAllowlist.has(serviceId)) {
+			return {
+				kind: "admitted",
+				principal: buildOperatorPrincipal({ email: null, identity: serviceId, request }),
+			};
+		}
+	}
+
+	if (!email) {
+		return { kind: "not_admitted" };
+	}
+
+	const allowlist = new Set(
+		parseCsvList(env.APP_API_OPERATOR_EMAIL_ALLOWLIST).map((item) => item.toLowerCase()),
 	);
-	if (allowlist.length === 0 || !allowlist.includes(email)) {
+	if (allowlist.size === 0 || !allowlist.has(email)) {
 		return { kind: "not_admitted" };
 	}
 
 	return {
 		kind: "admitted",
-		principal: buildOperatorPrincipal(request, email),
+		principal: buildOperatorPrincipal({ email, identity: email, request }),
 	};
 }
 
 export function mapOperatorHeadersToPrincipal(
 	request: Request,
-	env: Pick<Env, "APP_API_INTERNAL_SHARED_SECRET" | "APP_API_OPERATOR_EMAIL_ALLOWLIST">,
+	env: Env,
 ): ResolvedAppPrincipal | null {
 	const operatorHeadersAdmission = resolveOperatorHeadersAdmission(request, env);
 	return operatorHeadersAdmission.kind === "admitted" ? operatorHeadersAdmission.principal : null;
