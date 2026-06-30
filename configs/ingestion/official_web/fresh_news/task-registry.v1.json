@@ -10,13 +10,6 @@
 			"input_contract": "official_web_fresh_news_handoff.v1",
 			"output_contract": "official_web_fresh_news_source_truth.v1",
 			"can_publish_alias": false
-		},
-		{
-			"task_kind": "operator_projection_snapshot",
-			"executor_kind": "ts_control",
-			"input_contract": "official_web_fresh_news_source_truth.v1",
-			"output_contract": "official_web_fresh_news_operator_projection.v1",
-			"can_publish_alias": false
 		}
 	]
 }

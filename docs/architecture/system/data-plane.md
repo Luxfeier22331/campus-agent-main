@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: ingestion-core
 status: active
 created: 2026-04-02
-updated: 2026-06-17
+updated: 2026-06-30
 ---
 # Data Plane Architecture
 
@@ -54,6 +54,11 @@ collector 只能把外部 source 转换成可审计 artifact pack、run ledger �
 metadata；它不拥有 source-truth mutation、document registry、chunk/index release 或
 Qdrant alias publish。`apps/app-api` 可以拥有 product/operator control-plane seam，但不因此
 成为 ingestion executor。
+
+学校或来源差异必须停在 source adapter 层。repo 当前目标是 fork-friendly source adapter
+boundary，而不是 plugin 平台：自部署 fork 可以替换自己的 collector adapter，但应保持
+source bucket artifact pack、capture-release handoff object、ingestion-control task
+envelope 与 canonical source-truth contract 不变。
 
 ## Qdrant Private Data-Plane Posture
 
@@ -173,8 +178,8 @@ admit
   closeout。缺失 handler / kernel 必须 fail closed。
 - `ts_control` handler 是默认 materialization owner；source-specific artifact resolver、
   source-truth materialization、canonical document materialization、structured projection
-  publish、operator projection snapshot 与 alias publish 均先在 TS control plane
-  表达。registry declaration 不是 handler implementation；默认 closeout skeleton 也不代表
+  publish、operator projection snapshot 与 alias publish 只有在真实 handler 已存在时才进入
+  registry。未实现的生命周期步骤留在设计文档或 backlog；默认 closeout skeleton 不代表
   collection migration complete。
 - `apps/ingestion-worker` 只保留 Python adapter island；它不拥有 collection lifecycle、
   release / alias publish、Qdrant ops 或 source-channel queue consumer。
@@ -188,6 +193,9 @@ admit
 - Python 只承接 MinerU / OCR / ML / domain extraction adapters、offline eval 与
   historical tooling；Python adapter 产物必须回到 canonical source truth /
   document artifact / projection contract 后才能被下游消费。
+- 学校特定 collector adapter 可以使用 TS、Python 或其他 repo-approved runtime
+  实现采集，但它的唯一 data-plane handoff 是 source bucket artifact pack 和
+  capture-release object；不能因语言或部署便利绕过 ingestion-control。
 
 `provider_response_replay` 只能作为 historical bootstrap、local rebuild、audit 或
 diagnostic input。长期 rebuild / replay 的主路径必须从 canonical source truth、
@@ -200,11 +208,12 @@ repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapp
 
 阶段顺序固定为：
 
-1. **Freeze contracts**：先冻结 source unit、source bucket layout、task registry、
-   input/output contracts、operator projection boundary 与 forbidden shapes。
-2. **Build real TS handlers**：每个迁移 collection 至少落地一个真实
-   `ts_control` handler，读取 object-store input，产出 contract artifact，并由
-   ingestion-control 完成 claim / lease / closeout。
+1. **Freeze contracts**：先冻结 source unit、source bucket layout、input/output
+   contracts、operator projection boundary 与 forbidden shapes。task registry 只声明
+   default runtime 已能执行的 handler / kernel。
+2. **Build real execution entries**：每个迁移 collection 至少落地一个真实
+   `ts_control` handler 或 Rust kernel bridge，读取 object-store input，产出 contract
+   artifact，并由 ingestion-control 完成 claim / lease / closeout。
 3. **Prove Rust kernels**：只把 output equivalence 与 profiling 都证明成立的
    deterministic file-level work 下沉到 Rust。
 4. **Shrink Python to adapters**：Python 仅作为 MinerU / OCR / ML / legacy Office /
@@ -215,7 +224,8 @@ repo 级 ingestion 清理采用 staged clean path，而不是 conservative wrapp
 
 阶段门槛：
 
-- collection task registry 只能证明 topology 被声明，不能证明执行链路已完成。
+- collection task registry 必须对应 default runtime 已实现的 handler / kernel bridge；
+  registry 存在本身不能证明 collection migration complete。
 - 旧 Python CLI 不迁入 registry/executor seam；仍需要的 tool 必须按 TS/Rust target
   runtime 或 Python adapter 重新建模。
 - `input_ref.kind=inline` 不得作为 source-channel collector run 或 source-truth

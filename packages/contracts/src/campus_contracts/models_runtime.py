@@ -26,7 +26,6 @@ from campus_contracts.models_shared import (
     ALLOWED_EXECUTION_STATUSES,
     ALLOWED_REQUESTED_TOOLS,
     ALLOWED_TOOL_IDS,
-    ALLOWED_TOOL_NAMES,
     ConfidenceLevel,
     DelegateStatus,
     ExecutionStatus,
@@ -391,7 +390,7 @@ class ToolRequest:
         if self.tool not in ALLOWED_TOOL_IDS:
             raise ValueError(f"unsupported tool: {self.tool}")
         for allowed_tool in self.allowed_tools:
-            if allowed_tool not in ALLOWED_TOOL_NAMES:
+            if allowed_tool not in ALLOWED_REQUESTED_TOOLS:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")

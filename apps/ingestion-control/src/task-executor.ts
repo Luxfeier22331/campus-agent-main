@@ -18,20 +18,37 @@ export type TsTaskHandler = (
 
 export type RustKernelHandler = (task: IngestionTaskRecord) => Promise<TsTaskHandlerResult>;
 
-export class TsTaskHandlerRegistry {
-	readonly #handlers = new Map<IngestionTaskEnvelope["task_kind"], TsTaskHandler>();
+export interface TsTaskHandlerIdentity {
+	sourceFamily: string;
+	corpus: string;
+	collection: string;
+	taskKind: IngestionTaskEnvelope["task_kind"];
+}
 
-	register(taskKind: IngestionTaskEnvelope["task_kind"], handler: TsTaskHandler): void {
-		if (this.#handlers.has(taskKind)) {
-			throw new Error(`TS task handler already registered: ${taskKind}`);
+export class TsTaskHandlerRegistry {
+	readonly #handlers = new Map<string, TsTaskHandler>();
+
+	register(identity: TsTaskHandlerIdentity, handler: TsTaskHandler): void {
+		const key = tsTaskHandlerIdentityKey(identity);
+		if (this.#handlers.has(key)) {
+			throw new Error(`TS task handler already registered: ${key}`);
 		}
-		this.#handlers.set(taskKind, handler);
+		this.#handlers.set(key, handler);
 	}
 
-	require(taskKind: IngestionTaskEnvelope["task_kind"]): TsTaskHandler {
-		const handler = this.#handlers.get(taskKind);
+	require(task: IngestionTaskRecord): TsTaskHandler {
+		const key = tsTaskHandlerIdentityKey({
+			sourceFamily: task.source_family,
+			corpus: task.corpus,
+			collection: task.collection,
+			taskKind: task.task_kind,
+		});
+		const handler = this.#handlers.get(key);
 		if (!handler) {
-			throw new TsTaskHandlerNotRegisteredError(taskKind);
+			throw new TsTaskHandlerNotRegisteredError({
+				taskKind: task.task_kind,
+				key,
+			});
 		}
 		return handler;
 	}
@@ -39,11 +56,17 @@ export class TsTaskHandlerRegistry {
 
 export class TsTaskHandlerNotRegisteredError extends Error {
 	readonly taskKind: IngestionTaskEnvelope["task_kind"];
+	readonly key: string;
 
-	constructor(taskKind: IngestionTaskEnvelope["task_kind"]) {
-		super(`TS task handler not registered: ${taskKind}`);
-		this.taskKind = taskKind;
+	constructor(input: { taskKind: IngestionTaskEnvelope["task_kind"]; key: string }) {
+		super(`TS task handler not registered: ${input.key}`);
+		this.taskKind = input.taskKind;
+		this.key = input.key;
 	}
+}
+
+function tsTaskHandlerIdentityKey(identity: TsTaskHandlerIdentity): string {
+	return [identity.sourceFamily, identity.corpus, identity.collection, identity.taskKind].join("/");
 }
 
 export class RustKernelRegistry {
@@ -127,7 +150,7 @@ export async function runRegistryTaskOnce(input: {
 		requireTaskContracts(task, registryTask);
 		const result =
 			registryTask.executor_kind === "ts_control"
-				? await input.tsHandlers.require(task.task_kind)(task, registryTask)
+				? await input.tsHandlers.require(task)(task, registryTask)
 				: await runRustKernelTask({
 						task,
 						registryTask,

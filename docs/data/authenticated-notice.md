@@ -4,7 +4,7 @@ truth_scope: data
 owner_boundary: domains/authenticated-notice
 status: active
 created: 2026-04-03
-updated: 2026-04-30
+updated: 2026-06-28
 ---
 # Authenticated Notice Source-Truth Schema
 
@@ -66,12 +66,16 @@ fan-out、可审计的 canonical upstream，而不是让下游长期依赖 colle
 
 ## Canonical 形态
 
-`capture artifacts -> provider artifacts -> notice source-truth -> declared
-projections -> canonical document artifacts -> document-units -> chunks ->
-index`
+`capture release -> capture artifacts -> provider artifacts -> notice source-truth`
+`-> declared projections -> canonical document artifacts -> document-units -> chunks`
+`-> index`
 
 补充说明：
 
+- collector 到 ingestion-control 的 notice handoff object 固定为
+  `authenticated_notice_capture_release.v1`。它位于 source bucket run prefix 下，
+  通常命名为 `capture-release.json`，只声明本次 capture 的 bundle / export manifest
+  object refs、hash 与 size；它不是 notice source-truth 本体。
 - 本文中的 source-truth schema 只冻结 `capture/`、`provider/`、`source-truth/` 三层
   source-owned artifacts
 - 如果后续有持久化 source-side projection artifact，它们落在同一 source prefix 下的 sibling
@@ -601,6 +605,9 @@ source-level extension fields，用于在 attachment relation 缺失时保留“
   `source-truth/notice-manifest.json`、`content-blocks.jsonl` 与
   `attachment-refs.jsonl` 开始
 - later rebuild 不得返回 bootstrap export、collector SQLite 或本地附件目录重新吸收
+- collector -> ingestion-control 的 current mainline handoff 是
+  `authenticated_notice_capture_release.v1` object-store release。它只声明本次 capture
+  的 bundle / manifest refs、hash 与 size，不替代 canonical source-truth。
 - provider artifacts 只作为排障与 source-truth 重建输入，不作为长期下游 contract
 
 ## 与 document truth 的关系
@@ -626,20 +633,20 @@ split、cleanup、chunk-preparation 与 release gate，固定查看
 `docs/runbooks/ingestion-control-clean-target.md`。旧 Python worker
 preparation 正文已退出 branch tip；需要追溯时通过 git history 恢复具体片段。
 
-## Async Staged Closeout Integration
+## Historical Closeout Integration
 
-Phase 12.2 的 async staged closeout 保持 source-truth 与 document truth 的清晰隔离：所有历史
-notice artifacts 依然从 `source-truth/*` 重建，per-run 状态则落在
-`campus_notices/operations/authenticated-notice-closeout/{run_id}/` 和
-`ingestion_closeout.closeout_*` staging 表。后续 batch-leased throughput executor
-进一步把 progress truth 明确拆到 `closeout_batches` / `closeout_workers`，但 source-truth
-与 final document truth 的 ownership 不变。只有单个 promoter 读取
-`closeout_document_stage`、`closeout_notice_stage` 等表、验证 staged digests、才会把
-artifact 引用复制到 `campus_notices/documents/internal_notice/...` 并执行
-`replace_scope`。这样在保证 source-truth 不含 document/chunk/serving 字段的前提下，仍能按阶段化
-pipeline 对历史导出做 deterministic promotion，详见
-`docs/decisions/adr-0025-authenticated-notice-async-staged-closeout.md` 与 `docs/
-decisions/adr-0026-authenticated-notice-batch-leased-closeout-throughput.md`。
+ADR-0025 与 ADR-0026 记录了 historical closeout / batch-leased throughput
+时期的 rationale。它们不改变本文的 current source-truth schema，也不把
+`ingestion_closeout.*` staging 表、operations prefix、Python worker 或 historical
+promoter 重新提升为当前 notice mainline。
+
+当前文档只保留以下不变量：
+
+- source-truth 与 document truth 分层
+- source-truth 不携带 document / chunk / serving 字段
+- replay / rebuild 从 canonical source-truth 或 explicit capture-release object refs
+  开始
+- 历史 closeout 细节只通过 ADR 或 git history 追溯，不能作为当前 executor contract
 
 ## 与其他文档的关系
 

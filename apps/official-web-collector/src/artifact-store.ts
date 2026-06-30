@@ -4,18 +4,7 @@ import { dirname, resolve } from "node:path";
 
 import { PutObjectCommand, type PutObjectCommandInput, S3Client } from "@aws-sdk/client-s3";
 
-const RETRYABLE_PUT_ERROR_CODES = new Set([
-	"IncompleteBody",
-	"InternalError",
-	"RequestTimeout",
-	"RequestTimeoutException",
-	"SlowDown",
-	"SlowDownWrite",
-]);
-const DEFAULT_MAX_PUT_ATTEMPTS = 4;
-const DEFAULT_RETRY_BACKOFF_MS = 100;
-
-type SleepFn = (ms: number) => Promise<void>;
+export const DEFAULT_S3_MAX_ATTEMPTS = 4;
 
 export interface StoredArtifactRef {
 	objectKey: string;
@@ -69,22 +58,13 @@ export class FilesystemArtifactStore implements OfficialWebArtifactStore {
 export class S3ArtifactStore implements OfficialWebArtifactStore {
 	private readonly bucket: string;
 	private readonly client: Pick<S3Client, "send">;
-	private readonly maxPutAttempts: number;
-	private readonly retryBackoffMs: number;
-	private readonly sleep: SleepFn;
 
 	constructor(input: {
 		bucket: string;
 		client: Pick<S3Client, "send">;
-		maxPutAttempts?: number;
-		retryBackoffMs?: number;
-		sleep?: SleepFn;
 	}) {
 		this.bucket = input.bucket;
 		this.client = input.client;
-		this.maxPutAttempts = Math.max(1, input.maxPutAttempts ?? DEFAULT_MAX_PUT_ATTEMPTS);
-		this.retryBackoffMs = Math.max(0, input.retryBackoffMs ?? DEFAULT_RETRY_BACKOFF_MS);
-		this.sleep = input.sleep ?? defaultSleep;
 	}
 
 	async putObject(input: {
@@ -100,17 +80,7 @@ export class S3ArtifactStore implements OfficialWebArtifactStore {
 			ContentType: input.contentType,
 			ContentLength: input.data.byteLength,
 		};
-		for (let attempt = 1; ; attempt += 1) {
-			try {
-				await this.client.send(new PutObjectCommand(commandInput));
-				break;
-			} catch (error) {
-				if (!isRetryablePutError(error) || attempt >= this.maxPutAttempts) {
-					throw error;
-				}
-				await this.sleep(retryDelayMs(this.retryBackoffMs, attempt));
-			}
-		}
+		await this.client.send(new PutObjectCommand(commandInput));
 		return {
 			objectKey: input.objectKey,
 			contentSha256: createHash("sha256").update(input.data).digest("hex"),
@@ -146,35 +116,8 @@ export function createS3ArtifactStoreFromEnv(
 				accessKeyId: accessKey,
 				secretAccessKey: secretKey,
 			},
+			maxAttempts: DEFAULT_S3_MAX_ATTEMPTS,
 			forcePathStyle: true,
 		}),
 	});
-}
-
-function retryDelayMs(baseMs: number, attempt: number): number {
-	if (attempt <= 0 || baseMs <= 0) {
-		return 0;
-	}
-	return baseMs * 2 ** (attempt - 1);
-}
-
-function defaultSleep(ms: number): Promise<void> {
-	return new Promise((resolve) => {
-		setTimeout(resolve, ms);
-	});
-}
-
-function isRetryablePutError(error: unknown): boolean {
-	if (error === null || typeof error !== "object") {
-		return false;
-	}
-	const record = error as {
-		name?: unknown;
-		Code?: unknown;
-		code?: unknown;
-		$metadata?: { httpStatusCode?: unknown };
-	};
-	const code = String(record.Code ?? record.code ?? record.name ?? "").trim();
-	const httpStatusCode = Number(record.$metadata?.httpStatusCode ?? 0);
-	return RETRYABLE_PUT_ERROR_CODES.has(code) || httpStatusCode === 503;
 }

@@ -159,17 +159,53 @@ REMOVED_PYTHON_ONLINE_RAG_PACKAGE_ROOTS = {
 }
 
 REMOVED_PUBLIC_INGESTION_CORE_EXPORTS = {
+    "AuthenticatedNoticeCloseoutService",
+    "CloseoutBatch",
+    "CloseoutBatchState",
+    "CloseoutPlanner",
+    "CloseoutRun",
+    "CloseoutRunState",
+    "CloseoutShard",
+    "CloseoutShardState",
+    "CloseoutVerifier",
+    "CloseoutWorker",
+    "CloseoutWorkerState",
+    "EmbeddingSettings",
+    "InMemoryCloseoutStore",
+    "MockEmbeddingSettings",
     "OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION",
     "OfficialWebProjectionChunkingAuditDocumentReport",
     "OfficialWebProjectionChunkingAuditReport",
     "OfficialWebRegulationMaterializationReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
+    "PostgresAuthenticatedNoticeCloseoutStore",
+    "PostgresDocumentRegistry",
+    "PostgresRawAssetRegistry",
+    "QdrantIndexBinding",
     "RawIngestionRequest",
+    "SparseEmbeddingSettings",
     "audit_official_web_projection_chunking",
+    "build_authenticated_notice_closeout_store_from_env",
+    "build_document_registry_from_env",
+    "build_embedding_model",
+    "build_mock_embedding_model",
+    "build_mock_sparse_embedding_model",
     "build_official_web_regulation_candidate_documents",
+    "build_raw_asset_registry_from_env",
+    "build_sparse_embedding_model",
+    "index_chunks_to_qdrant",
     "materialize_official_web_regulation_candidates",
     "process_raw_ingestion_job",
+}
+
+REMOVED_ACTIVE_INGESTION_TASK_KINDS = {
+    "alias_publish",
+    "canonical_document_materialize",
+    "embedding_index_build",
+    "operator_projection_snapshot",
+    "raw_asset_ingest",
+    "structured_projection_publish",
 }
 
 ACTIVE_REFERENCE_ROOTS = (
@@ -295,10 +331,25 @@ class IngestionCleanTargetBoundaryTest(unittest.TestCase):
                     offenders.append(
                         f"{registry_path.relative_to(REPO_ROOT)}:{task.get('task_kind')}"
                     )
-                if task.get("task_kind") == "alias_publish" and executor_kind != "ts_control":
-                    offenders.append(
-                        f"{registry_path.relative_to(REPO_ROOT)}:alias_publish must be ts_control"
-                    )
+        self.assertEqual(offenders, [])
+
+    def test_active_task_contracts_do_not_admit_unwired_task_kinds(self) -> None:
+        contract_files = [
+            REPO_ROOT / "packages/ingestion-contracts/src/index.ts",
+            REPO_ROOT / "packages/ingestion-contracts/src/campus_ingestion_contracts/__init__.py",
+            REPO_ROOT
+            / "packages/ingestion-contracts/schemas/ingestion-task-envelope.v1.schema.json",
+            REPO_ROOT
+            / "packages/ingestion-contracts/schemas/ingestion-task-registry.v1.schema.json",
+            REPO_ROOT / "apps/ingestion-control/src/types.ts",
+            REPO_ROOT / "apps/ingestion-control/src/postgres-store.ts",
+        ]
+        offenders: list[str] = []
+        for path in contract_files:
+            text = path.read_text(encoding="utf-8")
+            for task_kind in sorted(REMOVED_ACTIVE_INGESTION_TASK_KINDS):
+                if f'"{task_kind}"' in text:
+                    offenders.append(f"{path.relative_to(REPO_ROOT)}:{task_kind}")
 
         self.assertEqual(offenders, [])
 

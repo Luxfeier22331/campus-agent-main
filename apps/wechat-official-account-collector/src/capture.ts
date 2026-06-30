@@ -7,11 +7,7 @@ import {
 
 import type { StoredArtifactRef, WeChatOfficialAccountArtifactStore } from "./artifact-store.ts";
 import { sha256Hex } from "./capture-hashing.ts";
-import {
-	type CapturedArticleMediaPayload,
-	captureWeChatArticleMedia,
-	inferImageExtension,
-} from "./capture-media.ts";
+import { type CapturedArticleMediaPayload, inferImageExtension } from "./capture-media.ts";
 import {
 	type FeedWeArticlesPage,
 	type FeedWeAuthMe,
@@ -23,10 +19,13 @@ import {
 	loginFeedWe,
 	resolveFeedWeSubscription,
 } from "./feedwe-client.ts";
+import { WECHAT_ARTICLE_PAGE_PARSER_VERSION } from "./wechat-article-page.ts";
 import {
-	fetchWeChatOfficialAccountArticlePage,
-	WECHAT_ARTICLE_PAGE_PARSER_VERSION,
-} from "./wechat-article-page.ts";
+	runWeChatArticlePageCrawleeCapture,
+	runWeChatMediaCrawleeCapture,
+	type WeChatArticlePageCrawlerFactory,
+	type WeChatMediaCrawlerFactory,
+} from "./wechat-crawlee-runners.ts";
 
 export interface CaptureFeedWeHistoryInput {
 	accountName: string;
@@ -36,8 +35,10 @@ export interface CaptureFeedWeHistoryInput {
 	fetchImplementation?: typeof fetch;
 	maxArticles: number;
 	maxPages: number;
+	mediaCrawlerFactory?: WeChatMediaCrawlerFactory;
 	now?: () => Date;
 	provider: FeedWeProviderConfig;
+	articlePageCrawlerFactory?: WeChatArticlePageCrawlerFactory;
 	size: number;
 }
 
@@ -162,13 +163,13 @@ export async function captureFeedWeHistory(
 		for (const article of pageArticles) {
 			const capturedPage = await captureWeChatArticlePage({
 				article,
-				fetchImplementation,
+				crawlerFactory: input.articlePageCrawlerFactory,
 				now,
 			});
-			const capturedMedia = await captureWeChatArticleMedia({
+			const capturedMedia = await runWeChatMediaCrawleeCapture({
 				articleSourceUrl: capturedPage.finalUrl || resolveArticleUrl(article) || "",
 				coverImageUrl: capturedPage.coverImageUrl,
-				fetchImplementation,
+				crawlerFactory: input.mediaCrawlerFactory,
 				inlineImageUrls: capturedPage.inlineImageUrls,
 				now,
 			});
@@ -297,7 +298,7 @@ export function normalizeWeChatAccountSlug(value: string): string {
 
 async function captureWeChatArticlePage(input: {
 	article: unknown;
-	fetchImplementation: typeof fetch;
+	crawlerFactory?: WeChatArticlePageCrawlerFactory;
 	now: () => Date;
 }): Promise<CapturedWeChatOfficialAccountArticlePage> {
 	const articleUrl = resolveArticleUrl(input.article);
@@ -309,9 +310,9 @@ async function captureWeChatArticlePage(input: {
 		});
 	}
 	try {
-		return await fetchWeChatOfficialAccountArticlePage({
+		return await runWeChatArticlePageCrawleeCapture({
 			articleUrl,
-			fetchImplementation: input.fetchImplementation,
+			crawlerFactory: input.crawlerFactory,
 			now: input.now,
 		});
 	} catch (error) {

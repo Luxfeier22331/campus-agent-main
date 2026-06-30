@@ -6,6 +6,10 @@ import {
 	type WeChatOfficialAccountArtifactStore,
 } from "../src";
 import { runCaptureCli } from "../src/capture-cli.ts";
+import {
+	createArticlePageCrawlerFactory,
+	createMediaCrawlerFactory,
+} from "./wechat-crawlee-test-support.ts";
 
 describe("FeedWe capture", () => {
 	it("normalizes account names into stable source-bucket asset slugs", () => {
@@ -122,50 +126,6 @@ describe("FeedWe capture", () => {
 			)
 			.mockResolvedValueOnce(
 				new Response(
-					`<!doctype html>
-<html>
-  <head>
-    <meta property="og:title" content="2026 春季通知" />
-    <meta property="og:description" content="春季通知摘要第一段&#10;春季通知摘要第二段" />
-    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg" />
-  </head>
-  <body>
-    <h1 id="activity-name">2026 春季通知</h1>
-    <div id="js_content">
-      <section><p>春季通知正文第一段</p></section>
-      <section><p>春季通知正文第二段</p></section>
-      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-1/0?wx_fmt=png" />
-      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-2/0?wx_fmt=png" />
-    </div>
-    <script>window.ct = 1777166101;</script>
-  </body>
-</html>`,
-					{
-						headers: { "content-type": "text/html; charset=utf-8" },
-						status: 200,
-					},
-				),
-			)
-			.mockResolvedValueOnce(
-				new Response("cover-a", {
-					headers: { "content-type": "image/jpeg" },
-					status: 200,
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response("inline-a-1", {
-					headers: { "content-type": "image/png" },
-					status: 200,
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response("inline-a-2", {
-					headers: { "content-type": "image/png" },
-					status: 200,
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response(
 					JSON.stringify({
 						articles: [
 							{
@@ -184,10 +144,40 @@ describe("FeedWe capture", () => {
 					}),
 					{ status: 200 },
 				),
-			)
-			.mockResolvedValueOnce(
-				new Response(
-					`<!doctype html>
+			);
+		const writes: Array<{ objectKey: string; text: string }> = [];
+		const artifactStore: WeChatOfficialAccountArtifactStore = {
+			async putObject(input) {
+				const text = new TextDecoder().decode(input.data);
+				writes.push({ objectKey: input.objectKey, text });
+				return {
+					byteSize: input.data.byteLength,
+					contentSha256: "d".repeat(64),
+					objectKey: input.objectKey,
+					recordCount: input.recordCount,
+				};
+			},
+		};
+		const articlePageCrawlerFactory = createArticlePageCrawlerFactory({
+			"https://mp.weixin.qq.com/s/article-a": `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="2026 春季通知" />
+    <meta property="og:description" content="春季通知摘要第一段&#10;春季通知摘要第二段" />
+    <meta property="og:image" content="https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg" />
+  </head>
+  <body>
+    <h1 id="activity-name">2026 春季通知</h1>
+    <div id="js_content">
+      <section><p>春季通知正文第一段</p></section>
+      <section><p>春季通知正文第二段</p></section>
+      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-1/0?wx_fmt=png" />
+      <img data-src="https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-2/0?wx_fmt=png" />
+    </div>
+    <script>window.ct = 1777166101;</script>
+  </body>
+</html>`,
+			"https://mp.weixin.qq.com/s/article-b": `<!doctype html>
 <html>
   <head>
     <meta property="og:title" content="2026 夏季通知" />
@@ -204,44 +194,38 @@ describe("FeedWe capture", () => {
     <script>window.ct = 1777252501;</script>
   </body>
 </html>`,
-					{
-						headers: { "content-type": "text/html; charset=utf-8" },
-						status: 200,
-					},
-				),
-			)
-			.mockResolvedValueOnce(
-				new Response("cover-b", {
-					headers: { "content-type": "image/jpeg" },
-					status: 200,
-				}),
-			)
-			.mockResolvedValueOnce(
-				new Response("inline-b-1", {
-					headers: { "content-type": "image/png" },
-					status: 200,
-				}),
-			);
-		const writes: Array<{ objectKey: string; text: string }> = [];
-		const artifactStore: WeChatOfficialAccountArtifactStore = {
-			async putObject(input) {
-				const text = new TextDecoder().decode(input.data);
-				writes.push({ objectKey: input.objectKey, text });
-				return {
-					byteSize: input.data.byteLength,
-					contentSha256: "d".repeat(64),
-					objectKey: input.objectKey,
-					recordCount: input.recordCount,
-				};
+		});
+		const mediaCrawlerFactory = createMediaCrawlerFactory({
+			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg": {
+				contentType: "image/jpeg",
+				body: "cover-a",
 			},
-		};
+			"https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-1/0?wx_fmt=png": {
+				contentType: "image/png",
+				body: "inline-a-1",
+			},
+			"https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-a-inline-2/0?wx_fmt=png": {
+				contentType: "image/png",
+				body: "inline-a-2",
+			},
+			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-b-cover/0?wx_fmt=jpeg": {
+				contentType: "image/jpeg",
+				body: "cover-b",
+			},
+			"https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-b-inline-1/0?wx_fmt=png": {
+				contentType: "image/png",
+				body: "inline-b-1",
+			},
+		});
 
 		const result = await captureFeedWeHistory({
 			accountName: "中央民族大学学生会",
+			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
 			maxArticles: 10,
 			maxPages: 3,
+			mediaCrawlerFactory,
 			now: () => new Date("2026-04-27T08:00:00.000Z"),
 			provider: {
 				baseUrl: "https://www.feedwe.top",
@@ -251,7 +235,7 @@ describe("FeedWe capture", () => {
 			size: 1,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(12);
+		expect(fetchImplementation).toHaveBeenCalledTimes(5);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			1,
 			"https://www.feedwe.top/api/auth/login",
@@ -287,55 +271,10 @@ describe("FeedWe capture", () => {
 		);
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			5,
-			"https://mp.weixin.qq.com/s/article-a",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					accept: "text/html,application/xhtml+xml",
-					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-					"user-agent": expect.stringContaining("Mozilla/5.0"),
-				}),
-				redirect: "follow",
-			}),
-		);
-		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			9,
 			"https://www.feedwe.top/api/articles?accountId=account-1&cursor=cursor-1&limit=1",
 			expect.objectContaining({
 				headers: { Authorization: "Bearer jwt-token-1" },
 				method: "GET",
-			}),
-		);
-		expect(fetchImplementation).toHaveBeenNthCalledWith(
-			10,
-			"https://mp.weixin.qq.com/s/article-b",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					accept: "text/html,application/xhtml+xml",
-					"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-					"user-agent": expect.stringContaining("Mozilla/5.0"),
-				}),
-				redirect: "follow",
-			}),
-		);
-		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://mmbiz.qpic.cn/sz_mmbiz_jpg/example/article-a-cover/0?wx_fmt=jpeg",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-					referer: "https://mp.weixin.qq.com/s/article-a",
-					"user-agent": expect.stringContaining("Mozilla/5.0"),
-				}),
-				redirect: "follow",
-			}),
-		);
-		expect(fetchImplementation).toHaveBeenCalledWith(
-			"https://mmbiz.qpic.cn/sz_mmbiz_png/example/article-b-inline-1/0?wx_fmt=png",
-			expect.objectContaining({
-				headers: expect.objectContaining({
-					accept: "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
-					referer: "https://mp.weixin.qq.com/s/article-b",
-				}),
-				redirect: "follow",
 			}),
 		);
 		expect(result.summary).toEqual({
@@ -491,21 +430,6 @@ describe("FeedWe capture", () => {
 					}),
 					{ status: 200 },
 				),
-			)
-			.mockResolvedValueOnce(
-				new Response(
-					`<!doctype html>
-<html>
-  <body>
-    <h1 id="activity-name">A</h1>
-    <div id="js_content"><section><p>A 正文</p></section></div>
-  </body>
-</html>`,
-					{
-						headers: { "content-type": "text/html; charset=utf-8" },
-						status: 200,
-					},
-				),
 			);
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
 			async putObject(input) {
@@ -517,9 +441,19 @@ describe("FeedWe capture", () => {
 				};
 			},
 		};
+		const articlePageCrawlerFactory = createArticlePageCrawlerFactory({
+			"https://mp.weixin.qq.com/s/article-a": `<!doctype html>
+<html>
+  <body>
+    <h1 id="activity-name">A</h1>
+    <div id="js_content"><section><p>A 正文</p></section></div>
+  </body>
+</html>`,
+		});
 
 		const result = await captureFeedWeHistory({
 			accountName: "中央民族大学学生会",
+			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
 			maxArticles: 1,
@@ -533,7 +467,7 @@ describe("FeedWe capture", () => {
 			size: 2,
 		});
 
-		expect(fetchImplementation).toHaveBeenCalledTimes(5);
+		expect(fetchImplementation).toHaveBeenCalledTimes(4);
 		expect(result.planningOutcome).toBe("article_budget_exhausted");
 		expect(result.summary.articlesSeen).toBe(2);
 		expect(result.summary.articlesMaterialized).toBe(1);
@@ -597,21 +531,6 @@ describe("FeedWe capture", () => {
 					}),
 					{ status: 200 },
 				),
-			)
-			.mockResolvedValueOnce(
-				new Response(
-					`<!doctype html>
-<html>
-  <body>
-    <div id="wappoc_appmsgcaptcha">环境异常</div>
-    <button>去验证</button>
-  </body>
-</html>`,
-					{
-						headers: { "content-type": "text/html; charset=utf-8" },
-						status: 200,
-					},
-				),
 			);
 		const writes: Array<{ objectKey: string; text: string }> = [];
 		const artifactStore: WeChatOfficialAccountArtifactStore = {
@@ -626,9 +545,19 @@ describe("FeedWe capture", () => {
 				};
 			},
 		};
+		const articlePageCrawlerFactory = createArticlePageCrawlerFactory({
+			"https://mp.weixin.qq.com/s/article-verify": `<!doctype html>
+<html>
+  <body>
+    <div id="wappoc_appmsgcaptcha">环境异常</div>
+    <button>去验证</button>
+  </body>
+</html>`,
+		});
 
 		const result = await captureFeedWeHistory({
 			accountName: "中央民族大学学生会",
+			articlePageCrawlerFactory,
 			artifactStore,
 			fetchImplementation,
 			maxArticles: 5,

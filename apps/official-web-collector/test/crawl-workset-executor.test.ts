@@ -77,7 +77,6 @@ function buildFixture() {
 		blocked: false,
 		failure: null,
 		robots: null,
-		sitemaps: [],
 	};
 	const hostSummary: OfficialWebHostSummaryRecord = {
 		admissionRejected: 0,
@@ -95,7 +94,7 @@ function buildFixture() {
 describe("official web target workset executor", () => {
 	it("builds initial requests from target workset pages only", async () => {
 		const fixture = buildFixture();
-		const requests = await buildInitialRequests({
+		const { requests } = await buildInitialRequests({
 			...fixture,
 			plannerPages: [buildPlannerPage()],
 		});
@@ -119,7 +118,7 @@ describe("official web target workset executor", () => {
 			targetJobId: "owtarget_rules",
 			worksetReason: "target_candidate_due",
 		});
-		const requests = await buildInitialRequests({
+		const { requests } = await buildInitialRequests({
 			...fixture,
 			plannerPages: [calendarPage, servicePage],
 		});
@@ -134,7 +133,7 @@ describe("official web target workset executor", () => {
 
 	it("can disable conditional headers for evidence preview fetches", async () => {
 		const fixture = buildFixture();
-		const requests = await buildInitialRequests({
+		const { requests } = await buildInitialRequests({
 			...fixture,
 			disableConditionalHeaders: true,
 			plannerPages: [
@@ -500,7 +499,7 @@ describe("official web target workset executor", () => {
 			targetJobId: "owtarget_rules",
 			worksetReason: "source_pack_preview_seed",
 		});
-		const initialRequests = await buildInitialRequests({
+		const { requests: initialRequests } = await buildInitialRequests({
 			...fixture,
 			plannerPages: [listingSeed, directSeed],
 		});

@@ -32,7 +32,7 @@ class ExecutionControlProcessSmokeStructuredSeedTest(unittest.TestCase):
                     "structured process smoke seed must not invoke ingestion-worker CLI"
                 )
 
-                runtime._seed_structured_projection_smoke(
+                runtime._seed_tool_read_model_projection_smoke(
                     repo_root=Path(temp_dir),
                     runtime_database_url="postgresql://process-smoke/runtime",
                     log_path=log_path,

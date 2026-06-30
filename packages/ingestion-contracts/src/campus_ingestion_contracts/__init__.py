@@ -7,16 +7,10 @@ TASK_ENVELOPE_VERSION = "ingestion_task_envelope.v1"
 TASK_REGISTRY_VERSION = "ingestion_task_registry.v1"
 
 TASK_KINDS = {
-    "raw_asset_ingest",
     "source_truth_materialize",
-    "canonical_document_materialize",
     "document_units_validate",
     "chunk_prepare",
-    "embedding_index_build",
     "release_manifest_validate",
-    "alias_publish",
-    "structured_projection_publish",
-    "operator_projection_snapshot",
 }
 
 EXECUTOR_KINDS = {"rust_kernel", "ts_control"}
@@ -95,9 +89,6 @@ def validate_ingestion_task_registry(value: object) -> ValidationResult:
             errors.append(f"tasks[{index}].can_publish_alias is required")
         if task.get("executor_kind") == "rust_kernel":
             _require_string(task, f"tasks[{index}].kernel_id", errors, field="kernel_id")
-        if task.get("task_kind") == "alias_publish" and task.get("executor_kind") == "rust_kernel":
-            errors.append(f"tasks[{index}] alias_publish cannot be executed by rust_kernel")
-
     return _result(errors)
 
 

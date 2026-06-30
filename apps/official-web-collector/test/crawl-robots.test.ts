@@ -68,6 +68,7 @@ describe("official-web-collector robots handling", () => {
 					from: vi.fn(() => ({
 						getSitemaps: () => [],
 						isAllowed: () => true,
+						parseUrlsFromSitemaps: async () => [],
 					})),
 				},
 				Sitemap: {
@@ -80,20 +81,12 @@ describe("official-web-collector robots handling", () => {
 	}
 
 	it(
-		"retries transient robots fetch failures before allowing a 404 robots response",
+		"allows a missing robots response without retrying the robots fetch path",
 		async () => {
-			const fetchImplementation = vi
-				.fn()
-				.mockRejectedValueOnce(
-					new TypeError("fetch failed", { cause: new Error("socket hang up") }),
-				)
-				.mockRejectedValueOnce(
-					new TypeError("fetch failed", { cause: new Error("temporary dns error") }),
-				)
-				.mockResolvedValue({
-					status: 404,
-					text: async () => "",
-				});
+			const fetchImplementation = vi.fn().mockResolvedValue({
+				status: 404,
+				text: async () => "",
+			});
 			vi.stubGlobal("fetch", fetchImplementation);
 
 			const { configRoot, outputDir } = writeTestConfigRoot();
@@ -110,7 +103,7 @@ describe("official-web-collector robots handling", () => {
 				maxTotalPages: 1,
 			});
 
-			expect(fetchImplementation).toHaveBeenCalledTimes(3);
+			expect(fetchImplementation).toHaveBeenCalledTimes(1);
 			expect(result.failures).toEqual([]);
 			expect(result.crawlRun.status).toBe("completed");
 			expect(result.hostSummary.hosts[0]?.robotsBlocked).toBe(false);
@@ -121,7 +114,7 @@ describe("official-web-collector robots handling", () => {
 	);
 
 	it(
-		"records nested causes when robots fetch exhausts retries and blocks the host",
+		"records nested causes when robots fetch fails and blocks the host",
 		async () => {
 			const fetchImplementation = vi.fn().mockRejectedValue(
 				new TypeError("fetch failed", {
@@ -144,7 +137,7 @@ describe("official-web-collector robots handling", () => {
 				maxTotalPages: 1,
 			});
 
-			expect(fetchImplementation).toHaveBeenCalledTimes(3);
+			expect(fetchImplementation).toHaveBeenCalledTimes(1);
 			expect(result.crawlRun.status).toBe("completed_with_errors");
 			expect(result.hostSummary.hosts[0]?.robotsBlocked).toBe(true);
 			expect(result.failures).toHaveLength(1);

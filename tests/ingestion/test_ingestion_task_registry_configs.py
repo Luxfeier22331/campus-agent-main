@@ -10,13 +10,24 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class IngestionTaskRegistryConfigsSuite(unittest.TestCase):
-    def test_curriculum_and_student_rules_task_registries_are_valid(self) -> None:
-        for relative_path in (
-            "configs/ingestion/curriculum/curriculum_plan/task-registry.v1.json",
-            "configs/ingestion/regulations/student_rules/task-registry.v1.json",
-        ):
+    def test_all_task_registries_are_valid(self) -> None:
+        registry_paths = tuple(
+            sorted((REPO_ROOT / "configs/ingestion").glob("*/*/task-registry.v1.json"))
+        )
+        registry_relpaths = {path.relative_to(REPO_ROOT).as_posix() for path in registry_paths}
+
+        self.assertIn(
+            "configs/ingestion/campus_notices/internal_notice/task-registry.v1.json",
+            registry_relpaths,
+        )
+        self.assertIn(
+            "configs/ingestion/official_web/stable_reference/task-registry.v1.json",
+            registry_relpaths,
+        )
+        for path in registry_paths:
+            relative_path = path.relative_to(REPO_ROOT).as_posix()
             with self.subTest(relative_path=relative_path):
-                payload = json.loads((REPO_ROOT / relative_path).read_text(encoding="utf-8"))
+                payload = json.loads(path.read_text(encoding="utf-8"))
                 result = validate_ingestion_task_registry(payload)
                 self.assertTrue(result.ok, result.errors)
 

@@ -1,3 +1,6 @@
+import { PlaywrightCrawler, type RequestOptions } from "crawlee";
+
+import { createOfficialWebCrawlerConfiguration } from "./crawlee-runtime.ts";
 import type {
 	DynamicShellNetworkCapture,
 	OfficialWebDynamicShellDiscoveryAudit,
@@ -10,71 +13,34 @@ import {
 } from "./dynamic-shell-discovery-url-extraction.ts";
 
 export async function captureDynamicShellNetwork(input: {
+	crawlerFactory?: DynamicShellCrawlerFactory;
 	policy: OfficialWebDynamicShellDiscoveryPolicy;
 	url: string;
 }): Promise<{
 	captures: DynamicShellNetworkCapture[];
 	wait: OfficialWebDynamicShellDiscoveryAudit["wait"];
 }> {
-	const moduleName = "playwright";
-	const playwright = await import(moduleName);
-	const browser = await playwright.chromium.launch({ headless: true });
-	const page = await browser.newPage();
 	const captures: DynamicShellNetworkCapture[] = [];
 	const pendingCaptures: Promise<void>[] = [];
-	const responseWaitPromise = waitForAnyResponse({
-		page,
-		patterns: compilePatterns(input.policy.waitForResponseUrlPatterns),
-		timeoutMs: input.policy.networkObservationTimeoutMs,
-	});
-	const selectorWaitPromise = waitForAnySelector({
-		page,
-		selectors: input.policy.waitForSelectorPatterns,
-		timeoutMs: input.policy.networkObservationTimeoutMs,
-	});
 	let matchedResponseUrl: string | null = null;
 	let matchedSelector: string | null = null;
 	let usedNetworkIdleWait = false;
 	let usedFixedDelayWait = false;
-
-	page.on(
-		"response",
-		(response: {
-			url(): string;
-			status(): number;
-			headers(): Record<string, string>;
-			text(): Promise<string>;
-		}) => {
-			pendingCaptures.push(
-				(async () => {
-					const url = response.url();
-					const contentType = normalizeHeaderValue(response.headers()["content-type"]);
-					const status = response.status();
-					if (status >= 400 || !isTextLikeContentType(contentType)) {
-						return;
-					}
-
-					try {
-						captures.push({
-							url,
-							status,
-							contentType,
-							bodyText: await response.text(),
-						});
-					} catch {
-						captures.push({
-							url,
-							status,
-							contentType,
-							bodyText: null,
-						});
-					}
-				})(),
-			);
-		},
-	);
-
-	try {
+	const requestHandler = async (context: DynamicShellCrawlerRequestHandlerContext) => {
+		const page = context.page;
+		const responseWaitPromise = waitForAnyResponse({
+			page,
+			patterns: compilePatterns(input.policy.waitForResponseUrlPatterns),
+			timeoutMs: input.policy.networkObservationTimeoutMs,
+		});
+		const selectorWaitPromise = waitForAnySelector({
+			page,
+			selectors: input.policy.waitForSelectorPatterns,
+			timeoutMs: input.policy.networkObservationTimeoutMs,
+		});
+		page.on("response", (response) => {
+			pendingCaptures.push(captureTextResponse(response, captures));
+		});
 		await page.goto(input.url, { waitUntil: "load" });
 		[matchedResponseUrl, matchedSelector] = await Promise.all([
 			responseWaitPromise,
@@ -102,10 +68,16 @@ export async function captureDynamicShellNetwork(input: {
 			}
 		}
 		await drainPendingCaptures(pendingCaptures);
-	} finally {
-		await page.close();
-		await browser.close();
-	}
+	};
+	const crawler = (input.crawlerFactory ?? createDefaultDynamicShellCrawler)({
+		requestHandler,
+	});
+	await crawler.run([
+		{
+			uniqueKey: `dynamic_shell:${input.url}`,
+			url: input.url,
+		},
+	]);
 
 	return {
 		captures,
@@ -117,6 +89,86 @@ export async function captureDynamicShellNetwork(input: {
 			usedNetworkIdleWait,
 			usedFixedDelayWait,
 		},
+	};
+}
+
+interface DynamicShellPageResponse {
+	url(): string;
+	status(): number;
+	headers(): Record<string, string>;
+	text(): Promise<string>;
+}
+
+interface DynamicShellPageLike {
+	goto(url: string, options?: { waitUntil?: "load" }): Promise<unknown>;
+	on(event: "response", listener: (response: DynamicShellPageResponse) => void): void;
+	waitForLoadState(state: "networkidle", options?: { timeout?: number }): Promise<void>;
+	waitForResponse(
+		urlOrPredicate: string | RegExp | ((response: { url(): string }) => boolean | Promise<boolean>),
+		options?: { timeout?: number },
+	): Promise<{ url(): string }>;
+	waitForSelector(
+		selector: string,
+		options?: { timeout?: number; state?: "attached" | "detached" | "visible" | "hidden" },
+	): Promise<unknown>;
+	waitForTimeout(timeout: number): Promise<void>;
+}
+
+interface DynamicShellCrawlerRequestHandlerContext {
+	page: DynamicShellPageLike;
+}
+
+interface DynamicShellCrawlerFactoryInput {
+	requestHandler: (context: DynamicShellCrawlerRequestHandlerContext) => Promise<void>;
+}
+
+export type DynamicShellCrawlerFactory = (input: DynamicShellCrawlerFactoryInput) => {
+	run(requests: RequestOptions[]): Promise<unknown>;
+};
+
+async function captureTextResponse(
+	response: DynamicShellPageResponse,
+	captures: DynamicShellNetworkCapture[],
+): Promise<void> {
+	const url = response.url();
+	const contentType = normalizeHeaderValue(response.headers()["content-type"]);
+	const status = response.status();
+	if (status >= 400 || !isTextLikeContentType(contentType)) {
+		return;
+	}
+
+	try {
+		captures.push({
+			url,
+			status,
+			contentType,
+			bodyText: await response.text(),
+		});
+	} catch {
+		captures.push({
+			url,
+			status,
+			contentType,
+			bodyText: null,
+		});
+	}
+}
+
+function createDefaultDynamicShellCrawler(input: DynamicShellCrawlerFactoryInput) {
+	const crawler = new PlaywrightCrawler(
+		{
+			headless: true,
+			maxRequestRetries: 0,
+			requestHandler: async (context) => {
+				await input.requestHandler({
+					page: context.page,
+				});
+			},
+		},
+		createOfficialWebCrawlerConfiguration("dynamic-shell"),
+	);
+	return {
+		run: async (requests: RequestOptions[]) => await crawler.run(requests),
 	};
 }
 

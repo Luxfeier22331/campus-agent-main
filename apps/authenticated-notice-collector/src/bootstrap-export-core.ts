@@ -15,13 +15,9 @@ import {
 	buildExportManifest,
 	buildNoticeBrowserUrls,
 	buildReferenceArtifacts,
-	mergeBundleRecord,
 	normalizeNoticeType,
 	normalizeNullableNumber,
 	normalizeNullableText,
-	normalizeObservedNoticeTypes,
-	normalizeObservedOrganizations,
-	normalizeOptionalNoticeId,
 	normalizeRequiredNoticeId,
 	normalizeRequiredText,
 	toTimestampLabel,
@@ -36,7 +32,7 @@ import {
 } from "./collector-run-ledger.js";
 import { sanitizeObjectKeySegment } from "./collector-runtime.js";
 import { resolveCollectorConfig } from "./config.js";
-import * as noticeTypeConfig from "./notice-types.js";
+import { runNoticeCrawleeCollection } from "./notice-crawlee-runner.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
 import { formatSafeErrorMessage } from "./safe-error.js";
@@ -122,6 +118,10 @@ export interface BootstrapArtifactObjectRefs {
 	bundleContentSha256: string;
 	bundleObjectKey: string;
 	bundleRef: StoredArtifactRef;
+	captureReleaseByteSize: number;
+	captureReleaseContentSha256: string;
+	captureReleaseObjectKey: string;
+	captureReleaseRef: StoredArtifactRef;
 	manifestByteSize: number;
 	manifestContentSha256: string;
 	manifestObjectKey: string;
@@ -261,43 +261,27 @@ export async function collectBootstrapBundle(
 		selectedNotices.length === 0 &&
 		collectionMode === "backfill" &&
 		(input.maxNotices ?? null) === null;
-	const enabledNoticeTypes = noticeTypeConfig.getEnabledNoticeTypes(input.noticeTypes);
 	const createApiContext =
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveCollectorConfig(process.env)));
 	const apiContext = await createApiContext();
-	const fetchPage =
-		input.fetchNoticePage ??
-		((pageInput) =>
-			fetchNoticePage({
-				...pageInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+	const fetchPage = input.fetchNoticePage ?? ((pageInput) => fetchNoticePage({ ...pageInput }));
 	const fetchSelects =
-		input.fetchNoticeSelects ??
-		((selectInput) =>
-			fetchNoticeSelects({
-				...selectInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchNoticeSelects ?? ((selectInput) => fetchNoticeSelects({ ...selectInput }));
 	const fetchDetail =
-		input.fetchNoticeDetail ??
-		((detailInput) =>
-			fetchNoticeDetail({
-				...detailInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchNoticeDetail ?? ((detailInput) => fetchNoticeDetail({ ...detailInput }));
 
-	const bundleMap = new Map<number, BundleNoticeRecord>();
-	let detailFetched = 0;
-	let itemsSeen = 0;
-	let pagesFetched = 0;
-	let pageBudgetExhausted = false;
-	let observedNoticeTypes: Array<{ notice_type_id: number; notice_type_name: string }> = [];
-	let observedOrganizations: Array<{ organization_id: string; organization_name: string }> = [];
+	let collected = {
+		bundleRecords: [] as BundleNoticeRecord[],
+		observedNoticeTypes: [] as Array<{ notice_type_id: number; notice_type_name: string }>,
+		observedOrganizations: [] as Array<{ organization_id: string; organization_name: string }>,
+		stats: {
+			detailFetched: 0,
+			itemsSeen: 0,
+			pageBudgetExhausted: false,
+			pagesFetched: 0,
+		},
+	};
 	let materialized = {
 		bundleRecords: [] as BundleNoticeRecord[],
 		downloadedAttachmentCount: 0,
@@ -305,119 +289,26 @@ export async function collectBootstrapBundle(
 	};
 
 	try {
-		const noticeSelects = await fetchSelects({
+		collected = await runNoticeCrawleeCollection({
 			apiContext,
-			currentPage: 1,
-			pageSize: 15,
+			backfillMaxPagesPerType: input.backfillMaxPagesPerType ?? null,
+			collectionMode,
+			exportedAt: input.exportedAt,
+			fetchNoticeDetail: fetchDetail,
+			fetchNoticePage: fetchPage,
+			fetchNoticeSelects: fetchSelects,
+			fullScopeRequested,
+			maxNotices: input.maxNotices ?? null,
+			noticeTypes: input.noticeTypes,
+			requestMaxRetries: input.requestMaxRetries,
+			selectedNotices,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
 		});
-		observedNoticeTypes = normalizeObservedNoticeTypes(noticeSelects);
-		observedOrganizations = normalizeObservedOrganizations(noticeSelects);
-		if (selectedNotices.length > 0) {
-			itemsSeen = selectedNotices.length;
-			for (const selectedNotice of selectedNotices) {
-				const detailResponse = await fetchDetail({
-					apiContext,
-					noticeId: selectedNotice.noticeId,
-					noticeType: selectedNotice.noticeType,
-				});
-				detailFetched += 1;
-				const detailInfo = detailResponse.datas?.notice_info;
-				const record = buildBundleRecord({
-					detailInfo,
-					notice: {
-						notice_id: selectedNotice.noticeId,
-						notice_title: selectedNotice.noticeTitle ?? detailInfo?.notice_title ?? undefined,
-						notice_type: selectedNotice.noticeType,
-						notice_type_name:
-							selectedNotice.noticeTypeName ??
-							detailInfo?.notice_type_name ??
-							findNoticeTypeName(input.noticeTypes, selectedNotice.noticeType) ??
-							findObservedNoticeTypeName(observedNoticeTypes, selectedNotice.noticeType),
-					},
-					observedAt: input.exportedAt,
-					sourceHomeUrl: input.sourceHomeUrl,
-				});
-				bundleMap.set(selectedNotice.noticeId, record);
-			}
-		} else {
-			for (const noticeType of enabledNoticeTypes) {
-				const pageBudget =
-					collectionMode === "backfill"
-						? (input.backfillMaxPagesPerType ?? noticeType.backfillPages)
-						: noticeType.incrementalPages;
-				const pageSize =
-					collectionMode === "backfill"
-						? noticeType.backfillPageSize
-						: noticeType.incrementalPageSize;
-				for (let currentPage = 1; currentPage <= pageBudget; currentPage += 1) {
-					if (input.maxNotices && bundleMap.size >= input.maxNotices) {
-						break;
-					}
-
-					const pageResponse = await fetchPage({
-						apiContext,
-						currentPage,
-						noticeType: noticeType.type,
-						pageSize,
-					});
-					pagesFetched += 1;
-
-					const items = pageResponse.datas?.tables ?? [];
-					itemsSeen += items.length;
-
-					for (const item of items) {
-						const noticeId = normalizeOptionalNoticeId(item.notice_id);
-						if (noticeId === null) {
-							continue;
-						}
-						const existing = bundleMap.get(noticeId);
-						if (existing) {
-							bundleMap.set(noticeId, mergeBundleRecord(existing, item, input.exportedAt));
-							continue;
-						}
-						if (input.maxNotices && bundleMap.size >= input.maxNotices) {
-							break;
-						}
-						const detailResponse = await fetchDetail({
-							apiContext,
-							noticeId,
-							noticeType: normalizeNoticeType(item.notice_type ?? noticeType.type),
-						});
-						detailFetched += 1;
-						bundleMap.set(
-							noticeId,
-							buildBundleRecord({
-								detailInfo: detailResponse.datas?.notice_info,
-								notice: item,
-								observedAt: input.exportedAt,
-								sourceHomeUrl: input.sourceHomeUrl,
-							}),
-						);
-					}
-
-					const totalCounts = pageResponse.datas?.page?.totalCounts;
-					if (
-						typeof totalCounts === "number" &&
-						totalCounts > currentPage &&
-						currentPage >= pageBudget
-					) {
-						pageBudgetExhausted = true;
-					}
-					if (typeof totalCounts === "number" && currentPage >= totalCounts) {
-						break;
-					}
-				}
-
-				if (input.maxNotices && bundleMap.size >= input.maxNotices) {
-					break;
-				}
-			}
-		}
-		const bundleRecords = [...bundleMap.values()];
 		materialized =
 			input.attachmentArtifactStore === undefined
 				? {
-						bundleRecords,
+						bundleRecords: collected.bundleRecords,
 						downloadedAttachmentCount: 0,
 						uploadedAttachmentCount: 0,
 					}
@@ -427,7 +318,7 @@ export async function collectBootstrapBundle(
 						attachmentFetchAdmissions: input.attachmentFetchAdmissions,
 						attachmentFetchStatusStore: input.attachmentFetchStatusStore,
 						defaultInlineVisualCapture: input.defaultInlineVisualCapture,
-						bundleRecords,
+						bundleRecords: collected.bundleRecords,
 						observedAt: input.exportedAt,
 						requestBackoffBaseMs: input.requestBackoffBaseMs,
 						requestMaxRetries: input.requestMaxRetries,
@@ -436,7 +327,7 @@ export async function collectBootstrapBundle(
 	} finally {
 		await apiContext.dispose();
 	}
-	if (fullScopeRequested && pageBudgetExhausted) {
+	if (fullScopeRequested && collected.stats.pageBudgetExhausted) {
 		throw new Error("page_budget_exhausted");
 	}
 
@@ -446,18 +337,18 @@ export async function collectBootstrapBundle(
 			attachmentStorageMode:
 				materialized.uploadedAttachmentCount > 0 ? "object_store_write" : "reference_only",
 			collectionMode,
-			detailFetched,
+			detailFetched: collected.stats.detailFetched,
 			exportedAt: input.exportedAt,
-			fullScopeCompleted: fullScopeRequested && !pageBudgetExhausted,
+			fullScopeCompleted: fullScopeRequested && !collected.stats.pageBudgetExhausted,
 			fullScopeRequested,
 			itemsInserted: materialized.bundleRecords.length,
-			itemsSeen,
+			itemsSeen: collected.stats.itemsSeen,
 			maxNotices: input.maxNotices ?? null,
 			noticeTypes: input.noticeTypes,
-			observedNoticeTypes,
-			observedOrganizations,
-			pageBudgetExhausted,
-			pagesFetched,
+			observedNoticeTypes: collected.observedNoticeTypes,
+			observedOrganizations: collected.observedOrganizations,
+			pageBudgetExhausted: collected.stats.pageBudgetExhausted,
+			pagesFetched: collected.stats.pagesFetched,
 			runAdmission,
 			selectedNoticeIds: selectedNotices.map((item) => String(item.noticeId)),
 			selectedNoticeTypes: normalizeNoticeTypes(selectedNotices.map((item) => item.noticeType)),
@@ -466,9 +357,9 @@ export async function collectBootstrapBundle(
 		}),
 		stats: {
 			attachmentObjectsUploaded: materialized.uploadedAttachmentCount,
-			detailFetched,
+			detailFetched: collected.stats.detailFetched,
 			noticesCollected: materialized.bundleRecords.length,
-			pagesFetched,
+			pagesFetched: collected.stats.pagesFetched,
 		},
 	};
 }
@@ -526,24 +417,6 @@ function normalizeSelectedNoticeSpecs(specs: SelectedNoticeSpec[]): SelectedNoti
 	return normalized;
 }
 
-function findNoticeTypeName(
-	noticeTypes: NoticeTypeConfig[],
-	noticeType: string,
-): string | undefined {
-	return noticeTypes.find((item) => item.type === noticeType)?.name;
-}
-
-function findObservedNoticeTypeName(
-	noticeTypes: Array<{ notice_type_id: number; notice_type_name: string }>,
-	noticeType: string,
-): string | undefined {
-	const parsed = Number(noticeType);
-	if (!Number.isInteger(parsed)) {
-		return;
-	}
-	return noticeTypes.find((item) => item.notice_type_id === parsed)?.notice_type_name;
-}
-
 function normalizeNoticeTypes(values: string[]): string[] {
 	return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
 }
@@ -576,6 +449,7 @@ export async function uploadBootstrapArtifacts(
 	].join("/");
 	const bundleObjectKey = `${prefix}/notices-bundle.json`;
 	const manifestObjectKey = `${prefix}/export-manifest.json`;
+	const captureReleaseObjectKey = `${prefix}/capture-release.json`;
 	const bundlePayload = serializeJsonArtifactPayload(input.bundleRecords);
 	const manifestPayload = serializeJsonArtifactPayload(input.exportManifest);
 	const bundleRef = await input.artifactStore.putObject({
@@ -598,17 +472,77 @@ export async function uploadBootstrapArtifacts(
 			source_channel: "authenticated_notice_portal",
 		},
 	});
+	const captureReleasePayload = serializeJsonArtifactPayload(
+		buildAuthenticatedNoticeCaptureRelease({
+			bundleRef,
+			exportedAt: input.exportedAt,
+			manifestRef,
+			siteId: input.siteId,
+		}),
+	);
+	const captureReleaseRef = await input.artifactStore.putObject({
+		objectKey: captureReleaseObjectKey,
+		data: captureReleasePayload,
+		contentType: "application/json",
+		metadata: {
+			artifact_kind: "capture_release",
+			site_id: input.siteId,
+			source_channel: "authenticated_notice_portal",
+		},
+	});
 	return {
 		bundleByteSize: bundleRef.byteSize,
 		bundleContentSha256: bundleRef.contentSha256,
 		bundleObjectKey,
 		bundleRef,
+		captureReleaseByteSize: captureReleaseRef.byteSize,
+		captureReleaseContentSha256: captureReleaseRef.contentSha256,
+		captureReleaseObjectKey,
+		captureReleaseRef,
 		manifestByteSize: manifestRef.byteSize,
 		manifestContentSha256: manifestRef.contentSha256,
 		manifestObjectKey,
 		manifestRef,
 		sourceBucket: bundleRef.bucket,
 	};
+}
+
+function buildAuthenticatedNoticeCaptureRelease(input: {
+	bundleRef: StoredArtifactRef;
+	exportedAt: string;
+	manifestRef: StoredArtifactRef;
+	siteId: string;
+}): Record<string, unknown> {
+	const timestamp = toTimestampLabel(input.exportedAt);
+	const bundleRef = sourceObjectRef("notices_bundle", input.bundleRef);
+	const exportManifestRef = sourceObjectRef("export_manifest", input.manifestRef);
+	return {
+		schema_version: "authenticated_notice_capture_release.v1",
+		source_channel: "authenticated_notice_portal",
+		source_surface: "notice",
+		site_id: input.siteId,
+		capture_id: `capture:${input.siteId}:notice:${timestamp}`,
+		exported_at: input.exportedAt,
+		bundle_ref: withoutRole(bundleRef),
+		export_manifest_ref: withoutRole(exportManifestRef),
+		source_object_refs: [bundleRef, exportManifestRef],
+	};
+}
+
+function sourceObjectRef(role: string, ref: StoredArtifactRef): Record<string, unknown> {
+	return {
+		role,
+		bucket: ref.bucket,
+		key: ref.objectKey,
+		content_sha256: ref.contentSha256,
+		byte_size: ref.byteSize,
+	};
+}
+
+function withoutRole(ref: Record<string, unknown>): Record<string, unknown> {
+	const result = { ...ref };
+	delete result.role;
+	return result;
 }
 
 function serializeJsonArtifactPayload(value: unknown): Uint8Array {

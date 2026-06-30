@@ -1,5 +1,4 @@
-from __future__ import annotations
-
+import hashlib
 import json
 import unittest
 from pathlib import Path
@@ -67,6 +66,77 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                 source_bucket=bucket,
                 bundle_object_key=bundle_key,
                 manifest_object_key=manifest_key,
+                site_id="muc_internal_portal",
+                source_home_url="https://portal.example.edu/home",
+                mode="plan",
+            ),
+            object_store=object_store,
+        )
+
+        self.assertEqual(report["notice_count"], 1)
+        self.assertEqual(report["selected_notice_ids"], ["355119"])
+
+    def test_notice_import_plan_loads_bundle_and_manifest_from_capture_release_ref(self) -> None:
+        object_store = _FakeObjectStore()
+        bucket = "campus-rag-source"
+        bundle_key = (
+            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "20260404T012345Z/notices-bundle.json"
+        )
+        manifest_key = (
+            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "20260404T012345Z/export-manifest.json"
+        )
+        release_key = (
+            "authenticated_notice_portal/runs/muc_internal_portal/"
+            "20260404T012345Z/capture-release.json"
+        )
+        bundle_bytes = _json_bytes(_sample_notice_bundle())
+        manifest_bytes = _json_bytes(_sample_export_manifest())
+        object_store.put_bytes(
+            bucket=bucket,
+            key=bundle_key,
+            data=bundle_bytes,
+            content_type="application/json",
+        )
+        object_store.put_bytes(
+            bucket=bucket,
+            key=manifest_key,
+            data=manifest_bytes,
+            content_type="application/json",
+        )
+        object_store.put_bytes(
+            bucket=bucket,
+            key=release_key,
+            data=_json_bytes(
+                {
+                    "schema_version": "authenticated_notice_capture_release.v1",
+                    "source_channel": "authenticated_notice_portal",
+                    "source_surface": "notice",
+                    "site_id": "muc_internal_portal",
+                    "capture_id": "capture:muc_internal_portal:notice:20260404T012345Z",
+                    "exported_at": "2026-04-04T01:23:45.000Z",
+                    "bundle_ref": {
+                        "bucket": bucket,
+                        "key": bundle_key,
+                        "content_sha256": hashlib.sha256(bundle_bytes).hexdigest(),
+                        "byte_size": len(bundle_bytes),
+                    },
+                    "export_manifest_ref": {
+                        "bucket": bucket,
+                        "key": manifest_key,
+                        "content_sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+                        "byte_size": len(manifest_bytes),
+                    },
+                }
+            ),
+            content_type="application/json",
+        )
+
+        report = import_authenticated_notice_export(
+            request=AuthenticatedNoticeImportRequest(
+                source_bucket=bucket,
+                capture_release_object_key=release_key,
                 site_id="muc_internal_portal",
                 source_home_url="https://portal.example.edu/home",
                 mode="plan",
@@ -329,6 +399,14 @@ class AuthenticatedNoticeObjectRefImportTest(unittest.TestCase):
                     site_id="muc_internal_portal",
                     source_home_url="https://portal.example.edu/home",
                 )
+
+    def test_notice_request_rejects_run_id_as_active_input(self) -> None:
+        with self.assertRaisesRegex(ValueError, "capture release object refs"):
+            AuthenticatedNoticeImportRequest(
+                run_id="muc_internal_portal:notice:20260404T012345Z",
+                site_id="muc_internal_portal",
+                source_home_url="https://portal.example.edu/home",
+            )
 
     def test_file_release_import_plan_loads_bundle_and_manifest_from_object_refs(self) -> None:
         object_store = _FakeObjectStore()

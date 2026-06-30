@@ -55,7 +55,6 @@ export interface CollectorProgressCounts {
 
 export interface CollectorRobotsState {
 	robots: RobotsTxtFile | null;
-	sitemaps: string[];
 	blocked: boolean;
 	failure: OfficialWebFailureRecord | null;
 }

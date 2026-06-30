@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0054
 status: accepted
 created: 2026-06-11
-updated: 2026-06-15
+updated: 2026-06-30
 supersedes: []
 ---
 # ADR-0054 Ingestion Control Plane And Kernel Boundary
@@ -44,16 +44,17 @@ artifact / handler boundary，再逐 collection 替换实现；不表示保留�
   collection CLI 不迁入 executor seam；它们按 delete-first clean-target triage
   处理，只有当前生产生命周期仍需要的能力才以 TS / Rust target runtime 或 Python
   adapter 重新建模。
-- `ts_control` handler 是 source-channel / collection materialization 的默认 owner：
-  artifact resolver、source-truth materialization、canonical document materialization、
-  structured projection publish、operator projection snapshot 与 alias publish 均先以
-  TypeScript control-plane handler 表达，只有 deterministic batch hotspot 才下沉 Rust。
+- `ts_control` handler 是 source-channel / collection materialization 的默认 owner。
+  source-truth materialization、canonical document materialization、structured
+  projection publish、operator projection snapshot 与 alias publish 只有在存在真实
+  TypeScript handler 后，才能进入 task registry；未实现的生命周期步骤只记录在设计文档 /
+  backlog，不作为 registry 占位项。
 - `apps/ingestion-worker` 只保留 Python extraction adapter island；它不拥有 task
   claim / lease / retry / closeout，不作为 registry fallback executor。
 - `packages/ingestion-kernels-rs` 只承接 file-level deterministic kernels；不得连接
   Postgres、Qdrant、S3 或 provider，不得拥有 source-channel 语义。
-- `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` 是 collection task
-  topology 的 repo-owned declaration。
+- `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` 是 collection
+  executable task 的 repo-owned declaration；它不是未来任务拓扑或迁移愿望清单。
 - source-channel collector 到 ingestion-control 的 clean handoff 必须是 object-native：
   task envelope 输入引用 canonical source bucket artifact refs，默认使用
   `input_ref.kind=object_store` 与 `s3://...` URI。`inline` input 只允许表达小型
@@ -95,11 +96,12 @@ data-plane materialization 已迁移完成。
 后续 ingestion 清理按以下阶段推进：
 
 1. 冻结 artifact / registry contract：每条 source channel 必须声明 canonical source
-   unit、source bucket object layout、task registry、input/output contract 与 operator
-   projection boundary。
-2. 打通最小真实 handler：每个被迁移 collection 至少先落地一个非空
-   `ts_control` handler，真实读取 object-store input、产出 contract artifact，并通过
-   ingestion-control lifecycle closeout。
+   unit、source bucket object layout、input/output contract 与 operator projection
+   boundary。task registry 只声明默认 runtime 已能执行的 handler / kernel；未来拓扑写入
+   设计文档或 backlog，不保留占位 registry 项。
+2. 打通最小真实执行入口：每个被迁移 collection 至少先落地一个非空
+   `ts_control` handler 或 Rust kernel bridge，真实读取 object-store input、产出
+   contract artifact，并通过 ingestion-control lifecycle closeout。
 3. 下沉 deterministic kernel：只有在 output equivalence、profiling 与 file-level
    contract 都成立后，才把 validation、chunking、hash/dedup/diff 或 release manifest
    checks 移入 Rust。
@@ -111,7 +113,8 @@ data-plane materialization 已迁移完成。
 
 阶段门槛：
 
-- registry declaration 不等于 handler 已实现。
+- registry entry 必须对应默认 runtime 已实现的 handler / kernel bridge；
+  registry 存在本身不等于 collection migration complete。
 - 默认 closeout skeleton 不等于 collection migration complete。
 - 任何 collection 如果缺 handler / kernel / object-store input contract，必须 fail closed。
 - 旧 Python replay/import 只有在具名数据恢复 SLA 下才能临时保留；否则只归档证据，不保留

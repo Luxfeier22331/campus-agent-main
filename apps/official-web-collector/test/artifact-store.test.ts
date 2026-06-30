@@ -4,7 +4,11 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { createS3ArtifactStoreFromEnv, S3ArtifactStore } from "../src/artifact-store";
+import {
+	createS3ArtifactStoreFromEnv,
+	DEFAULT_S3_MAX_ATTEMPTS,
+	S3ArtifactStore,
+} from "../src/artifact-store";
 
 describe("official-web artifact store", () => {
 	it("uploads objects to the configured source bucket and returns artifact refs", async () => {
@@ -41,44 +45,29 @@ describe("official-web artifact store", () => {
 		});
 	});
 
-	it("retries retryable object-store upload failures before succeeding", async () => {
-		const sleep = vi.fn().mockResolvedValue(undefined);
+	it("leaves object-store upload retry behavior to the configured SDK client", async () => {
+		const error = new Error("SlowDownWrite");
 		const client = {
-			send: vi
-				.fn()
-				.mockRejectedValueOnce({
-					name: "SlowDownWrite",
-					Code: "SlowDownWrite",
-					$metadata: { httpStatusCode: 503 },
-				})
-				.mockRejectedValueOnce({
-					name: "IncompleteBody",
-					Code: "IncompleteBody",
-					$metadata: { httpStatusCode: 400 },
-				})
-				.mockResolvedValue({}),
+			send: vi.fn().mockRejectedValue(error),
 		};
 		const store = new S3ArtifactStore({
 			bucket: "campus-rag-source",
 			client,
-			sleep,
-			retryBackoffMs: 25,
 		});
 		const data = new TextEncoder().encode(
 			'{"schemaVersion":"official_web_source_truth_bundle.v1"}',
 		);
 
-		await store.putObject({
-			objectKey: "official_web/campus_public/runs/owrun_01JQTEST/source-truth-bundle.json",
-			data,
-			contentType: "application/json",
-			recordCount: 1,
-		});
+		await expect(
+			store.putObject({
+				objectKey: "official_web/campus_public/runs/owrun_01JQTEST/source-truth-bundle.json",
+				data,
+				contentType: "application/json",
+				recordCount: 1,
+			}),
+		).rejects.toBe(error);
 
-		expect(client.send).toHaveBeenCalledTimes(3);
-		expect(sleep).toHaveBeenCalledTimes(2);
-		expect(sleep).toHaveBeenNthCalledWith(1, 25);
-		expect(sleep).toHaveBeenNthCalledWith(2, 50);
+		expect(client.send).toHaveBeenCalledTimes(1);
 	});
 
 	it("returns undefined when object-store env is absent", () => {
@@ -105,5 +94,9 @@ describe("official-web artifact store", () => {
 				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 			} as never),
 		).not.toThrow();
+	});
+
+	it("documents the SDK retry attempt budget used for source-bucket uploads", () => {
+		expect(DEFAULT_S3_MAX_ATTEMPTS).toBe(4);
 	});
 });

@@ -1,7 +1,6 @@
 import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { Configuration } from "crawlee";
 import type { OfficialWebArtifactStore } from "./artifact-store.ts";
 import { runCollectorCrawlMain } from "./crawl-cli.ts";
 import {
@@ -49,6 +48,7 @@ import {
 	summarizeProgressCounts,
 } from "./crawl-progress.ts";
 import { buildSelectedHosts, defaultCollectorOutputDir } from "./crawl-support.ts";
+import { createOfficialWebCrawlerConfiguration } from "./crawlee-runtime.ts";
 import type {
 	OfficialWebDynamicShellDiscoverer,
 	OfficialWebDynamicShellDiscoveryAudit,
@@ -172,9 +172,7 @@ export async function crawlSite(
 	const outputDir = options.outputDir ?? defaultCollectorOutputDir(plan.siteId, plan.crawlRunId);
 	mkdirSync(outputDir, { recursive: true });
 
-	const config = new Configuration({
-		persistStorage: false,
-	});
+	const config = createOfficialWebCrawlerConfiguration("crawl");
 
 	let heartbeatSequence = 0;
 	let latestProgress = emptyProgressCounts();

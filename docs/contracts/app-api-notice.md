@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: apps/app-api
 status: active
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-06-28
 ---
 # App API Authenticated Notice Processing HTTP Contract
 
@@ -21,8 +21,9 @@ updated: 2026-05-01
 它不冻结：
 
 - collector 抓取协议
-- ingestion queue 表结构
+- ingestion-control task registry / executor lifecycle
 - 对象存储 bucket/key 语义
+- `authenticated_notice_capture_release.v1` capture handoff schema
 - raw OCR、正文、附件或 operations 目录读取方式
 - retry/cancel/re-enqueue 操作 API
 
@@ -36,9 +37,10 @@ Run-level Operator Console read path 固定为：
 
 `operator console surface -> apps/app-api -> operator.authenticated_notice_run_processing_projection`
 
-ingestion evidence truth 仍在 queue/source-handoff/object-store/downstream release
-体系内。app-api 只持有 operator-safe projection，Operator Console 不直接读取 queue、object-store、
-operations 目录或 raw logs。
+ingestion evidence truth 仍在 ingestion-control task lifecycle、source handoff、
+object-store artifact 与 downstream release 体系内。app-api 只持有 operator-safe
+projection，Operator Console 不直接读取 task queue、object-store、operations 目录或
+raw logs。
 
 ## Authentication
 

@@ -22,15 +22,27 @@ describe("ingestion task contracts", () => {
 		}
 	});
 
-	it("prevents rust kernels from owning alias publish tasks", () => {
+	it("accepts active registry task kinds only", () => {
 		expect(validateIngestionTaskRegistry(loadFixture("task-registry.valid.json")).ok).toBe(true);
 
-		const result = validateIngestionTaskRegistry(
-			loadFixture("task-registry.invalid-alias-kernel.json"),
-		);
+		const result = validateIngestionTaskRegistry({
+			schema_version: "ingestion_task_registry.v1",
+			source_family: "curriculum",
+			corpus: "curriculum",
+			collection: "curriculum_plan",
+			tasks: [
+				{
+					task_kind: "alias_publish",
+					executor_kind: "ts_control",
+					input_contract: "ingestion_release_manifest.v1",
+					output_contract: "ingestion_alias_publish_closeout.v1",
+					can_publish_alias: true,
+				},
+			],
+		});
 		expect(result.ok).toBe(false);
 		if (!result.ok) {
-			expect(result.errors).toContain("tasks[0] alias_publish cannot be executed by rust_kernel");
+			expect(result.errors).toContain("tasks[0].task_kind is not supported: alias_publish");
 		}
 	});
 

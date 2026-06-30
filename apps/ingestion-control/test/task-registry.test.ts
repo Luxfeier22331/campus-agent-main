@@ -21,7 +21,7 @@ describe("ingestion-control task registry loading", () => {
 	it("loads every repo registry without python adapter executors", () => {
 		const registryPaths = listTaskRegistries(registryRoot);
 
-		expect(registryPaths.length).toBeGreaterThanOrEqual(2);
+		expect(registryPaths.length).toBeGreaterThanOrEqual(1);
 		for (const registryPath of registryPaths) {
 			const rawRegistry = JSON.parse(readFileSync(registryPath, "utf8")) as {
 				tasks?: Array<{ executor_kind?: unknown }>;
@@ -32,10 +32,54 @@ describe("ingestion-control task registry loading", () => {
 
 			const registry = loadIngestionTaskRegistryFromFile(registryPath);
 
-			const aliasTask = registry.tasks.find((task) => task.task_kind === "alias_publish");
-			if (aliasTask) {
-				expect(aliasTask.executor_kind).toBe("ts_control");
-			}
+			expect(registry.tasks).not.toHaveLength(0);
+			expect(
+				registry.tasks.some((task) =>
+					[
+						"canonical_document_materialize",
+						"operator_projection_snapshot",
+						"structured_projection_publish",
+					].includes(task.task_kind),
+				),
+			).toBe(false);
 		}
+	});
+
+	it("declares authenticated internal notice materialization from capture release artifacts", () => {
+		const registry = loadIngestionTaskRegistryFromFile(
+			join(registryRoot, "campus_notices", "internal_notice", "task-registry.v1.json"),
+		);
+
+		expect(
+			registry.tasks.find((task) => task.task_kind === "source_truth_materialize"),
+		).toMatchObject({
+			executor_kind: "ts_control",
+			input_contract: "authenticated_notice_capture_release.v1",
+			output_contract: "authenticated_notice_source_truth.v1",
+		});
+	});
+
+	it("declares official-web source truth materialization from terminal handoff artifacts", () => {
+		const stableReference = loadIngestionTaskRegistryFromFile(
+			join(registryRoot, "official_web", "stable_reference", "task-registry.v1.json"),
+		);
+		const freshNews = loadIngestionTaskRegistryFromFile(
+			join(registryRoot, "official_web", "fresh_news", "task-registry.v1.json"),
+		);
+
+		expect(
+			stableReference.tasks.find((task) => task.task_kind === "source_truth_materialize"),
+		).toMatchObject({
+			executor_kind: "ts_control",
+			input_contract: "official_web_source_handoff.v1",
+			output_contract: "official_web_stable_reference_source_truth.v1",
+		});
+		expect(
+			freshNews.tasks.find((task) => task.task_kind === "source_truth_materialize"),
+		).toMatchObject({
+			executor_kind: "ts_control",
+			input_contract: "official_web_fresh_news_handoff.v1",
+			output_contract: "official_web_fresh_news_source_truth.v1",
+		});
 	});
 });

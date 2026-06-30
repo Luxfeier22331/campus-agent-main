@@ -67,6 +67,8 @@ updated: 2026-04-18
   - `AUTHENTICATED_NOTICE_JSESSIONID`
   - `AUTHENTICATED_NOTICE_NGINX`
 - 生产 job 应配置 collector lease URL；本地 smoke 可不配置 lease
+- collector capture/debug 入口直接执行源码或 Docker mode，不再通过 package script
+  暴露；这条 runbook 不定义 production ingestion lifecycle。
 
 ## 执行顺序
 
@@ -75,20 +77,20 @@ updated: 2026-04-18
 先把新的登录态写入 collector runtime：
 
 ```bash
-pnpm --dir apps/authenticated-notice-collector auth:save
+pnpm --dir apps/authenticated-notice-collector exec tsx src/auth-save.ts
 ```
 
 目标：
 
 - 刷新 `storageState`
-- 让 collector 后续 `auth:check` / `file-release:export` 复用同一会话
+- 让 collector 后续 auth check / file-release export 复用同一会话
 
 ### 2. 先做双-surface 预检
 
 认证窗口内，先跑：
 
 ```bash
-pnpm --dir apps/authenticated-notice-collector auth:check
+pnpm --dir apps/authenticated-notice-collector exec tsx src/auth-check.ts
 ```
 
 容器入口等价命令：
@@ -106,9 +108,9 @@ docker run --rm --env-file .env campus-authenticated-notice-collector:local
 
 说明：
 
-- 现在的 `auth:check` 同时验证 `/comsys-portal-notice-web/getNoticeByPage`
+- 现在的 auth check 同时验证 `/comsys-portal-notice-web/getNoticeByPage`
 - 也同时验证 `/comsys-prompt-portlet-web/pageFile`
-- 只有两个 authenticated surface 都可访问，才允许继续 `file-release:export`
+- 只有两个 authenticated surface 都可访问，才允许继续 file-release export
 
 如果 notice 可用但 `file_release` 不可用：
 
@@ -130,7 +132,7 @@ export，不再用“随便抓 1 条”的数量 smoke 代替。
 
 ```bash
 AUTHENTICATED_NOTICE_FILE_RELEASE_TARGET_ID=<target_file_release_id> \
-pnpm --dir apps/authenticated-notice-collector file-release:export
+pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
 ```
 
 容器入口等价命令：
@@ -164,7 +166,7 @@ docker run --rm --env-file .env campus-authenticated-notice-collector:local
 
 ```bash
 AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
-pnpm --dir apps/authenticated-notice-collector file-release:export
+pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
 ```
 
 可选再加 page 限制：
@@ -173,7 +175,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 AUTHENTICATED_NOTICE_FILE_RELEASE_PAGE_SIZE=20 \
 AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_PAGES=1 \
 AUTHENTICATED_NOTICE_FILE_RELEASE_MAX_ITEMS=1 \
-pnpm --dir apps/authenticated-notice-collector file-release:export
+pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
 ```
 
 目标：
@@ -188,7 +190,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 通过后继续 full export：
 
 ```bash
-pnpm --dir apps/authenticated-notice-collector file-release:export
+pnpm --dir apps/authenticated-notice-collector exec tsx src/file-release-export.ts
 ```
 
 如需受控放量，可只设置以下 filter：
@@ -202,7 +204,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 - 已 admission 具体 target 时，默认停在 targeted export，不默认升级成 full export
 - 只有明确需要 broader inventory 时，才从 targeted / smoke 升级到 full
 - 不要在认证窗口里一边改代码一边试导出
-- 不要在 full export 前跳过 `auth:check`
+- 不要在 full export 前跳过 auth check
 
 ## 预期输出
 
@@ -244,7 +246,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 每轮 auth window 至少保留：
 
 - 使用日期
-- `auth:check` 输出
+- auth check 输出
 - targeted / smoke 产物文件名
 - targeted / smoke 的目标 `file_release_id` 与 `items_inserted`
 - 如果执行了 full export，再额外记录 full export 产物文件名与 item count
@@ -257,7 +259,7 @@ pnpm --dir apps/authenticated-notice-collector file-release:export
 
 ## 失败时先看什么
 
-1. `auth:check`
+1. auth check
    - 如果 notice 成功但 `file_release` 失败，不继续导出
 1. `file-releases-manifest-*.json`
    - 看 `run.pages_fetched`

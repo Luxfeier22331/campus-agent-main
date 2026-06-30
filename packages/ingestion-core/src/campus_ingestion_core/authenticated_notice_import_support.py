@@ -8,16 +8,13 @@ from typing import Any
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     build_attachment_fetch_status_records_from_bundle_records,
 )
-from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-    resolve_authenticated_notice_collector_run_refs,
-)
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
 )
 from campus_ingestion_core.authenticated_notice_import_sources import (
     AuthenticatedNoticeImportObjectRefs,
+    authenticated_notice_import_object_refs_from_capture_release,
     explicit_authenticated_notice_import_object_refs,
     load_authenticated_notice_import_payload_from_object_refs,
 )
@@ -404,6 +401,7 @@ def load_authenticated_notice_import_payload(
     object_refs = authenticated_notice_import_object_refs_from_request(
         request=request,
         env=env,
+        object_store=object_store,
     )
     if object_refs is not None:
         loaded = load_authenticated_notice_import_payload_from_object_refs(
@@ -424,24 +422,21 @@ def authenticated_notice_import_object_refs_from_request(
     *,
     request: Any,
     env: dict[str, str],
+    object_store: object | None = None,
 ) -> AuthenticatedNoticeImportObjectRefs | None:
     if request.run_id:
-        resolved = resolve_authenticated_notice_collector_run_refs(
-            env=env,
-            run_id=request.run_id,
-            expected_source_surface="notice",
-            table_name=request.collector_run_ledger_table
-            or DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
+        raise ValueError(
+            "authenticated notice import no longer accepts run_id as active input; "
+            "use capture release object refs or explicit local fixture import"
         )
-        return explicit_authenticated_notice_import_object_refs(
-            source_bucket=resolved.source_bucket,
-            bundle_object_key=resolved.bundle_object_key,
-            manifest_object_key=resolved.manifest_object_key,
-            bundle_content_sha256=resolved.bundle_content_sha256,
-            bundle_byte_size=resolved.bundle_byte_size,
-            manifest_content_sha256=resolved.manifest_content_sha256,
-            manifest_byte_size=resolved.manifest_byte_size,
-            run_id=resolved.run_id,
+    if request.capture_release_object_key:
+        return authenticated_notice_import_object_refs_from_capture_release(
+            source_bucket=request.source_bucket,
+            capture_release_object_key=request.capture_release_object_key,
+            capture_release_content_sha256=request.capture_release_content_sha256,
+            capture_release_byte_size=request.capture_release_byte_size,
+            env=env,
+            object_store=object_store,
         )
     if request.source_bucket or request.bundle_object_key or request.manifest_object_key:
         return explicit_authenticated_notice_import_object_refs(
@@ -458,6 +453,14 @@ def authenticated_notice_import_object_refs_from_request(
 
 def assert_authenticated_notice_import_source_shape(request: Any) -> None:
     run_id_selected = request.run_id is not None
+    capture_release_selected = any(
+        value is not None
+        for value in (
+            request.capture_release_object_key,
+            request.capture_release_content_sha256,
+            request.capture_release_byte_size,
+        )
+    )
     object_ref_selected = any(
         value is not None
         for value in (
@@ -467,15 +470,31 @@ def assert_authenticated_notice_import_source_shape(request: Any) -> None:
         )
     )
     local_selected = request.bundle_path is not None or request.export_manifest_path is not None
-    selected_mode_count = sum((run_id_selected, object_ref_selected, local_selected))
+    explicit_object_ref_selected = object_ref_selected and not capture_release_selected
+    selected_mode_count = sum(
+        (run_id_selected, capture_release_selected, explicit_object_ref_selected, local_selected)
+    )
     if selected_mode_count != 1:
         raise ValueError(
             "authenticated notice import requires exactly one input mode: "
-            "run_id, object refs, or local fixture import"
+            "capture release object refs or local fixture import"
         )
     if run_id_selected:
+        raise ValueError(
+            "authenticated notice import no longer accepts run_id as active input; "
+            "use capture release object refs or explicit local fixture import"
+        )
+    if capture_release_selected:
+        if request.source_bucket is None:
+            raise ValueError("source_bucket is required for capture release import")
+        if request.capture_release_object_key is None:
+            raise ValueError("capture_release_object_key is required for capture release import")
+        if request.bundle_object_key is not None or request.manifest_object_key is not None:
+            raise ValueError(
+                "capture release import must not mix bundle_object_key or manifest_object_key"
+            )
         return
-    if object_ref_selected:
+    if explicit_object_ref_selected:
         explicit_authenticated_notice_import_object_refs(
             source_bucket=request.source_bucket,
             bundle_object_key=request.bundle_object_key,

@@ -5,12 +5,22 @@ owner_boundary: docs/decisions
 decision_id: ADR-0024
 status: accepted
 created: 2026-04-03
-updated: 2026-04-03
+updated: 2026-06-28
 ---
 # ADR-0024 Authenticated Notice Source Channel
 
 适用范围：登录态、机构内部通知采集器的 source-channel 建模、bootstrap 接入、runtime ownership 与
 restricted rollout 边界
+
+## 当前状态说明
+
+本文保留 source-channel 建模与 collector ownership 的历史 rationale。当前 merged
+truth 已经从 bootstrap import seam 收口为 `apps/ingestion-control` 读取 source bucket
+中的 `authenticated_notice_capture_release.v1` object-store handoff；`run_id` /
+run ledger 只作 audit、idempotency、operator projection 与 correlation metadata。
+
+因此，下文关于 bootstrap importer、`apps/ingestion-worker` 或 collector export JSON 的第一阶段
+接入描述，不得被解释为当前 executor input contract 或当前 data-plane owner。
 
 ## 背景
 

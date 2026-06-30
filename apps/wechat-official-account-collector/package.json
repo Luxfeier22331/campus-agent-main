@@ -5,13 +5,13 @@
 	"description": "Collector runtime shell for public WeChat official-account source capture.",
 	"type": "module",
 	"scripts": {
-		"capture": "node --experimental-strip-types src/capture-cli.ts",
 		"test": "vitest run",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@aws-sdk/client-s3": "^3.913.0",
 		"cheerio": "1.0.0-rc.12",
+		"crawlee": "^3.17.0",
 		"wechat-official-account-core": "workspace:*"
 	},
 	"devDependencies": {

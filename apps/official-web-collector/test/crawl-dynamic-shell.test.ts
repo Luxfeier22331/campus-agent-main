@@ -123,6 +123,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 						from: vi.fn(() => ({
 							getSitemaps: () => [],
 							isAllowed: () => true,
+							parseUrlsFromSitemaps: async () => [],
 						})),
 					},
 					Sitemap: {

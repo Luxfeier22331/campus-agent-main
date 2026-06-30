@@ -5,11 +5,11 @@
 	"collection": "curriculum_plan",
 	"tasks": [
 		{
-			"task_kind": "canonical_document_materialize",
+			"task_kind": "chunk_prepare",
 			"executor_kind": "python_adapter",
-			"adapter_id": "curriculum.canonical_document_materialize.v1",
-			"input_contract": "curriculum_source_truth.v1",
-			"output_contract": "canonical_document_artifacts.v1",
+			"adapter_id": "curriculum.chunk_prepare.v1",
+			"input_contract": "canonical_document_units.v1",
+			"output_contract": "ingestion_chunk_set.v1",
 			"can_publish_alias": false
 		}
 	]

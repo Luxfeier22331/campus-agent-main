@@ -93,6 +93,78 @@ def load_authenticated_notice_import_payload_from_object_refs(
     )
 
 
+def authenticated_notice_import_object_refs_from_capture_release(
+    *,
+    source_bucket: str | None,
+    capture_release_object_key: str | None,
+    capture_release_content_sha256: str | None = None,
+    capture_release_byte_size: int | None = None,
+    env: dict[str, str],
+    object_store: object | None,
+) -> AuthenticatedNoticeImportObjectRefs:
+    bucket = _required_text(source_bucket, "source_bucket")
+    release_key = _required_text(
+        capture_release_object_key,
+        "capture_release_object_key",
+    )
+    reader = _object_store_reader(env=env, object_store=object_store)
+    release_bytes = get_verified_authenticated_notice_object_bytes(
+        reader=reader,
+        bucket=bucket,
+        key=release_key,
+        expected_sha256=_optional_sha256(
+            capture_release_content_sha256,
+            "capture_release_content_sha256",
+        ),
+        expected_byte_size=_optional_non_negative_int(
+            capture_release_byte_size,
+            "capture_release_byte_size",
+        ),
+        label="authenticated notice capture release",
+        missing_reason_code="missing_capture_release_object",
+    )
+    release = load_json_object_payload_from_bytes(
+        release_bytes,
+        label="authenticated notice capture release",
+    )
+    if release.get("schema_version") != "authenticated_notice_capture_release.v1":
+        raise ValueError(
+            "capture release schema_version must be authenticated_notice_capture_release.v1"
+        )
+    if release.get("source_channel") != "authenticated_notice_portal":
+        raise ValueError("capture release source_channel must be authenticated_notice_portal")
+    if release.get("source_surface") != "notice":
+        raise ValueError("capture release source_surface must be notice")
+    bundle_ref = _required_ref_record(release.get("bundle_ref"), "bundle_ref")
+    manifest_ref = _required_ref_record(release.get("export_manifest_ref"), "export_manifest_ref")
+    bundle_bucket = _required_text(bundle_ref.get("bucket"), "bundle_ref.bucket")
+    manifest_bucket = _required_text(manifest_ref.get("bucket"), "export_manifest_ref.bucket")
+    if bundle_bucket != bucket or manifest_bucket != bucket:
+        raise ValueError("capture release object refs must use the source_bucket")
+    return explicit_authenticated_notice_import_object_refs(
+        source_bucket=bucket,
+        bundle_object_key=_required_text(bundle_ref.get("key"), "bundle_ref.key"),
+        manifest_object_key=_required_text(manifest_ref.get("key"), "export_manifest_ref.key"),
+        bundle_content_sha256=_optional_sha256(
+            bundle_ref.get("content_sha256"),
+            "bundle_ref.content_sha256",
+        ),
+        bundle_byte_size=_optional_non_negative_int(
+            bundle_ref.get("byte_size"),
+            "bundle_ref.byte_size",
+        ),
+        manifest_content_sha256=_optional_sha256(
+            manifest_ref.get("content_sha256"),
+            "export_manifest_ref.content_sha256",
+        ),
+        manifest_byte_size=_optional_non_negative_int(
+            manifest_ref.get("byte_size"),
+            "export_manifest_ref.byte_size",
+        ),
+        run_id=_optional_text(release.get("capture_id")),
+    )
+
+
 def load_json_array_payload_from_bytes(
     payload_bytes: bytes,
     *,
@@ -243,9 +315,16 @@ def _optional_non_negative_int(value: object, label: str) -> int | None:
     return parsed
 
 
+def _required_ref_record(value: object, label: str) -> dict[str, object]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} is required for capture release import")
+    return value
+
+
 __all__ = [
     "AuthenticatedNoticeImportObjectRefs",
     "LoadedAuthenticatedNoticeImportPayload",
+    "authenticated_notice_import_object_refs_from_capture_release",
     "explicit_authenticated_notice_import_object_refs",
     "get_verified_authenticated_notice_object_bytes",
     "load_authenticated_notice_import_payload_from_object_refs",

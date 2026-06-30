@@ -29,17 +29,31 @@ class IngestionContractsSuite(unittest.TestCase):
         self.assertFalse(result.ok)
         self.assertIn("idempotency_key is required", result.errors)
 
-    def test_prevents_rust_kernels_from_owning_alias_publish(self) -> None:
+    def test_accepts_active_registry_task_kinds_only(self) -> None:
         self.assertTrue(
             validate_ingestion_task_registry(load_fixture("task-registry.valid.json")).ok
         )
 
         result = validate_ingestion_task_registry(
-            load_fixture("task-registry.invalid-alias-kernel.json")
+            {
+                "schema_version": "ingestion_task_registry.v1",
+                "source_family": "curriculum",
+                "corpus": "curriculum",
+                "collection": "curriculum_plan",
+                "tasks": [
+                    {
+                        "task_kind": "alias_publish",
+                        "executor_kind": "ts_control",
+                        "input_contract": "ingestion_release_manifest.v1",
+                        "output_contract": "ingestion_alias_publish_closeout.v1",
+                        "can_publish_alias": True,
+                    }
+                ],
+            }
         )
 
         self.assertFalse(result.ok)
-        self.assertIn("tasks[0] alias_publish cannot be executed by rust_kernel", result.errors)
+        self.assertIn("tasks[0].task_kind is not supported: alias_publish", result.errors)
 
 
 if __name__ == "__main__":

@@ -120,6 +120,9 @@ importers:
       '@aws-sdk/client-s3':
         specifier: ^3.913.0
         version: 3.1022.0
+      crawlee:
+        specifier: ^3.17.0
+        version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
       dotenv:
         specifier: ^16.6.1
         version: 16.6.1
@@ -127,8 +130,8 @@ importers:
         specifier: ^8.20.0
         version: 8.20.0
       playwright:
-        specifier: ^1.59.1
-        version: 1.59.1
+        specifier: ^1.61.1
+        version: 1.61.1
     devDependencies:
       '@types/node':
         specifier: ^24.12.0
@@ -371,9 +374,18 @@ importers:
 
   apps/ingestion-control:
     dependencies:
+      '@aws-sdk/client-s3':
+        specifier: ^3.956.0
+        version: 3.1022.0
+      cheerio:
+        specifier: 1.0.0-rc.12
+        version: 1.0.0-rc.12
       ingestion-contracts:
         specifier: file:../../packages/ingestion-contracts
         version: link:../../packages/ingestion-contracts
+      official-web-core:
+        specifier: file:../../packages/official-web-core
+        version: link:../../packages/official-web-core
       pg:
         specifier: ^8.16.3
         version: 8.20.0
@@ -397,14 +409,14 @@ importers:
         specifier: ^3.913.0
         version: 3.1022.0
       crawlee:
-        specifier: ^3.16.0
-        version: 3.16.0(@types/node@24.12.0)(playwright@1.58.2)
+        specifier: ^3.17.0
+        version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
       official-web-core:
         specifier: file:../../packages/official-web-core
         version: link:../../packages/official-web-core
       playwright:
-        specifier: ^1.52.0
-        version: 1.58.2
+        specifier: ^1.61.1
+        version: 1.61.1
     devDependencies:
       '@types/node':
         specifier: ^24.12.0
@@ -527,6 +539,9 @@ importers:
       cheerio:
         specifier: 1.0.0-rc.12
         version: 1.0.0-rc.12
+      crawlee:
+        specifier: ^3.17.0
+        version: 3.17.0(@types/node@24.12.0)(playwright@1.61.1)
       wechat-official-account-core:
         specifier: workspace:*
         version: link:../../packages/wechat-official-account-core
@@ -1261,24 +1276,12 @@ packages:
   '@cloudflare/workers-types@4.20260317.1':
     resolution: {integrity: sha512-+G4eVwyCpm8Au1ex8vQBCuA9wnwqetz4tPNRoB/53qvktERWBRMQnrtvC1k584yRE3emMThtuY0gWshvSJ++PQ==}
 
-  '@crawlee/basic@3.16.0':
-    resolution: {integrity: sha512-dcqeDkYk6NoXHSBEkALD4orb7k6yTDkwZp8RtcvlmMmVZKVQTVVHh78NFInzxRkjFVmStFWE2LRHBZpe518E0Q==}
+  '@crawlee/basic@3.17.0':
+    resolution: {integrity: sha512-0DVwt4BLBgiR8X5I2lopvUqxJjaHxCpnFawIKcHts0PxFp+ApTZ02LN+31wgnRSOa45JnjfMJLTvHLsWj4XhyQ==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/browser-pool@3.16.0':
-    resolution: {integrity: sha512-o9RK/TcDwxXF2wa5Ij6oG8JeS/aBTp/Xi4Rj8waQ/NKVfhF4DcOAlqiL/ed1YUgFUZx+P/VL/AIQKWbKAWnQlw==}
-    engines: {node: '>=16.0.0'}
-    peerDependencies:
-      playwright: '*'
-      puppeteer: '*'
-    peerDependenciesMeta:
-      playwright:
-        optional: true
-      puppeteer:
-        optional: true
-
-  '@crawlee/browser@3.16.0':
-    resolution: {integrity: sha512-7AJeJ5328qsgFhyITNt0V4YVtA5+t/yRtkiHIN5af4Ht/WlYaVTkY4Qs5a8c6x1NU9+bt14umEFcCAu2hGJMzw==}
+  '@crawlee/browser-pool@3.17.0':
+    resolution: {integrity: sha512-LG5TFkv+PdLSw0TcosqJ9KEKOvBWha+7JP4Tu+Hk1M/QBdRdF2AVlCDIOUV3rO0F0UYOBhLQDWfAZjBW9Bc21w==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       playwright: '*'
@@ -1289,37 +1292,49 @@ packages:
       puppeteer:
         optional: true
 
-  '@crawlee/cheerio@3.16.0':
-    resolution: {integrity: sha512-eyiWyHBuYZ0Ay5Q8wRD05RAAfgINxngUtlmUrV8r98Jpx9ibvm4UOS5yiqrZfGN2aoA31vasomCpgIcigacf8Q==}
+  '@crawlee/browser@3.17.0':
+    resolution: {integrity: sha512-FtmPvxD6TpVN3vOzW8+QMpqNXnTjjUD4eysFR2OmJYmLnhBf4kv8yhAzjIFHxFbWG3sP6G27ntIGUihcRRDPHw==}
+    engines: {node: '>=16.0.0'}
+    peerDependencies:
+      playwright: '*'
+      puppeteer: '*'
+    peerDependenciesMeta:
+      playwright:
+        optional: true
+      puppeteer:
+        optional: true
+
+  '@crawlee/cheerio@3.17.0':
+    resolution: {integrity: sha512-7GdOv44B5MrDBGQoab2KaRlnoODvzQ656RkG6PDqK/X97t9fRVS3qS9uc+76jtctMFW5jPAsGsREfDcP8hXumw==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/cli@3.16.0':
-    resolution: {integrity: sha512-oZW2TEpcCYZmRvTtdeC57B7kgenvDbKf4GclDRZ/IH0aUnK7Zy0voTIEoqemyQdvbVN0NK43ylmZMz6KVdVygw==}
+  '@crawlee/cli@3.17.0':
+    resolution: {integrity: sha512-uOFYpFxLy0SyonNEPqVPU6FzJSl2s0FqoW+/3NsjliI/GpGpz61pfQbhBiM3E+oxXAo1S5Oamil2tmifXc7UiA==}
     engines: {node: '>=16.0.0'}
     hasBin: true
 
-  '@crawlee/core@3.16.0':
-    resolution: {integrity: sha512-Yn32E5IdmENLITg36XN1ty4OLPMcqzDjkEvSdZ0dRV5jcJR89sKi47FOs2eXpW+n7IGhbzPDkGKUirPPRrRkjg==}
+  '@crawlee/core@3.17.0':
+    resolution: {integrity: sha512-LPsD5+zzLF+0QFGCcZcUKMULJAkjnL7YVWhCp58zYupbmLjVHW9YJoECEF9awf5lbvPwoxoChxzEIl/lRNU0TQ==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/http@3.16.0':
-    resolution: {integrity: sha512-adp8fuQyW32kVKKJNPOA/HEF893ddPqldlIOcO+CdCa4EkeKTPOx74VGLVZyO4f0Zxs0QwvDL1W5O7ckD82MFQ==}
+  '@crawlee/http@3.17.0':
+    resolution: {integrity: sha512-DJARnv7pHUxkzKkQyM05UVaYa10IoVifWmPNp9X/WS4acCEEQ3aMq0cZeYEGH0XR0nVu7wZut5nBfRVfprVbYA==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/jsdom@3.16.0':
-    resolution: {integrity: sha512-dL+uOQrA7BGJN6PnqXe1Kcp76KyoLm5DSNkytZzeJm6ZphC/aOZUrC2a6SKU4XUnxVipnM6Nase/F+a1aNez1g==}
+  '@crawlee/jsdom@3.17.0':
+    resolution: {integrity: sha512-aRvJ/JScHZ/53tt+3BhHPZQkTdBvaNg8fPkQIPP7C9jkkxUedFD1o1hW/8a3Y6k1b+f9qaNYy1AYFVubAS7p+w==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/linkedom@3.16.0':
-    resolution: {integrity: sha512-AkpqiAqddk35gl2lNqDySuN5Raam1y3bQs49Y2NALc/TEnodXnnRO0rEEOh1P/wHNh4cm1jgY9rxmt/SHf3SLg==}
+  '@crawlee/linkedom@3.17.0':
+    resolution: {integrity: sha512-1GYbWDTGU42I4IsfSToBXkBank2cWXJ8NG+G3xySIFlX4/l5ogWzsRYkNvSJb+vJDJ72cfuhSsWalWSrpHIvLg==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/memory-storage@3.16.0':
-    resolution: {integrity: sha512-ol1PSWj5LL1ALjEZ+zJdLaZx4bGPIP6vXly4AmbtyFg2iq+m1BudtXL+dWFdv/qN8f+N8ljPF5VwKAVxg2uy3Q==}
+  '@crawlee/memory-storage@3.17.0':
+    resolution: {integrity: sha512-3dT2eY9oqfl7LTO+aqQYCKmLGRDK8j9J64h/eVQwXVSqRyGBhTraZxE4ABKF0kQrMJd1/N7u9dRcAacESIEqBg==}
     engines: {node: '>= 16'}
 
-  '@crawlee/playwright@3.16.0':
-    resolution: {integrity: sha512-Oa7emJBmcqOcw/3iMc6KjfZUFAV2jmbvEv9jZQcMWPuVlmDVxV5Q67q0PF4/YDMesx0RBHLK0LRBcqO5jgtjFg==}
+  '@crawlee/playwright@3.17.0':
+    resolution: {integrity: sha512-uN+rmUDhanQJ/iP2bmy8BzPqO0reISMMv0P5WojM0YtSh3R0aVIKV/5qe+CkbqauZwQc9NOSzR50S20qsM+nuw==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       idcac-playwright: ^0.2.0
@@ -1330,8 +1345,8 @@ packages:
       playwright:
         optional: true
 
-  '@crawlee/puppeteer@3.16.0':
-    resolution: {integrity: sha512-7qrh684m9bx1y7d+SRILlKelLk8FMML5lekMgiMzEQ7rjzrgXwWo3A9mkL9zQeC931pAMnWMZuGESloOYM2SxA==}
+  '@crawlee/puppeteer@3.17.0':
+    resolution: {integrity: sha512-FC+rzmyWICv2oF5d1NgLsu2m28+zLpz/AGcvV1pO9a6i1wFHDlDUOzcumM4niHWH+TeWhp12nwxDHtTHWjDrmA==}
     engines: {node: '>=16.0.0'}
     peerDependencies:
       idcac-playwright: ^0.2.0
@@ -1342,16 +1357,16 @@ packages:
       puppeteer:
         optional: true
 
-  '@crawlee/templates@3.16.0':
-    resolution: {integrity: sha512-zDfRWDrqe75WEPtoUXGKA/iGmG+EHlepd0jc64AO1mUpZkOUVCNgSMxvMjxQV6zUMChsbPPvhOV6bHnY8/bEHA==}
+  '@crawlee/templates@3.17.0':
+    resolution: {integrity: sha512-QHeTwaIyebFjWF06QiUcMBK4i3siU4SHlv50uch+8t9lnGzNUY2+PDaIbWRLVh8VlYcuMKYb3XLJNezNvzcYhg==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/types@3.16.0':
-    resolution: {integrity: sha512-CcIM+JDVx4gzQzMPl+9RJiEeqdzTrx2RLPA7y4IMJSyfZm3J/VrEunielKA3NQrk095j9OuvS/rQL2y8mBV1qw==}
+  '@crawlee/types@3.17.0':
+    resolution: {integrity: sha512-y67RHnM+b8eoaTRoouB0jbqpwpUE+4ZTxeEgvnLx+ABkdtkLNYlXQOx3FybEWzFVp6MnmBtmsez2tQjRCmIopQ==}
     engines: {node: '>=16.0.0'}
 
-  '@crawlee/utils@3.16.0':
-    resolution: {integrity: sha512-rfVx/3hsFZjiD4AwT8IoQsuNLiawrsdhc893Nha22mWQMxJ0Z/KUzh8FyJDnNOHuxWGIJP96I7nBikxYeSdw5A==}
+  '@crawlee/utils@3.17.0':
+    resolution: {integrity: sha512-pKpBzI6knmkgbcHACpIGNDhsQvuFPavVJ+43ehEw3EqV13ThKR0sP/vBTjdDicTrAbRl3fhi6CaokOTymOZwGw==}
     engines: {node: '>=16.0.0'}
 
   '@cspotcode/source-map-support@0.8.1':
@@ -4426,8 +4441,8 @@ packages:
       '@types/react-dom':
         optional: true
 
-  '@tokenizer/inflate@0.2.7':
-    resolution: {integrity: sha512-MADQgmZT1eKjp06jpI2yozxaU9uVs4GzzgSL+uEq7bVcJ9V1ZXQkeGNql1fsSI0gMy1vhvNTNbUqrx+pZfJVmg==}
+  '@tokenizer/inflate@0.4.1':
+    resolution: {integrity: sha512-2mAv+8pkG6GIZiF1kNg1jAjh27IDxEPKwdGul3snfztFerfPGI1LjDezZp3i7BElXompqEtPmoPx6c2wgtWsOA==}
     engines: {node: '>=18'}
 
   '@tokenizer/token@0.3.0':
@@ -5037,8 +5052,8 @@ packages:
     resolution: {integrity: sha512-tJtZBBHA6vjIAaF6EnIaq6laBBP9aq/Y3ouVJjEfoHbRBcHBAHYcMh/w8LDrk2PvIMMq8gmopa5D4V8RmbrxGw==}
     engines: {node: '>= 0.10'}
 
-  crawlee@3.16.0:
-    resolution: {integrity: sha512-j7wBS81zU+z7MNIKUqJuYRDbKJHwn5sWkki08glAXj6+Ka7HgU6IONHmrv9qtUmb/0p0m5tcMNqItMfnvh6bHA==}
+  crawlee@3.17.0:
+    resolution: {integrity: sha512-PRekRgz6WSgcxx8wcT1NAwV4fRfBXuPxDD0MZNCbcHNKORL7m7m6yvi1UNPblbIFkWP3NyngW4J96gKlkb97Wg==}
     engines: {node: '>=16.0.0'}
     hasBin: true
     peerDependencies:
@@ -5478,9 +5493,6 @@ packages:
       picomatch:
         optional: true
 
-  fflate@0.8.2:
-    resolution: {integrity: sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A==}
-
   figlet@1.11.0:
     resolution: {integrity: sha512-EEx3OS/l2bFqcUNN2NM9FPJp8vAMrgbCxsbl2hbcJNNxOEwVe3mEzrhan7TbJQViZa8mMqhihlbCaqD+LyYKTQ==}
     engines: {node: '>= 17.0.0'}
@@ -5490,9 +5502,9 @@ packages:
     resolution: {integrity: sha512-yaduQFRKLXYOGgEn6AZau90j3ggSOyiqXU0F9JZfeXYhNa+Jk4X+s45A2zg5jns87GAFa34BBm2kXw4XpNcbdg==}
     engines: {node: '>=8'}
 
-  file-type@20.5.0:
-    resolution: {integrity: sha512-BfHZtG/l9iMm4Ecianu7P8HRD2tBHLtjXinm4X62XBOYzi7CYA7jyqfJzOvXHqzVrVPYqBo2/GvbARMaaJkKVg==}
-    engines: {node: '>=18'}
+  file-type@21.3.4:
+    resolution: {integrity: sha512-Ievi/yy8DS3ygGvT47PjSfdFoX+2isQueoYP1cntFW1JLYAuS4GD7NUPGg4zv2iZfV52uDyk5w5Z0TdpRS6Q1g==}
+    engines: {node: '>=20'}
 
   fill-range@7.1.1:
     resolution: {integrity: sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==}
@@ -5785,10 +5797,6 @@ packages:
 
   intl-messageformat@10.7.18:
     resolution: {integrity: sha512-m3Ofv/X/tV8Y3tHXLohcuVuhWKo7BBq62cqY15etqmLxg2DZ34AGGgQDeR+SCta2+zICb1NX83af0GJmbQ1++g==}
-
-  ip-address@10.1.0:
-    resolution: {integrity: sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q==}
-    engines: {node: '>= 12'}
 
   ip-address@10.2.0:
     resolution: {integrity: sha512-/+S6j4E9AHvW9SWMSEY9Xfy66O5PWvVEJ08O0y5JGyEKQpojb0K0GKpz/v5HJ/G0vi3D2sjGK78119oXZeE0qA==}
@@ -6648,23 +6656,23 @@ packages:
     resolution: {integrity: sha512-HRDzbaKjC+AOWVXxAU/x54COGeIv9eb+6CkDSQoNTt4XyWoIJvuPsXizxu/Fr23EiekbtZwmh1IcIG/l/a10GQ==}
     engines: {node: '>=8'}
 
-  playwright-core@1.58.2:
-    resolution: {integrity: sha512-yZkEtftgwS8CsfYo7nm0KE8jsvm6i/PTgVtB8DL726wNf6H2IMsDuxCpJj59KDaxCtSnrWan2AeDqM7JBaultg==}
-    engines: {node: '>=18'}
-    hasBin: true
-
   playwright-core@1.59.1:
     resolution: {integrity: sha512-HBV/RJg81z5BiiZ9yPzIiClYV/QMsDCKUyogwH9p3MCP6IYjUFu/MActgYAvK0oWyV9NlwM3GLBjADyWgydVyg==}
     engines: {node: '>=18'}
     hasBin: true
 
-  playwright@1.58.2:
-    resolution: {integrity: sha512-vA30H8Nvkq/cPBnNw4Q8TWz1EJyqgpuinBcHET0YVJVFldr8JDNiU9LaWAE1KqSkRYazuaBhTpB5ZzShOezQ6A==}
+  playwright-core@1.61.1:
+    resolution: {integrity: sha512-h7Qlt6m4REp25qvIdvbDtVmD4LqVXfpRxhORv9L0jzETM05p4fuPJ3dKyuSXQxDSbXnmS79HAgi9589lGSpLkg==}
     engines: {node: '>=18'}
     hasBin: true
 
   playwright@1.59.1:
     resolution: {integrity: sha512-C8oWjPR3F81yljW9o5OxcWzfh6avkVwDD2VYdwIGqTkl+OGFISgypqzfu7dOe4QNLL2aqcWBmI3PMtLIK233lw==}
+    engines: {node: '>=18'}
+    hasBin: true
+
+  playwright@1.61.1:
+    resolution: {integrity: sha512-DWnY5o3YbLWK4GovuAVwpqL+1VwGNdUGrRr++8j8PtQQzvAVZUIMjKQ90fY689sEJZJBbZVw1rXaOKSTitkzPQ==}
     engines: {node: '>=18'}
     hasBin: true
 
@@ -8946,14 +8954,14 @@ snapshots:
 
   '@cloudflare/workers-types@4.20260317.1': {}
 
-  '@crawlee/basic@3.16.0':
+  '@crawlee/basic@3.17.0':
     dependencies:
       '@apify/log': 2.5.33
       '@apify/timeout': 0.3.2
       '@apify/utilities': 2.25.5
-      '@crawlee/core': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/core': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       csv-stringify: 6.7.0
       fs-extra: 11.3.4
       got-scraping: 4.2.1
@@ -8964,14 +8972,14 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/browser-pool@3.16.0(playwright@1.58.2)':
+  '@crawlee/browser-pool@3.17.0(playwright@1.61.1)':
     dependencies:
       '@apify/log': 2.5.33
       '@apify/timeout': 0.3.2
-      '@crawlee/core': 3.16.0
-      '@crawlee/types': 3.16.0
+      '@crawlee/core': 3.17.0
+      '@crawlee/types': 3.17.0
       fingerprint-generator: 2.1.81
-      fingerprint-injector: 2.1.81(playwright@1.58.2)
+      fingerprint-injector: 2.1.81(playwright@1.61.1)
       lodash.merge: 4.6.2
       nanoid: 3.3.11
       ow: 0.28.2
@@ -8981,39 +8989,39 @@ snapshots:
       tiny-typed-emitter: 2.1.0
       tslib: 2.8.1
     optionalDependencies:
-      playwright: 1.58.2
+      playwright: 1.61.1
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/browser@3.16.0(playwright@1.58.2)':
+  '@crawlee/browser@3.17.0(playwright@1.61.1)':
     dependencies:
       '@apify/timeout': 0.3.2
-      '@crawlee/basic': 3.16.0
-      '@crawlee/browser-pool': 3.16.0(playwright@1.58.2)
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/basic': 3.17.0
+      '@crawlee/browser-pool': 3.17.0(playwright@1.61.1)
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       ow: 0.28.2
       tslib: 2.8.1
       type-fest: 4.41.0
     optionalDependencies:
-      playwright: 1.58.2
+      playwright: 1.61.1
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/cheerio@3.16.0':
+  '@crawlee/cheerio@3.17.0':
     dependencies:
-      '@crawlee/http': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/http': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       cheerio: 1.0.0-rc.12
       htmlparser2: 9.1.0
       tslib: 2.8.1
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/cli@3.16.0(@types/node@24.12.0)':
+  '@crawlee/cli@3.17.0(@types/node@24.12.0)':
     dependencies:
-      '@crawlee/templates': 3.16.0(@types/node@24.12.0)
+      '@crawlee/templates': 3.17.0(@types/node@24.12.0)
       ansi-colors: 4.1.3
       fs-extra: 11.3.4
       inquirer: 8.2.7(@types/node@24.12.0)
@@ -9023,7 +9031,7 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@crawlee/core@3.16.0':
+  '@crawlee/core@3.17.0':
     dependencies:
       '@apify/consts': 2.51.1
       '@apify/datastructures': 2.0.3
@@ -9031,9 +9039,9 @@ snapshots:
       '@apify/pseudo_url': 2.0.74
       '@apify/timeout': 0.3.2
       '@apify/utilities': 2.25.5
-      '@crawlee/memory-storage': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/memory-storage': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       '@sapphire/async-queue': 1.5.5
       '@vladfrangu/async_event_emitter': 2.4.7
       csv-stringify: 6.7.0
@@ -9050,13 +9058,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/http@3.16.0':
+  '@crawlee/http@3.17.0':
     dependencies:
       '@apify/timeout': 0.3.2
       '@apify/utilities': 2.25.5
-      '@crawlee/basic': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/basic': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       '@types/content-type': 1.1.9
       cheerio: 1.0.0-rc.12
       content-type: 1.0.5
@@ -9069,13 +9077,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@crawlee/jsdom@3.16.0':
+  '@crawlee/jsdom@3.17.0':
     dependencies:
       '@apify/timeout': 0.3.2
       '@apify/utilities': 2.25.5
-      '@crawlee/http': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/http': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       '@types/jsdom': 21.1.7
       cheerio: 1.0.0-rc.12
       jsdom: 26.1.0
@@ -9087,12 +9095,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@crawlee/linkedom@3.16.0':
+  '@crawlee/linkedom@3.17.0':
     dependencies:
       '@apify/timeout': 0.3.2
       '@apify/utilities': 2.25.5
-      '@crawlee/http': 3.16.0
-      '@crawlee/types': 3.16.0
+      '@crawlee/http': 3.17.0
+      '@crawlee/types': 3.17.0
       linkedom: 0.18.12
       ow: 0.28.2
       tslib: 2.8.1
@@ -9100,29 +9108,30 @@ snapshots:
       - canvas
       - supports-color
 
-  '@crawlee/memory-storage@3.16.0':
+  '@crawlee/memory-storage@3.17.0':
     dependencies:
       '@apify/log': 2.5.33
-      '@crawlee/types': 3.16.0
+      '@crawlee/types': 3.17.0
       '@sapphire/async-queue': 1.5.5
       '@sapphire/shapeshift': 3.9.7
       content-type: 1.0.5
       fs-extra: 11.3.4
       json5: 2.2.3
       mime-types: 2.1.35
+      p-limit: 3.1.0
       proper-lockfile: 4.1.2
       tslib: 2.8.1
 
-  '@crawlee/playwright@3.16.0(playwright@1.58.2)':
+  '@crawlee/playwright@3.17.0(playwright@1.61.1)':
     dependencies:
       '@apify/datastructures': 2.0.3
       '@apify/log': 2.5.33
       '@apify/timeout': 0.3.2
-      '@crawlee/browser': 3.16.0(playwright@1.58.2)
-      '@crawlee/browser-pool': 3.16.0(playwright@1.58.2)
-      '@crawlee/core': 3.16.0
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/browser': 3.17.0(playwright@1.61.1)
+      '@crawlee/browser-pool': 3.17.0(playwright@1.61.1)
+      '@crawlee/core': 3.17.0
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       cheerio: 1.0.0-rc.12
       jquery: 3.7.1
       lodash.isequal: 4.5.0
@@ -9132,19 +9141,19 @@ snapshots:
       string-comparison: 1.3.0
       tslib: 2.8.1
     optionalDependencies:
-      playwright: 1.58.2
+      playwright: 1.61.1
     transitivePeerDependencies:
       - puppeteer
       - supports-color
 
-  '@crawlee/puppeteer@3.16.0(playwright@1.58.2)':
+  '@crawlee/puppeteer@3.17.0(playwright@1.61.1)':
     dependencies:
       '@apify/datastructures': 2.0.3
       '@apify/log': 2.5.33
-      '@crawlee/browser': 3.16.0(playwright@1.58.2)
-      '@crawlee/browser-pool': 3.16.0(playwright@1.58.2)
-      '@crawlee/types': 3.16.0
-      '@crawlee/utils': 3.16.0
+      '@crawlee/browser': 3.17.0(playwright@1.61.1)
+      '@crawlee/browser-pool': 3.17.0(playwright@1.61.1)
+      '@crawlee/types': 3.17.0
+      '@crawlee/utils': 3.17.0
       cheerio: 1.0.0-rc.12
       devtools-protocol: 0.0.1604597
       jquery: 3.7.1
@@ -9154,7 +9163,7 @@ snapshots:
       - playwright
       - supports-color
 
-  '@crawlee/templates@3.16.0(@types/node@24.12.0)':
+  '@crawlee/templates@3.17.0(@types/node@24.12.0)':
     dependencies:
       ansi-colors: 4.1.3
       inquirer: 9.3.8(@types/node@24.12.0)
@@ -9164,18 +9173,18 @@ snapshots:
     transitivePeerDependencies:
       - '@types/node'
 
-  '@crawlee/types@3.16.0':
+  '@crawlee/types@3.17.0':
     dependencies:
       tslib: 2.8.1
 
-  '@crawlee/utils@3.16.0':
+  '@crawlee/utils@3.17.0':
     dependencies:
       '@apify/log': 2.5.33
       '@apify/ps-tree': 1.2.0
-      '@crawlee/types': 3.16.0
+      '@crawlee/types': 3.17.0
       '@types/sax': 1.2.7
       cheerio: 1.0.0-rc.12
-      file-type: 20.5.0
+      file-type: 21.3.4
       got-scraping: 4.2.1
       ow: 0.28.2
       robots-parser: 3.0.1
@@ -13021,10 +13030,9 @@ snapshots:
       '@types/react': 19.2.14
       '@types/react-dom': 19.2.3(@types/react@19.2.14)
 
-  '@tokenizer/inflate@0.2.7':
+  '@tokenizer/inflate@0.4.1':
     dependencies:
       debug: 4.4.3
-      fflate: 0.8.2
       token-types: 6.1.2
     transitivePeerDependencies:
       - supports-color
@@ -13667,24 +13675,24 @@ snapshots:
       vary: 1.1.2
     optional: true
 
-  crawlee@3.16.0(@types/node@24.12.0)(playwright@1.58.2):
+  crawlee@3.17.0(@types/node@24.12.0)(playwright@1.61.1):
     dependencies:
-      '@crawlee/basic': 3.16.0
-      '@crawlee/browser': 3.16.0(playwright@1.58.2)
-      '@crawlee/browser-pool': 3.16.0(playwright@1.58.2)
-      '@crawlee/cheerio': 3.16.0
-      '@crawlee/cli': 3.16.0(@types/node@24.12.0)
-      '@crawlee/core': 3.16.0
-      '@crawlee/http': 3.16.0
-      '@crawlee/jsdom': 3.16.0
-      '@crawlee/linkedom': 3.16.0
-      '@crawlee/playwright': 3.16.0(playwright@1.58.2)
-      '@crawlee/puppeteer': 3.16.0(playwright@1.58.2)
-      '@crawlee/utils': 3.16.0
+      '@crawlee/basic': 3.17.0
+      '@crawlee/browser': 3.17.0(playwright@1.61.1)
+      '@crawlee/browser-pool': 3.17.0(playwright@1.61.1)
+      '@crawlee/cheerio': 3.17.0
+      '@crawlee/cli': 3.17.0(@types/node@24.12.0)
+      '@crawlee/core': 3.17.0
+      '@crawlee/http': 3.17.0
+      '@crawlee/jsdom': 3.17.0
+      '@crawlee/linkedom': 3.17.0
+      '@crawlee/playwright': 3.17.0(playwright@1.61.1)
+      '@crawlee/puppeteer': 3.17.0(playwright@1.61.1)
+      '@crawlee/utils': 3.17.0
       import-local: 3.2.0
       tslib: 2.8.1
     optionalDependencies:
-      playwright: 1.58.2
+      playwright: 1.61.1
     transitivePeerDependencies:
       - '@types/node'
       - bufferutil
@@ -14167,8 +14175,6 @@ snapshots:
     optionalDependencies:
       picomatch: 4.0.4
 
-  fflate@0.8.2: {}
-
   figlet@1.11.0:
     dependencies:
       commander: 14.0.3
@@ -14177,9 +14183,9 @@ snapshots:
     dependencies:
       escape-string-regexp: 1.0.5
 
-  file-type@20.5.0:
+  file-type@21.3.4:
     dependencies:
-      '@tokenizer/inflate': 0.2.7
+      '@tokenizer/inflate': 0.4.1
       strtok3: 10.3.5
       token-types: 6.1.2
       uint8array-extras: 1.5.0
@@ -14213,12 +14219,12 @@ snapshots:
       header-generator: 2.1.81
       tslib: 2.8.1
 
-  fingerprint-injector@2.1.81(playwright@1.58.2):
+  fingerprint-injector@2.1.81(playwright@1.61.1):
     dependencies:
       fingerprint-generator: 2.1.81
       tslib: 2.8.1
     optionalDependencies:
-      playwright: 1.58.2
+      playwright: 1.61.1
 
   flexsearch@0.8.212: {}
 
@@ -14632,10 +14638,7 @@ snapshots:
       '@formatjs/icu-messageformat-parser': 2.11.4
       tslib: 2.8.1
 
-  ip-address@10.1.0: {}
-
-  ip-address@10.2.0:
-    optional: true
+  ip-address@10.2.0: {}
 
   ipaddr.js@1.9.1:
     optional: true
@@ -15768,19 +15771,19 @@ snapshots:
     dependencies:
       find-up: 4.1.0
 
-  playwright-core@1.58.2: {}
-
   playwright-core@1.59.1: {}
 
-  playwright@1.58.2:
-    dependencies:
-      playwright-core: 1.58.2
-    optionalDependencies:
-      fsevents: 2.3.2
+  playwright-core@1.61.1: {}
 
   playwright@1.59.1:
     dependencies:
       playwright-core: 1.59.1
+    optionalDependencies:
+      fsevents: 2.3.2
+
+  playwright@1.61.1:
+    dependencies:
+      playwright-core: 1.61.1
     optionalDependencies:
       fsevents: 2.3.2
 
@@ -16633,7 +16636,7 @@ snapshots:
 
   socks@2.8.7:
     dependencies:
-      ip-address: 10.1.0
+      ip-address: 10.2.0
       smart-buffer: 4.2.0
 
   sonner@1.7.4(react-dom@19.2.7(react@19.2.7))(react@19.2.7):

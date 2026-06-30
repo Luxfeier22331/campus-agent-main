@@ -51,7 +51,7 @@ export async function discoverDynamicShellPromotedUrls(
 		};
 	}
 
-	const captureResult = await captureDynamicShellNetwork({
+	const captureResult = await (input.captureNetwork ?? captureDynamicShellNetwork)({
 		policy,
 		url: input.page.pageManifest.finalUrl,
 	});

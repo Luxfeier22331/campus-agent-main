@@ -1,4 +1,8 @@
-import type { OfficialWebConfigBundle, OfficialWebHostPolicy } from "./official-web-core.ts";
+import type {
+	OfficialWebConfigBundle,
+	OfficialWebDynamicShellDiscoveryPolicy,
+	OfficialWebHostPolicy,
+} from "./official-web-core.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
 
 export type { OfficialWebDynamicShellDiscoveryPolicy } from "./official-web-core.ts";
@@ -12,6 +16,13 @@ export interface DynamicShellNetworkCapture {
 
 export interface OfficialWebDynamicShellDiscovererInput {
 	bundle: OfficialWebConfigBundle;
+	captureNetwork?: (input: {
+		policy: OfficialWebDynamicShellDiscoveryPolicy;
+		url: string;
+	}) => Promise<{
+		captures: DynamicShellNetworkCapture[];
+		wait: OfficialWebDynamicShellDiscoveryAudit["wait"];
+	}>;
 	hostPolicy: OfficialWebHostPolicy;
 	page: CollectedPageArtifact;
 }

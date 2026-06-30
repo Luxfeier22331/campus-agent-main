@@ -26,16 +26,10 @@
 				"properties": {
 					"task_kind": {
 						"enum": [
-							"raw_asset_ingest",
 							"source_truth_materialize",
-							"canonical_document_materialize",
 							"document_units_validate",
 							"chunk_prepare",
-							"embedding_index_build",
-							"release_manifest_validate",
-							"alias_publish",
-							"structured_projection_publish",
-							"operator_projection_snapshot"
+							"release_manifest_validate"
 						]
 					},
 					"executor_kind": { "enum": ["rust_kernel", "ts_control"] },
@@ -54,15 +48,6 @@
 						},
 						"then": {
 							"required": ["kernel_id"]
-						}
-					},
-					{
-						"not": {
-							"properties": {
-								"task_kind": { "const": "alias_publish" },
-								"executor_kind": { "const": "rust_kernel" }
-							},
-							"required": ["task_kind", "executor_kind"]
 						}
 					}
 				]

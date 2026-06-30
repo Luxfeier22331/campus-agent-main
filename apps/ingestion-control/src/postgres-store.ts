@@ -409,16 +409,10 @@ function requiredIso(value: unknown, field: string): string {
 
 function requiredTaskKind(value: unknown): IngestionTaskEnvelope["task_kind"] {
 	if (
-		value === "raw_asset_ingest" ||
 		value === "source_truth_materialize" ||
-		value === "canonical_document_materialize" ||
 		value === "document_units_validate" ||
 		value === "chunk_prepare" ||
-		value === "embedding_index_build" ||
-		value === "release_manifest_validate" ||
-		value === "alias_publish" ||
-		value === "structured_projection_publish" ||
-		value === "operator_projection_snapshot"
+		value === "release_manifest_validate"
 	) {
 		return value;
 	}

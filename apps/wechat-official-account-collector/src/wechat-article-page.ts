@@ -8,6 +8,11 @@ export const WECHAT_ARTICLE_PAGE_PARSER_VERSION = "wechat-page-parser.v1";
 const WECHAT_ARTICLE_USER_AGENT =
 	"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
 	"(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+export const WECHAT_ARTICLE_REQUEST_HEADERS = {
+	accept: "text/html,application/xhtml+xml",
+	"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
+	"user-agent": WECHAT_ARTICLE_USER_AGENT,
+};
 
 export interface ParsedWeChatOfficialAccountArticlePage {
 	bodyBlocks: string[];
@@ -30,11 +35,7 @@ export async function fetchWeChatOfficialAccountArticlePage(input: {
 	const fetchImplementation = input.fetchImplementation ?? fetch;
 	const now = input.now ?? (() => new Date());
 	const response = await fetchImplementation(input.articleUrl, {
-		headers: {
-			accept: "text/html,application/xhtml+xml",
-			"accept-language": "zh-CN,zh;q=0.9,en;q=0.8",
-			"user-agent": WECHAT_ARTICLE_USER_AGENT,
-		},
+		headers: WECHAT_ARTICLE_REQUEST_HEADERS,
 		redirect: "follow",
 	});
 	const fetchedAt = now().toISOString();

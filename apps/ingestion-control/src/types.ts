@@ -15,16 +15,10 @@ export interface IngestionTaskEnvelope {
 	corpus: string;
 	collection: string;
 	task_kind:
-		| "raw_asset_ingest"
 		| "source_truth_materialize"
-		| "canonical_document_materialize"
 		| "document_units_validate"
 		| "chunk_prepare"
-		| "embedding_index_build"
-		| "release_manifest_validate"
-		| "alias_publish"
-		| "structured_projection_publish"
-		| "operator_projection_snapshot";
+		| "release_manifest_validate";
 	input_ref: IngestionArtifactRef;
 	output_contract: string;
 	idempotency_key: string;

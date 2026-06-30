@@ -26,26 +26,21 @@ Current runtime truth:
 
 The old Python raw-ingestion CLI is no longer an active canonical entry path for
 `INGESTION_CORPUS=curriculum` and
-`INGESTION_COLLECTION=curriculum_plan`. Current ingestion must enter through
-`apps/ingestion-control` task admission and the collection task registry:
+`INGESTION_COLLECTION=curriculum_plan`. The active task registry only keeps
+executable Rust kernel steps over already-materialized canonical
+`document-units`:
 
-- `source_truth_materialize` for pre-split onboarding. This task materializes
-  the raw PDF under
-  `{source_channel}/{source_asset_slug}/{year}/{raw_version_id}/...` and stores
-  asset-level OCR truth under the same canonical source prefix, split by
-  `capture/`, `provider/`, and `source-truth/` stages without requiring a
-  split manifest. If a follow-up task materializes persisted source-side
-  projection outputs, they continue under the sibling
-  `projection/<projection_name>/...` stage in the same prefix. This path writes
-  `provider-response.jsonl` and `source-truth/layout-elements.jsonl`, but does
-  not create document-registry records or per-document artifacts. For
-  `curriculum_plan`, the provider lane is collection-owned by
+- `document_units_validate`
+- `chunk_prepare`
+
+Source-truth onboarding, document materialization, structured projection publish,
+and alias publish are not active registry tasks for `curriculum_plan`. If any of
+those lifecycle steps need to re-enter ingestion-control, add the real TS handler
+or Rust kernel bridge and the matching registry entry in the same change.
+
+- For `curriculum_plan`, the provider lane is collection-owned by
   `runtime-profile.json`; root `OCR_*` defaults do not redefine the canonical
   source OCR truth.
-- `document_materialize` for document-level ingestion. This requires the split
-  manifest to be filled with the real document list and page ranges before the
-  task is admitted and then writes document artifacts under
-  `curriculum/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/...`.
 - Historical `REBUILD_IMPORT_MODE=provider_response_replay` Python rebuild is
   retired. Rebuild work must enter through the ingestion-control task registry
   and continue from canonical source truth, canonical document artifacts, or

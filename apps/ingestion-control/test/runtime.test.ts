@@ -12,11 +12,13 @@ describe("ingestion-control runtime config", () => {
 		expect(
 			buildIngestionControlRuntimeConfig({
 				INGESTION_CONTROL_DATABASE_URL: "postgresql://postgres:postgres@localhost/campus_agent",
+				INGESTION_TASK_REGISTRY_ROOT: "configs/ingestion",
 				INGESTION_CONTROL_HOST: "127.0.0.1",
 				INGESTION_CONTROL_PORT: "27061",
 			}),
 		).toEqual({
 			databaseUrl: "postgresql://postgres:postgres@localhost/campus_agent",
+			registryRoot: "configs/ingestion",
 			host: "127.0.0.1",
 			port: 27061,
 		});

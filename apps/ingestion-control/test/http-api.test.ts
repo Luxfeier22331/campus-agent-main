@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	createIngestionControlHandler,
+	createIngestionTaskRegistryCatalog,
 	type IngestionTaskEnvelope,
 	InMemoryIngestionTaskStore,
 } from "../src/index.ts";
@@ -34,6 +35,24 @@ const task: IngestionTaskEnvelope = {
 describe("ingestion-control internal HTTP API", () => {
 	it("admits, claims, completes, and exposes queue state", async () => {
 		const handler = createIngestionControlHandler({
+			registryCatalog: createIngestionTaskRegistryCatalog([
+				{
+					schema_version: "ingestion_task_registry.v1",
+					source_family: "curriculum",
+					corpus: "curriculum",
+					collection: "curriculum_plan",
+					tasks: [
+						{
+							task_kind: "chunk_prepare",
+							executor_kind: "rust_kernel",
+							kernel_id: "chunk-document-units",
+							input_contract: "canonical_document_units.v1",
+							output_contract: "ingestion_chunk_set.v1",
+							can_publish_alias: false,
+						},
+					],
+				},
+			]),
 			store: new InMemoryIngestionTaskStore({
 				now: () => new Date("2026-06-11T00:00:00Z"),
 			}),
@@ -100,6 +119,71 @@ describe("ingestion-control internal HTTP API", () => {
 		expect(typeof completed.closeout).toBe("object");
 		expect(completed.closeout).not.toBeNull();
 		expect((completed.closeout as Record<string, unknown>).terminal_status).toBe("completed");
+	});
+
+	it("rejects task admission before storage when registry membership is missing", async () => {
+		const store = new InMemoryIngestionTaskStore({
+			now: () => new Date("2026-06-11T00:00:00Z"),
+		});
+		const handler = createIngestionControlHandler({
+			registryCatalog: createIngestionTaskRegistryCatalog([]),
+			store,
+		});
+
+		const response = await handler(
+			new Request("http://ingestion-control/internal/ingestion/tasks", {
+				method: "POST",
+				body: JSON.stringify(task),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await json(response)).toEqual({
+			error:
+				"task collection is not declared by ingestion registry: curriculum/curriculum/curriculum_plan",
+		});
+		expect(store.nextTask()).toBeNull();
+	});
+
+	it("rejects task admission before storage when output contract mismatches the registry", async () => {
+		const store = new InMemoryIngestionTaskStore({
+			now: () => new Date("2026-06-11T00:00:00Z"),
+		});
+		const handler = createIngestionControlHandler({
+			registryCatalog: createIngestionTaskRegistryCatalog([
+				{
+					schema_version: "ingestion_task_registry.v1",
+					source_family: "curriculum",
+					corpus: "curriculum",
+					collection: "curriculum_plan",
+					tasks: [
+						{
+							task_kind: "chunk_prepare",
+							executor_kind: "rust_kernel",
+							kernel_id: "chunk-document-units",
+							input_contract: "canonical_document_units.v1",
+							output_contract: "expected_chunk_set.v1",
+							can_publish_alias: false,
+						},
+					],
+				},
+			]),
+			store,
+		});
+
+		const response = await handler(
+			new Request("http://ingestion-control/internal/ingestion/tasks", {
+				method: "POST",
+				body: JSON.stringify(task),
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		expect(await json(response)).toEqual({
+			error:
+				"output contract mismatch for chunk_prepare: expected expected_chunk_set.v1, got ingestion_chunk_set.v1",
+		});
+		expect(store.nextTask()).toBeNull();
 	});
 });
 

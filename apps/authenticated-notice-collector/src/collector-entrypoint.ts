@@ -31,20 +31,13 @@ export function resolveCollectorMode(
 export function buildCollectorModeCommand(mode: CollectorEntrypointMode): string[] {
 	switch (mode) {
 		case "auth-check":
-			return ["pnpm", "--dir", "apps/authenticated-notice-collector", "auth:check"];
+			return ["node", "apps/authenticated-notice-collector/dist/auth-check.js"];
 		case "notice-export":
-			return ["pnpm", "--dir", "apps/authenticated-notice-collector", "bootstrap:export"];
+			return ["node", "apps/authenticated-notice-collector/dist/bootstrap-export.js"];
 		case "file-release-export":
-			return ["pnpm", "--dir", "apps/authenticated-notice-collector", "file-release:export"];
+			return ["node", "apps/authenticated-notice-collector/dist/file-release-export.js"];
 		case "visual-ref-audit":
-			return [
-				"pnpm",
-				"--dir",
-				"apps/authenticated-notice-collector",
-				"exec",
-				"tsx",
-				"src/visual-ref-audit.ts",
-			];
+			return ["node", "apps/authenticated-notice-collector/dist/visual-ref-audit.js"];
 		default: {
 			const exhaustiveCheck: never = mode;
 			throw new Error(`unsupported collector mode: ${exhaustiveCheck}`);

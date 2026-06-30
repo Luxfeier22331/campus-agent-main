@@ -25,9 +25,6 @@ from campus_ingestion_core.wechat_public_notice_multimodal_db import (
     PostgresWeChatPublicNoticeMultimodalAttemptStore,
     build_wechat_public_notice_multimodal_attempt_store_from_env,
 )
-from campus_ingestion_core.wechat_public_notice_multimodal_fetcher import (
-    HttpxWeChatPublicNoticeInlineImageFetcher,
-)
 from campus_ingestion_core.wechat_public_notice_multimodal_images import (
     fetched_image_object_key,
 )
@@ -35,8 +32,6 @@ from campus_ingestion_core.wechat_public_notice_multimodal_models import (
     WeChatPublicNoticeDocumentRegistry,
     WeChatPublicNoticeFetchedInlineImage,
     WeChatPublicNoticeInlineImageArtifactKeys,
-    WeChatPublicNoticeInlineImageFetcher,
-    WeChatPublicNoticeInlineImageFetchRequest,
     WeChatPublicNoticeInlineImageOutcome,
     WeChatPublicNoticeInlineImageRef,
     WeChatPublicNoticeMultimodalAttempt,
@@ -72,15 +67,12 @@ __all__ = [
     "WECHAT_PUBLIC_NOTICE_MULTIMODAL_OCR_MANIFEST_SCHEMA",
     "WECHAT_PUBLIC_NOTICE_MULTIMODAL_PARSER_VERSION",
     "ChatCompletionsWeChatPublicNoticeMultimodalProvider",
-    "HttpxWeChatPublicNoticeInlineImageFetcher",
     "InMemoryWeChatPublicNoticeMultimodalAttemptStore",
     "PostgresWeChatPublicNoticeMultimodalAttemptStore",
     "WeChatPublicNoticeDocumentRegistry",
     "WeChatPublicNoticeFetchedInlineImage",
     "WeChatPublicNoticeImageStatus",
     "WeChatPublicNoticeInlineImageArtifactKeys",
-    "WeChatPublicNoticeInlineImageFetchRequest",
-    "WeChatPublicNoticeInlineImageFetcher",
     "WeChatPublicNoticeInlineImageOutcome",
     "WeChatPublicNoticeInlineImageRef",
     "WeChatPublicNoticeMultimodalAttempt",

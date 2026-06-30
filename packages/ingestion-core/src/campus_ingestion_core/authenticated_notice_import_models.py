@@ -3,9 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-)
 from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
@@ -34,6 +31,9 @@ class AuthenticatedNoticeImportRequest:
     source_home_url: str = ""
     run_id: str | None = None
     source_bucket: str | None = None
+    capture_release_object_key: str | None = None
+    capture_release_content_sha256: str | None = None
+    capture_release_byte_size: int | None = None
     bundle_object_key: str | None = None
     manifest_object_key: str | None = None
     bundle_content_sha256: str | None = None
@@ -41,7 +41,6 @@ class AuthenticatedNoticeImportRequest:
     manifest_content_sha256: str | None = None
     manifest_byte_size: int | None = None
     allow_local_fixture_import: bool = False
-    collector_run_ledger_table: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE
     consumer_admission_manifest_path: Path | None = None
     attachment_blob_root: Path | None = None
     corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
@@ -77,11 +76,12 @@ class AuthenticatedNoticeImportRequest:
         for field_name in (
             "run_id",
             "source_bucket",
+            "capture_release_object_key",
+            "capture_release_content_sha256",
             "bundle_object_key",
             "manifest_object_key",
             "bundle_content_sha256",
             "manifest_content_sha256",
-            "collector_run_ledger_table",
         ):
             value = getattr(self, field_name)
             if isinstance(value, str):

@@ -47,13 +47,6 @@ class WeChatPublicNoticeMultimodalAttemptStore(Protocol):
     ) -> tuple[WeChatPublicNoticeMultimodalAttempt, ...]: ...
 
 
-class WeChatPublicNoticeInlineImageFetcher(Protocol):
-    def fetch(
-        self,
-        request: WeChatPublicNoticeInlineImageFetchRequest,
-    ) -> WeChatPublicNoticeFetchedInlineImage: ...
-
-
 class WeChatPublicNoticeMultimodalProvider(Protocol):
     def process(
         self,
@@ -104,15 +97,6 @@ class WeChatPublicNoticeInlineImageOutcome:
     child_canonical_markdown_key: str = ""
     child_document_units_key: str = ""
     error: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class WeChatPublicNoticeInlineImageFetchRequest:
-    source_notice_id: str
-    notice_title: str
-    article_source_url: str
-    media_ref_id: str
-    image_url: str
 
 
 @dataclass(frozen=True, slots=True)

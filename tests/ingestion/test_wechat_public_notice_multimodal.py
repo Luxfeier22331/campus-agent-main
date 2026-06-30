@@ -14,7 +14,6 @@ from campus_ingestion_core.notice_consumption_projection import (
 from campus_ingestion_core.wechat_public_notice_multimodal import (
     ChatCompletionsWeChatPublicNoticeMultimodalProvider,
     InMemoryWeChatPublicNoticeMultimodalAttemptStore,
-    WeChatPublicNoticeFetchedInlineImage,
     WeChatPublicNoticeMultimodalAttempt,
     WeChatPublicNoticeMultimodalProviderResult,
     build_wechat_public_notice_inline_image_artifact_keys,
@@ -42,18 +41,6 @@ class _FakeObjectStore:
         content_type: str,
     ) -> None:
         self.payloads[(bucket, key)] = data
-
-
-class _FakeFetcher:
-    def __init__(self, response: WeChatPublicNoticeFetchedInlineImage | Exception) -> None:
-        self.response = response
-        self.calls = []
-
-    def fetch(self, request):
-        self.calls.append(request)
-        if isinstance(self.response, Exception):
-            raise self.response
-        return self.response
 
 
 class _FakeProvider:
@@ -84,13 +71,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         )
         registry = InMemoryDocumentRegistry()
         attempt_store = InMemoryWeChatPublicNoticeMultimodalAttemptStore()
-        fetcher = _FakeFetcher(
-            WeChatPublicNoticeFetchedInlineImage(
-                content_type="image/png",
-                image_bytes=b"PNGDATA",
-                final_url="https://cdn.example.com/inline-1.png",
-            )
-        )
         provider = _FakeProvider(
             WeChatPublicNoticeMultimodalProviderResult(
                 provider="openai-chat-completions",
@@ -113,7 +93,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             registry=registry,
             source_bucket="source",
             derived_bucket="derived",
-            image_fetcher=fetcher,
             provider=provider,
             attempt_store=attempt_store,
             admission_batch_id="wechat-mm-001",
@@ -143,7 +122,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         self.assertEqual(len(registry_records), 1)
         self.assertTrue(registry_records[0].is_current)
         self.assertTrue(registry_records[0].canonical_markdown_object_key)
-        self.assertEqual(fetcher.calls, [])
         self.assertEqual(
             len(
                 attempt_store.list_by_image(
@@ -172,13 +150,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         )
         registry = InMemoryDocumentRegistry()
         attempt_store = InMemoryWeChatPublicNoticeMultimodalAttemptStore()
-        fetcher = _FakeFetcher(
-            WeChatPublicNoticeFetchedInlineImage(
-                content_type="image/png",
-                image_bytes=b"PNGDATA",
-                final_url="https://cdn.example.com/inline-1.png",
-            )
-        )
         provider = _FakeProvider(RuntimeError("provider timeout"))
 
         first = process_wechat_public_notice_pending_multimodal_entries(
@@ -190,7 +161,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             registry=registry,
             source_bucket="source",
             derived_bucket="derived",
-            image_fetcher=fetcher,
             provider=provider,
             attempt_store=attempt_store,
             max_attempts=2,
@@ -205,7 +175,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             registry=registry,
             source_bucket="source",
             derived_bucket="derived",
-            image_fetcher=fetcher,
             provider=provider,
             attempt_store=attempt_store,
             max_attempts=2,
@@ -272,13 +241,6 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
             registry=InMemoryDocumentRegistry(),
             source_bucket="source",
             derived_bucket="derived",
-            image_fetcher=_FakeFetcher(
-                WeChatPublicNoticeFetchedInlineImage(
-                    content_type="image/png",
-                    image_bytes=b"PNGDATA",
-                    final_url="https://cdn.example.com/inline-1.png",
-                )
-            ),
             provider=provider,
             attempt_store=attempt_store,
             max_attempts=2,

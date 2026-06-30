@@ -56,6 +56,10 @@ class owns a fact.
   - [contracts/README.md](./contracts/README.md)
 - Campus shuttle timetable capability:
   - [domains/transport.md](./domains/transport.md)
+- Authenticated notice / internal notice document routing:
+  - [architecture/domains/authenticated-notice/architecture.md](./architecture/domains/authenticated-notice/architecture.md)
+  - [data/authenticated-notice.md](./data/authenticated-notice.md)
+  - [contracts/campus-notice-runtime-contract.md](./contracts/campus-notice-runtime-contract.md)
 - Data source truth, source-channel schema and read-model ownership:
   - [data/README.md](./data/README.md)
 - HTTP/runtime wire contracts, DTOs and tool contracts:

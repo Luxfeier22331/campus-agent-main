@@ -38,6 +38,8 @@ updated: 2026-06-26
 
 - `app-api/campus-services-ops.md`
 - `app-api-notice.md`
+  - app-api owned authenticated notice operator-safe processing projection
+    ingest/query seam only; it does not own source-truth or ingestion lifecycle
 - `app-api/observability.md`
 - `app-api/official-web.md`
 
@@ -54,6 +56,8 @@ updated: 2026-06-26
 ## Notice runtime contract
 
 - `campus-notice-runtime-contract.md`
+  - query-time notice tool/internal-query seam; current model-visible surface is
+    `campus_notice_discover` only
 - `authenticated-notice-file-release-export.md`
 
 ## Retrieval internal contract

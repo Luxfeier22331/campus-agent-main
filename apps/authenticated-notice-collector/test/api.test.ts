@@ -13,9 +13,8 @@ import {
 } from "../src/api.js";
 
 describe("authenticated notice collector api", () => {
-	it("posts notice page requests and retries retryable failures", async () => {
+	it("posts notice page requests and leaves retryable failures to the Crawlee runner", async () => {
 		const calls: Array<{ path: string; form: Record<string, string> }> = [];
-		let attempt = 0;
 		const apiContext = {
 			async get() {
 				return {
@@ -28,41 +27,25 @@ describe("authenticated notice collector api", () => {
 			},
 			async post(path: string, input: { form: Record<string, string> }) {
 				calls.push({ path, form: input.form });
-				attempt += 1;
-				if (attempt === 1) {
-					return {
-						json: async () => ({}),
-						ok: () => false,
-						status: () => 500,
-						statusText: () => "server error",
-					};
-				}
 				return {
-					ok: () => true,
-					status: () => 200,
-					statusText: () => "OK",
-					json: async () => ({
-						datas: {
-							tables: [{ notice_id: 355119, notice_title: "通知标题" }],
-						},
-						state: true,
-					}),
+					json: async () => ({}),
+					ok: () => false,
+					status: () => 500,
+					statusText: () => "server error",
 				};
 			},
 		};
 
-		const result = await fetchNoticePage({
-			apiContext,
-			currentPage: 1,
-			noticeType: "5",
-			pageSize: 3,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 2,
-			sleep: async () => undefined,
-		});
+		await expect(
+			fetchNoticePage({
+				apiContext,
+				currentPage: 1,
+				noticeType: "5",
+				pageSize: 3,
+			}),
+		).rejects.toThrow("getNoticeByPage failed: 500 server error");
 
-		expect(result.datas?.tables).toHaveLength(1);
-		expect(calls).toHaveLength(2);
+		expect(calls).toHaveLength(1);
 		expect(calls[0]?.path).toBe("/comsys-portal-notice-web/getNoticeByPage");
 		expect(calls[0]?.form.type).toBe("5");
 		expect(calls[0]?.form.currentPage).toBe("1");
@@ -97,9 +80,6 @@ describe("authenticated notice collector api", () => {
 				currentPage: 1,
 				noticeType: "5",
 				pageSize: 3,
-				requestBackoffBaseMs: 1,
-				requestMaxRetries: 1,
-				sleep: async () => undefined,
 			}),
 		).rejects.toThrow("auth-expired: getNoticeByPage failed: session invalid");
 	});
@@ -129,9 +109,6 @@ describe("authenticated notice collector api", () => {
 		const result = await fetchAttachmentBinary({
 			apiContext,
 			attachmentUrl: "https://portal.example.edu/download?id=1",
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 
 		expect(result.body.toString("utf-8")).toBe("hello");
@@ -273,29 +250,17 @@ describe("authenticated notice collector api", () => {
 			apiContext,
 			currentPage: 1,
 			pageSize: 10,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 		const detail = await fetchFileReleaseDetail({
 			apiContext,
 			fileReleaseId: 646,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 		const downloadUrl = await fetchFileReleaseDownloadUrl({
 			apiContext,
 			fileReleaseId: 646,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 		const fileTypes = await fetchFileReleaseTypes({
 			apiContext,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 
 		expect(page.data?.[0]?.id).toBe(646);
@@ -329,6 +294,35 @@ describe("authenticated notice collector api", () => {
 				form: {},
 			},
 		]);
+	});
+
+	it("leaves file-release retryable failures to the Crawlee runner", async () => {
+		const calls: string[] = [];
+		const apiContext = {
+			async get() {
+				throw new Error("unexpected get");
+			},
+			async post(path: string) {
+				calls.push(path);
+				return {
+					json: async () => ({}),
+					ok: () => false,
+					status: () => 500,
+					statusText: () => "server error",
+					text: async () => JSON.stringify({ state: false }),
+				};
+			},
+		};
+
+		await expect(
+			fetchFileReleasePage({
+				apiContext,
+				currentPage: 1,
+				pageSize: 10,
+			}),
+		).rejects.toThrow("pageFile failed: 500 server error");
+
+		expect(calls).toEqual(["/comsys-prompt-portlet-web/pageFile"]);
 	});
 
 	it("fetches notice and file-release selector snapshots for taxonomy exports", async () => {
@@ -413,21 +407,12 @@ describe("authenticated notice collector api", () => {
 			apiContext,
 			currentPage: 1,
 			pageSize: 15,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 		const explainDepartments = await fetchFileReleaseExplainDepartments({
 			apiContext,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 		const codeTypes = await fetchFileReleaseCodeTypes({
 			apiContext,
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			sleep: async () => undefined,
 		});
 
 		expect(noticeSelects.datas?.type).toHaveLength(2);

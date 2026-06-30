@@ -3,7 +3,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-	fetchAttachmentBinary,
 	fetchFileReleaseCodeTypes,
 	fetchFileReleaseDetail,
 	fetchFileReleaseDownloadUrl,
@@ -13,6 +12,7 @@ import {
 	isAttachmentDownloadTerminalUnavailableError,
 } from "./api.js";
 import type { AuthenticatedNoticeArtifactStore, StoredArtifactRef } from "./artifact-store.js";
+import { runAttachmentCrawleeDownloads } from "./attachment-crawlee-runner.js";
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
 	buildCollectorRunFailedLedgerRecord,
@@ -23,18 +23,14 @@ import {
 } from "./collector-run-ledger.js";
 import { sanitizeObjectKeySegment } from "./collector-runtime.js";
 import { resolveCollectorConfig } from "./config.js";
+import { runFileReleaseCrawleeCollection } from "./file-release-crawlee-runner.js";
 import {
 	AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 	buildExportManifest,
 	classifyOriginScope,
 	inferYearLabel,
-	normalizeDepartments,
 	normalizeNullableNumber,
 	normalizeNullableText,
-	normalizeObservedExplainDepartments,
-	normalizeObservedFileCodeTypes,
-	normalizeObservedFileTypes,
-	normalizeOptionalId,
 	normalizeRequiredId,
 	normalizeRequiredText,
 	normalizeUrlHost,
@@ -89,7 +85,6 @@ export interface CollectFileReleaseBundleInput {
 	maxFileReleases?: number | null;
 	maxPages?: number | null;
 	pageSize: number;
-	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
 	siteId: string;
 	sourceHomeUrl: string;
@@ -242,157 +237,52 @@ export async function collectFileReleaseBundle(
 		(() => createApiContextFromStorageState(resolveCollectorConfig(process.env)));
 	const apiContext = await createApiContext();
 	const fetchPage =
-		input.fetchFileReleasePage ??
-		((pageInput) =>
-			fetchFileReleasePage({
-				...pageInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchFileReleasePage ?? ((pageInput) => fetchFileReleasePage({ ...pageInput }));
 	const fetchDetail =
-		input.fetchFileReleaseDetail ??
-		((detailInput) =>
-			fetchFileReleaseDetail({
-				...detailInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchFileReleaseDetail ?? ((detailInput) => fetchFileReleaseDetail({ ...detailInput }));
 	const fetchDownloadUrl =
 		input.fetchFileReleaseDownloadUrl ??
-		((detailInput) =>
-			fetchFileReleaseDownloadUrl({
-				...detailInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		((detailInput) => fetchFileReleaseDownloadUrl({ ...detailInput }));
 	const fetchTypes =
-		input.fetchFileReleaseTypes ??
-		((typeInput) =>
-			fetchFileReleaseTypes({
-				...typeInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchFileReleaseTypes ?? ((typeInput) => fetchFileReleaseTypes({ ...typeInput }));
 	const fetchCodeTypes =
-		input.fetchFileReleaseCodeTypes ??
-		((typeInput) =>
-			fetchFileReleaseCodeTypes({
-				...typeInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchFileReleaseCodeTypes ?? ((typeInput) => fetchFileReleaseCodeTypes({ ...typeInput }));
 	const fetchExplainDepartments =
 		input.fetchFileReleaseExplainDepartments ??
-		((deptInput) =>
-			fetchFileReleaseExplainDepartments({
-				...deptInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		((deptInput) => fetchFileReleaseExplainDepartments({ ...deptInput }));
 
-	const bundleMap = new Map<number, BundleFileReleaseRecord>();
-	const observedDepartments = new Set<string>();
 	const targetFileReleaseId = input.targetFileReleaseId ?? null;
-	let detailFetched = 0;
-	let fileUrlsResolved = 0;
-	let itemsSeen = 0;
-	let pagesFetched = 0;
 
 	try {
-		const fileTypeResponse = await fetchTypes({ apiContext });
-		const observedFileTypes = normalizeObservedFileTypes(fileTypeResponse);
-		const fileCodeTypeResponse = await fetchCodeTypes({ apiContext });
-		const observedFileCodeTypes = normalizeObservedFileCodeTypes(fileCodeTypeResponse);
-		const explainDepartmentResponse = await fetchExplainDepartments({ apiContext });
-		const observedExplainDepartments =
-			normalizeObservedExplainDepartments(explainDepartmentResponse);
-		const fileTypeNameById = new Map(observedFileTypes.map((item) => [item.id, item.typename]));
-
-		for (let currentPage = 1; ; currentPage += 1) {
-			if (input.maxPages !== null && input.maxPages !== undefined && currentPage > input.maxPages) {
-				break;
-			}
-			if (targetFileReleaseId !== null && bundleMap.has(targetFileReleaseId)) {
-				break;
-			}
-			if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
-				break;
-			}
-
-			const pageResponse = await fetchPage({
-				apiContext,
-				currentPage,
-				pageSize: input.pageSize,
-			});
-			pagesFetched += 1;
-			itemsSeen += pageResponse.data?.length ?? 0;
-			for (const department of normalizeDepartments(pageResponse.dws)) {
-				observedDepartments.add(department);
-			}
-
-			const pageItems = pageResponse.data ?? [];
-			if (pageItems.length === 0) {
-				break;
-			}
-
-			for (const item of pageItems) {
-				const fileReleaseId = normalizeOptionalId(item.id);
-				if (fileReleaseId === null || bundleMap.has(fileReleaseId)) {
-					continue;
-				}
-				if (targetFileReleaseId !== null && fileReleaseId !== targetFileReleaseId) {
-					continue;
-				}
-				if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
-					break;
-				}
-				const detail = await fetchDetail({
-					apiContext,
-					fileReleaseId,
-				});
-				detailFetched += 1;
-				const downloadUrl = await fetchDownloadUrl({
-					apiContext,
-					fileReleaseId,
-				});
-				fileUrlsResolved += 1;
-				bundleMap.set(
-					fileReleaseId,
-					buildFileReleaseRecord({
-						detail,
-						downloadUrl: normalizeNullableText(downloadUrl.url),
-						fileTypeNameById,
-						item,
-						observedAt: input.exportedAt,
-						sourceHomeUrl: input.sourceHomeUrl,
-					}),
-				);
-			}
-
-			if (targetFileReleaseId !== null && bundleMap.has(targetFileReleaseId)) {
-				break;
-			}
-			if (input.maxFileReleases && bundleMap.size >= input.maxFileReleases) {
-				break;
-			}
-
-			if (pageItems.length < input.pageSize) {
-				break;
-			}
-			if (
-				typeof pageResponse.size === "number" &&
-				currentPage * input.pageSize >= pageResponse.size
-			) {
-				break;
-			}
-		}
-
-		const bundleRecords = [...bundleMap.values()];
-		if (targetFileReleaseId !== null && !bundleMap.has(targetFileReleaseId)) {
-			throw new Error(
-				`target file_release_id ${targetFileReleaseId} was not found in file_release export scope`,
-			);
-		}
+		const collected = await runFileReleaseCrawleeCollection({
+			apiContext,
+			exportedAt: input.exportedAt,
+			fetchFileReleaseCodeTypes: fetchCodeTypes,
+			fetchFileReleaseDetail: fetchDetail,
+			fetchFileReleaseDownloadUrl: fetchDownloadUrl,
+			fetchFileReleaseExplainDepartments: fetchExplainDepartments,
+			fetchFileReleasePage: fetchPage,
+			fetchFileReleaseTypes: fetchTypes,
+			maxFileReleases: input.maxFileReleases ?? null,
+			maxPages: input.maxPages ?? null,
+			pageSize: input.pageSize,
+			requestMaxRetries: input.requestMaxRetries,
+			siteId: input.siteId,
+			targetFileReleaseId,
+		});
+		const fileTypeNameById = new Map(
+			collected.observedFileTypes.map((item) => [item.id, item.typename]),
+		);
+		const bundleRecords = collected.collectedReleases.map((release) =>
+			buildFileReleaseRecord({
+				detail: release.detail,
+				downloadUrl: release.downloadUrl,
+				fileTypeNameById,
+				item: release.item,
+				observedAt: input.exportedAt,
+				sourceHomeUrl: input.sourceHomeUrl,
+			}),
+		);
 		const materialized =
 			input.attachmentArtifactStore === undefined
 				? {
@@ -404,26 +294,26 @@ export async function collectFileReleaseBundle(
 						artifactStore: input.attachmentArtifactStore,
 						bundleRecords,
 						observedAt: input.exportedAt,
+						requestMaxRetries: input.requestMaxRetries,
+						siteId: input.siteId,
 					});
 
 		return {
 			bundleRecords: materialized.bundleRecords,
 			exportManifest: buildExportManifest({
 				exportedAt: input.exportedAt,
-				detailFetched,
-				fileUrlsResolved,
+				detailFetched: collected.stats.detailFetched,
+				fileUrlsResolved: collected.stats.fileUrlsResolved,
 				itemsInserted: materialized.bundleRecords.length,
-				itemsSeen,
+				itemsSeen: collected.stats.itemsSeen,
 				maxFileReleases: input.maxFileReleases ?? null,
 				maxPages: input.maxPages ?? null,
-				observedExplainDepartments,
-				observedFileCodeTypes,
-				observedDepartments: [...observedDepartments].sort((left, right) =>
-					left.localeCompare(right, "zh-Hans-CN"),
-				),
-				observedFileTypes,
+				observedExplainDepartments: collected.observedExplainDepartments,
+				observedFileCodeTypes: collected.observedFileCodeTypes,
+				observedDepartments: collected.observedDepartments,
+				observedFileTypes: collected.observedFileTypes,
 				pageSize: input.pageSize,
-				pagesFetched,
+				pagesFetched: collected.stats.pagesFetched,
 				siteId: input.siteId,
 				sourceHomeUrl: input.sourceHomeUrl,
 				targetFileReleaseId,
@@ -431,11 +321,11 @@ export async function collectFileReleaseBundle(
 					input.attachmentArtifactStore === undefined ? "reference_only" : "object_store_write",
 			}),
 			stats: {
-				detailFetched,
-				fileUrlsResolved,
+				detailFetched: collected.stats.detailFetched,
+				fileUrlsResolved: collected.stats.fileUrlsResolved,
 				fileReleasesCollected: materialized.bundleRecords.length,
 				fileObjectsUploaded: materialized.uploadedCount,
-				pagesFetched,
+				pagesFetched: collected.stats.pagesFetched,
 			},
 		};
 	} finally {
@@ -623,6 +513,8 @@ async function materializeReleasedFiles(input: {
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	bundleRecords: BundleFileReleaseRecord[];
 	observedAt: string;
+	requestMaxRetries: number;
+	siteId: string;
 }): Promise<{ bundleRecords: BundleFileReleaseRecord[]; uploadedCount: number }> {
 	const bundleRecords: BundleFileReleaseRecord[] = [];
 	let uploadedCount = 0;
@@ -642,12 +534,23 @@ async function materializeReleasedFiles(input: {
 		}
 
 		try {
-			const result = await fetchAttachmentBinary({
+			const cacheKey = `file_release:${candidateUrl}`;
+			const downloadResults = await runAttachmentCrawleeDownloads({
 				apiContext: input.apiContext,
-				attachmentUrl: candidateUrl,
-				requestBackoffBaseMs: 1,
-				requestMaxRetries: 1,
+				requestMaxRetries: input.requestMaxRetries,
+				requests: [
+					{
+						attachmentUrl: candidateUrl,
+						cacheKey,
+						fetchMode: "file_release",
+						siteId: input.siteId,
+					},
+				],
 			});
+			const result = downloadResults.get(cacheKey);
+			if (!result) {
+				throw new Error(`missing file release download result:${record.file_release_id}`);
+			}
 			const contentSha256 = createHash("sha256").update(result.body).digest("hex");
 			const resolvedFilename = resolveFileReleaseFilename({
 				contentDisposition: result.contentDisposition,

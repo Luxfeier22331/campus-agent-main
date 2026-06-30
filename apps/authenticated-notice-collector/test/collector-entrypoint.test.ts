@@ -12,30 +12,20 @@ describe("authenticated notice collector entrypoint", () => {
 	});
 
 	const commandCases: [CollectorEntrypointMode, string[]][] = [
-		["auth-check", ["pnpm", "--dir", "apps/authenticated-notice-collector", "auth:check"]],
-		["notice-export", ["pnpm", "--dir", "apps/authenticated-notice-collector", "bootstrap:export"]],
+		["auth-check", ["node", "apps/authenticated-notice-collector/dist/auth-check.js"]],
+		["notice-export", ["node", "apps/authenticated-notice-collector/dist/bootstrap-export.js"]],
 		[
 			"file-release-export",
-			["pnpm", "--dir", "apps/authenticated-notice-collector", "file-release:export"],
+			["node", "apps/authenticated-notice-collector/dist/file-release-export.js"],
 		],
-		[
-			"visual-ref-audit",
-			[
-				"pnpm",
-				"--dir",
-				"apps/authenticated-notice-collector",
-				"exec",
-				"tsx",
-				"src/visual-ref-audit.ts",
-			],
-		],
+		["visual-ref-audit", ["node", "apps/authenticated-notice-collector/dist/visual-ref-audit.js"]],
 	];
 
-	it.each(commandCases)("routes %s mode to the repo-local package script", (mode, command) => {
+	it.each(commandCases)("routes %s mode to the built collector entrypoint", (mode, command) => {
 		expect(buildCollectorModeCommand(mode)).toEqual(command);
 	});
 
-	it("rejects unknown collector modes before running package scripts", () => {
+	it("rejects unknown collector modes before running collector code", () => {
 		expect(() =>
 			resolveCollectorMode({
 				AUTHENTICATED_NOTICE_COLLECTOR_MODE: "query-serving",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	createIngestionControlHandler,
+	createIngestionTaskRegistryCatalog,
 	type IngestionTaskEnvelope,
 	InMemoryIngestionTaskStore,
 } from "../src/index.ts";
@@ -34,6 +35,24 @@ const task: IngestionTaskEnvelope = {
 describe("ingestion-control operator projection", () => {
 	it("returns redacted task snapshots without input or artifact refs", async () => {
 		const handler = createIngestionControlHandler({
+			registryCatalog: createIngestionTaskRegistryCatalog([
+				{
+					schema_version: "ingestion_task_registry.v1",
+					source_family: "curriculum",
+					corpus: "curriculum",
+					collection: "curriculum_plan",
+					tasks: [
+						{
+							task_kind: "chunk_prepare",
+							executor_kind: "rust_kernel",
+							kernel_id: "chunk-document-units",
+							input_contract: "canonical_document_units.v1",
+							output_contract: "ingestion_chunk_set.v1",
+							can_publish_alias: false,
+						},
+					],
+				},
+			]),
 			store: new InMemoryIngestionTaskStore({
 				now: () => new Date("2026-06-11T00:00:00Z"),
 			}),

@@ -97,6 +97,7 @@ describe("official-web-collector multi-host crawl", () => {
 						from: vi.fn(() => ({
 							getSitemaps: () => [],
 							isAllowed: () => true,
+							parseUrlsFromSitemaps: async () => [],
 						})),
 					},
 					Sitemap: {

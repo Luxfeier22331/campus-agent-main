@@ -109,7 +109,7 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 		);
 	});
 
-	it("uploads exported bundle and manifest as source-channel artifact refs", async () => {
+	it("uploads exported bundle, manifest, and capture release as source-channel artifact refs", async () => {
 		const uploaded: Array<{
 			contentType: string;
 			data: string;
@@ -148,6 +148,43 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 
 		const expectedBundleBytes = `${JSON.stringify(bundleRecords, null, 2)}\n`;
 		const expectedManifestBytes = `${JSON.stringify(exportManifest, null, 2)}\n`;
+		const expectedCaptureRelease = {
+			schema_version: "authenticated_notice_capture_release.v1",
+			source_channel: "authenticated_notice_portal",
+			source_surface: "notice",
+			site_id: "muc_internal_portal",
+			capture_id: "capture:muc_internal_portal:notice:20260404T012345Z",
+			exported_at: "2026-04-04T01:23:45.000Z",
+			bundle_ref: {
+				bucket: "campus-rag-source",
+				key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				content_sha256: "a".repeat(64),
+				byte_size: Buffer.byteLength(expectedBundleBytes),
+			},
+			export_manifest_ref: {
+				bucket: "campus-rag-source",
+				key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+				content_sha256: "a".repeat(64),
+				byte_size: Buffer.byteLength(expectedManifestBytes),
+			},
+			source_object_refs: [
+				{
+					role: "notices_bundle",
+					bucket: "campus-rag-source",
+					key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+					content_sha256: "a".repeat(64),
+					byte_size: Buffer.byteLength(expectedBundleBytes),
+				},
+				{
+					role: "export_manifest",
+					bucket: "campus-rag-source",
+					key: "authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/export-manifest.json",
+					content_sha256: "a".repeat(64),
+					byte_size: Buffer.byteLength(expectedManifestBytes),
+				},
+			],
+		};
+		const expectedCaptureReleaseBytes = `${JSON.stringify(expectedCaptureRelease, null, 2)}\n`;
 		expect(refs).toEqual({
 			bundleByteSize: Buffer.byteLength(expectedBundleBytes),
 			bundleContentSha256: "a".repeat(64),
@@ -160,6 +197,19 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 				etag: '"etag"',
 				objectKey:
 					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/notices-bundle.json",
+				versionId: null,
+			},
+			captureReleaseByteSize: Buffer.byteLength(expectedCaptureReleaseBytes),
+			captureReleaseContentSha256: "a".repeat(64),
+			captureReleaseObjectKey:
+				"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/capture-release.json",
+			captureReleaseRef: {
+				bucket: "campus-rag-source",
+				byteSize: Buffer.byteLength(expectedCaptureReleaseBytes),
+				contentSha256: "a".repeat(64),
+				etag: '"etag"',
+				objectKey:
+					"authenticated_notice_portal/runs/muc_internal_portal/20260404T012345Z/capture-release.json",
 				versionId: null,
 			},
 			manifestByteSize: Buffer.byteLength(expectedManifestBytes),
@@ -177,13 +227,22 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			},
 			sourceBucket: "campus-rag-source",
 		});
-		expect(uploaded.map((item) => item.data)).toEqual([expectedBundleBytes, expectedManifestBytes]);
+		expect(uploaded.map((item) => item.data)).toEqual([
+			expectedBundleBytes,
+			expectedManifestBytes,
+			expectedCaptureReleaseBytes,
+		]);
 		expect(uploaded.map((item) => item.contentType)).toEqual([
+			"application/json",
 			"application/json",
 			"application/json",
 		]);
 		expect(uploaded[0].metadata).toMatchObject({
 			artifact_kind: "notices_bundle",
+			site_id: "muc_internal_portal",
+		});
+		expect(uploaded[2].metadata).toMatchObject({
+			artifact_kind: "capture_release",
 			site_id: "muc_internal_portal",
 		});
 	});

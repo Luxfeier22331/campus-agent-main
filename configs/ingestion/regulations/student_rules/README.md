@@ -45,7 +45,15 @@ handbook split truth keeps regulations-facing logical documents and derived
 regulation appendices only.
 
 The repo-tracked `split-manifest.v1.json` is a scaffold and must be filled with
-real document ranges before `apps/ingestion-control` admits the
-`document_materialize` task for `regulations/student_rules`. The retired Python
+real document ranges before document-level materialization re-enters
+`apps/ingestion-control`. The active task registry only keeps executable Rust
+kernel steps over already-materialized canonical `document-units`:
+
+- `document_units_validate`
+- `chunk_prepare`
+
+Document materialization, structured projection publish, and alias publish are
+not active registry tasks for `regulations/student_rules`. Add them back only in
+the same change that adds the real handler or kernel bridge. The retired Python
 raw-ingestion CLI is not an active ingestion entry path; missing TS handlers or
 Rust kernels fail closed instead of spawning that old path.

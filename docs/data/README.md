@@ -27,6 +27,8 @@ canonical truth”“哪些只是 projection carrier”。
 
 - `official-web.md`
 - `authenticated-notice.md`
+  - authenticated notice source-truth and current capture-release handoff schema
+    boundary; runtime/tool posture lives in contracts
 - `campus-services-ops.md`
 - `wechat-official.md`
 

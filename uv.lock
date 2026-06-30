@@ -17,7 +17,6 @@ resolution-markers = [
 members = [
     "campus-agent-workspace",
     "campus-app-api",
-    "campus-authenticated-notice-collector",
     "campus-contracts",
     "campus-dining-floorplans",
     "campus-eval-langfuse",
@@ -27,12 +26,9 @@ members = [
     "campus-ingestion-worker",
     "campus-legacy-office-conversion-service",
     "campus-navigation-tool",
-    "campus-official-web-collector",
-    "campus-official-web-core",
     "campus-ragas-runner",
     "campus-regulation-semantics",
     "campus-shared",
-    "campus-wechat-official-account-core",
 ]
 
 [[package]]
@@ -286,11 +282,6 @@ dependencies = [
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
-name = "campus-authenticated-notice-collector"
-version = "0.1.0"
-source = { virtual = "apps/authenticated-notice-collector" }
-
-[[package]]
 name = "campus-contracts"
 version = "0.1.0"
 source = { editable = "packages/contracts" }
@@ -390,16 +381,6 @@ dependencies = [
 requires-dist = [{ name = "campus-contracts", editable = "packages/contracts" }]
 
 [[package]]
-name = "campus-official-web-collector"
-version = "0.1.0"
-source = { virtual = "apps/official-web-collector" }
-
-[[package]]
-name = "campus-official-web-core"
-version = "0.1.0"
-source = { virtual = "packages/official-web-core" }
-
-[[package]]
 name = "campus-ragas-runner"
 version = "0.1.0"
 source = { editable = "packages/ragas-runner" }
@@ -419,11 +400,6 @@ source = { editable = "packages/regulation-semantics" }
 name = "campus-shared"
 version = "0.1.0"
 source = { editable = "packages/shared" }
-
-[[package]]
-name = "campus-wechat-official-account-core"
-version = "0.1.0"
-source = { virtual = "packages/wechat-official-account-core" }
 
 [[package]]
 name = "certifi"

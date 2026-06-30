@@ -45,6 +45,17 @@ DEPLOY_INTERNAL_PREFIXES = (
     "deploy:preflight:",
     "deploy:verify-config",
 )
+COLLECTOR_ALLOWED_SCRIPTS_BY_PACKAGE = {
+    "apps/authenticated-notice-collector/package.json": frozenset(
+        {
+            "build",
+            "test",
+            "typecheck",
+        }
+    ),
+    "apps/official-web-collector/package.json": frozenset({"test", "typecheck"}),
+    "apps/wechat-official-account-collector/package.json": frozenset({"test", "typecheck"}),
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -150,6 +161,21 @@ def _audit_package_scripts(root: Path, package_path: Path) -> tuple[PackageScrip
                     message=(
                         "app-api package scripts must not expose DB/data/backfill/provider "
                         "ops commands"
+                    ),
+                )
+            )
+        if (
+            relpath in COLLECTOR_ALLOWED_SCRIPTS_BY_PACKAGE
+            and script not in COLLECTOR_ALLOWED_SCRIPTS_BY_PACKAGE[relpath]
+        ):
+            issues.append(
+                PackageScriptPolicyIssue(
+                    path=relpath,
+                    script=script,
+                    message=(
+                        "collector package scripts may only expose build/test/typecheck "
+                        "verification lanes; runtime entrypoints must be invoked directly "
+                        "or through ingestion-control jobs"
                     ),
                 )
             )

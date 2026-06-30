@@ -7,20 +7,24 @@ public HTML pages, normalizes page artifacts and optionally uploads run/page
 artifacts through the object-store boundary. It does not own downstream
 document/chunk/index release truth.
 
-## CLI
+## Local Debug Entrypoints
+
+These entrypoints are local/operator debugging tools. They are invoked directly
+instead of being exposed as package scripts, and they do not own production
+release / alias lifecycle.
 
 ```bash
-pnpm --dir apps/official-web-collector plan -- \
+node --experimental-strip-types apps/official-web-collector/src/plan.ts \
   --site-id muc_public --crawl-run-id manual-001
 
-pnpm --dir apps/official-web-collector crawl -- \
+node --experimental-strip-types apps/official-web-collector/src/crawl.ts \
   --site-id muc_public --crawl-run-id manual-001 \
   --host <www.muc.edu.cn> --max-pages-per-host 5
 
-pnpm --dir apps/official-web-collector validate -- \
+node --experimental-strip-types apps/official-web-collector/src/validate.ts \
   --output-dir .tmp/official-web/muc_public/manual-001
 
-pnpm --dir apps/official-web-collector qc-report -- \
+node --experimental-strip-types apps/official-web-collector/src/qc-report.ts \
   --output-dir /tmp/official-web-smoke-news --json
 ```
 
@@ -50,6 +54,15 @@ For local control-plane smoke, start `apps/app-api` and set
 `validate` checks local crawl artifacts and source-truth consistency. `qc-report`
 aggregates validated outputs into a source-truth quality gate; it does not claim
 document/chunk correctness, retrieval relevance or answer quality.
+
+Client-side rendered shell pages may only expose a title or static placeholders.
+The extractor suppresses hidden placeholder nodes and does not add host-specific
+content hacks for shell pages. For hosts that explicitly configure
+`dynamic_shell_discovery`, the collector may use Crawlee `PlaywrightCrawler` for
+browser-assisted discovery and then promote same-host list/detail URLs back into
+the static source-truth lane. `manual_requeue` artifacts only record promoted
+URLs for that static lane; shell families remain `manual_review` unless the
+source-truth contract admits them.
 
 ## Boundaries
 

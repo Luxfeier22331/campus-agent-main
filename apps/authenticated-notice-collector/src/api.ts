@@ -17,38 +17,26 @@ export interface FetchNoticePageInput {
 	noticeType: string;
 	currentPage: number;
 	pageSize: number;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchNoticeSelectsInput {
 	apiContext: ApiRequestContextLike;
 	currentPage: number;
 	pageSize: number;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchNoticeDetailInput {
 	apiContext: ApiRequestContextLike;
 	noticeId: number;
 	noticeType: string;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
 	showType?: string;
 	searchValue?: string;
 	searchDepartment?: string;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchAttachmentBinaryInput {
 	apiContext: ApiRequestContextLike;
 	attachmentUrl: string;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchAttachmentBinaryResult {
@@ -87,391 +75,237 @@ export interface FetchFileReleasePageInput {
 	apiContext: ApiRequestContextLike;
 	currentPage: number;
 	pageSize: number;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchFileReleaseDetailInput {
 	apiContext: ApiRequestContextLike;
 	fileReleaseId: number;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchFileReleaseDownloadUrlInput {
 	apiContext: ApiRequestContextLike;
 	fileReleaseId: number;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchFileReleaseTypesInput {
 	apiContext: ApiRequestContextLike;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchFileReleaseExplainDepartmentsInput {
 	apiContext: ApiRequestContextLike;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
 export interface FetchFileReleaseCodeTypesInput {
 	apiContext: ApiRequestContextLike;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
 }
 
-const defaultSleep = async (ms: number) =>
-	new Promise<void>((resolve) => {
-		setTimeout(resolve, ms);
-	});
-
 export async function fetchNoticePage(input: FetchNoticePageInput): Promise<NoticeListResponse> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeByPage", {
-				form: {
-					currentPage: String(input.currentPage),
-					pageSize: String(input.pageSize),
-					searchValue: "",
-					state: "",
-					is_add: "0",
-					totalCounts: "0",
-					total: "-1",
-					select_all: "false",
-					select_notice: "",
-					type: input.noticeType,
-					searchDepartment: "",
-					start_date: "",
-					end_date: "",
-					new_total: "",
-					comsys_random_t: String(Math.random()),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getNoticeByPage");
-			}
-			const json = await parseJsonResponse<NoticeListResponse>(response, "getNoticeByPage");
-			assertNoticeListResponse(json);
-			return json;
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (lastError.message.startsWith("auth-expired:")) {
-				throw lastError;
-			}
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeByPage", {
+		form: {
+			currentPage: String(input.currentPage),
+			pageSize: String(input.pageSize),
+			searchValue: "",
+			state: "",
+			is_add: "0",
+			totalCounts: "0",
+			total: "-1",
+			select_all: "false",
+			select_notice: "",
+			type: input.noticeType,
+			searchDepartment: "",
+			start_date: "",
+			end_date: "",
+			new_total: "",
+			comsys_random_t: String(Math.random()),
+		},
+	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getNoticeByPage");
 	}
-	throw lastError ?? new Error("fetchNoticePage failed with unknown error");
+	const json = await parseJsonResponse<NoticeListResponse>(response, "getNoticeByPage");
+	assertNoticeListResponse(json);
+	return json;
 }
 
 export async function fetchNoticeSelects(
 	input: FetchNoticeSelectsInput,
 ): Promise<NoticeSelectsResponse> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeSlects", {
-				form: {
-					currentPage: String(input.currentPage),
-					pageSize: String(input.pageSize),
-					searchValue: "",
-					state: "",
-					is_add: "0",
-					totalCounts: "0",
-					total: "-1",
-					select_all: "false",
-					select_notice: "",
-					type: "",
-					searchDepartment: "",
-					start_date: "",
-					end_date: "",
-					system_show: "1",
-					comsys_random_t: String(Math.random()),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getNoticeSlects");
-			}
-			const json = await parseJsonResponse<NoticeSelectsResponse>(response, "getNoticeSlects");
-			assertNoticeSelectsResponse(json);
-			return json;
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (lastError.message.startsWith("auth-expired:")) {
-				throw lastError;
-			}
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	const response = await input.apiContext.post("/comsys-portal-notice-web/getNoticeSlects", {
+		form: {
+			currentPage: String(input.currentPage),
+			pageSize: String(input.pageSize),
+			searchValue: "",
+			state: "",
+			is_add: "0",
+			totalCounts: "0",
+			total: "-1",
+			select_all: "false",
+			select_notice: "",
+			type: "",
+			searchDepartment: "",
+			start_date: "",
+			end_date: "",
+			system_show: "1",
+			comsys_random_t: String(Math.random()),
+		},
+	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getNoticeSlects");
 	}
-	throw lastError ?? new Error("fetchNoticeSelects failed with unknown error");
+	const json = await parseJsonResponse<NoticeSelectsResponse>(response, "getNoticeSlects");
+	assertNoticeSelectsResponse(json);
+	return json;
 }
 
 export async function fetchNoticeDetail(
 	input: FetchNoticeDetailInput,
 ): Promise<NoticeDetailResponse> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			const response = await input.apiContext.post("/comsys-portal-notice-web/getNotice", {
-				form: {
-					notice_id: String(input.noticeId),
-					type: input.noticeType,
-					show_type: input.showType ?? "1",
-					searchValue: input.searchValue ?? "",
-					searchDepartment: input.searchDepartment ?? "",
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getNotice");
-			}
-			const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
-			if (!json.state) {
-				throw new Error(`getNotice rejected: ${json.msg ?? "unknown error"}`);
-			}
-			return json;
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (lastError.message.startsWith("auth-expired:")) {
-				throw lastError;
-			}
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	const response = await input.apiContext.post("/comsys-portal-notice-web/getNotice", {
+		form: {
+			notice_id: String(input.noticeId),
+			type: input.noticeType,
+			show_type: input.showType ?? "1",
+			searchValue: input.searchValue ?? "",
+			searchDepartment: input.searchDepartment ?? "",
+		},
+	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getNotice");
 	}
-	throw lastError ?? new Error("fetchNoticeDetail failed with unknown error");
+	const json = await parseJsonResponse<NoticeDetailResponse>(response, "getNotice");
+	if (!json.state) {
+		throw new Error(`getNotice rejected: ${json.msg ?? "unknown error"}`);
+	}
+	return json;
 }
 
 export async function fetchAttachmentBinary(
 	input: FetchAttachmentBinaryInput,
 ): Promise<FetchAttachmentBinaryResult> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			const response = await input.apiContext.get(input.attachmentUrl);
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "downloadAttachment");
-			}
-			const body = await readBinaryResponse(response, "downloadAttachment");
-			const maybeSessionInvalid = body.toString("utf-8").trim();
-			if (maybeSessionInvalid === "error_comsys_session_invalid") {
-				throw new Error("auth-expired: downloadAttachment failed: session invalid");
-			}
-			return {
-				body,
-				contentType: normalizeHeaderValue(response.headers?.()["content-type"] ?? null),
-				contentDisposition: normalizeHeaderValue(
-					response.headers?.()["content-disposition"] ?? null,
-				),
-				etag: normalizeHeaderValue(response.headers?.().etag ?? null),
-				statusCode: response.status(),
-			};
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (lastError.message.startsWith("auth-expired:")) {
-				throw lastError;
-			}
-			if (isAttachmentDownloadTerminalUnavailableError(lastError)) {
-				throw lastError;
-			}
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	const response = await input.apiContext.get(input.attachmentUrl);
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "downloadAttachment");
 	}
-	throw lastError ?? new Error("fetchAttachmentBinary failed with unknown error");
+	const body = await readBinaryResponse(response, "downloadAttachment");
+	const maybeSessionInvalid = body.toString("utf-8").trim();
+	if (maybeSessionInvalid === "error_comsys_session_invalid") {
+		throw new Error("auth-expired: downloadAttachment failed: session invalid");
+	}
+	return {
+		body,
+		contentType: normalizeHeaderValue(response.headers?.()["content-type"] ?? null),
+		contentDisposition: normalizeHeaderValue(response.headers?.()["content-disposition"] ?? null),
+		etag: normalizeHeaderValue(response.headers?.().etag ?? null),
+		statusCode: response.status(),
+	};
 }
 
 export async function fetchFileReleasePage(
 	input: FetchFileReleasePageInput,
 ): Promise<FileReleasePageResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/pageFile", {
-				form: {
-					currentPage: String(input.currentPage),
-					pageSize: String(input.pageSize),
-					mng: "1",
-					order: "name,time",
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "pageFile");
-			}
-			const json = await parseJsonResponse<FileReleasePageResponse>(response, "pageFile");
-			assertFileReleasePageResponse(json);
-			return json;
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/pageFile", {
+		form: {
+			currentPage: String(input.currentPage),
+			pageSize: String(input.pageSize),
+			mng: "1",
+			order: "name,time",
 		},
 	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "pageFile");
+	}
+	const json = await parseJsonResponse<FileReleasePageResponse>(response, "pageFile");
+	assertFileReleasePageResponse(json);
+	return json;
 }
 
 export async function fetchFileReleaseDetail(
 	input: FetchFileReleaseDetailInput,
 ): Promise<FileReleaseDetailResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFile", {
-				form: {
-					id: String(input.fileReleaseId),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getFile");
-			}
-			const json = await parseJsonResponse<FileReleaseDetailResponse>(response, "getFile");
-			if (!(json.state === 1 || json.state === true)) {
-				throw new Error(`getFile rejected: ${JSON.stringify(json).slice(0, 200)}`);
-			}
-			return json;
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFile", {
+		form: {
+			id: String(input.fileReleaseId),
 		},
 	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getFile");
+	}
+	const json = await parseJsonResponse<FileReleaseDetailResponse>(response, "getFile");
+	if (!(json.state === 1 || json.state === true)) {
+		throw new Error(`getFile rejected: ${JSON.stringify(json).slice(0, 200)}`);
+	}
+	return json;
 }
 
 export async function fetchFileReleaseDownloadUrl(
 	input: FetchFileReleaseDownloadUrlInput,
 ): Promise<FileReleaseDownloadUrlResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileUrl", {
-				form: {
-					id: String(input.fileReleaseId),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getFileUrl");
-			}
-			const json = await parseJsonResponse<FileReleaseDownloadUrlResponse>(response, "getFileUrl");
-			if (!json.state) {
-				throw new Error(`getFileUrl rejected: ${JSON.stringify(json).slice(0, 200)}`);
-			}
-			return json;
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileUrl", {
+		form: {
+			id: String(input.fileReleaseId),
 		},
 	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getFileUrl");
+	}
+	const json = await parseJsonResponse<FileReleaseDownloadUrlResponse>(response, "getFileUrl");
+	if (!json.state) {
+		throw new Error(`getFileUrl rejected: ${JSON.stringify(json).slice(0, 200)}`);
+	}
+	return json;
 }
 
 export async function fetchFileReleaseTypes(
 	input: FetchFileReleaseTypesInput,
 ): Promise<FileReleaseTypeListResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileType", {
-				form: {},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getFileType");
-			}
-			const json = await parseJsonResponse<FileReleaseTypeListResponse>(response, "getFileType");
-			assertFileReleaseTypeResponse(json);
-			return json;
-		},
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileType", {
+		form: {},
 	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getFileType");
+	}
+	const json = await parseJsonResponse<FileReleaseTypeListResponse>(response, "getFileType");
+	assertFileReleaseTypeResponse(json);
+	return json;
 }
 
 export async function fetchFileReleaseExplainDepartments(
 	input: FetchFileReleaseExplainDepartmentsInput,
 ): Promise<FileReleaseExplainDepartmentListResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/getExplainDepts", {
-				form: {
-					comsys_random_t: String(Math.random()),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getExplainDepts");
-			}
-			const json = await parseJsonResponse<FileReleaseExplainDepartmentListResponse>(
-				response,
-				"getExplainDepts",
-			);
-			assertFileReleaseExplainDepartmentResponse(json);
-			return json;
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getExplainDepts", {
+		form: {
+			comsys_random_t: String(Math.random()),
 		},
 	});
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getExplainDepts");
+	}
+	const json = await parseJsonResponse<FileReleaseExplainDepartmentListResponse>(
+		response,
+		"getExplainDepts",
+	);
+	assertFileReleaseExplainDepartmentResponse(json);
+	return json;
 }
 
 export async function fetchFileReleaseCodeTypes(
 	input: FetchFileReleaseCodeTypesInput,
 ): Promise<FileReleaseCodeTypeListResponse> {
-	return await retryPortalRequest({
-		requestBackoffBaseMs: input.requestBackoffBaseMs,
-		requestMaxRetries: input.requestMaxRetries,
-		sleep: input.sleep,
-		task: async () => {
-			const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileFileType", {
-				form: {
-					name: "",
-					comsys_random_t: String(Math.random()),
-				},
-			});
-			if (!response.ok()) {
-				throw buildRequestError(response.status(), response.statusText(), "getFileFileType");
-			}
-			const json = await parseJsonResponse<FileReleaseCodeTypeListResponse>(
-				response,
-				"getFileFileType",
-			);
-			assertFileReleaseCodeTypeResponse(json);
-			return json;
+	const response = await input.apiContext.post("/comsys-prompt-portlet-web/getFileFileType", {
+		form: {
+			name: "",
+			comsys_random_t: String(Math.random()),
 		},
 	});
-}
-
-async function retryPortalRequest<T>(input: {
-	task: () => Promise<T>;
-	requestMaxRetries: number;
-	requestBackoffBaseMs: number;
-	sleep?: (ms: number) => Promise<void>;
-}): Promise<T> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			return await input.task();
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (lastError.message.startsWith("auth-expired:")) {
-				throw lastError;
-			}
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	if (!response.ok()) {
+		throw buildRequestError(response.status(), response.statusText(), "getFileFileType");
 	}
-	throw lastError ?? new Error("portal request failed with unknown error");
+	const json = await parseJsonResponse<FileReleaseCodeTypeListResponse>(
+		response,
+		"getFileFileType",
+	);
+	assertFileReleaseCodeTypeResponse(json);
+	return json;
 }
 
 function buildRequestError(status: number, statusText: string, operation: string): Error {
@@ -502,10 +336,6 @@ function terminalReasonForHttpStatus(status: number): AttachmentTerminalReason |
 		return "http_410";
 	}
 	return null;
-}
-
-function backoffDelayMs(baseMs: number, attempt: number): number {
-	return baseMs * attempt;
 }
 
 async function parseJsonResponse<T extends object>(

@@ -1,0 +1,229 @@
+import { createHash } from "node:crypto";
+
+import { BasicCrawler, type BasicCrawlingContext, type RequestOptions } from "crawlee";
+
+import { type FetchAttachmentBinaryResult, fetchAttachmentBinary } from "./api.js";
+import { createAuthenticatedNoticeCrawlerConfiguration } from "./crawlee-runtime.js";
+import type { ApiRequestContextLike } from "./types.js";
+
+export type AttachmentDownloadFetchMode =
+	| "file_release"
+	| "portal_internal"
+	| "trusted_external_visual";
+
+type AttachmentDownloadRequestUserData =
+	| {
+			attachmentUrl: string;
+			cacheKey: string;
+			fetchMode: "file_release";
+	  }
+	| {
+			attachmentUrl: string;
+			cacheKey: string;
+			fetchMode: "portal_internal";
+	  }
+	| {
+			attachmentUrl: string;
+			cacheKey: string;
+			fetchMode: "trusted_external_visual";
+	  };
+
+type AttachmentDownloadContext = BasicCrawlingContext<AttachmentDownloadRequestUserData>;
+
+export interface AttachmentDownloadRequestSpec {
+	attachmentUrl: string;
+	cacheKey: string;
+	fetchMode: AttachmentDownloadFetchMode;
+	siteId: string;
+}
+
+export interface AttachmentDownloadResult {
+	cacheKey: string;
+	result: FetchAttachmentBinaryResult;
+}
+
+export interface AttachmentDownloadRunnerInput {
+	apiContext: ApiRequestContextLike;
+	crawlerFactory?: AttachmentDownloadCrawlerFactory;
+	fetchExternal?: typeof fetch;
+	requestMaxRetries: number;
+	requests: AttachmentDownloadRequestSpec[];
+}
+
+interface AttachmentDownloadCrawlerFactoryInput {
+	failedRequestHandler: (
+		context: AttachmentDownloadRequestHandlerContext,
+		error: Error,
+	) => Promise<void>;
+	maxRequestRetries: number;
+	requestHandler: (context: AttachmentDownloadRequestHandlerContext) => Promise<void>;
+}
+
+export type AttachmentDownloadCrawlerFactory = (input: AttachmentDownloadCrawlerFactoryInput) => {
+	run(requests: RequestOptions<AttachmentDownloadRequestUserData>[]): Promise<unknown>;
+};
+
+interface AttachmentDownloadRequestHandlerContext {
+	request: {
+		userData: unknown;
+	};
+}
+
+const INTERNAL_REQUEST_BASE_URL = "https://collector.local/authenticated-notice/download";
+const EXTERNAL_VISUAL_MAX_BYTES = 10 * 1024 * 1024;
+
+export function buildAttachmentDownloadRequest(
+	input: AttachmentDownloadRequestSpec,
+): RequestOptions<AttachmentDownloadRequestUserData> {
+	const urlDigest = createHash("sha256").update(input.attachmentUrl).digest("hex").slice(0, 16);
+	return {
+		label: input.fetchMode,
+		method: "GET",
+		uniqueKey: `attachment_download:${input.siteId}:${input.fetchMode}:${urlDigest}`,
+		url: `${INTERNAL_REQUEST_BASE_URL}/${input.fetchMode}`,
+		userData: {
+			attachmentUrl: input.attachmentUrl,
+			cacheKey: input.cacheKey,
+			fetchMode: input.fetchMode,
+		},
+	};
+}
+
+export async function runAttachmentCrawleeDownloads(
+	input: AttachmentDownloadRunnerInput,
+): Promise<Map<string, FetchAttachmentBinaryResult>> {
+	const results = new Map<string, FetchAttachmentBinaryResult>();
+	const failedErrors: Error[] = [];
+	const fetchExternal = input.fetchExternal ?? fetch;
+	const requestHandler = async (context: AttachmentDownloadRequestHandlerContext) => {
+		const userData = normalizeRequestUserData(context.request.userData);
+		const result =
+			userData.fetchMode === "trusted_external_visual"
+				? await fetchExternalVisualBinary({
+						attachmentUrl: userData.attachmentUrl,
+						fetchExternal,
+					})
+				: await fetchAttachmentBinary({
+						apiContext: input.apiContext,
+						attachmentUrl: userData.attachmentUrl,
+					});
+		results.set(userData.cacheKey, result);
+	};
+	const crawler = (input.crawlerFactory ?? createDefaultAttachmentDownloadCrawler)({
+		failedRequestHandler: async (_context, error) => {
+			failedErrors.push(error);
+		},
+		maxRequestRetries: input.requestMaxRetries,
+		requestHandler,
+	});
+	await crawler.run(input.requests.map(buildAttachmentDownloadRequest));
+	if (failedErrors.length > 0) {
+		throw failedErrors[0];
+	}
+	return results;
+}
+
+function createDefaultAttachmentDownloadCrawler(input: AttachmentDownloadCrawlerFactoryInput) {
+	const crawler = new BasicCrawler<AttachmentDownloadContext>(
+		{
+			failedRequestHandler: async (context, error) => {
+				await input.failedRequestHandler(
+					{
+						request: {
+							userData: context.request.userData,
+						},
+					},
+					error,
+				);
+			},
+			maxRequestRetries: input.maxRequestRetries,
+			requestHandler: async (context) => {
+				await input.requestHandler({
+					request: {
+						userData: context.request.userData,
+					},
+				});
+			},
+		},
+		createAuthenticatedNoticeCrawlerConfiguration("attachment"),
+	);
+	return {
+		run: async (requests: RequestOptions<AttachmentDownloadRequestUserData>[]) =>
+			await crawler.run(requests),
+	};
+}
+
+function normalizeRequestUserData(value: unknown): AttachmentDownloadRequestUserData {
+	if (!(value && typeof value === "object" && "fetchMode" in value)) {
+		throw new Error("invalid attachment download request userData");
+	}
+	const candidate = value as AttachmentDownloadRequestUserData;
+	if (
+		(candidate.fetchMode === "portal_internal" ||
+			candidate.fetchMode === "file_release" ||
+			candidate.fetchMode === "trusted_external_visual") &&
+		typeof candidate.attachmentUrl === "string" &&
+		typeof candidate.cacheKey === "string"
+	) {
+		return candidate;
+	}
+	throw new Error("invalid attachment download request type");
+}
+
+async function fetchExternalVisualBinary(input: {
+	attachmentUrl: string;
+	fetchExternal: typeof fetch;
+}): Promise<FetchAttachmentBinaryResult> {
+	const response = await input.fetchExternal(input.attachmentUrl, {
+		redirect: "follow",
+	});
+	if (!response.ok) {
+		throw new Error(`downloadExternalVisual failed: ${response.status} ${response.statusText}`);
+	}
+	const contentType = normalizeHeaderValue(response.headers.get("content-type"));
+	const normalizedContentType = normalizeContentType(contentType);
+	if (!normalizedContentType?.startsWith("image/")) {
+		throw new Error(
+			`downloadExternalVisual returned non-image content-type: ${contentType ?? "unknown"}`,
+		);
+	}
+	const contentLength = parseContentLength(response.headers.get("content-length"));
+	if (contentLength !== null && contentLength > EXTERNAL_VISUAL_MAX_BYTES) {
+		throw new Error(`downloadExternalVisual exceeded max size before download: ${contentLength}`);
+	}
+	const body = Buffer.from(await response.arrayBuffer());
+	if (body.byteLength > EXTERNAL_VISUAL_MAX_BYTES) {
+		throw new Error(`downloadExternalVisual exceeded max size: ${body.byteLength}`);
+	}
+	return {
+		body,
+		contentType,
+		contentDisposition: normalizeHeaderValue(response.headers.get("content-disposition")),
+		etag: normalizeHeaderValue(response.headers.get("etag")),
+		statusCode: response.status,
+	};
+}
+
+function normalizeContentType(value: string | null): string | null {
+	if (!value) {
+		return null;
+	}
+	const normalized = value.split(";")[0]?.trim().toLowerCase() ?? "";
+	return normalized || null;
+}
+
+function normalizeHeaderValue(value: string | null): string | null {
+	if (!value) {
+		return null;
+	}
+	const trimmed = value.trim();
+	return trimmed || null;
+}
+
+function parseContentLength(value: string | null): number | null {
+	if (!value) {
+		return null;
+	}
+	const parsed = Number(value.trim());
+	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+}

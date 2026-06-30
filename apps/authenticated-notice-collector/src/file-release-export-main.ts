@@ -44,7 +44,6 @@ export async function main(): Promise<void> {
 							maxFileReleases,
 							maxPages,
 							pageSize,
-							requestBackoffBaseMs: config.requestBackoffBaseMs,
 							requestMaxRetries: config.requestMaxRetries,
 							siteId: config.siteId,
 							sourceHomeUrl: config.sourceHomeUrl,

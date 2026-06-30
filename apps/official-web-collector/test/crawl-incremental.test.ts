@@ -158,6 +158,7 @@ function mockCrawlee(
 				from: vi.fn(() => ({
 					getSitemaps: () => [],
 					isAllowed: () => true,
+					parseUrlsFromSitemaps: async () => [],
 				})),
 			},
 			Sitemap: {

@@ -10,8 +10,8 @@ Target ownership:
 
 - `apps/ingestion-control` owns task admission, claim / lease, retry,
   dead-letter, closeout and operator projections.
-- `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` declares task
-  topology with `ts_control` or `rust_kernel` executors.
+- `configs/ingestion/<corpus>/<collection>/task-registry.v1.json` declares
+  executable task entries with `ts_control` or `rust_kernel` executors.
 - `packages/ingestion-kernels-rs` owns deterministic file-level kernels.
 - Python in this package is limited to extraction adapters that require the
   Python ecosystem.

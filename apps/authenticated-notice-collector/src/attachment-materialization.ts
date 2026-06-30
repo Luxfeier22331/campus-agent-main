@@ -3,10 +3,13 @@ import path from "node:path";
 
 import {
 	type FetchAttachmentBinaryResult,
-	fetchAttachmentBinary,
 	isAttachmentDownloadTerminalUnavailableError,
 } from "./api.js";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store.js";
+import {
+	type AttachmentDownloadFetchMode,
+	runAttachmentCrawleeDownloads,
+} from "./attachment-crawlee-runner.js";
 import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import type {
 	ApiRequestContextLike,
@@ -100,10 +103,8 @@ interface MaterializedAttachment {
 	>;
 }
 
-type AttachmentFetchMode = "portal_internal" | "trusted_external_visual";
-
 interface MaterializationCandidate {
-	fetchMode: AttachmentFetchMode;
+	fetchMode: AttachmentDownloadFetchMode;
 	originHost: string | null;
 }
 
@@ -117,6 +118,7 @@ export async function materializeBundleAttachments(
 	input: MaterializeBundleAttachmentsInput,
 ): Promise<MaterializeBundleAttachmentsResult> {
 	const cache = new Map<string, Promise<MaterializedAttachment>>();
+	const downloadCache = new Map<string, Promise<FetchAttachmentBinaryResult>>();
 	const fetchAdmissions = buildFetchAdmissionMap(input.attachmentFetchAdmissions ?? []);
 	const bundleRecords: BundleNoticeRecord[] = [];
 
@@ -177,7 +179,6 @@ export async function materializeBundleAttachments(
 			let task = cache.get(cacheKey);
 			if (!task) {
 				task = materializeSingleAttachment({
-					apiContext: input.apiContext,
 					artifactStore: input.artifactStore,
 					attachment: clonedAttachment,
 					attachmentFetchStatusStore: input.attachmentFetchStatusStore,
@@ -188,8 +189,16 @@ export async function materializeBundleAttachments(
 					originHost: materializationCandidate.originHost,
 					requiredAdmission: Boolean(fetchAdmission),
 					requireVisualContent: !fetchAdmission,
-					requestBackoffBaseMs: input.requestBackoffBaseMs,
-					requestMaxRetries: input.requestMaxRetries,
+					resolveDownload: async () =>
+						await downloadAttachmentOnce({
+							apiContext: input.apiContext,
+							attachmentUrl: candidateUrl,
+							cacheKey,
+							downloadCache,
+							fetchMode: materializationCandidate.fetchMode,
+							requestMaxRetries: input.requestMaxRetries,
+							siteId: input.siteId,
+						}),
 					siteId: input.siteId,
 					year: inferAuthenticatedNoticeYear(record),
 				});
@@ -230,19 +239,17 @@ export async function materializeBundleAttachments(
 }
 
 async function materializeSingleAttachment(input: {
-	apiContext: ApiRequestContextLike;
 	artifactStore: AuthenticatedNoticeArtifactStore;
 	attachment: BundleAttachmentObservation;
 	attachmentFetchStatusStore?: AuthenticatedNoticeAttachmentFetchStatusStore;
 	attachmentRefId: string;
-	fetchMode: AttachmentFetchMode;
+	fetchMode: AttachmentDownloadFetchMode;
 	noticeId: string;
 	observedAt: string;
 	originHost: string | null;
 	requiredAdmission: boolean;
 	requireVisualContent: boolean;
-	requestBackoffBaseMs: number;
-	requestMaxRetries: number;
+	resolveDownload: () => Promise<FetchAttachmentBinaryResult>;
 	siteId: string;
 	year: string | null;
 }): Promise<MaterializedAttachment> {
@@ -284,19 +291,7 @@ async function materializeSingleAttachment(input: {
 		};
 	}
 	try {
-		const result =
-			input.fetchMode === "trusted_external_visual"
-				? await fetchExternalVisualBinary({
-						attachmentUrl: sourceUrl,
-						requestBackoffBaseMs: input.requestBackoffBaseMs,
-						requestMaxRetries: input.requestMaxRetries,
-					})
-				: await fetchAttachmentBinary({
-						apiContext: input.apiContext,
-						attachmentUrl: sourceUrl,
-						requestBackoffBaseMs: input.requestBackoffBaseMs,
-						requestMaxRetries: input.requestMaxRetries,
-					});
+		const result = await input.resolveDownload();
 		const contentSha256 = createHash("sha256").update(result.body).digest("hex");
 		const initialFilename = resolveAttachmentFilename({
 			attachmentFilename: input.attachment.original_filename,
@@ -520,54 +515,39 @@ function isDefaultInlineVisualCaptureCandidate(input: {
 	return role === "inline_image";
 }
 
-async function fetchExternalVisualBinary(input: {
+async function downloadAttachmentOnce(input: {
+	apiContext: ApiRequestContextLike;
 	attachmentUrl: string;
-	requestBackoffBaseMs: number;
+	cacheKey: string;
+	downloadCache: Map<string, Promise<FetchAttachmentBinaryResult>>;
+	fetchMode: AttachmentDownloadFetchMode;
 	requestMaxRetries: number;
-	sleep?: (ms: number) => Promise<void>;
+	siteId: string;
 }): Promise<FetchAttachmentBinaryResult> {
-	let lastError: Error | null = null;
-	for (let attempt = 1; attempt <= input.requestMaxRetries; attempt += 1) {
-		try {
-			const response = await fetch(input.attachmentUrl, {
-				redirect: "follow",
-			});
-			if (!response.ok) {
-				throw new Error(`downloadExternalVisual failed: ${response.status} ${response.statusText}`);
-			}
-			const contentType = normalizeHeaderValue(response.headers.get("content-type"));
-			const normalizedContentType = normalizeContentType(contentType);
-			if (!normalizedContentType?.startsWith("image/")) {
-				throw new Error(
-					`downloadExternalVisual returned non-image content-type: ${contentType ?? "unknown"}`,
-				);
-			}
-			const contentLength = parseContentLength(response.headers.get("content-length"));
-			if (contentLength !== null && contentLength > EXTERNAL_VISUAL_MAX_BYTES) {
-				throw new Error(
-					`downloadExternalVisual exceeded max size before download: ${contentLength}`,
-				);
-			}
-			const body = Buffer.from(await response.arrayBuffer());
-			if (body.byteLength > EXTERNAL_VISUAL_MAX_BYTES) {
-				throw new Error(`downloadExternalVisual exceeded max size: ${body.byteLength}`);
-			}
-			return {
-				body,
-				contentType,
-				contentDisposition: normalizeHeaderValue(response.headers.get("content-disposition")),
-				etag: normalizeHeaderValue(response.headers.get("etag")),
-				statusCode: response.status,
-			};
-		} catch (error) {
-			lastError = error instanceof Error ? error : new Error(String(error));
-			if (attempt >= input.requestMaxRetries) {
-				throw lastError;
-			}
-			await (input.sleep ?? defaultSleep)(backoffDelayMs(input.requestBackoffBaseMs, attempt));
-		}
+	const existing = input.downloadCache.get(input.cacheKey);
+	if (existing) {
+		return await existing;
 	}
-	throw lastError ?? new Error("fetchExternalVisualBinary failed with unknown error");
+	const task = runAttachmentCrawleeDownloads({
+		apiContext: input.apiContext,
+		requestMaxRetries: input.requestMaxRetries,
+		requests: [
+			{
+				attachmentUrl: input.attachmentUrl,
+				cacheKey: input.cacheKey,
+				fetchMode: input.fetchMode,
+				siteId: input.siteId,
+			},
+		],
+	}).then((results) => {
+		const result = results.get(input.cacheKey);
+		if (!result) {
+			throw new Error(`missing attachment download result:${input.cacheKey}`);
+		}
+		return result;
+	});
+	input.downloadCache.set(input.cacheKey, task);
+	return await task;
 }
 
 function resolveAttachmentFilename(input: {
@@ -681,14 +661,6 @@ function normalizeContentType(value: string | null): string | null {
 	return normalized || null;
 }
 
-function normalizeHeaderValue(value: string | null): string | null {
-	if (!value) {
-		return null;
-	}
-	const trimmed = value.trim();
-	return trimmed || null;
-}
-
 function normalizeUrlHost(value: string): string | null {
 	try {
 		return normalizeHost(new URL(value).host);
@@ -700,23 +672,6 @@ function normalizeUrlHost(value: string): string | null {
 function normalizeHost(value: string | null): string | null {
 	const host = value?.trim().toLowerCase();
 	return host || null;
-}
-
-function parseContentLength(value: string | null): number | null {
-	if (!value) {
-		return null;
-	}
-	const parsed = Number(value.trim());
-	return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
-}
-
-const defaultSleep = async (ms: number) =>
-	new Promise<void>((resolve) => {
-		setTimeout(resolve, ms);
-	});
-
-function backoffDelayMs(baseMs: number, attempt: number): number {
-	return baseMs * attempt;
 }
 
 export function buildAuthenticatedNoticeAttachmentCaptureKey(input: {

@@ -1,16 +1,23 @@
-import type { CheerioCrawlingContext } from "crawlee";
+import { type CheerioCrawlingContext, Sitemap } from "crawlee";
 import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type { CollectorRequestUserData, CollectorRobotsState } from "./crawl-internal-types.ts";
 import { buildRobotsUserAgent } from "./crawl-support.ts";
 import {
 	admitOfficialWebUrl,
+	buildOfficialWebFailureRecord,
 	buildOfficialWebUrlResultRecord,
 	type OfficialWebConfigBundle,
 	type OfficialWebCrawlPlan,
+	type OfficialWebFailureRecord,
 	type OfficialWebHostPolicy,
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
+
+export interface InitialRequestDiscoveryResult {
+	failures: OfficialWebFailureRecord[];
+	requests: Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>;
+}
 
 export async function buildInitialRequests(input: {
 	bundle: OfficialWebConfigBundle;
@@ -21,7 +28,7 @@ export async function buildInitialRequests(input: {
 	hostSummary: OfficialWebHostSummaryRecord;
 	urlResults: OfficialWebUrlResultRecord[];
 	disableConditionalHeaders?: boolean;
-}): Promise<Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>> {
+}): Promise<InitialRequestDiscoveryResult> {
 	const candidates: Array<{
 		url: string;
 		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
@@ -38,6 +45,10 @@ export async function buildInitialRequests(input: {
 			knownPage: page,
 		});
 	}
+	const failures = await appendSitemapCandidates({
+		...input,
+		candidates,
+	});
 
 	const requests = new Map<
 		string,
@@ -100,9 +111,15 @@ export async function buildInitialRequests(input: {
 			continue;
 		}
 
+		const existingRequest = requests.get(admission.normalizedUrl);
+		const incomingKnownPages =
+			candidate.knownPages ?? (candidate.knownPage ? [candidate.knownPage] : []);
+		if (existingRequest && incomingKnownPages.length === 0) {
+			continue;
+		}
 		const mergedKnownPages = mergeKnownPages(
-			requests.get(admission.normalizedUrl)?.userData.knownPages,
-			candidate.knownPages ?? (candidate.knownPage ? [candidate.knownPage] : []),
+			existingRequest?.userData.knownPages,
+			incomingKnownPages,
 		);
 		requests.set(admission.normalizedUrl, {
 			url: admission.normalizedUrl,
@@ -124,7 +141,77 @@ export async function buildInitialRequests(input: {
 		});
 	}
 
-	return [...requests.values()];
+	return {
+		failures,
+		requests: [...requests.values()],
+	};
+}
+
+async function appendSitemapCandidates(input: {
+	bundle: OfficialWebConfigBundle;
+	candidates: Array<{
+		url: string;
+		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
+		discoveredFromUrl?: string | null;
+		knownPage?: OfficialWebPlannerPageCandidate;
+		knownPages?: OfficialWebPlannerPageCandidate[];
+	}>;
+	hostPolicy: OfficialWebHostPolicy;
+	plan: OfficialWebCrawlPlan;
+	robotsState: CollectorRobotsState;
+}): Promise<OfficialWebFailureRecord[]> {
+	const failures: OfficialWebFailureRecord[] = [];
+	const robotsUrl = `https://${input.hostPolicy.host}/robots.txt`;
+	if (input.robotsState.robots != null) {
+		try {
+			for (const url of await input.robotsState.robots.parseUrlsFromSitemaps()) {
+				input.candidates.push({
+					url,
+					discoveryMethod: "robots_sitemap",
+					discoveredFromUrl: robotsUrl,
+				});
+			}
+		} catch (error) {
+			failures.push(
+				buildOfficialWebFailureRecord({
+					siteId: input.plan.siteId,
+					crawlRunId: input.plan.crawlRunId,
+					host: input.hostPolicy.host,
+					url: robotsUrl,
+					phase: "sitemap",
+					reason: "robots_sitemap_parse_failed",
+					message: formatErrorWithCauses(error),
+					retryable: true,
+				}),
+			);
+		}
+	}
+	if (input.hostPolicy.explicitSitemaps.length > 0) {
+		try {
+			const sitemap = await Sitemap.load(input.hostPolicy.explicitSitemaps);
+			for (const url of sitemap.urls) {
+				input.candidates.push({
+					url,
+					discoveryMethod: "configured_sitemap",
+					discoveredFromUrl: null,
+				});
+			}
+		} catch (error) {
+			failures.push(
+				buildOfficialWebFailureRecord({
+					siteId: input.plan.siteId,
+					crawlRunId: input.plan.crawlRunId,
+					host: input.hostPolicy.host,
+					url: input.hostPolicy.explicitSitemaps.join(","),
+					phase: "sitemap",
+					reason: "configured_sitemap_parse_failed",
+					message: formatErrorWithCauses(error),
+					retryable: true,
+				}),
+			);
+		}
+	}
+	return failures;
 }
 
 export function collectNavigationRequests(input: {
@@ -226,6 +313,26 @@ function selectPrimaryKnownPage(
 	knownPages: OfficialWebPlannerPageCandidate[],
 ): OfficialWebPlannerPageCandidate | undefined {
 	return knownPages[0];
+}
+
+function formatErrorWithCauses(error: unknown): string {
+	if (!(error instanceof Error)) {
+		return String(error);
+	}
+
+	const parts = [error.message];
+	let currentCause = error.cause;
+	while (currentCause != null) {
+		if (currentCause instanceof Error) {
+			parts.push(currentCause.message);
+			currentCause = currentCause.cause;
+			continue;
+		}
+		parts.push(String(currentCause));
+		break;
+	}
+
+	return parts.join(" | caused by: ");
 }
 
 export function buildConditionalHeaders(

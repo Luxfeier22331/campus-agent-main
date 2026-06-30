@@ -87,6 +87,7 @@ export async function main(): Promise<void> {
 							...runResult.result.stats,
 							bundlePath: runResult.written?.bundlePath ?? null,
 							bundleObjectKey: runResult.uploadedArtifactRefs.bundleObjectKey,
+							captureReleaseObjectKey: runResult.uploadedArtifactRefs.captureReleaseObjectKey,
 							manifestPath: runResult.written?.manifestPath ?? null,
 							manifestObjectKey: runResult.uploadedArtifactRefs.manifestObjectKey,
 						},

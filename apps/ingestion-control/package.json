@@ -14,7 +14,10 @@
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {
+		"@aws-sdk/client-s3": "^3.956.0",
+		"cheerio": "1.0.0-rc.12",
 		"ingestion-contracts": "file:../../packages/ingestion-contracts",
+		"official-web-core": "file:../../packages/official-web-core",
 		"pg": "^8.16.3"
 	},
 	"devDependencies": {

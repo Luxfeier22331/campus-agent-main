@@ -54,8 +54,8 @@ updated: 2026-06-28
 - `notice-release-auth-window.md`
 - `ingestion-control-clean-target.md`
   - authenticated notice / internal notice 的 ingestion task lifecycle 入口；
-    replay、closeout、promotion、cleanup 等旧 Python worker 操作只保留 archive
-    证据。
+    current notice mainline 使用 explicit object-store capture-release input，
+    旧 Python worker / closeout 操作只作为历史追溯材料。
 
 ## Official Web
 

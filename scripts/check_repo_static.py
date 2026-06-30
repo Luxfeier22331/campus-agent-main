@@ -41,6 +41,10 @@ def repo_static_checks() -> tuple[StaticCheck, ...]:
         StaticCheck("docker tracked files", (py, "-m", "scripts.check_dockerfile_tracked")),
         StaticCheck("pnpm lock", (py, "-m", "scripts.check_pnpm_lock_tracked")),
         StaticCheck("uv lock", (py, "-m", "scripts.check_uv_lock")),
+        StaticCheck(
+            "ingestion task executability",
+            (py, "-m", "scripts.check_ingestion_task_executability"),
+        ),
         StaticCheck("ruff check", ("ruff", "check", ".")),
         StaticCheck("ruff format", ("ruff", "format", ".", "--check")),
         StaticCheck("ci workflow contracts", (py, "-m", "scripts.check_ci_workflow_contracts")),

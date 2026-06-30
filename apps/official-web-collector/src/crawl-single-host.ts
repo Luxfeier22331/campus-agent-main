@@ -94,7 +94,7 @@ export async function crawlSingleHost(
 		};
 	}
 
-	const seedRequests = await buildInitialRequests({
+	const seedDiscovery = await buildInitialRequests({
 		bundle: input.bundle,
 		plan: input.plan,
 		hostPolicy: input.hostPolicy,
@@ -104,6 +104,11 @@ export async function crawlSingleHost(
 		urlResults,
 		disableConditionalHeaders: input.disableConditionalHeaders,
 	});
+	if (seedDiscovery.failures.length > 0) {
+		failures.push(...seedDiscovery.failures);
+		hostSummary.failures += seedDiscovery.failures.length;
+	}
+	const seedRequests = seedDiscovery.requests;
 	if (seedRequests.length === 0) {
 		return {
 			hostSummaries: [hostSummary],

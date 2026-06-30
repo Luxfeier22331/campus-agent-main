@@ -84,6 +84,13 @@ REMOVED_MODULE_REF_PATTERNS = (
     re.compile(r"campus_ingestion_core\.raw_ingestion_source_truth_execution(?!_)"),
 )
 
+TS_ONLY_PYTHON_WORKSPACE_RESIDUE = {
+    Path("apps/authenticated-notice-collector/pyproject.toml"),
+    Path("apps/official-web-collector/pyproject.toml"),
+    Path("packages/official-web-core/pyproject.toml"),
+    Path("packages/wechat-official-account-core/pyproject.toml"),
+}
+
 
 def _is_allowlisted(path: Path) -> bool:
     relative = path.relative_to(REPO_ROOT)
@@ -153,6 +160,19 @@ class IngestionPythonCleanTargetResidueTest(unittest.TestCase):
         self.assertFalse(
             offenders,
             "old active Python ingestion scripts must be deleted:\n" + "\n".join(offenders),
+        )
+
+    def test_ts_only_collector_packages_do_not_reenter_uv_workspace(self) -> None:
+        offenders = [
+            str(path)
+            for path in sorted(TS_ONLY_PYTHON_WORKSPACE_RESIDUE)
+            if (REPO_ROOT / path).exists()
+        ]
+
+        self.assertFalse(
+            offenders,
+            "TS-owned collector/core packages must not carry pyproject.toml workspace shells:\n"
+            + "\n".join(offenders),
         )
 
     def test_active_surfaces_do_not_reference_removed_core_lifecycle_tokens(self) -> None:

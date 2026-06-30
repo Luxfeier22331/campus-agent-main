@@ -26,7 +26,6 @@ from campus_ingestion_core.wechat_public_notice_multimodal_images import _load_i
 from campus_ingestion_core.wechat_public_notice_multimodal_manifests import _build_ocr_manifest
 from campus_ingestion_core.wechat_public_notice_multimodal_models import (
     WeChatPublicNoticeDocumentRegistry,
-    WeChatPublicNoticeInlineImageFetcher,
     WeChatPublicNoticeMultimodalAttemptStore,
     WeChatPublicNoticeMultimodalItemReport,
     WeChatPublicNoticeMultimodalObjectStore,
@@ -58,7 +57,6 @@ def process_wechat_public_notice_pending_multimodal_entries(
     registry: WeChatPublicNoticeDocumentRegistry,
     source_bucket: str,
     derived_bucket: str,
-    image_fetcher: WeChatPublicNoticeInlineImageFetcher,
     provider: WeChatPublicNoticeMultimodalProvider,
     attempt_store: WeChatPublicNoticeMultimodalAttemptStore | None = None,
     max_attempts: int = 3,

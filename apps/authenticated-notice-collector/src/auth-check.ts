@@ -52,21 +52,9 @@ export async function checkAuth(dependencies?: AuthCheckDependencies): Promise<A
 	const apiContext = await createApiContext();
 	try {
 		const checkNoticePage =
-			dependencies?.fetchNoticePage ??
-			((input) =>
-				fetchNoticePage({
-					...input,
-					requestBackoffBaseMs: config.requestBackoffBaseMs,
-					requestMaxRetries: config.requestMaxRetries,
-				}));
+			dependencies?.fetchNoticePage ?? ((input) => fetchNoticePage({ ...input }));
 		const checkFileReleasePage =
-			dependencies?.fetchFileReleasePage ??
-			((input) =>
-				fetchFileReleasePage({
-					...input,
-					requestBackoffBaseMs: config.requestBackoffBaseMs,
-					requestMaxRetries: config.requestMaxRetries,
-				}));
+			dependencies?.fetchFileReleasePage ?? ((input) => fetchFileReleasePage({ ...input }));
 		const noticeResponse = await checkNoticePage({
 			apiContext,
 			currentPage: 1,

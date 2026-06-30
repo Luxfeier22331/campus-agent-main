@@ -91,7 +91,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
 
         payload = asdict(request)
 
-        self.assertEqual(payload["tool"], "campus_services")
+        self.assertEqual(payload["tool"], "transport_schedule_lookup")
         self.assertEqual(tuple(payload["allowed_tools"]), ("transport_schedule_lookup",))
 
     def test_agent_request_rejects_unknown_allowed_tool(self) -> None:
@@ -150,7 +150,7 @@ class ContractModelsServicesAndNoticeSuitePart01(unittest.TestCase):
         payload = asdict(result)
 
         self.assertEqual(payload["schema_version"], "campus_services_tool_result.v1")
-        self.assertEqual(payload["tool"], "campus_services")
+        self.assertEqual(payload["tool"], "transport_schedule_lookup")
         self.assertEqual(payload["facts"]["kind"], "schedule_facts")
         self.assertEqual(
             payload["facts"]["result"]["resolved_route"]["route_id"],

@@ -31,6 +31,8 @@ architecture。当前主语义 owner 是 `authenticated_notice_portal`，并补�
 - 某个下游 collection 的 chunking、retrieval、answer synthesis 或 serving
   rollout 细节
 - 把尚未开放的 source-channel path 冒充成当前默认 product surface
+- 定义 plugin 平台、第三方 adapter API 或多学校 runtime dispatch；repo 当前只冻结
+  fork-friendly source adapter boundary
 
 ## Core Topology
 
@@ -69,6 +71,13 @@ projection ingest -> Operator Console list/detail query`
   - 登录态内部通知源
   - 主要承接内部 notice 与 file-release family 的 source capture /
     source-truth / downstream admission
+  - 当前 `apps/authenticated-notice-collector` 是 MUC first-party adapter 的现有
+    实现形态，不是其他学校必须复用的通用 collector
+  - 当前 `notice` surface 的 MUC adapter 内部使用 Crawlee 承接 list/select/detail
+    task queue、retry 与并发调度；Playwright 只保留在登录态 bootstrap /
+    storageState refresh 边界。Crawlee request、queue、storage 等概念不得泄漏到
+    source-truth schema、capture-release handoff 或 ingestion-control task
+    contract。
 - `wechat_official_account`
   - 公开公众号通知源
   - 当前已验证真实 WeChat 页面抓取、正文与媒体同 run capture、
@@ -84,6 +93,9 @@ projection ingest -> Operator Console list/detail query`
 - notice-oriented source channel 的 downstream serving 是否打开，始终由各自
   collection/runtime profile 与 product opening gate 决定，而不是由 collector
   成功与否决定
+- 其他学校 fork 时应替换自己的 source adapter，并保持 capture-release object
+  handoff、ingestion-control task envelope 与 source-truth contract 稳定；不需要
+  repo 提供 runtime plugin loader
 
 ## Authenticated Notice Portal Boundary
 
@@ -98,11 +110,14 @@ projection ingest -> Operator Console list/detail query`
 固定边界：
 
 - collector 负责登录态复用、list/detail 抓取、正文/链接/附件增强、对象上传、
-  run ledger 写入与 typed handoff artifact 输出
-- `apps/ingestion-control` 负责按 admitted task 读取 explicit source bucket object refs
-  对应的 source artifact，重建 source-truth / holding，并在显式 downstream admission
-  后进入后续 projection 或 release；`run_id` 只能作为可审计 metadata / ledger lookup key，
-  不能替代 object-store input contract
+  run ledger 写入与 typed handoff artifact 输出；其内部可使用 Crawlee 等成熟
+  collector execution library 来管理 queue / retry / concurrency，但这些只属于
+  adapter implementation detail
+- `apps/ingestion-control` 负责按 admitted task 读取 source bucket 中的
+  `authenticated_notice_capture_release.v1` object ref，解析其 bundle /
+  manifest refs，重建 source-truth / holding，并在显式 downstream admission
+  后进入后续 projection 或 release；`run_id` 只能作为可审计 metadata / ledger
+  correlation key，不能替代 object-store input contract
 - `packages/ingestion-core` 负责 source-truth contract、projection、registry 与
   release semantics
 - `apps/app-api` 不拥有 source-truth、对象存储、queue mutation、lease/retry/
@@ -175,16 +190,23 @@ collector 与 ingestion-control 之间的主链路 handoff 固定通过：
 - 只传 `collector-run://...` 后由 executor 隐式猜测 bundle / manifest
 
 clean target 中，`source_truth_materialize` 的 mainline input 必须指向 source bucket
-中的 bundle / manifest / source-truth artifact，使用 `input_ref.kind=object_store` 与
-`s3://...` URI。`run_id`、site id 与 source surface 只用于 idempotency、audit、
-operator projection 与 ledger correlation。
+中的 `capture-release.json` artifact，使用 `input_ref.kind=object_store` 与
+`s3://...` URI。该 release object 的 contract 是
+`authenticated_notice_capture_release.v1`，其内容再声明 bundle / manifest source
+object refs。`run_id`、site id 与 source surface 只用于 idempotency、audit、
+operator projection 与 ledger correlation，不能作为 ingestion executor 的隐式 lookup
+input。
 
 历史代码中曾存在的 `inline` collector-run task envelope 已作为 staged migration
-residue 移除。剩余迁移完成判据是 verified collector run 通过 object-store refs 被
-`apps/ingestion-control` admit / claim / execute / complete，并产出
+residue 移除。剩余迁移完成判据是 verified collector capture release 通过
+object-store refs 被 `apps/ingestion-control` admit / claim / execute / complete，并产出
 `authenticated_notice_source_truth.v1` artifact closeout。
 
 local bundle / manifest path 只允许作为显式 fixture/dev 输入，不是 Docker mainline 的成功形态。
+
+这条 handoff 是 fork boundary。MUC portal 登录态、selector、cookie 与 portal API
+细节只能停在 MUC collector adapter 内；ingestion-control 只消费 verified
+`authenticated_notice_capture_release.v1` object-store ref。
 
 ## App-API Operator Projection Boundary
 

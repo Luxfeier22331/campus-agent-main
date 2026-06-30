@@ -4,16 +4,10 @@ const TASK_ENVELOPE_VERSION = "ingestion_task_envelope.v1";
 const TASK_REGISTRY_VERSION = "ingestion_task_registry.v1";
 
 const taskKinds = new Set([
-	"raw_asset_ingest",
 	"source_truth_materialize",
-	"canonical_document_materialize",
 	"document_units_validate",
 	"chunk_prepare",
-	"embedding_index_build",
 	"release_manifest_validate",
-	"alias_publish",
-	"structured_projection_publish",
-	"operator_projection_snapshot",
 ]);
 
 const executorKinds = new Set(["rust_kernel", "ts_control"]);
@@ -88,9 +82,6 @@ export function validateIngestionTaskRegistry(value: unknown): ValidationResult 
 		}
 		if (task.executor_kind === "rust_kernel") {
 			requireString(task, `tasks[${index}].kernel_id`, errors, "kernel_id");
-		}
-		if (task.task_kind === "alias_publish" && task.executor_kind === "rust_kernel") {
-			errors.push(`tasks[${index}] alias_publish cannot be executed by rust_kernel`);
 		}
 	});
 

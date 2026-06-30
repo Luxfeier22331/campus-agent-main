@@ -1,19 +1,21 @@
 import { parseTaskStatus } from "./projection";
+import type { IngestionTaskRegistryCatalog } from "./task-registry";
 import type { IngestionArtifactRef, IngestionTaskEnvelope, IngestionTaskStore } from "./types";
 
 export type IngestionControlHandler = (request: Request) => Promise<Response>;
 
 export function createIngestionControlHandler(input: {
 	store: IngestionTaskStore;
+	registryCatalog: IngestionTaskRegistryCatalog;
 }): IngestionControlHandler {
 	return async (request: Request): Promise<Response> => {
 		const url = new URL(request.url);
 		const pathname = url.pathname;
 		try {
 			if (request.method === "POST" && pathname === "/internal/ingestion/tasks") {
-				return jsonResponse(
-					await input.store.admitTask((await request.json()) as IngestionTaskEnvelope),
-				);
+				const task = (await request.json()) as IngestionTaskEnvelope;
+				input.registryCatalog.requireTask(task);
+				return jsonResponse(await input.store.admitTask(task));
 			}
 			if (request.method === "GET" && pathname === "/internal/ingestion/tasks/next") {
 				return jsonResponse(await input.store.nextTask());

@@ -26,16 +26,14 @@ read model remains available for later standalone calendar design.
 
 ## Publish
 
-Release publication is owned by the ingestion-control task registry:
+This collection currently has no active ingestion-control task registry. The
+previous `structured_projection_publish` and `operator_projection_snapshot`
+task declarations were removed because they had no real default TS handlers.
 
-- `structured_projection_publish` consumes `academic_calendar_source_truth.v1`
-  and writes the structured projection closeout.
-- `operator_projection_snapshot` consumes `academic_calendar_projection.v1` and
-  writes the operator projection.
-
-There is no active Python publish CLI for this collection. If the TS handlers
-are not registered, the executor fails closed; it must not call a Python
-fallback or infer a partial projection from raw HTML, OCR assets or generic RAG.
+There is no active Python publish CLI for this collection. If calendar
+publication needs to re-enter ingestion-control, add a real TS handler and the
+matching registry task in the same change; do not restore placeholder tasks or
+infer a partial projection from raw HTML, OCR assets or generic RAG.
 
 ## Current Release Evidence
 

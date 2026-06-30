@@ -6,9 +6,11 @@ import {
 	createPostgresIngestionTaskStore,
 	ensureIngestionControlPostgresSchema,
 } from "./postgres-store";
+import { loadIngestionTaskRegistryCatalogFromRoot } from "./task-registry";
 
 export interface IngestionControlRuntimeConfig {
 	databaseUrl: string;
+	registryRoot: string;
 	host: string;
 	port: number;
 }
@@ -19,6 +21,7 @@ export function buildIngestionControlRuntimeConfig(
 	const databaseUrl = requiredEnv(env, "INGESTION_CONTROL_DATABASE_URL");
 	return {
 		databaseUrl,
+		registryRoot: requiredEnv(env, "INGESTION_TASK_REGISTRY_ROOT"),
 		host: env.INGESTION_CONTROL_HOST?.trim() || "0.0.0.0",
 		port: readPort(env.INGESTION_CONTROL_PORT),
 	};
@@ -30,6 +33,7 @@ export async function startIngestionControlServer(
 	const pool = new Pool({ connectionString: config.databaseUrl });
 	await ensureIngestionControlPostgresSchema(pool);
 	const handler = createIngestionControlHandler({
+		registryCatalog: loadIngestionTaskRegistryCatalogFromRoot(config.registryRoot),
 		store: createPostgresIngestionTaskStore({ pool }),
 	});
 

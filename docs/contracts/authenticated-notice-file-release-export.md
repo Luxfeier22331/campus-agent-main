@@ -19,8 +19,8 @@ updated: 2026-04-28
 - collector 会额外快照哪些 portal selector / taxonomy truth
 - `reference_only` 与 `object_store_write` 各自代表什么
 - released file 的对象存储 key 如何编排
-- collector -> worker handoff 中 `file_release` 必须提供哪些 object refs 和 verification
-  fields
+- collector -> ingestion-control / import consumer handoff 中 `file_release`
+  必须提供哪些 object refs 和 verification fields
 
 它不负责：
 
@@ -67,8 +67,8 @@ updated: 2026-04-28
 holding status 的 operator posture 固定为：
 
 - `captured_only`：只保留 capture evidence，不能作为 import source
-- `object_backed_source_ready`：released original 已在 source bucket 中验证，可进入 worker
-  import
+- `object_backed_source_ready`：released original 已在 source bucket 中验证，可进入
+  ingestion-control / import consumer
 - `imported_holding`：holding inventory、raw asset、document rows 与 source
   objects 已对齐
 - `downstream_admitted`：已有后续 owner 显式 admission / read model 证据；
@@ -91,8 +91,8 @@ collector 可以在本地 operator work dir 下保留两类 export 文件副本�
 - targeted export：`file-release-target-<file_release_id>-<timestamp>`
 
 跨 Docker runtime handoff 不能依赖上述本地路径。主链路 handoff 必须由
-source bucket object refs 与 run ledger 表达，worker 通过 `run_id` 或 explicit
-object refs 读取 bundle / manifest。
+source bucket object refs 与 run ledger 表达；当前 mainline consumer input 必须是
+explicit object refs，不能要求 consumer 通过 run ledger 隐式猜测 bundle / manifest。
 
 ## Portal Selector Snapshot
 
@@ -320,8 +320,9 @@ released file 的 capture 结果只允许两种解释：
 
 这不是失败态，而是“只捕获引用、不捕获字节”的显式 contract。
 
-在 `file_release_source` import 中，`reference_only` 是 fail-closed input：worker
-可以报告它，但不能把它导入 document holding，也不能伪造 raw/source object locator。
+在 `file_release_source` import 中，`reference_only` 是 fail-closed input：import
+consumer 可以报告它，但不能把它导入 document holding，也不能伪造 raw/source object
+locator。
 
 ### `object_store_write`
 
@@ -371,9 +372,9 @@ released file 的 capture 结果只允许两种解释：
 - `status`
 - `failure_reason`
 
-worker `--run-id` import 只能消费这份 read contract。`bundle_path` /
-`manifest_path` local fields 可以保留在 dev/debug report 中，但不能作为 Docker collector
-与 Docker worker 之间的 handoff truth。
+`run_id` consumer 只能消费这份 read contract。`bundle_path` / `manifest_path`
+local fields 可以保留在 dev/debug report 中，但不能作为 Docker collector 与
+downstream consumer 之间的 handoff truth。
 
 ## Object Key Contract
 

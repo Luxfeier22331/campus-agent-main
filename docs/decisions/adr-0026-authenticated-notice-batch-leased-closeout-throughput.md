@@ -5,13 +5,23 @@ owner_boundary: docs/decisions
 decision_id: ADR-0026
 status: accepted
 created: 2026-04-05
-updated: 2026-04-05
+updated: 2026-06-28
 ---
 # ADR-0026 Authenticated Notice Batch-Leased Closeout Throughput Model
 
 适用范围：`authenticated_notice_portal` historical closeout throughput
 redesign、planning/worker split、batch leasing、worker progress truth、lightweight
 operator status、single-promoter parallel copy
+
+## 当前状态说明
+
+本文保留 historical closeout throughput 的 batch / lease / worker rationale。当前
+notice ingestion mainline 不通过本文的 batch-leased closeout executor 定义；当前
+task admission 与 executor lifecycle 由 `apps/ingestion-control` 和
+`authenticated_notice_capture_release.v1` object-store input contract 收口。
+
+下文的 worker pool、closeout batch、staging table 与 promoter 描述只解释历史
+closeout design，不是当前 notice capture -> source-truth materialization 入口。
 
 ## 背景
 

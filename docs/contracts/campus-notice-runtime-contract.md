@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: apps/execution-control
 status: active
 created: 2026-04-23
-updated: 2026-06-26
+updated: 2026-06-28
 ---
 # Campus Notice Runtime Contract
 
@@ -40,6 +40,9 @@ Notice user-facing output is card-first and source-link-first.
 - `campus_notice_period_summary` and `campus_notice_change_set_lookup` are
   closed ToolSpec / workflow-artifact contract residues, not model-visible
   runtime tools.
+- Closed notice tools are not roadmap promises. Reopening either tool requires
+  a concrete product need, an opened ToolSpec entry, runtime profile exposure,
+  read-model ownership, eval denominators and a documented failure policy.
 - Transport notice-derived operational facts belong in
   `transport_schedule_lookup` output (`related_notice_refs` /
   `operational_notices`), not a standalone notice change-set tool.
@@ -103,6 +106,18 @@ CampusNoticeGetResult
 `normalized_body` may remain on the internal DTO for compatibility with
 source-truth-backed materialization, but it is not required for resolved results
 and must not be used for default answer rendering.
+
+Closed contract residue:
+
+```text
+CampusNoticePeriodSummaryPayload / Result
+CampusNoticeChangeSetLookupPayload / Result
+```
+
+These packets may remain in machine-readable schemas and Go read-model code for
+compatibility tests and future reopening review. They must not be exposed to the
+model, provider function schema, Agents SDK loop or public product surface while
+their ToolSpec exposure remains `closed`.
 
 ## Display Policy
 

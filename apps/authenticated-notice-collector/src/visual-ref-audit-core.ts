@@ -3,13 +3,13 @@ import path from "node:path";
 
 import { fetchNoticeDetail, fetchNoticePage } from "./api.js";
 import type { SelectedNoticeSpec } from "./bootstrap-export-core.js";
-import { normalizeNullableText, normalizeOptionalNoticeId } from "./bootstrap-export-helpers.js";
+import { normalizeNullableText } from "./bootstrap-export-helpers.js";
 import { resolveCollectorConfig } from "./config.js";
 import {
 	collectHtmlVisualReferenceCandidates,
 	type HtmlVisualReferencePattern,
 } from "./html-visual-references.js";
-import { getEnabledNoticeTypes } from "./notice-types.js";
+import { runNoticeCrawleeCollection } from "./notice-crawlee-runner.js";
 import { createApiContextFromStorageState } from "./portal.js";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
 import type {
@@ -156,107 +156,49 @@ export async function collectVisualReferenceAudit(
 	const createApiContext =
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveCollectorConfig(process.env)));
-	const fetchPage =
-		input.fetchNoticePage ??
-		((pageInput) =>
-			fetchNoticePage({
-				...pageInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+	const fetchPage = input.fetchNoticePage ?? ((pageInput) => fetchNoticePage({ ...pageInput }));
 	const fetchDetail =
-		input.fetchNoticeDetail ??
-		((detailInput) =>
-			fetchNoticeDetail({
-				...detailInput,
-				requestBackoffBaseMs: input.requestBackoffBaseMs,
-				requestMaxRetries: input.requestMaxRetries,
-			}));
+		input.fetchNoticeDetail ?? ((detailInput) => fetchNoticeDetail({ ...detailInput }));
 	const apiContext = await createApiContext();
-	const notices: VisualReferenceAuditNoticeInput[] = [];
 	try {
-		if (selectedNotices.length > 0) {
-			for (const selectedNotice of selectedNotices) {
-				const detailResponse = await fetchDetail({
-					apiContext,
-					noticeId: selectedNotice.noticeId,
-					noticeType: selectedNotice.noticeType,
-				});
-				const detailInfo = detailResponse.datas?.notice_info;
-				notices.push({
-					htmlValue: normalizeNullableText(detailInfo?.notice_content) ?? "",
-					noticeId: selectedNotice.noticeId,
-					noticeType: selectedNotice.noticeType,
-					noticeTypeName:
-						normalizeNullableText(selectedNotice.noticeTypeName) ??
-						normalizeNullableText(detailInfo?.notice_type_name) ??
-						findNoticeTypeName(input.noticeTypes, selectedNotice.noticeType),
-					title:
-						normalizeNullableText(selectedNotice.noticeTitle) ??
-						normalizeNullableText(detailInfo?.notice_title) ??
-						String(selectedNotice.noticeId),
-				});
-			}
-		} else {
-			for (const noticeType of getEnabledNoticeTypes(input.noticeTypes)) {
-				const pageBudget =
-					collectionMode === "backfill" ? noticeType.backfillPages : noticeType.incrementalPages;
-				const pageSize =
-					collectionMode === "backfill"
-						? noticeType.backfillPageSize
-						: noticeType.incrementalPageSize;
-				for (let currentPage = 1; currentPage <= pageBudget; currentPage += 1) {
-					if (input.maxNotices && notices.length >= input.maxNotices) {
-						break;
-					}
-					const pageResponse = await fetchPage({
-						apiContext,
-						currentPage,
-						noticeType: noticeType.type,
-						pageSize,
-					});
-					for (const item of pageResponse.datas?.tables ?? []) {
-						if (input.maxNotices && notices.length >= input.maxNotices) {
-							break;
-						}
-						const noticeId = normalizeOptionalNoticeId(item.notice_id);
-						if (noticeId === null) {
-							continue;
-						}
-						const resolvedNoticeType = String(item.notice_type ?? noticeType.type).trim();
-						const detailResponse = await fetchDetail({
-							apiContext,
-							noticeId,
-							noticeType: resolvedNoticeType,
-						});
-						const detailInfo = detailResponse.datas?.notice_info;
-						notices.push({
-							htmlValue:
-								normalizeNullableText(detailInfo?.notice_content ?? item.notice_content) ?? "",
-							noticeId,
-							noticeType: resolvedNoticeType,
-							noticeTypeName:
-								normalizeNullableText(item.notice_type_name) ??
-								normalizeNullableText(detailInfo?.notice_type_name) ??
-								noticeType.name,
-							title:
-								normalizeNullableText(item.notice_title) ??
-								normalizeNullableText(detailInfo?.notice_title) ??
-								String(noticeId),
-						});
-					}
-				}
-			}
-		}
+		const collected = await runNoticeCrawleeCollection({
+			apiContext,
+			backfillMaxPagesPerType: null,
+			collectionMode,
+			exportedAt: input.generatedAt,
+			fetchNoticeDetail: fetchDetail,
+			fetchNoticePage: fetchPage,
+			fetchNoticeSelects: async () => ({
+				datas: {
+					org: [],
+					type: [],
+				},
+				state: true,
+			}),
+			fullScopeRequested: false,
+			maxNotices: input.maxNotices ?? null,
+			noticeTypes: input.noticeTypes,
+			requestMaxRetries: input.requestMaxRetries,
+			selectedNotices,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+		});
+		const notices = collected.bundleRecords.map((record) => ({
+			htmlValue: normalizeNullableText(record.notice.notice_content) ?? "",
+			noticeId: record.notice_id,
+			noticeType: String(record.notice.categories[0]?.notice_type ?? ""),
+			noticeTypeName: record.notice.categories[0]?.notice_type_name ?? null,
+			title: record.notice.notice_title,
+		}));
+		return buildVisualReferenceAuditReport({
+			generatedAt: input.generatedAt,
+			notices,
+			siteId: input.siteId,
+			sourceHomeUrl: input.sourceHomeUrl,
+		});
 	} finally {
 		await apiContext.dispose();
 	}
-	return buildVisualReferenceAuditReport({
-		generatedAt: input.generatedAt,
-		notices,
-		siteId: input.siteId,
-		sourceHomeUrl: input.sourceHomeUrl,
-	});
 }
 
 export function writeVisualReferenceAuditReport(
@@ -310,8 +252,4 @@ function normalizeSelectedNoticeSpecs(specs: SelectedNoticeSpec[]): SelectedNoti
 		});
 	}
 	return normalized;
-}
-
-function findNoticeTypeName(noticeTypes: NoticeTypeConfig[], noticeType: string): string | null {
-	return noticeTypes.find((item) => item.type === noticeType)?.name ?? null;
 }

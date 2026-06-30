@@ -5,12 +5,23 @@ owner_boundary: docs/decisions
 decision_id: ADR-0025
 status: accepted
 created: 2026-04-04
-updated: 2026-04-04
+updated: 2026-06-28
 ---
 # ADR-0025 Authenticated Notice Async Staged Closeout
 
 适用范围：`authenticated_notice_portal` historical export closeout、对象存储 operations
 prefix、staging tables、single-promoter commit、deterministic verification
+
+## 当前状态说明
+
+本文记录 historical authenticated notice closeout 的 staged-pipeline rationale。当前
+notice mainline handoff 已收口为 ingestion-control task lifecycle 读取
+`authenticated_notice_capture_release.v1` object-store refs；本文中的 historical operations
+prefix、staging 表、single-promoter 与旧 closeout runner 不拥有当前 source-truth
+materialization contract。
+
+需要恢复 closeout 历史细节时，应从本文或 git history 提取具体事实，再提升到当前
+domain architecture、data doc 或 runbook。
 
 ## 背景
 
