@@ -93,6 +93,80 @@ func (readyPersonalMemoryExecutor) Recall(
 	})
 }
 
+func (readyPersonalMemoryExecutor) OperationStatus(
+	_ context.Context,
+	request memoryruntime.OperationStatusRequest,
+) (memoryruntime.OperationStatusResult, error) {
+	return memoryruntime.FinalizeOperationStatusResult(memoryruntime.OperationStatusResult{
+		OperationID:   request.OperationID,
+		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
+		OperationType: "retain",
+		RunID:         request.RunID,
+		SchemaVersion: "memory_operation_status_result_v1",
+		Status:        "completed",
+		UserID:        request.UserID,
+	})
+}
+
+func (readyPersonalMemoryExecutor) ListOperations(
+	_ context.Context,
+	request memoryruntime.OperationListRequest,
+) (memoryruntime.OperationListResult, error) {
+	return memoryruntime.FinalizeOperationListResult(memoryruntime.OperationListResult{
+		RunID:         request.RunID,
+		SchemaVersion: "memory_operation_list_result_v1",
+		UserID:        request.UserID,
+	})
+}
+
+func (readyPersonalMemoryExecutor) CancelOperation(
+	_ context.Context,
+	request memoryruntime.OperationActionRequest,
+) (memoryruntime.OperationActionResult, error) {
+	return memoryruntime.FinalizeOperationActionResult(memoryruntime.OperationActionResult{
+		Action:        "cancel",
+		OperationID:   request.OperationID,
+		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
+		RunID:         request.RunID,
+		SchemaVersion: "memory_operation_action_result_v1",
+		Status:        "accepted",
+		Success:       true,
+		UserID:        request.UserID,
+	})
+}
+
+func (readyPersonalMemoryExecutor) RetryOperation(
+	_ context.Context,
+	request memoryruntime.OperationActionRequest,
+) (memoryruntime.OperationActionResult, error) {
+	return memoryruntime.FinalizeOperationActionResult(memoryruntime.OperationActionResult{
+		Action:        "retry",
+		OperationID:   request.OperationID,
+		OperationRef:  "projection://runs/" + request.RunID + "/memory/operations/" + request.OperationID,
+		RunID:         request.RunID,
+		SchemaVersion: "memory_operation_action_result_v1",
+		Status:        "accepted",
+		Success:       true,
+		UserID:        request.UserID,
+	})
+}
+
+func (readyPersonalMemoryExecutor) Reflect(
+	_ context.Context,
+	request memoryruntime.ReflectRequest,
+) (memoryruntime.ReflectResult, error) {
+	return memoryruntime.FinalizeReflectResult(memoryruntime.ReflectResult{
+		Provider:      "hindsight",
+		ReflectRef:    "projection://runs/" + request.RunID + "/memory/reflect",
+		RunID:         request.RunID,
+		SchemaVersion: "memory_reflect_result_v1",
+		Status:        "completed",
+		Text:          "memory reflection",
+		ThreadID:      request.ThreadID,
+		UserID:        request.UserID,
+	})
+}
+
 func (readyPersonalMemoryExecutor) AppendConversationTurn(
 	_ context.Context,
 	request memoryruntime.AppendConversationTurnRequest,
@@ -105,20 +179,6 @@ func (readyPersonalMemoryExecutor) AppendConversationTurn(
 		ThreadID:             request.ThreadID,
 		UserID:               request.UserID,
 	})
-}
-
-func (readyPersonalMemoryExecutor) OperationStatus(
-	_ context.Context,
-	request memoryruntime.PersonalMemoryOperationStatusRequest,
-) (memoryruntime.PersonalMemoryOperationStatusResult, error) {
-	return memoryruntime.FinalizePersonalMemoryOperationStatusResult(
-		memoryruntime.PersonalMemoryOperationStatusResult{
-			OperationID:   request.OperationID,
-			SchemaVersion: "memory_operation_status_result_v1",
-			Status:        "completed",
-			UserID:        request.UserID,
-		},
-	)
 }
 
 func (readyPersonalMemoryExecutor) UpsertProfileMemoryItem(

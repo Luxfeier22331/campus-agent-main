@@ -40,6 +40,21 @@ Durable schema and database ownership live in:
 Postgres, not two logical databases. Read-after-write-sensitive paths must be
 explicitly admitted by the data owner docs.
 
+Repeatable local / staging database artifacts stay under `apps/app-api/scripts`
+and `apps/app-api/db/shared-product-migrations` rather than package lifecycle
+scripts:
+
+- `scripts/bootstrap-shared-product-with-seeds.mjs`
+- `scripts/bootstrap-shared-product-database.mjs`
+- `scripts/ensure-app-auth-role-search-path.mjs`
+- `scripts/reconcile-shared-db-drift.mjs`
+- `scripts/drain-official-web-projection.ts`
+
+The app-owned shared product bootstrap includes `app_auth.*`, `chat.*`,
+`profile.*`, `runtime.*`, `operator.*`, `official_web.*`, `dining.*`,
+`docs.*`, `campus_services_ops.*`, `provider_config.*` and
+`wechat_official_account.*` schemas as documented in `docs/data/app-api/`.
+
 ## References
 
 - product/runtime boundary: `docs/architecture/system/product-runtime.md`

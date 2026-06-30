@@ -16,7 +16,7 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
             WorkflowToolContext(
                 tool="knowledge_query",
                 workflow_run_ref="workflow:req-001",
-                step_id="handoff:knowledge:rag_request",
+                step_id="tool:knowledge_query:rag_request",
                 tool_id="knowledge_query",
                 expected_output_artifacts=("",),
             )
@@ -25,7 +25,7 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
         context = WorkflowToolContext(
             tool="knowledge_query",
             workflow_run_ref="workflow:req-001",
-            step_id="handoff:knowledge:rag_request",
+            step_id="tool:knowledge_query:rag_request",
             tool_id="knowledge_query",
             required_projection_kind="notice_context",
             expected_output_artifacts=("evidence_bundle", "grounding_verdict"),
@@ -35,8 +35,8 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
         payload = asdict(context)
 
         self.assertEqual(payload["workflow_run_ref"], "workflow:req-001")
-        self.assertEqual(payload["step_id"], "handoff:knowledge:rag_request")
-        self.assertEqual(payload["tool_id"], "knowledge")
+        self.assertEqual(payload["step_id"], "tool:knowledge_query:rag_request")
+        self.assertEqual(payload["tool_id"], "knowledge_query")
         self.assertEqual(
             payload["expected_output_artifacts"],
             ("evidence_bundle", "grounding_verdict"),

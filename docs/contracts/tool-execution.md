@@ -138,8 +138,8 @@ agent-runtime 必须把实际 tool call arguments 作为 `arguments_json` 返回
 execution-control，execution-control 必须在投影 typed tool result 前按 canonical schema
 验证，schema drift 作为 `schema_contract_drift` fail-close step 处理。
 
-`requested_tool` 在 forward contract 中只是 explicit caller hint /
-compatibility field。普通 chat 缺失该字段时，不得由 `app-api` 或
+`requested_tool` 在 forward contract 中只是 optional explicit caller hint。
+普通 chat 缺失该字段时，不得由 `app-api` 或
 `execution-control` 伪造成 `knowledge_query`；first decision 应由 `agent.primary` 在
 surface / workflow 已裁剪的 visible tool set 内完成。当前 Go `execution-control`
 已按该 contract 保持 ordinary chat neutral；neutral memory recall 使用
@@ -392,11 +392,11 @@ payload 或 provider raw response。
   memory projection refs。legacy `profile_memory` 字段如仍出现在 generated DTO 或历史
   fixture 中，只能解释为 ignored / legacy compatibility residue，不得作为 active
   online recall truth 或目标 contract 扩展点。
-- `requested_tool` 当前 wire 允许具体 tool id，例如 `knowledge_query`、`place_lookup`、
-  `transport_schedule_lookup`、`campus_notice_discover`、
-  `campus_notice_period_summary` 或 `campus_notice_change_set_lookup`。它只是 explicit
-  caller hint，不等于对应 browser surface 已开放；当前公开 chat surface
-  仍由 `app-api` surface tool policy 决定允许子集
+- `requested_tool` 当前 wire 只允许 external caller hint 可表达的具体 tool id：
+  `knowledge_query`、`place_lookup`、`transport_schedule_lookup` 或
+  `campus_notice_discover`。它不是 closed/internal tool admission，也不等于对应
+  browser surface 已开放；当前公开 chat surface 仍由 `app-api` surface tool policy
+  决定允许子集
 - `requested_tool` 缺失的目标态语义是“未给 explicit caller hint”，不是
   “默认 knowledge”。普通 chat 应交给 `agent.primary` 基于 admitted tool catalog
   选择 direct/no-tool 或具体 tool，例如 `campus_notice_discover`、
@@ -418,7 +418,7 @@ payload 或 provider raw response。
 - 当前产品路径已对 `place_lookup` fail-close，等待地图产品上线后再开放地点查询、
   route planning、地图 UI 或完整 `place_card` product consumption；
   `app-api` 只按 tool/request projection 传递请求，不伪造 retrieval scope
-- `campus_services` / `notice` 只有在上游 surface policy 已显式
+- `transport_schedule_lookup` / `campus_notice_discover` 只有在上游 surface policy 已显式
   admission 时才应传入；
   knowledge path 下的 notice/service-like query 仍保持现有 gate posture，不被这次 wire
   对齐自动打开
@@ -521,8 +521,8 @@ approval / HITL 或 state-changing tool 作为产品目标。
   `knowledge_query`、`place_lookup`、`transport_schedule_lookup`、
   `campus_notice_discover`、`campus_notice_period_summary` 或
   `campus_notice_change_set_lookup`。它不是 tool domain label，也不是
-  operator-facing display label；当 tool id 与 legacy wire label 一致时，
-  serialized contract 直接承载这个 admitted tool id。
+  operator-facing display label；serialized contract 直接承载这个 admitted
+  tool id。
 - `result` 仍由 agent / shared contract 拥有，不在这里完整重定义
 - 当 `selected_tool = place_lookup` 时，`result` 使用 `PlaceLookupResult` 的
   Python-side `snake_case` 形态：
@@ -589,7 +589,7 @@ approval / HITL 或 state-changing tool 作为产品目标。
 对 `app-api` 来说，需要区分两类失败：
 
 - transport / admission / malformed execution request 使用非 `200`
-- execution 已被受理并得到 legacy-named typed `ExecutionResponse` 返回 `200`，由 body 内
+- execution 已被受理并得到 typed `ExecutionResponse` 返回 `200`，由 body 内
   `status` 区分
   `completed` / `needs_clarification` / `no_answer` / `error` /
   `approval_required` / `rejected` / `cancelled`

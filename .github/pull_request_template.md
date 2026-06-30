@@ -1,23 +1,23 @@
-# Pull Request
+# 合并请求
 
-## Summary
+## 本次改了什么
 
-## Scope
+## 影响范围
 
-- Affected apps/packages:
-- Affected docs/contracts:
+- 应用或包：
+- 文档或约定：
 
-## Source Of Truth Updates
+## 文档更新确认
 
-- [ ] No architecture or contract truth changed
-- [ ] Updated `docs/architecture/` or ADRs when boundary changed
-- [ ] Updated `docs/contracts/` or `docs/data/` when seam/schema changed
-- [ ] Updated `docs/runbooks/` when operator steps changed
+- [ ] 没有改变架构、接口或运行方式
+- [ ] 改变了架构或长期约定，并已更新 `docs/architecture/` 或 ADR
+- [ ] 改变了接口、数据结构或配置约定，并已更新 `docs/contracts/` 或 `docs/data/`
+- [ ] 改变了运维、发布或验证步骤，并已更新 `docs/runbooks/`
 
-## Verification
+## 验证记录
 
 ```bash
-# Paste the exact commands you ran here.
+# 粘贴实际执行过的命令。
 ```
 
-## Risks / Open Questions
+## 风险与待确认

@@ -24,7 +24,7 @@ seam。
 它不负责：
 
 - browser-facing HTTP schema
-- legacy-named execution -> tool handoff schema
+- execution -> tool handoff schema
 - 当前 multi-step executor 的具体代码实现
 - 通用工具平台或开放域 browse contract
 

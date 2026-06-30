@@ -5,7 +5,7 @@ owner_boundary: docs/decisions
 decision_id: ADR-0058
 status: accepted
 created: 2026-06-16
-updated: 2026-06-18
+updated: 2026-06-29
 supersedes:
   - ADR-0057 Zep CE Self-Hosted Personal Memory Plane
   - ADR-0053 Qdrant-Native Personal Memory Index
@@ -23,12 +23,19 @@ collection lifecycle for a domain that is not institutional retrieval.
 That split was wrong for the target product: Qdrant remains a strong fit for
 institutional RAG, but personal memory needs a user graph memory system.
 
+The official Hindsight model is broader than a recall store: it provides retain,
+recall, reflect, async operation handling and memory-bank lifecycle. The current
+repo integration must adopt those semantics without moving policy, projection or
+secret ownership into the model-facing agent runtime.
+
 ## Decision
 
-Adopt self-hosted Hindsight as the only personal memory substrate.
+Adopt self-hosted Hindsight as the only personal memory runtime substrate.
 
 - `apps/execution-control` owns Hindsight HTTP integration through the Hindsight
   Go client/runtime adapter.
+- Hindsight owns `retain`, `recall`, `reflect`, async operation status and memory
+  bank lifecycle semantics for personal memory.
 - Temporal keeps `MemoryRecallActivity` and adds completed-turn
   `AppendConversationMemoryActivity`.
 - app-api manual profile-memory product APIs call execution-control internal
@@ -44,6 +51,11 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
   empty tenant strings are not accepted as an implicit default.
 - Hindsight bank id is derived as `hindsight_bank_` plus a SHA-256 digest of
   `PERSONAL_MEMORY_OWNER_SALT`, `tenant_id` and `user_id`.
+- Every scoped bank must be explicitly bootstrapped through the Hindsight bank
+  API before retain / recall / reflect / operation inspection / profile item
+  delete. The execution-control adapter must configure bank-level Memory Defense
+  with `sensitive_data` redaction, read config back, and fail closed if the
+  expected config is not active.
 - Completed-turn conversation document id is derived as `conversation:` plus a
   SHA-256 digest of `PERSONAL_MEMORY_OWNER_SALT`, Hindsight bank id and product
   `conversation_id`.
@@ -65,13 +77,40 @@ Adopt self-hosted Hindsight as the only personal memory substrate.
   disabled.
 - Completed-turn append uses Hindsight async retain and returns `accepted` after
   Hindsight accepts the write request. It must not claim `completed` graph
-  materialization.
+  materialization until operation status or later recall / reflect evidence proves
+  it.
 - Async retain must return an operation id. The id is internal runtime metadata
   only; execution-control may query it through an internal worker-auth operation
   status endpoint with Hindsight `include_payload=false`.
 - Completed-turn append only sends the user message as Hindsight extractable
   memory content by default. Assistant answers remain finalization projection,
   not graph-extraction input.
+- `memory.reflect` is accepted as an internal workflow target for
+  memory-grounded reasoning and `based_on` facts; it is not the default
+  user-facing final-answer owner.
+- Hindsight operation lifecycle is accepted as an internal/operator function:
+  status/list/cancel/retry stay behind execution-control, return sanitized
+  operation refs, and do not expose raw bank ids, raw result metadata or vendor
+  payloads to browser/model-facing surfaces.
+- Hindsight surface policy is audience-aware:
+  - `execution-control internal` may hold Hindsight bank/document/operation ids
+    and repo-owned projection refs needed for lifecycle control.
+  - `operator/internal ops` may receive repo-owned operation refs and bounded
+    status/kind/count/hash/shape diagnostics.
+  - `student browser-facing` responses must strip Hindsight bank ids, document
+    ids, operation ids, operation refs, runtime document refs, result metadata
+    shape and vendor payload references.
+  - `model-visible` tools/context must not include Hindsight MCP, direct
+    Hindsight tools, raw Hindsight ids or raw payloads.
+- Hindsight retain / recall requests must follow official temporal semantics:
+  completed-turn and explicit profile retain items include a timestamp for when
+  the memory content occurred or was updated, and recall includes
+  `query_timestamp` when execution-control generates the request. Recall /
+  reflect facts without `occurred_*` / `mentioned_at` remain valid bounded
+  memory facts; the projection may leave `updated_at` empty instead of dropping
+  the fact.
+- Hindsight async operation status must request status metadata without raw task
+  payload by setting `include_payload=false`.
 - Append failures are post-answer side-effect failures: finalization is not
   failed, but `memory.append` must be projected as failed and counted by
   bounded-label personal-memory metrics.
@@ -136,6 +175,11 @@ integrate with those internals directly.
 Hindsight bank ids, document ids, async operation ids, raw recall/retain payloads
 and Hindsight API credentials must not appear in model-visible tools,
 browser-facing responses, app-api product contracts or `packages/contracts`.
+Internal operation refs such as `projection://runs/.../memory/operations/...`
+and document refs such as `projection://runs/.../memory/documents/...` are
+internal/operator diagnostics only; app-api student run-step reads must remove
+them from browser-facing projections while preserving public status/count/hash
+fields.
 The internal operation-status path must not request or return Hindsight task
 payloads.
 
@@ -153,10 +197,26 @@ contain local runtime secrets. Staging / production must use their ops-owned
 secret store or generated runtime secrets file; repo-local generated files are
 not valid deployment inputs.
 
-The repo-owned memory eval profile is `hindsight-memory-product-path`, which validates
-append, recall, explicit profile upsert/disable, owner disable and user
-isolation. It does not evaluate repo-owned extraction prompts because extraction
-is delegated to Hindsight.
+The repo-owned memory evidence taxonomy / score profile is
+`hindsight-memory-product-path`, which names append, append operation status /
+materialization proof, recall, observation type coverage, reflect with
+`based_on` facts, operation list sanitized projection, explicit profile
+upsert/disable, owner disable and user isolation. It does not evaluate
+repo-owned extraction prompts because extraction is delegated to Hindsight.
+The live staging runtime gate is
+`pnpm --dir apps/app-api hindsight:memory:e2e:staging`; the retired Python
+`scripts.eval_gate accept` path must not be used as the Hindsight live gate.
+
+Current implementation includes bank bootstrap, bank-level Memory Defense
+redaction verification, sanitized `Reflect`, async operation status/list/action
+projection, timestamped retain, timestamped recall, `observation` recall
+coverage, untimed fact projection, execution-control bounded `recall_limit`
+projection and a live self-hosted Hindsight staging smoke runner. The live
+runner proves async retain materialization via operation status or later recall
+/ reflect evidence, plus profile upsert / disable and owner isolation.
+Operation cancel/retry are covered as internal API smoke/unit behavior because
+live success depends on Hindsight having a pending or failed operation at that
+moment.
 
 ## Rejected Alternatives
 
@@ -169,3 +229,7 @@ is delegated to Hindsight.
 - Expose Hindsight MCP or `create_hindsight_tools()` directly to the primary
   agent: rejected because it bypasses execution-control admission, Temporal
   lifecycle, sanitized projection, RTBF and multi-student isolation boundaries.
+  The current `apps/agent-runtime` surface is TypeScript `@openai/agents`, while
+  memory policy, bank scoping, service secret handling and sanitized projection
+  are owned by `execution-control`; official Hindsight semantics are adopted
+  through the Go SDK and repo-owned typed boundary instead.

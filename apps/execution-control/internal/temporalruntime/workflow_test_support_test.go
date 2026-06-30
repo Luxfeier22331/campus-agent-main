@@ -107,6 +107,35 @@ func (Activities) AppendConversationMemoryActivity(
 	}, nil
 }
 
+func (Activities) MemoryOperationStatusActivity(
+	_ context.Context,
+	input MemoryOperationStatusActivityInput,
+) (MemoryOperationStatusActivityOutput, error) {
+	return MemoryOperationStatusActivityOutput{
+		OperationID:   input.OperationID,
+		OperationRef:  "projection://runs/" + input.RunID + "/memory/operations/" + input.OperationID,
+		OperationType: "retain",
+		PayloadSHA256: "memory-operation-status-hash",
+		RunID:         input.RunID,
+		SchemaVersion: "memory_operation_status_result_v1",
+		Status:        "completed",
+	}, nil
+}
+
+func (Activities) MemoryReflectActivity(
+	_ context.Context,
+	input MemoryReflectActivityInput,
+) (MemoryReflectActivityOutput, error) {
+	return MemoryReflectActivityOutput{
+		PayloadSHA256: "memory-reflect-hash",
+		ReflectRef:    "projection://runs/" + input.RunID + "/memory/reflect",
+		RunID:         input.RunID,
+		SchemaVersion: "memory_reflect_result_v1",
+		Status:        "completed",
+		Text:          "memory reflection",
+	}, nil
+}
+
 func (Activities) ExecutePrimaryAgentActivity(
 	_ context.Context,
 	input ExecutePrimaryAgentActivityInput,

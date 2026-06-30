@@ -58,7 +58,7 @@ export function registerChatCommandServiceCoreValidationSuite(): void {
 				requestId: "req_0001",
 				versionQuery: {
 					mode: "historical",
-					versionId: "v2024-student-rules",
+					version_id: "v2024-student-rules",
 				},
 			}),
 		);

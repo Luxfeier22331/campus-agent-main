@@ -88,14 +88,15 @@ self-host runtime；Qdrant 只承载 institutional RAG / retrieval data plane。
 
 固定边界：
 
-- personal memory graph 与 institutional RAG collection 隔离
+- personal memory graph、retain / recall / reflect、async operation status 与
+  institutional RAG collection 隔离
 - online recall 使用 `PERSONAL_MEMORY_BASE_URL` / `PERSONAL_MEMORY_API_SECRET`
-- explicit profile memory upsert / disable / owner delete 通过 execution-control internal
-  Hindsight command 完成
+- explicit profile memory upsert / disable / owner disable / RTBF 通过
+  execution-control internal Hindsight command 完成
 - staging / production 必须使用 HTTPS Hindsight endpoint；local dev 可使用 compose 内网
   `http://hindsight-api:8888`
-- Hindsight API、Hindsight worker、Postgres / pgvector 与 provider 配置是 Hindsight runtime
-  内部组件，不是
+- Hindsight API、Hindsight worker、Postgres / pgvector、operation records 与 provider
+  配置是 Hindsight runtime 内部组件，不是
   `campus-agent` data-plane contract
 - payload contract 由 `docs/architecture/system/memory-plane.md` 维护，不由
   institutional RAG release manifest 维护

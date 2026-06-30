@@ -76,6 +76,20 @@ func (a TemporalContextActivities) AppendConversationMemoryActivity(
 	return a.server.AppendConversationMemoryActivity(ctx, input)
 }
 
+func (a TemporalContextActivities) MemoryOperationStatusActivity(
+	ctx context.Context,
+	input temporalruntime.MemoryOperationStatusActivityInput,
+) (temporalruntime.MemoryOperationStatusActivityOutput, error) {
+	return a.server.MemoryOperationStatusActivity(ctx, input)
+}
+
+func (a TemporalContextActivities) MemoryReflectActivity(
+	ctx context.Context,
+	input temporalruntime.MemoryReflectActivityInput,
+) (temporalruntime.MemoryReflectActivityOutput, error) {
+	return a.server.MemoryReflectActivity(ctx, input)
+}
+
 func (a TemporalContextActivities) PlanRouteActivity(
 	ctx context.Context,
 	input temporalruntime.PlanRouteActivityInput,
@@ -481,6 +495,14 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleProfileMemoryRecall(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:status":
 		s.handleProfileMemoryOperationStatus(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:list":
+		s.handleProfileMemoryOperationList(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:cancel":
+		s.handleProfileMemoryOperationCancel(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/operations:retry":
+		s.handleProfileMemoryOperationRetry(writer, request)
+	case request.Method == http.MethodPost && path == "/internal/memory/personal/graph:reflect":
+		s.handleProfileMemoryReflect(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/items:disable":
 		s.handleProfileMemoryItemDisable(writer, request)
 	case request.Method == http.MethodPost && path == "/internal/memory/personal/owner:disable":

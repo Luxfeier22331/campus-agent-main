@@ -162,7 +162,7 @@ export function registerChatCommandServiceCurriculumSuite(): void {
 								value: "第四学期",
 							},
 						],
-						turnCount: 2,
+						turnCount: 3,
 					},
 				}),
 			}),

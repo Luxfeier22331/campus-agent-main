@@ -173,7 +173,7 @@
 			"opening_gate": "closed",
 			"eval_denominator": ["tool_result_correctness", "workflow_trace", "release_gate"],
 			"priority": 1,
-			"notes": "Closed as a standalone notice tool; campus_services owns transport operational lookup."
+			"notes": "Closed as a standalone notice tool; transport_schedule_lookup owns transport operational lookup."
 		},
 		{
 			"binding_id": "transport_schedule_lookup.schedule_baseline.lookup",

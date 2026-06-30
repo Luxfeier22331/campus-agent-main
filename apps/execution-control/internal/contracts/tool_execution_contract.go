@@ -32,12 +32,10 @@ const (
 type RequestedTool string
 
 const (
-	RequestedToolKnowledgeQuery              RequestedTool = "knowledge_query"
-	RequestedToolPlaceLookup                 RequestedTool = "place_lookup"
-	RequestedToolTransportScheduleLookup     RequestedTool = "transport_schedule_lookup"
-	RequestedToolCampusNoticeDiscover        RequestedTool = "campus_notice_discover"
-	RequestedToolCampusNoticeChangeSetLookup RequestedTool = "campus_notice_change_set_lookup"
-	RequestedToolCampusNoticePeriodSummary   RequestedTool = "campus_notice_period_summary"
+	RequestedToolKnowledgeQuery          RequestedTool = "knowledge_query"
+	RequestedToolPlaceLookup             RequestedTool = "place_lookup"
+	RequestedToolTransportScheduleLookup RequestedTool = "transport_schedule_lookup"
+	RequestedToolCampusNoticeDiscover    RequestedTool = "campus_notice_discover"
 )
 
 type ConfidenceLevel string
@@ -556,7 +554,7 @@ func (value ToolID) Valid() bool {
 
 func (value RequestedTool) Valid() bool {
 	switch value {
-	case RequestedToolKnowledgeQuery, RequestedToolPlaceLookup, RequestedToolTransportScheduleLookup, RequestedToolCampusNoticeDiscover, RequestedToolCampusNoticeChangeSetLookup, RequestedToolCampusNoticePeriodSummary:
+	case RequestedToolKnowledgeQuery, RequestedToolPlaceLookup, RequestedToolTransportScheduleLookup, RequestedToolCampusNoticeDiscover:
 		return true
 	default:
 		return false

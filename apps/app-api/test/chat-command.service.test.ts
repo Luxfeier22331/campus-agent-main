@@ -2,6 +2,10 @@
 
 import { describe, expect, it, vi } from "vitest";
 
+import { registerChatCommandServiceCoreSuite } from "./chat-command.service.core.suite";
+import { registerChatCommandServiceCurriculumSuite } from "./chat-command.service.curriculum.suite";
+import { registerChatCommandServiceIdempotencySuite } from "./chat-command.service.idempotency.suite";
+import { registerChatCommandServiceObservabilitySuite } from "./chat-command.service.observability.suite";
 import {
 	buildChatCommandService,
 	createCommandStore,
@@ -14,6 +18,11 @@ import {
 } from "./chat-command.service.test-support";
 
 describe("chat command service", () => {
+	registerChatCommandServiceCoreSuite();
+	registerChatCommandServiceObservabilitySuite();
+	registerChatCommandServiceIdempotencySuite();
+	registerChatCommandServiceCurriculumSuite();
+
 	it("fails closed instead of using a legacy direct execution path", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

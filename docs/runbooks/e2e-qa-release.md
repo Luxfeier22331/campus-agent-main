@@ -142,6 +142,13 @@ pnpm --dir apps/app-api chat:memory:e2e:staging \
   | tee "$E2E_QA_EVIDENCE_DIR/chat-memory-recall.json"
 ```
 
+运行 Hindsight personal memory product-path runtime gate：
+
+```bash
+pnpm --dir apps/app-api hindsight:memory:e2e:staging \
+  | tee "$E2E_QA_EVIDENCE_DIR/hindsight-memory-e2e-staging.json"
+```
+
 运行真实 chat + app-api Postgres projection + Hyperdrive usage proof：
 
 ```bash
@@ -175,6 +182,10 @@ Cloudflare token、Postgres DSN 或 Worker secrets。
 - memory recall 输出 `memory.deleted=true`
 - memory recall 输出 `recall.stepId=memory.recall`、`recall.status=completed`
   与 `recall.selectedMemoryCount > 0`
+- Hindsight memory staging 输出 `passed=true`，并覆盖 append accepted、operation
+  status materialization proof、operation list sanitized projection、recall、
+  reflect based_on facts、profile upsert / disable、owner disable / RTBF 与 user
+  isolation
 - runtime DB proof 输出 `passed=true`
 - runtime DB proof 输出 `checks.chatCompleted=true`、
   `checks.postgresProjectionFound=true`、

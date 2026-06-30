@@ -4,13 +4,16 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-09
-updated: 2026-06-18
+updated: 2026-06-28
 ---
 # Memory Plane Architecture
 
 本文冻结 `campus-agent` 的 Hindsight self-host Personal Memory Plane。当前个人记忆不再
 使用 Qdrant collection、repo-owned LLM extraction prompt、personal memory embedding
 profile 或 provider-backed memory extraction eval；Qdrant 只承载 institutional RAG。
+完整目标姿态以 Hindsight 官方 `retain` / `recall` / `reflect` / operation / bank
+语义为准，但通过 repo-owned execution-control boundary 消费，不把 Hindsight vendor
+tools 直接暴露给模型。
 
 ## Positioning
 
@@ -23,8 +26,8 @@ requirement，也不能授予 operator surface 权限。
 
 - `apps/execution-control` owns online memory recall execution and append command.
 - Temporal orchestrates `context.memory_recall` and `memory.append`.
-- Hindsight owns personal memory extraction, graph storage, dedupe / merge
-  semantics and recall.
+- Hindsight owns personal memory extraction, graph storage, dedupe / merge,
+  retain / recall / reflect, async operation status and memory-bank lifecycle.
 - `apps/app-api` owns user-facing manual profile-memory product API and PG projection.
 - PostgreSQL `profile.memory_items` stores product projection and the Hindsight
   document id runtime reference; it is not online recall truth.
@@ -45,6 +48,13 @@ Hindsight runtime 以独立自托管服务部署，`campus-agent` 只通过官�
 Hindsight HTTP API。Hindsight API、Hindsight worker、PostgreSQL / pgvector 与
 embedding / LLM provider 是 Hindsight deployment 内部组件，不是 `campus-agent`
 业务代码或 `packages/contracts` 的集成边界。
+
+Hindsight 官方 OpenAI Agents integration 当前是 Python-oriented happy path，
+提供 `create_hindsight_tools()` 与 `memory_instructions()`。`campus-agent` 当前
+model-facing runtime 是 TypeScript `@openai/agents`，且 memory secret、policy、
+projection 与 audit boundary 固定在 `execution-control`，因此本仓库采用 Hindsight
+官方 memory 语义与官方 Go SDK，而不是把 Hindsight Python tools 直接接入
+`apps/agent-runtime`。
 
 Hindsight runtime 的 execution-control internal env projection 为：
 
@@ -114,6 +124,64 @@ personal_memory_extraction
 personal_memory_embedding
 ```
 
+## Official Hindsight Semantics And Current Implementation
+
+Hindsight 在本仓库中的目标 runtime surface 固定为：
+
+- `retain`：把 completed turn、用户显式 profile memory 或后续批准的 profile
+  change 写入 scoped memory bank，并由 Hindsight 执行 extraction、dedupe / merge
+  与 graph update。
+- `recall`：从 scoped bank 中检索 bounded memory facts。目标 recall type 覆盖
+  `world`、`experience` 与 `observation`；输出只进入 sanitized bounded context。
+- `reflect`：由 Hindsight 执行 memory-grounded reasoning / synthesis，可请求
+  `based_on` facts。它是 internal memory workflow target，不是默认 user-facing final answer
+  owner。
+- operation status：async retain 的 `accepted` 只代表 Hindsight 接受后台处理；
+  graph materialization 必须由 operation status 或后续 recall/reflect evidence 证明。
+- operation lifecycle：list/status/cancel/retry 是 internal operator/runtime 能力；
+  execution-control/internal 与 operator diagnostics 可保留 repo-owned operation
+  ref、status、kind、count、hash/shape；student browser-facing response 与
+  model-visible context 不得暴露 operation id/ref、runtime document ref、raw bank id、
+  raw result metadata shape 或 Hindsight payload。
+- memory bank：bank id 由 execution-control 从 product tenant/user 派生；browser、
+  app-api projection 与 model context 均不得看到 raw Hindsight bank id。
+- temporal semantics：completed-turn retain 必须携带用户 turn 发生时间；explicit
+  profile retain 必须携带 profile update time；execution-control 生成的 recall 请求必须携带
+  `query_timestamp`。Hindsight 返回的 recall / reflect fact 即使没有
+  `occurred_start`、`occurred_end` 或 `mentioned_at` 也可以进入 bounded context，
+  此时 `updated_at` 为空。
+- memory bank bootstrap：每次 retain/recall/reflect/operation 查询或 profile item
+  删除前，execution-control 必须用 Hindsight bank API 创建或更新 scoped bank，再通过
+  bank config API 确认 Memory Defense 已启用 `sensitive_data -> redact`。config
+  未生效时 fail closed，不执行后续 memory operation。`owner:disable` 不为删除目的创建 bank。
+
+当前 execution-control 已接入：
+
+- completed-turn async retain，并把 Hindsight operation id 投影为
+  internal `operation_status_ref`。
+- `MemoryOperationStatusActivity` 与
+  `/internal/memory/personal/operations:status`，用于查询 async retain 后台状态；
+  operation status 查询显式请求 `include_payload=false`。
+- `/internal/memory/personal/operations:list`、`operations:cancel` 与
+  `operations:retry`，用于 internal/operator lifecycle 管理；这些 endpoint 不属于
+  student-facing API，也不进入 model-visible tool set。
+- `MemoryReflectActivity` 与 `/internal/memory/personal/graph:reflect`，用于内部
+  memory-grounded reflection，并只写 sanitized text / structured output / based_on
+  facts。
+- recall 覆盖 `world`、`experience` 与 `observation` target type。
+- `personal_memory.recall_limit` 在 Hindsight recall selection 后继续做
+  execution-control bounded projection 限制。
+- bank bootstrap 与 Memory Defense redaction 默认执行，并通过 config 回读验证。
+- app-api student run-step projection 会剥离 Hindsight operation/document/bank refs；
+  operator/internal ops path 保留必要诊断字段。
+
+当前剩余验收缺口不得冒充已完成：
+
+- completed-turn append 本身只能声称 `accepted`，不能声称 materialized。
+- Hindsight live E2E 必须实际验证 operation status 或后续 recall / reflect 证明
+  materialization；cancel/retry 因分别依赖 pending/failed operation 状态，只作为
+  internal API smoke/unit 覆盖，不作为默认 release gate 的稳定 live case。
+
 ## Online Recall Flow
 
 目标 online path：
@@ -162,7 +230,7 @@ budget = mid
 trace = false
 tags = scope:private
 tags_match = all_strict
-types = experience, world
+types = experience, observation, world
 max_tokens = personal_memory.recall_max_tokens
 result_limit = personal_memory.recall_limit
 ```
@@ -198,6 +266,35 @@ RAG / synthesis 可以消费 bounded memory context 来影响 follow-up、applic
 framing、answer defaults 和 wording。它不得用 memory 打开未开放 tool / collection、
 放宽 source trust、覆盖 fail-close、伪造 account / session truth，或替代 institutional
 evidence。
+
+## Reflect Flow
+
+`memory.reflect` 是目标 internal workflow target，用于需要 Hindsight agentic memory
+reasoning 的场景，例如跨多轮偏好归纳、profile patch 候选生成、memory-grounded
+personalization 解释，或 eval / diagnostic 中需要 `based_on` facts 的验证。
+
+目标 flow：
+
+```text
+admitted internal memory-reflect request
+-> Temporal MemoryReflectActivity
+-> Hindsight reflect scoped to actor bank
+-> sanitized reflection text / structured output
+-> sanitized based_on memory refs when requested
+-> run step or eval observation projection
+```
+
+固定规则：
+
+- `memory.reflect` 不替代 `agent.primary` final answer owner；它只产出 bounded memory
+  reasoning result。
+- `reflect` trace / tool-call log / raw Hindsight payload 只能作为 debug input，不得进入
+  canonical projection。
+- `based_on` facts 可以进入 sanitized refs / hashes / compact fact snippets；不得保留
+  raw chunks、raw transcript 或 private unrestricted notes。
+- 如果未来让模型显式请求 memory reasoning，必须先通过 repo-owned typed tool /
+  workflow admission 暴露，不能直接把 Hindsight vendor tool 注入 model-visible tool
+  set。
 
 ## Productization Landing Rule
 
@@ -248,6 +345,10 @@ completed-turn retain item 必须带 `timestamp =
 context.conversation.current_user_message.created_at`。显式 profile memory retain item
 必须带 `timestamp = updated_at`。Hindsight async retain response 必须返回 operation id；
 缺失 operation id 视为 append failure，不得把未追踪的 async side effect 标记为 accepted。
+实现必须记录 async retain 返回的 operation ref，并通过单独 operation-status
+activity、operation-status internal endpoint 或后续 recall / reflect evidence 证明后台
+处理结果。operation ref 是 internal/operator runtime evidence，不是 browser-facing memory
+id。
 
 append projection 只记录：
 
@@ -256,6 +357,9 @@ schema_version = memory_conversation_append_result_v1
 status
 thread_id
 appended_message_count
+operation_id
+operation_status_ref
+runtime_document_ref
 payload_sha256
 skip_reasons
 failure_kind
@@ -264,9 +368,10 @@ failure_kind
 不得在 projection、Temporal activity result 或 eval artifact 中保存 raw transcript、
 provider raw response、tool raw payload、Hindsight raw payload 或 unrestricted notes。
 Hindsight bank id、conversation document id、profile document id 与 async
-operation id 属于 internal runtime ref，不得进入 browser-facing profile memory
-response 或 model-visible context；sanitized projection 只允许保留 product
-`thread_id`、hash、count、status 和 bounded compact text。
+operation id 属于 internal runtime ref，不得进入 browser-facing run-step/profile-memory
+response 或 model-visible context；student-facing sanitized projection 只允许保留 product
+`thread_id`、hash、count、status 和 bounded compact text。operator/internal diagnostics
+可以保留 repo-owned operation/document refs，但不得携带 raw Hindsight payload。
 
 operation id 可保存在 execution-control run metadata 的 `temporal_memory.append_operation`
 中，用于 worker/internal 诊断。`/internal/memory/personal/operations:status` 只接受 worker
@@ -289,10 +394,14 @@ campus_execution_control_personal_memory_selected_chars_count{operation}
 
 这些指标不得包含 user id、tenant id、run id、conversation id、memory id 或 raw text。
 
-`/internal/memory/personal/turns:append`、`/internal/memory/personal/graph:recall`
-与 `/internal/memory/personal/operations:status` 只服务 internal worker / runtime
-smoke。它们用于 Hindsight live gate 直接验证 append、recall、async operation status 和
-user isolation，不是 browser-facing API，也不替代 Temporal production workflow。
+`/internal/memory/personal/turns:append`、`/internal/memory/personal/graph:recall`、
+`/internal/memory/personal/operations:status`、`operations:list`、`operations:cancel`、
+`operations:retry` 与 `/internal/memory/personal/graph:reflect` 只服务 internal
+worker / runtime smoke。它们用于 Hindsight live gate 和 operator diagnostics 验证
+append、operation status/list、recall、reflect 和 user isolation，不是 browser-facing
+API，也不替代 Temporal production workflow。`operations:cancel` / `operations:retry`
+的 live 成功依赖 Hindsight 当前是否存在 pending / failed operation，因此默认不作为
+release gate 的稳定 materialization proof。
 
 ### Explicit Profile Memory
 
@@ -318,10 +427,10 @@ DELETE /api/me/profile-memory/items/:id
 -> app-api marks PG projection disabled
 ```
 
-删除 owner / RTBF：
+Owner disable / RTBF：
 
 ```text
-profile memory owner delete
+profile memory owner disable
 -> execution-control /internal/memory/personal/owner:disable
 -> Hindsight bank delete
 -> app-api projection follows product retention policy
@@ -334,28 +443,43 @@ command payload；
 
 ## Eval And Acceptance
 
-repo-owned memory eval profile 是 `hindsight-memory-product-path`，不是
-`personal-memory-extraction`。该 profile 覆盖：
+repo-owned memory evidence taxonomy / score profile 是
+`hindsight-memory-product-path`，不是 `personal-memory-extraction`。该 profile
+用于 Langfuse-bound sanitized score publishing 与 historical eval map naming；live
+runtime gate 由 `pnpm --dir apps/app-api hindsight:memory:e2e:staging` 承接。覆盖面是：
 
 - completed turn append
+- append operation status / materialization proof
 - cross-thread recall
+- observation recall type
+- reflect with based_on facts
 - explicit profile memory upsert
 - explicit profile memory disable
+- operation list sanitized projection
 - owner disable / RTBF
 - user isolation
 
-runtime collector 只记录 schema、status、hash 与字段级 token，不保存 raw transcript、
-provider raw response、Hindsight raw payload 或 API key。runtime collector 必须实际调用
-internal append、recall、explicit profile upsert / disable 与 owner disable endpoint；不得用
-`not_collected` 或离线 fixture 冒充 live smoke。离线 gate 消费 sanitized observations；
-runtime gate 需要 `EXECUTION_CONTROL_BASE_URL` 与 `API_WORKER_SHARED_SECRET`。
+staging runtime smoke 只记录 schema、status、hash 与字段级 token，不保存 raw
+transcript、provider raw response、Hindsight raw payload 或 API key。它必须实际调用
+internal append、operation-status、operation-list、recall、reflect、explicit profile
+upsert / disable 与 owner disable endpoint；不得用 `not_collected`、离线 fixture
+或退休的 Python eval gate 冒充 live smoke。该 lane 需要
+`EXECUTION_CONTROL_BASE_URL` 或 `STAGING_EXECUTION_CONTROL_BASE_URL`，以及
+`API_WORKER_SHARED_SECRET` 或 `EXECUTION_CONTROL_SHARED_SECRET`。
+
+agent runtime eval projection 只可从 `memory.recall` / `memory.reflect` step result
+派生 sanitized memory summary，例如 recall / reflect status、selected count、selected chars
+和 based-on fact count。它不得输出 Hindsight bank id、operation id/ref、runtime document
+ref、memory id、raw memory text、raw reflection text 或 compact text。Langfuse-bound
+memory evidence 当前通过 trace evidence verification 与 Ragas score lanes 承接；不得恢复
+retired profile score report builder，也不能为缺失 request correlation 的 case 猜 trace id。
 
 ## Data-Plane Boundary
 
 Hindsight posture：
 
-- personal memory graph storage / extraction / dedupe / merge / recall 由 Hindsight
-  承担。
+- personal memory graph storage / extraction / dedupe / merge / retain /
+  recall / reflect / operation lifecycle 由 Hindsight 承担。
 - execution-control 通过官方 Go SDK 消费 Hindsight HTTP API，不把 Hindsight SDK 类型泄漏进
   `packages/contracts`。
 - staging / local compose 默认使用内网 `http://hindsight-api:8888`；只有外接
@@ -411,3 +535,27 @@ Memory Plane 不是：
 - Do not use memory as authorization truth, tool-opening truth, source truth,
   or fail-close override.
 - Do not require panel/eval memory influence tracing as v1 acceptance.
+- Do not claim async retain materialization until operation status or later
+  recall / reflect evidence proves it.
+- Do not expose Hindsight Memory Defense config, raw bank id, raw operation
+  metadata, operation/document refs or vendor payload through browser/model-facing
+  projection.
+
+## Official References
+
+- Hindsight OpenAI Agents integration:
+  <https://hindsight.vectorize.io/sdks/integrations/openai-agents>
+- Hindsight retain / recall / reflect / operations / memory banks:
+  <https://hindsight.vectorize.io/developer/api/retain>,
+  <https://hindsight.vectorize.io/developer/api/recall>,
+  <https://hindsight.vectorize.io/developer/api/reflect>,
+  <https://hindsight.vectorize.io/developer/api/operations>,
+  <https://hindsight.vectorize.io/developer/api/memory-banks>
+- Hindsight Memory Defense:
+  <https://hindsight.vectorize.io/developer/memory-defense>
+- Temporal Go workflow / activity boundary:
+  <https://docs.temporal.io/develop/go/workflows/basics>,
+  <https://docs.temporal.io/develop/go/activities/basics>
+- OpenAI Agents SDK and tool wiring:
+  <https://developers.openai.com/api/docs/guides/agents>,
+  <https://developers.openai.com/api/docs/guides/tools#usage-in-the-agents-sdk>

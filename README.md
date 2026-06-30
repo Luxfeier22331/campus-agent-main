@@ -43,10 +43,10 @@ campus-web same-origin Worker seam 进入 `app-api` docs control plane。
   target substrate 是 K8s + KEDA
 - 当前 online answer path 已硬切为 Go/Temporal durable envelope +
   OpenAI Agents SDK primary agent loop；ordinary chat 由 primary agent 在
-  admitted tool catalog 内决定 direct/no-tool、notice、campus_services 或
-  `knowledge_query`；knowledge 请求由 primary agent 选择 `knowledge_query`
-  workflow signal 后进入 Go-owned RAG graph；旧 Python semantic worker
-  已从 active workspace 删除，旧实现只可通过 git history 追溯
+  admitted tool catalog 内决定 direct/no-tool、`campus_notice_discover`、
+  `transport_schedule_lookup` 或 `knowledge_query`；knowledge 请求由 primary agent
+  选择 `knowledge_query` workflow signal 后进入 Go-owned RAG graph；旧 Python
+  semantic worker 已从 active workspace 删除，旧实现只可通过 git history 追溯
 - online query path 与 offline data plane 持续分层
 - `apps/campus-web` 是当前学生侧 product entry surface、账号浏览器
   shell 与 OAuth/OIDC browser-facing issuer origin owner；`apps/app-api`

@@ -48,6 +48,9 @@ func TestMemoryRecallActivityUsesAnyToolForNeutralPrimaryAgentRun(t *testing.T) 
 			executor.seenRequest.RequestedTool,
 		)
 	}
+	if _, err := time.Parse(time.RFC3339Nano, executor.seenRequest.QueryTimestamp); err != nil {
+		t.Fatalf("query timestamp = %q, want RFC3339Nano: %v", executor.seenRequest.QueryTimestamp, err)
+	}
 
 	steps, err := store.ListRunSteps(context.Background(), "run-memory-neutral")
 	if err != nil {

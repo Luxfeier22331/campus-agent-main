@@ -288,8 +288,11 @@
   `workflow-artifacts.v2` 以当前 runtime posture 打开
 - Hindsight personal memory 只能由 `apps/execution-control` 通过 Temporal activity
   和 sanitized projection 消费；不得把 Hindsight MCP、Hindsight direct tools、raw
-  bank/document id 或 raw payload 加入 primary agent model-visible tool catalog、
-  app-api product contract 或 browser-facing response
+  bank/document id 或 raw payload 加入 primary agent model-visible tool
+  catalog、app-api product contract 或 browser-facing response。
+  execution-control internal /
+  operator diagnostics 可保留 repo-owned operation/document refs，但这些 refs
+  不得透传到 student browser-facing run-step / profile-memory response
 - campus services 的当前 model-visible 范围只包含 `transport_schedule_lookup`；
   generic service status、service guide、contact directory、academic calendar 与
   dining lookup 在正式 admission 前不得顺手打开
@@ -496,7 +499,7 @@ TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected --concur
   workspace 删除
 - `packages/regulation-semantics`: regulations 领域语义 owner；负责 answer-ready evidence
   contract、answer role / condition / procedure taxonomy 与 regulation semantic registry
-- `packages/contracts`: legacy-named execution -> tool handoff、evidence bundle 与共享
+- `packages/contracts`: execution -> tool handoff、evidence bundle 与共享
   schema；不要泄漏运行时或基础设施类型
 - `packages/eval-langfuse`: TS-owned Langfuse eval adapter；负责
   dataset / score config sync、safe Ragas projection、score publishing 与 trace

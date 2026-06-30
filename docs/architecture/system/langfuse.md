@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-28
+updated: 2026-06-29
 ---
 # Langfuse Observability And Eval Architecture
 
@@ -24,6 +24,11 @@ The target eval platform chain is:
 `Langfuse traces / datasets + repo fixture / qrels / review policy -> safe eval
 projection -> Ragas / TS eval runner -> Langfuse scores / annotation ->
 app-api sanitized projection or backlink`
+
+RAGAS is used as an eval scorer, not as trace truth. The default scorer path
+uses Ragas `metrics.collections` and direct metric `score` / `ascore` execution.
+Deprecated `ragas.evaluate()` usage is limited to explicit compatibility tests
+or staged repair callers that inject the legacy function.
 
 ## Runtime Mapping
 
@@ -56,11 +61,12 @@ Allowed fields include:
   count, reference count, citation coverage, grounding status, retrieved /
   reference context ids and eval-safe context excerpts when explicitly admitted
 
-Forbidden fields include raw prompt, raw transcript, unrestricted source body,
-raw retrieved backend dump, provider raw response, cookies, JWT, authorization
-headers, API keys, database URLs and object-store/provider secrets. Eval-safe
-input, answer and context excerpts may be exported only through explicit
-allowlisted projection fields.
+Forbidden fields include raw prompt, raw answer, raw transcript, unrestricted
+source body, raw retrieved snippet, raw retrieved backend dump, raw memory text,
+Hindsight bank / operation / runtime document refs, provider raw response,
+cookies, JWT, authorization headers, API keys, database URLs and
+object-store/provider secrets. Eval-safe input, answer and context excerpts may
+be exported only through explicit allowlisted projection fields.
 
 ## Temporal Collaboration
 
@@ -119,3 +125,9 @@ repo's eval truth.
   isolated in `packages/ragas-runner`. ADR-0062 supersedes the earlier
   artifact-only RAGAS input assumption and aligns RAGAS with the official
   Langfuse trace / dataset scoring workflow.
+
+Trace closeout is capability-aware: a memory-enabled product path must prove
+the corresponding repo-owned observations exist, starting with `memory.recall`.
+When a flow evaluates retain materialization or reflection, closeout may require
+`memory.append`, `memory.operation_status` or `memory.reflect` as explicit step
+ids rather than inferring success from trace presence alone.

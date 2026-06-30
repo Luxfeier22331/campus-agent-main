@@ -73,12 +73,126 @@ type AppendConversationTurnResult struct {
 	HindsightOperationID  string   `json:"-"`
 	HindsightOperationIDs []string `json:"-"`
 	MessageUUIDs          []string `json:"message_uuids,omitempty"`
+	OperationID           string   `json:"operation_id,omitempty"`
+	OperationStatusRef    string   `json:"operation_status_ref,omitempty"`
 	PayloadSHA256         string   `json:"payload_sha256"`
+	RuntimeDocumentRef    string   `json:"runtime_document_ref,omitempty"`
 	RunID                 string   `json:"run_id"`
 	SchemaVersion         string   `json:"schema_version"`
 	Status                string   `json:"status"`
 	ThreadID              string   `json:"thread_id"`
 	UserID                string   `json:"user_id"`
+}
+
+type OperationStatusRequest struct {
+	OperationID string `json:"operation_id"`
+	RunID       string `json:"run_id"`
+	TenantID    string `json:"tenant_id,omitempty"`
+	UserID      string `json:"user_id"`
+}
+
+type OperationListRequest struct {
+	ExcludeParents bool   `json:"exclude_parents,omitempty"`
+	Limit          int    `json:"limit,omitempty"`
+	Offset         int    `json:"offset,omitempty"`
+	OperationType  string `json:"operation_type,omitempty"`
+	RunID          string `json:"run_id"`
+	Status         string `json:"status,omitempty"`
+	TenantID       string `json:"tenant_id,omitempty"`
+	UserID         string `json:"user_id"`
+}
+
+type OperationStatusResult struct {
+	CompletedAt         string         `json:"completed_at,omitempty"`
+	CreatedAt           string         `json:"created_at,omitempty"`
+	ErrorKind           string         `json:"error_kind,omitempty"`
+	OperationID         string         `json:"operation_id"`
+	OperationRef        string         `json:"operation_ref,omitempty"`
+	OperationType       string         `json:"operation_type,omitempty"`
+	PayloadSHA256       string         `json:"payload_sha256"`
+	ResultMetadataHash  string         `json:"result_metadata_hash,omitempty"`
+	ResultMetadataShape map[string]any `json:"result_metadata_shape,omitempty"`
+	RetryCount          int            `json:"retry_count,omitempty"`
+	RunID               string         `json:"run_id"`
+	SchemaVersion       string         `json:"schema_version"`
+	Status              string         `json:"status"`
+	UpdatedAt           string         `json:"updated_at,omitempty"`
+	UserID              string         `json:"user_id"`
+}
+
+type OperationListResult struct {
+	Items         []OperationListItem `json:"operations"`
+	Limit         int                 `json:"limit"`
+	Offset        int                 `json:"offset"`
+	PayloadSHA256 string              `json:"payload_sha256"`
+	RunID         string              `json:"run_id"`
+	SchemaVersion string              `json:"schema_version"`
+	Total         int                 `json:"total"`
+	UserID        string              `json:"user_id"`
+}
+
+type OperationListItem struct {
+	CreatedAt     string `json:"created_at,omitempty"`
+	ErrorKind     string `json:"error_kind,omitempty"`
+	ItemsCount    int    `json:"items_count,omitempty"`
+	OperationID   string `json:"operation_id"`
+	OperationRef  string `json:"operation_ref,omitempty"`
+	OperationType string `json:"operation_type,omitempty"`
+	RetryCount    int    `json:"retry_count,omitempty"`
+	Status        string `json:"status"`
+	UpdatedAt     string `json:"updated_at,omitempty"`
+}
+
+type OperationActionRequest struct {
+	OperationID string `json:"operation_id"`
+	RunID       string `json:"run_id"`
+	TenantID    string `json:"tenant_id,omitempty"`
+	UserID      string `json:"user_id"`
+}
+
+type OperationActionResult struct {
+	Action        string `json:"action"`
+	OperationID   string `json:"operation_id"`
+	OperationRef  string `json:"operation_ref,omitempty"`
+	PayloadSHA256 string `json:"payload_sha256"`
+	RunID         string `json:"run_id"`
+	SchemaVersion string `json:"schema_version"`
+	Status        string `json:"status"`
+	Success       bool   `json:"success"`
+	UserID        string `json:"user_id"`
+}
+
+type ReflectRequest struct {
+	Context        string            `json:"context,omitempty"`
+	IncludeBasedOn bool              `json:"include_based_on"`
+	Query          string            `json:"query"`
+	RunID          string            `json:"run_id"`
+	SessionSlots   map[string]string `json:"session_slots,omitempty"`
+	TenantID       string            `json:"tenant_id,omitempty"`
+	ThreadID       string            `json:"thread_id,omitempty"`
+	UserID         string            `json:"user_id"`
+}
+
+type TokenUsage struct {
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	InputTokens  int `json:"input_tokens,omitempty"`
+	OutputTokens int `json:"output_tokens,omitempty"`
+	TotalTokens  int `json:"total_tokens,omitempty"`
+}
+
+type ReflectResult struct {
+	BasedOnMemoryItems []ContextItem  `json:"based_on_memory_context_items,omitempty"`
+	PayloadSHA256      string         `json:"payload_sha256"`
+	Provider           string         `json:"provider,omitempty"`
+	ReflectRef         string         `json:"reflect_ref"`
+	RunID              string         `json:"run_id"`
+	SchemaVersion      string         `json:"schema_version"`
+	Status             string         `json:"status"`
+	StructuredOutput   map[string]any `json:"structured_output,omitempty"`
+	Text               string         `json:"text,omitempty"`
+	ThreadID           string         `json:"thread_id,omitempty"`
+	Usage              TokenUsage     `json:"usage,omitempty"`
+	UserID             string         `json:"user_id"`
 }
 
 type UpsertProfileMemoryItemRequest struct {
@@ -102,37 +216,6 @@ type DisableProfileMemoryOwnerRequest struct {
 	TenantID  string `json:"tenant_id,omitempty"`
 	UpdatedAt string `json:"updated_at"`
 	UserID    string `json:"user_id"`
-}
-
-type PersonalMemoryOperationStatusRequest struct {
-	OperationID string `json:"operation_id"`
-	TenantID    string `json:"tenant_id,omitempty"`
-	UserID      string `json:"user_id"`
-}
-
-type PersonalMemoryOperationStatusResult struct {
-	ChildOperations []PersonalMemoryChildOperationStatus `json:"child_operations,omitempty"`
-	CompletedAt     string                               `json:"completed_at,omitempty"`
-	CreatedAt       string                               `json:"created_at,omitempty"`
-	ErrorMessage    string                               `json:"error_message,omitempty"`
-	NextRetryAt     string                               `json:"next_retry_at,omitempty"`
-	OperationID     string                               `json:"operation_id"`
-	OperationType   string                               `json:"operation_type,omitempty"`
-	Progress        map[string]any                       `json:"progress,omitempty"`
-	ResultMetadata  map[string]any                       `json:"result_metadata,omitempty"`
-	RetryCount      *int                                 `json:"retry_count,omitempty"`
-	SchemaVersion   string                               `json:"schema_version"`
-	Status          string                               `json:"status"`
-	UpdatedAt       string                               `json:"updated_at,omitempty"`
-	UserID          string                               `json:"user_id"`
-}
-
-type PersonalMemoryChildOperationStatus struct {
-	ErrorMessage  string `json:"error_message,omitempty"`
-	ItemsCount    *int   `json:"items_count,omitempty"`
-	OperationID   string `json:"operation_id"`
-	Status        string `json:"status"`
-	SubBatchIndex *int   `json:"sub_batch_index,omitempty"`
 }
 
 type ProfileMemoryItemResult struct {
@@ -195,6 +278,67 @@ func ValidateAppendConversationTurnRequest(request AppendConversationTurnRequest
 	return nil
 }
 
+func ValidateOperationStatusRequest(request OperationStatusRequest) error {
+	required := map[string]string{
+		"operation_id": request.OperationID,
+		"run_id":       request.RunID,
+		"user_id":      request.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	return nil
+}
+
+func ValidateOperationListRequest(request OperationListRequest) error {
+	required := map[string]string{
+		"run_id":  request.RunID,
+		"user_id": request.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	if request.Limit < 0 {
+		return fmt.Errorf("%w: limit must be non-negative", ErrInvalidMemoryProjection)
+	}
+	if request.Offset < 0 {
+		return fmt.Errorf("%w: offset must be non-negative", ErrInvalidMemoryProjection)
+	}
+	return nil
+}
+
+func ValidateOperationActionRequest(request OperationActionRequest) error {
+	required := map[string]string{
+		"operation_id": request.OperationID,
+		"run_id":       request.RunID,
+		"user_id":      request.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	return nil
+}
+
+func ValidateReflectRequest(request ReflectRequest) error {
+	required := map[string]string{
+		"query":   request.Query,
+		"run_id":  request.RunID,
+		"user_id": request.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	return nil
+}
+
 func ValidateUpsertProfileMemoryItemRequest(request UpsertProfileMemoryItemRequest) error {
 	required := map[string]string{
 		"canonical_subject": request.CanonicalSubject,
@@ -246,21 +390,6 @@ func ValidateDisableProfileMemoryOwnerRequest(request DisableProfileMemoryOwnerR
 	required := map[string]string{
 		"updated_at": request.UpdatedAt,
 		"user_id":    request.UserID,
-	}
-	for field, value := range required {
-		if strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
-		}
-	}
-	return nil
-}
-
-func ValidatePersonalMemoryOperationStatusRequest(
-	request PersonalMemoryOperationStatusRequest,
-) error {
-	required := map[string]string{
-		"operation_id": request.OperationID,
-		"user_id":      request.UserID,
 	}
 	for field, value := range required {
 		if strings.TrimSpace(value) == "" {
@@ -329,6 +458,128 @@ func FinalizeAppendConversationTurnResult(
 	return result, nil
 }
 
+func FinalizeOperationStatusResult(result OperationStatusResult) (OperationStatusResult, error) {
+	if strings.TrimSpace(result.SchemaVersion) == "" {
+		result.SchemaVersion = "memory_operation_status_result_v1"
+	}
+	required := map[string]string{
+		"operation_id": result.OperationID,
+		"run_id":       result.RunID,
+		"status":       result.Status,
+		"user_id":      result.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return OperationStatusResult{}, fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	result.PayloadSHA256 = ""
+	hash, err := HashProjection(result)
+	if err != nil {
+		return OperationStatusResult{}, err
+	}
+	result.PayloadSHA256 = hash
+	return result, nil
+}
+
+func FinalizeOperationListResult(result OperationListResult) (OperationListResult, error) {
+	if strings.TrimSpace(result.SchemaVersion) == "" {
+		result.SchemaVersion = "memory_operation_list_result_v1"
+	}
+	required := map[string]string{
+		"run_id":  result.RunID,
+		"user_id": result.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return OperationListResult{}, fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	for index, item := range result.Items {
+		if strings.TrimSpace(item.OperationID) == "" {
+			return OperationListResult{}, fmt.Errorf(
+				"%w: operations[%d].operation_id is required",
+				ErrInvalidMemoryProjection,
+				index,
+			)
+		}
+		if strings.TrimSpace(item.Status) == "" {
+			return OperationListResult{}, fmt.Errorf(
+				"%w: operations[%d].status is required",
+				ErrInvalidMemoryProjection,
+				index,
+			)
+		}
+	}
+	result.PayloadSHA256 = ""
+	hash, err := HashProjection(result)
+	if err != nil {
+		return OperationListResult{}, err
+	}
+	result.PayloadSHA256 = hash
+	return result, nil
+}
+
+func FinalizeOperationActionResult(result OperationActionResult) (OperationActionResult, error) {
+	if strings.TrimSpace(result.SchemaVersion) == "" {
+		result.SchemaVersion = "memory_operation_action_result_v1"
+	}
+	if strings.TrimSpace(result.Status) == "" {
+		result.Status = "accepted"
+	}
+	required := map[string]string{
+		"action":       result.Action,
+		"operation_id": result.OperationID,
+		"run_id":       result.RunID,
+		"status":       result.Status,
+		"user_id":      result.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return OperationActionResult{}, fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	result.PayloadSHA256 = ""
+	hash, err := HashProjection(result)
+	if err != nil {
+		return OperationActionResult{}, err
+	}
+	result.PayloadSHA256 = hash
+	return result, nil
+}
+
+func FinalizeReflectResult(result ReflectResult) (ReflectResult, error) {
+	if strings.TrimSpace(result.SchemaVersion) == "" {
+		result.SchemaVersion = "memory_reflect_result_v1"
+	}
+	if strings.TrimSpace(result.Status) == "" {
+		result.Status = "completed"
+	}
+	for index, item := range result.BasedOnMemoryItems {
+		if err := validateContextItem(index, item); err != nil {
+			return ReflectResult{}, err
+		}
+	}
+	required := map[string]string{
+		"reflect_ref": result.ReflectRef,
+		"run_id":      result.RunID,
+		"status":      result.Status,
+		"user_id":     result.UserID,
+	}
+	for field, value := range required {
+		if strings.TrimSpace(value) == "" {
+			return ReflectResult{}, fmt.Errorf("%w: %s is required", ErrInvalidMemoryProjection, field)
+		}
+	}
+	result.PayloadSHA256 = ""
+	hash, err := HashProjection(result)
+	if err != nil {
+		return ReflectResult{}, err
+	}
+	result.PayloadSHA256 = hash
+	return result, nil
+}
+
 func FinalizeProfileMemoryItemResult(result ProfileMemoryItemResult) (ProfileMemoryItemResult, error) {
 	if strings.TrimSpace(result.SchemaVersion) == "" {
 		result.SchemaVersion = "memory_profile_item_result_v1"
@@ -379,33 +630,6 @@ func FinalizeProfileMemoryOwnerDisableResult(
 	return result, nil
 }
 
-func FinalizePersonalMemoryOperationStatusResult(
-	result PersonalMemoryOperationStatusResult,
-) (PersonalMemoryOperationStatusResult, error) {
-	if strings.TrimSpace(result.SchemaVersion) == "" {
-		result.SchemaVersion = "memory_operation_status_result_v1"
-	}
-	if strings.TrimSpace(result.OperationID) == "" {
-		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
-			"%w: operation_id is required",
-			ErrInvalidMemoryProjection,
-		)
-	}
-	if strings.TrimSpace(result.Status) == "" {
-		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
-			"%w: status is required",
-			ErrInvalidMemoryProjection,
-		)
-	}
-	if strings.TrimSpace(result.UserID) == "" {
-		return PersonalMemoryOperationStatusResult{}, fmt.Errorf(
-			"%w: user_id is required",
-			ErrInvalidMemoryProjection,
-		)
-	}
-	return result, nil
-}
-
 func HashProjection(value any) (string, error) {
 	encoded, err := json.Marshal(value)
 	if err != nil {
@@ -421,7 +645,6 @@ func validateContextItem(index int, item ContextItem) error {
 		"memory_type":  item.MemoryType,
 		"tool":         item.Tool,
 		"compact_text": item.CompactText,
-		"updated_at":   item.UpdatedAt,
 	}
 	for field, value := range required {
 		if strings.TrimSpace(value) == "" {

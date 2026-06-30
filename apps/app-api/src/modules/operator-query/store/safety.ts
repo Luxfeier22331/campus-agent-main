@@ -1,9 +1,6 @@
 import { createHash } from "node:crypto";
 
-import {
-	formatOperatorToolDomainBucket,
-	formatOperatorToolSummaryLabel,
-} from "../../operator-target-labels";
+import { formatOperatorToolSummaryLabel } from "../../operator-target-labels";
 import {
 	buildIncidentBackfillHint,
 	SAFETY_ALERT_LOOKBACK_MS,
@@ -55,7 +52,7 @@ export function summarizeSafetyAnomaly(
 		"aclAnomalyCode" | "failClosed" | "requestedTool" | "selectedTool" | "status"
 	>,
 ): string {
-	const tool = formatOperatorToolDomainBucket(row.requestedTool) ?? "request";
+	const tool = row.requestedTool ? formatOperatorToolSummaryLabel(row.requestedTool) : "request";
 	const target = formatOperatorToolSummaryLabel(row.selectedTool);
 
 	switch (row.aclAnomalyCode) {

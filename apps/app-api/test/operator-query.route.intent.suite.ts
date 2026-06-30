@@ -18,7 +18,7 @@ export function registerOperatorQueryIntentSuite(): void {
 						ambiguityRate: { count: 2, eligibleCount: 10, value: 0.2 },
 						contextUnresolvedRate: { count: 1, eligibleCount: 10, value: 0.1 },
 						distributions: {
-							tool: [{ count: 6, value: "knowledge" }],
+							tool: [{ count: 6, value: "knowledge_query" }],
 							classifierVersion: [{ count: 10, value: "intent-classifier@2026-04-20" }],
 							launchState: [{ count: 8, value: "open" }],
 							nextAction: [{ count: 7, value: "delegate" }],

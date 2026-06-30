@@ -45,26 +45,6 @@ func TestValidateAppendConversationTurnRequiresRFC3339UserMessageCreatedAt(t *te
 	}
 }
 
-func TestValidatePersonalMemoryOperationStatusRequiresOperationID(t *testing.T) {
-	err := ValidatePersonalMemoryOperationStatusRequest(PersonalMemoryOperationStatusRequest{
-		UserID: "user-memory-test",
-	})
-	if err == nil || !strings.Contains(err.Error(), "operation_id is required") {
-		t.Fatalf("error = %v, want missing operation_id failure", err)
-	}
-}
-
-func TestFinalizePersonalMemoryOperationStatusRejectsMissingStatus(t *testing.T) {
-	_, err := FinalizePersonalMemoryOperationStatusResult(PersonalMemoryOperationStatusResult{
-		OperationID:   "op-test-retain",
-		SchemaVersion: "memory_operation_status_result_v1",
-		UserID:        "user-memory-test",
-	})
-	if err == nil || !strings.Contains(err.Error(), "status is required") {
-		t.Fatalf("error = %v, want missing status failure", err)
-	}
-}
-
 func validRecallRequestForTest() RecallRequest {
 	return RecallRequest{
 		QueryTimestamp: "2026-06-16T10:00:00Z",

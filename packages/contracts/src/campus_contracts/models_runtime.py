@@ -24,14 +24,15 @@ from campus_contracts.models_shared import (
     ALLOWED_CONFIDENCE_LEVELS,
     ALLOWED_DELEGATE_STATUSES,
     ALLOWED_EXECUTION_STATUSES,
+    ALLOWED_MODEL_VISIBLE_TOOL_NAMES,
     ALLOWED_REQUESTED_TOOLS,
     ALLOWED_TOOL_IDS,
     ConfidenceLevel,
     DelegateStatus,
     ExecutionStatus,
+    ModelVisibleToolName,
     RequestedTool,
     ToolID,
-    ToolName,
 )
 from campus_contracts.models_tools import (
     CampusNoticeChangeSetLookupPayload,
@@ -377,7 +378,7 @@ class ToolRequest:
         | CampusNoticePeriodSummaryPayload
         | CampusNoticeGetPayload
     )
-    allowed_tools: tuple[ToolName, ...] = field(default_factory=tuple)
+    allowed_tools: tuple[ModelVisibleToolName, ...] = field(default_factory=tuple)
     conversation_id: str = ""
     request_id: str = ""
     safety_identifier: str | None = None
@@ -390,7 +391,7 @@ class ToolRequest:
         if self.tool not in ALLOWED_TOOL_IDS:
             raise ValueError(f"unsupported tool: {self.tool}")
         for allowed_tool in self.allowed_tools:
-            if allowed_tool not in ALLOWED_REQUESTED_TOOLS:
+            if allowed_tool not in ALLOWED_MODEL_VISIBLE_TOOL_NAMES:
                 raise ValueError(f"unsupported allowed_tool: {allowed_tool}")
         if not self.user_goal.strip():
             raise ValueError("user_goal must not be empty")

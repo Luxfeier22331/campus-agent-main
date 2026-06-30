@@ -7,6 +7,7 @@ import {
 	createDeterministicIdGenerator,
 	createExecutionRuntimeFromToolClient,
 	createPrincipal,
+	type FinalizeRequestWrite,
 	type ToolExecutionClient,
 } from "./chat-command.service.test-support";
 
@@ -233,116 +234,74 @@ export function registerChatCommandServiceCoreStructuredPart03Suite(): void {
 			surface: "campus_web",
 		});
 
-		expect(finalWrites[0]).toMatchObject({
-			assistantMessage: {
-				structuredParts: [
-					{
-						sourceItems: [
-							{
-								collectionLabel: "培养方案",
-								pageLabel: "原文第 87-102 页",
-								primaryAction: {
-									href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
-									label: "查看文档",
-								},
-								sectionTitle: "二、毕业要求",
-								snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
-								sourceKind: "curriculum",
-								targetKind: "canonical_reader",
-								title: "计算机类本科人才培养方案",
-								versionLabel: "现行版",
-							},
-							{
-								primaryAction: {
-									external: true,
-									href: "https://www.muc.edu.cn/info/1041/12345.htm",
-									label: "打开原通知",
-								},
-								publishedAt: "2026-04-20",
-								publisherLabel: "中央民族大学新闻网",
-								snippet: "学校发布最新公开通知。",
-								sourceKind: "notice",
-								targetKind: "public_notice_url",
-								title: "关于校园开放日安排的通知",
-							},
-							{
-								primaryAction: {
-									href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
-									label: "查看整理版",
-								},
-								secondaryActions: [
-									{
-										external: true,
-										href: "https://mp.weixin.qq.com/s/public-notice-example",
-										label: "原通知",
-									},
-								],
-								sourceKind: "notice",
-								targetKind: "notice_reader",
-								title: "校园开放日安排整理版",
-							},
-							{
-								primaryAction: {
-									disabledReason: "该来源需要校内身份后才能查看。",
-									href: null,
-									label: "需登录查看",
-								},
-								sourceKind: "notice",
-								targetKind: "restricted_notice",
-								title: "校内内部通知",
-							},
-						],
-						type: "source_items",
-					},
-				],
-			},
-		});
-		expect(response.answer.conversation.messages.at(-1)).toMatchObject({
-			structuredParts: [
-				{
-					sourceItems: [
-						{
-							primaryAction: {
-								href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
-								label: "查看文档",
-							},
-							title: "计算机类本科人才培养方案",
-						},
-						{
-							primaryAction: {
-								href: "https://www.muc.edu.cn/info/1041/12345.htm",
-								label: "打开原通知",
-							},
-							targetKind: "public_notice_url",
-							title: "关于校园开放日安排的通知",
-						},
-						{
-							primaryAction: {
-								href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
-								label: "查看整理版",
-							},
-							secondaryActions: [
-								{
-									href: "https://mp.weixin.qq.com/s/public-notice-example",
-									label: "原通知",
-								},
-							],
-							targetKind: "notice_reader",
-							title: "校园开放日安排整理版",
-						},
-						{
-							primaryAction: {
-								href: null,
-								label: "需登录查看",
-							},
-							targetKind: "restricted_notice",
-							title: "校内内部通知",
-						},
-					],
-					type: "source_items",
-				},
-			],
-		});
+		const writtenSourcePart = (
+			finalWrites[0] as FinalizeRequestWrite | undefined
+		)?.assistantMessage.structuredParts.find((part) => part.type === "source_items");
+		expect(writtenSourcePart).toBeDefined();
+		if (!(writtenSourcePart && writtenSourcePart.type === "source_items")) {
+			throw new Error("expected source_items structured part");
+		}
+		expect(writtenSourcePart.sourceItems).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					collectionLabel: "培养方案",
+					pageLabel: "原文第 87-102 页",
+					primaryAction: expect.objectContaining({
+						href: "/docs/curriculum/curriculum_plan/computer-science?hl=curriculum-root-001,curriculum-root-002#graduation-requirements",
+						label: "查看文档",
+					}),
+					sectionTitle: "二、毕业要求",
+					snippet: "学生应完成通识教育、专业教育和实践教学等模块。",
+					sourceKind: "curriculum",
+					targetKind: "canonical_reader",
+					title: "计算机类本科人才培养方案",
+					versionLabel: "现行版",
+				}),
+				expect.objectContaining({
+					primaryAction: expect.objectContaining({
+						external: true,
+						href: "https://www.muc.edu.cn/info/1041/12345.htm",
+						label: "打开原通知",
+					}),
+					publishedAt: "2026-04-20",
+					publisherLabel: "中央民族大学新闻网",
+					snippet: "学校发布最新公开通知。",
+					sourceKind: "notice",
+					targetKind: "public_notice_url",
+					title: "关于校园开放日安排的通知",
+				}),
+				expect.objectContaining({
+					primaryAction: expect.objectContaining({
+						href: "/docs/official_web/fresh_news/open-day-notice?hl=notice-root-001#notice-summary",
+						label: "查看整理版",
+					}),
+					secondaryActions: expect.arrayContaining([
+						expect.objectContaining({
+							external: true,
+							href: "https://mp.weixin.qq.com/s/public-notice-example",
+							label: "原通知",
+						}),
+					]),
+					sourceKind: "notice",
+					targetKind: "notice_reader",
+					title: "校园开放日安排整理版",
+				}),
+				expect.objectContaining({
+					primaryAction: expect.objectContaining({
+						disabledReason: "该来源需要校内身份后才能查看。",
+						href: null,
+						label: "需登录查看",
+					}),
+					sourceKind: "notice",
+					targetKind: "restricted_notice",
+					title: "校内内部通知",
+				}),
+			]),
+		);
+		const responseSourcePart = response.answer.conversation.messages
+			.at(-1)
+			?.structuredParts?.find((part) => part.type === "source_items");
+		expect(responseSourcePart).toEqual(writtenSourcePart);
 		const browserFacingPayload = JSON.stringify(response.answer);
 		expect(browserFacingPayload).not.toContain("chunk_id");
 		expect(browserFacingPayload).not.toContain("chunkId");

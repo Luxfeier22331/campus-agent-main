@@ -39,6 +39,15 @@ const TEMPORAL_TASK_QUEUE_KINDS = new Set(["workflow", "activity"]);
 const WORKER_AUTOSCALER_DECISIONS = new Set(["scale_up", "scale_down", "hold"]);
 const WORKER_AUTOSCALER_ACTUATION_STATUSES = new Set(["applied", "skipped", "failed"]);
 const WORKER_AUTOSCALER_SCALER_STATUSES = new Set(["healthy", "degraded", "paused", "disabled"]);
+const OPERATOR_TOOL_IDS = new Set([
+	"campus_notice_change_set_lookup",
+	"campus_notice_discover",
+	"campus_notice_get",
+	"campus_notice_period_summary",
+	"knowledge_query",
+	"place_lookup",
+	"transport_schedule_lookup",
+]);
 
 function validationFailed(message: string): AppApiRouteError {
 	return new AppApiRouteError({
@@ -52,6 +61,17 @@ function validationFailed(message: string): AppApiRouteError {
 export function normalizeOptionalString(value: string | null | undefined): string | null {
 	const normalized = value?.trim();
 	return normalized ? normalized : null;
+}
+
+function normalizeOptionalToolId(value: string | null | undefined): string | null {
+	const normalized = normalizeOptionalString(value);
+	if (!normalized) {
+		return null;
+	}
+	if (OPERATOR_TOOL_IDS.has(normalized)) {
+		return normalized;
+	}
+	throw validationFailed("tool filter is invalid.");
 }
 
 export function normalizeLimit(value: number | null | undefined): number {
@@ -90,8 +110,8 @@ export function normalizeOverviewFilters(
 		granularity: granularity ? (granularity as OperatorResultWindow["granularity"]) : null,
 		modelName: normalizeOptionalString(filters.modelName),
 		principalType: normalizeOptionalString(filters.principalType),
-		requestedTool: normalizeOptionalString(filters.requestedTool),
-		selectedTool: normalizeOptionalString(filters.selectedTool),
+		requestedTool: normalizeOptionalToolId(filters.requestedTool),
+		selectedTool: normalizeOptionalToolId(filters.selectedTool),
 		surface: normalizeOptionalString(filters.surface),
 		window: normalizeOverviewWindow(filters.window),
 	};
@@ -106,7 +126,7 @@ export function normalizeAuditListFilters(
 		limit: normalizeLimit(filters.limit),
 		principalType: normalizeOptionalString(filters.principalType),
 		requestId: normalizeOptionalString(filters.requestId),
-		selectedTool: normalizeOptionalString(filters.selectedTool),
+		selectedTool: normalizeOptionalToolId(filters.selectedTool),
 		status: normalizeOptionalString(filters.status),
 		surface: normalizeOptionalString(filters.surface),
 		traceId: normalizeOptionalString(filters.traceId),
@@ -122,7 +142,7 @@ export function normalizeQualityBadcaseListFilters(
 		cursor: normalizeOptionalString(filters.cursor),
 		detectedBy: normalizeOptionalString(filters.detectedBy),
 		limit: normalizeLimit(filters.limit),
-		selectedTool: normalizeOptionalString(filters.selectedTool),
+		selectedTool: normalizeOptionalToolId(filters.selectedTool),
 		status: normalizeOptionalString(filters.status),
 		surface: normalizeOptionalString(filters.surface),
 		window: window ? normalizeOverviewWindow(window) : null,
@@ -137,7 +157,7 @@ export function normalizeSafetyAnomalyListFilters(
 		anomalyCode: normalizeOptionalString(filters.anomalyCode),
 		cursor: normalizeOptionalString(filters.cursor),
 		limit: normalizeLimit(filters.limit),
-		selectedTool: normalizeOptionalString(filters.selectedTool),
+		selectedTool: normalizeOptionalToolId(filters.selectedTool),
 		severity: normalizeOptionalString(filters.severity),
 		status: normalizeOptionalString(filters.status),
 		surface: normalizeOptionalString(filters.surface),

@@ -61,7 +61,7 @@ client/channel
 -> browser surface
 -> app-api surface policy / account-session / minimal context projection
 -> execution-control durable run admission / Temporal command
--> ToolExecutionWorkflow (legacy-named Temporal workflow)
+-> ToolExecutionWorkflow (current Temporal workflow name)
 -> optional context.memory_recall
 -> agent.primary model-facing first decision
 -> direct/no-tool terminal or admitted tool / workflow signal
@@ -86,7 +86,7 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
   governance 层，负责 admission、workflow command/query/cancel、visible tool
   裁剪、step admission、projection 与 finalization；首轮工具选择由 primary
   agent runtime 在已裁剪 tool set 内完成。
-- `ToolExecutionWorkflow` 是 legacy-named Temporal durable workflow；它编排 execution
+- `ToolExecutionWorkflow` 是当前 Temporal durable workflow 名称；它编排 execution
   lifetime，但不是 agent 本身。
 - `agent-runtime` 是 model-facing primary agent runtime；它承接 OpenAI Agents
   SDK instructions、function tool schema、tool loop、SDK trace 与 usage
@@ -99,7 +99,7 @@ workflow 保持 workflow / policy / budget / finalization ownership，typed tool
   deterministic function 不得借用 `agent` 命名。
 - `knowledge_query` 是 model-visible workflow-signal tool；RAG graph 是该 tool
   进入后的 durable execution shape，不是与 `knowledge_query` 并列的用户可见能力。
-- `requested_tool` 是 explicit caller hint / compatibility field，不是
+- `requested_tool` 是 optional explicit caller hint，不是
   普通 chat 的目标态默认语义路由字段；缺失时不得伪造成 `knowledge_query`。
 
 目标拓扑图：
@@ -120,7 +120,7 @@ flowchart LR
   end
 
   subgraph TemporalPlane["Temporal Execution Plane"]
-    Temporal["Temporal Service\nlegacy-named workflow + task queues"]
+    Temporal["Temporal Service\ncurrent workflow + task queues"]
   end
 
   subgraph Workers["Worker Pools"]
@@ -335,7 +335,7 @@ collector/source admission
   contract 文件名、旧 schema / symbol 在目标态映射为 `Execution Agent Layer`
 - product-level agent 是 `Campus Assistant`；runtime-level agentic logic 位于
   `Execution Agent Layer` 和明确的 semantic specialist / agent-as-tool step。
-- `ToolExecutionWorkflow` 是 legacy-named durable execution substrate；它承载
+- `ToolExecutionWorkflow` 是当前 durable execution substrate 名称；它承载
   run lifecycle、retry、timeout、cancel、step ordering 与 projection ordering，
   但不承担语义主体身份。
 - repo-wide execution 只维护 concrete ToolSpec tool id 作为 active product/routing
@@ -364,7 +364,7 @@ collector/source admission
 - run projection 的 canonical lifecycle 固定为
   `Turn -> Run -> RunStep -> StepAttempt -> StepResult -> RunEvent -> Finalization`；
   multi-tool / agent-as-tool projection 可以在 step result 中表达 `ToolCall`
-  graph；legacy-named `ToolInvocation` 只允许作为历史 projection field name
+  graph；`ToolInvocation` 只允许作为 projection field name
   出现；
   provider-native trace、SDK run state 或框架 agent graph 只能作为内部
   debug input，不能替代 repo-owned sanitized projection
@@ -388,7 +388,7 @@ collector/source admission
   完整上游 answer、raw evidence dump、raw OCR、raw provider trace 或未裁剪 source body
   广播给后续 agent
 - first model-facing execution decision 应由 primary agent runtime 承接，而不是由
-  deterministic planner 先把空 legacy hint 默认路由到 `knowledge`。成熟 agent runtime
+  deterministic planner 先把空 caller hint 默认路由到 `knowledge`。成熟 agent runtime
   形态是：repo 先提供 system instructions、tool catalog 与 deterministic gates，模型
   在 SDK loop 内决定是否使用已暴露工具；repo durable workflow 只接收 sanitized
   final output、selected tool summary 与 result refs。

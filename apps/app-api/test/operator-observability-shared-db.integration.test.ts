@@ -220,7 +220,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           '[]'::jsonb, 'student',
           'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
           'main', 'undergraduate', null, null,
-          $5, 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb, 'knowledge',
+          $5, 'knowledge_query', '{"corpus":"regulations","collection":"student_rules"}'::jsonb, 'knowledge_query',
           'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。', null,
           '["handbook:library-hours","handbook:holiday-hours"]'::jsonb, '${requestStartedAt.toISOString()}',
           '${requestCompletedAt.toISOString()}', 842, '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}'
@@ -241,8 +241,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "estimated_cost_microusd", "trace_available", "projection_lag_ms", "measured_at", "updated_at"
         ) values (
           $1, $2, $3, 'campus_web', 'student',
-          'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
-          'regulations/student_rules', 'student_rules', 'knowledge', 'completed', null,
+          'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge_query',
+          'regulations/student_rules', 'student_rules', 'knowledge_query', 'completed', null,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, true, 4,
           2, false, true, 0,
           true, null, 'allowed', 'projection_missing', false,
@@ -263,8 +263,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
         ) values (
           $1, $2, 'campus_web', $3, 'student',
           'user_obs_01', 'Jane Doe', 'entitlements-2026-04-03', '["students"]'::jsonb,
-          'main', 'undergraduate', 'knowledge', '{"corpus":"regulations","collection":"student_rules"}'::jsonb,
-          'knowledge', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
+          'main', 'undergraduate', 'knowledge_query', '{"corpus":"regulations","collection":"student_rules"}'::jsonb,
+          'knowledge_query', 'completed', null, '图书馆开放到几点？', '图书馆开放到 22:00。',
           null, '["handbook:library-hours","handbook:holiday-hours"]'::jsonb,
           '${requestStartedAt.toISOString()}', '${requestCompletedAt.toISOString()}', 842, '${requestProjectedAt.toISOString()}'
         )
@@ -279,8 +279,8 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "selected_tool", "status", "terminal_code", "summary", "diagnostics_json", "projected_at"
         ) values (
           $1, $2, $3, '${requestCompletedAt.toISOString()}', 'request.completed', 'campus_web',
-          'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge',
-          'knowledge', 'completed', 'completed', 'Knowledge request completed via knowledge.',
+          'student', 'entitlements-2026-04-03', 'phase1-authorization-projection-v1', 'knowledge_query',
+          'knowledge_query', 'completed', 'completed', 'Knowledge request completed via knowledge_query.',
           '{"aclAnomalyCode":null,"failClosed":false,"sourceDocIds":["handbook:library-hours","handbook:holiday-hours"]}'::jsonb,
           '${requestProjectedAt.toISOString()}'
         )
@@ -295,7 +295,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "metrics_json", "projected_at"
         ) values (
           $1, $2, 'quality', '1h', '${qualityBucketStart.toISOString()}', '${qualityBucketEnd.toISOString()}', 'campus_web',
-          'knowledge', 'knowledge', 'student', 'student_rules', '${modelName}',
+          'knowledge_query', 'knowledge_query', 'student', 'student_rules', '${modelName}',
           '{"approvalRequiredCount":0,"citationEligibleCount":2,"citationMissCount":1,"emptyRecallCount":0,"needsClarificationCount":0,"noAnswerCount":0,"rejectedCount":0,"requestCount":4,"retrievalEligibleCount":4}'::jsonb,
           '${requestProjectedAt.toISOString()}'
         )
@@ -308,7 +308,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
           "badcase_id", "request_id", "trace_id", "surface", "selected_tool", "status",
           "cause_class", "detected_by", "opened_at", "summary", "grade_json", "projected_at"
         ) values (
-          $1, $2, $3, 'campus_web', 'knowledge', 'open',
+          $1, $2, $3, 'campus_web', 'knowledge_query', 'open',
           'citation_missing', 'runtime_monitor', '${badcaseOpenedAt.toISOString()}',
           'citationExpected=true 但 citationCount=0', null, '${badcaseOpenedAt.toISOString()}'
         )
@@ -518,7 +518,7 @@ describe.skipIf(!RUN_INTEGRATION)("app-api operator observability shared DB inte
 					severity: "high",
 					status: "open",
 					summary:
-						"knowledge request finalized without the required policy projection for knowledge tool.",
+						"knowledge tool request finalized without the required policy projection for knowledge tool.",
 					surface: "campus_web",
 					traceId,
 				},

@@ -16,6 +16,7 @@ import (
 func memoryRecallRequestForRun(
 	run execution.DurableRun,
 	requestedTool string,
+	queryTimestamp time.Time,
 ) (memoryruntime.RecallRequest, error) {
 	payload, ok := run.Metadata["execution_payload"].(map[string]any)
 	if !ok {
@@ -25,9 +26,6 @@ func memoryRecallRequestForRun(
 	if userGoal == "" {
 		return memoryruntime.RecallRequest{}, errors.New("memory recall user_goal is required")
 	}
-	queryTimestamp := strings.TrimSpace(optionalStringFromAny(
-		nestedAny(payload, "context", "conversation", "current_user_message", "created_at"),
-	))
 	tool := strings.TrimSpace(requestedTool)
 	if tool == "" {
 		tool = firstNonEmptyText(payload["requested_tool"], run.RequestedTool)
@@ -41,8 +39,8 @@ func memoryRecallRequestForRun(
 		run.OwnerUserID,
 	)
 	request := memoryruntime.RecallRequest{
+		QueryTimestamp: queryTimestamp.UTC().Format(time.RFC3339Nano),
 		RequestedTool:  tool,
-		QueryTimestamp: queryTimestamp,
 		RunID:          run.RunID,
 		SessionSlots:   memorySessionSlotsFromPayload(payload),
 		TenantID:       firstNonEmptyText(payload["tenant_id"], nestedAny(payload, "context", "tenant_id")),

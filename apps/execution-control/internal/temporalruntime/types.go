@@ -55,13 +55,80 @@ type AppendConversationMemoryActivityInput struct {
 
 type AppendConversationMemoryActivityOutput struct {
 	AppendedMessageCount int      `json:"appended_message_count"`
+	OperationID          string   `json:"operation_id,omitempty"`
+	OperationStatusRef   string   `json:"operation_status_ref,omitempty"`
 	PayloadSHA256        string   `json:"payload_sha256"`
+	RuntimeDocumentRef   string   `json:"runtime_document_ref,omitempty"`
 	RunID                string   `json:"run_id"`
 	SchemaVersion        string   `json:"schema_version"`
 	SkipReasons          []string `json:"skip_reasons"`
 	SkippedCount         int      `json:"skipped_count"`
 	Status               string   `json:"status"`
 	ThreadID             string   `json:"thread_id,omitempty"`
+}
+
+type MemoryOperationStatusActivityInput struct {
+	OperationID string `json:"operation_id"`
+	RequestID   string `json:"request_id"`
+	RunID       string `json:"run_id"`
+	TraceID     string `json:"trace_id"`
+}
+
+type MemoryOperationStatusActivityOutput struct {
+	CompletedAt         string         `json:"completed_at,omitempty"`
+	CreatedAt           string         `json:"created_at,omitempty"`
+	ErrorKind           string         `json:"error_kind,omitempty"`
+	OperationID         string         `json:"operation_id"`
+	OperationRef        string         `json:"operation_ref,omitempty"`
+	OperationType       string         `json:"operation_type,omitempty"`
+	PayloadSHA256       string         `json:"payload_sha256"`
+	ResultMetadataHash  string         `json:"result_metadata_hash,omitempty"`
+	ResultMetadataShape map[string]any `json:"result_metadata_shape,omitempty"`
+	RetryCount          int            `json:"retry_count,omitempty"`
+	RunID               string         `json:"run_id"`
+	SchemaVersion       string         `json:"schema_version"`
+	Status              string         `json:"status"`
+	UpdatedAt           string         `json:"updated_at,omitempty"`
+}
+
+type MemoryReflectActivityInput struct {
+	Context        string            `json:"context,omitempty"`
+	IncludeBasedOn bool              `json:"include_based_on"`
+	Query          string            `json:"query"`
+	RequestID      string            `json:"request_id"`
+	RunID          string            `json:"run_id"`
+	SessionSlots   map[string]string `json:"session_slots,omitempty"`
+	TraceID        string            `json:"trace_id"`
+}
+
+type MemoryReflectActivityOutput struct {
+	BasedOnMemoryItems []MemoryReflectContextItem `json:"based_on_memory_context_items,omitempty"`
+	PayloadSHA256      string                     `json:"payload_sha256"`
+	Provider           string                     `json:"provider,omitempty"`
+	ReflectRef         string                     `json:"reflect_ref"`
+	RunID              string                     `json:"run_id"`
+	SchemaVersion      string                     `json:"schema_version"`
+	Status             string                     `json:"status"`
+	StructuredOutput   map[string]any             `json:"structured_output,omitempty"`
+	Text               string                     `json:"text,omitempty"`
+	ThreadID           string                     `json:"thread_id,omitempty"`
+	Usage              MemoryReflectTokenUsage    `json:"usage,omitempty"`
+}
+
+type MemoryReflectContextItem struct {
+	Tool        string  `json:"tool"`
+	CompactText string  `json:"compact_text"`
+	MemoryID    string  `json:"memory_id"`
+	MemoryType  string  `json:"memory_type"`
+	Score       float64 `json:"score,omitempty"`
+	UpdatedAt   string  `json:"updated_at"`
+}
+
+type MemoryReflectTokenUsage struct {
+	CachedTokens int `json:"cached_tokens,omitempty"`
+	InputTokens  int `json:"input_tokens,omitempty"`
+	OutputTokens int `json:"output_tokens,omitempty"`
+	TotalTokens  int `json:"total_tokens,omitempty"`
 }
 
 type ExecutePrimaryAgentActivityInput struct {

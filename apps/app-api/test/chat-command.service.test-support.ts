@@ -528,10 +528,10 @@ function durableEventFromExecutionLifecycle(
 							code: "execution_control_invalid_response",
 							message: "Execution stream completed without a response payload.",
 							retryable: true,
-							traceId: getString(parsed.data.trace_id) ?? input.traceId ?? "",
+							traceId: input.traceId ?? "",
 						}),
 					),
-					trace_id: getString(parsed.data.trace_id) ?? input.traceId ?? "",
+					trace_id: input.traceId ?? "",
 				},
 				sequence,
 			});
@@ -543,33 +543,41 @@ function durableEventFromExecutionLifecycle(
 			payload: {
 				request_id: getString(parsed.data.request_id) ?? input.requestId,
 				response,
-				trace_id: getString(parsed.data.trace_id) ?? input.traceId ?? "",
+				trace_id: input.traceId ?? "",
 			},
 			sequence,
 		});
 	}
 	if (parsed.event === "execution.failed" || parsed.event === "execution.cancelled") {
 		const error = getRecord(parsed.data.error);
-		const response = error
-			? executionErrorResponse({
-					code: getString(error.code) ?? "execution_control_invalid_response",
-					message: getString(error.message) ?? "Execution terminal error payload is invalid.",
-					retryable: typeof error.retryable === "boolean" ? error.retryable : true,
-					traceId: getString(parsed.data.trace_id) ?? input.traceId ?? "",
-				})
-			: executionErrorResponse({
-					code: "execution_control_invalid_response",
-					message: "Execution terminal error payload is invalid.",
-					retryable: true,
-					traceId: getString(parsed.data.trace_id) ?? input.traceId ?? "",
-				});
+		const code = getString(error?.code) ?? "execution_control_invalid_response";
+		const message = getString(error?.message) ?? "Execution terminal error payload is invalid.";
+		const retryable = typeof error?.retryable === "boolean" ? error.retryable : true;
+		if (parsed.event === "execution.failed") {
+			return baseRunEvent(input, {
+				eventType: "run.failed",
+				occurredAt: getString(parsed.data.occurred_at) ?? "",
+				payload: {
+					error: { code, message, retryable },
+					request_id: getString(parsed.data.request_id) ?? input.requestId,
+					trace_id: input.traceId ?? "",
+				},
+				sequence,
+			});
+		}
+		const response = executionErrorResponse({
+			code,
+			message,
+			retryable,
+			traceId: input.traceId ?? "",
+		});
 		return baseRunEvent(input, {
 			eventType: "finalization.completed",
 			occurredAt: getString(parsed.data.occurred_at) ?? "",
 			payload: {
 				request_id: getString(parsed.data.request_id) ?? input.requestId,
 				response: responseWireFromToolResponse(response),
-				trace_id: getString(parsed.data.trace_id) ?? input.traceId ?? "",
+				trace_id: input.traceId ?? "",
 			},
 			sequence,
 		});

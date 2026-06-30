@@ -37,7 +37,7 @@ func TestFinalizeAgentToolResponseBuildsExecutionEnvelope(t *testing.T) {
 		t.Fatalf("finalize returned error: %v", err)
 	}
 	if response["selected_tool"] != "knowledge_query" {
-		t.Fatalf("selected_tool = %v, want knowledge", response["selected_tool"])
+		t.Fatalf("selected_tool = %v, want knowledge_query", response["selected_tool"])
 	}
 	if response["status"] != "completed" {
 		t.Fatalf("status = %v, want completed", response["status"])
@@ -63,7 +63,7 @@ func TestFinalizeAgentToolResponseBuildsExecutionEnvelope(t *testing.T) {
 		t.Fatalf("workflow_trace_summary = %#v, want object", response["workflow_trace_summary"])
 	}
 	if traceSummary["selected_tool"] != "knowledge_query" {
-		t.Fatalf("trace selected_tool = %v, want knowledge", traceSummary["selected_tool"])
+		t.Fatalf("trace selected_tool = %v, want knowledge_query", traceSummary["selected_tool"])
 	}
 }
 
@@ -170,7 +170,7 @@ func TestFinalizeAgentToolResponseRoundTripsThroughCanonicalWorkflowTraceWire(t 
 	}
 	if wire.WorkflowTraceSummary.SelectedTool == nil ||
 		*wire.WorkflowTraceSummary.SelectedTool != "knowledge_query" {
-		t.Fatalf("selected_tool = %#v, want knowledge", wire.WorkflowTraceSummary.SelectedTool)
+		t.Fatalf("selected_tool = %#v, want knowledge_query", wire.WorkflowTraceSummary.SelectedTool)
 	}
 	if len(wire.WorkflowTraceSummary.TraceSteps) == 0 {
 		t.Fatal("trace steps are empty")
@@ -244,13 +244,16 @@ func TestFinalizeAgentToolResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	handoffChain, ok := traceSummary["handoff_chain"].([]map[string]any)
 	if !ok || len(handoffChain) != 1 || handoffChain[0]["tool"] != "transport_schedule_lookup" {
 		t.Fatalf(
-			"handoff_chain = %#v, want single campus_services handoff",
+			"handoff_chain = %#v, want single transport_schedule_lookup handoff",
 			traceSummary["handoff_chain"],
 		)
 	}
 	agentInvocations, ok := traceSummary["tool_invocations"].([]map[string]any)
 	if !ok || len(agentInvocations) != 1 || agentInvocations[0]["tool_id"] != "transport_schedule_lookup" {
-		t.Fatalf("tool_invocations = %#v, want campus_services invocation", traceSummary["tool_invocations"])
+		t.Fatalf(
+			"tool_invocations = %#v, want transport_schedule_lookup invocation",
+			traceSummary["tool_invocations"],
+		)
 	}
 	if traceSummary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", traceSummary["planning_outcome"])

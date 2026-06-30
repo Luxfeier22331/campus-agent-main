@@ -44,7 +44,7 @@ func (s *Server) MemoryRecallActivity(
 		}
 		return output, err
 	}
-	request, err := memoryRecallRequestForRun(run, input.RequestedTool)
+	request, err := memoryRecallRequestForRun(run, input.RequestedTool, startedAt)
 	if err != nil {
 		s.recordPersonalMemoryOperation("recall", "failed", "memory_recall_request_invalid", startedAt, 0, 0)
 		return s.failMemoryRecallActivity(ctx, run, "memory_recall_request_invalid", err)

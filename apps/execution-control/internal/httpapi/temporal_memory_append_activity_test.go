@@ -79,6 +79,9 @@ func TestAppendConversationMemoryActivityAcceptsCompletedTurnForAsyncPersonalMem
 	if !executor.seenAppend.IgnoreAssistantForGraph {
 		t.Fatal("assistant message must be ignored for graph ingestion while still stored in thread")
 	}
+	if executor.seenAppend.UserMessageCreatedAt != now.Format(time.RFC3339Nano) {
+		t.Fatalf("user_message_created_at = %q, want current user message created_at", executor.seenAppend.UserMessageCreatedAt)
+	}
 }
 
 func TestAppendConversationMemoryActivityPreservesTenantForScopedHindsightBank(t *testing.T) {
@@ -219,6 +222,56 @@ func TestAppendConversationMemoryActivityProjectionDoesNotStoreConversationText(
 	}
 	if payload["appended_message_count"] != float64(1) && payload["appended_message_count"] != 1 {
 		t.Fatalf("payload = %#v, want appended count", payload)
+	}
+}
+
+func TestAppendConversationMemoryActivityProjectsOperationRefs(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	now := time.Date(2026, 6, 15, 12, 11, 0, 0, time.UTC)
+	createMemoryAppendRunForTest(t, store, "run-memory-append-operation", "我之后主要关注保研材料", ptrBool(true), now)
+	server := NewServer(config.Config{TemporalWorkerIdentity: "test:memory-append"})
+	server.personalMemoryExecutor = &fakePersonalMemoryExecutor{}
+	server.personalMemoryErr = nil
+	attachRunProjectionStoreForHandlerTest(server, store)
+
+	output, err := server.AppendConversationMemoryActivity(
+		context.Background(),
+		temporalruntime.AppendConversationMemoryActivityInput{
+			RequestID: "req-memory-append-operation",
+			RunID:     "run-memory-append-operation",
+			TraceID:   memoryAppendTraceID("run-memory-append-operation"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("append conversation memory: %v", err)
+	}
+	if output.OperationID != "op-run-memory-append-operation" {
+		t.Fatalf("operation id = %q", output.OperationID)
+	}
+	if output.OperationStatusRef != "projection://runs/run-memory-append-operation/memory/operations/op-run-memory-append-operation" {
+		t.Fatalf("operation status ref = %q", output.OperationStatusRef)
+	}
+	if output.RuntimeDocumentRef != "projection://runs/run-memory-append-operation/memory/documents/conversation%3Arun-memory-append-operation%3Aturn" {
+		t.Fatalf("runtime document ref = %q", output.RuntimeDocumentRef)
+	}
+
+	results, err := store.ListStepResults(context.Background(), "run-memory-append-operation")
+	if err != nil {
+		t.Fatalf("list step results: %v", err)
+	}
+	var payload map[string]any
+	for _, result := range results {
+		if result.StepID == "memory.append" {
+			payload = result.SanitizedPayload
+		}
+	}
+	if payload == nil {
+		t.Fatal("memory.append projection missing")
+	}
+	if payload["operation_id"] != output.OperationID ||
+		payload["operation_status_ref"] != output.OperationStatusRef ||
+		payload["runtime_document_ref"] != output.RuntimeDocumentRef {
+		t.Fatalf("payload = %#v, want operation projection refs", payload)
 	}
 }
 

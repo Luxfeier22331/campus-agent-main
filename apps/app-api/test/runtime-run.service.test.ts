@@ -436,4 +436,166 @@ describe("runtime run service", () => {
 			traceId: "trace_01HQ",
 		});
 	});
+
+	it("strips Hindsight runtime refs from student-visible step trajectory", async () => {
+		const listRunSteps = vi.fn().mockResolvedValue({
+			agentRuntimeEvalProjection: {
+				memoryOperationRef: "projection://runs/run_01HQ/memory/operations/op-hidden",
+				score: 0.91,
+			},
+			attempts: [
+				{
+					activityAttempt: 1,
+					activityId: "activity-memory",
+					activityType: "AppendConversationMemoryActivity",
+					attempt: 1,
+					attemptId: "attempt-memory",
+					cachedInputTokens: 0,
+					cancelOutcome: "",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					durationMs: 10,
+					estimatedCostMicrousd: 0,
+					failCloseReason: "",
+					inputTokens: 0,
+					lateCompletionOutcome: "",
+					modelName: "",
+					modelProvider: "",
+					outputTokens: 0,
+					payloadSchemaVersion: "step-attempt-projection-v1",
+					pricingVersion: "",
+					providerRequestRef: "",
+					providerResponseId: "",
+					replanReason: "",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						operation_id: "op-hidden",
+						operationStatusRef: "projection://runs/run_01HQ/memory/operations/op-hidden",
+						public_status: "accepted",
+					},
+					scheduleToStartMs: 1,
+					scheduledAt: "2026-06-04T01:02:04.000Z",
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.append",
+					taskQueue: "context",
+					temporalRunId: "temporal-run",
+					terminalReason: "",
+					timeoutOutcome: "",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+					workflowId: "workflow-run_01HQ",
+				},
+			],
+			results: [
+				{
+					attemptId: "attempt-memory",
+					createdAt: "2026-06-04T01:02:05.000Z",
+					payloadSchemaVersion: "step-result-projection-v1",
+					projectionRef: "projection://runs/run_01HQ/memory/append",
+					resultId: "result-memory",
+					resultKind: "memory_conversation_append_result",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						appended_message_count: 1,
+						bank_id: "hindsight_bank_hidden",
+						document_id: "profile:mem_hidden",
+						operation_id: "op-hidden",
+						operation_ref: "projection://runs/run_01HQ/memory/operations/op-hidden",
+						operation_status_ref: "projection://runs/run_01HQ/memory/operations/op-hidden",
+						related_document_id: "student_rules",
+						result_metadata_shape: {
+							raw_payload: "string",
+						},
+						runtime_document_ref:
+							"projection://runs/run_01HQ/memory/documents/conversation%3Ahidden",
+						status: "accepted",
+					},
+					status: "completed",
+					stepId: "memory.append",
+				},
+			],
+			steps: [
+				{
+					tool: "memory",
+					completedAt: "2026-06-04T01:02:05.000Z",
+					conversationId: "conv_01HQ",
+					parentStepId: "",
+					payloadSchemaVersion: "run-step-projection-v1",
+					runId: "run_01HQ",
+					sanitizedPayload: {
+						comment: "profile: 学生偏好先看结论",
+						documentId: "conversation:0123456789abcdef0123456789abcdef",
+						public_status: "accepted",
+						runtimeDocumentRef: "projection://runs/run_01HQ/memory/documents/conversation%3Ahidden",
+					},
+					startedAt: "2026-06-04T01:02:04.000Z",
+					status: "completed",
+					stepId: "memory.append",
+					stepKind: "memory",
+					taskQueue: "context",
+					updatedAt: "2026-06-04T01:02:05.000Z",
+					workerId: "test-worker",
+				},
+			],
+		});
+		const executionRuntime: ExecutionControlRuntimeClient = {
+			cancelRun: vi.fn(),
+			createRun: vi.fn(),
+			getRun: vi.fn().mockResolvedValue(durableRun({ status: "completed" })),
+			listRunEvents: vi.fn().mockResolvedValue([]),
+			listRunSteps,
+		};
+		const service = buildRuntimeRunService({
+			executionRuntime,
+			store: {
+				getOwnedRun: vi.fn().mockResolvedValue({
+					conversationId: "conv_01HQ",
+					requestId: "req_01HQ",
+					runId: "run_01HQ",
+					traceId: "trace_01HQ",
+				}),
+			},
+		});
+
+		const trajectory = await service.listSteps({
+			principal: createPrincipal(),
+			runId: "run_01HQ",
+		});
+		const encoded = JSON.stringify(trajectory);
+
+		for (const forbidden of [
+			"operation_id",
+			"operationId",
+			"operation_ref",
+			"operationRef",
+			"operation_status_ref",
+			"operationStatusRef",
+			"runtime_document_ref",
+			"runtimeDocumentRef",
+			"profile:mem_hidden",
+			"conversation:0123456789abcdef0123456789abcdef",
+			"bank_id",
+			"bankId",
+			"result_metadata_shape",
+			"resultMetadataShape",
+			"hindsight_bank_",
+			"memory/operations",
+			"memory/documents",
+		]) {
+			expect(encoded).not.toContain(forbidden);
+		}
+		expect(trajectory.results[0]?.sanitizedPayload).toMatchObject({
+			appended_message_count: 1,
+			related_document_id: "student_rules",
+			status: "accepted",
+		});
+		expect(trajectory.steps[0]?.sanitizedPayload).toMatchObject({
+			comment: "profile: 学生偏好先看结论",
+			public_status: "accepted",
+		});
+		expect(trajectory.attempts[0]?.sanitizedPayload).toMatchObject({
+			public_status: "accepted",
+		});
+		expect(trajectory.agentRuntimeEvalProjection).toEqual({ score: 0.91 });
+	});
 });

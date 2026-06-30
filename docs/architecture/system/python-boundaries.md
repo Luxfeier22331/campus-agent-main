@@ -38,7 +38,7 @@ graph 承接：
 - query framing、scope-specific semantic planning、bounded synthesis packet assembly、
   grounding validation
 - online RAG provider-backed synthesis 已迁入 Go `SynthesizeRAGAnswerActivity`
-- retrieval evidence 到 legacy-named `ToolResponse` 的 contract 化
+- retrieval evidence 到 `ToolResponse` 的 contract 化
 
 这些语义职责必须表现为 Temporal-visible typed steps 与 repo-owned DTO，而不是一个
 不可观测的 Python bridge 黑盒。当前 RAG online path step graph 包括 `rag.plan`、

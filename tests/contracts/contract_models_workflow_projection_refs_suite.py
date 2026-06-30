@@ -14,7 +14,7 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             workflow_context=WorkflowToolContext(
                 tool="knowledge_query",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:knowledge:rag_request",
+                step_id="tool:knowledge_query:rag_request",
                 tool_id="knowledge_query",
                 required_projection_kind="notice_context",
                 expected_output_artifacts=("evidence_bundle", "grounding_verdict"),
@@ -39,7 +39,7 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             WorkflowToolContext(
                 tool="knowledge_query",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:knowledge:rag_request",
+                step_id="tool:knowledge_query:rag_request",
                 tool_id="knowledge_query",
                 required_projection_kind="notice_context",
                 projection_refs=(),
@@ -54,7 +54,7 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             WorkflowToolContext(
                 tool="knowledge_query",
                 workflow_run_ref="workflow:req-test",
-                step_id="handoff:knowledge:rag_request",
+                step_id="tool:knowledge_query:rag_request",
                 tool_id="knowledge_query",
                 projection_refs=(invalid_ref,),
             )
@@ -74,7 +74,7 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
                 WorkflowToolContext(
                     tool="knowledge_query",
                     workflow_run_ref="workflow:req-test",
-                    step_id="handoff:knowledge:rag_request",
+                    step_id="tool:knowledge_query:rag_request",
                     tool_id="knowledge_query",
                     projection_refs=(
                         {

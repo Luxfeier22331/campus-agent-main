@@ -4,7 +4,7 @@ truth_scope: ops
 owner_boundary: execution-control
 status: active
 created: 2026-06-18
-updated: 2026-06-28
+updated: 2026-06-29
 ---
 # Langfuse Runtime Observability Contract
 
@@ -23,6 +23,10 @@ repo-owned safe eval artifacts or golden dataset execution results. Langfuse
 traces and datasets may act as RAGAS sample sources only through repo-owned safe
 eval projection fields; they must not expose raw prompt, raw transcript,
 unrestricted source body, provider raw response or secrets.
+
+RAGAS runtime scoring defaults to the Ragas `metrics.collections` API. Legacy
+`ragas.evaluate()` is a compatibility island only for explicitly injected test /
+repair callers and must not be treated as the default production scorer path.
 
 ## Trace Attributes
 
@@ -93,6 +97,12 @@ RAG follow-up observations may additionally provide:
 - `previous_evidence_reuse_decision`
 - `selected_evidence_count`
 
+Memory-enabled online traces must include the repo-owned `memory.recall`
+observation when `context.memory.enabled=true`. Product-path closeout evidence
+may additionally require `memory.append`, `memory.operation_status` or
+`memory.reflect` observations when the evaluated flow exercises those runtime
+operations.
+
 ## Score Payloads
 
 Active eval publishing writes Ragas-derived numeric Langfuse scores from
@@ -133,6 +143,10 @@ The following values must not be exported to Langfuse:
 - standalone query text
 - raw retrieved snippet
 - source body text
+- raw memory text
+- Hindsight raw bank id
+- Hindsight operation id or operation ref
+- Hindsight runtime document ref
 - provider raw response
 - JWT, cookies or authorization headers
 - API keys or provider secrets

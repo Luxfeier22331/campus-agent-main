@@ -29,7 +29,7 @@ func TestPrimaryAgentVisibleToolNamesPreservesExplicitToolHint(t *testing.T) {
 	}
 	got := PrimaryAgentVisibleToolNames(
 		[]string{"transport_schedule_lookup"},
-		"campus_services",
+		"transport_schedule_lookup",
 		"校园网密码怎么改？",
 		policy,
 	)

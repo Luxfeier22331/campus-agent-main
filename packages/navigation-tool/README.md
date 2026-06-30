@@ -11,7 +11,7 @@
 
 ## Terminology Posture
 
-- 当前 active package 使用 `tool` 命名；`ToolRequest` /
-  `ToolResponse` 只作为 legacy-named execution handoff DTO 保留。
+- 当前 active package 使用 `tool` 命名；`ToolRequest` / `ToolResponse` 只作为
+  execution handoff DTO 保留。
 - `place_lookup` 是具体 tool target / projection label；`navigation` 只保留为领域 /
   package label，不作为对外 tool identity。

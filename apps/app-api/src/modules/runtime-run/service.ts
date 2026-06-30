@@ -133,6 +133,66 @@ const DEFAULT_RUN_EVENT_SUBSCRIPTION_POLICY = {
 	pollIntervalMs: 1000,
 } as const;
 
+const STUDENT_FORBIDDEN_MEMORY_REF_KEYS = new Set([
+	"bank_id",
+	"bankId",
+	"operation_id",
+	"operationId",
+	"operation_ref",
+	"operationRef",
+	"operation_status_ref",
+	"operationStatusRef",
+	"result_metadata_shape",
+	"resultMetadataShape",
+	"runtime_document_ref",
+	"runtimeDocumentRef",
+]);
+
+const STUDENT_FORBIDDEN_MEMORY_REF_TOKENS = [
+	"hindsight_bank_",
+	"memory/documents",
+	"memory/operations",
+] as const;
+
+function isHindsightMemoryDocumentID(value: string): boolean {
+	return /^conversation:[a-f0-9]{32}$/i.test(value) || /^profile:[A-Za-z0-9_-]{3,128}$/.test(value);
+}
+
+function sanitizeStudentRunStepTrajectory(
+	trajectory: ExecutionControlRunStepTrajectory,
+): ExecutionControlRunStepTrajectory {
+	return sanitizeStudentRuntimeValue(trajectory) as ExecutionControlRunStepTrajectory;
+}
+
+function sanitizeStudentRuntimeValue(value: unknown): unknown {
+	if (Array.isArray(value)) {
+		return value
+			.map((item) => sanitizeStudentRuntimeValue(item))
+			.filter((item) => item !== undefined);
+	}
+	if (value && typeof value === "object") {
+		const sanitized: Record<string, unknown> = {};
+		for (const [key, nested] of Object.entries(value)) {
+			if (STUDENT_FORBIDDEN_MEMORY_REF_KEYS.has(key)) {
+				continue;
+			}
+			const nextValue = sanitizeStudentRuntimeValue(nested);
+			if (nextValue !== undefined) {
+				sanitized[key] = nextValue;
+			}
+		}
+		return sanitized;
+	}
+	if (
+		typeof value === "string" &&
+		(STUDENT_FORBIDDEN_MEMORY_REF_TOKENS.some((token) => value.includes(token)) ||
+			isHindsightMemoryDocumentID(value))
+	) {
+		return;
+	}
+	return value;
+}
+
 export function createPgRuntimeRunStore(
 	env: Env,
 	input: {
@@ -388,7 +448,7 @@ export function buildRuntimeRunService(input: {
 				traceId: owned.traceId,
 			});
 			return {
-				...trajectory,
+				...sanitizeStudentRunStepTrajectory(trajectory),
 				run: toRunSummary(run),
 			};
 		},

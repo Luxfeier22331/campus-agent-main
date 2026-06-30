@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: agent-runtime
 status: active
 created: 2026-06-13
-updated: 2026-06-13
+updated: 2026-06-28
 ---
 # Agent Framework Boundary Architecture
 
@@ -72,6 +72,19 @@ SDK trace, run state, raw prompts, raw model output, provider tool payloads and
 handoff graphs are debug inputs. Before anything reaches `app-api`, panel, eval
 or workflow summaries, it must be reduced to repo-owned bounded projection.
 
+OpenAI Agents SDK is the model-facing loop substrate; it is not the memory
+runtime. Hindsight vendor tools are not model-visible by default. Current memory
+context enters the agent as bounded dynamic instructions / model context prepared
+by `execution-control`, not as SDK-native session memory, raw Hindsight payload,
+bank id or direct vendor tool access.
+
+If a future product path needs model-visible memory behavior, it must be
+introduced as a repo-owned typed tool or workflow signal, for example
+`personal_memory_recall` or `personal_memory_reflect`, admitted by
+`execution-control` and backed by sanitized projection. Directly attaching
+Hindsight Python `create_hindsight_tools()` to the TypeScript primary agent is
+outside the accepted boundary.
+
 ## Failure Semantics
 
 Missing provider config, model config, API key, SDK dependency, agent runtime
@@ -95,6 +108,7 @@ The following are not default campus answer-path tools:
 - shell or filesystem tools
 - raw SQL, object store, OCR dump, collector runtime or ingestion write tools
 - SDK-native session memory as product conversation truth
+- direct Hindsight vendor memory tools
 - state-changing tools such as appointment, submission, payment or ticket
   creation
 

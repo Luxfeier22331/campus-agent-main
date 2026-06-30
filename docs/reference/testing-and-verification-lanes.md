@@ -4,7 +4,7 @@ truth_scope: repository
 owner_boundary: docs/reference
 status: active
 created: 2026-03-31
-updated: 2026-06-28
+updated: 2026-06-29
 ---
 # Testing And Verification Lanes
 
@@ -21,8 +21,12 @@ configuration.
   - Not a lint, build, test, runtime or release proof.
 - `pnpm repo:static`
   - Repo-wide static gate for live tracked surfaces: docs, configs, env examples,
-    JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, Biome, Ruff format
-    checks and decomposition guard.
+    JSON/YAML/TOML/HTML/SQL/XML/JSONL/shell/Dockerfile checks, HTML checker,
+    Biome, Ruff format checks and decomposition guard.
+  - The lane is based on tracked + current worktree files selected by the repo
+    checker; untracked 文件 are not proof of branch-tip compliance until they
+    are intentionally added.
+  - PowerShell 继续保留为 supplemental lane; it is 不并入默认 `pnpm repo:static`.
   - Not a typecheck, unit test, integration test or E2E proof.
 - `uv run --all-packages python -m unittest discover -s tests -t .`
   - Repo Python baseline through `uv` / `unittest`.
@@ -56,6 +60,14 @@ configuration.
 - `cd apps/execution-control && go test -tags temporal_e2e ...`
   - Explicit Temporal dev-server / test-server lane. It is not part of the
     default Go lane.
+- `pnpm --dir apps/app-api hindsight:memory:e2e:staging`
+  - Explicit live Hindsight personal-memory lane through execution-control
+    internal memory commands.
+  - It verifies async append acceptance, operation status/materialization proof,
+    operation list sanitized projection, recall, reflect, explicit profile memory
+    commands, owner disable and user isolation against a self-hosted Hindsight
+    runtime.
+  - Unit mocks or offline fixtures must not be reported as this live lane.
 
 ## Release / Staging Lanes
 

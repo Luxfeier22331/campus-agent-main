@@ -215,6 +215,15 @@ pnpm --dir apps/app-api chat:memory:e2e:staging
 `recall.status=completed` 且 `recall.selectedMemoryCount > 0`。它不以自然语言
 回答是否提到记忆作为验收依据。
 
+Hindsight personal memory runtime gate 通过 staging smoke runner 调用
+execution-control internal memory commands，覆盖 append accepted、operation
+status/list、recall、reflect based_on facts、profile upsert / disable、owner
+disable / RTBF 与 user isolation：
+
+```bash
+pnpm --dir apps/app-api hindsight:memory:e2e:staging
+```
+
 ## Step 5. 记录链路证据
 
 至少记录：

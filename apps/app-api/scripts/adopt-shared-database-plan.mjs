@@ -331,6 +331,24 @@ function latestSnapshotKeepsIndex(expectedLatestTables, target) {
 	);
 }
 
+function indexColumnsExist(inventory, target, expectedTablesForMigration) {
+	if (target.kind !== "index") {
+		return true;
+	}
+	const table = inventory.tables.get(qualifyTable(target.schema, target.table));
+	const expectedIndex = expectedTablesForMigration
+		.get(qualifyTable(target.schema, target.table))
+		?.indexes.get(target.index);
+	return Boolean(table && expectedIndex?.columns.every((column) => table.columns.has(column)));
+}
+
+function renameIndexSourceExists(inventory, target) {
+	if (target.kind !== "rename_index") {
+		return false;
+	}
+	return inventoryHasSchemaIndex(inventory, target.schema, target.fromIndex);
+}
+
 function latestSnapshotHasRenamedIndex(expectedLatestTables, target, renameIndexTargetBySourceKey) {
 	if (target.kind !== "index") {
 		return false;
@@ -370,7 +388,11 @@ function shouldApplyStatement(
 		}
 		return !compareIndexSpec(actualIndex.index, expectedIndex);
 	}
+	if (target.kind === "rename_index") {
+		return !targetExists(inventory, target) && renameIndexSourceExists(inventory, target);
+	}
 	if (target.kind === "index") {
+		const isRenameSourceIndex = renameIndexSourceKeys.has(`${target.schema}@${target.index}`);
 		if (
 			originalTableKeys.has(qualifyTable(target.schema, target.table)) &&
 			latestSnapshotHasRenamedIndex(expectedLatestTables, target, renameIndexTargetBySourceKey)
@@ -381,18 +403,20 @@ function shouldApplyStatement(
 			!(
 				latestSnapshotKeepsIndex(expectedLatestTables, target) ||
 				targetExists(inventory, target) ||
-				renameIndexSourceKeys.has(`${target.schema}@${target.index}`)
+				isRenameSourceIndex
 			)
 		) {
 			return false;
 		}
-		return !targetExists(inventory, target);
-	}
-	if (target.kind === "rename_index") {
-		if (targetExists(inventory, target)) {
+		if (
+			isRenameSourceIndex &&
+			!latestSnapshotKeepsIndex(expectedLatestTables, target) &&
+			!targetExists(inventory, target) &&
+			!indexColumnsExist(inventory, target, expectedTablesForMigration)
+		) {
 			return false;
 		}
-		return inventoryHasSchemaIndex(inventory, target.schema, target.fromIndex);
+		return !targetExists(inventory, target);
 	}
 	if (target.kind === "table" && !latestSnapshotKeepsTable(expectedLatestTables, target)) {
 		return false;
@@ -603,6 +627,14 @@ function renameTargetExistsForSourceIndex(inventory, target, targetIndexBySource
 	return Boolean(targetIndex && inventoryHasSchemaIndex(inventory, target.schema, targetIndex));
 }
 
+function renameIndexTargetAlreadyExists(inventory, target, targetIndexBySourceKey) {
+	if (target.kind !== "rename_index") {
+		return false;
+	}
+	const targetIndex = targetIndexBySourceKey.get(`${target.schema}@${target.fromIndex}`);
+	return Boolean(targetIndex && inventoryHasSchemaIndex(inventory, target.schema, targetIndex));
+}
+
 function renameTargetExistsForSourceColumn(inventory, target, targetColumnBySourceKey) {
 	if (target.kind !== "column") {
 		return false;
@@ -664,11 +696,9 @@ export function buildAdoptionPlan({ inventory, migrationContext }) {
 		let migrationHasPlannedStructuralStatement = false;
 		for (const statement of migration.statements) {
 			const target = parseMigrationStatement(statement);
-			const renameTargetAlreadyExists = renameTargetExistsForSourceIndex(
-				plannedInventory,
-				target,
-				renameIndexTargetBySourceKey,
-			);
+			const renameTargetAlreadyExists =
+				renameTargetExistsForSourceIndex(plannedInventory, target, renameIndexTargetBySourceKey) ||
+				renameIndexTargetAlreadyExists(plannedInventory, target, renameIndexTargetBySourceKey);
 			const renameColumnTargetAlreadyExists = renameTargetExistsForSourceColumn(
 				plannedInventory,
 				target,

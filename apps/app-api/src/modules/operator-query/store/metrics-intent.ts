@@ -1,4 +1,3 @@
-import { formatOperatorToolDomainBucket } from "../../operator-target-labels";
 import type {
 	NormalizedOperatorOverviewFilters,
 	OperatorDistributionBucket,
@@ -124,9 +123,7 @@ export function createIntentMetricHandlers(runtime: OperatorQueryRuntime) {
 						intentRows.length,
 					),
 					distributions: {
-						tool: buildDistribution(intentRows, (row) =>
-							formatOperatorToolDomainBucket(row.intentTool),
-						),
+						tool: buildDistribution(intentRows, (row) => row.intentTool),
 						classifierVersion: buildDistribution(intentRows, (row) => row.intentClassifierVersion),
 						launchState: buildDistribution(intentRows, (row) => row.intentLaunchState),
 						nextAction: buildDistribution(intentRows, (row) => row.intentNextAction),

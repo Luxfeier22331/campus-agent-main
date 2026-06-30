@@ -162,15 +162,15 @@ The top-level capability or workflow signal recognized before agent-owned
 execution. It is used for admission, routing, guardrails and clarification.
 
 Tool domain is not the same as `corpus/collection`, and it does not have to map
-one-to-one to a legacy wire `selected_tool` value.
+one-to-one to a wire `selected_tool` value.
 
-### Legacy Tool Field
+### Tool Wire Fields
 
 Existing wire/projection fields such as `tool`, `requested_tool` and
 `selected_tool`.
 
-These names describe compatibility fields. They should not become product
-taxonomy or new conceptual naming.
+These names describe current wire/projection fields. They should not become
+product taxonomy or new conceptual naming.
 
 ### Surface Tool Allowlist
 

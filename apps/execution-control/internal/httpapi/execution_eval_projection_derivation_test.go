@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -65,7 +66,7 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesRAGAndMemoryFromRunti
 		SanitizedPayload: map[string]any{
 			"context_usage": map[string]any{
 				"memory_recall_state":                 "completed",
-				"previous_capability_result_count":    float64(1),
+				"previous_tool_result_count":          float64(1),
 				"previous_evidence_count":             float64(1),
 				"previous_evidence_source_hash_count": float64(1),
 			},
@@ -311,5 +312,151 @@ func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesNonCurrentPlanningTok
 	steps, _ := planning["planned_steps"].([]any)
 	if len(steps) != 2 || steps[0] != "indexed_lookup" || steps[1] != "supporting_evidence_selection" {
 		t.Fatalf("planning.planned_steps = %#v", planning["planned_steps"])
+	}
+}
+
+func TestExecutionRunStepsAgentRuntimeEvalProjectionDerivesSanitizedHindsightMemorySignals(t *testing.T) {
+	store := execution.NewInMemoryRunProjectionStore()
+	server := newWorkerAuthServerForTest()
+	attachRunProjectionStoreForHandlerTest(server, store)
+	now := time.Now().UTC()
+	createHTTPAPIQueuedDurableRunForTest(
+		t,
+		store,
+		"run-temporal-memory-derived-eval",
+		"conv-temporal-memory-derived-eval",
+		now,
+		ragHandoffForDurableWorkerTest("我之前关注哪个校区的培养方案？"),
+	)
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-temporal-memory-derived-eval",
+		execution.DurableRunStatusAdmitted,
+		"",
+		now,
+	); err != nil {
+		t.Fatalf("admit run: %v", err)
+	}
+	if _, err := store.TransitionRun(
+		context.Background(),
+		"run-temporal-memory-derived-eval",
+		execution.DurableRunStatusRunning,
+		"",
+		now,
+	); err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	run, err := store.TransitionRun(
+		context.Background(),
+		"run-temporal-memory-derived-eval",
+		execution.DurableRunStatusCompleted,
+		execution.DurableTerminalReasonAnswerCompleted,
+		now,
+	)
+	if err != nil {
+		t.Fatalf("complete run: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "memory.recall:result:1",
+		StepID:               "memory.recall",
+		RunID:                run.RunID,
+		AttemptID:            "memory.recall:attempt:1",
+		Status:               "completed",
+		ResultKind:           "memory_recall_result",
+		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/memory/recall",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload: map[string]any{
+			"context_block":         "must not leak raw memory text",
+			"memory_ref":            "projection://runs/run-temporal-memory-derived-eval/memory/recall",
+			"operation_id":          "op-must-not-leak",
+			"runtime_document_ref":  "doc-must-not-leak",
+			"schema_version":        "memory_recall_result_v1",
+			"selected_memory_chars": float64(42),
+			"selected_memory_count": float64(2),
+			"status":                "completed",
+		},
+	}); err != nil {
+		t.Fatalf("upsert memory recall result: %v", err)
+	}
+	if _, err := store.UpsertStepResult(context.Background(), execution.StepResultProjection{
+		ResultID:             "memory.reflect:result:1",
+		StepID:               "memory.reflect",
+		RunID:                run.RunID,
+		AttemptID:            "memory.reflect:attempt:1",
+		Status:               "completed",
+		ResultKind:           "memory_reflect_result",
+		ProjectionRef:        "projection://runs/run-temporal-memory-derived-eval/memory/reflect",
+		CreatedAt:            now,
+		PayloadSchemaVersion: "step-result-projection-v1",
+		SanitizedPayload: map[string]any{
+			"based_on_memory_context_items": []any{
+				map[string]any{
+					"compact_text": "must not leak compact text",
+					"memory_id":    "memory-id-must-not-leak",
+					"memory_type":  "fact",
+					"tool":         "knowledge_query",
+				},
+			},
+			"operation_id":   "reflect-op-must-not-leak",
+			"reflect_ref":    "projection://runs/run-temporal-memory-derived-eval/memory/reflect",
+			"schema_version": "memory_reflect_result_v1",
+			"status":         "completed",
+			"text":           "must not leak reflection text",
+		},
+	}); err != nil {
+		t.Fatalf("upsert memory reflect result: %v", err)
+	}
+
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodGet,
+		"/internal/execution/runs/run-temporal-memory-derived-eval/steps",
+		nil,
+	)
+	request.Header.Set("x-worker-origin-auth", "secret")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	evalProjection := expectRecord(t, body["agent_runtime_eval_projection"], "agent_runtime_eval_projection")
+	memory := expectRecord(t, evalProjection["memory"], "agent_runtime_eval_projection.memory")
+	if memory["behavior"] != "personal_memory_recall" {
+		t.Fatalf("memory.behavior = %#v", memory["behavior"])
+	}
+	if memory["recall_status"] != "completed" || intFromProjection(memory["selected_memory_count"]) != 2 ||
+		intFromProjection(memory["selected_memory_chars"]) != 42 {
+		t.Fatalf("memory recall summary = %#v", memory)
+	}
+	if memory["reflect_status"] != "completed" || intFromProjection(memory["reflect_based_on_count"]) != 1 {
+		t.Fatalf("memory reflect summary = %#v", memory)
+	}
+	observedTokens, _ := memory["observed_tokens"].([]any)
+	if len(observedTokens) != 4 ||
+		observedTokens[0] != "memory_recall" ||
+		observedTokens[1] != "selected_memory" ||
+		observedTokens[2] != "memory_reflect" ||
+		observedTokens[3] != "reflect_based_on_facts" {
+		t.Fatalf("memory.observed_tokens = %#v", memory["observed_tokens"])
+	}
+	memoryProjection, err := json.Marshal(memory)
+	if err != nil {
+		t.Fatalf("marshal memory projection: %v", err)
+	}
+	for _, forbidden := range []string{
+		"must not leak raw memory text",
+		"op-must-not-leak",
+		"doc-must-not-leak",
+		"must not leak compact text",
+		"memory-id-must-not-leak",
+		"reflect-op-must-not-leak",
+		"must not leak reflection text",
+	} {
+		if strings.Contains(string(memoryProjection), forbidden) {
+			t.Fatalf("derived eval projection leaked forbidden memory payload %q: %s", forbidden, string(memoryProjection))
+		}
 	}
 }

@@ -13,7 +13,7 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		RunID:     "run-001",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
-		PlanID:    "plan:single_step:knowledge:rag_request",
+        PlanID:    "plan:single_step:knowledge_query:rag_request",
 		Mode:      WorkflowModeSingleStep,
 		Branch:    "delegate",
 		State:     WorkflowStatePending,
@@ -80,9 +80,9 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	withProjection.ContextProjections[0].Safety.FieldsPresent[0] = "mutated"
 
 	withInvocation, err := store.AppendToolInvocation(ctx, "run-001", ToolInvocation{
-		InvocationID:   "tool-invocation:knowledge:1",
-		WorkflowRunRef: "run-001",
-		StepID:         "tool:knowledge:rag_request",
+        InvocationID:   "tool-invocation:knowledge_query:1",
+        WorkflowRunRef: "run-001",
+        StepID:         "tool:knowledge_query:rag_request",
 		ToolTarget:     "knowledge_query",
 		Status:         "completed",
 		AllowedTools:   []string{"knowledge_query"},

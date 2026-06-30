@@ -185,9 +185,7 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 		tools := []string{"knowledge_query"}
 		for _, toolName := range []string{
 			"transport_schedule_lookup",
-			"campus_notice_change_set_lookup",
 			"campus_notice_discover",
-			"campus_notice_period_summary",
 		} {
 			if s.config.ToolOpen(toolName) {
 				tools = append(tools, toolName)
@@ -201,11 +199,11 @@ func (s *Server) visibleToolNamesForRun(requestedTool string) ([]string, error) 
 			return nil, fmt.Errorf("tool transport_schedule_lookup is not open in runtime profile")
 		}
 		return []string{"transport_schedule_lookup"}, nil
-	case "campus_notice_change_set_lookup", "campus_notice_discover", "campus_notice_period_summary":
-		if !s.config.ToolOpen(normalized) {
-			return nil, fmt.Errorf("tool %s is not open in runtime profile", normalized)
+	case "campus_notice_discover":
+		if !s.config.ToolOpen("campus_notice_discover") {
+			return nil, fmt.Errorf("tool campus_notice_discover is not open in runtime profile")
 		}
-		return []string{normalized}, nil
+		return []string{"campus_notice_discover"}, nil
 	case "place_lookup":
 		return nil, fmt.Errorf("navigation tools are not admitted by execution-control")
 	default:

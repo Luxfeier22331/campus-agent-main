@@ -4,7 +4,7 @@ truth_scope: execution
 owner_boundary: execution-control
 status: active
 created: 2026-06-04
-updated: 2026-06-14
+updated: 2026-06-28
 ---
 # Durable Agent Runtime Architecture
 
@@ -268,10 +268,13 @@ canceled / expired`
   token / estimated cost 与 cancel / timeout outcome 写入 sanitized attempt/result
   projection。provider raw response、raw prompt 与 SDK-native trace 不能作为 canonical
   projection。
+- Hindsight-facing memory activity 必须把 external API calls 放在 Activity 内执行；
+  Workflow 只编排 deterministic state，不直接调用 Hindsight、provider、Qdrant、PG、
+  object storage 或 filesystem。
 
 ### Target Tool Execution Graph
 
-目标 `ToolExecutionWorkflow` 是 legacy-named Temporal workflow。它不以
+目标 `ToolExecutionWorkflow` 是当前 Temporal workflow 名称。它不以
 RAG 为顶层入口，而是先记录 durable run，
 准备 bounded context，再执行 `agent.primary` first decision；该 decision 可以直接
 产生 no-tool terminal outcome，也可以选择 admitted tool / workflow signal，再进入
@@ -302,6 +305,11 @@ context.memory_recall when needed
 - `context.memory_recall` 使用 Hindsight runtime recall bounded personal memory
   context，输出 selected count、char budget 与 compact memory items；目标态下它应由
   first decision / workflow plan 明确需要时执行，而不是为了默认进入 RAG 而无条件前置。
+- `memory.reflect` 是目标 internal memory capability，用于 Hindsight
+  memory-grounded reasoning / `based_on` facts；它不替代 `agent.primary` 的 final
+  answer owner。
+- `memory.operation_status` 是目标 async retain follow-up capability，用于证明
+  Hindsight 后台处理结果；`memory.append` accepted 不等于 graph materialized。
 - `plan.route` 只能作为 retained deterministic support path / historical
   planning artifact，不读取 PG profile memory full dump，也不把普通 chat
   缺失 tool hint 的请求默认压成 `knowledge_query` / RAG。
@@ -358,6 +366,28 @@ context.memory_recall when needed
 
 每个 RAG step 都必须有 `RunStep -> StepAttempt -> StepResult` 轨迹；panel、eval 与
 badcase 诊断以这条 step trajectory 为主线，不读取 Temporal history 或 provider raw trace。
+
+### Personal Memory Activity Graph
+
+Personal memory durable execution must keep external memory I/O inside Temporal
+Activities:
+
+1. `memory.recall`
+1. `memory.reflect`
+1. `memory.append`
+1. `memory.operation_status`
+
+固定规则：
+
+- `memory.recall` returns only bounded selected memory context for downstream
+  agent / RAG / tool steps.
+- `memory.reflect` returns sanitized reflection output and optional sanitized
+  `based_on` refs; raw Hindsight trace and tool-call logs are debug-only.
+- `memory.append` is post-finalization side effect. Failure is projected as
+  memory failure and metrics, but does not reverse a completed final answer.
+- `memory.operation_status` is the only durable evidence that an async retain
+  operation moved beyond accepted request handling, unless a later recall /
+  reflect result proves materialization.
 
 ### Task Queue
 

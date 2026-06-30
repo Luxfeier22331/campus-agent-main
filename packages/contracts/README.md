@@ -5,8 +5,7 @@
 它负责：
 
 - Execution Agent Layer-facing request DTOs
-- legacy-named Execution Agent Layer tool handoff DTO
-  `ToolRequest` / `ToolResponse`
+- Execution Agent Layer tool handoff DTO `ToolRequest` / `ToolResponse`
 - retrieval-oriented `EvidenceBundle`
 - navigation / typed tool handoff 所需的共享 payload / result 分支
 - trace、actor、error、scope 等共享 dataclass 与枚举
@@ -21,8 +20,8 @@
 
 当前它已经不是 rag-only contract 面；共享 handoff 现在覆盖 `knowledge_query`、
 `place_lookup` 与已 admission 的 tool read model target。`ToolRequest` /
-`ToolResponse` 是 legacy-named Execution Agent Layer -> tool handoff DTO；
-`tool_response` 是兼容 wire 名称，不是 active product routing 概念。
+`ToolResponse` 是 Execution Agent Layer -> tool handoff DTO；`tool_response`
+是现有 wire 字段名，不是 active product routing 概念。
 
 ## Machine-Readable Schemas
 
@@ -30,8 +29,7 @@
   machine-readable schema registry。新增 OpenAPI / JSON Schema contract 或
   runtime JSON artifact schema 必须先登记，再进入 `pnpm contracts:check`
 - `packages/contracts/schemas/tool-handoff.v1.schema.json` 是
-  legacy-named package-owned tool handoff JSON Schema，覆盖 `ToolRequest` /
-  `ToolResponse`
+  package-owned tool handoff JSON Schema，覆盖 `ToolRequest` / `ToolResponse`
 - `packages/contracts/schemas/campus-services-tool-result.v1.schema.json` 是
   `campus_services` typed tool result envelope 的 canonical JSON Schema；Python /
   Go / TS 侧模型只能作为 consumer helper 或 runtime projection，不替代该 schema
@@ -49,9 +47,9 @@
   discovery、period summary、selected notice get 与 change-set lookup 的边界 shape、
   fail-close 语义与 public display policy guardrail
 - `docs/contracts/schemas/tool-execution.openapi.yaml` 是 app-api /
-  execution-control legacy-named execution wrapper 的 canonical OpenAPI
-  schema；它同时覆盖 durable run create / read / events / steps / cancel 与
-  private tool execution wire shape
+  execution-control execution wire 的 canonical OpenAPI schema；它同时覆盖
+  durable run create / read / events / steps / cancel 与 private tool execution
+  wire shape
 - `packages/contracts/schemas/runtime-*.schema.json` 覆盖当前 execution
   runtime 实际读取的 tool registry、tool function schemas、runtime profile
   与 workflow artifact registry JSON artifact

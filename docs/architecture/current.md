@@ -352,8 +352,8 @@ document/index release`
 - `apps/execution-control` 当前拥有 Go-owned knowledge / RAG Temporal activity graph，
   负责 retrieval-specific planning、evidence selection、grounded synthesis 与
   fail-close finalization runtime
-- `packages/navigation-tool` 是 legacy-named navigation semantic specialist
-  package；产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线。
+- `packages/navigation-tool` 是 navigation semantic specialist package；
+  产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线。
   deterministic place / point reads 必须先表现为 typed tool 或 internal query
   service；navigation specialist 只能作为 typed `agent_step` / agent-as-tool
   消费这些工具，不拥有 spatial source truth
@@ -365,7 +365,7 @@ document/index release`
   metadata pre-filter、evidence shaping；旧 Python `packages/retrieval-core` 已不属于
   active workspace
 - `packages/ingestion-core` ingestion/data-plane consumption logic
-- `packages/contracts` legacy-named tool handoff 与 shared typed seam
+- `packages/contracts` tool handoff 与 shared typed seam
 
 ## 当前术语真相
 
@@ -377,7 +377,7 @@ document/index release`
   specialist labels. They are not product-level tool abstractions and do
   not replace concrete ToolSpec entries.
 - `ToolRequest` / `ToolResponse`, `requested_tool` and
-  `selected_tool` are legacy-named compatibility wire/projection fields.
+  `selected_tool` are current wire/projection fields.
   New active runtime descriptions should say tool handoff, tool dispatch and
   selected tool unless referring to the exact field or file name.
 - Future serving expansion is opened only by adding concrete ToolSpec entries,

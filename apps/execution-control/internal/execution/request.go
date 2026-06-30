@@ -412,9 +412,7 @@ func isAllowedRequestedTool(requestedTool string) bool {
 	case "knowledge_query",
 		"place_lookup",
 		"transport_schedule_lookup",
-		"campus_notice_discover",
-		"campus_notice_change_set_lookup",
-		"campus_notice_period_summary":
+		"campus_notice_discover":
 		return true
 	default:
 		return false

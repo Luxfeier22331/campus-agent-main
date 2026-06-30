@@ -85,7 +85,7 @@ Execution Agent Layer does not own:
 The first model-facing decision is performed by `agent.primary` over a
 workflow-trimmed visible tool set.
 
-Missing `requested_tool` is treated only as an absent compatibility hint.
+Missing `requested_tool` is treated only as an absent caller hint.
 It must not be silently rewritten to `knowledge`. The model may answer directly
 without tools when the request is product identity, ordinary chat,
 clarification, rejection or out-of-scope handling.

@@ -56,7 +56,7 @@ execution finalization`
   workflow signal 纳入 durable workflow、step admission 与 sanitized projection；
   它不再用旧 `plan.route` 抢占普通 chat 的第一语义决策
 - `requested_scope` 只属于 `knowledge_query` path，不是所有请求共享的顶层默认字段
-- `requested_tool` 是 explicit caller hint / compatibility field；普通
+- `requested_tool` 是 optional explicit caller hint；普通
   chat 缺失该字段时，目标态不得由 `app-api` 或 `execution-control` 默认伪造成
   `knowledge`
 - `admission` 与 `routing` 必须分层，避免把 surface policy、tool readiness、run
@@ -83,7 +83,7 @@ execution finalization`
   已停止把缺失 `requested_tool` 默认写成 `knowledge_query`
 - `place_lookup` 在 execution contract 中仍存在，但当前产品路径继续 fail-close；
   地图 UI、route planning 与 `place_card` product consumption 等 navigation 能力等地图产品上线后再开放
-- `notice`、`campus_services` 只作为现存 wire / projection label 保留；当前
+- `notice`、`campus_services` 只作为现存 domain / projection label 保留；当前
   model-visible opening 以具体 tool 为准，例如 `transport_schedule_lookup`、
   `campus_notice_discover`。它们还不是当前默认公开主路径的泛化能力集合。
 
@@ -104,11 +104,11 @@ product behavior becomes a tool.
 
 Guardrails:
 
-- Missing `requested_tool` is absence of a legacy caller hint, not an implicit
+- Missing `requested_tool` is absence of a caller hint, not an implicit
   request for `knowledge_query`.
-- `requested_tool` and `selected_tool` remain legacy-named compatibility
-  projection fields; new concept names must not copy that legacy wire wording
-  unless the wire contract itself is being updated.
+- `requested_tool` and `selected_tool` are current wire/projection fields; new
+  concept names must not copy that wire wording unless the wire contract itself
+  is being updated.
 - Product self-introduction, greetings, product boundary explanation,
   clarification and rejection are terminal intents, not synthetic tools.
 - Model-visible tool choice must be constrained by deterministic surface
@@ -138,7 +138,7 @@ surface intake 由 browser surface 与 shared `apps/app-api` 一起承担。
 - surface tool allowlist 检查
 - 最小 typed context projection
 - optional explicit caller hint normalization，例如保留 `requestedTool`
-  作为 compatibility hint
+  作为 caller hint
 
 它长期不负责：
 
@@ -300,7 +300,7 @@ internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥�
 
 固定分工：
 
-- `knowledge`
+- `knowledge_query`
   - `knowledge_query` 内部 intent / ambiguity / clarification / retrieval planning、
     evidence verification、answer synthesis 与 grounding
 - notice typed tools
@@ -310,8 +310,9 @@ internal query service 拥有；semantic reasoning 归对应 agent-as-tool 拥�
   - notice 候选消歧、historical posture、短摘要/事实抽取等 semantic specialist step
 - campus services typed tools
   - structured current-state / process / directory / schedule lookup
-- `campus_services`
-  - campus services semantic disambiguation、跨工具编排、说明生成或 agent-owned clarification
+- future campus-services specialist label
+  - semantic disambiguation、跨工具编排、说明生成或 agent-owned clarification；
+    当前 model-visible 工具仍以 `transport_schedule_lookup` 为准
 - navigation typed tools / `navigation`
   - place / point deterministic read 与 navigation semantic specialist step
 
@@ -412,16 +413,16 @@ first Execution Agent decision 还必须能表达 no-tool terminal intent，例�
 - `out_of_scope`
 - `unsupported_or_not_grounded`
 
-这些 terminal intent 不等于 tool id，legacy `selected_tool`
-compatibility field 可以为空或 `none`，但必须保留 decision provenance、LLM
+这些 terminal intent 不等于 tool id，`selected_tool`
+wire field 可以为空或 `none`，但必须保留 decision provenance、LLM
 I/O schema provenance 与 fail-close reason。
 
 补充约束：
 
 - 本文冻结的是概念 contract，而不是当前 wire shape
 - 当前 internal execution contract 仍保留 `requested_tool + optional
-  requested_scope` 作为 legacy-named compatibility wire shape
-- forward wire shape 的演进由 legacy-named app-api execution contract 补充说明
+  requested_scope` 作为 current wire shape
+- forward wire shape 的演进由 app-api execution contract 补充说明
 
 ## Observability And Evaluation
 
@@ -429,8 +430,8 @@ tool routing 不是纯 prompt 细节，必须进入长期 observability / eval t
 
 至少需要可追踪：
 
-- requested tool hint through legacy `requested_tool` compatibility field
-- finalized selected tool / legacy `selected_tool` compatibility field
+- requested tool hint through current `requested_tool` wire field
+- finalized selected tool through current `selected_tool` wire field
 - workflow mode 与 selected step sequence
 - cross-step context projection summary
 - routing / agent clarification 区分
@@ -466,7 +467,7 @@ tool routing 不是纯 prompt 细节，必须进入长期 observability / eval t
 - `docs/architecture/system/tool-runtime.md`
 - `docs/architecture/system/retrieval-serving.md`
 - `docs/architecture/system/agentic-retrieval.md`
-- `docs/contracts/tool-execution.md`（legacy-named execution wire contract）
+- `docs/contracts/tool-execution.md`（execution wire contract）
 - `docs/decisions/adr-0006-agent-orchestration-and-safety.md`
 - `docs/decisions/adr-0017-supervisor-internal-execution-admission.md`（historical
   ADR filename）

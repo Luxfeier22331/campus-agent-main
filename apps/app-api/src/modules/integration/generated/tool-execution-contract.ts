@@ -22,8 +22,6 @@ export const REQUESTED_TOOLS = [
 	"place_lookup",
 	"transport_schedule_lookup",
 	"campus_notice_discover",
-	"campus_notice_change_set_lookup",
-	"campus_notice_period_summary",
 ] as const;
 export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;
 export const DELEGATE_STATUSES = [

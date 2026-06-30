@@ -45,7 +45,7 @@ product data and sanitized run/event/step projection, not the execution queue.
   admission, timeout/cancel, RAG graph execution and sanitized projection
   ownership.
 - Ordinary chat routing is primary-agent-first: missing `requested_tool`
-  remains an absent legacy hint through `execution-control`, exposes the admitted
+  remains an absent caller hint through `execution-control`, exposes the admitted
   visible tool set to `agent.primary`, and uses neutral `any` memory recall
   instead of defaulting to `knowledge_query`.
 - Model-selected campus-services / notice read-only tools are callable through

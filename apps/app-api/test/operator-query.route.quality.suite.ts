@@ -216,7 +216,7 @@ export function registerOperatorQueryQualitySuite(): void {
 									{ count: 1, value: "answer" },
 									{ count: 1, value: "no_answer" },
 								],
-								tool: [{ count: 2, value: "knowledge" }],
+								tool: [{ count: 2, value: "knowledge_query" }],
 								citationPosture: [
 									{ count: 1, value: "citation_present" },
 									{ count: 1, value: "citation_not_expected" },
@@ -327,7 +327,7 @@ export function registerOperatorQueryQualitySuite(): void {
 								{ count: 1, value: "answer" },
 								{ count: 1, value: "no_answer" },
 							],
-							tool: [{ count: 2, value: "knowledge" }],
+							tool: [{ count: 2, value: "knowledge_query" }],
 							citationPosture: [
 								{ count: 1, value: "citation_present" },
 								{ count: 1, value: "citation_not_expected" },

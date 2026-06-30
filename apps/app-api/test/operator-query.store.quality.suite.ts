@@ -141,8 +141,8 @@ export function registerOperatorQueryStoreQualitySuite(ctx: OperatorQueryStoreSu
 					{ count: 1, value: "no_answer" },
 				],
 				tool: [
-					{ count: 1, value: "knowledge" },
-					{ count: 1, value: "campus_services" },
+					{ count: 1, value: "knowledge_query" },
+					{ count: 1, value: "transport_schedule_lookup" },
 				],
 				citationPosture: [
 					{ count: 1, value: "citation_present" },

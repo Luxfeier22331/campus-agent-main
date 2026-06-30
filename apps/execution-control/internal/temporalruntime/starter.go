@@ -254,6 +254,14 @@ type ContextActivities interface {
 		context.Context,
 		AppendConversationMemoryActivityInput,
 	) (AppendConversationMemoryActivityOutput, error)
+	MemoryOperationStatusActivity(
+		context.Context,
+		MemoryOperationStatusActivityInput,
+	) (MemoryOperationStatusActivityOutput, error)
+	MemoryReflectActivity(
+		context.Context,
+		MemoryReflectActivityInput,
+	) (MemoryReflectActivityOutput, error)
 	PlanRouteActivity(context.Context, PlanRouteActivityInput) (PlanRouteActivityOutput, error)
 	PlanReplanActivity(context.Context, PlanReplanActivityInput) (PlanReplanActivityOutput, error)
 }
@@ -482,6 +490,14 @@ func NewCoreActivityWorkerWithOptions(
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.AppendConversationMemoryActivity,
 		activityRegisterOptions(AppendConversationMemoryActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.MemoryOperationStatusActivity,
+		activityRegisterOptions(MemoryOperationStatusActivityName),
+	)
+	coreWorker.RegisterActivityWithOptions(
+		contextActivities.MemoryReflectActivity,
+		activityRegisterOptions(MemoryReflectActivityName),
 	)
 	coreWorker.RegisterActivityWithOptions(
 		contextActivities.PlanRouteActivity,

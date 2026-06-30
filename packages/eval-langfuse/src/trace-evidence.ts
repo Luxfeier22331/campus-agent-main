@@ -28,13 +28,23 @@ const FORBIDDEN_PAYLOAD_FIELDS = new Set([
 	"cookies",
 	"database_url",
 	"jwt",
+	"bank_id",
+	"hindsight_bank_id",
+	"hindsight_document_id",
+	"memory_bank_id",
+	"memory_item_text",
 	"object_store_secret",
+	"operation_id",
+	"operation_ref",
+	"operation_status_ref",
 	"provider_raw_response",
 	"raw_answer",
+	"raw_memory_text",
 	"raw_prompt",
 	"raw_retrieved_snippet",
 	"raw_transcript",
 	"retrieved_snippet",
+	"runtime_document_ref",
 	"source_body_text",
 ]);
 
@@ -47,6 +57,7 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 	expectedUserId: string;
 	expectedWorkflowId?: string | null;
 	fetchImpl?: typeof fetch;
+	requiredStepIds?: string[];
 	settings: LangfuseSettings;
 	traceId: string;
 }): Promise<JsonObject> {
@@ -78,10 +89,12 @@ export async function verifyLangfuseOnlineTraceEvidence(input: {
 		workflow_id: input.expectedWorkflowId,
 	});
 	const repoOwnedObservations = assertObservationAttributeContract(observations);
+	const requiredStepIds = assertRequiredStepIds(repoOwnedObservations, input.requiredStepIds ?? []);
 	return {
 		contract_checked_observation_count: repoOwnedObservations.length,
 		non_repo_observation_count: observations.length - repoOwnedObservations.length,
 		observation_count: observations.length,
+		required_step_ids: requiredStepIds,
 		repo_owned_observation_count: repoOwnedObservations.length,
 		release: input.expectedRelease,
 		session_id: input.expectedSessionId,
@@ -137,6 +150,23 @@ function assertObservationAttributeContract(observations: unknown[]): unknown[] 
 		}
 	}
 	return repoOwned;
+}
+
+function assertRequiredStepIds(observations: unknown[], requiredStepIds: string[]): string[] {
+	const normalizedRequired = requiredStepIds.map((stepId) => stepId.trim()).filter(Boolean);
+	if (normalizedRequired.length === 0) {
+		return [];
+	}
+	const actual = new Set(
+		observations
+			.map((observation) => optionalString(observationAttributes(observation).step_id))
+			.filter((stepId): stepId is string => Boolean(stepId)),
+	);
+	const missing = normalizedRequired.filter((stepId) => !actual.has(stepId));
+	if (missing.length > 0) {
+		throw new Error(`trace evidence missing required steps: ${missing.join(", ")}`);
+	}
+	return normalizedRequired;
 }
 
 function isRepoOwnedObservation(observation: unknown): boolean {

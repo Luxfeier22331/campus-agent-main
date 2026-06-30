@@ -32,8 +32,8 @@ updated: 2026-04-26
 
 ## Tool And Routing
 
-- legacy-named `requested_tool` compatibility hint 可表达 `place_lookup`
-- legacy-named `tool` projection label 可表达 `navigation`
+- `requested_tool` caller hint 可表达 `place_lookup`
+- `tool` projection label 可表达 `navigation`
 - Go `apps/execution-control` 把用户地点问句 framing 成
   `PlaceLookupPayload(query_text=...)`
 - 当前 `place_lookup` request 不接受 `requested_scope`

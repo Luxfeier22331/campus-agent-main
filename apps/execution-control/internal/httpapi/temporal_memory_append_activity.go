@@ -96,7 +96,10 @@ func (s *Server) AppendConversationMemoryActivity(
 	}
 	output, err := s.projectMemoryAppendResult(ctx, run, temporalruntime.AppendConversationMemoryActivityOutput{
 		AppendedMessageCount: result.AppendedMessageCount,
+		OperationID:          result.OperationID,
+		OperationStatusRef:   result.OperationStatusRef,
 		PayloadSHA256:        result.PayloadSHA256,
+		RuntimeDocumentRef:   result.RuntimeDocumentRef,
 		RunID:                run.RunID,
 		SchemaVersion:        result.SchemaVersion,
 		Status:               result.Status,
@@ -261,7 +264,10 @@ func (s *Server) projectMemoryAppendResult(
 	}
 	payload := map[string]any{
 		"appended_message_count": output.AppendedMessageCount,
+		"operation_id":           output.OperationID,
+		"operation_status_ref":   output.OperationStatusRef,
 		"payload_sha256":         output.PayloadSHA256,
+		"runtime_document_ref":   output.RuntimeDocumentRef,
 		"schema_version":         output.SchemaVersion,
 		"skip_reasons":           output.SkipReasons,
 		"skipped_count":          output.SkippedCount,

@@ -5,7 +5,6 @@ import {
 	qualityGradeProjection,
 	requestObservabilityFact,
 } from "../../../db/schema";
-import { formatOperatorToolDomainBucket } from "../../operator-target-labels";
 import type {
 	NormalizedOperatorOverviewFilters,
 	NormalizedOperatorQualityBadcaseListFilters,
@@ -101,7 +100,7 @@ function answerKindFor(row: Pick<RequestObservabilityFactRow, "status">): string
 }
 
 function toolFor(row: Pick<RequestObservabilityFactRow, "intentTool" | "requestedTool">): string {
-	return formatOperatorToolDomainBucket(row.intentTool ?? row.requestedTool) ?? "unknown";
+	return row.intentTool ?? row.requestedTool ?? "unknown";
 }
 
 function citationPostureFor(

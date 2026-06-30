@@ -80,8 +80,8 @@ describe("operator query service aggregate summaries", () => {
 				collection: " student_rules ",
 				modelName: " gpt-5.2-mini ",
 				principalType: " campus_member ",
-				requestedTool: " knowledge ",
-				selectedTool: " knowledge ",
+				requestedTool: " knowledge_query ",
+				selectedTool: " knowledge_query ",
 				surface: " campus_web ",
 				window: "24h",
 			},
@@ -93,8 +93,8 @@ describe("operator query service aggregate summaries", () => {
 			granularity: null,
 			modelName: "gpt-5.2-mini",
 			principalType: "campus_member",
-			requestedTool: "knowledge",
-			selectedTool: "knowledge",
+			requestedTool: "knowledge_query",
+			selectedTool: "knowledge_query",
 			surface: "campus_web",
 			window: "24h",
 		});
@@ -273,7 +273,7 @@ describe("operator query service aggregate summaries", () => {
 				limit: 10,
 				principalType: " campus_member ",
 				requestId: " req_01HQ ",
-				selectedTool: " knowledge ",
+				selectedTool: " knowledge_query ",
 				status: " completed ",
 				surface: " campus_web ",
 				traceId: " trace_01HQ ",
@@ -287,7 +287,7 @@ describe("operator query service aggregate summaries", () => {
 			limit: 10,
 			principalType: "campus_member",
 			requestId: "req_01HQ",
-			selectedTool: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "completed",
 			surface: "campus_web",
 			traceId: "trace_01HQ",
@@ -338,8 +338,8 @@ describe("operator query service aggregate summaries", () => {
 				granularity: " 1h ",
 				modelName: " gpt-5.2-mini ",
 				principalType: " campus_member ",
-				requestedTool: " knowledge ",
-				selectedTool: " knowledge ",
+				requestedTool: " knowledge_query ",
+				selectedTool: " knowledge_query ",
 				surface: " campus_web ",
 				window: "24h",
 			},
@@ -351,8 +351,8 @@ describe("operator query service aggregate summaries", () => {
 			granularity: "1h",
 			modelName: "gpt-5.2-mini",
 			principalType: "campus_member",
-			requestedTool: "knowledge",
-			selectedTool: "knowledge",
+			requestedTool: "knowledge_query",
+			selectedTool: "knowledge_query",
 			surface: "campus_web",
 			window: "24h",
 		});
@@ -424,6 +424,50 @@ describe("operator query service aggregate summaries", () => {
 		expect(store.getQualitySummary).not.toHaveBeenCalled();
 	});
 
+	it("rejects old tool ids instead of normalizing them to canonical tools", async () => {
+		const store = {
+			getById: vi.fn(),
+			getObservabilityById: vi.fn(),
+			getOverview: vi.fn(),
+			getQualitySummary: vi.fn(),
+			getQualityTimeseries: vi.fn(),
+			getAuditById: vi.fn(),
+			getSafetySummary: vi.fn(),
+			getCostSummary: vi.fn(),
+			listQualityBadcases: vi.fn(),
+			listAudit: vi.fn(),
+			list: vi.fn(),
+		};
+		const service = buildOperatorQueryService({
+			store: store as never,
+		});
+
+		await expect(
+			service.getQualitySummary({
+				filters: {
+					selectedTool: "knowledge",
+				},
+				principal: createOperatorPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 400,
+		});
+		await expect(
+			service.listAudit({
+				filters: {
+					selectedTool: "campus_services",
+				},
+				principal: createOperatorPrincipal(),
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 400,
+		});
+		expect(store.getQualitySummary).not.toHaveBeenCalled();
+		expect(store.listAudit).not.toHaveBeenCalled();
+	});
+
 	it("rejects non-empty invalid timeseries granularities before delegating to the store", async () => {
 		const store = {
 			getById: vi.fn(),
@@ -486,7 +530,7 @@ describe("operator query service aggregate summaries", () => {
 				cursor: " cursor_01HQ ",
 				detectedBy: " runtime_monitor ",
 				limit: 10,
-				selectedTool: " knowledge ",
+				selectedTool: " knowledge_query ",
 				status: " open ",
 				surface: " campus_web ",
 				window: " 24h ",
@@ -499,7 +543,7 @@ describe("operator query service aggregate summaries", () => {
 			cursor: "cursor_01HQ",
 			detectedBy: "runtime_monitor",
 			limit: 10,
-			selectedTool: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "open",
 			surface: "campus_web",
 			window: "24h",
@@ -583,7 +627,7 @@ describe("operator query service aggregate summaries", () => {
 				cursor: null,
 				detectedBy: " runtime_monitor ",
 				limit: 10,
-				selectedTool: " knowledge ",
+				selectedTool: " knowledge_query ",
 				status: " open ",
 				surface: " campus_web ",
 				window: " 24h ",
@@ -596,7 +640,7 @@ describe("operator query service aggregate summaries", () => {
 			cursor: null,
 			detectedBy: "runtime_monitor",
 			limit: 10,
-			selectedTool: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "open",
 			surface: "campus_web",
 			window: "24h",
@@ -720,7 +764,7 @@ describe("operator query service aggregate summaries", () => {
 				cursor: null,
 				detectedBy: " negative_feedback ",
 				limit: 10,
-				selectedTool: " knowledge ",
+				selectedTool: " knowledge_query ",
 				status: " pending_review ",
 				surface: " campus_web ",
 				window: " 24h ",
@@ -734,7 +778,7 @@ describe("operator query service aggregate summaries", () => {
 			cursor: null,
 			detectedBy: "negative_feedback",
 			limit: 10,
-			selectedTool: "knowledge",
+			selectedTool: "knowledge_query",
 			status: "pending_review",
 			surface: "campus_web",
 			window: "24h",

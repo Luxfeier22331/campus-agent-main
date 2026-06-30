@@ -202,8 +202,8 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 		expect(result.runtime.ambiguityRate.count).toBe(1);
 		expect(result.runtime.contextUnresolvedRate.count).toBe(1);
 		expect(result.runtime.distributions.tool).toEqual([
-			{ count: 2, value: "knowledge" },
-			{ count: 1, value: "campus_services" },
+			{ count: 2, value: "knowledge_query" },
+			{ count: 1, value: "transport_schedule_lookup" },
 		]);
 		expect(result.runtime.distributions.classifierVersion).toEqual([
 			{ count: 2, value: "intent-classifier@2026-04-20" },
@@ -225,7 +225,7 @@ export function registerOperatorQueryStoreOverviewSuite(ctx: OperatorQueryStoreS
 				status: "completed",
 			}),
 		).toBe(
-			"knowledge request finalized without the required policy projection for knowledge tool.",
+			"knowledge tool request finalized without the required policy projection for knowledge tool.",
 		);
 	});
 }

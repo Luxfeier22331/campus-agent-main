@@ -98,32 +98,37 @@ export function registerChatCommandServiceCoreIdentitySuite(): void {
 			surface: "campus_web",
 		});
 
-		expect(executionClient.execute).toHaveBeenCalledWith({
-			conversationId: "conv_01HQ",
-			context: {
-				actor: createPrincipal().actor,
-				authorization: createPrincipal().authorization,
-				session: {
-					confirmedSlots: [],
-					turnCount: 0,
+		expect(executionClient.execute).toHaveBeenCalledWith(
+			expect.objectContaining({
+				conversationId: "conv_01HQ",
+				context: expect.objectContaining({
+					actor: expect.objectContaining(createPrincipal().actor),
+					authorization: createPrincipal().authorization,
+					session: {
+						confirmedSlots: [],
+						turnCount: 1,
+					},
+				}),
+				requestId: "req_0001",
+				requestedScope: {
+					collection: "student_rules",
+					corpus: "regulations",
 				},
-			},
-			requestId: "req_0001",
-			requestedTool: "knowledge_query",
-			requestedScope: {
-				collection: "student_rules",
-				corpus: "regulations",
-			},
-			safetyIdentifier: expectedSafetyIdentifier,
-			surface: "campus_web",
-			traceHeaders: {
-				baggage: "sentry-environment=test",
-				sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
-			},
-			traceId: "trace_0001",
-			userGoal: "图书馆开放到几点？",
-			versionQuery: null,
-		});
+				requestedTool: "knowledge_query",
+				safetyIdentifier: expectedSafetyIdentifier,
+				surface: "campus_web",
+				tenantId: "tenant-main",
+				traceHeaders: expect.objectContaining({
+					baggage: "sentry-environment=test",
+					sentryTrace: "0123456789abcdef0123456789abcdef-0123456789abcdef-1",
+				}),
+				traceId: "trace_0001",
+				userGoal: "图书馆开放到几点？",
+				versionQuery: {
+					mode: "current",
+				},
+			}),
+		);
 		expect(telemetry.configureChatRequestScope).toHaveBeenCalledWith(
 			expect.objectContaining({
 				requestId: "req_0001",

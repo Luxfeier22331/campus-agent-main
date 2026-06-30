@@ -54,7 +54,7 @@ status as current project truth.
   the primary agent SDK loop:
   direct/no-tool turns finalize from `agent.primary`; knowledge turns use
   `knowledge_query` to enter the Go RAG graph. Ordinary chat with missing
-  `requested_tool` now remains an absent legacy hint and lets `agent.primary`
+  `requested_tool` now remains an absent caller hint and lets `agent.primary`
   choose within the admitted visible tool set. Model-selected campus-services /
   notice read-only tools now project success / fail-close results as normalized
   `sdk_tool.execute.<tool>.<index>` tool steps. Clarification and out-of-scope
@@ -142,8 +142,9 @@ Current non-gaps after the doc audit:
   by every tool's content maturity or product opening.
 - Explicit personal memory upsert / disable / owner-disable and post-finalization
   inferred memory update are implemented through
-  `app-api -> execution-control -> Qdrant`; candidate confirmation UI / strong
-  governance remains later product work, not a current main-chain gap.
+  `app-api -> execution-control -> Hindsight`; Qdrant personal memory has been
+  retired. Candidate confirmation UI / strong governance remains later product
+  work, not a current main-chain gap.
 - Campus-services read-only contracts can exist without being model-visible.
   Current model-visible campus-services exposure is limited by `tools.v4` and
   runtime profile `open_tools`; `service_process_lookup` remains later-wave.

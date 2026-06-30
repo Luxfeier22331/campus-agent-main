@@ -34,13 +34,16 @@ ToolName = Literal[
     "campus_notice_period_summary",
     "campus_notice_get",
 ]
+ModelVisibleToolName = Literal[
+    "knowledge_query",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+]
 RequestedTool = Literal[
     "knowledge_query",
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
 ]
 ExecutionStatus = Literal[
     "completed",
@@ -170,13 +173,16 @@ ALLOWED_TOOL_NAMES = (
     "campus_notice_period_summary",
     "campus_notice_get",
 )
+ALLOWED_MODEL_VISIBLE_TOOL_NAMES = (
+    "knowledge_query",
+    "transport_schedule_lookup",
+    "campus_notice_discover",
+)
 ALLOWED_REQUESTED_TOOLS = (
     "knowledge_query",
     "place_lookup",
     "transport_schedule_lookup",
     "campus_notice_discover",
-    "campus_notice_change_set_lookup",
-    "campus_notice_period_summary",
 )
 ALLOWED_EXECUTION_STATUSES = (
     "completed",

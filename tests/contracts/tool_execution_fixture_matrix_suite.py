@@ -34,7 +34,7 @@ class ToolExecutionFixtureMatrixTest(unittest.TestCase):
         tool_request = handoff["tool_request"]
         self.assertIsInstance(tool_request, dict)
         assert isinstance(tool_request, dict)
-        self.assertEqual(tool_request["tool"], "knowledge")
+        self.assertEqual(tool_request["tool"], "knowledge_query")
 
     def test_active_request_fixture_allows_runtime_neutral_shape(self) -> None:
         payload = load_fixture("tool_execution_delegate.valid.json")
@@ -51,7 +51,7 @@ class ToolExecutionFixtureMatrixTest(unittest.TestCase):
             "schema_version": "workflow-tool-context-v1",
             "visibility": "tool_private",
             "workflow_run_ref": "workflow:req-contract-001",
-            "step_id": "tool:knowledge:rag_request",
+            "step_id": "tool:knowledge_query:rag_request",
             "tool_id": "knowledge_query",
             "required_projection_kind": "notice_context",
             "expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
@@ -70,8 +70,8 @@ class ToolExecutionFixtureMatrixTest(unittest.TestCase):
         )
 
         self.assertEqual(workflow_context["workflow_run_ref"], "workflow:req-contract-001")
-        self.assertEqual(workflow_context["step_id"], "tool:knowledge:rag_request")
-        self.assertEqual(workflow_context["tool_id"], "knowledge")
+        self.assertEqual(workflow_context["step_id"], "tool:knowledge_query:rag_request")
+        self.assertEqual(workflow_context["tool_id"], "knowledge_query")
         self.assertEqual(
             tuple(workflow_context["expected_output_artifacts"]),
             ("evidence_bundle", "grounding_verdict"),

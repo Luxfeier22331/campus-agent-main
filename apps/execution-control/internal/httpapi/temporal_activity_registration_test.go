@@ -35,6 +35,8 @@ func TestTemporalActivitySetsExposeOnlyTheirQueueMethods(t *testing.T) {
 	contextType := reflect.TypeOf(server.TemporalContextActivities())
 	for _, method := range []string{
 		"AppendConversationMemoryActivity",
+		"MemoryOperationStatusActivity",
+		"MemoryReflectActivity",
 		"MemoryRecallActivity",
 		"PlanRouteActivity",
 	} {

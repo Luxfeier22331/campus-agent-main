@@ -167,6 +167,10 @@ func projectedMemoryForEval(results []execution.StepResultProjection) map[string
 	if len(explicit) > 0 {
 		return explicit
 	}
+	projected := projectedPersonalMemoryForEval(results)
+	if len(projected) > 0 {
+		return projected
+	}
 	for _, result := range results {
 		payload := sanitizeProjectionPayload(result.SanitizedPayload)
 		contextUsage := optionalMapFromMap(payload, "context_usage")
@@ -193,6 +197,69 @@ func projectedMemoryForEval(results []execution.StepResultProjection) map[string
 		}
 	}
 	return map[string]any{}
+}
+
+func projectedPersonalMemoryForEval(results []execution.StepResultProjection) map[string]any {
+	memory := map[string]any{}
+	observedTokens := []string{}
+	for _, result := range results {
+		payload := sanitizeProjectionPayload(result.SanitizedPayload)
+		switch result.StepID {
+		case "memory.recall":
+			projectMemoryRecallEvalSummary(memory, &observedTokens, result, payload)
+		case "memory.reflect":
+			projectMemoryReflectEvalSummary(memory, &observedTokens, result, payload)
+		}
+	}
+	if len(memory) == 0 {
+		return map[string]any{}
+	}
+	if len(observedTokens) > 0 {
+		memory["observed_tokens"] = stringsToAny(observedTokens)
+	}
+	if _, exists := memory["behavior"]; !exists {
+		memory["behavior"] = "personal_memory"
+	}
+	return memory
+}
+
+func projectMemoryRecallEvalSummary(memory map[string]any, observedTokens *[]string, result execution.StepResultProjection, payload map[string]any) {
+	status := firstNonEmptyText(payload["status"], result.Status)
+	if status == "" {
+		return
+	}
+	memory["behavior"] = "personal_memory_recall"
+	memory["recall_status"] = status
+	appendUniqueProjectionString(observedTokens, "memory_recall")
+	selectedCount := intFromProjection(payload["selected_memory_count"])
+	selectedChars := intFromProjection(payload["selected_memory_chars"])
+	if selectedCount > 0 {
+		memory["selected_memory_count"] = selectedCount
+		appendUniqueProjectionString(observedTokens, "selected_memory")
+	}
+	if selectedChars > 0 {
+		memory["selected_memory_chars"] = selectedChars
+	}
+	if skippedCount := intFromProjection(payload["skipped_count"]); skippedCount > 0 {
+		memory["skipped_memory_count"] = skippedCount
+	}
+}
+
+func projectMemoryReflectEvalSummary(memory map[string]any, observedTokens *[]string, result execution.StepResultProjection, payload map[string]any) {
+	status := firstNonEmptyText(payload["status"], result.Status)
+	if status == "" {
+		return
+	}
+	if _, exists := memory["behavior"]; !exists {
+		memory["behavior"] = "personal_memory_reflect"
+	}
+	memory["reflect_status"] = status
+	appendUniqueProjectionString(observedTokens, "memory_reflect")
+	basedOnCount := len(mapListFromAny(payload["based_on_memory_context_items"]))
+	if basedOnCount > 0 {
+		memory["reflect_based_on_count"] = basedOnCount
+		appendUniqueProjectionString(observedTokens, "reflect_based_on_facts")
+	}
 }
 
 func copyProjectionString(target map[string]any, source map[string]any, targetKey string, sourceKey string) {

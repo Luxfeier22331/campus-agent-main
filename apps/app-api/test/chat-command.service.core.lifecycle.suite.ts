@@ -78,8 +78,14 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			"request.accepted",
 			"execution.queued",
 			"execution.running",
+			"answer.delta",
 			"request.completed",
 		]);
+		expect(events.find((event) => event.event === "answer.delta")?.data).toMatchObject({
+			accumulatedText: "图书馆开放到 22:00。",
+			delta: "图书馆开放到 22:00。",
+			status: "streaming",
+		});
 		expect(events.at(-1)?.data.answer).toMatchObject({
 			conversation: {
 				id: "conv_01HQ",

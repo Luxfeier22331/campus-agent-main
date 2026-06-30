@@ -226,7 +226,12 @@ func temporalStepSelectedTool(projection temporalStepProjection) string {
 }
 
 func temporalPostFinalizationStepAllowed(stepID string) bool {
-	return strings.TrimSpace(stepID) == "memory.append"
+	switch strings.TrimSpace(stepID) {
+	case "memory.append", "memory.operation_status", "memory.reflect":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *Server) ensureTemporalStepCompletionAllowed(
@@ -425,6 +430,10 @@ func temporalActivityTypeForStep(stepID string) string {
 	switch strings.TrimSpace(stepID) {
 	case "memory.recall":
 		return temporalruntime.MemoryRecallActivityName
+	case "memory.operation_status":
+		return temporalruntime.MemoryOperationStatusActivityName
+	case "memory.reflect":
+		return temporalruntime.MemoryReflectActivityName
 	case "plan.route":
 		return temporalruntime.PlanRouteActivityName
 	case "rag.plan":
