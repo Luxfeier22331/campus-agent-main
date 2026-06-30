@@ -35,6 +35,34 @@ describe("operator provider-config proxy", () => {
 
 				const requests = [
 					new Request(
+						"https://operator-console.example.com/api/operator/provider-config/connections",
+						{
+							headers: { "cf-access-jwt-assertion": token },
+						},
+					),
+					new Request(
+						"https://operator-console.example.com/api/operator/provider-config/connections",
+						{
+							body: JSON.stringify({ features: ["prompt"] }),
+							headers: {
+								"cf-access-jwt-assertion": token,
+								"content-type": "application/json",
+							},
+							method: "POST",
+						},
+					),
+					new Request(
+						"https://operator-console.example.com/api/operator/provider-config/connections/provider_connection_1",
+						{
+							body: JSON.stringify({ baseUrl: "https://provider.example/v1" }),
+							headers: {
+								"cf-access-jwt-assertion": token,
+								"content-type": "application/json",
+							},
+							method: "PATCH",
+						},
+					),
+					new Request(
 						"https://operator-console.example.com/api/operator/provider-config/profiles",
 						{
 							headers: { "cf-access-jwt-assertion": token },
@@ -84,6 +112,18 @@ describe("operator provider-config proxy", () => {
 				}
 
 				expect(forwarded).toEqual([
+					{
+						method: "GET",
+						url: "https://app-api.internal/api/operator/provider-config/connections",
+					},
+					{
+						method: "POST",
+						url: "https://app-api.internal/api/operator/provider-config/connections",
+					},
+					{
+						method: "PATCH",
+						url: "https://app-api.internal/api/operator/provider-config/connections/provider_connection_1",
+					},
 					{
 						method: "GET",
 						url: "https://app-api.internal/api/operator/provider-config/profiles",

@@ -1,9 +1,8 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, KeyRound, Pencil, ShieldCheck, XCircle } from "lucide-react";
-import { useState } from "react";
+import { CheckCircle2, KeyRound, Pencil, PlusCircle, ShieldCheck, XCircle } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Controller, useForm } from "react-hook-form";
-import { z } from "zod";
 import { getPanelErrorMessage } from "../../panel-error";
 import { Alert } from "../../ui/alert";
 import { Button } from "../../ui/button";
@@ -24,139 +23,122 @@ import {
 } from "../../ui/table";
 import {
 	activateProviderConfigProfile,
+	createProviderConfigConnection,
 	createProviderConfigProfile,
+	listProviderConfigConnections,
 	listProviderConfigProfiles,
 	updateProviderConfigProfile,
 	validateProviderConfigProfile,
 } from "./api";
-import type {
-	ProviderConfigCreatePayload,
-	ProviderConfigKind,
-	ProviderConfigProfile,
-	ProviderConfigRole,
-	ProviderConfigTransport,
-	ProviderConfigUpdatePayload,
-} from "./model";
-
-const KIND_LABEL: Record<ProviderConfigKind, string> = {
-	embedding: "向量模型",
-	prompt: "生成模型",
-};
-
-const ROLE_LABEL: Record<ProviderConfigRole, string> = {
-	eval_judge_llm: "评测裁判生成",
-	eval_ragas_embedding: "RAGAS 评测向量化",
-	eval_ragas_llm: "RAGAS 评测生成",
-	index_embedding: "索引构建向量化",
-	primary_agent: "主问答生成",
-	rag_query_embedding: "知识检索向量化",
-	rag_synthesis: "知识问答生成",
-};
-
-const STATUS_LABEL = {
-	active: "已启用",
-	draft: "草稿",
-	validation_failed: "校验失败",
-	validated: "已校验",
-} as const;
-
-const TRANSPORT_LABEL: Record<ProviderConfigTransport, string> = {
-	chat_completions: "Chat Completions",
-	embeddings: "Embeddings",
-	responses: "Responses",
-};
-
-const ROLE_OPTIONS: Array<{ kind: ProviderConfigKind; role: ProviderConfigRole }> = [
-	{ kind: "prompt", role: "primary_agent" },
-	{ kind: "prompt", role: "rag_synthesis" },
-	{ kind: "prompt", role: "eval_ragas_llm" },
-	{ kind: "prompt", role: "eval_judge_llm" },
-	{ kind: "embedding", role: "rag_query_embedding" },
-	{ kind: "embedding", role: "index_embedding" },
-	{ kind: "embedding", role: "eval_ragas_embedding" },
-];
-
-const ROLE_ORDER = ROLE_OPTIONS.map((option) => option.role);
-
-interface ProviderConfigFormState {
-	apiKey: string;
-	baseUrl: string;
-	dimensions: string;
-	model: string;
-	role: ProviderConfigRole;
-	timeoutMs: string;
-	transport: ProviderConfigTransport;
-}
-
-const providerConfigFormSchema = z.object({
-	apiKey: z.string(),
-	baseUrl: z.string().url("请输入有效的服务端点。"),
-	dimensions: z.string().regex(/^\d+$/, "请输入数字。"),
-	model: z.string().min(1, "请输入模型名称。"),
-	role: z.enum([
-		"primary_agent",
-		"rag_synthesis",
-		"eval_ragas_llm",
-		"eval_judge_llm",
-		"rag_query_embedding",
-		"index_embedding",
-		"eval_ragas_embedding",
-	]),
-	timeoutMs: z.string().regex(/^\d+$/, "请输入数字。"),
-	transport: z.enum(["responses", "chat_completions", "embeddings"]),
-});
-
-function initialProviderConfigForm(): ProviderConfigFormState {
-	return {
-		apiKey: "",
-		baseUrl: "https://api.openai.com/v1",
-		dimensions: "2560",
-		model: "",
-		role: "primary_agent",
-		timeoutMs: "30000",
-		transport: "responses",
-	};
-}
+import type { ProviderConfigProfileUpdatePayload, ProviderConfigRole } from "./model";
+import {
+	buildConnectionCreatePayload,
+	buildProfileCreatePayload,
+	buildProfileUpdatePayload,
+	type ConnectionFormState,
+	connectionFormSchema,
+	FEATURE_PRESET_LABEL,
+	featureLabel,
+	formFromProfile,
+	initialConnectionForm,
+	initialProfileForm,
+	isEditableProfileRole,
+	KIND_LABEL,
+	kindForRole,
+	omitRecordKey,
+	type ProfileFormState,
+	profileFormSchema,
+	ROLE_LABEL,
+	ROLE_OPTIONS,
+	roleLabel,
+	STATUS_LABEL,
+	sortConnections,
+	sortProfiles,
+	transportLabel,
+} from "./view-model";
 
 export function ProviderConfigPage() {
 	const queryClient = useQueryClient();
 	const [editingProfileId, setEditingProfileId] = useState<string | null>(null);
-	const [formError, setFormError] = useState<string | null>(null);
+	const [connectionFormError, setConnectionFormError] = useState<string | null>(null);
+	const [profileFormError, setProfileFormError] = useState<string | null>(null);
 	const [rowErrors, setRowErrors] = useState<Record<string, string>>({});
 	const [validatingProfileId, setValidatingProfileId] = useState<string | null>(null);
 	const [activatingProfileId, setActivatingProfileId] = useState<string | null>(null);
-	const form = useForm<ProviderConfigFormState>({
-		defaultValues: initialProviderConfigForm(),
-		resolver: zodResolver(providerConfigFormSchema),
+	const connectionForm = useForm<ConnectionFormState>({
+		defaultValues: initialConnectionForm(),
+		resolver: zodResolver(connectionFormSchema),
+	});
+	const profileForm = useForm<ProfileFormState>({
+		defaultValues: initialProfileForm(),
+		resolver: zodResolver(profileFormSchema),
+	});
+	const connectionsQuery = useQuery({
+		queryFn: ({ signal }) => listProviderConfigConnections({ signal }),
+		queryKey: ["provider-config", "connections"],
 	});
 	const profilesQuery = useQuery({
 		queryFn: ({ signal }) => listProviderConfigProfiles({ signal }),
 		queryKey: ["provider-config", "profiles"],
 	});
+	const selectedRole = profileForm.watch("role");
+	const selectedKind = kindForRole(selectedRole);
+	const selectedConnectionId = profileForm.watch("connectionId");
+	const selectedTransport = profileForm.watch("transport");
+	const isEditing = editingProfileId !== null;
+	const connections = sortConnections(connectionsQuery.data?.connections ?? []);
+	const compatibleConnections = connections.filter((connection) =>
+		connection.features.includes(selectedKind),
+	);
+	const profiles = sortProfiles(profilesQuery.data?.profiles ?? []);
+
+	useEffect(() => {
+		if (isEditing || selectedConnectionId || compatibleConnections.length === 0) {
+			return;
+		}
+		profileForm.setValue("connectionId", compatibleConnections[0]?.connectionId ?? "");
+	}, [compatibleConnections, isEditing, profileForm, selectedConnectionId]);
+
+	const invalidateConnections = () => {
+		void queryClient.invalidateQueries({ queryKey: ["provider-config", "connections"] });
+	};
 	const invalidateProfiles = () => {
 		void queryClient.invalidateQueries({ queryKey: ["provider-config", "profiles"] });
 	};
-	const createMutation = useMutation({
+	const createConnectionMutation = useMutation({
+		mutationFn: createProviderConfigConnection,
+		onError: (error) => {
+			setConnectionFormError(getPanelErrorMessage(error, "保存连接失败。"));
+		},
+		onSuccess: (result) => {
+			connectionForm.reset(initialConnectionForm());
+			setConnectionFormError(null);
+			invalidateConnections();
+			profileForm.setValue("connectionId", result.connection.connectionId);
+		},
+	});
+	const createProfileMutation = useMutation({
 		mutationFn: createProviderConfigProfile,
 		onError: (error) => {
-			setFormError(getPanelErrorMessage(error, "保存配置失败。"));
+			setProfileFormError(getPanelErrorMessage(error, "保存配置档案失败。"));
 		},
 		onSuccess: () => {
-			form.reset(initialProviderConfigForm());
-			setFormError(null);
+			profileForm.reset(initialProfileForm());
+			setEditingProfileId(null);
+			setProfileFormError(null);
 			invalidateProfiles();
 		},
 	});
-	const updateMutation = useMutation({
-		mutationFn: (input: { payload: ProviderConfigUpdatePayload; profileId: string }) =>
+	const updateProfileMutation = useMutation({
+		mutationFn: (input: { payload: ProviderConfigProfileUpdatePayload; profileId: string }) =>
 			updateProviderConfigProfile(input.profileId, input.payload),
 		onError: (error) => {
-			setFormError(getPanelErrorMessage(error, "保存配置失败。"));
+			setProfileFormError(getPanelErrorMessage(error, "保存配置档案失败。"));
 		},
 		onSuccess: () => {
 			setEditingProfileId(null);
-			form.reset(initialProviderConfigForm());
-			setFormError(null);
+			profileForm.reset(initialProfileForm());
+			setProfileFormError(null);
 			invalidateProfiles();
 		},
 	});
@@ -188,56 +170,202 @@ export function ProviderConfigPage() {
 			invalidateProfiles();
 		},
 	});
-	const selectedRole = form.watch("role");
-	const selectedKind = kindForRole(selectedRole);
-	const selectedTransport = form.watch("transport");
-	const isEditing = editingProfileId !== null;
-	const missingRequiredApiKey = !(isEditing || form.watch("apiKey").trim());
-	const profiles = sortProfiles(profilesQuery.data?.profiles ?? []);
 
 	return (
 		<section className="space-y-4">
 			<Card>
 				<CardHeader>
-					<p className="font-semibold text-slate-500 text-xs uppercase">模型服务配置</p>
-					<CardTitle>OpenAI-compatible 模型端点</CardTitle>
-					<CardDescription>配置 OpenAI-compatible 生成模型和向量模型端点。</CardDescription>
+					<p className="font-semibold text-slate-500 text-xs uppercase">模型服务连接</p>
+					<CardTitle>Provider Connection</CardTitle>
+					<CardDescription>保存模型服务端点、密钥和支持的能力。</CardDescription>
 				</CardHeader>
 				<CardContent>
 					<form
-						className="grid gap-3 lg:grid-cols-3"
-						onSubmit={form.handleSubmit((values) => {
-							setFormError(null);
+						className="grid gap-3 lg:grid-cols-4"
+						onSubmit={connectionForm.handleSubmit((values) => {
+							setConnectionFormError(null);
+							createConnectionMutation.mutate(buildConnectionCreatePayload(values));
+						})}
+					>
+						<Controller
+							control={connectionForm.control}
+							name="provider"
+							render={({ field }) => (
+								<Field>
+									<FieldLabel htmlFor="provider-connection-provider">服务类型</FieldLabel>
+									<Select onValueChange={field.onChange} value={field.value}>
+										<SelectTrigger id="provider-connection-provider">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="openai-compatible">OpenAI-compatible</SelectItem>
+											<SelectItem value="openai">OpenAI</SelectItem>
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						/>
+						<Field>
+							<FieldLabel htmlFor="provider-connection-base-url">服务端点</FieldLabel>
+							<Input id="provider-connection-base-url" {...connectionForm.register("baseUrl")} />
+							{connectionForm.formState.errors.baseUrl ? (
+								<FieldError>{connectionForm.formState.errors.baseUrl.message}</FieldError>
+							) : null}
+						</Field>
+						<Controller
+							control={connectionForm.control}
+							name="featurePreset"
+							render={({ field }) => (
+								<Field>
+									<FieldLabel htmlFor="provider-connection-features">支持能力</FieldLabel>
+									<Select onValueChange={field.onChange} value={field.value}>
+										<SelectTrigger id="provider-connection-features">
+											<SelectValue />
+										</SelectTrigger>
+										<SelectContent>
+											{Object.entries(FEATURE_PRESET_LABEL).map(([value, label]) => (
+												<SelectItem key={value} value={value}>
+													{label}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								</Field>
+							)}
+						/>
+						<Field>
+							<FieldLabel htmlFor="provider-connection-api-key">密钥</FieldLabel>
+							<Input
+								autoComplete="off"
+								id="provider-connection-api-key"
+								type="password"
+								{...connectionForm.register("apiKey")}
+							/>
+							{connectionForm.formState.errors.apiKey ? (
+								<FieldError>{connectionForm.formState.errors.apiKey.message}</FieldError>
+							) : null}
+						</Field>
+						<div className="lg:col-span-4">
+							<Button
+								disabled={
+									createConnectionMutation.isPending ||
+									!connectionForm.watch("apiKey").trim() ||
+									!connectionForm.watch("baseUrl").trim()
+								}
+								type="submit"
+								variant="primary"
+							>
+								<PlusCircle aria-hidden="true" className="size-4" />
+								保存连接
+							</Button>
+						</div>
+						{connectionFormError ? (
+							<Alert className="lg:col-span-4" tone="danger">
+								{connectionFormError}
+							</Alert>
+						) : null}
+					</form>
+				</CardContent>
+			</Card>
+
+			<Card className="overflow-hidden">
+				<CardHeader>
+					<p className="font-semibold text-slate-500 text-xs uppercase">连接清单</p>
+					<CardTitle>已保存连接</CardTitle>
+				</CardHeader>
+				<CardContent className="p-0">
+					{connectionsQuery.isLoading ? (
+						<div className="space-y-2 p-5">
+							<Skeleton className="h-9 w-full" />
+							<Skeleton className="h-9 w-full" />
+						</div>
+					) : null}
+					{connectionsQuery.error ? (
+						<div className="p-5">
+							<Alert tone="danger">
+								{getPanelErrorMessage(connectionsQuery.error, "连接列表读取失败。")}
+							</Alert>
+						</div>
+					) : null}
+					<TableContainer className="rounded-none border-0 border-t">
+						<Table>
+							<TableHeader>
+								<TableRow>
+									<TableHead>服务类型</TableHead>
+									<TableHead>服务端点</TableHead>
+									<TableHead>支持能力</TableHead>
+									<TableHead>密钥</TableHead>
+									<TableHead>更新时间</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{connections.map((connection) => (
+									<TableRow key={connection.connectionId}>
+										<TableCell>{connection.provider}</TableCell>
+										<TableCell className="font-mono text-xs">{connection.baseUrl}</TableCell>
+										<TableCell>{connection.features.map(featureLabel).join(" / ")}</TableCell>
+										<TableCell className="font-mono text-xs">
+											****{connection.secretLast4}
+										</TableCell>
+										<TableCell className="font-mono text-xs">{connection.updatedAt}</TableCell>
+									</TableRow>
+								))}
+							</TableBody>
+						</Table>
+					</TableContainer>
+					{connectionsQuery.data?.connections?.length === 0 ? (
+						<Empty className="m-5">
+							<EmptyTitle>暂无模型服务连接</EmptyTitle>
+							<EmptyDescription>请先保存一个支持生成模型的连接。</EmptyDescription>
+						</Empty>
+					) : null}
+				</CardContent>
+			</Card>
+
+			<Card>
+				<CardHeader>
+					<p className="font-semibold text-slate-500 text-xs uppercase">配置档案</p>
+					<CardTitle>Runtime Profile</CardTitle>
+					<CardDescription>为使用位置绑定连接、模型名称和接口协议。</CardDescription>
+				</CardHeader>
+				<CardContent>
+					<form
+						className="grid gap-3 lg:grid-cols-4"
+						onSubmit={profileForm.handleSubmit((values) => {
+							setProfileFormError(null);
 							if (editingProfileId) {
-								updateMutation.mutate({
-									payload: buildUpdatePayload(values),
+								updateProfileMutation.mutate({
+									payload: buildProfileUpdatePayload(values),
 									profileId: editingProfileId,
 								});
 								return;
 							}
-							createMutation.mutate(buildCreatePayload(values));
+							createProfileMutation.mutate(buildProfileCreatePayload(values));
 						})}
 					>
 						<Controller
-							control={form.control}
+							control={profileForm.control}
 							name="role"
 							render={({ field }) => (
 								<Field>
-									<FieldLabel htmlFor="provider-role">使用位置</FieldLabel>
+									<FieldLabel htmlFor="provider-profile-role">使用位置</FieldLabel>
 									<Select
 										disabled={isEditing}
 										onValueChange={(value) => {
 											field.onChange(value);
-											form.setValue(
+											const nextKind = kindForRole(value as ProviderConfigRole);
+											profileForm.setValue(
 												"transport",
-												kindForRole(value as ProviderConfigRole) === "embedding"
-													? "embeddings"
-													: "responses",
+												nextKind === "embedding" ? "embeddings" : "responses",
 											);
+											const nextConnection = connections.find((connection) =>
+												connection.features.includes(nextKind),
+											);
+											profileForm.setValue("connectionId", nextConnection?.connectionId ?? "");
 										}}
 										value={field.value}
 									>
-										<SelectTrigger id="provider-role">
+										<SelectTrigger id="provider-profile-role">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -251,49 +379,65 @@ export function ProviderConfigPage() {
 								</Field>
 							)}
 						/>
+						<Controller
+							control={profileForm.control}
+							name="connectionId"
+							render={({ field }) => (
+								<Field>
+									<FieldLabel htmlFor="provider-profile-connection">模型连接</FieldLabel>
+									<Select onValueChange={field.onChange} value={field.value}>
+										<SelectTrigger id="provider-profile-connection">
+											<SelectValue placeholder="选择连接" />
+										</SelectTrigger>
+										<SelectContent>
+											{compatibleConnections.map((connection) => (
+												<SelectItem key={connection.connectionId} value={connection.connectionId}>
+													{connection.provider} / {connection.baseUrl}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+									{compatibleConnections.length === 0 ? (
+										<span className="mt-1 text-slate-500 text-xs">
+											没有支持{KIND_LABEL[selectedKind]}的连接。
+										</span>
+									) : null}
+									{profileForm.formState.errors.connectionId ? (
+										<FieldError>{profileForm.formState.errors.connectionId.message}</FieldError>
+									) : null}
+								</Field>
+							)}
+						/>
 						<Field>
-							<FieldLabel htmlFor="provider-model">模型名称</FieldLabel>
-							<Input id="provider-model" {...form.register("model")} />
-							{form.formState.errors.model ? (
-								<FieldError>{form.formState.errors.model.message}</FieldError>
+							<FieldLabel htmlFor="provider-profile-model">模型名称</FieldLabel>
+							<Input id="provider-profile-model" {...profileForm.register("model")} />
+							{profileForm.formState.errors.model ? (
+								<FieldError>{profileForm.formState.errors.model.message}</FieldError>
 							) : null}
 						</Field>
 						<Field>
-							<FieldLabel htmlFor="provider-base-url">服务端点</FieldLabel>
-							<Input id="provider-base-url" {...form.register("baseUrl")} />
-							{form.formState.errors.baseUrl ? (
-								<FieldError>{form.formState.errors.baseUrl.message}</FieldError>
-							) : null}
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="provider-api-key">密钥</FieldLabel>
+							<FieldLabel htmlFor="provider-profile-timeout">超时时间</FieldLabel>
 							<Input
-								autoComplete="off"
-								id="provider-api-key"
-								placeholder={isEditing ? "留空保留现有密钥" : undefined}
-								type="password"
-								{...form.register("apiKey")}
+								id="provider-profile-timeout"
+								inputMode="numeric"
+								{...profileForm.register("timeoutMs")}
 							/>
-						</Field>
-						<Field>
-							<FieldLabel htmlFor="provider-timeout">超时时间</FieldLabel>
-							<Input id="provider-timeout" inputMode="numeric" {...form.register("timeoutMs")} />
-							{form.formState.errors.timeoutMs ? (
-								<FieldError>{form.formState.errors.timeoutMs.message}</FieldError>
+							{profileForm.formState.errors.timeoutMs ? (
+								<FieldError>{profileForm.formState.errors.timeoutMs.message}</FieldError>
 							) : null}
 						</Field>
 						<Controller
-							control={form.control}
+							control={profileForm.control}
 							name="transport"
 							render={({ field }) => (
 								<Field>
-									<FieldLabel htmlFor="provider-transport">接口协议</FieldLabel>
+									<FieldLabel htmlFor="provider-profile-transport">接口协议</FieldLabel>
 									<Select
 										disabled={selectedKind === "embedding"}
 										onValueChange={field.onChange}
 										value={selectedKind === "embedding" ? "embeddings" : selectedTransport}
 									>
-										<SelectTrigger id="provider-transport">
+										<SelectTrigger id="provider-profile-transport">
 											<SelectValue />
 										</SelectTrigger>
 										<SelectContent>
@@ -308,43 +452,42 @@ export function ProviderConfigPage() {
 							)}
 						/>
 						<Field>
-							<FieldLabel htmlFor="provider-dimensions">向量维度</FieldLabel>
+							<FieldLabel htmlFor="provider-profile-dimensions">向量维度</FieldLabel>
 							<Input
 								disabled={selectedKind === "prompt"}
-								id="provider-dimensions"
+								id="provider-profile-dimensions"
 								inputMode="numeric"
-								{...form.register("dimensions")}
-								value={selectedKind === "prompt" ? "" : form.watch("dimensions")}
+								{...profileForm.register("dimensions")}
 							/>
 							{selectedKind === "prompt" ? (
 								<span className="mt-1 text-slate-500 text-xs">生成模型不需要向量维度</span>
 							) : null}
-							{selectedKind === "embedding" && form.formState.errors.dimensions ? (
-								<FieldError>{form.formState.errors.dimensions.message}</FieldError>
+							{selectedKind === "embedding" && profileForm.formState.errors.dimensions ? (
+								<FieldError>{profileForm.formState.errors.dimensions.message}</FieldError>
 							) : null}
 						</Field>
-						<div className="lg:col-span-3">
+						<div className="lg:col-span-4">
 							<Button
 								disabled={
-									createMutation.isPending ||
-									updateMutation.isPending ||
-									missingRequiredApiKey ||
-									!form.watch("model").trim()
+									createProfileMutation.isPending ||
+									updateProfileMutation.isPending ||
+									!profileForm.watch("connectionId").trim() ||
+									!profileForm.watch("model").trim()
 								}
 								type="submit"
 								variant="primary"
 							>
 								<KeyRound aria-hidden="true" className="size-4" />
-								{isEditing ? "保存修改" : "保存配置"}
+								{isEditing ? "保存配置档案" : "保存配置档案"}
 							</Button>
 							{isEditing ? (
 								<Button
 									className="ml-2"
-									disabled={updateMutation.isPending}
+									disabled={updateProfileMutation.isPending}
 									onClick={() => {
 										setEditingProfileId(null);
-										form.reset(initialProviderConfigForm());
-										setFormError(null);
+										profileForm.reset(initialProfileForm());
+										setProfileFormError(null);
 									}}
 									type="button"
 									variant="secondary"
@@ -354,9 +497,9 @@ export function ProviderConfigPage() {
 								</Button>
 							) : null}
 						</div>
-						{formError ? (
-							<Alert className="lg:col-span-3" tone="danger">
-								{formError}
+						{profileFormError ? (
+							<Alert className="lg:col-span-4" tone="danger">
+								{profileFormError}
 							</Alert>
 						) : null}
 					</form>
@@ -365,8 +508,8 @@ export function ProviderConfigPage() {
 
 			<Card className="overflow-hidden">
 				<CardHeader>
-					<p className="font-semibold text-slate-500 text-xs uppercase">配置档案</p>
-					<CardTitle>运行配置档案</CardTitle>
+					<p className="font-semibold text-slate-500 text-xs uppercase">运行档案</p>
+					<CardTitle>已保存 Runtime Profiles</CardTitle>
 				</CardHeader>
 				<CardContent className="p-0">
 					{profilesQuery.isLoading ? (
@@ -379,7 +522,7 @@ export function ProviderConfigPage() {
 					{profilesQuery.error ? (
 						<div className="p-5">
 							<Alert tone="danger">
-								{getPanelErrorMessage(profilesQuery.error, "配置列表读取失败。")}
+								{getPanelErrorMessage(profilesQuery.error, "配置档案列表读取失败。")}
 							</Alert>
 						</div>
 					) : null}
@@ -404,7 +547,7 @@ export function ProviderConfigPage() {
 									const isActivating = activatingProfileId === profile.profileId;
 									return (
 										<TableRow key={profile.profileId}>
-											<TableCell>{ROLE_LABEL[profile.role]}</TableCell>
+											<TableCell>{roleLabel(profile.role)}</TableCell>
 											<TableCell>{KIND_LABEL[profile.kind]}</TableCell>
 											<TableCell>
 												<span className="inline-flex items-center gap-1">
@@ -443,11 +586,15 @@ export function ProviderConfigPage() {
 											<TableCell>
 												<div className="flex flex-wrap gap-2">
 													<Button
-														disabled={profile.active || updateMutation.isPending}
+														disabled={
+															profile.active ||
+															!isEditableProfileRole(profile.role) ||
+															updateProfileMutation.isPending
+														}
 														onClick={() => {
 															setEditingProfileId(profile.profileId);
-															form.reset(formFromProfile(profile));
-															setFormError(null);
+															profileForm.reset(formFromProfile(profile));
+															setProfileFormError(null);
 														}}
 														size="sm"
 														type="button"
@@ -496,106 +643,12 @@ export function ProviderConfigPage() {
 					</TableContainer>
 					{profilesQuery.data?.profiles.length === 0 ? (
 						<Empty className="m-5">
-							<EmptyTitle>暂无模型服务配置</EmptyTitle>
-							<EmptyDescription>请先创建主问答生成配置。</EmptyDescription>
+							<EmptyTitle>暂无配置档案</EmptyTitle>
+							<EmptyDescription>请先创建主问答生成配置档案。</EmptyDescription>
 						</Empty>
 					) : null}
 				</CardContent>
 			</Card>
 		</section>
 	);
-}
-
-function kindForRole(role: ProviderConfigRole): ProviderConfigKind {
-	return role.endsWith("_embedding") ? "embedding" : "prompt";
-}
-
-function sortProfiles(profiles: ProviderConfigProfile[]) {
-	return [...profiles].sort((left, right) => {
-		if (left.active !== right.active) {
-			return left.active ? -1 : 1;
-		}
-		const roleDelta = ROLE_ORDER.indexOf(left.role) - ROLE_ORDER.indexOf(right.role);
-		if (roleDelta !== 0) {
-			return roleDelta;
-		}
-		return right.updatedAt.localeCompare(left.updatedAt);
-	});
-}
-
-function omitRecordKey(record: Record<string, string>, key: string): Record<string, string> {
-	const { [key]: _removed, ...rest } = record;
-	return rest;
-}
-
-function buildCreatePayload(form: {
-	apiKey: string;
-	baseUrl: string;
-	dimensions: string;
-	model: string;
-	role: ProviderConfigRole;
-	timeoutMs: string;
-	transport: ProviderConfigTransport;
-}): ProviderConfigCreatePayload {
-	const kind = kindForRole(form.role);
-	const payload: ProviderConfigCreatePayload = {
-		apiKey: form.apiKey,
-		baseUrl: form.baseUrl,
-		kind,
-		model: form.model,
-		provider: providerForBaseUrl(form.baseUrl),
-		role: form.role,
-		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : form.transport,
-	};
-	if (kind === "embedding") {
-		payload.dimensions = Number.parseInt(form.dimensions, 10);
-	}
-	return payload;
-}
-
-function buildUpdatePayload(form: ProviderConfigFormState): ProviderConfigUpdatePayload {
-	const kind = kindForRole(form.role);
-	const payload: ProviderConfigUpdatePayload = {
-		baseUrl: form.baseUrl,
-		model: form.model,
-		timeoutMs: Number.parseInt(form.timeoutMs, 10),
-		transport: kind === "embedding" ? "embeddings" : form.transport,
-	};
-	if (form.apiKey.trim()) {
-		payload.apiKey = form.apiKey;
-	}
-	if (kind === "embedding") {
-		payload.dimensions = Number.parseInt(form.dimensions, 10);
-	}
-	return payload;
-}
-
-function formFromProfile(profile: ProviderConfigProfile): ProviderConfigFormState {
-	return {
-		apiKey: "",
-		baseUrl: profile.baseUrl,
-		dimensions: profile.dimensions?.toString() ?? "2560",
-		model: profile.model,
-		role: profile.role,
-		timeoutMs: profile.timeoutMs.toString(),
-		transport: normalizeTransport(profile.transport, profile.kind),
-	};
-}
-
-function transportLabel(value: string): string {
-	return TRANSPORT_LABEL[
-		normalizeTransport(value, value === "embeddings" ? "embedding" : "prompt")
-	];
-}
-
-function normalizeTransport(value: string, kind: ProviderConfigKind): ProviderConfigTransport {
-	if (kind === "embedding") {
-		return "embeddings";
-	}
-	return value === "chat_completions" ? "chat_completions" : "responses";
-}
-
-function providerForBaseUrl(baseUrl: string): ProviderConfigCreatePayload["provider"] {
-	return new URL(baseUrl).hostname === "api.openai.com" ? "openai" : "openai-compatible";
 }

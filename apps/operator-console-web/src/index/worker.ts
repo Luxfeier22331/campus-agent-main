@@ -19,6 +19,18 @@ const STATIC_PROXY_ROUTES = [
 	{
 		identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
 		method: "GET",
+		path: "/api/operator/provider-config/connections",
+		targetPath: "/api/operator/provider-config/connections",
+	},
+	{
+		identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
+		method: "POST",
+		path: "/api/operator/provider-config/connections",
+		targetPath: "/api/operator/provider-config/connections",
+	},
+	{
+		identityMessage: PROVIDER_CONFIG_IDENTITY_MESSAGE,
+		method: "GET",
 		path: "/api/operator/provider-config/profiles",
 		targetPath: "/api/operator/provider-config/profiles",
 	},
@@ -49,6 +61,7 @@ const STATIC_PROXY_ROUTES = [
 ] as const;
 
 const PROVIDER_CONFIG_DYNAMIC_PROXY_ROUTES = [
+	/^PATCH \/api\/operator\/provider-config\/connections\/[^/]+$/,
 	/^PATCH \/api\/operator\/provider-config\/profiles\/[^/]+$/,
 	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/validate$/,
 	/^POST \/api\/operator\/provider-config\/profiles\/[^/]+\/activate$/,

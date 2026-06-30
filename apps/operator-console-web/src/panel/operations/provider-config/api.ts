@@ -1,9 +1,44 @@
 import { fetchJson } from "../../http";
 import type {
-	ProviderConfigCreatePayload,
+	ProviderConfigConnection,
+	ProviderConfigConnectionCreatePayload,
+	ProviderConfigConnectionUpdatePayload,
 	ProviderConfigProfile,
-	ProviderConfigUpdatePayload,
+	ProviderConfigProfileCreatePayload,
+	ProviderConfigProfileUpdatePayload,
 } from "./model";
+
+export function listProviderConfigConnections(input: { signal?: AbortSignal } = {}) {
+	return fetchJson<{ connections: ProviderConfigConnection[] }>(
+		"/api/operator/provider-config/connections",
+		{
+			signal: input.signal,
+		},
+	);
+}
+
+export function createProviderConfigConnection(payload: ProviderConfigConnectionCreatePayload) {
+	return fetchJson<{ connection: ProviderConfigConnection }>(
+		"/api/operator/provider-config/connections",
+		{
+			json: payload,
+			method: "POST",
+		},
+	);
+}
+
+export function updateProviderConfigConnection(
+	connectionId: string,
+	payload: ProviderConfigConnectionUpdatePayload,
+) {
+	return fetchJson<{ connection: ProviderConfigConnection }>(
+		`/api/operator/provider-config/connections/${encodeURIComponent(connectionId)}`,
+		{
+			json: payload,
+			method: "PATCH",
+		},
+	);
+}
 
 export function listProviderConfigProfiles(input: { signal?: AbortSignal } = {}) {
 	return fetchJson<{ profiles: ProviderConfigProfile[] }>(
@@ -14,7 +49,7 @@ export function listProviderConfigProfiles(input: { signal?: AbortSignal } = {})
 	);
 }
 
-export function createProviderConfigProfile(payload: ProviderConfigCreatePayload) {
+export function createProviderConfigProfile(payload: ProviderConfigProfileCreatePayload) {
 	return fetchJson<{ profile: ProviderConfigProfile }>("/api/operator/provider-config/profiles", {
 		json: payload,
 		method: "POST",
@@ -23,7 +58,7 @@ export function createProviderConfigProfile(payload: ProviderConfigCreatePayload
 
 export function updateProviderConfigProfile(
 	profileId: string,
-	payload: ProviderConfigUpdatePayload,
+	payload: ProviderConfigProfileUpdatePayload,
 ) {
 	return fetchJson<{ profile: ProviderConfigProfile }>(
 		`/api/operator/provider-config/profiles/${encodeURIComponent(profileId)}`,

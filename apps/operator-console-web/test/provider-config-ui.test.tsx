@@ -4,7 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ProviderConfigProfile } from "../src/panel/operations/provider-config/model";
+import type {
+	ProviderConfigConnection,
+	ProviderConfigProfile,
+} from "../src/panel/operations/provider-config/model";
 import { ProviderConfigPage } from "../src/panel/operations/provider-config/page";
 
 function createQueryClient() {
@@ -20,6 +23,24 @@ function renderWithQueryClient(children: ReactNode) {
 	return render(<QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>);
 }
 
+function providerConnection(
+	overrides: Partial<ProviderConfigConnection> = {},
+): ProviderConfigConnection {
+	return {
+		baseUrl: "https://provider.example/v1",
+		connectionId: "provider_connection_1",
+		createdAt: "2026-06-16T00:00:00.000Z",
+		featureConfig: {},
+		features: ["prompt", "embedding"],
+		provider: "openai-compatible",
+		revision: 1,
+		secretConfigured: true,
+		secretLast4: "1234",
+		updatedAt: "2026-06-16T00:00:00.000Z",
+		...overrides,
+	};
+}
+
 function providerProfile(
 	overrides: Partial<ProviderConfigProfile> & Pick<ProviderConfigProfile, "profileId" | "role">,
 ): ProviderConfigProfile {
@@ -28,12 +49,13 @@ function providerProfile(
 	return {
 		active: false,
 		baseUrl: "https://provider.example/v1",
+		connectionId: "provider_connection_1",
 		createdAt: "2026-06-16T00:00:00.000Z",
 		dimensions: kind === "embedding" ? 2560 : null,
 		kind,
 		model: kind === "embedding" ? "embedding-test" : "gpt-test",
 		profileId,
-		provider: "openai",
+		provider: "openai-compatible",
 		revision: 1,
 		role,
 		secretConfigured: true,
@@ -45,6 +67,13 @@ function providerProfile(
 		validation: null,
 		...restOverrides,
 	};
+}
+
+function mockConnectionList(connections: ProviderConfigConnection[]) {
+	return new Response(JSON.stringify({ connections }), {
+		headers: { "content-type": "application/json" },
+		status: 200,
+	});
 }
 
 function mockProfileList(profiles: ProviderConfigProfile[]) {
@@ -59,60 +88,80 @@ describe("provider config UI", () => {
 		vi.restoreAllMocks();
 	});
 
-	it("presents provider profiles as operator-facing OpenAI-compatible endpoint settings", async () => {
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(
-			mockProfileList([
-				providerProfile({
-					active: false,
-					profileId: "provider_profile_draft",
-					role: "primary_agent",
-					status: "draft",
-				}),
-				providerProfile({
-					active: true,
-					profileId: "provider_profile_active",
-					role: "rag_synthesis",
-					status: "active",
-				}),
-				providerProfile({
-					profileId: "provider_profile_rag_embedding",
-					role: "rag_query_embedding",
-				}),
-				providerProfile({
-					profileId: "provider_profile_index_embedding",
-					role: "index_embedding",
-				}),
-				providerProfile({
-					profileId: "provider_profile_eval_ragas_llm",
-					role: "eval_ragas_llm",
-				}),
-				providerProfile({
-					profileId: "provider_profile_eval_ragas_embedding",
-					role: "eval_ragas_embedding",
-				}),
-				providerProfile({
-					profileId: "provider_profile_eval_judge_llm",
-					role: "eval_judge_llm",
-				}),
-			]),
-		);
+	it("presents provider connections and runtime profiles as operator-facing settings", async () => {
+		vi.spyOn(globalThis, "fetch").mockImplementation(async (request) => {
+			const url = String(request);
+			if (url === "/api/operator/provider-config/connections") {
+				return mockConnectionList([providerConnection()]);
+			}
+			if (url === "/api/operator/provider-config/profiles") {
+				return mockProfileList([
+					providerProfile({
+						active: false,
+						profileId: "provider_profile_draft",
+						role: "primary_agent",
+						status: "draft",
+					}),
+					providerProfile({
+						active: true,
+						profileId: "provider_profile_active",
+						role: "rag_synthesis",
+						status: "active",
+					}),
+					providerProfile({
+						profileId: "provider_profile_rag_embedding",
+						role: "rag_query_embedding",
+					}),
+					providerProfile({
+						profileId: "provider_profile_index_embedding",
+						role: "index_embedding",
+					}),
+					providerProfile({
+						profileId: "provider_profile_hindsight_llm",
+						role: "hindsight_llm",
+					}),
+					providerProfile({
+						profileId: "provider_profile_hindsight_embedding",
+						role: "hindsight_embedding",
+					}),
+					providerProfile({
+						profileId: "provider_profile_eval_ragas_llm",
+						role: "eval_ragas_llm",
+					}),
+					providerProfile({
+						profileId: "provider_profile_eval_ragas_embedding",
+						role: "eval_ragas_embedding",
+					}),
+					providerProfile({
+						profileId: "provider_profile_eval_judge_llm",
+						role: "eval_judge_llm",
+					}),
+				]);
+			}
+			throw new Error(`unexpected fetch ${url}`);
+		});
 
 		renderWithQueryClient(<ProviderConfigPage />);
 
-		expect(await screen.findByText("OpenAI-compatible 模型端点")).toBeInTheDocument();
-		expect(screen.getByText("配置 OpenAI-compatible 生成模型和向量模型端点。")).toBeInTheDocument();
-		expect(screen.getByLabelText("使用位置")).toBeInTheDocument();
+		expect(await screen.findByText("Provider Connection")).toBeInTheDocument();
+		expect(screen.getByText("保存模型服务端点、密钥和支持的能力。")).toBeInTheDocument();
+		expect(screen.getByLabelText("服务类型")).toBeInTheDocument();
 		expect(screen.getAllByText("服务端点").length).toBeGreaterThan(0);
-		expect(screen.getAllByText("模型名称").length).toBeGreaterThan(0);
 		expect(screen.getByLabelText("密钥")).toBeInTheDocument();
+		expect(screen.getByLabelText("支持能力")).toBeInTheDocument();
+		expect(screen.getByText("Runtime Profile")).toBeInTheDocument();
+		expect(screen.getByLabelText("使用位置")).toBeInTheDocument();
+		expect(screen.getByLabelText("模型连接")).toBeInTheDocument();
+		expect(screen.getAllByText("模型名称").length).toBeGreaterThan(0);
 		expect(screen.getByText("向量维度")).toBeInTheDocument();
 		expect(screen.getByText("超时时间")).toBeInTheDocument();
-		expect(screen.getByText("配置档案")).toBeInTheDocument();
 		expect(screen.getByText("生成模型不需要向量维度")).toBeInTheDocument();
 		expect(screen.getAllByText("主问答生成").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("知识问答生成").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("记忆生成").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("知识检索向量化").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("索引构建向量化").length).toBeGreaterThan(0);
+		expect(screen.getAllByText("记忆向量化").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("RAGAS 评测生成").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("RAGAS 评测向量化").length).toBeGreaterThan(0);
 		expect(screen.getAllByText("评测裁判生成").length).toBeGreaterThan(0);
@@ -121,14 +170,12 @@ describe("provider config UI", () => {
 		expect(screen.queryByText("Model")).not.toBeInTheDocument();
 		expect(screen.queryByText("Dimensions")).not.toBeInTheDocument();
 		expect(screen.queryByText("Timeout ms")).not.toBeInTheDocument();
-		expect(screen.queryByText("Profiles")).not.toBeInTheDocument();
-		expect(screen.queryByText("Endpoint")).not.toBeInTheDocument();
-		expect(screen.queryByText("Key")).not.toBeInTheDocument();
 		expect(await screen.findByRole("row", { name: /知识问答生成/ })).toHaveTextContent("已启用");
 	});
 
 	it("shows validation failures on the affected profile row", async () => {
 		vi.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(mockConnectionList([providerConnection()]))
 			.mockResolvedValueOnce(
 				mockProfileList([
 					providerProfile({
@@ -160,31 +207,51 @@ describe("provider config UI", () => {
 		});
 	});
 
-	it("creates OpenAI-compatible chat-completions prompt profiles for non-OpenAI endpoints", async () => {
+	it("creates a connection before creating a profile that references it", async () => {
 		const fetchSpy = vi
 			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(mockConnectionList([]))
 			.mockResolvedValueOnce(mockProfileList([]))
+			.mockResolvedValueOnce(
+				new Response(
+					JSON.stringify({
+						connection: providerConnection({ connectionId: "provider_connection_new" }),
+					}),
+					{
+						headers: { "content-type": "application/json" },
+						status: 200,
+					},
+				),
+			)
+			.mockResolvedValueOnce(
+				mockConnectionList([providerConnection({ connectionId: "provider_connection_new" })]),
+			)
 			.mockResolvedValueOnce(
 				new Response(JSON.stringify({ profile: { profileId: "provider_profile_created" } }), {
 					headers: { "content-type": "application/json" },
 					status: 200,
 				}),
-			);
+			)
+			.mockResolvedValueOnce(mockProfileList([]));
 
 		renderWithQueryClient(<ProviderConfigPage />);
 
-		await screen.findByText("暂无模型服务配置");
-		fireEvent.change(screen.getByLabelText("模型名称"), { target: { value: "gpt-compatible" } });
+		await screen.findByText("暂无模型服务连接");
 		fireEvent.change(screen.getByLabelText("服务端点"), {
 			target: { value: "https://llm-compatible.example/v1" },
 		});
 		fireEvent.change(screen.getByLabelText("密钥"), { target: { value: "provider-key" } });
-		const transportSelect = document.querySelectorAll("select")[1];
-		if (transportSelect === undefined) {
-			throw new Error("provider transport select was not rendered");
-		}
-		fireEvent.change(transportSelect, { target: { value: "chat_completions" } });
-		fireEvent.click(screen.getByRole("button", { name: "保存配置" }));
+		fireEvent.click(screen.getByRole("button", { name: "保存连接" }));
+
+		await waitFor(() => {
+			expect(fetchSpy).toHaveBeenCalledWith(
+				"/api/operator/provider-config/connections",
+				expect.objectContaining({ method: "POST" }),
+			);
+		});
+
+		fireEvent.change(screen.getByLabelText("模型名称"), { target: { value: "gpt-compatible" } });
+		fireEvent.click(screen.getByRole("button", { name: "保存配置档案" }));
 
 		await waitFor(() => {
 			expect(fetchSpy).toHaveBeenCalledWith(
@@ -192,19 +259,29 @@ describe("provider config UI", () => {
 				expect.objectContaining({ method: "POST" }),
 			);
 		});
-		const [, init] =
-			fetchSpy.mock.calls.find(
-				(call) =>
-					call[0] === "/api/operator/provider-config/profiles" && call[1]?.method === "POST",
-			) ?? [];
-		const payload = JSON.parse(String(init?.body));
-		expect(payload).toMatchObject({
+		const connectionRequest = fetchSpy.mock.calls.find(
+			(call) =>
+				call[0] === "/api/operator/provider-config/connections" && call[1]?.method === "POST",
+		);
+		const profileRequest = fetchSpy.mock.calls.find(
+			(call) => call[0] === "/api/operator/provider-config/profiles" && call[1]?.method === "POST",
+		);
+		const connectionPayload = JSON.parse(String(connectionRequest?.[1]?.body));
+		const profilePayload = JSON.parse(String(profileRequest?.[1]?.body));
+		expect(connectionPayload).toMatchObject({
+			apiKey: "provider-key",
 			baseUrl: "https://llm-compatible.example/v1",
+			features: ["prompt"],
+			provider: "openai-compatible",
+		});
+		expect(profilePayload).toMatchObject({
+			connectionId: "provider_connection_new",
 			kind: "prompt",
 			model: "gpt-compatible",
-			provider: "openai-compatible",
 			role: "primary_agent",
-			transport: "chat_completions",
+			transport: "responses",
 		});
+		expect(profilePayload).not.toHaveProperty("apiKey");
+		expect(profilePayload).not.toHaveProperty("baseUrl");
 	});
 });
